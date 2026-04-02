@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\UpdateRoleTablePresetRequest;
+use App\Models\Role;
+use App\Support\OrderTableColumns;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class SettingsTableManagementController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+
+        return Inertia::render('Settings/Tables', [
+            'roles' => Role::query()
+                ->orderBy('display_name')
+                ->orderBy('name')
+                ->get()
+                ->map(function (Role $role): array {
+                    $columnsConfig = is_array($role->columns_config) ? $role->columns_config : [];
+
+                    return [
+                        'id' => $role->id,
+                        'name' => $role->name,
+                        'display_name' => $role->display_name,
+                        'columns_config' => [
+                            'orders' => $columnsConfig['orders'] ?? OrderTableColumns::defaultState($role->name),
+                        ],
+                    ];
+                })
+                ->values(),
+            'orderColumns' => OrderTableColumns::options(),
+        ]);
+    }
+
+    public function update(UpdateRoleTablePresetRequest $request, Role $role): RedirectResponse
+    {
+        $columnsConfig = is_array($role->columns_config) ? $role->columns_config : [];
+        $columnsConfig['orders'] = $request->validated('orders');
+
+        $role->update([
+            'columns_config' => $columnsConfig,
+        ]);
+
+        return to_route('settings.tables.index');
+    }
+}

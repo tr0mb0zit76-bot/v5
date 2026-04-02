@@ -1,0 +1,211 @@
+<?php
+
+namespace App\Http\Controllers\Orders;
+
+use App\Http\Controllers\Controller;
+use App\Support\OrderTableColumns;
+use App\Support\RoleAccess;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class OrderIndexController extends Controller
+{
+    public function __invoke(Request $request): Response
+    {
+        $user = $request->user();
+        $role = $this->resolveRole($user?->role_id);
+        $roleName = $role['name'];
+        $ordersScope = RoleAccess::resolveVisibilityScope($roleName, $role['visibility_scopes'], 'orders');
+
+        $rows = DB::table('orders')
+            ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id')
+            ->leftJoin('contractors as customers', 'customers.id', '=', 'orders.customer_id')
+            ->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id')
+            ->select([
+                'orders.id',
+                'orders.order_number',
+                'orders.company_code',
+                'orders.manager_id',
+                'managers.name as manager_name',
+                'orders.site_id',
+                'orders.order_date',
+                'orders.loading_date',
+                'orders.unloading_date',
+                'orders.customer_id',
+                'customers.name as customer_name',
+                'orders.customer_payment_form',
+                'orders.customer_payment_term',
+                'orders.carrier_id',
+                'carriers.name as carrier_name',
+                'orders.driver_id',
+                'orders.customer_rate',
+                'orders.carrier_rate',
+                'orders.carrier_payment_form',
+                'orders.carrier_payment_term',
+                'orders.additional_expenses',
+                'orders.insurance',
+                'orders.bonus',
+                'orders.delta',
+                'orders.kpi_percent',
+                'orders.salary_accrued',
+                'orders.salary_paid',
+                'orders.status',
+                'orders.manual_status',
+                'orders.status_updated_by',
+                'orders.status_updated_at',
+                'orders.is_active',
+                'orders.ai_draft_id',
+                'orders.ai_confidence',
+                'orders.ai_metadata',
+                'orders.ati_response',
+                'orders.ati_load_id',
+                'orders.ati_published_at',
+                DB::raw('COALESCE(orders.manual_status, orders.status) as status_text'),
+                'orders.invoice_number',
+                'orders.upd_number',
+                'orders.waybill_number',
+                'orders.track_number_customer',
+                'orders.track_sent_date_customer',
+                'orders.track_received_date_customer',
+                'orders.track_number_carrier',
+                'orders.track_sent_date_carrier',
+                'orders.track_received_date_carrier',
+                'orders.order_customer_number',
+                'orders.order_customer_date',
+                'orders.order_carrier_number',
+                'orders.order_carrier_date',
+                'orders.upd_carrier_number',
+                'orders.upd_carrier_date',
+                'orders.customer_contact_name',
+                'orders.customer_contact_phone',
+                'orders.customer_contact_email',
+                'orders.carrier_contact_name',
+                'orders.carrier_contact_phone',
+                'orders.carrier_contact_email',
+                'orders.created_by',
+                'orders.updated_by',
+                'orders.metadata',
+                'orders.payment_statuses',
+                'orders.created_at',
+                'orders.updated_at',
+            ])
+            ->selectSub($this->routePointSubquery('loading'), 'loading_point')
+            ->selectSub($this->routePointSubquery('unloading'), 'unloading_point')
+            ->selectSub($this->cargoDescriptionSubquery(), 'cargo_description')
+            ->when(
+                $user !== null && $roleName !== 'admin' && $ordersScope !== 'all',
+                function ($query) use ($user) {
+                $query->where('orders.manager_id', $user->id);
+                }
+            )
+            ->orderBy('orders.id')
+            ->get()
+            ->map(fn ($order) => [
+                ...(array) $order,
+                'can_delete' => $this->canDeleteOrder((array) $order, $roleName, $user?->id),
+            ]);
+
+        return Inertia::render('Orders/Index', [
+            'rows' => $rows,
+            'roleKey' => $roleName ?? 'manager',
+            'orderColumns' => OrderTableColumns::options(),
+        ]);
+    }
+
+    /**
+     * @return array{name: string|null, visibility_scopes: array<string, string>}
+     */
+    private function resolveRole(?int $roleId): array
+    {
+        if ($roleId === null) {
+            return [
+                'name' => null,
+                'visibility_scopes' => [],
+            ];
+        }
+
+        $select = ['name'];
+
+        if (Schema::hasColumn('roles', 'visibility_scopes')) {
+            $select[] = 'visibility_scopes';
+        }
+
+        $role = DB::table('roles')
+            ->where('id', $roleId)
+            ->select($select)
+            ->first();
+
+        if ($role === null) {
+            return [
+                'name' => null,
+                'visibility_scopes' => [],
+            ];
+        }
+
+        $visibilityScopes = property_exists($role, 'visibility_scopes')
+            ? $role->visibility_scopes
+            : [];
+
+        if (is_string($visibilityScopes)) {
+            $visibilityScopes = json_decode($visibilityScopes, true);
+        }
+
+        return [
+            'name' => $role->name,
+            'visibility_scopes' => is_array($visibilityScopes) ? $visibilityScopes : [],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     */
+    private function canDeleteOrder(array $order, ?string $roleName, ?int $userId): bool
+    {
+        if ($userId === null) {
+            return false;
+        }
+
+        if (in_array($roleName, ['admin', 'supervisor'], true)) {
+            return true;
+        }
+
+        if ($roleName !== 'manager') {
+            return false;
+        }
+
+        return (int) ($order['manager_id'] ?? 0) === $userId
+            && empty($order['loading_date']);
+    }
+
+    private function routePointSubquery(string $type)
+    {
+        $addressExpression = Schema::hasColumn('route_points', 'address')
+            ? 'COALESCE(NULLIF(route_points.address, ""), NULLIF(cities.name, ""), addresses.address_line)'
+            : 'COALESCE(NULLIF(cities.name, ""), addresses.address_line)';
+
+        return DB::table('route_points')
+            ->join('order_legs', 'order_legs.id', '=', 'route_points.order_leg_id')
+            ->leftJoin('addresses', 'addresses.id', '=', 'route_points.address_id')
+            ->leftJoin('cities', 'cities.id', '=', 'addresses.city_id')
+            ->selectRaw($addressExpression)
+            ->whereColumn('order_legs.order_id', 'orders.id')
+            ->where('route_points.type', $type)
+            ->orderBy('order_legs.sequence')
+            ->orderBy('route_points.sequence')
+            ->limit(1);
+    }
+
+    private function cargoDescriptionSubquery()
+    {
+        return DB::table('cargo_leg')
+            ->join('order_legs', 'order_legs.id', '=', 'cargo_leg.order_leg_id')
+            ->join('cargos', 'cargos.id', '=', 'cargo_leg.cargo_id')
+            ->selectRaw('COALESCE(NULLIF(cargos.title, ""), cargos.description)')
+            ->whereColumn('order_legs.order_id', 'orders.id')
+            ->orderBy('order_legs.sequence')
+            ->limit(1);
+    }
+}

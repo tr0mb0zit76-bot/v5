@@ -1,0 +1,104 @@
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class StoreOrderRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user() !== null;
+    }
+
+    /**
+     * @return array<string, ValidationRule|array<int, ValidationRule|string>|string>
+     */
+    public function rules(): array
+    {
+        return $this->baseRules();
+    }
+
+    /**
+     * @return array<string, ValidationRule|array<int, ValidationRule|string>|string>
+     */
+    protected function baseRules(): array
+    {
+        return [
+            'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled'])],
+            'own_company_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'client_id' => ['required', 'integer', 'exists:contractors,id'],
+            'order_date' => ['required', 'date'],
+            'order_number' => ['nullable', 'string', 'max:255'],
+            'special_notes' => ['nullable', 'string'],
+
+            'performers' => ['nullable', 'array'],
+            'performers.*.stage' => ['required', 'string', 'max:50'],
+            'performers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+
+            'route_points' => ['nullable', 'array'],
+            'route_points.*.type' => ['required', Rule::in(['loading', 'unloading'])],
+            'route_points.*.sequence' => ['nullable', 'integer', 'min:1'],
+            'route_points.*.address' => ['required', 'string', 'max:500'],
+            'route_points.*.normalized_data' => ['nullable', 'array'],
+            'route_points.*.planned_date' => ['nullable', 'date'],
+            'route_points.*.actual_date' => ['nullable', 'date'],
+            'route_points.*.contact_person' => ['nullable', 'string', 'max:255'],
+            'route_points.*.contact_phone' => ['nullable', 'string', 'max:50'],
+
+            'cargo_items' => ['nullable', 'array'],
+            'cargo_items.*.name' => ['required', 'string', 'max:500'],
+            'cargo_items.*.description' => ['nullable', 'string'],
+            'cargo_items.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'cargo_items.*.volume_m3' => ['nullable', 'numeric', 'min:0'],
+            'cargo_items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag'])],
+            'cargo_items.*.package_count' => ['nullable', 'integer', 'min:0'],
+            'cargo_items.*.dangerous_goods' => ['required', 'boolean'],
+            'cargo_items.*.dangerous_class' => ['nullable', 'string', 'max:10'],
+            'cargo_items.*.hs_code' => ['nullable', 'string', 'max:50'],
+            'cargo_items.*.cargo_type' => ['required', Rule::in(['general', 'dangerous', 'temperature_controlled', 'oversized', 'fragile'])],
+
+            'financial_term' => ['nullable', 'array'],
+            'financial_term.client_price' => ['nullable', 'numeric', 'min:0'],
+            'financial_term.client_currency' => ['required_with:financial_term', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.client_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'financial_term.client_payment_schedule' => ['nullable', 'array'],
+            'financial_term.client_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
+            'financial_term.client_payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
+            'financial_term.client_payment_schedule.prepayment_days' => ['nullable', 'integer', 'min:0'],
+            'financial_term.client_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'financial_term.client_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
+            'financial_term.client_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'financial_term.kpi_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'financial_term.contractors_costs' => ['nullable', 'array'],
+            'financial_term.contractors_costs.*.stage' => ['required_with:financial_term.contractors_costs', 'string', 'max:50'],
+            'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'financial_term.contractors_costs.*.currency' => ['required_with:financial_term.contractors_costs', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.contractors_costs.*.payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'financial_term.contractors_costs.*.payment_schedule' => ['nullable', 'array'],
+            'financial_term.contractors_costs.*.payment_schedule.has_prepayment' => ['nullable', 'boolean'],
+            'financial_term.contractors_costs.*.payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
+            'financial_term.contractors_costs.*.payment_schedule.prepayment_days' => ['nullable', 'integer', 'min:0'],
+            'financial_term.contractors_costs.*.payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'financial_term.contractors_costs.*.payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
+            'financial_term.contractors_costs.*.payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'financial_term.additional_costs' => ['nullable', 'array'],
+            'financial_term.additional_costs.*.label' => ['required_with:financial_term.additional_costs', 'string', 'max:100'],
+            'financial_term.additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'financial_term.additional_costs.*.currency' => ['required_with:financial_term.additional_costs', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+
+            'documents' => ['nullable', 'array'],
+            'documents.*.type' => ['required', Rule::in(['request', 'waybill', 'cmr', 'upd', 'invoice', 'invoice_factura', 'act', 'packing_list', 'customs_declaration', 'other'])],
+            'documents.*.party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],
+            'documents.*.requirement_key' => ['nullable', 'string', 'max:100'],
+            'documents.*.number' => ['nullable', 'string', 'max:255'],
+            'documents.*.document_date' => ['nullable', 'date'],
+            'documents.*.status' => ['required', Rule::in(['draft', 'pending', 'signed', 'sent'])],
+            'documents.*.template_id' => ['nullable', 'integer'],
+            'documents.*.file' => ['nullable', 'file', 'max:20480'],
+        ];
+    }
+}

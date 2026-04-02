@@ -1,0 +1,1046 @@
+<script setup>
+import { computed, ref, watch } from 'vue';
+import { router, useForm, usePage } from '@inertiajs/vue3';
+import {
+    Building2,
+    FileText,
+    History,
+    Plus,
+    Save,
+    Search,
+    ShieldCheck,
+    Trash2,
+    Users,
+} from 'lucide-vue-next';
+import CrmLayout from '@/Layouts/CrmLayout.vue';
+
+defineOptions({
+    layout: (h, page) => h(CrmLayout, { activeKey: 'contractors' }, () => page),
+});
+
+const props = defineProps({
+    contractors: {
+        type: Array,
+        default: () => [],
+    },
+    selectedContractor: {
+        type: Object,
+        default: null,
+    },
+    legalFormOptions: {
+        type: Array,
+        default: () => [],
+    },
+});
+
+const page = usePage();
+const search = ref('');
+const activeTab = ref('general');
+const isInnLookupPending = ref(false);
+const addressSuggestions = ref({
+    legal_address: [],
+    actual_address: [],
+    postal_address: [],
+});
+const addressTimers = {};
+let innLookupTimer = null;
+const lastAutoFilledInn = ref('');
+
+const tabs = [
+    { key: 'general', label: 'Общие сведения', icon: Building2 },
+    { key: 'requisites', label: 'Реквизиты', icon: ShieldCheck },
+    { key: 'contacts', label: 'Контакты', icon: Users },
+    { key: 'history', label: 'История общения', icon: History },
+    { key: 'orders', label: 'Заказы', icon: FileText },
+    { key: 'documents', label: 'Документы', icon: FileText },
+];
+
+const contractorTypes = [
+    { value: 'customer', label: 'Заказчик' },
+    { value: 'carrier', label: 'Перевозчик' },
+    { value: 'both', label: 'Заказчик и перевозчик' },
+];
+
+const interactionChannels = [
+    { value: 'phone', label: 'Телефон' },
+    { value: 'email', label: 'Email' },
+    { value: 'messenger', label: 'Мессенджер' },
+    { value: 'meeting', label: 'Встреча' },
+];
+
+function blankForm() {
+    return {
+        type: 'customer',
+        name: '',
+        full_name: '',
+        inn: '',
+        kpp: '',
+        ogrn: '',
+        okpo: '',
+        legal_form: '',
+        legal_address: '',
+        actual_address: '',
+        postal_address: '',
+        phone: '',
+        email: '',
+        website: '',
+        contact_person: '',
+        contact_person_phone: '',
+        contact_person_email: '',
+        contact_person_position: '',
+        bank_name: '',
+        bik: '',
+        account_number: '',
+        correspondent_account: '',
+        ati_id: '',
+        specializations: [],
+        transport_requirements: [],
+        is_active: true,
+        is_verified: false,
+        is_own_company: false,
+        contacts: [],
+        interactions: [],
+        documents: [],
+    };
+}
+
+function contractorToForm(contractor) {
+    if (!contractor) {
+        return blankForm();
+    }
+
+    return {
+        type: contractor.type ?? 'customer',
+        name: contractor.name ?? '',
+        full_name: contractor.full_name ?? '',
+        inn: contractor.inn ?? '',
+        kpp: contractor.kpp ?? '',
+        ogrn: contractor.ogrn ?? '',
+        okpo: contractor.okpo ?? '',
+        legal_form: contractor.legal_form ?? '',
+        legal_address: contractor.legal_address ?? '',
+        actual_address: contractor.actual_address ?? '',
+        postal_address: contractor.postal_address ?? '',
+        phone: contractor.phone ?? '',
+        email: contractor.email ?? '',
+        website: contractor.website ?? '',
+        contact_person: contractor.contact_person ?? '',
+        contact_person_phone: contractor.contact_person_phone ?? '',
+        contact_person_email: contractor.contact_person_email ?? '',
+        contact_person_position: contractor.contact_person_position ?? '',
+        bank_name: contractor.bank_name ?? '',
+        bik: contractor.bik ?? '',
+        account_number: contractor.account_number ?? '',
+        correspondent_account: contractor.correspondent_account ?? '',
+        ati_id: contractor.ati_id ?? '',
+        specializations: Array.isArray(contractor.specializations) ? contractor.specializations : [],
+        transport_requirements: Array.isArray(contractor.transport_requirements) ? contractor.transport_requirements : [],
+        is_active: Boolean(contractor.is_active),
+        is_verified: Boolean(contractor.is_verified),
+        is_own_company: Boolean(contractor.is_own_company),
+        contacts: Array.isArray(contractor.contacts)
+            ? contractor.contacts.map((contact) => ({
+                full_name: contact.full_name ?? '',
+                position: contact.position ?? '',
+                phone: contact.phone ?? '',
+                email: contact.email ?? '',
+                is_primary: Boolean(contact.is_primary),
+                notes: contact.notes ?? '',
+            }))
+            : [],
+        interactions: Array.isArray(contractor.interactions)
+            ? contractor.interactions.map((interaction) => ({
+                contacted_at: interaction.contacted_at ? interaction.contacted_at.slice(0, 16) : '',
+                channel: interaction.channel ?? '',
+                subject: interaction.subject ?? '',
+                summary: interaction.summary ?? '',
+                result: interaction.result ?? '',
+            }))
+            : [],
+        documents: Array.isArray(contractor.documents)
+            ? contractor.documents.map((document) => ({
+                type: document.type ?? '',
+                title: document.title ?? '',
+                number: document.number ?? '',
+                document_date: document.document_date ?? '',
+                status: document.status ?? '',
+                notes: document.notes ?? '',
+            }))
+            : [],
+    };
+}
+
+const form = useForm(contractorToForm(props.selectedContractor));
+const specializationsText = ref('');
+const transportRequirementsText = ref('');
+
+function applyFormState(contractor) {
+    const payload = contractorToForm(contractor);
+    form.defaults(payload);
+    form.reset();
+    lastAutoFilledInn.value = payload.inn;
+
+    for (const [key, value] of Object.entries(payload)) {
+        form[key] = value;
+    }
+
+    specializationsText.value = payload.specializations.join('\n');
+    transportRequirementsText.value = payload.transport_requirements.join('\n');
+    activeTab.value = 'general';
+    addressSuggestions.value = {
+        legal_address: [],
+        actual_address: [],
+        postal_address: [],
+    };
+}
+
+applyFormState(props.selectedContractor);
+
+watch(() => props.selectedContractor, (contractor) => {
+    applyFormState(contractor);
+});
+
+const isCreating = computed(() => page.url.endsWith('/contractors/create'));
+const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
+
+const filteredContractors = computed(() => {
+    const query = search.value.trim().toLowerCase();
+
+    if (query === '') {
+        return props.contractors;
+    }
+
+    return props.contractors.filter((contractor) => {
+        return [contractor.name, contractor.inn, contractor.phone, contractor.email]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query));
+    });
+});
+
+const totalOrdersCount = computed(() => props.selectedContractor?.orders?.length ?? 0);
+
+function openCreateForm() {
+    router.get(route('contractors.create'), {}, { preserveScroll: true });
+}
+
+function openContractor(contractorId) {
+    router.get(route('contractors.show', contractorId), {}, { preserveScroll: true });
+}
+
+function resetToSelected() {
+    applyFormState(props.selectedContractor);
+}
+
+function parseMultilineList(value) {
+    return value
+        .split('\n')
+        .map((item) => item.trim())
+        .filter((item) => item !== '');
+}
+
+function submit() {
+    form.specializations = parseMultilineList(specializationsText.value);
+    form.transport_requirements = parseMultilineList(transportRequirementsText.value);
+
+    if (selectedContractorId.value === null) {
+        form.post(route('contractors.store'), {
+            preserveScroll: true,
+        });
+
+        return;
+    }
+
+    form.patch(route('contractors.update', selectedContractorId.value), {
+        preserveScroll: true,
+    });
+}
+
+function removeContractor() {
+    if (selectedContractorId.value === null) {
+        return;
+    }
+
+    if (!window.confirm('Удалить контрагента?')) {
+        return;
+    }
+
+    router.delete(route('contractors.destroy', selectedContractorId.value), {
+        preserveScroll: true,
+    });
+}
+
+function addContact() {
+    form.contacts.push({
+        full_name: '',
+        position: '',
+        phone: '',
+        email: '',
+        is_primary: form.contacts.length === 0,
+        notes: '',
+    });
+}
+
+function addInteraction() {
+    form.interactions.push({
+        contacted_at: '',
+        channel: 'phone',
+        subject: '',
+        summary: '',
+        result: '',
+    });
+}
+
+function addDocument() {
+    form.documents.push({
+        type: '',
+        title: '',
+        number: '',
+        document_date: '',
+        status: '',
+        notes: '',
+    });
+}
+
+function removeItem(collection, index) {
+    collection.splice(index, 1);
+}
+
+async function fetchPartySuggestions() {
+    const query = form.inn.trim() || form.name.trim();
+
+    if (query.length < 2) {
+        return;
+    }
+
+    isInnLookupPending.value = true;
+
+    try {
+        const response = await fetch(`${route('contractors.suggest-party')}?query=${encodeURIComponent(query)}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+        const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+
+        if (suggestions.length > 0) {
+            applyPartySuggestion(suggestions[0]);
+            lastAutoFilledInn.value = query;
+        }
+    } catch (error) {
+        console.error('DaData party suggestion error', error);
+    } finally {
+        isInnLookupPending.value = false;
+    }
+}
+
+function applyPartySuggestion(suggestion) {
+    const party = suggestion?.data ?? {};
+
+    form.name = suggestion.value ?? form.name;
+    form.full_name = party.name?.full_with_opf ?? form.full_name;
+    form.inn = party.inn ?? form.inn;
+    form.kpp = party.kpp ?? form.kpp;
+    form.ogrn = party.ogrn ?? form.ogrn;
+    form.okpo = party.okpo ?? form.okpo;
+    form.legal_address = party.address?.value ?? form.legal_address;
+    form.actual_address = party.address?.value ?? form.actual_address;
+    form.postal_address = party.address?.value ?? form.postal_address;
+
+    if (party.type === 'INDIVIDUAL') {
+        form.legal_form = 'ip';
+    }
+}
+
+async function fetchAddressSuggestions(field, value) {
+    if (value.trim().length < 3) {
+        addressSuggestions.value[field] = [];
+        return;
+    }
+
+    try {
+        const response = await fetch(`${route('contractors.suggest-address')}?query=${encodeURIComponent(value)}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+        addressSuggestions.value[field] = Array.isArray(data.suggestions) ? data.suggestions : [];
+    } catch (error) {
+        console.error('DaData address suggestion error', error);
+        addressSuggestions.value[field] = [];
+    }
+}
+
+function queueAddressLookup(field) {
+    clearTimeout(addressTimers[field]);
+
+    addressTimers[field] = window.setTimeout(() => {
+        fetchAddressSuggestions(field, form[field] ?? '');
+    }, 300);
+}
+
+function selectAddress(field, suggestion) {
+    form[field] = suggestion.value ?? '';
+    addressSuggestions.value[field] = [];
+}
+
+function formatDate(value) {
+    if (!value) {
+        return '—';
+    }
+
+    return new Date(value).toLocaleDateString('ru-RU');
+}
+
+function contractorTypeLabel(value) {
+    return contractorTypes.find((item) => item.value === value)?.label ?? value;
+}
+
+watch(() => form.inn, (inn) => {
+    clearTimeout(innLookupTimer);
+
+    const normalizedInn = String(inn ?? '').replace(/\D/g, '');
+
+    if (![10, 12].includes(normalizedInn.length) || normalizedInn === lastAutoFilledInn.value) {
+        return;
+    }
+
+    innLookupTimer = window.setTimeout(() => {
+        form.inn = normalizedInn;
+        fetchPartySuggestions();
+    }, 500);
+});
+</script>
+
+<template>
+    <div class="flex h-full min-h-0 flex-col gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Единая карточка контрагента с реквизитами, контактами, историей коммуникаций и связанными заказами.
+                </p>
+            </div>
+
+            <button
+                type="button"
+                class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                @click="openCreateForm"
+            >
+                <Plus class="h-4 w-4" />
+                Новый контрагент
+            </button>
+        </div>
+
+        <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <aside class="flex min-h-0 flex-col border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="border-b border-zinc-200 p-3 dark:border-zinc-800">
+                    <div class="relative">
+                        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                        <input
+                            v-model="search"
+                            type="text"
+                            placeholder="Поиск по названию, ИНН, телефону"
+                            class="w-full border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                        />
+                    </div>
+                </div>
+
+                <div class="border-b border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                    Всего контрагентов: {{ contractors.length }}
+                </div>
+
+                <div class="min-h-0 flex-1 overflow-auto">
+                    <button
+                        v-for="contractor in filteredContractors"
+                        :key="contractor.id"
+                        type="button"
+                        class="flex w-full flex-col gap-1 border-b border-zinc-100 px-3 py-3 text-left transition-colors dark:border-zinc-800"
+                        :class="selectedContractorId === contractor.id
+                            ? 'bg-zinc-100 dark:bg-zinc-800'
+                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'"
+                        @click="openContractor(contractor.id)"
+                    >
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="space-y-1">
+                                <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ contractor.name }}</div>
+                                <div v-if="contractor.is_own_company" class="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                                    Своя компания
+                                </div>
+                            </div>
+                            <span
+                                class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                :class="contractor.is_active
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                    : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'"
+                            >
+                                {{ contractor.is_active ? 'Активен' : 'Архив' }}
+                            </span>
+                        </div>
+
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ contractorTypeLabel(contractor.type) }}<span v-if="contractor.inn"> · ИНН {{ contractor.inn }}</span>
+                        </div>
+
+                        <div class="flex flex-wrap gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                            <span>Контакты: {{ contractor.contacts_count }}</span>
+                            <span>Заказы: {{ contractor.orders_count }}</span>
+                        </div>
+                    </button>
+
+                    <div v-if="filteredContractors.length === 0" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                        Контрагенты не найдены.
+                    </div>
+                </div>
+            </aside>
+
+            <section class="flex min-h-0 flex-col border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                    <div class="space-y-1">
+                        <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ isCreating ? 'Новый контрагент' : (selectedContractor?.name || 'Карточка контрагента') }}
+                        </div>
+                        <div class="flex flex-wrap gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                            <span v-if="selectedContractor?.inn">ИНН {{ selectedContractor.inn }}</span>
+                            <span v-if="selectedContractor?.phone">{{ selectedContractor.phone }}</span>
+                            <span v-if="selectedContractor?.email">{{ selectedContractor.email }}</span>
+                            <span v-if="selectedContractorId !== null">Заказы: {{ totalOrdersCount }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                            @click="resetToSelected"
+                        >
+                            Сбросить
+                        </button>
+                        <button
+                            v-if="selectedContractorId !== null"
+                            type="button"
+                            class="inline-flex items-center gap-2 border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                            @click="removeContractor"
+                        >
+                            <Trash2 class="h-4 w-4" />
+                            Удалить
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-2 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            :disabled="form.processing"
+                            @click="submit"
+                        >
+                            <Save class="h-4 w-4" />
+                            {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="tab in tabs"
+                            :key="tab.key"
+                            type="button"
+                            class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
+                            :class="activeTab === tab.key
+                                ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                                : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                            @click="activeTab = tab.key"
+                        >
+                            <component :is="tab.icon" class="h-4 w-4" />
+                            {{ tab.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
+                    <div v-if="activeTab === 'general'" class="space-y-4">
+                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Тип контрагента</label>
+                                        <select
+                                            v-model="form.type"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        >
+                                            <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
+                                                {{ type.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div class="flex items-end gap-3">
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
+                                            Активен
+                                        </label>
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
+                                            Проверен
+                                        </label>
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
+                                            Своя компания
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Краткое название</label>
+                                        <input
+                                            v-model="form.name"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                        <div v-if="form.errors.name" class="text-sm text-rose-600">{{ form.errors.name }}</div>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Полное название</label>
+                                        <input
+                                            v-model="form.full_name"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4">
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">ИНН</label>
+                                            <input
+                                                v-model="form.inn"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                            <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                После ввода корректного ИНН DaData подставит реквизиты автоматически.
+                                            </div>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">Основной телефон</label>
+                                            <input
+                                                v-model="form.phone"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div v-if="isInnLookupPending" class="inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                                        <Search class="h-4 w-4 animate-pulse" />
+                                        Идёт поиск реквизитов в DaData...
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Email</label>
+                                        <input
+                                            v-model="form.email"
+                                            type="email"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Сайт</label>
+                                        <input
+                                            v-model="form.website"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Основной контакт</div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Контактное лицо</label>
+                                    <input
+                                        v-model="form.contact_person"
+                                        type="text"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Должность</label>
+                                    <input
+                                        v-model="form.contact_person_position"
+                                        type="text"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Телефон</label>
+                                    <input
+                                        v-model="form.contact_person_phone"
+                                        type="text"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Email</label>
+                                    <input
+                                        v-model="form.contact_person_email"
+                                        type="email"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else-if="activeTab === 'requisites'" class="space-y-4">
+                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Орг.-правовая форма</label>
+                                        <select
+                                            v-model="form.legal_form"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        >
+                                            <option value="">Не указана</option>
+                                            <option v-for="option in legalFormOptions" :key="option.value" :value="option.value">
+                                                {{ option.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">КПП</label>
+                                        <input
+                                            v-model="form.kpp"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">ОГРН</label>
+                                        <input
+                                            v-model="form.ogrn"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">ОКПО</label>
+                                        <input
+                                            v-model="form.okpo"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="mb-3 text-sm font-medium">Банковские реквизиты</div>
+                                <div class="space-y-3">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Банк</label>
+                                        <input v-model="form.bank_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">БИК</label>
+                                            <input v-model="form.bik" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">Расчётный счёт</label>
+                                            <input v-model="form.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Корреспондентский счёт</label>
+                                        <input v-model="form.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">ATI ID</label>
+                                        <input v-model="form.ati_id" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            <div class="space-y-4">
+                                <div class="relative space-y-2">
+                                    <label class="text-sm font-medium">Юридический адрес</label>
+                                    <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')" />
+                                    <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                        <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
+                                            {{ suggestion.value }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="relative space-y-2">
+                                    <label class="text-sm font-medium">Фактический адрес</label>
+                                    <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')" />
+                                    <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                        <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
+                                            {{ suggestion.value }}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="relative space-y-2">
+                                    <label class="text-sm font-medium">Почтовый адрес</label>
+                                    <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')" />
+                                    <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                        <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
+                                            {{ suggestion.value }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium">Специализации</div>
+                                    <textarea
+                                        v-model="specializationsText"
+                                        rows="6"
+                                        placeholder="По одной специализации на строку"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium">Требования к перевозке</div>
+                                    <textarea
+                                        v-model="transportRequirementsText"
+                                        rows="6"
+                                        placeholder="По одному требованию на строку"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else-if="activeTab === 'contacts'" class="space-y-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                Отдельные контакты удобно хранить отдельно от основной карточки компании.
+                            </div>
+                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addContact">
+                                <Plus class="h-4 w-4" />
+                                Добавить контакт
+                            </button>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div v-for="(contact, index) in form.contacts" :key="`contact-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="mb-3 flex items-center justify-between gap-3">
+                                    <div class="text-sm font-medium">Контакт #{{ index + 1 }}</div>
+                                    <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.contacts, index)">
+                                        Удалить
+                                    </button>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">ФИО</label>
+                                        <input v-model="contact.full_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Должность</label>
+                                        <input v-model="contact.position" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <label class="flex items-center gap-2 pt-8 text-sm">
+                                        <input v-model="contact.is_primary" type="checkbox" class="rounded border-zinc-300" />
+                                        Основной контакт
+                                    </label>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Телефон</label>
+                                        <input v-model="contact.phone" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Email</label>
+                                        <input v-model="contact.email" type="email" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2 md:col-span-2 xl:col-span-1">
+                                        <label class="text-sm font-medium">Комментарий</label>
+                                        <input v-model="contact.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="form.contacts.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                                Отдельные контакты пока не добавлены.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else-if="activeTab === 'history'" class="space-y-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                История звонков, писем, встреч и результатов коммуникации.
+                            </div>
+                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addInteraction">
+                                <Plus class="h-4 w-4" />
+                                Добавить запись
+                            </button>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div v-for="(interaction, index) in form.interactions" :key="`interaction-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="mb-3 flex items-center justify-between gap-3">
+                                    <div class="text-sm font-medium">Событие #{{ index + 1 }}</div>
+                                    <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.interactions, index)">
+                                        Удалить
+                                    </button>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Дата и время</label>
+                                        <input v-model="interaction.contacted_at" type="datetime-local" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Канал</label>
+                                        <select v-model="interaction.channel" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                            <option value="">Не указан</option>
+                                            <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
+                                                {{ channel.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2 md:col-span-2">
+                                        <label class="text-sm font-medium">Тема</label>
+                                        <input v-model="interaction.subject" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Краткое содержание</label>
+                                        <textarea v-model="interaction.summary" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Результат</label>
+                                        <input v-model="interaction.result" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="form.interactions.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                                История общения пока не заполнена.
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else-if="activeTab === 'orders'" class="space-y-4">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                            Последние связанные заказы. Таблица пока read-only, без редактирования из карточки контрагента.
+                        </div>
+
+                        <div class="overflow-auto border border-zinc-200 dark:border-zinc-800">
+                            <table class="min-w-full border-collapse text-sm">
+                                <thead class="bg-zinc-100 dark:bg-zinc-800">
+                                    <tr class="text-left">
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Заказ</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Роль</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Статус</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Дата</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Ставка клиента</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Ставка перевозчика</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="order in selectedContractor?.orders || []" :key="order.id" class="border-b border-zinc-100 dark:border-zinc-800">
+                                        <td class="px-3 py-3 font-medium">{{ order.order_number || `#${order.id}` }}</td>
+                                        <td class="px-3 py-3">{{ order.relation === 'customer' ? 'Заказчик' : 'Перевозчик' }}</td>
+                                        <td class="px-3 py-3">{{ order.status || '—' }}</td>
+                                        <td class="px-3 py-3">{{ formatDate(order.order_date) }}</td>
+                                        <td class="px-3 py-3">{{ order.customer_rate ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ order.carrier_rate ?? '—' }}</td>
+                                    </tr>
+                                    <tr v-if="(selectedContractor?.orders || []).length === 0">
+                                        <td colspan="6" class="px-3 py-12 text-center text-zinc-500 dark:text-zinc-400">
+                                            У контрагента пока нет связанных заказов.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div v-else-if="activeTab === 'documents'" class="space-y-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                Карточка хранит метаданные по документам контрагента. Файловое хранилище можно подключить отдельным шагом.
+                            </div>
+                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocument">
+                                <Plus class="h-4 w-4" />
+                                Добавить документ
+                            </button>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div v-for="(document, index) in form.documents" :key="`document-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="mb-3 flex items-center justify-between gap-3">
+                                    <div class="text-sm font-medium">Документ #{{ index + 1 }}</div>
+                                    <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.documents, index)">
+                                        Удалить
+                                    </button>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Тип</label>
+                                        <input v-model="document.type" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Наименование</label>
+                                        <input v-model="document.title" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Номер</label>
+                                        <input v-model="document.number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Дата документа</label>
+                                        <input v-model="document.document_date" type="date" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Статус</label>
+                                        <input v-model="document.status" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2 md:col-span-2 xl:col-span-1">
+                                        <label class="text-sm font-medium">Комментарий</label>
+                                        <input v-model="document.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="form.documents.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                                Документы пока не добавлены.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</template>

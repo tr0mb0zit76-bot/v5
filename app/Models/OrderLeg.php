@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\OrderLegFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class OrderLeg extends Model
+{
+    /** @use HasFactory<OrderLegFactory> */
+    use HasFactory;
+
+    /**
+     * @var list<string>
+     */
+    protected $fillable = [
+        'order_id',
+        'sequence',
+        'type',
+        'description',
+        'metadata',
+    ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'metadata' => 'array',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<Order, $this>
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    /**
+     * @return HasMany<RoutePoint, $this>
+     */
+    public function routePoints(): HasMany
+    {
+        return $this->hasMany(RoutePoint::class)->orderBy('sequence');
+    }
+}

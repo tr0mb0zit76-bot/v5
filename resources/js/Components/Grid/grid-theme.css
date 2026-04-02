@@ -1,0 +1,97 @@
+.orders-grid-theme {
+  display: block;
+  --ag-background-color: #ffffff;
+  --ag-foreground-color: #18181b;
+  --ag-header-background-color: #f4f4f5;
+  --ag-header-foreground-color: #18181b;
+  --ag-odd-row-background-color: #fafafa;
+  --ag-border-color: #e4e4e7;
+  --ag-row-border-color: #f1f5f9;
+  --ag-selected-row-background-color: rgba(24, 24, 27, 0.08);
+  --ag-font-size: 13px;
+  --ag-font-family: Inter, Figtree, system-ui, sans-serif;
+  --ag-row-height: 42px;
+  --ag-header-height: 44px;
+}
+
+.orders-grid-theme.orders-grid-density--compact {
+  --ag-font-size: 12px;
+  --ag-row-height: 36px;
+  --ag-header-height: 38px;
+}
+
+.orders-grid-theme.orders-grid-density--normal {
+  --ag-font-size: 13px;
+  --ag-row-height: 42px;
+  --ag-header-height: 44px;
+}
+
+.orders-grid-theme.orders-grid-density--comfortable {
+  --ag-font-size: 14px;
+  --ag-row-height: 48px;
+  --ag-header-height: 50px;
+}
+
+.orders-grid-theme .ag-root-wrapper,
+.orders-grid-theme .ag-root,
+.orders-grid-theme .ag-layout-normal {
+  height: 100% !important;
+}
+
+.orders-grid-theme .ag-body-horizontal-scroll {
+  display: none !important;
+}
+
+.orders-grid-bottom-scroll {
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #f4f4f5;
+  border-top: 1px solid #e4e4e7;
+  scrollbar-color: #a1a1aa #f4f4f5;
+  scrollbar-width: auto;
+}
+
+.orders-grid-bottom-scroll::-webkit-scrollbar {
+  height: 14px;
+}
+
+.orders-grid-bottom-scroll::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+.orders-grid-bottom-scroll::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+  border-radius: 9999px;
+  border: 2px solid #f4f4f5;
+}
+
+.orders-grid-bottom-scroll-inner {
+  height: 1px;
+}
+
+.dark .orders-grid-bottom-scroll {
+  background: #27272a;
+  border-top-color: #3f3f46;
+  scrollbar-color: #71717a #27272a;
+}
+
+.dark .orders-grid-bottom-scroll::-webkit-scrollbar-track {
+  background: #27272a;
+}
+
+.dark .orders-grid-bottom-scroll::-webkit-scrollbar-thumb {
+  background: #71717a;
+  border-color: #27272a;
+}
+
+.dark .orders-grid-theme {
+  --ag-background-color: #18181b;
+  --ag-foreground-color: #f4f4f5;
+  --ag-header-background-color: #27272a;
+  --ag-header-foreground-color: #fafafa;
+  --ag-odd-row-background-color: #18181b;
+  --ag-border-color: #3f3f46;
+  --ag-row-border-color: #27272a;
+  --ag-selected-row-background-color: rgba(255, 255, 255, 0.08);
+}
