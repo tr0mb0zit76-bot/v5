@@ -1,12 +1,113 @@
 <template>
     <div class="flex min-h-dvh overflow-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <div
-            v-if="mobileMenuOpen"
+            v-if="showMobileAppGate"
+            class="fixed inset-0 z-[70] flex min-h-dvh items-center justify-center bg-zinc-950 px-4 py-6 text-zinc-50 lg:hidden"
+        >
+            <div class="w-full max-w-sm space-y-5 rounded-3xl border border-zinc-800 bg-zinc-900/95 p-6 shadow-2xl">
+                <div class="space-y-3 text-center">
+                    <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-zinc-900">
+                        <Smartphone class="h-7 w-7" />
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-semibold">Откройте кабинет через приложение</h1>
+                        <p class="mt-2 text-sm text-zinc-400">
+                            Мобильный браузер для CRM будет отключён. Установите PWA-приложение и работайте через него.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-sm text-zinc-300">
+                    <div class="font-medium text-zinc-100">Что будет в приложении</div>
+                    <div>Заказы, контрагенты, отчёты, счета и AI-чат в упрощённом мобильном интерфейсе.</div>
+                </div>
+
+                <div class="space-y-3">
+                    <button
+                        v-if="canInstallApp"
+                        type="button"
+                        class="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200"
+                        @click="triggerInstallPrompt"
+                    >
+                        <Download class="h-4 w-4" />
+                        Установить приложение
+                    </button>
+
+                    <div v-else class="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-sm text-zinc-300">
+                        Установка доступна из меню браузера:
+                        <span class="font-medium text-zinc-100">Добавить на главный экран</span>
+                        или
+                        <span class="font-medium text-zinc-100">Установить приложение</span>.
+                    </div>
+
+                    <a
+                        href="/"
+                        class="flex w-full items-center justify-center rounded-2xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800"
+                    >
+                        Вернуться на сайт
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-else-if="showMobileAppShell"
+            class="flex min-h-dvh w-full flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950 lg:hidden"
+        >
+            <header class="shrink-0 border-b border-zinc-200 bg-zinc-50/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50">Logist CRM</div>
+                        <div class="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ authUser?.name || 'Пользователь' }}
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <ThemeToggle />
+                        <Link
+                            :href="route('logout')"
+                            method="post"
+                            as="button"
+                            class="flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                        >
+                            <LogOut class="h-4 w-4" />
+                        </Link>
+                    </div>
+                </div>
+            </header>
+
+            <main class="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 dark:bg-zinc-950" scroll-region>
+                <slot />
+            </main>
+
+            <nav class="shrink-0 border-t border-zinc-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+                <div class="grid grid-cols-5 gap-2">
+                    <button
+                        v-for="item in mobileNavItems"
+                        :key="item.key"
+                        type="button"
+                        class="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition-colors"
+                        :class="activeKey === item.key
+                            ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                            : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
+                        @click="handleMenuSelect(item.key)"
+                    >
+                        <component :is="item.icon" class="h-4 w-4" />
+                        <span class="truncate">{{ item.label }}</span>
+                    </button>
+                </div>
+            </nav>
+        </div>
+
+        <div
+            v-if="!showMobileAppShell && mobileMenuOpen"
             class="fixed inset-0 z-40 bg-zinc-950/50 lg:hidden"
             @click="mobileMenuOpen = false"
         />
 
         <aside
+            v-if="!showMobileAppShell"
             class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950 lg:static lg:z-auto"
             :class="[
                 mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
@@ -143,7 +244,7 @@
             </div>
         </aside>
 
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col lg:pl-0">
+        <div v-if="!showMobileAppShell" class="flex min-h-0 min-w-0 flex-1 flex-col lg:pl-0">
             <header class="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 lg:hidden">
                 <button
                     type="button"
@@ -180,7 +281,9 @@ import {
     Activity,
     BarChart3,
     ChevronDown,
+    Download,
     FileText,
+    House,
     LayoutDashboard,
     LogOut,
     Menu,
@@ -188,7 +291,9 @@ import {
     PanelLeftClose,
     PanelLeftOpen,
     Puzzle,
+    SquarePen,
     Settings,
+    Smartphone,
     Target,
     Truck,
     Users,
@@ -215,10 +320,23 @@ const page = usePage();
 const collapsed = ref(false);
 const expandedGroups = ref([]);
 const mobileMenuOpen = ref(false);
+const deferredInstallPrompt = ref(null);
+const isStandaloneApp = ref(false);
+const isMobileViewport = ref(false);
 const menuStateStorageKey = 'crm-sidebar-expanded-groups';
 
 const authUser = computed(() => page.props.auth?.user ?? null);
 const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? ['dashboard']);
+const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value);
+const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
+const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
+const mobileNavItems = computed(() => [
+    { key: 'dashboard', label: 'Главная', icon: House },
+    { key: 'orders', label: 'Заказы', icon: Package },
+    { key: 'orders-create', label: 'Новый', icon: SquarePen },
+    { key: 'contractors', label: 'База', icon: Users },
+    { key: 'reports', label: 'Отчёты', icon: BarChart3 },
+]);
 
 const menuItems = computed(() => {
     const items = [
@@ -316,7 +434,19 @@ watch(
     },
 );
 
+watch(
+    showMobileAppGate,
+    (value) => {
+        if (value) {
+            mobileMenuOpen.value = false;
+        }
+    },
+    { immediate: true },
+);
+
 onMounted(() => {
+    updateMobileEnvironment();
+
     try {
         const savedState = localStorage.getItem(menuStateStorageKey);
 
@@ -340,11 +470,43 @@ onMounted(() => {
     if (props.activeSubKey && !expandedGroups.value.includes(props.activeSubKey)) {
         expandedGroups.value = [...expandedGroups.value, props.activeSubKey];
     }
+
+    window.addEventListener('resize', updateMobileEnvironment);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 });
 
 onUnmounted(() => {
     document.body.classList.remove('overflow-hidden');
+    window.removeEventListener('resize', updateMobileEnvironment);
+    window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.removeEventListener('appinstalled', handleAppInstalled);
 });
+
+function updateMobileEnvironment() {
+    isMobileViewport.value = window.matchMedia('(max-width: 1023px)').matches;
+    isStandaloneApp.value = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function handleBeforeInstallPrompt(event) {
+    event.preventDefault();
+    deferredInstallPrompt.value = event;
+}
+
+function handleAppInstalled() {
+    deferredInstallPrompt.value = null;
+    updateMobileEnvironment();
+}
+
+async function triggerInstallPrompt() {
+    if (!deferredInstallPrompt.value) {
+        return;
+    }
+
+    deferredInstallPrompt.value.prompt();
+    await deferredInstallPrompt.value.userChoice;
+    deferredInstallPrompt.value = null;
+}
 
 function isMenuGroupOpen(key) {
     return expandedGroups.value.includes(key);
@@ -369,6 +531,7 @@ function handleMenuSelect(key) {
         dashboard: '/dashboard',
         leads: '/leads',
         orders: '/orders',
+        'orders-create': '/orders/create',
         contractors: '/contractors',
         drivers: '/drivers',
         documents: '/documents',

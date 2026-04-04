@@ -398,6 +398,15 @@ const filteredContractors = computed(() => {
     });
 });
 
+const isMobileStandalone = computed(() => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    return window.matchMedia('(max-width: 1023px)').matches
+        && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
+});
+
 const totalOrdersCount = computed(() => props.selectedContractor?.orders?.length ?? 0);
 const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.order_documents?.length ?? 0);
 
@@ -638,7 +647,145 @@ watch(() => form.inn, (inn) => {
 </script>
 
 <template>
-    <div class="flex h-full min-h-0 flex-col gap-3 xl:h-[calc(100dvh-9.5rem)] xl:overflow-hidden">
+    <div v-if="isMobileStandalone" class="space-y-4">
+        <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <div class="text-xs uppercase tracking-[0.22em] text-white/60 dark:text-zinc-500">Мобильная база</div>
+                    <h1 class="mt-3 text-2xl font-semibold">Контрагенты</h1>
+                    <p class="mt-2 text-sm text-white/70 dark:text-zinc-600">
+                        Быстрый поиск по базе клиентов и перевозчиков без desktop-карточки.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    class="inline-flex h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                    @click="openCreateForm"
+                >
+                    <Plus class="h-4 w-4" />
+                    Новый
+                </button>
+            </div>
+        </section>
+
+        <section
+            v-if="selectedContractor"
+            class="space-y-3 rounded-[24px] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        >
+            <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{{ selectedContractor.name }}</div>
+                    <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ contractorTypeLabel(selectedContractor.type) }}
+                    </div>
+                </div>
+
+                <span
+                    class="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
+                    :class="selectedContractor.is_active
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'"
+                >
+                    {{ selectedContractor.is_active ? 'Активен' : 'Архив' }}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs text-zinc-600 dark:text-zinc-300">
+                <div>
+                    <div class="text-zinc-400 dark:text-zinc-500">ИНН</div>
+                    <div class="mt-1">{{ selectedContractor.inn || '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-zinc-400 dark:text-zinc-500">Телефон</div>
+                    <div class="mt-1">{{ selectedContractor.phone || '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-zinc-400 dark:text-zinc-500">Email</div>
+                    <div class="mt-1 break-all">{{ selectedContractor.email || '—' }}</div>
+                </div>
+                <div>
+                    <div class="text-zinc-400 dark:text-zinc-500">Заказы</div>
+                    <div class="mt-1">{{ totalOrdersCount }}</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="space-y-3 rounded-[24px] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="relative">
+                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <input
+                    v-model="search"
+                    type="text"
+                    placeholder="Поиск по названию, ИНН, телефону"
+                    class="w-full rounded-2xl border border-zinc-300 bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                />
+            </div>
+
+            <div class="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>Найдено: {{ filteredContractors.length }}</span>
+                <span>Всего: {{ contractors.length }}</span>
+            </div>
+        </section>
+
+        <section class="space-y-3">
+            <button
+                v-for="contractor in filteredContractors"
+                :key="contractor.id"
+                type="button"
+                class="w-full rounded-[24px] border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
+                @click="openContractor(contractor.id)"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ contractor.name }}
+                        </div>
+                        <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ contractorTypeLabel(contractor.type) }}
+                        </div>
+                    </div>
+
+                    <span
+                        class="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
+                        :class="contractor.is_active
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'"
+                    >
+                        {{ contractor.is_active ? 'Активен' : 'Архив' }}
+                    </span>
+                </div>
+
+                <div class="mt-4 grid grid-cols-2 gap-3 text-xs text-zinc-600 dark:text-zinc-300">
+                    <div>
+                        <div class="text-zinc-400 dark:text-zinc-500">ИНН</div>
+                        <div class="mt-1">{{ contractor.inn || '—' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-zinc-400 dark:text-zinc-500">Телефон</div>
+                        <div class="mt-1">{{ contractor.phone || '—' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-zinc-400 dark:text-zinc-500">Контакты</div>
+                        <div class="mt-1">{{ contractor.contacts_count }}</div>
+                    </div>
+                    <div>
+                        <div class="text-zinc-400 dark:text-zinc-500">Заказы</div>
+                        <div class="mt-1">{{ contractor.orders_count }}</div>
+                    </div>
+                </div>
+            </button>
+
+            <div
+                v-if="filteredContractors.length === 0"
+                class="rounded-[24px] border border-dashed border-zinc-300 bg-white px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
+            >
+                По текущему запросу контрагенты не найдены.
+            </div>
+        </section>
+    </div>
+
+    <div v-else class="flex h-full min-h-0 flex-col gap-3 xl:h-[calc(100dvh-9.5rem)] xl:overflow-hidden">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>

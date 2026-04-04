@@ -1,54 +1,102 @@
 ﻿<template>
     <div class="flex h-full min-h-0 flex-col gap-3">
-        <div class="flex items-center justify-between gap-4 border border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="flex items-center gap-3">
-                <button
-                    type="button"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
-                    title="К реестру"
-                    @click="goBack"
-                >
-                    <X class="h-5 w-5" />
-                    <span class="sr-only">К реестру</span>
-                </button>
+        <div
+            v-if="isMobileStandalone"
+            class="space-y-3 rounded-[28px] border border-zinc-200 bg-white px-4 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        >
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-3">
+                    <button
+                        type="button"
+                        class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                        title="К реестру"
+                        @click="goBack"
+                    >
+                        <X class="h-5 w-5" />
+                        <span class="sr-only">К реестру</span>
+                    </button>
 
-                <div class="min-w-0">
-                    <h1 class="truncate text-lg font-semibold">
-                        {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
-                    </h1>
+                    <div class="min-w-0">
+                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">Мобильный мастер</div>
+                        <h1 class="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
+                        </h1>
+                    </div>
                 </div>
-            </div>
 
-            <div class="flex items-center gap-2">
                 <button
                     type="button"
-                    class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    class="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
                     :disabled="form.processing || customerDebtBlocked"
                     @click="submit"
                 >
                     <Save class="h-4 w-4" />
-                    {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
+                    {{ form.processing ? '...' : 'Сохранить' }}
                 </button>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Шаг</label>
+                <select
+                    v-model="activeTab"
+                    class="w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                >
+                    <option v-for="tab in tabs" :key="tab.key" :value="tab.key">{{ tab.label }}</option>
+                </select>
             </div>
         </div>
 
-        <div class="flex flex-wrap gap-2 border border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-            <button
-                v-for="tab in tabs"
-                :key="tab.key"
-                type="button"
-                class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
-                :class="activeTab === tab.key
-                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                    : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'"
-                @click="activeTab = tab.key"
-            >
-                <component :is="tab.icon" class="h-4 w-4" />
-                {{ tab.label }}
-            </button>
-        </div>
+        <template v-else>
+            <div class="flex items-center justify-between gap-4 border border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                        title="К реестру"
+                        @click="goBack"
+                    >
+                        <X class="h-5 w-5" />
+                        <span class="sr-only">К реестру</span>
+                    </button>
 
-        <div class="min-h-0 overflow-auto border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="min-w-0">
+                        <h1 class="truncate text-lg font-semibold">
+                            {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
+                        </h1>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                        :disabled="form.processing || customerDebtBlocked"
+                        @click="submit"
+                    >
+                        <Save class="h-4 w-4" />
+                        {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 border border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                <button
+                    v-for="tab in tabs"
+                    :key="tab.key"
+                    type="button"
+                    class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
+                    :class="activeTab === tab.key
+                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                        : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'"
+                    @click="activeTab = tab.key"
+                >
+                    <component :is="tab.icon" class="h-4 w-4" />
+                    {{ tab.label }}
+                </button>
+            </div>
+        </template>
+
+        <div class="min-h-0 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5">
             <div v-if="activeTab === 'main'" class="grid gap-6 lg:grid-cols-2">
                 <div class="space-y-4">
                     <div class="space-y-2">
@@ -989,6 +1037,14 @@ const form = useForm({
 });
 
 const isEditing = computed(() => props.order !== null);
+const isMobileStandalone = computed(() => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    return window.matchMedia('(max-width: 1023px)').matches
+        && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
+});
 const currentRoleKey = computed(() => page.props.auth?.user?.role?.name ?? 'manager');
 const isManager = computed(() => currentRoleKey.value === 'manager');
 const selectedClient = computed(() => contractors.value.find((contractor) => contractor.id === form.client_id) ?? null);
