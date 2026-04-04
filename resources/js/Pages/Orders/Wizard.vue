@@ -715,13 +715,26 @@
                                 <p v-if="document.original_name" class="text-xs text-zinc-500">Текущий файл: {{ document.original_name }}</p>
                             </div>
                             <div class="space-y-2">
-                                <label class="text-sm font-medium">Шаблон PDF</label>
+                                <label class="text-sm font-medium">Шаблон DOCX</label>
                                 <div class="flex items-center gap-2">
-                                    <input v-model="document.template_id" type="number" min="0" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="ID шаблона" />
-                                    <button type="button" class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="document.generated_pdf_path = 'pending'">
-                                        Сгенерировать
+                                    <select v-model="document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option :value="null">Не выбран</option>
+                                        <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">
+                                            {{ templateOptionLabel(template) }}
+                                        </option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="!isEditing || !order?.id || !document.template_id"
+                                        @click="generateDocumentDraft(document)"
+                                    >
+                                        Скачать DOCX
                                     </button>
                                 </div>
+                                <p class="text-xs text-zinc-500">
+                                    Доступны шаблоны, назначенные на контрагента заказа, и общие шаблоны по умолчанию.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -785,6 +798,7 @@ const props = defineProps({
     documentPartyOptions: { type: Array, default: () => [] },
     orderStatusOptions: { type: Array, default: () => [] },
     documentStatusOptions: { type: Array, default: () => [] },
+    printFormTemplateOptions: { type: Array, default: () => [] },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     currentUser: { type: Object, default: () => ({}) },
@@ -836,6 +850,20 @@ const counterpartyForm = useForm({
     type: 'customer',
 });
 
+function templateOptionLabel(template) {
+    const suffix = [];
+
+    if (template.contractor_name) {
+        suffix.push(template.contractor_name);
+    }
+
+    if (template.is_default) {
+        suffix.push('по умолчанию');
+    }
+
+    return suffix.length > 0 ? `${template.name} (${suffix.join(', ')})` : template.name;
+}
+
 function normalizeDocument(document = {}) {
     return {
         type: 'request',
@@ -850,6 +878,17 @@ function normalizeDocument(document = {}) {
         requirement_key: null,
         ...document,
     };
+}
+
+function generateDocumentDraft(document) {
+    if (!props.order?.id || !document?.template_id) {
+        return;
+    }
+
+    window.location.href = route('orders.templates.generate-draft', {
+        order: props.order.id,
+        printFormTemplate: document.template_id,
+    });
 }
 
 function blankPaymentSchedule() {
@@ -1562,4 +1601,3 @@ function goBack() {
 }
 
 </script>
-

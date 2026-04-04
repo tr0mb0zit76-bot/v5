@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
+use ZipArchive;
 
 class OrderWizardTest extends TestCase
 {
@@ -30,6 +31,7 @@ class OrderWizardTest extends TestCase
         Schema::dropIfExists('salary_coefficients');
         Schema::dropIfExists('kpi_settings');
         Schema::dropIfExists('orders');
+        Schema::dropIfExists('print_form_templates');
         Schema::dropIfExists('contractors');
         Schema::dropIfExists('users');
         Schema::dropIfExists('roles');
@@ -170,6 +172,32 @@ class OrderWizardTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('print_form_templates', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 100)->unique();
+            $table->string('name');
+            $table->string('entity_type', 50)->default('order');
+            $table->string('document_type', 50);
+            $table->string('document_group', 50);
+            $table->string('party', 50)->default('internal');
+            $table->string('source_type', 50)->default('system');
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->boolean('is_default')->default(false);
+            $table->string('vue_component', 255);
+            $table->string('pdf_view', 255)->nullable();
+            $table->boolean('requires_internal_signature')->default(true);
+            $table->boolean('requires_counterparty_signature')->default(false);
+            $table->boolean('is_active')->default(true);
+            $table->unsignedInteger('version')->default(1);
+            $table->string('file_disk', 50)->nullable();
+            $table->string('file_path')->nullable();
+            $table->string('original_filename')->nullable();
+            $table->json('settings')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('route_points', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_leg_id');
@@ -306,6 +334,7 @@ class OrderWizardTest extends TestCase
             ->has('currencyOptions')
             ->has('orderStatusOptions')
             ->has('documentPartyOptions', 3)
+            ->has('printFormTemplateOptions')
             ->has('requiredDocumentRules', 5)
             ->has('requiredDocumentChecklist', 5)
             ->has('currentUser')
@@ -790,6 +819,139 @@ class OrderWizardTest extends TestCase
         );
     }
 
+    public function test_edit_page_exposes_available_print_form_templates_and_downloads_docx_draft(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Заказчик',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-TPL-001',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'cargo_sender_name' => 'ООО Отправитель',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/10/customer-request-v1.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p><w:p><w:r><w:t>${customer.name}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'customer_request',
+            'name' => 'Заявка заказчика',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => $clientId,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => true,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/10/customer-request-v1.docx',
+            'original_filename' => 'customer-request-v1.docx',
+            'settings' => json_encode([
+                'variables' => ['customer.name', 'order.number'],
+                'variable_mapping' => [
+                    'order.number' => 'order.order_number',
+                    'customer.name' => 'customer.name',
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('print_form_templates')->insert([
+            'code' => 'default_request',
+            'name' => 'Общий шаблон заявки',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => true,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/10/customer-request-v1.docx',
+            'original_filename' => 'customer-request-v1.docx',
+            'settings' => json_encode([
+                'variables' => ['order.number'],
+                'variable_mapping' => [
+                    'order.number' => 'order.order_number',
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->has('printFormTemplateOptions', 2)
+            ->where('printFormTemplateOptions.0.id', $templateId)
+            ->where('printFormTemplateOptions.0.contractor_name', 'ООО Заказчик')
+            ->where('printFormTemplateOptions.1.is_default', true)
+        );
+
+        $downloadResponse = $this->actingAs($admin)->get(route('orders.templates.generate-draft', [
+            'order' => $orderId,
+            'printFormTemplate' => $templateId,
+        ]));
+
+        $downloadResponse->assertOk();
+        $downloadResponse->assertDownload('customer-request-order-'.$orderId.'-draft.docx');
+
+        $downloadedPath = $downloadResponse->baseResponse->getFile()->getPathname();
+        $zip = new ZipArchive;
+        $zip->open($downloadedPath);
+        $documentXml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        $this->assertStringContainsString('ORD-TPL-001', $documentXml);
+        $this->assertStringContainsString('ООО Заказчик', $documentXml);
+    }
+
     public function test_order_create_page_exposes_contractor_credit_policy_and_default_terms(): void
     {
         $admin = $this->createAdminUser();
@@ -963,6 +1125,27 @@ class OrderWizardTest extends TestCase
         $response->assertRedirect(route('orders.create'));
         $response->assertSessionHasErrors('client_id');
         $this->assertDatabaseCount('orders', 1);
+    }
+
+    private function makeDocxPath(array $entries): string
+    {
+        $directory = storage_path('framework/testing/disks/local');
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        $path = $directory.'/'.uniqid('docx-template-', true).'.docx';
+        $zip = new ZipArchive;
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        foreach ($entries as $entryName => $contents) {
+            $zip->addFromString($entryName, $contents);
+        }
+
+        $zip->close();
+
+        return $path;
     }
 
     private function createAdminUser(): User

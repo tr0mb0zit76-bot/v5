@@ -11,15 +11,42 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
-            $table->string('cargo_sender_name')->nullable()->after('special_notes');
-            $table->string('cargo_sender_address', 500)->nullable()->after('cargo_sender_name');
-            $table->string('cargo_sender_contact')->nullable()->after('cargo_sender_address');
-            $table->string('cargo_sender_phone', 50)->nullable()->after('cargo_sender_contact');
-            $table->string('cargo_recipient_name')->nullable()->after('cargo_sender_phone');
-            $table->string('cargo_recipient_address', 500)->nullable()->after('cargo_recipient_name');
-            $table->string('cargo_recipient_contact')->nullable()->after('cargo_recipient_address');
-            $table->string('cargo_recipient_phone', 50)->nullable()->after('cargo_recipient_contact');
+            if (! Schema::hasColumn('orders', 'cargo_sender_name')) {
+                $table->string('cargo_sender_name')->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_sender_address')) {
+                $table->string('cargo_sender_address', 500)->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_sender_contact')) {
+                $table->string('cargo_sender_contact')->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_sender_phone')) {
+                $table->string('cargo_sender_phone', 50)->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_recipient_name')) {
+                $table->string('cargo_recipient_name')->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_recipient_address')) {
+                $table->string('cargo_recipient_address', 500)->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_recipient_contact')) {
+                $table->string('cargo_recipient_contact')->nullable();
+            }
+
+            if (! Schema::hasColumn('orders', 'cargo_recipient_phone')) {
+                $table->string('cargo_recipient_phone', 50)->nullable();
+            }
         });
     }
 
@@ -28,17 +55,25 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
-            $table->dropColumn([
-                'cargo_sender_name',
-                'cargo_sender_address',
-                'cargo_sender_contact',
-                'cargo_sender_phone',
-                'cargo_recipient_name',
-                'cargo_recipient_address',
-                'cargo_recipient_contact',
-                'cargo_recipient_phone',
-            ]);
+            $columns = array_values(array_filter([
+                Schema::hasColumn('orders', 'cargo_sender_name') ? 'cargo_sender_name' : null,
+                Schema::hasColumn('orders', 'cargo_sender_address') ? 'cargo_sender_address' : null,
+                Schema::hasColumn('orders', 'cargo_sender_contact') ? 'cargo_sender_contact' : null,
+                Schema::hasColumn('orders', 'cargo_sender_phone') ? 'cargo_sender_phone' : null,
+                Schema::hasColumn('orders', 'cargo_recipient_name') ? 'cargo_recipient_name' : null,
+                Schema::hasColumn('orders', 'cargo_recipient_address') ? 'cargo_recipient_address' : null,
+                Schema::hasColumn('orders', 'cargo_recipient_contact') ? 'cargo_recipient_contact' : null,
+                Schema::hasColumn('orders', 'cargo_recipient_phone') ? 'cargo_recipient_phone' : null,
+            ]));
+
+            if ($columns !== []) {
+                $table->dropColumn($columns);
+            }
         });
     }
 };

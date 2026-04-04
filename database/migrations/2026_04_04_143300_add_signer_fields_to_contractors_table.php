@@ -11,10 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('contractors')) {
+            return;
+        }
+
         Schema::table('contractors', function (Blueprint $table) {
-            $table->string('signer_name_nominative')->nullable()->after('contact_person_position');
-            $table->string('signer_name_prepositional')->nullable()->after('signer_name_nominative');
-            $table->string('signer_authority_basis')->nullable()->after('signer_name_prepositional');
+            if (! Schema::hasColumn('contractors', 'signer_name_nominative')) {
+                $table->string('signer_name_nominative')->nullable();
+            }
+
+            if (! Schema::hasColumn('contractors', 'signer_name_prepositional')) {
+                $table->string('signer_name_prepositional')->nullable();
+            }
+
+            if (! Schema::hasColumn('contractors', 'signer_authority_basis')) {
+                $table->string('signer_authority_basis')->nullable();
+            }
         });
     }
 
@@ -23,12 +35,20 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('contractors')) {
+            return;
+        }
+
         Schema::table('contractors', function (Blueprint $table) {
-            $table->dropColumn([
-                'signer_name_nominative',
-                'signer_name_prepositional',
-                'signer_authority_basis',
-            ]);
+            $columns = array_values(array_filter([
+                Schema::hasColumn('contractors', 'signer_name_nominative') ? 'signer_name_nominative' : null,
+                Schema::hasColumn('contractors', 'signer_name_prepositional') ? 'signer_name_prepositional' : null,
+                Schema::hasColumn('contractors', 'signer_authority_basis') ? 'signer_authority_basis' : null,
+            ]));
+
+            if ($columns !== []) {
+                $table->dropColumn($columns);
+            }
         });
     }
 };

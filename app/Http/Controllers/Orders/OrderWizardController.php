@@ -11,9 +11,11 @@ use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Models\PrintFormTemplate;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Services\OrderDocumentRequirementService;
+use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,9 +23,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use JsonException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class OrderWizardController extends Controller
 {
@@ -168,6 +172,25 @@ class OrderWizardController extends Controller
         ], 201);
     }
 
+    public function generateDocumentDraft(
+        Request $request,
+        Order $order,
+        PrintFormTemplate $printFormTemplate,
+        OrderPrintFormDraftService $draftService,
+    ): BinaryFileResponse {
+        abort_unless($this->canEditInlineField($request, $order), 403);
+        abort_if($printFormTemplate->entity_type !== 'order', 422, 'Черновик можно сформировать только для шаблона заказа.');
+        abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
+        abort_unless($this->isTemplateAvailableForOrder($printFormTemplate, $order), 404);
+
+        $generatedFile = $draftService->generate($printFormTemplate, $this->loadOrderForEditing($order));
+
+        return response()->download(
+            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
+            $generatedFile['download_name']
+        );
+    }
+
     private function renderPage(Request $request, ?Order $order = null): Response
     {
         /** @var ContractorCreditService $creditService */
@@ -242,6 +265,7 @@ class OrderWizardController extends Controller
                 ['value' => 'signed', 'label' => 'Подписан'],
                 ['value' => 'sent', 'label' => 'Отправлен'],
             ],
+            'printFormTemplateOptions' => $this->availablePrintFormTemplates($order)->values(),
             'currentUser' => [
                 'id' => $request->user()?->id,
                 'name' => $request->user()?->name,
@@ -463,6 +487,83 @@ class OrderWizardController extends Controller
         }
 
         return $order->load($relations);
+    }
+
+    /**
+     * @return Collection<int, array{id:int,name:string,code:string,document_type:string,party:string,contractor_id:int|null,contractor_name:string|null,is_default:bool}>
+     */
+    private function availablePrintFormTemplates(?Order $order = null): Collection
+    {
+        if (! Schema::hasTable('print_form_templates')) {
+            return collect();
+        }
+
+        $contractorIds = $this->orderTemplateContractorIds($order);
+
+        return PrintFormTemplate::query()
+            ->when(
+                Schema::hasColumn('print_form_templates', 'contractor_id'),
+                fn ($query) => $query->with(['contractor:id,name'])
+            )
+            ->where('entity_type', 'order')
+            ->where('is_active', true)
+            ->whereNotNull('file_path')
+            ->where(function ($query) use ($contractorIds): void {
+                $query->whereNull('contractor_id');
+
+                if ($contractorIds !== []) {
+                    $query->orWhereIn('contractor_id', $contractorIds);
+                }
+            })
+            ->orderByRaw('case when contractor_id is null then 1 else 0 end')
+            ->orderByDesc('is_default')
+            ->orderBy('document_type')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PrintFormTemplate $template): array => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'code' => $template->code,
+                'document_type' => $template->document_type,
+                'party' => $template->party,
+                'contractor_id' => $template->contractor_id,
+                'contractor_name' => $template->contractor?->name,
+                'is_default' => (bool) $template->is_default,
+            ])
+            ->values();
+    }
+
+    private function isTemplateAvailableForOrder(PrintFormTemplate $template, Order $order): bool
+    {
+        if (! $template->is_active || blank($template->file_path) || $template->entity_type !== 'order') {
+            return false;
+        }
+
+        if ($template->contractor_id === null) {
+            return true;
+        }
+
+        return in_array($template->contractor_id, $this->orderTemplateContractorIds($order), true);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function orderTemplateContractorIds(?Order $order): array
+    {
+        if ($order === null) {
+            return [];
+        }
+
+        return collect([
+            $order->customer_id,
+            $order->carrier_id,
+            $order->own_company_id,
+        ])->filter(fn (mixed $value): bool => is_int($value) || ctype_digit((string) $value))
+            ->map(fn (mixed $value): int => (int) $value)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

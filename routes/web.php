@@ -53,6 +53,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders', 'store')->name('orders.store');
         Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
         Route::patch('/orders/{order}', 'update')->name('orders.update');
+        Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
         Route::patch('/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
         Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
