@@ -638,7 +638,7 @@ watch(() => form.inn, (inn) => {
 </script>
 
 <template>
-    <div class="flex h-full min-h-0 flex-col gap-3">
+    <div class="flex h-full min-h-0 flex-col gap-3 xl:h-[calc(100dvh-9.5rem)] xl:overflow-hidden">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
@@ -657,7 +657,7 @@ watch(() => form.inn, (inn) => {
             </button>
         </div>
 
-        <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden xl:h-[calc(100dvh-12rem)] xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden xl:h-full xl:grid-cols-[320px_minmax(0,1fr)]">
             <aside class="flex min-h-0 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="border-b border-zinc-200 p-3 dark:border-zinc-800">
                     <div class="relative">
