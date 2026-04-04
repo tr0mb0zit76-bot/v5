@@ -163,6 +163,12 @@ class OrderIndexTest extends TestCase
         Schema::create('financial_terms', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
+            $table->decimal('client_price', 12, 2)->nullable();
+            $table->string('client_currency', 10)->nullable();
+            $table->json('contractors_costs')->nullable();
+            $table->json('additional_costs')->nullable();
+            $table->decimal('total_cost', 12, 2)->nullable();
+            $table->decimal('margin', 12, 2)->nullable();
             $table->timestamps();
         });
 
@@ -330,6 +336,198 @@ class OrderIndexTest extends TestCase
         $this->assertSoftDeleted('orders', ['id' => $orderId]);
     }
 
+    public function test_manager_can_inline_update_own_order_fields(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('INLINE-EDIT', $manager->id);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'track_number_customer',
+            'value' => 'TRACK-001',
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'track_number_customer' => 'TRACK-001',
+            'updated_by' => $manager->id,
+        ]);
+    }
+
+    public function test_inline_update_customer_rate_syncs_financial_terms_row(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('INLINE-SYNC', $manager->id);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 1000.00,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'amount' => 400.00,
+                    'currency' => 'RUB',
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'total_cost' => 400.00,
+            'margin' => 600.00,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'customer_rate',
+            'value' => 2500.50,
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'customer_rate' => 2500.50,
+        ]);
+
+        $this->assertDatabaseHas('financial_terms', [
+            'order_id' => $orderId,
+            'client_price' => 2500.50,
+        ]);
+    }
+
+    public function test_inline_update_carrier_rate_creates_and_syncs_financial_terms_row(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Carrier',
+        ]);
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'INLINE-CARRIER-SYNC',
+            'manager_id' => $manager->id,
+            'carrier_id' => $carrierId,
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'carrier_rate',
+            'value' => 3210.45,
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'carrier_rate' => 3210.45,
+        ]);
+
+        $this->assertDatabaseHas('financial_terms', [
+            'order_id' => $orderId,
+        ]);
+
+        $contractorsCosts = DB::table('financial_terms')
+            ->where('order_id', $orderId)
+            ->value('contractors_costs');
+
+        $this->assertIsString($contractorsCosts);
+        $this->assertStringContainsString('"amount":3210.45', $contractorsCosts);
+        $this->assertStringContainsString('"contractor_id":'.$carrierId, $contractorsCosts);
+    }
+
+    public function test_inline_update_rate_still_works_when_financial_terms_table_is_missing(): void
+    {
+        Schema::dropIfExists('financial_terms');
+
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('INLINE-NO-FIN-TERMS', $manager->id);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'customer_rate',
+            'value' => 1999.99,
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'customer_rate' => 1999.99,
+        ]);
+        $this->assertFalse(Schema::hasTable('financial_terms'));
+    }
+
+    public function test_manager_can_inline_update_date_field(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('INLINE-DATE', $manager->id);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'track_sent_date_customer',
+            'value' => '2026-04-02',
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+        $storedDate = DB::table('orders')->where('id', $orderId)->value('track_sent_date_customer');
+
+        $this->assertNotNull($storedDate);
+        $this->assertStringStartsWith('2026-04-02', (string) $storedDate);
+    }
+
+    public function test_manager_cannot_inline_update_other_manager_order(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+        $otherManager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        DB::table('users')->where('id', $otherManager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('FOREIGN-ORDER', $otherManager->id);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'track_number_customer',
+            'value' => 'TRACK-002',
+        ]);
+
+        $response->assertForbidden();
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'track_number_customer' => null,
+        ]);
+    }
+
     public function test_manager_cannot_delete_loaded_order(): void
     {
         $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
@@ -344,6 +542,22 @@ class OrderIndexTest extends TestCase
 
         $response->assertForbidden();
         $this->assertDatabaseHas('orders', ['id' => $orderId, 'deleted_at' => null]);
+    }
+
+    public function test_deleting_already_soft_deleted_order_redirects_without_404(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('ALREADY-DELETED', $manager->id);
+        DB::table('orders')->where('id', $orderId)->update(['deleted_at' => now()]);
+
+        $response = $this->actingAs($manager)->delete(route('orders.destroy', $orderId));
+
+        $response->assertRedirect(route('orders.index'));
     }
 
     private function createRole(string $name, array $visibilityScopes = []): int

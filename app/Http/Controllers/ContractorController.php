@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreContractorRequest;
 use App\Http\Requests\UpdateContractorRequest;
 use App\Models\Contractor;
+use App\Models\ContractorActivityType;
+use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -73,7 +77,7 @@ class ContractorController extends Controller
     public function destroy(Contractor $contractor): RedirectResponse
     {
         abort_if(
-            $contractor->customerOrders()->exists() || $contractor->carrierOrders()->exists(),
+            $this->contractorHasOrders($contractor),
             422,
             'Нельзя удалить контрагента, связанного с заказами.'
         );
@@ -105,13 +109,52 @@ class ContractorController extends Controller
         ]);
     }
 
+    public function storeActivityType(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ]);
+
+        abort_unless(Schema::hasTable('contractor_activity_types'), 422, 'Справочник видов деятельности недоступен.');
+
+        $normalizedName = trim($validated['name']);
+
+        $activityType = ContractorActivityType::query()->firstOrCreate([
+            'name' => $normalizedName,
+        ]);
+
+        return response()->json([
+            'activityType' => [
+                'id' => $activityType->id,
+                'name' => $activityType->name,
+            ],
+        ], 201);
+    }
+
     private function renderPage(Request $request, ?Contractor $selectedContractor = null): Response
     {
-        $contractors = Contractor::query()
-            ->withCount(['contacts', 'customerOrders', 'carrierOrders'])
+        /** @var ContractorCreditService $creditService */
+        $creditService = app(ContractorCreditService::class);
+        $hasContactsTable = Schema::hasTable('contractor_contacts');
+        $hasInteractionsTable = Schema::hasTable('contractor_interactions');
+        $hasDocumentsTable = Schema::hasTable('contractor_documents');
+        $hasOrderDocumentsTable = Schema::hasTable('order_documents');
+
+        $contractorsQuery = Contractor::query();
+
+        if ($hasContactsTable) {
+            $contractorsQuery->withCount('contacts');
+        }
+
+        $contractorsCollection = $contractorsQuery
+            ->withCount(['customerOrders', 'carrierOrders'])
             ->orderByDesc('is_active')
             ->orderBy('name')
-            ->get()
+            ->get();
+
+        $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
+
+        $contractors = $contractorsCollection
             ->map(fn (Contractor $contractor): array => [
                 'id' => $contractor->id,
                 'name' => $contractor->name,
@@ -120,8 +163,13 @@ class ContractorController extends Controller
                 'phone' => $contractor->phone,
                 'email' => $contractor->email,
                 'is_active' => $contractor->is_active,
-                'is_own_company' => $contractor->is_own_company,
-                'contacts_count' => $contractor->contacts_count,
+                'is_own_company' => $contractor->is_own_company ?? false,
+                'debt_limit' => $contractor->debt_limit,
+                'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
+                'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
+                'current_debt' => $debtMap[$contractor->id] ?? 0,
+                'debt_limit_reached' => $creditService->isBlockedByDebtLimit($contractor, $debtMap[$contractor->id] ?? 0),
+                'contacts_count' => $hasContactsTable ? $contractor->contacts_count : 0,
                 'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
             ])
             ->values();
@@ -129,11 +177,27 @@ class ContractorController extends Controller
         $contractorDetails = null;
 
         if ($selectedContractor !== null) {
-            $selectedContractor->load(['contacts', 'interactions.author:id,name', 'documents']);
+            $relations = [];
+
+            if ($hasContactsTable) {
+                $relations[] = 'contacts';
+            }
+
+            if ($hasInteractionsTable) {
+                $relations[] = 'interactions.author:id,name';
+            }
+
+            if ($hasDocumentsTable) {
+                $relations[] = 'documents';
+            }
+
+            if ($relations !== []) {
+                $selectedContractor->load($relations);
+            }
 
             $orders = DB::table('orders')
                 ->select('id', 'order_number', 'status', 'order_date', 'customer_rate', 'carrier_rate', 'customer_id', 'carrier_id')
-                ->where(function ($query) use ($selectedContractor) {
+                ->where(function ($query) use ($selectedContractor): void {
                     $query->where('customer_id', $selectedContractor->id)
                         ->orWhere('carrier_id', $selectedContractor->id);
                 })
@@ -151,9 +215,69 @@ class ContractorController extends Controller
                 ])
                 ->values();
 
+            $currentDebt = $creditService->currentDebtForContractor($selectedContractor->id);
+            $relatedOrderDocuments = collect();
+
+            if ($hasOrderDocumentsTable) {
+                $documentDateColumn = Schema::hasColumn('order_documents', 'document_date');
+
+                $relatedOrderDocuments = DB::table('order_documents')
+                    ->join('orders', 'orders.id', '=', 'order_documents.order_id')
+                    ->select(
+                        'order_documents.id',
+                        'order_documents.order_id',
+                        'order_documents.type',
+                        'order_documents.document_group',
+                        'order_documents.number',
+                        'order_documents.original_name',
+                        'order_documents.status',
+                        'order_documents.signature_status',
+                        'order_documents.file_path',
+                        'orders.order_number',
+                        'orders.customer_id',
+                        'orders.carrier_id',
+                    )
+                    ->when(
+                        $documentDateColumn,
+                        fn ($query) => $query->addSelect('order_documents.document_date')
+                    )
+                    ->where(function ($query) use ($selectedContractor): void {
+                        $query->where('orders.customer_id', $selectedContractor->id)
+                            ->orWhere('orders.carrier_id', $selectedContractor->id);
+                    })
+                    ->when(
+                        Schema::hasColumn('orders', 'deleted_at'),
+                        fn ($query) => $query->whereNull('orders.deleted_at')
+                    )
+                    ->when(
+                        $documentDateColumn,
+                        fn ($query) => $query->orderByDesc('order_documents.document_date')
+                    )
+                    ->orderByDesc('order_documents.id')
+                    ->limit(30)
+                    ->get()
+                    ->map(fn (object $document): array => [
+                        'id' => $document->id,
+                        'order_id' => $document->order_id,
+                        'order_number' => $document->order_number,
+                        'type' => $document->type,
+                        'document_group' => $document->document_group,
+                        'number' => $document->number,
+                        'original_name' => $document->original_name,
+                        'document_date' => $document->document_date ?? null,
+                        'status' => $document->status,
+                        'signature_status' => $document->signature_status,
+                        'file_path' => $document->file_path,
+                        'relation' => (int) $document->customer_id === $selectedContractor->id ? 'customer' : 'carrier',
+                    ])
+                    ->values();
+            }
+
             $contractorDetails = [
                 ...$selectedContractor->toArray(),
-                'contacts' => $selectedContractor->contacts->map(fn ($contact): array => [
+                'current_debt' => $currentDebt,
+                'debt_limit_reached' => $creditService->isBlockedByDebtLimit($selectedContractor, $currentDebt),
+                'contacts' => $hasContactsTable ? $selectedContractor->contacts->map(fn ($contact): array => [
                     'id' => $contact->id,
                     'full_name' => $contact->full_name,
                     'position' => $contact->position,
@@ -161,8 +285,8 @@ class ContractorController extends Controller
                     'email' => $contact->email,
                     'is_primary' => $contact->is_primary,
                     'notes' => $contact->notes,
-                ])->values(),
-                'interactions' => $selectedContractor->interactions->map(fn ($interaction): array => [
+                ])->values() : collect(),
+                'interactions' => $hasInteractionsTable ? $selectedContractor->interactions->map(fn ($interaction): array => [
                     'id' => $interaction->id,
                     'contacted_at' => optional($interaction->contacted_at)?->toIso8601String(),
                     'channel' => $interaction->channel,
@@ -170,8 +294,8 @@ class ContractorController extends Controller
                     'summary' => $interaction->summary,
                     'result' => $interaction->result,
                     'author_name' => $interaction->author?->name,
-                ])->values(),
-                'documents' => $selectedContractor->documents->map(fn ($document): array => [
+                ])->values() : collect(),
+                'documents' => $hasDocumentsTable ? $selectedContractor->documents->map(fn ($document): array => [
                     'id' => $document->id,
                     'type' => $document->type,
                     'title' => $document->title,
@@ -179,14 +303,16 @@ class ContractorController extends Controller
                     'document_date' => optional($document->document_date)?->toDateString(),
                     'status' => $document->status,
                     'notes' => $document->notes,
-                ])->values(),
+                ])->values() : collect(),
                 'orders' => $orders,
+                'order_documents' => $relatedOrderDocuments,
             ];
         }
 
         return Inertia::render('Contractors/Index', [
             'contractors' => $contractors,
             'selectedContractor' => $contractorDetails,
+            'activityTypeOptions' => $this->activityTypeOptions(),
             'legalFormOptions' => [
                 ['value' => 'ooo', 'label' => 'ООО'],
                 ['value' => 'zao', 'label' => 'ЗАО'],
@@ -206,7 +332,244 @@ class ContractorController extends Controller
     {
         unset($validated['contacts'], $validated['interactions'], $validated['documents']);
 
+        foreach ([
+            'debt_limit',
+            'short_description',
+            'default_customer_payment_form',
+            'default_customer_payment_term',
+            'default_customer_payment_schedule',
+            'default_carrier_payment_form',
+            'default_carrier_payment_term',
+            'default_carrier_payment_schedule',
+            'cooperation_terms_notes',
+        ] as $nullableField) {
+            if (($validated[$nullableField] ?? null) === '') {
+                $validated[$nullableField] = null;
+            }
+        }
+
+        $validated['default_customer_payment_schedule'] = $this->resolvePaymentSchedule(
+            Arr::get($validated, 'default_customer_payment_schedule'),
+            Arr::get($validated, 'default_customer_payment_term'),
+            Arr::get($validated, 'default_customer_payment_form'),
+        );
+
+        $validated['default_carrier_payment_schedule'] = $this->resolvePaymentSchedule(
+            Arr::get($validated, 'default_carrier_payment_schedule'),
+            Arr::get($validated, 'default_carrier_payment_term'),
+            Arr::get($validated, 'default_carrier_payment_form'),
+        );
+
+        $validated['default_customer_payment_term'] = $this->paymentScheduleSummary(
+            $validated['default_customer_payment_schedule'] ?? null
+        );
+        $validated['default_carrier_payment_term'] = $this->paymentScheduleSummary(
+            $validated['default_carrier_payment_schedule'] ?? null
+        );
+
+        if (($validated['debt_limit_currency'] ?? null) === '') {
+            $validated['debt_limit_currency'] = 'RUB';
+        }
+
+        if (array_key_exists('activity_types', $validated)) {
+            $validated['activity_types'] = collect($validated['activity_types'] ?? [])
+                ->map(fn (mixed $value): string => trim((string) $value))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        if (! Schema::hasColumn('contractors', 'is_own_company')) {
+            unset($validated['is_own_company']);
+        }
+
+        foreach ([
+            'debt_limit',
+            'debt_limit_currency',
+            'stop_on_limit',
+            'short_description',
+            'activity_types',
+            'default_customer_payment_form',
+            'default_customer_payment_term',
+            'default_customer_payment_schedule',
+            'default_carrier_payment_form',
+            'default_carrier_payment_term',
+            'default_carrier_payment_schedule',
+            'cooperation_terms_notes',
+        ] as $column) {
+            if (! Schema::hasColumn('contractors', $column)) {
+                unset($validated[$column]);
+            }
+        }
+
         return $validated;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function activityTypeOptions(): array
+    {
+        if (Schema::hasTable('contractor_activity_types')) {
+            return ContractorActivityType::query()
+                ->orderBy('name')
+                ->pluck('name')
+                ->all();
+        }
+
+        if (! Schema::hasColumn('contractors', 'activity_types')) {
+            return [];
+        }
+
+        return Contractor::query()
+            ->whereNotNull('activity_types')
+            ->pluck('activity_types')
+            ->flatMap(function (mixed $value): array {
+                if (is_array($value)) {
+                    return $value;
+                }
+
+                if (is_string($value)) {
+                    $decoded = json_decode($value, true);
+
+                    return is_array($decoded) ? $decoded : [];
+                }
+
+                return [];
+            })
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $schedule
+     * @return array<string, int|string|bool>|null
+     */
+    private function resolvePaymentSchedule(?array $schedule, ?string $legacyTerm, ?string $paymentForm): ?array
+    {
+        $normalized = $schedule !== null
+            ? $this->normalizePaymentSchedule($schedule)
+            : $this->parsePaymentTermPreset($legacyTerm);
+
+        if (! $this->hasMeaningfulPaymentSchedule($normalized) && blank($paymentForm)) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $schedule
+     * @return array<string, int|string|bool>
+     */
+    private function normalizePaymentSchedule(array $schedule): array
+    {
+        $normalized = [
+            'has_prepayment' => false,
+            'prepayment_ratio' => 50,
+            'prepayment_days' => 0,
+            'prepayment_mode' => 'fttn',
+            'postpayment_days' => 0,
+            'postpayment_mode' => 'ottn',
+        ];
+
+        $normalized = array_merge($normalized, $schedule);
+        $normalized['has_prepayment'] = filter_var($normalized['has_prepayment'], FILTER_VALIDATE_BOOLEAN);
+        $normalized['prepayment_ratio'] = max(1, min(99, (int) ($normalized['prepayment_ratio'] ?? 50)));
+        $normalized['prepayment_days'] = max(0, (int) ($normalized['prepayment_days'] ?? 0));
+        $normalized['postpayment_days'] = max(0, (int) ($normalized['postpayment_days'] ?? 0));
+        $normalized['prepayment_mode'] = in_array($normalized['prepayment_mode'], ['fttn', 'ottn'], true)
+            ? $normalized['prepayment_mode']
+            : 'fttn';
+        $normalized['postpayment_mode'] = in_array($normalized['postpayment_mode'], ['fttn', 'ottn'], true)
+            ? $normalized['postpayment_mode']
+            : 'ottn';
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<string, int|string|bool>|null
+     */
+    private function parsePaymentTermPreset(?string $term): ?array
+    {
+        if (blank($term)) {
+            return null;
+        }
+
+        $normalized = mb_strtoupper(trim($term));
+
+        if (preg_match('/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN)$/u', $normalized, $matches) === 1) {
+            return $this->normalizePaymentSchedule([
+                'has_prepayment' => true,
+                'prepayment_ratio' => (int) $matches[1],
+                'prepayment_days' => (int) $matches[3],
+                'prepayment_mode' => mb_strtolower($matches[4]),
+                'postpayment_days' => (int) $matches[5],
+                'postpayment_mode' => mb_strtolower($matches[6]),
+            ]);
+        }
+
+        if (preg_match('/^(\d+)\s+ДН\s+(FTTN|OTTN)$/u', $normalized, $matches) === 1) {
+            return $this->normalizePaymentSchedule([
+                'postpayment_days' => (int) $matches[1],
+                'postpayment_mode' => mb_strtolower($matches[2]),
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, int|string|bool>|null  $schedule
+     */
+    private function hasMeaningfulPaymentSchedule(?array $schedule): bool
+    {
+        if ($schedule === null) {
+            return false;
+        }
+
+        if (($schedule['has_prepayment'] ?? false) === true) {
+            return true;
+        }
+
+        return (int) ($schedule['postpayment_days'] ?? 0) > 0;
+    }
+
+    /**
+     * @param  array<string, int|string|bool>|null  $schedule
+     */
+    private function paymentScheduleSummary(?array $schedule): ?string
+    {
+        if (! $this->hasMeaningfulPaymentSchedule($schedule)) {
+            return null;
+        }
+
+        if (($schedule['has_prepayment'] ?? false) === true) {
+            $prepaymentRatio = (int) ($schedule['prepayment_ratio'] ?? 50);
+            $postpaymentRatio = max(0, 100 - $prepaymentRatio);
+
+            return sprintf(
+                '%d/%d, %d дн %s / %d дн %s',
+                $prepaymentRatio,
+                $postpaymentRatio,
+                (int) ($schedule['prepayment_days'] ?? 0),
+                strtoupper((string) ($schedule['prepayment_mode'] ?? 'fttn')),
+                (int) ($schedule['postpayment_days'] ?? 0),
+                strtoupper((string) ($schedule['postpayment_mode'] ?? 'ottn')),
+            );
+        }
+
+        return sprintf(
+            '%d дн %s',
+            (int) ($schedule['postpayment_days'] ?? 0),
+            strtoupper((string) ($schedule['postpayment_mode'] ?? 'ottn')),
+        );
     }
 
     /**
@@ -214,26 +577,49 @@ class ContractorController extends Controller
      */
     private function syncNestedData(Contractor $contractor, array $validated, ?int $userId): void
     {
-        $contractor->contacts()->delete();
-        $contractor->interactions()->delete();
-        $contractor->documents()->delete();
+        if (Schema::hasTable('contractor_contacts')) {
+            $contractor->contacts()->delete();
 
-        foreach ($validated['contacts'] ?? [] as $contact) {
-            $contractor->contacts()->create($contact);
+            foreach ($validated['contacts'] ?? [] as $contact) {
+                $contractor->contacts()->create($contact);
+            }
         }
 
-        foreach ($validated['interactions'] ?? [] as $interaction) {
-            $contractor->interactions()->create([
-                ...$interaction,
-                'created_by' => $userId,
-            ]);
+        if (Schema::hasTable('contractor_interactions')) {
+            $contractor->interactions()->delete();
+
+            foreach ($validated['interactions'] ?? [] as $interaction) {
+                $contractor->interactions()->create([
+                    ...$interaction,
+                    'created_by' => $userId,
+                ]);
+            }
         }
 
-        foreach ($validated['documents'] ?? [] as $document) {
-            $contractor->documents()->create([
-                ...$document,
-                'created_by' => $userId,
-            ]);
+        if (Schema::hasTable('contractor_documents')) {
+            $contractor->documents()->delete();
+
+            foreach ($validated['documents'] ?? [] as $document) {
+                $contractor->documents()->create([
+                    ...$document,
+                    'created_by' => $userId,
+                ]);
+            }
         }
+    }
+
+    private function contractorHasOrders(Contractor $contractor): bool
+    {
+        $ordersQuery = DB::table('orders')
+            ->where(function ($query) use ($contractor): void {
+                $query->where('customer_id', $contractor->id)
+                    ->orWhere('carrier_id', $contractor->id);
+            });
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $ordersQuery->whereNull('deleted_at');
+        }
+
+        return $ordersQuery->exists();
     }
 }

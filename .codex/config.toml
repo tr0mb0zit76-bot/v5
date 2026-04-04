@@ -1,7 +1,10 @@
 [mcp_servers.laravel-boost]
 command = "php"
 args = ["artisan", "boost:mcp"]
-cwd = "C:\\OSPanel\\home\\v5.local"
 
 [mcp_servers.laravel-boost.tools.search-docs]
 approval_mode = "approve"
+
+[mcp_servers.ag-mcp]
+command = "npx"
+args = ["ag-mcp"]

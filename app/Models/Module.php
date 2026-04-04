@@ -6,25 +6,35 @@ use Illuminate\Database\Eloquent\Model;
 
 class Module extends Model
 {
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'name',
         'slug',
         'version',
-        'is_enabled',  // Изменено с enabled на is_enabled
+        'is_enabled',
         'order',
         'dependencies',
         'settings',
     ];
-    
+
+    /**
+     * @var array<string, string>
+     */
     protected $casts = [
-        'is_enabled' => 'boolean',  // Изменено с enabled на is_enabled
+        'is_enabled' => 'boolean',
         'dependencies' => 'array',
         'settings' => 'array',
     ];
-    
-    // Добавим аксессор для обратной совместимости
-    public function getEnabledAttribute()
+
+    public function getEnabledAttribute(): bool
     {
-        return $this->is_enabled;
+        return (bool) $this->is_enabled;
+    }
+
+    public function setEnabledAttribute(bool $value): void
+    {
+        $this->attributes['is_enabled'] = $value;
     }
 }

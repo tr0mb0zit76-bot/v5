@@ -6,21 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (! Schema::hasTable('roles') || Schema::hasColumn('roles', 'visibility_scopes')) {
+            return;
+        }
+
         Schema::table('roles', function (Blueprint $table) {
             $table->json('visibility_scopes')->nullable()->after('visibility_areas');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        if (! Schema::hasTable('roles') || ! Schema::hasColumn('roles', 'visibility_scopes')) {
+            return;
+        }
+
         Schema::table('roles', function (Blueprint $table) {
             $table->dropColumn('visibility_scopes');
         });

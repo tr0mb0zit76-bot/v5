@@ -8,13 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 
 class Order extends Model
 {
     /** @use HasFactory<OrderFactory> */
     use HasFactory;
-    use SoftDeletes;
 
     /**
      * @var list<string>
@@ -45,6 +44,7 @@ class Order extends Model
         'status_updated_by',
         'status_updated_at',
         'is_active',
+        'lead_id',
         'customer_id',
         'own_company_id',
         'carrier_id',
@@ -90,7 +90,7 @@ class Order extends Model
      */
     protected function casts(): array
     {
-        return [
+        $casts = [
             'order_date' => 'date',
             'loading_date' => 'date',
             'unloading_date' => 'date',
@@ -119,6 +119,46 @@ class Order extends Model
             'salary_accrued' => 'decimal:2',
             'salary_paid' => 'decimal:2',
         ];
+
+        if ($this->hasDeletedAtColumn()) {
+            $casts['deleted_at'] = 'datetime';
+        }
+
+        return $casts;
+    }
+
+    public function delete(): ?bool
+    {
+        if (! $this->exists) {
+            return false;
+        }
+
+        if (! $this->hasDeletedAtColumn()) {
+            return parent::delete();
+        }
+
+        if ($this->trashed()) {
+            return true;
+        }
+
+        return $this->forceFill([
+            'deleted_at' => now(),
+            'updated_at' => $this->usesTimestamps() ? now() : $this->updated_at,
+        ])->saveQuietly();
+    }
+
+    public function trashed(): bool
+    {
+        if (! $this->hasDeletedAtColumn()) {
+            return false;
+        }
+
+        return $this->getAttribute('deleted_at') !== null;
+    }
+
+    public function hasDeletedAtColumn(): bool
+    {
+        return Schema::hasColumn($this->getTable(), 'deleted_at');
     }
 
     /**
@@ -127,6 +167,14 @@ class Order extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    /**
+     * @return BelongsTo<Lead, $this>
+     */
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
     }
 
     /**
@@ -174,7 +222,13 @@ class Order extends Model
      */
     public function documents(): HasMany
     {
-        return $this->hasMany(OrderDocument::class)->orderByDesc('document_date')->orderByDesc('id');
+        $relation = $this->hasMany(OrderDocument::class);
+
+        if (Schema::hasColumn('order_documents', 'document_date')) {
+            $relation->orderByDesc('document_date');
+        }
+
+        return $relation->orderByDesc('id');
     }
 
     /**

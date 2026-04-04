@@ -8,6 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (
+            Schema::hasTable('sites')
+            || Schema::hasTable('users')
+            || Schema::hasTable('orders')
+            || Schema::hasTable('modules')
+        ) {
+            return;
+        }
+
         /*
         |--------------------------------------------------------------------------
         | 1. Базовые таблицы

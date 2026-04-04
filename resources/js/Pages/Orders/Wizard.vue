@@ -1,57 +1,52 @@
-<template>
+﻿<template>
     <div class="flex h-full min-h-0 flex-col gap-3">
-        <div class="flex items-start justify-between gap-4">
-            <div class="flex items-start gap-3">
+        <div class="flex items-center justify-between gap-4 border border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="flex items-center gap-3">
                 <button
                     type="button"
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-lg leading-none hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                    aria-label="К списку"
-                    title="К списку"
+                    class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                    title="К реестру"
                     @click="goBack"
                 >
-                    ×
+                    <X class="h-5 w-5" />
+                    <span class="sr-only">К реестру</span>
                 </button>
 
-                <div>
-                <h1 class="text-2xl font-semibold">
-                    {{ isEditing ? `Заказ ${form.order_number || `#${order.id}`}` : 'Новый заказ' }}
-                </h1>
-                <p class="text-sm text-zinc-500">
-                    Экспедиторская заявка с маршрутом, грузами, финансами и документами
-                </p>
+                <div class="min-w-0">
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                        {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
+                    </div>
+                    <h1 class="truncate text-lg font-semibold">
+                        {{ isEditing ? `Заказ ${form.order_number || `#${order.id}`}` : 'Создание заказа' }}
+                    </h1>
                 </div>
             </div>
 
             <div class="flex items-center gap-2">
                 <button
                     type="button"
-                    class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                    @click="goBack"
-                >
-                    К списку
-                </button>
-                <button
-                    type="button"
-                    class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                    :disabled="form.processing"
+                    class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    :disabled="form.processing || customerDebtBlocked"
                     @click="submit"
                 >
-                    {{ form.processing ? 'Сохранение...' : 'Сохранить заказ' }}
+                    <Save class="h-4 w-4" />
+                    {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
                 </button>
             </div>
         </div>
 
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 border border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
             <button
                 v-for="tab in tabs"
                 :key="tab.key"
                 type="button"
-                class="rounded-xl border px-4 py-2 text-sm transition"
+                class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
                 :class="activeTab === tab.key
                     ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
                     : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'"
                 @click="activeTab = tab.key"
             >
+                <component :is="tab.icon" class="h-4 w-4" />
                 {{ tab.label }}
             </button>
         </div>
@@ -109,6 +104,9 @@
                         <p v-if="selectedClient" class="text-xs text-zinc-500">
                             Выбран: {{ selectedClient.name }}{{ selectedClient.inn ? `, ИНН ${selectedClient.inn}` : '' }}
                         </p>
+                        <p v-if="customerDebtBlocked" class="text-xs text-rose-500">
+                            Лимит задолженности контрагента достигнут: {{ selectedClient?.current_debt ?? 0 }} {{ selectedClient?.debt_limit_currency || 'RUB' }}. Новый заказ сохранить нельзя.
+                        </p>
                         <p v-if="form.errors.client_id" class="text-xs text-rose-500">{{ form.errors.client_id }}</p>
                     </div>
 
@@ -157,7 +155,7 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <h2 class="text-base font-semibold">Исполнители по этапам</h2>
-                            <p class="text-sm text-zinc-500">Каждый этап формирует leg в маршруте заказа</p>
+                            <p class="text-sm text-zinc-500">Каждый этап формирует плечо в маршруте заказа</p>
                         </div>
                         <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addPerformer">
                             Добавить этап
@@ -171,12 +169,31 @@
                                     <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Этап</label>
                                     <input v-model="performer.stage" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
-                                <div class="space-y-2 md:col-span-2">
+                                <div class="relative space-y-2 md:col-span-2">
                                     <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Исполнитель</label>
-                                    <select v-model="performer.contractor_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option :value="null">Не выбран</option>
-                                        <option v-for="contractor in carrierOptions" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                                    </select>
+                                    <input
+                                        :value="carrierSearchValue('performer', index)"
+                                        type="text"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Начни вводить название или ИНН"
+                                        @focus="setCarrierResultsVisible('performer', index, true)"
+                                        @input="setCarrierSearchValue('performer', index, $event.target.value); setCarrierResultsVisible('performer', index, true)"
+                                    />
+                                    <div
+                                        v-if="isCarrierResultsVisible('performer', index) && filteredCarrierResults('performer', index).length > 0"
+                                        class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                    >
+                                        <button
+                                            v-for="contractor in filteredCarrierResults('performer', index)"
+                                            :key="contractor.id"
+                                            type="button"
+                                            class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                            @click="selectPerformerContractor(index, contractor)"
+                                        >
+                                            <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                            <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="flex items-end justify-end">
                                     <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.performers, index)">
@@ -400,7 +417,7 @@
                         </div>
                         <div class="grid gap-3 md:grid-cols-2">
                             <div class="space-y-2">
-                                <label class="text-sm font-medium">Форма оплаты клиента</label>
+                                <label class="text-sm font-medium">Форма оплаты</label>
                                 <select v-model="form.financial_term.client_payment_form" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                                     <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
@@ -412,40 +429,42 @@
                                 </p>
                             </div>
                         </div>
-                        <div class="grid gap-3 md:grid-cols-3">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Срок, дней</label>
-                                <input v-model="form.financial_term.client_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                        <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+                            <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Срок, дней</label>
+                                    <input v-model="form.financial_term.client_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Оплата по</label>
+                                    <select v-model="form.financial_term.client_payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <input v-model="form.financial_term.client_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
+                                    Предоплата
+                                </label>
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Тип документов</label>
-                                <select v-model="form.financial_term.client_payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <label class="inline-flex items-center gap-2 pt-8 text-sm">
-                                <input v-model="form.financial_term.client_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                Предоплата
-                            </label>
-                        </div>
-                        <div v-if="form.financial_term.client_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Предоплата, %</label>
-                                <input v-model="form.financial_term.client_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Срок предоплаты, дней</label>
-                                <input v-model="form.financial_term.client_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Тип документов для предоплаты</label>
-                                <select v-model="form.financial_term.client_payment_schedule.prepayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Постоплата, %</label>
-                                <input :value="100 - Number(form.financial_term.client_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                            <div v-if="form.financial_term.client_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Предоплата, %</label>
+                                    <input v-model="form.financial_term.client_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Срок предоплаты, дней</label>
+                                    <input v-model="form.financial_term.client_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Оплата по</label>
+                                    <select v-model="form.financial_term.client_payment_schedule.prepayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Постоплата, %</label>
+                                    <input :value="100 - Number(form.financial_term.client_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                                </div>
                             </div>
                         </div>
                         <div class="space-y-2">
@@ -495,9 +514,32 @@
                         <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                             <div class="grid gap-3 md:grid-cols-4">
                             <input v-model="cost.stage" type="text" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Этап" />
-                            <select v-model="cost.contractor_id" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <input
+                                :value="carrierSearchValue('cost', index)"
+                                type="text"
+                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="Поиск перевозчика"
+                                @focus="setCarrierResultsVisible('cost', index, true)"
+                                @input="setCarrierSearchValue('cost', index, $event.target.value); setCarrierResultsVisible('cost', index, true)"
+                            />
+                            <div
+                                v-if="isCarrierResultsVisible('cost', index) && filteredCarrierResults('cost', index).length > 0"
+                                class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                            >
+                                <button
+                                    v-for="contractor in filteredCarrierResults('cost', index)"
+                                    :key="contractor.id"
+                                    type="button"
+                                    class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                    @click="selectCostContractor(index, contractor)"
+                                >
+                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                            <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                </button>
+                            </div>
+                            <select v-model="cost.contractor_id" class="hidden rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="applyCarrierDefaultsByStage(cost.stage, cost.contractor_id); syncPerformerContractor(cost.stage, cost.contractor_id)">
                                 <option :value="null">Исполнитель</option>
-                                <option v-for="contractor in carrierOptions" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
+                                <option v-for="contractor in filteredCarrierResults('cost', index)" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
                             </select>
                             <input v-model="cost.amount" type="number" min="0" step="0.01" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сумма" />
                             <select v-model="cost.currency" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
@@ -518,40 +560,42 @@
                                     </p>
                                 </div>
                             </div>
-                            <div class="grid gap-3 md:grid-cols-3">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Срок, дней</label>
-                                    <input v-model="cost.payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+                                <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Срок, дней</label>
+                                        <input v-model="cost.payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Оплата по</label>
+                                        <select v-model="cost.payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                    </div>
+                                    <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <input v-model="cost.payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
+                                        Предоплата
+                                    </label>
                                 </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Тип документов</label>
-                                    <select v-model="cost.payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <label class="inline-flex items-center gap-2 pt-8 text-sm">
-                                    <input v-model="cost.payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                    Предоплата
-                                </label>
-                            </div>
-                            <div v-if="cost.payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Предоплата, %</label>
-                                    <input v-model="cost.payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Срок предоплаты, дней</label>
-                                    <input v-model="cost.payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Тип документов для предоплаты</label>
-                                    <select v-model="cost.payment_schedule.prepayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Постоплата, %</label>
-                                    <input :value="100 - Number(cost.payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                                <div v-if="cost.payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Предоплата, %</label>
+                                        <input v-model="cost.payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Срок предоплаты, дней</label>
+                                        <input v-model="cost.payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Оплата по</label>
+                                        <select v-model="cost.payment_schedule.prepayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Постоплата, %</label>
+                                        <input :value="100 - Number(cost.payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -672,8 +716,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
+import { ClipboardList, FileText, MapPinned, Package, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -698,11 +743,11 @@ const props = defineProps({
 });
 
 const tabs = [
-    { key: 'main', label: 'Основное' },
-    { key: 'route', label: 'Маршрут' },
-    { key: 'cargo', label: 'Груз' },
-    { key: 'finance', label: 'Финансы' },
-    { key: 'documents', label: 'Документы' },
+    { key: 'main', label: 'Основное', icon: ClipboardList },
+    { key: 'route', label: 'Маршрут', icon: MapPinned },
+    { key: 'cargo', label: 'Груз', icon: Package },
+    { key: 'finance', label: 'Финансы', icon: Wallet },
+    { key: 'documents', label: 'Документы', icon: FileText },
 ];
 
 const activeTab = ref('main');
@@ -710,6 +755,8 @@ const contractors = ref([...props.contractors]);
 const ownCompanyOptions = ref([...props.ownCompanies]);
 const clientSearch = ref('');
 const showClientResults = ref(false);
+const carrierSearch = ref({});
+const showCarrierResults = ref({});
 const showCounterpartyModal = ref(false);
 const inlineContractorSaving = ref(false);
 const addressSuggestions = ref({});
@@ -725,6 +772,8 @@ const paymentFormOptions = [
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
     { value: 'ottn', label: 'ОТТН' },
+    { value: 'fttn', label: 'На загрузке' },
+    { value: 'ottn', label: 'На выгрузке' },
 ];
 
 const counterpartyForm = useForm({
@@ -766,10 +815,13 @@ function blankPaymentSchedule() {
 }
 
 function normalizePaymentSchedule(schedule = {}) {
+    const raw = schedule?.has_prepayment;
+    const hasPrepayment = raw === true || raw === 1 || raw === '1';
+
     return {
         ...blankPaymentSchedule(),
         ...schedule,
-        has_prepayment: Boolean(schedule?.has_prepayment),
+        has_prepayment: hasPrepayment,
     };
 }
 
@@ -845,6 +897,7 @@ const currentRoleKey = computed(() => page.props.auth?.user?.role?.name ?? 'mana
 const isManager = computed(() => currentRoleKey.value === 'manager');
 const selectedClient = computed(() => contractors.value.find((contractor) => contractor.id === form.client_id) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
+const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
 
 const filteredClients = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
@@ -867,6 +920,7 @@ function selectClient(contractor) {
     form.client_id = contractor.id;
     clientSearch.value = contractor.name;
     showClientResults.value = false;
+    applyClientDefaults(contractor);
 }
 
 function addPerformer() {
@@ -874,6 +928,165 @@ function addPerformer() {
         stage: `leg_${form.performers.length + 1}`,
         contractor_id: null,
     });
+}
+
+function getContractorById(contractorId) {
+    return contractors.value.find((contractor) => contractor.id === contractorId) ?? null;
+}
+
+function carrierSearchKey(kind, index) {
+    return `${kind}-${index}`;
+}
+
+function carrierSearchValue(kind, index) {
+    return carrierSearch.value[carrierSearchKey(kind, index)] ?? '';
+}
+
+function setCarrierSearchValue(kind, index, value) {
+    carrierSearch.value = {
+        ...carrierSearch.value,
+        [carrierSearchKey(kind, index)]: value,
+    };
+}
+
+function setCarrierResultsVisible(kind, index, visible) {
+    showCarrierResults.value = {
+        ...showCarrierResults.value,
+        [carrierSearchKey(kind, index)]: visible,
+    };
+}
+
+function isCarrierResultsVisible(kind, index) {
+    return Boolean(showCarrierResults.value[carrierSearchKey(kind, index)]);
+}
+
+function filteredCarrierResults(kind, index) {
+    const query = carrierSearchValue(kind, index).trim().toLowerCase();
+    const selectedContractorId = kind === 'performer'
+        ? form.performers[index]?.contractor_id
+        : form.financial_term.contractors_costs[index]?.contractor_id;
+    const selectedContractor = getContractorById(selectedContractorId);
+
+    if (query === '') {
+        const visibleContractors = carrierOptions.value.slice(0, 8);
+
+        if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
+            return visibleContractors;
+        }
+
+        return [selectedContractor, ...visibleContractors.slice(0, 7)];
+    }
+
+    return carrierOptions.value
+        .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query)))
+        .slice(0, 8);
+}
+
+function parsePaymentTermPreset(term) {
+    if (!term) {
+        return blankPaymentSchedule();
+    }
+
+    const normalized = String(term).trim().toUpperCase();
+    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
+
+    if (prepaymentMatch) {
+        return normalizePaymentSchedule({
+            has_prepayment: true,
+            prepayment_ratio: Number(prepaymentMatch[1]),
+            prepayment_days: Number(prepaymentMatch[3]),
+            prepayment_mode: prepaymentMatch[4].toLowerCase(),
+            postpayment_days: Number(prepaymentMatch[5]),
+            postpayment_mode: prepaymentMatch[6].toLowerCase(),
+        });
+    }
+
+    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
+
+    if (postpaymentMatch) {
+        return normalizePaymentSchedule({
+            has_prepayment: false,
+            postpayment_days: Number(postpaymentMatch[1]),
+            postpayment_mode: postpaymentMatch[2].toLowerCase(),
+        });
+    }
+
+    return blankPaymentSchedule();
+}
+
+function contractorPaymentSchedule(contractor, scheduleField, legacyField) {
+    if (contractor?.[scheduleField]) {
+        return normalizePaymentSchedule(contractor[scheduleField]);
+    }
+
+    if (contractor?.[legacyField]) {
+        return parsePaymentTermPreset(contractor[legacyField]);
+    }
+
+    return blankPaymentSchedule();
+}
+
+function applyClientDefaults(contractor) {
+    if (!contractor) {
+        return;
+    }
+
+    if (contractor.default_customer_payment_form) {
+        form.financial_term.client_payment_form = contractor.default_customer_payment_form;
+    }
+
+    form.financial_term.client_payment_schedule = contractorPaymentSchedule(contractor, 'default_customer_payment_schedule', 'default_customer_payment_term');
+
+    if (contractor.cooperation_terms_notes && !String(form.special_notes || '').trim()) {
+        form.special_notes = contractor.cooperation_terms_notes;
+    }
+}
+
+function applyCarrierDefaultsByStage(stage, contractorId) {
+    const contractor = getContractorById(contractorId);
+
+    if (!contractor) {
+        return;
+    }
+
+    const costRow = form.financial_term.contractors_costs.find((row) => row.stage === stage);
+
+    if (!costRow) {
+        return;
+    }
+
+    if (contractor.default_carrier_payment_form) {
+        costRow.payment_form = contractor.default_carrier_payment_form;
+    }
+
+    costRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
+}
+
+function selectPerformerContractor(index, contractor) {
+    form.performers[index].contractor_id = contractor.id;
+    setCarrierSearchValue('performer', index, contractor.name);
+    setCarrierResultsVisible('performer', index, false);
+    syncContractorCostsFromPerformers();
+    applyCarrierDefaultsByStage(form.performers[index].stage, contractor.id);
+}
+
+function syncPerformerContractor(stage, contractorId) {
+    const performer = form.performers.find((item) => item.stage === stage);
+
+    if (!performer) {
+        return;
+    }
+
+    performer.contractor_id = contractorId;
+}
+
+function selectCostContractor(index, contractor) {
+    form.financial_term.contractors_costs[index].contractor_id = contractor.id;
+    setCarrierSearchValue('cost', index, contractor.name);
+    setCarrierResultsVisible('cost', index, false);
+    syncPerformerContractor(form.financial_term.contractors_costs[index].stage, contractor.id);
+    applyCarrierDefaultsByStage(form.financial_term.contractors_costs[index].stage, contractor.id);
 }
 
 const routeChainLabel = computed(() => {
@@ -1094,13 +1307,60 @@ function syncContractorCostsFromPerformers() {
     form.financial_term.contractors_costs = form.performers.map((performer) => {
         const existingRow = existingRows.find((row) => row.stage === performer.stage);
 
-        return normalizeContractorCost({
+        const nextRow = normalizeContractorCost({
             ...existingRow,
             stage: performer.stage,
             contractor_id: performer.contractor_id,
         });
+
+        if (!existingRow && performer.contractor_id) {
+            const contractor = getContractorById(performer.contractor_id);
+
+            if (contractor?.default_carrier_payment_form) {
+                nextRow.payment_form = contractor.default_carrier_payment_form;
+            }
+
+            nextRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
+        }
+
+        return nextRow;
     });
 }
+
+watch(
+    () => form.performers,
+    () => {
+        syncContractorCostsFromPerformers();
+    },
+    { deep: true },
+);
+
+watch(
+    () => form.performers.map((performer) => [performer.stage, performer.contractor_id]),
+    (performers) => {
+        performers.forEach(([stage, contractorId], index) => {
+            const contractor = getContractorById(contractorId);
+
+            setCarrierSearchValue('performer', index, contractor?.name ?? '');
+            const costIndex = form.financial_term.contractors_costs.findIndex((row) => row.stage === stage);
+
+            if (costIndex !== -1) {
+                setCarrierSearchValue('cost', costIndex, contractor?.name ?? '');
+            }
+        });
+    },
+    { deep: true, immediate: true },
+);
+
+watch(
+    () => form.client_id,
+    () => {
+        if (selectedClient.value) {
+            clientSearch.value = selectedClient.value.name;
+        }
+    },
+    { immediate: true },
+);
 
 function onDocumentFileChange(index, event) {
     form.documents[index].file = event.target.files?.[0] ?? null;
@@ -1245,3 +1505,7 @@ function goBack() {
 }
 
 </script>
+
+
+
+

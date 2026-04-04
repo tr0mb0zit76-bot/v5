@@ -10,19 +10,22 @@ use App\Models\OrderDocument;
 use App\Models\OrderLeg;
 use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
+use App\Models\SalaryCoefficient;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use JsonException;
 
 class OrderWizardService
 {
     public function __construct(
         private readonly OrderNumberGenerator $orderNumberGenerator,
-        private readonly OrderStatusService $orderStatusService
-    ) {
-    }
+        private readonly OrderStatusService $orderStatusService,
+        private readonly KpiConfigurationService $kpiConfigurationService,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $validated
@@ -40,7 +43,7 @@ class OrderWizardService
             $this->syncNestedData($order, $validated, $user);
             $this->syncDerivedStatus($order, $validated, $user, null);
 
-            return $order->load(['client', 'ownCompany', 'cargoItems', 'documents', 'financialTerms', 'statusLogs', 'legs.routePoints']);
+            return $order->load($this->relationsForOrderReload());
         });
     }
 
@@ -61,7 +64,7 @@ class OrderWizardService
             $this->syncNestedData($order, $validated, $user);
             $this->syncDerivedStatus($order, $validated, $user, $previousStatus);
 
-            return $order->load(['client', 'ownCompany', 'cargoItems', 'documents', 'financialTerms', 'statusLogs', 'legs.routePoints']);
+            return $order->load($this->relationsForOrderReload());
         });
     }
 
@@ -83,14 +86,21 @@ class OrderWizardService
             ->sum(fn (array $item): float => (float) ($item['amount'] ?? 0));
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
         $kpiPercent = (float) Arr::get($financialTerm, 'kpi_percent', 0);
-        $totalCost = $performerTotal + $additionalTotal;
+        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
+        $bonus = (float) ($validated['bonus'] ?? 0);
+        $bonusPart = $bonus * $bonusMultiplier;
+        $totalCost = $performerTotal + $additionalTotal + $bonusPart;
         $margin = ($clientPrice * (1 - ($kpiPercent / 100))) - $totalCost;
+        $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($user->id, $validated['order_date'] ?? null);
+        $salaryAccrued = $salaryCoefficient === null
+            ? 0
+            : ($margin * ($salaryCoefficient->bonus_percent / 100)) + $salaryCoefficient->base_salary;
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
         $clientPaymentSummary = $this->formatPaymentScheduleSummary($clientPaymentSchedule);
         $carrierPaymentForm = $this->resolveCarrierPaymentForm($contractorCosts);
         $carrierPaymentSummary = $this->resolveCarrierPaymentTerm($contractorCosts);
 
-        return [
+        $attributes = [
             'order_number' => $numberData['order_number'],
             'company_code' => $numberData['company_code'],
             'manager_id' => $user->id,
@@ -109,8 +119,10 @@ class OrderWizardService
             'carrier_payment_form' => $carrierPaymentForm,
             'carrier_payment_term' => $carrierPaymentSummary,
             'additional_expenses' => $additionalTotal,
+            'bonus' => $bonus,
             'kpi_percent' => $kpiPercent ?: null,
             'delta' => $margin,
+            'salary_accrued' => round($salaryAccrued, 2),
             'status' => $validated['status'],
             'status_updated_by' => $user->id,
             'status_updated_at' => now(),
@@ -119,6 +131,8 @@ class OrderWizardService
             'updated_by' => $user->id,
             ...($isCreating ? ['created_by' => $user->id] : []),
         ];
+
+        return $this->onlyExistingOrderColumns($attributes);
     }
 
     /**
@@ -126,16 +140,19 @@ class OrderWizardService
      */
     private function syncNestedData(Order $order, array $validated, User $user): void
     {
-        $order->loadMissing('legs', 'cargoItems', 'documents', 'financialTerms');
+        $order->loadMissing($this->relationsForNestedSync());
         $legs = $this->syncLegs($order, $validated['performers'] ?? []);
         $primaryLeg = $legs->first();
 
-        $order->cargoItems()->each(function (Cargo $cargo): void {
-            DB::table('cargo_leg')->where('cargo_id', $cargo->id)->delete();
-        });
-        $order->cargoItems()->delete();
-        $order->documents()->delete();
-        $order->financialTerms()->delete();
+        $this->deleteExistingCargoItems($order);
+
+        if (Schema::hasTable('order_documents')) {
+            $order->documents()->delete();
+        }
+
+        if (Schema::hasTable('financial_terms')) {
+            $order->financialTerms()->delete();
+        }
 
         foreach ($validated['route_points'] ?? [] as $index => $routePoint) {
             if ($primaryLeg === null) {
@@ -144,12 +161,10 @@ class OrderWizardService
 
             $normalizedData = Arr::get($routePoint, 'normalized_data', []);
 
-            RoutePoint::query()->create([
+            $routePointAttributes = [
                 'order_leg_id' => $primaryLeg->id,
                 'type' => $routePoint['type'],
                 'sequence' => $routePoint['sequence'] ?? ($index + 1),
-                'address' => $routePoint['address'],
-                'normalized_data' => $normalizedData,
                 'kladr_id' => Arr::get($normalizedData, 'kladr_id'),
                 'latitude' => Arr::get($normalizedData, 'coordinates.lat'),
                 'longitude' => Arr::get($normalizedData, 'coordinates.lng'),
@@ -157,26 +172,53 @@ class OrderWizardService
                 'actual_date' => $routePoint['actual_date'] ?? null,
                 'contact_person' => $routePoint['contact_person'] ?? null,
                 'contact_phone' => $routePoint['contact_phone'] ?? null,
-            ]);
+            ];
+
+            if (Schema::hasColumn('route_points', 'address')) {
+                $routePointAttributes['address'] = $routePoint['address'];
+            }
+
+            if (Schema::hasColumn('route_points', 'normalized_data')) {
+                $routePointAttributes['normalized_data'] = $normalizedData;
+            } elseif (Schema::hasColumn('route_points', 'metadata')) {
+                $routePointAttributes['metadata'] = [
+                    'address' => $routePoint['address'],
+                    'normalized_data' => $normalizedData,
+                ];
+            } elseif (Schema::hasColumn('route_points', 'instructions')) {
+                $routePointAttributes['instructions'] = $routePoint['address'];
+            }
+
+            RoutePoint::query()->create($routePointAttributes);
         }
 
         foreach ($validated['cargo_items'] ?? [] as $cargoItem) {
-            $cargo = Cargo::query()->create([
-                'order_id' => $order->id,
+            $cargoAttributes = [
                 'title' => $cargoItem['name'],
                 'description' => $cargoItem['description'] ?? null,
                 'weight' => $cargoItem['weight_kg'] ?? null,
                 'volume' => $cargoItem['volume_m3'] ?? null,
                 'cargo_type' => $cargoItem['cargo_type'],
                 'packing_type' => $cargoItem['package_type'] ?? null,
-                'package_count' => $cargoItem['package_count'] ?? null,
                 'is_hazardous' => (bool) ($cargoItem['dangerous_goods'] ?? false),
                 'hazard_class' => $cargoItem['dangerous_class'] ?? null,
                 'hs_code' => $cargoItem['hs_code'] ?? null,
                 'needs_temperature' => $cargoItem['cargo_type'] === 'temperature_controlled',
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
-            ]);
+            ];
+
+            if (Schema::hasColumn('cargos', 'order_id')) {
+                $cargoAttributes['order_id'] = $order->id;
+            }
+
+            if (Schema::hasColumn('cargos', 'package_count')) {
+                $cargoAttributes['package_count'] = $cargoItem['package_count'] ?? null;
+            } elseif (Schema::hasColumn('cargos', 'pallet_count') && ($cargoItem['package_type'] ?? null) === 'pallet') {
+                $cargoAttributes['pallet_count'] = $cargoItem['package_count'] ?? null;
+            }
+
+            $cargo = Cargo::query()->create($cargoAttributes);
 
             if ($primaryLeg !== null) {
                 DB::table('cargo_leg')->insert([
@@ -190,30 +232,48 @@ class OrderWizardService
             }
         }
 
-        foreach ($validated['documents'] ?? [] as $document) {
-            $storedFile = $this->storeDocumentFile($document['file'] ?? null);
+        if (Schema::hasTable('order_documents')) {
+            foreach ($validated['documents'] ?? [] as $document) {
+                $storedFile = $this->storeDocumentFile($document['file'] ?? null);
+                $documentAttributes = [
+                    'order_id' => $order->id,
+                    'type' => $document['type'],
+                    'original_name' => $storedFile['original_name'] ?? null,
+                    'file_path' => $storedFile['file_path'] ?? null,
+                    'file_size' => $storedFile['file_size'] ?? null,
+                    'mime_type' => $storedFile['mime_type'] ?? null,
+                    'uploaded_by' => $user->id,
+                    'metadata' => [
+                        'party' => $document['party'] ?? 'internal',
+                        'requirement_key' => $document['requirement_key'] ?? null,
+                    ],
+                ];
 
-            OrderDocument::query()->create([
-                'order_id' => $order->id,
-                'type' => $document['type'],
-                'number' => $document['number'] ?? null,
-                'document_date' => $document['document_date'] ?? null,
-                'original_name' => $storedFile['original_name'] ?? null,
-                'file_path' => $storedFile['file_path'] ?? null,
-                'file_size' => $storedFile['file_size'] ?? null,
-                'mime_type' => $storedFile['mime_type'] ?? null,
-                'generated_pdf_path' => null,
-                'template_id' => $document['template_id'] ?? null,
-                'status' => $document['status'],
-                'uploaded_by' => $user->id,
-                'metadata' => [
-                    'party' => $document['party'] ?? 'internal',
-                    'requirement_key' => $document['requirement_key'] ?? null,
-                ],
-            ]);
+                if (Schema::hasColumn('order_documents', 'number')) {
+                    $documentAttributes['number'] = $document['number'] ?? null;
+                }
+
+                if (Schema::hasColumn('order_documents', 'document_date')) {
+                    $documentAttributes['document_date'] = $document['document_date'] ?? null;
+                }
+
+                if (Schema::hasColumn('order_documents', 'generated_pdf_path')) {
+                    $documentAttributes['generated_pdf_path'] = null;
+                }
+
+                if (Schema::hasColumn('order_documents', 'template_id')) {
+                    $documentAttributes['template_id'] = $document['template_id'] ?? null;
+                }
+
+                if (Schema::hasColumn('order_documents', 'status')) {
+                    $documentAttributes['status'] = $document['status'];
+                }
+
+                OrderDocument::query()->create($documentAttributes);
+            }
         }
 
-        if (filled($validated['financial_term'] ?? null)) {
+        if (Schema::hasTable('financial_terms') && filled($validated['financial_term'] ?? null)) {
             $financialTerm = $validated['financial_term'];
             $contractorsCosts = Arr::get($financialTerm, 'contractors_costs', []);
             $additionalCosts = Arr::get($financialTerm, 'additional_costs', []);
@@ -221,26 +281,35 @@ class OrderWizardService
                 + collect($additionalCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
             $margin = (float) Arr::get($financialTerm, 'client_price', 0) * (1 - ((float) Arr::get($financialTerm, 'kpi_percent', 0) / 100)) - $totalCost;
 
-            FinancialTerm::query()->create([
+            $financialTermAttributes = [
                 'order_id' => $order->id,
                 'client_price' => Arr::get($financialTerm, 'client_price'),
                 'client_currency' => Arr::get($financialTerm, 'client_currency', 'RUB'),
-                'client_payment_terms' => $this->formatPaymentScheduleSummary(Arr::get($financialTerm, 'client_payment_schedule', [])),
                 'contractors_costs' => $contractorsCosts,
                 'total_cost' => $totalCost,
                 'margin' => $margin,
                 'additional_costs' => $additionalCosts,
-            ]);
+            ];
+
+            if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
+                $financialTermAttributes['client_payment_terms'] = $this->formatPaymentScheduleSummary(
+                    Arr::get($financialTerm, 'client_payment_schedule', [])
+                );
+            }
+
+            FinancialTerm::query()->create($financialTermAttributes);
         }
     }
 
     /**
      * @param  list<array<string, mixed>>  $performers
-     * @return \Illuminate\Support\Collection<int, OrderLeg>
+     * @return Collection<int, OrderLeg>
      */
     private function syncLegs(Order $order, array $performers)
     {
-        $order->legs()->delete();
+        OrderLeg::query()
+            ->where('order_id', $order->id)
+            ->delete();
 
         $legs = collect($performers)
             ->values()
@@ -273,6 +342,10 @@ class OrderWizardService
 
     private function logStatusChange(Order $order, ?string $from, string $to, int $userId): void
     {
+        if (! Schema::hasTable('order_status_logs')) {
+            return;
+        }
+
         OrderStatusLog::query()->create([
             'order_id' => $order->id,
             'status_from' => $from,
@@ -286,7 +359,11 @@ class OrderWizardService
      */
     private function syncDerivedStatus(Order $order, array $validated, User $user, ?string $previousStatus): void
     {
-        $order->load('documents');
+        if (Schema::hasTable('order_documents')) {
+            $order->load('documents');
+        } else {
+            $order->setRelation('documents', collect());
+        }
 
         $derivedStatus = $this->orderStatusService->resolve($order, $validated['status'] ?? null);
 
@@ -300,6 +377,17 @@ class OrderWizardService
         if ($previousStatus !== $derivedStatus) {
             $this->logStatusChange($order, $previousStatus, $derivedStatus, $user->id);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function onlyExistingOrderColumns(array $attributes): array
+    {
+        return collect($attributes)
+            ->filter(fn (mixed $value, string $column): bool => Schema::hasColumn('orders', $column))
+            ->all();
     }
 
     /**
@@ -416,5 +504,78 @@ class OrderWizardService
         }
 
         return $summaries->count() === 1 ? $summaries->first() : 'см. этапы';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function relationsForOrderReload(): array
+    {
+        $relations = ['client', 'ownCompany', 'legs.routePoints'];
+
+        if (Schema::hasColumn('cargos', 'order_id')) {
+            $relations[] = 'cargoItems';
+        }
+
+        if (Schema::hasTable('order_documents')) {
+            $relations[] = 'documents';
+        }
+
+        if (Schema::hasTable('financial_terms')) {
+            $relations[] = 'financialTerms';
+        }
+
+        if (Schema::hasTable('order_status_logs')) {
+            $relations[] = 'statusLogs';
+        }
+
+        return $relations;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function relationsForNestedSync(): array
+    {
+        $relations = ['legs'];
+
+        if (Schema::hasColumn('cargos', 'order_id')) {
+            $relations[] = 'cargoItems';
+        }
+
+        if (Schema::hasTable('order_documents')) {
+            $relations[] = 'documents';
+        }
+
+        if (Schema::hasTable('financial_terms')) {
+            $relations[] = 'financialTerms';
+        }
+
+        return $relations;
+    }
+
+    private function deleteExistingCargoItems(Order $order): void
+    {
+        if (Schema::hasColumn('cargos', 'order_id')) {
+            $order->cargoItems()->each(function (Cargo $cargo): void {
+                DB::table('cargo_leg')->where('cargo_id', $cargo->id)->delete();
+            });
+
+            $order->cargoItems()->delete();
+
+            return;
+        }
+
+        $cargoIds = DB::table('cargo_leg')
+            ->join('order_legs', 'order_legs.id', '=', 'cargo_leg.order_leg_id')
+            ->where('order_legs.order_id', $order->id)
+            ->pluck('cargo_leg.cargo_id');
+
+        if ($cargoIds->isEmpty()) {
+            return;
+        }
+
+        DB::table('cargo_leg')->whereIn('cargo_id', $cargoIds)->delete();
+        Cargo::query()->whereIn('id', $cargoIds)->delete();
     }
 }

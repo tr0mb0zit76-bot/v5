@@ -6,21 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
+        if (! Schema::hasTable('contractors') || Schema::hasColumn('contractors', 'is_own_company')) {
+            return;
+        }
+
         Schema::table('contractors', function (Blueprint $table) {
             $table->boolean('is_own_company')->default(false)->after('is_verified');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        if (! Schema::hasTable('contractors') || ! Schema::hasColumn('contractors', 'is_own_company')) {
+            return;
+        }
+
         Schema::table('contractors', function (Blueprint $table) {
             $table->dropColumn('is_own_company');
         });

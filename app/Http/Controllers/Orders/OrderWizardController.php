@@ -5,20 +5,25 @@ namespace App\Http\Controllers\Orders;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreOrderRequest;
+use App\Http\Requests\UpdateInlineOrderFieldRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Cargo;
 use App\Models\Contractor;
+use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderWizardService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use JsonException;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
+use JsonException;
 
 class OrderWizardController extends Controller
 {
@@ -36,15 +41,7 @@ class OrderWizardController extends Controller
 
     public function edit(Request $request, Order $order): Response
     {
-        return $this->renderPage($request, $order->load([
-            'client',
-            'ownCompany',
-            'cargoItems',
-            'documents',
-            'financialTerms',
-            'statusLogs',
-            'legs.routePoints',
-        ]));
+        return $this->renderPage($request, $this->loadOrderForEditing($order));
     }
 
     public function update(UpdateOrderRequest $request, Order $order, OrderWizardService $orderWizardService): RedirectResponse
@@ -54,26 +51,69 @@ class OrderWizardController extends Controller
         return to_route('orders.edit', $order);
     }
 
+    public function inlineUpdate(UpdateInlineOrderFieldRequest $request, Order $order): RedirectResponse
+    {
+        abort_unless($this->canEditInlineField($request, $order), 403);
+
+        $payload = $request->validatedPayload();
+
+        $order->forceFill([
+            $payload['field'] => $payload['value'],
+            'updated_by' => $request->user()?->id,
+        ])->save();
+
+        if (in_array($payload['field'], ['customer_rate', 'carrier_rate'], true)) {
+            $this->syncFinancialTermsFromOrderRates($order->fresh());
+        }
+
+        return to_route('orders.index');
+    }
+
     public function destroy(Request $request, Order $order): RedirectResponse
     {
+        if ($order->trashed()) {
+            return to_route('orders.index');
+        }
+
         abort_unless($this->canDeleteOrder($request, $order), 403);
 
         DB::transaction(function () use ($order): void {
-            $order->loadMissing('legs.routePoints', 'cargoItems', 'documents', 'financialTerms', 'statusLogs');
+            $order = $this->loadOrderForEditing($order);
+            $cargoItems = $this->orderCargoItems($order);
 
             DB::table('cargo_leg')
-                ->whereIn('cargo_id', $order->cargoItems->pluck('id'))
+                ->when(
+                    $cargoItems->isNotEmpty(),
+                    fn ($query) => $query->whereIn('cargo_id', $cargoItems->pluck('id')),
+                    fn ($query) => $query->whereRaw('1 = 0')
+                )
                 ->delete();
 
             DB::table('route_points')
                 ->whereIn('order_leg_id', $order->legs->pluck('id'))
                 ->delete();
 
-            $order->documents()->delete();
-            $order->financialTerms()->delete();
-            $order->statusLogs()->delete();
-            $order->cargoItems()->delete();
-            $order->legs()->delete();
+            if (Schema::hasTable('order_documents')) {
+                $order->documents()->delete();
+            }
+
+            if (Schema::hasTable('financial_terms')) {
+                $order->financialTerms()->delete();
+            }
+
+            if (Schema::hasTable('order_status_logs')) {
+                $order->statusLogs()->delete();
+            }
+
+            if (Schema::hasColumn('cargos', 'order_id')) {
+                $order->cargoItems()->delete();
+            } elseif ($cargoItems->isNotEmpty()) {
+                Cargo::query()->whereIn('id', $cargoItems->pluck('id'))->delete();
+            }
+
+            DB::table('order_legs')
+                ->where('order_id', $order->id)
+                ->delete();
             $order->delete();
         });
 
@@ -93,7 +133,7 @@ class OrderWizardController extends Controller
 
     public function storeContractor(StoreInlineOrderContractorRequest $request): JsonResponse
     {
-        $contractor = Contractor::query()->create([
+        $attributes = [
             'type' => $request->input('type', 'customer'),
             'name' => $request->string('name')->toString(),
             'inn' => $request->string('inn')->toString() ?: null,
@@ -105,10 +145,15 @@ class OrderWizardController extends Controller
             'contact_person' => $request->string('contact_person')->toString() ?: null,
             'is_active' => true,
             'is_verified' => false,
-            'is_own_company' => false,
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
-        ]);
+        ];
+
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $attributes['is_own_company'] = false;
+        }
+
+        $contractor = Contractor::query()->create($attributes);
 
         return response()->json([
             'contractor' => [
@@ -125,18 +170,36 @@ class OrderWizardController extends Controller
 
     private function renderPage(Request $request, ?Order $order = null): Response
     {
+        /** @var ContractorCreditService $creditService */
+        $creditService = app(ContractorCreditService::class);
         $documentRequirementService = app(OrderDocumentRequirementService::class);
 
         $contractors = Contractor::query()
             ->where('is_active', true)
-            ->orderByDesc('is_own_company')
+            ->when(
+                Schema::hasColumn('contractors', 'is_own_company'),
+                fn ($query) => $query->orderByDesc('is_own_company')
+            )
             ->orderBy('name')
-            ->get(['id', 'name', 'inn', 'phone', 'email', 'type', 'is_own_company']);
+            ->get($this->contractorSelectColumns());
+
+        $debtMap = $creditService->currentDebtByContractorIds($contractors->pluck('id')->all());
+
+        $contractors->transform(function (Contractor $contractor) use ($creditService, $debtMap): Contractor {
+            $currentDebt = $debtMap[$contractor->id] ?? 0;
+
+            $contractor->setAttribute('current_debt', $currentDebt);
+            $contractor->setAttribute('debt_limit_reached', $creditService->isBlockedByDebtLimit($contractor, $currentDebt));
+
+            return $contractor;
+        });
 
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($order),
             'contractors' => $contractors->values(),
-            'ownCompanies' => $contractors->where('is_own_company', true)->values(),
+            'ownCompanies' => Schema::hasColumn('contractors', 'is_own_company')
+                ? $contractors->where('is_own_company', true)->values()
+                : collect(),
             'cargoTypeOptions' => [
                 ['value' => 'general', 'label' => 'Общий груз'],
                 ['value' => 'dangerous', 'label' => 'Опасный груз'],
@@ -214,14 +277,50 @@ class OrderWizardController extends Controller
             && $order->loading_date === null;
     }
 
+    private function canEditInlineField(Request $request, Order $order): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        if (! $user->isManager()) {
+            return false;
+        }
+
+        return $order->manager_id === $user->id;
+    }
+
     /**
      * @return array<string, mixed>
      */
     private function serializeOrder(Order $order): array
     {
-        $financialTerm = $order->financialTerms->first();
+        $financialTerm = Schema::hasTable('financial_terms') ? $order->financialTerms->first() : null;
         $primaryLeg = $order->legs->sortBy('sequence')->first();
         $paymentTermsConfig = $this->decodePaymentTermsConfig($order->payment_terms);
+        $routePointHasAddressColumn = Schema::hasColumn('route_points', 'address');
+        $routePointHasMetadataColumn = Schema::hasColumn('route_points', 'metadata');
+        $cargoItems = $this->orderCargoItems($order);
+        $documents = Schema::hasTable('order_documents') ? $order->documents : collect();
+        $statusLogs = Schema::hasTable('order_status_logs') ? $order->statusLogs : collect();
+
+        $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTerm))
+            ->map(fn (array $cost): array => [
+                'stage' => $cost['stage'] ?? null,
+                'contractor_id' => $cost['contractor_id'] ?? null,
+                'amount' => $cost['amount'] ?? null,
+                'currency' => $cost['currency'] ?? 'RUB',
+                'payment_form' => $cost['payment_form'] ?? 'no_vat',
+                'payment_schedule' => $cost['payment_schedule'] ?? [],
+            ])
+            ->values()
+            ->all();
 
         return [
             'id' => $order->id,
@@ -238,46 +337,42 @@ class OrderWizardController extends Controller
                 'id' => $point->id,
                 'type' => $point->type,
                 'sequence' => $point->sequence,
-                'address' => $point->address,
-                'normalized_data' => $point->normalized_data ?? [],
+                'address' => $routePointHasAddressColumn
+                    ? $point->address
+                    : data_get($point->metadata, 'address', $point->instructions),
+                'normalized_data' => $routePointHasMetadataColumn
+                    ? (data_get($point->metadata, 'normalized_data', []))
+                    : ($point->normalized_data ?? []),
                 'planned_date' => optional($point->planned_date)?->toDateString(),
                 'actual_date' => optional($point->actual_date)?->toDateString(),
                 'contact_person' => $point->contact_person,
                 'contact_phone' => $point->contact_phone,
             ])->values()->all() ?? [],
-            'cargo_items' => $order->cargoItems->map(fn ($cargo): array => [
+            'cargo_items' => $cargoItems->map(fn ($cargo): array => [
                 'id' => $cargo->id,
                 'name' => $cargo->title,
                 'description' => $cargo->description,
                 'weight_kg' => $cargo->weight,
                 'volume_m3' => $cargo->volume,
                 'package_type' => $cargo->packing_type,
-                'package_count' => $cargo->package_count,
+                'package_count' => $cargo->package_count ?? $cargo->pallet_count,
                 'dangerous_goods' => $cargo->is_hazardous,
                 'dangerous_class' => $cargo->hazard_class,
                 'hs_code' => $cargo->hs_code,
                 'cargo_type' => $cargo->cargo_type ?: 'general',
             ])->values()->all(),
             'financial_term' => [
-                'client_price' => $financialTerm?->client_price,
+                'client_price' => $order->customer_rate !== null
+                    ? $order->customer_rate
+                    : $financialTerm?->client_price,
                 'client_currency' => $financialTerm?->client_currency ?? 'RUB',
                 'client_payment_form' => $order->customer_payment_form ?? 'vat',
                 'client_payment_schedule' => $paymentTermsConfig['client']['payment_schedule'] ?? [],
-                'contractors_costs' => collect($financialTerm?->contractors_costs ?? [])
-                    ->map(fn ($cost): array => [
-                        'stage' => $cost['stage'] ?? null,
-                        'contractor_id' => $cost['contractor_id'] ?? null,
-                        'amount' => $cost['amount'] ?? null,
-                        'currency' => $cost['currency'] ?? 'RUB',
-                        'payment_form' => $cost['payment_form'] ?? 'no_vat',
-                        'payment_schedule' => $cost['payment_schedule'] ?? [],
-                    ])
-                    ->values()
-                    ->all(),
+                'contractors_costs' => $contractorsCosts,
                 'additional_costs' => $financialTerm?->additional_costs ?? [],
                 'kpi_percent' => $order->kpi_percent,
             ],
-            'documents' => $order->documents->map(fn ($document): array => [
+            'documents' => $documents->map(fn ($document): array => [
                 'id' => $document->id,
                 'type' => $document->type,
                 'party' => data_get($document->metadata, 'party', 'internal'),
@@ -290,7 +385,7 @@ class OrderWizardController extends Controller
                 'generated_pdf_path' => $document->generated_pdf_path,
                 'template_id' => $document->template_id,
             ])->values()->all(),
-            'status_logs' => $order->statusLogs->map(fn ($log): array => [
+            'status_logs' => $statusLogs->map(fn ($log): array => [
                 'id' => $log->id,
                 'status_from' => $log->status_from,
                 'status_to' => $log->status_to,
@@ -298,6 +393,118 @@ class OrderWizardController extends Controller
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function contractorSelectColumns(): array
+    {
+        $columns = ['id', 'name', 'inn', 'phone', 'email', 'type'];
+
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $columns[] = 'is_own_company';
+        }
+
+        foreach ([
+            'debt_limit',
+            'debt_limit_currency',
+            'stop_on_limit',
+            'default_customer_payment_form',
+            'default_customer_payment_term',
+            'default_customer_payment_schedule',
+            'default_carrier_payment_form',
+            'default_carrier_payment_term',
+            'default_carrier_payment_schedule',
+            'cooperation_terms_notes',
+        ] as $column) {
+            if (Schema::hasColumn('contractors', $column)) {
+                $columns[] = $column;
+            }
+        }
+
+        return $columns;
+    }
+
+    private function loadOrderForEditing(Order $order): Order
+    {
+        $relations = ['client', 'ownCompany', 'legs.routePoints'];
+
+        if (Schema::hasColumn('cargos', 'order_id')) {
+            $relations[] = 'cargoItems';
+        }
+
+        if (Schema::hasTable('order_documents')) {
+            $relations[] = 'documents';
+        }
+
+        if (Schema::hasTable('financial_terms')) {
+            $relations[] = 'financialTerms';
+        }
+
+        if (Schema::hasTable('order_status_logs')) {
+            $relations[] = 'statusLogs';
+        }
+
+        return $order->load($relations);
+    }
+
+    /**
+     * @return Collection<int, Cargo>
+     */
+    private function orderCargoItems(Order $order): Collection
+    {
+        if (Schema::hasColumn('cargos', 'order_id')) {
+            return $order->cargoItems;
+        }
+
+        return Cargo::query()
+            ->select('cargos.*')
+            ->join('cargo_leg', 'cargo_leg.cargo_id', '=', 'cargos.id')
+            ->join('order_legs', 'order_legs.id', '=', 'cargo_leg.order_leg_id')
+            ->where('order_legs.order_id', $order->id)
+            ->orderBy('cargos.id')
+            ->get();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeContractorsCosts(Order $order, ?FinancialTerm $financialTerm): array
+    {
+        $contractorsCosts = $financialTerm?->contractors_costs ?? [];
+
+        if (! is_array($contractorsCosts)) {
+            $contractorsCosts = [];
+        }
+
+        if ($contractorsCosts === []) {
+            $performers = collect($order->performers ?? [])->values();
+
+            if ($performers->isNotEmpty()) {
+                $contractorsCosts = $performers
+                    ->map(fn (array $performer, int $index): array => [
+                        'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
+                        'contractor_id' => $performer['contractor_id'] ?? null,
+                        'amount' => null,
+                        'currency' => $financialTerm?->client_currency ?? 'RUB',
+                        'payment_form' => $order->carrier_payment_form ?? 'no_vat',
+                        'payment_schedule' => [],
+                    ])
+                    ->all();
+            } elseif ($order->carrier_id !== null || $order->carrier_rate !== null) {
+                $contractorsCosts = [[
+                    'stage' => 'leg_1',
+                    'contractor_id' => $order->carrier_id,
+                    'amount' => null,
+                    'currency' => $financialTerm?->client_currency ?? 'RUB',
+                    'payment_form' => $order->carrier_payment_form ?? 'no_vat',
+                    'payment_schedule' => [],
+                ]];
+            }
+        }
+
+        return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
     }
 
     /**
@@ -316,5 +523,82 @@ class OrderWizardController extends Controller
         } catch (JsonException) {
             return [];
         }
+    }
+
+    /**
+     * Таблица заказов хранит итоговые ставки в `orders`; карточка подгружает детализацию из `financial_terms`.
+     * После inline-редактирования ставок в гриде синхронизируем строку финансовых условий, чтобы не расходились данные.
+     */
+    private function syncFinancialTermsFromOrderRates(Order $order): void
+    {
+        if (! Schema::hasTable('financial_terms')) {
+            return;
+        }
+
+        $financialTerm = FinancialTerm::query()->where('order_id', $order->id)->first();
+
+        if ($financialTerm === null) {
+            $attributes = [
+                'order_id' => $order->id,
+                'client_price' => $order->customer_rate,
+                'client_currency' => 'RUB',
+                'contractors_costs' => $this->normalizeContractorsCosts($order, null),
+                'total_cost' => 0,
+                'margin' => 0,
+                'additional_costs' => [],
+            ];
+
+            if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
+                $attributes['client_payment_terms'] = $order->customer_payment_term;
+            }
+
+            $financialTerm = FinancialTerm::query()->create($attributes);
+        }
+
+        if ($order->customer_rate !== null) {
+            $financialTerm->client_price = $order->customer_rate;
+        }
+
+        $costs = $this->normalizeContractorsCosts($order, $financialTerm);
+        $financialTerm->contractors_costs = $costs;
+
+        $contractorsSum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
+        $additionalTotal = collect($financialTerm->additional_costs ?? [])
+            ->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
+        $financialTerm->total_cost = $contractorsSum + $additionalTotal;
+
+        $kpiPercent = (float) ($order->kpi_percent ?? 0);
+        $clientPrice = (float) ($order->customer_rate ?? $financialTerm->client_price ?? 0);
+        $financialTerm->margin = ($clientPrice * (1 - ($kpiPercent / 100))) - $financialTerm->total_cost;
+
+        $financialTerm->save();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $costs
+     * @return list<array<string, mixed>>
+     */
+    private function mergeOrderCarrierRateIntoContractorsCosts(array $costs, mixed $carrierRate): array
+    {
+        if ($carrierRate === null || count($costs) === 0) {
+            return $costs;
+        }
+
+        $sum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
+
+        if (abs(round((float) $carrierRate, 2) - round($sum, 2)) < 0.01) {
+            return $costs;
+        }
+
+        if (count($costs) === 1) {
+            $costs[0]['amount'] = (float) $carrierRate;
+
+            return $costs;
+        }
+
+        $rest = collect($costs)->slice(1)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
+        $costs[0]['amount'] = max(0, (float) $carrierRate - $rest);
+
+        return $costs;
     }
 }

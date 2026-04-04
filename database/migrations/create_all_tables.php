@@ -8,6 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (
+            Schema::hasTable('sessions')
+            || Schema::hasTable('cache')
+            || Schema::hasTable('jobs')
+            || Schema::hasTable('users')
+            || Schema::hasTable('modules')
+        ) {
+            return;
+        }
+
         /*
         |--------------------------------------------------------------------------
         | 1. AUTH / SYSTEM

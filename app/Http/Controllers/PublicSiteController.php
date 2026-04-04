@@ -8,16 +8,35 @@ use Inertia\Response;
 class PublicSiteController extends Controller
 {
     /**
+     * @return list<string>
+     */
+    protected function translationPaths(): array
+    {
+        return [
+            public_path('locales/ru.json'),
+            public_path('assets/locales/ru.json'),
+            public_path('change/locales/ru.json'),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function sharedProps(): array
     {
-        $translationsPath = public_path('change/locales/ru.json');
         $translations = [];
 
-        if (is_file($translationsPath)) {
+        foreach ($this->translationPaths() as $translationsPath) {
+            if (! is_file($translationsPath)) {
+                continue;
+            }
+
             $decodedTranslations = json_decode((string) file_get_contents($translationsPath), true);
-            $translations = is_array($decodedTranslations) ? $decodedTranslations : [];
+
+            if (is_array($decodedTranslations)) {
+                $translations = $decodedTranslations;
+                break;
+            }
         }
 
         return [

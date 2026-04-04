@@ -33,23 +33,30 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $hasRolesTable = Schema::hasTable('roles');
+        $hasVisibilityAreasColumn = $hasRolesTable && Schema::hasColumn('roles', 'visibility_areas');
+        $hasVisibilityScopesColumn = $hasRolesTable && Schema::hasColumn('roles', 'visibility_scopes');
 
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $user === null ? null : [
                     ...$user->toArray(),
-                    'role' => $user->role_id === null ? null : (function () use ($user) {
-                        $columns = ['id', 'name', 'display_name', 'permissions', 'visibility_areas', 'columns_config'];
+                    'role' => $user->role_id === null || ! $hasRolesTable ? null : (function () use ($user, $hasVisibilityAreasColumn, $hasVisibilityScopesColumn) {
+                        $columns = ['id', 'name', 'display_name', 'permissions', 'columns_config'];
 
-                        if (Schema::hasColumn('roles', 'visibility_scopes')) {
+                        if ($hasVisibilityAreasColumn) {
+                            $columns[] = 'visibility_areas';
+                        }
+
+                        if ($hasVisibilityScopesColumn) {
                             $columns[] = 'visibility_scopes';
                         }
 
                         $role = DB::table('roles')
-                        ->where('id', $user->role_id)
-                        ->select($columns)
-                        ->first();
+                            ->where('id', $user->role_id)
+                            ->select($columns)
+                            ->first();
 
                         if ($role === null) {
                             return null;

@@ -90,6 +90,7 @@
           @column-resized="saveColumnState"
           @column-moved="saveColumnState"
           @column-pinned="saveColumnState"
+          @sort-changed="saveColumnState"
         />
       </div>
 
@@ -329,6 +330,7 @@ const defaultColDef = {
   floatingFilter: true,
   minWidth: 50,
   suppressSizeToFit: true,
+  singleClickEdit: true,
 };
 
 const getAllColumns = () => {
@@ -362,15 +364,62 @@ const getAllowedColumns = () => {
 const roleDefaults = {
   admin: {
     visible: baseVisibleFields,
-    editable: getAllColumns().map((column) => column.field),
+    editable: [
+      'customer_rate',
+      'carrier_rate',
+      'additional_expenses',
+      'invoice_number',
+      'upd_number',
+      'waybill_number',
+      'track_number_customer',
+      'track_sent_date_customer',
+      'track_received_date_customer',
+      'track_number_carrier',
+      'track_sent_date_carrier',
+      'track_received_date_carrier',
+      'customer_payment_form',
+      'carrier_payment_form',
+      'manual_status',
+    ],
   },
   supervisor: {
     visible: baseVisibleFields,
-    editable: getAllColumns().map((column) => column.field),
+    editable: [
+      'customer_rate',
+      'carrier_rate',
+      'additional_expenses',
+      'invoice_number',
+      'upd_number',
+      'waybill_number',
+      'track_number_customer',
+      'track_sent_date_customer',
+      'track_received_date_customer',
+      'track_number_carrier',
+      'track_sent_date_carrier',
+      'track_received_date_carrier',
+      'customer_payment_form',
+      'carrier_payment_form',
+      'manual_status',
+    ],
   },
   manager: {
     visible: baseVisibleFields.filter((field) => field !== 'salary_paid'),
-    editable: ['customer_rate', 'carrier_rate', 'additional_expenses', 'invoice_number', 'upd_number', 'waybill_number'],
+    editable: [
+      'customer_rate',
+      'carrier_rate',
+      'additional_expenses',
+      'invoice_number',
+      'upd_number',
+      'waybill_number',
+      'track_number_customer',
+      'track_sent_date_customer',
+      'track_received_date_customer',
+      'track_number_carrier',
+      'track_sent_date_carrier',
+      'track_received_date_carrier',
+      'customer_payment_form',
+      'carrier_payment_form',
+    ],
   },
 };
 
@@ -443,6 +492,8 @@ const saveColumnState = () => {
       hide: column.hide,
       width: column.width,
       order: index,
+      sort: column.sort ?? null,
+      sortIndex: column.sortIndex ?? null,
     }));
 
     localStorage.setItem(storageKey.value, JSON.stringify(columnState));
@@ -473,6 +524,8 @@ const loadColumnState = () => {
         colId: column.colId,
         hide: column.hide,
         width: column.width,
+        sort: column.sort ?? null,
+        sortIndex: column.sortIndex ?? null,
       })),
       applyOrder: true,
     });
@@ -563,10 +616,39 @@ const dateTimeFormatter = (params) => {
   return parsedDate.toLocaleString('ru-RU');
 };
 
+class DateInputEditor {
+  init(params) {
+    this.input = document.createElement('input');
+    this.input.type = 'date';
+    this.input.className = 'orders-grid-date-editor';
+    this.input.value = params.value ?? '';
+  }
+
+  getGui() {
+    return this.input;
+  }
+
+  afterGuiAttached() {
+    this.input.focus();
+    this.input.showPicker?.();
+  }
+
+  getValue() {
+    return this.input.value || null;
+  }
+
+  destroy() {}
+
+  isPopup() {
+    return false;
+  }
+}
+
 const dynamicColumnDefs = computed(() => {
   const editableFields = getDefaultEditableFields();
 
   const columns = getAllowedColumns().map((column) => {
+    const isEditable = editableFields.includes(column.field) && props.editable;
     const columnDefinition = {
       field: column.field,
       headerName: column.headerName,
@@ -576,18 +658,44 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
-      editable: editableFields.includes(column.field) && props.editable,
+      editable: isEditable,
+      cellClass: () => {
+        const classes = [];
+
+        if (isEditable) {
+          classes.push('orders-grid-editable-cell');
+        }
+
+        if (column.field === 'order_number') {
+          classes.push('orders-grid-order-number-cell');
+        }
+
+        return classes;
+      },
     };
+
+    if (column.field === 'order_number') {
+      columnDefinition.pinned = 'left';
+      columnDefinition.lockPinned = true;
+      columnDefinition.headerClass = 'orders-grid-order-number-header';
+    }
 
     if (column.type === 'numeric') {
       columnDefinition.valueFormatter = moneyFormatter;
       columnDefinition.valueParser = (params) => {
+        if (params.newValue === null || params.newValue === undefined || params.newValue === '') {
+          return null;
+        }
+
         const parsedValue = parseFloat(params.newValue);
-        return Number.isNaN(parsedValue) ? 0 : parsedValue;
+        return Number.isNaN(parsedValue) ? params.oldValue : parsedValue;
       };
       columnDefinition.filter = 'agNumberColumnFilter';
     } else if (column.type === 'date') {
       columnDefinition.valueFormatter = dateFormatter;
+      if (columnDefinition.editable) {
+        columnDefinition.cellEditor = DateInputEditor;
+      }
     } else if (column.type === 'datetime') {
       columnDefinition.valueFormatter = dateTimeFormatter;
     } else if (column.type === 'boolean') {
@@ -604,6 +712,33 @@ const dynamicColumnDefs = computed(() => {
       };
     } else {
       columnDefinition.valueFormatter = (params) => formatEmpty(params.value);
+    }
+
+    if (['customer_payment_form', 'carrier_payment_form'].includes(column.field)) {
+      columnDefinition.cellEditor = 'agSelectCellEditor';
+      columnDefinition.cellEditorParams = {
+        values: ['vat', 'no_vat', 'cash'],
+      };
+      columnDefinition.valueFormatter = (params) => ({
+        vat: 'С НДС',
+        no_vat: 'Без НДС',
+        cash: 'Нал',
+      }[params.value] ?? formatEmpty(params.value));
+    }
+
+    if (column.field === 'manual_status') {
+      columnDefinition.cellEditor = 'agSelectCellEditor';
+      columnDefinition.cellEditorParams = {
+        values: ['new', 'in_progress', 'documents', 'payment', 'closed', 'cancelled'],
+      };
+      columnDefinition.valueFormatter = (params) => ({
+        new: 'Новый заказ',
+        in_progress: 'Выполняется',
+        documents: 'Документы',
+        payment: 'Оплата',
+        closed: 'Закрыта',
+        cancelled: 'Отменена',
+      }[params.value] ?? formatEmpty(params.value));
     }
 
     return columnDefinition;

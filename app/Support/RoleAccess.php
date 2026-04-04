@@ -35,6 +35,7 @@ class RoleAccess
     {
         return [
             ['key' => 'dashboard', 'label' => 'Дашборд', 'description' => 'Главная панель и сводные карточки'],
+            ['key' => 'leads', 'label' => 'Лиды', 'description' => 'Воронка до конверсии в заказ'],
             ['key' => 'orders', 'label' => 'Заказы', 'description' => 'Раздел работы с заказами'],
             ['key' => 'users', 'label' => 'Пользователи', 'description' => 'Управление пользователями'],
             ['key' => 'roles', 'label' => 'Роли', 'description' => 'Управление ролями и правами'],
@@ -82,8 +83,8 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'reports', 'settings'],
-            'manager' => ['dashboard', 'orders', 'contractors', 'documents', 'activities'],
+            'supervisor' => ['dashboard', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'reports', 'settings'],
+            'manager' => ['dashboard', 'leads', 'orders', 'contractors', 'documents', 'activities'],
             'dispatcher' => ['dashboard', 'orders', 'drivers', 'activities'],
             'accountant' => ['dashboard', 'orders', 'documents', 'reports'],
             'clerk' => ['dashboard', 'orders', 'documents', 'contractors'],
@@ -98,9 +99,9 @@ class RoleAccess
     public static function defaultVisibilityScopes(?string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['orders' => 'all'],
-            'supervisor' => ['orders' => 'all'],
-            'manager' => ['orders' => 'own'],
+            'admin' => ['orders' => 'all', 'leads' => 'all'],
+            'supervisor' => ['orders' => 'all', 'leads' => 'all'],
+            'manager' => ['orders' => 'own', 'leads' => 'own'],
             'dispatcher' => ['orders' => 'all'],
             'accountant' => ['orders' => 'all'],
             'clerk' => ['orders' => 'all'],

@@ -2,9 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Contractor;
+use App\Services\ContractorCreditService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreOrderRequest extends FormRequest
 {
@@ -19,6 +22,48 @@ class StoreOrderRequest extends FormRequest
     public function rules(): array
     {
         return $this->baseRules();
+    }
+
+    /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if (! $this->routeIs('orders.store')) {
+                    return;
+                }
+
+                $clientId = $this->integer('client_id');
+
+                if ($clientId <= 0) {
+                    return;
+                }
+
+                /** @var ContractorCreditService $creditService */
+                $creditService = app(ContractorCreditService::class);
+
+                if (! $creditService->supportsDebtLimit()) {
+                    return;
+                }
+
+                $contractor = Contractor::query()->find($clientId);
+
+                if ($contractor === null || ! $creditService->isBlockedByDebtLimit($contractor)) {
+                    return;
+                }
+
+                $currency = $contractor->debt_limit_currency ?: 'RUB';
+                $limit = number_format((float) $contractor->debt_limit, 2, '.', ' ');
+                $debt = number_format($creditService->currentDebtForContractor($contractor->id), 2, '.', ' ');
+
+                $validator->errors()->add(
+                    'client_id',
+                    "Лимит задолженности контрагента достигнут ({$debt} {$currency} из {$limit} {$currency}). Новые заказы заблокированы."
+                );
+            },
+        ];
     }
 
     /**

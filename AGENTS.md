@@ -194,4 +194,11 @@ This project has domain-specific skills available. You MUST activate the relevan
 Vue components must have a single root element.
 - IMPORTANT: Activate `inertia-vue-development` when working with Inertia Vue client-side patterns.
 
+=== revolution/laravel-boost-copilot-cli rules ===
+
+## Laravel Boost for GitHub Copilot CLI
+
+This project uses Laravel Boost to provide MCP (Model Context Protocol) tools for GitHub Copilot CLI.
+The MCP server is configured in `.mcp.json` and automatically loaded by Copilot CLI.
+
 </laravel-boost-guidelines>

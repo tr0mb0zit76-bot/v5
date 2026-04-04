@@ -8,10 +8,11 @@
 
             <button
                 type="button"
-                class="inline-flex items-center rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 @click="openCreateOrder"
             >
-                Новый заказ
+                <Plus class="h-4 w-4" />
+                Добавить
             </button>
         </div>
 
@@ -34,6 +35,7 @@
 <script setup>
 import { computed } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
+import { Plus } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
 
@@ -50,7 +52,18 @@ const availableColumns = computed(() => page.props.orderColumns ?? []);
 const rows = computed(() => page.props.rows ?? []);
 
 const handleCellSave = (event) => {
-    console.log('Cell save:', event);
+    if (!event?.row?.id || !event?.field) {
+        return;
+    }
+
+    router.patch(route('orders.inline-update', event.row.id), {
+        field: event.field,
+        value: event.value,
+    }, {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['rows'],
+    });
 };
 
 const handleRowDblClick = (row) => {

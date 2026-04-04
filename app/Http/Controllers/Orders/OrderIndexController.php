@@ -98,8 +98,12 @@ class OrderIndexController extends Controller
             ->when(
                 $user !== null && $roleName !== 'admin' && $ordersScope !== 'all',
                 function ($query) use ($user) {
-                $query->where('orders.manager_id', $user->id);
+                    $query->where('orders.manager_id', $user->id);
                 }
+            )
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('orders.deleted_at')
             )
             ->orderBy('orders.id')
             ->get()

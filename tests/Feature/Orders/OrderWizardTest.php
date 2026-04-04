@@ -22,10 +22,13 @@ class OrderWizardTest extends TestCase
         Schema::dropIfExists('order_status_logs');
         Schema::dropIfExists('financial_terms');
         Schema::dropIfExists('order_documents');
+        Schema::dropIfExists('payment_schedules');
         Schema::dropIfExists('cargo_leg');
         Schema::dropIfExists('cargos');
         Schema::dropIfExists('route_points');
         Schema::dropIfExists('order_legs');
+        Schema::dropIfExists('salary_coefficients');
+        Schema::dropIfExists('kpi_settings');
         Schema::dropIfExists('orders');
         Schema::dropIfExists('contractors');
         Schema::dropIfExists('users');
@@ -62,6 +65,16 @@ class OrderWizardTest extends TestCase
             $table->string('phone', 50)->nullable();
             $table->string('email')->nullable();
             $table->string('contact_person')->nullable();
+            $table->decimal('debt_limit', 12, 2)->nullable();
+            $table->string('debt_limit_currency', 3)->default('RUB');
+            $table->boolean('stop_on_limit')->default(false);
+            $table->string('default_customer_payment_form', 50)->nullable();
+            $table->string('default_customer_payment_term')->nullable();
+            $table->json('default_customer_payment_schedule')->nullable();
+            $table->string('default_carrier_payment_form', 50)->nullable();
+            $table->string('default_carrier_payment_term')->nullable();
+            $table->json('default_carrier_payment_schedule')->nullable();
+            $table->text('cooperation_terms_notes')->nullable();
             $table->boolean('is_active')->default(true);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
@@ -228,6 +241,19 @@ class OrderWizardTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('payment_schedules', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('order_id');
+            $table->enum('party', ['customer', 'carrier']);
+            $table->enum('type', ['prepayment', 'final']);
+            $table->decimal('amount', 12, 2);
+            $table->date('planned_date')->nullable();
+            $table->date('actual_date')->nullable();
+            $table->enum('status', ['pending', 'paid', 'overdue', 'cancelled'])->default('pending');
+            $table->text('notes')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('order_status_logs', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
@@ -235,6 +261,27 @@ class OrderWizardTest extends TestCase
             $table->string('status_to');
             $table->text('comment')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('kpi_settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('key')->unique();
+            $table->text('value')->nullable();
+            $table->string('type')->default('string');
+            $table->string('group')->default('general');
+            $table->string('description')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('salary_coefficients', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('manager_id');
+            $table->integer('base_salary')->default(0);
+            $table->integer('bonus_percent')->default(0);
+            $table->date('effective_from');
+            $table->date('effective_to')->nullable();
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
     }
@@ -260,6 +307,27 @@ class OrderWizardTest extends TestCase
     public function test_admin_can_create_order_with_nested_data(): void
     {
         $admin = $this->createAdminUser();
+
+        DB::table('kpi_settings')->insert([
+            'key' => 'delta_bonus_multiplier',
+            'value' => '1.30',
+            'type' => 'float',
+            'group' => 'delta',
+            'description' => 'Multiplier',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('salary_coefficients')->insert([
+            'manager_id' => $admin->id,
+            'base_salary' => 10000,
+            'bonus_percent' => 10,
+            'effective_from' => '2026-04-01',
+            'effective_to' => null,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $clientId = DB::table('contractors')->insertGetId([
             'type' => 'customer',
@@ -401,6 +469,11 @@ class OrderWizardTest extends TestCase
             'order_id' => $orderId,
             'client_price' => 120000,
         ]);
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'delta' => '23000.00',
+            'salary_accrued' => '12300.00',
+        ]);
         $financialTerm = DB::table('financial_terms')->where('order_id', $orderId)->first();
         $this->assertNotNull($financialTerm);
         $this->assertSame('30/70, 1 дн FTTN / 5 дн OTTN', $financialTerm->client_payment_terms);
@@ -420,6 +493,448 @@ class OrderWizardTest extends TestCase
             'order_id' => $orderId,
             'status_to' => 'documents',
         ]);
+    }
+
+    public function test_admin_can_update_order_and_persist_contractor_costs(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'inn' => '1234567890',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик',
+            'inn' => '5555555555',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-2026-001',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('orders.update', $orderId), [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-02',
+            'order_number' => 'ORD-2026-001',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_custom', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара, Московское шоссе, 10',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-04-02',
+                    'actual_date' => null,
+                    'contact_person' => null,
+                    'contact_phone' => null,
+                ],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 150000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 5,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_custom',
+                        'contractor_id' => $carrierId,
+                        'amount' => 99000.50,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 3,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'carrier_rate' => '99000.50',
+            'customer_rate' => '150000.00',
+        ]);
+
+        $this->assertDatabaseHas('financial_terms', [
+            'order_id' => $orderId,
+            'client_price' => '150000.00',
+        ]);
+
+        $contractorsCosts = DB::table('financial_terms')
+            ->where('order_id', $orderId)
+            ->value('contractors_costs');
+
+        $this->assertIsString($contractorsCosts);
+        $this->assertStringContainsString('"amount":99000.5', $contractorsCosts);
+        $this->assertStringContainsString('"stage":"leg_custom"', $contractorsCosts);
+    }
+
+    public function test_edit_page_restores_contractor_costs_from_order_rate_when_financial_terms_row_is_missing(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-RESTORE-001',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'customer_rate' => 150000,
+            'carrier_rate' => 88000,
+            'performers' => json_encode([
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('order.financial_term.client_price', '150000.00')
+            ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierId)
+            ->where('order.financial_term.contractors_costs.0.amount', 88000)
+        );
+    }
+
+    public function test_edit_page_opens_with_cargos_linked_through_legs_and_legacy_order_columns_missing(): void
+    {
+        Schema::dropIfExists('financial_terms');
+        Schema::table('cargos', function (Blueprint $table) {
+            $table->dropColumn('order_id');
+        });
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn(['own_company_id', 'payment_terms', 'special_notes', 'performers']);
+        });
+
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-LEGACY-001',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'customer_rate' => 150000,
+            'carrier_rate' => 88000,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legId = DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cargoId = DB::table('cargos')->insertGetId([
+            'title' => 'Legacy cargo',
+            'description' => 'Linked via cargo_leg only',
+            'weight' => 100,
+            'volume' => 5,
+            'cargo_type' => 'general',
+            'packing_type' => 'pallet',
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('cargo_leg')->insert([
+            'cargo_id' => $cargoId,
+            'order_leg_id' => $legId,
+            'quantity' => 1,
+            'status' => 'planned',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('order.cargo_items.0.name', 'Legacy cargo')
+            ->where('order.financial_term.client_price', '150000.00')
+            ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierId)
+            ->where('order.financial_term.contractors_costs.0.amount', 88000)
+        );
+    }
+
+    public function test_order_create_page_exposes_contractor_credit_policy_and_default_terms(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'debt_limit' => 125000,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => true,
+            'default_customer_payment_schedule' => json_encode([
+                'has_prepayment' => false,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 0,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 7,
+                'postpayment_mode' => 'ottn',
+            ], JSON_UNESCAPED_UNICODE),
+            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_term' => '7 дн OTTN',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-DEBT-001',
+            'status' => 'payment',
+            'customer_id' => $contractorId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 130000,
+            'planned_date' => '2026-04-03',
+            'status' => 'overdue',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.create'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('contractors.0.default_customer_payment_form', 'vat')
+            ->where('contractors.0.default_customer_payment_term', '7 дн OTTN')
+            ->where('contractors.0.default_customer_payment_schedule.postpayment_days', 7)
+            ->where('contractors.0.default_customer_payment_schedule.postpayment_mode', 'ottn')
+            ->where('contractors.0.current_debt', 130000)
+            ->where('contractors.0.debt_limit_reached', true)
+        );
+    }
+
+    public function test_order_creation_is_blocked_when_customer_debt_limit_is_reached(): void
+    {
+        $admin = $this->createAdminUser();
+
+        DB::table('kpi_settings')->insert([
+            'key' => 'delta_bonus_multiplier',
+            'value' => '1.00',
+            'type' => 'float',
+            'group' => 'delta',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Blocked Client',
+            'debt_limit' => 100000,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => true,
+            'default_customer_payment_schedule' => json_encode([
+                'has_prepayment' => false,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 0,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 7,
+                'postpayment_mode' => 'ottn',
+            ], JSON_UNESCAPED_UNICODE),
+            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_term' => '7 дн OTTN',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier',
+            'default_carrier_payment_schedule' => json_encode([
+                'has_prepayment' => false,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 0,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 5,
+                'postpayment_mode' => 'ottn',
+            ], JSON_UNESCAPED_UNICODE),
+            'default_carrier_payment_form' => 'no_vat',
+            'default_carrier_payment_term' => '5 дн OTTN',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legacyOrderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-LEGACY-DEBT',
+            'status' => 'payment',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $legacyOrderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'planned_date' => '2026-04-02',
+            'status' => 'overdue',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->from(route('orders.create'))->post(route('orders.store'), [
+            'status' => 'new',
+            'client_id' => $clientId,
+            'order_date' => '2026-04-03',
+            'order_number' => '',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                ['type' => 'loading', 'sequence' => 1, 'address' => 'Самара', 'normalized_data' => []],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 1000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 500,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 5,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect(route('orders.create'));
+        $response->assertSessionHasErrors('client_id');
+        $this->assertDatabaseCount('orders', 1);
     }
 
     private function createAdminUser(): User

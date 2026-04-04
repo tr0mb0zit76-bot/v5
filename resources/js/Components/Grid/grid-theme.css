@@ -38,6 +38,66 @@
   height: 100% !important;
 }
 
+.orders-grid-theme .ag-row-even {
+  background-color: var(--ag-background-color);
+}
+
+.orders-grid-theme .ag-row-odd {
+  background-color: var(--ag-odd-row-background-color);
+}
+
+.orders-grid-theme .orders-grid-order-number-header,
+.orders-grid-theme .orders-grid-order-number-cell {
+  font-weight: 600;
+}
+
+.orders-grid-theme .orders-grid-editable-cell {
+  cursor: text;
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ag-header-background-color) 52%, transparent),
+    color-mix(in srgb, var(--ag-header-background-color) 52%, transparent)
+  );
+  background-repeat: no-repeat;
+  background-size: 100% calc(100% - 8px);
+  background-position: center;
+}
+
+.orders-grid-theme .orders-grid-editable-cell:hover {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ag-header-background-color) 82%, transparent),
+    color-mix(in srgb, var(--ag-header-background-color) 82%, transparent)
+  );
+}
+
+.orders-grid-theme .ag-cell-focus.orders-grid-editable-cell,
+.orders-grid-theme .ag-cell-inline-editing.orders-grid-editable-cell {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ag-foreground-color) 18%, transparent);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ag-header-background-color) 92%, transparent),
+    color-mix(in srgb, var(--ag-header-background-color) 92%, transparent)
+  );
+}
+
+.orders-grid-theme .ag-pinned-left-cols-container .ag-cell,
+.orders-grid-theme .ag-pinned-left-header .ag-header-cell {
+  box-shadow: 1px 0 0 var(--ag-border-color);
+}
+
+.orders-grid-date-editor {
+  width: 100%;
+  height: calc(100% - 6px);
+  margin: 3px 0;
+  border: 1px solid var(--ag-border-color);
+  background: var(--ag-background-color);
+  color: var(--ag-foreground-color);
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+}
+
 .orders-grid-theme .ag-body-horizontal-scroll {
   display: none !important;
 }

@@ -1,8 +1,17 @@
 <template>
-    <div class="flex h-screen overflow-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <div class="flex min-h-dvh overflow-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+        <div
+            v-if="mobileMenuOpen"
+            class="fixed inset-0 z-40 bg-zinc-950/50 lg:hidden"
+            @click="mobileMenuOpen = false"
+        />
+
         <aside
-            class="flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950"
-            :class="collapsed ? 'w-20' : 'w-64'"
+            class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950 lg:static lg:z-auto"
+            :class="[
+                mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+                collapsed ? 'w-20' : 'w-64',
+            ]"
         >
             <div class="flex h-16 items-center justify-between gap-2 border-b border-zinc-200 px-4 dark:border-zinc-800">
                 <div class="flex min-w-0 items-center gap-3">
@@ -134,8 +143,24 @@
             </div>
         </aside>
 
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-            <main class="flex-1 min-h-0 overflow-hidden p-3 md:p-4">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col lg:pl-0">
+            <header class="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 lg:hidden">
+                <button
+                    type="button"
+                    class="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    @click="mobileMenuOpen = true"
+                >
+                    <Menu class="h-5 w-5" />
+                </button>
+
+                <div class="min-w-0 flex-1 text-center">
+                    <div class="truncate text-sm font-semibold">Logist CRM</div>
+                </div>
+
+                <ThemeToggle />
+            </header>
+
+            <main class="min-h-0 flex-1 overflow-y-auto p-3 md:p-4">
                 <slot />
             </main>
 
@@ -149,7 +174,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     Activity,
@@ -158,11 +183,13 @@ import {
     FileText,
     LayoutDashboard,
     LogOut,
+    Menu,
     Package,
     PanelLeftClose,
     PanelLeftOpen,
     Puzzle,
     Settings,
+    Target,
     Truck,
     Users,
 } from 'lucide-vue-next';
@@ -187,6 +214,7 @@ const props = defineProps({
 const page = usePage();
 const collapsed = ref(false);
 const expandedGroups = ref([]);
+const mobileMenuOpen = ref(false);
 const menuStateStorageKey = 'crm-sidebar-expanded-groups';
 
 const authUser = computed(() => page.props.auth?.user ?? null);
@@ -195,6 +223,7 @@ const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? ['
 const menuItems = computed(() => {
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
+        { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         { key: 'drivers', label: 'Водители', icon: Truck, visibilityArea: 'drivers' },
@@ -212,11 +241,13 @@ const menuItems = computed(() => {
                     { key: 'users', label: 'Пользователи' },
                     { key: 'roles', label: 'Роли' },
                     { key: 'table-presets', label: 'Управление таблицей' },
+                    { key: 'dictionaries', label: 'Справочники' },
                     {
                         key: 'motivation',
                         label: 'Мотивация',
                         children: [
                             { key: 'kpi-settings', label: 'Настройки KPI' },
+                            { key: 'salary-settings', label: 'Условия сотрудников' },
                         ],
                     },
                 ]
@@ -265,6 +296,13 @@ watch(
     { deep: true },
 );
 
+watch(
+    mobileMenuOpen,
+    (value) => {
+        document.body.classList.toggle('overflow-hidden', value);
+    },
+);
+
 onMounted(() => {
     try {
         const savedState = localStorage.getItem(menuStateStorageKey);
@@ -291,6 +329,10 @@ onMounted(() => {
     }
 });
 
+onUnmounted(() => {
+    document.body.classList.remove('overflow-hidden');
+});
+
 function isMenuGroupOpen(key) {
     return expandedGroups.value.includes(key);
 }
@@ -312,6 +354,7 @@ function isSettingsChildActive(child) {
 function handleMenuSelect(key) {
     const routes = {
         dashboard: '/dashboard',
+        leads: '/leads',
         orders: '/orders',
         contractors: '/contractors',
         drivers: '/drivers',
@@ -323,7 +366,10 @@ function handleMenuSelect(key) {
         users: '/settings/users',
         roles: '/settings/roles',
         'table-presets': '/settings/tables',
+        dictionaries: '/settings/dictionaries',
+        motivation: '/settings/motivation',
         'kpi-settings': '/settings/motivation/kpi',
+        'salary-settings': '/settings/motivation/salary',
     };
 
     if (key === 'settings' || key === 'motivation') {
@@ -331,6 +377,7 @@ function handleMenuSelect(key) {
     }
 
     if (routes[key]) {
+        mobileMenuOpen.value = false;
         router.visit(routes[key]);
     }
 }

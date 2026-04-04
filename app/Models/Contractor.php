@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Schema;
 
 class Contractor extends Model
 {
@@ -15,6 +17,7 @@ class Contractor extends Model
         'type',
         'name',
         'full_name',
+        'short_description',
         'inn',
         'kpp',
         'ogrn',
@@ -38,9 +41,20 @@ class Contractor extends Model
         'ati_id',
         'transport_requirements',
         'specializations',
+        'activity_types',
         'rating',
         'completed_orders',
         'metadata',
+        'debt_limit',
+        'debt_limit_currency',
+        'stop_on_limit',
+        'default_customer_payment_form',
+        'default_customer_payment_term',
+        'default_customer_payment_schedule',
+        'default_carrier_payment_form',
+        'default_carrier_payment_term',
+        'default_carrier_payment_schedule',
+        'cooperation_terms_notes',
         'is_active',
         'is_verified',
         'is_own_company',
@@ -57,10 +71,15 @@ class Contractor extends Model
             'ati_profiles' => 'array',
             'transport_requirements' => 'array',
             'specializations' => 'array',
+            'activity_types' => 'array',
             'metadata' => 'array',
+            'debt_limit' => 'decimal:2',
+            'default_customer_payment_schedule' => 'json:unicode',
+            'default_carrier_payment_schedule' => 'json:unicode',
             'is_active' => 'boolean',
             'is_verified' => 'boolean',
             'is_own_company' => 'boolean',
+            'stop_on_limit' => 'boolean',
             'rating' => 'decimal:2',
         ];
     }
@@ -94,7 +113,13 @@ class Contractor extends Model
      */
     public function customerOrders(): HasMany
     {
-        return $this->hasMany(Order::class, 'customer_id');
+        $relation = $this->hasMany(Order::class, 'customer_id');
+
+        if (! Schema::hasColumn($relation->getRelated()->getTable(), 'deleted_at')) {
+            return $relation->withoutGlobalScope(SoftDeletingScope::class);
+        }
+
+        return $relation;
     }
 
     /**
@@ -102,7 +127,13 @@ class Contractor extends Model
      */
     public function carrierOrders(): HasMany
     {
-        return $this->hasMany(Order::class, 'carrier_id');
+        $relation = $this->hasMany(Order::class, 'carrier_id');
+
+        if (! Schema::hasColumn($relation->getRelated()->getTable(), 'deleted_at')) {
+            return $relation->withoutGlobalScope(SoftDeletingScope::class);
+        }
+
+        return $relation;
     }
 
     /**

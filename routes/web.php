@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\ContractorController;
+use App\Http\Controllers\LeadController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
 use App\Http\Controllers\SettingsTableManagementController;
 use App\Http\Controllers\UserManagementController;
@@ -33,13 +35,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:dashboard')->name('dashboard');
 
+    Route::controller(LeadController::class)->middleware('visibility.area:leads')->group(function () {
+        Route::get('/leads', 'index')->name('leads.index');
+        Route::get('/leads/create', 'create')->name('leads.create');
+        Route::post('/leads', 'store')->name('leads.store');
+        Route::get('/leads/{lead}', 'show')->name('leads.show');
+        Route::patch('/leads/{lead}', 'update')->name('leads.update');
+        Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
+        Route::post('/leads/{lead}/proposal', 'prepareProposal')->name('leads.proposal');
+        Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
+    });
+
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');
         Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
         Route::patch('/orders/{order}', 'update')->name('orders.update');
-        Route::delete('/orders/{order}', 'destroy')->name('orders.destroy');
+        Route::patch('/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
+        Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
     });
@@ -63,9 +77,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/settings/tables/{role}', 'update')->name('settings.tables.update');
     });
 
-    Route::get('/settings/motivation/kpi', SettingsKpiController::class)
+    Route::get('/settings/motivation', [SettingsController::class, 'motivation'])
         ->middleware('visibility.area:settings')
-        ->name('settings.motivation.kpi');
+        ->name('settings.motivation.index');
+
+    Route::controller(SettingsDictionariesController::class)->middleware('visibility.area:settings')->group(function () {
+        Route::get('/settings/dictionaries', 'index')->name('settings.dictionaries.index');
+        Route::post('/settings/dictionaries/activity-types', 'storeActivityType')->name('settings.dictionaries.activity-types.store');
+        Route::delete('/settings/dictionaries/activity-types/{contractorActivityType}', 'destroyActivityType')->name('settings.dictionaries.activity-types.destroy');
+    });
+
+    Route::controller(SettingsKpiController::class)->middleware('visibility.area:settings')->group(function () {
+        Route::get('/settings/motivation/kpi', 'index')->name('settings.motivation.kpi');
+        Route::patch('/settings/motivation/kpi', 'update')->name('settings.motivation.kpi.update');
+        Route::get('/settings/motivation/salary', 'salaryIndex')->name('settings.motivation.salary');
+        Route::post('/settings/motivation/salary/coefficients', 'storeSalaryCoefficient')->name('settings.motivation.salary.store');
+        Route::patch('/settings/motivation/salary/coefficients/{salaryCoefficient}', 'updateSalaryCoefficient')->name('settings.motivation.salary.update');
+        Route::delete('/settings/motivation/salary/coefficients/{salaryCoefficient}', 'destroySalaryCoefficient')->name('settings.motivation.salary.destroy');
+    });
 
     Route::controller(ContractorController::class)->middleware('visibility.area:contractors')->group(function () {
         Route::get('/contractors', 'index')->name('contractors.index');
@@ -75,6 +104,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors/{contractor}/edit', 'edit')->name('contractors.edit');
         Route::patch('/contractors/{contractor}', 'update')->name('contractors.update');
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
+        Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
         Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
         Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
     });

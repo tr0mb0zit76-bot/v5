@@ -1,0 +1,77 @@
+# Сборка фронта в CI и выкладка public/build на хостинг по SSH (rsync).
+# Обычно это те же учётные данные, что и для SFTP: хост, пользователь, ключ, порт.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   SFTP_HOST          — хост (например ftp.example.com или IP)
+#   SFTP_USERNAME      — пользователь SSH/SFTP
+#   SFTP_PRIVATE_KEY   — приватный ключ PEM (весь ключ целиком, с BEGIN/END)
+#   SFTP_REMOTE_PATH   — абсолютный путь к каталогу public/build на сервере
+#                        (например /home/u12345/example.com/public_html/public/build)
+# Опционально:
+#   SFTP_PORT          — порт (если не задан, в шагах используется 22)
+#
+# Если приватный ключ с passphrase — раскомментируй в шаге «Start ssh-agent»
+# строку passphrase и добавь секрет SFTP_PASSPHRASE.
+#
+# Если хостинг отдаёт только SFTP без SSH/rsync — rsync не сработает; тогда нужен
+# отдельный шаг (например lftp mirror по sftp). Напиши — подстроим.
+
+name: Build and Deploy Frontend Assets
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-assets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy-assets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Vite assets
+        run: npm run build
+
+      - name: Verify Vite manifest exists
+        run: test -f public/build/manifest.json
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SFTP_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${SFTP_PORT:-22}" -H "${SFTP_HOST}" >> ~/.ssh/known_hosts
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+
+      - name: Rsync public/build to server (SSH, same as typical SFTP access)
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${SFTP_PORT:-22} -o StrictHostKeyChecking=yes" \
+            public/build/ \
+            "${SFTP_USER}@${SFTP_HOST}:${SFTP_REMOTE_PATH}/"
+        env:
+          SFTP_USER: ${{ secrets.SFTP_USERNAME }}
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_REMOTE_PATH: ${{ secrets.SFTP_REMOTE_PATH }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}

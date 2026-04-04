@@ -21,6 +21,7 @@ class ContractorManagementTest extends TestCase
         Schema::dropIfExists('contractor_interactions');
         Schema::dropIfExists('contractor_contacts');
         Schema::dropIfExists('orders');
+        Schema::dropIfExists('contractor_activity_types');
         Schema::dropIfExists('contractors');
         Schema::dropIfExists('users');
         Schema::dropIfExists('roles');
@@ -49,6 +50,7 @@ class ContractorManagementTest extends TestCase
             $table->string('type')->default('customer');
             $table->string('name');
             $table->string('full_name')->nullable();
+            $table->text('short_description')->nullable();
             $table->string('inn', 20)->nullable();
             $table->string('kpp', 20)->nullable();
             $table->string('ogrn', 20)->nullable();
@@ -72,14 +74,31 @@ class ContractorManagementTest extends TestCase
             $table->string('ati_id')->nullable();
             $table->json('transport_requirements')->nullable();
             $table->json('specializations')->nullable();
+            $table->json('activity_types')->nullable();
             $table->decimal('rating', 5, 2)->nullable();
             $table->unsignedInteger('completed_orders')->default(0);
             $table->json('metadata')->nullable();
+            $table->decimal('debt_limit', 12, 2)->nullable();
+            $table->string('debt_limit_currency', 3)->default('RUB');
+            $table->boolean('stop_on_limit')->default(false);
+            $table->string('default_customer_payment_form', 50)->nullable();
+            $table->string('default_customer_payment_term')->nullable();
+            $table->json('default_customer_payment_schedule')->nullable();
+            $table->string('default_carrier_payment_form', 50)->nullable();
+            $table->string('default_carrier_payment_term')->nullable();
+            $table->json('default_carrier_payment_schedule')->nullable();
+            $table->text('cooperation_terms_notes')->nullable();
             $table->boolean('is_active')->default(true);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('contractor_activity_types', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
             $table->timestamps();
         });
 
@@ -92,6 +111,19 @@ class ContractorManagementTest extends TestCase
             $table->decimal('carrier_rate', 12, 2)->nullable();
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->unsignedBigInteger('carrier_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('payment_schedules', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('order_id');
+            $table->string('party');
+            $table->string('type')->nullable();
+            $table->decimal('amount', 12, 2)->nullable();
+            $table->date('planned_date')->nullable();
+            $table->date('actual_date')->nullable();
+            $table->string('status')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
 
@@ -141,6 +173,30 @@ class ContractorManagementTest extends TestCase
             'type' => 'customer',
             'name' => 'ООО Тест',
             'inn' => '1234567890',
+            'debt_limit' => 250000,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => true,
+            'default_customer_payment_schedule' => json_encode([
+                'has_prepayment' => false,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 0,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 7,
+                'postpayment_mode' => 'ottn',
+            ], JSON_THROW_ON_ERROR),
+            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_term' => '7 дн OTTN',
+            'default_carrier_payment_schedule' => json_encode([
+                'has_prepayment' => true,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 1,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 5,
+                'postpayment_mode' => 'ottn',
+            ], JSON_THROW_ON_ERROR),
+            'default_carrier_payment_form' => 'no_vat',
+            'default_carrier_payment_term' => '50/50, 1 дн FTTN / 5 дн OTTN',
+            'cooperation_terms_notes' => 'Работаем по заявкам и ЭДО.',
             'is_active' => true,
             'is_own_company' => false,
             'created_at' => now(),
@@ -154,6 +210,7 @@ class ContractorManagementTest extends TestCase
             ->component('Contractors/Index')
             ->has('contractors', 1)
             ->has('legalFormOptions')
+            ->where('legalFormOptions.0.label', 'ООО')
         );
     }
 
@@ -174,10 +231,20 @@ class ContractorManagementTest extends TestCase
             'phone' => '+7 999 111-22-33',
             'email' => 'office@example.com',
             'specializations' => ['FTL', 'Реф'],
+            'activity_types' => ['Экспедирование', 'Международные перевозки'],
             'transport_requirements' => ['Страховка', 'GPS'],
+            'short_description' => 'Международная логистика и проектные перевозки.',
             'is_active' => true,
             'is_verified' => true,
             'is_own_company' => true,
+            'debt_limit' => 250000,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => true,
+            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_term' => '7 дн OTTN',
+            'default_carrier_payment_form' => 'no_vat',
+            'default_carrier_payment_term' => '50/50, 1 дн FTTN / 5 дн OTTN',
+            'cooperation_terms_notes' => 'Работаем по заявкам и ЭДО.',
             'contacts' => [
                 [
                     'full_name' => 'Иван Петров',
@@ -217,7 +284,15 @@ class ContractorManagementTest extends TestCase
             'name' => 'ООО Логистика Плюс',
             'created_by' => $admin->id,
             'is_own_company' => true,
+            'debt_limit' => '250000.00',
+            'stop_on_limit' => true,
+            'default_customer_payment_form' => 'vat',
+            'short_description' => 'Международная логистика и проектные перевозки.',
         ]);
+        $this->assertSame(
+            ['Экспедирование', 'Международные перевозки'],
+            json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('activity_types'), true, 512, JSON_THROW_ON_ERROR)
+        );
         $this->assertDatabaseHas('contractor_contacts', [
             'contractor_id' => $contractorId,
             'full_name' => 'Иван Петров',
@@ -226,6 +301,29 @@ class ContractorManagementTest extends TestCase
             'contractor_id' => $contractorId,
             'title' => 'Договор поставки',
         ]);
+    }
+
+    public function test_admin_can_store_global_activity_type_reference(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $response = $this->actingAs($admin)->postJson(route('contractors.activity-types.store'), [
+            'name' => 'Экспедирование',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('activityType.name', 'Экспедирование');
+
+        $this->assertDatabaseHas('contractor_activity_types', [
+            'name' => 'Экспедирование',
+        ]);
+
+        $pageResponse = $this->actingAs($admin)->get(route('contractors.index'));
+
+        $pageResponse->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->where('activityTypeOptions.0', 'Экспедирование')
+        );
     }
 
     public function test_admin_can_update_contractor(): void
@@ -267,10 +365,52 @@ class ContractorManagementTest extends TestCase
             'correspondent_account' => '',
             'ati_id' => '',
             'specializations' => ['Тент'],
+            'activity_types' => ['Внутрироссийские перевозки'],
             'transport_requirements' => [],
+            'short_description' => 'Работает по РФ.',
+            'debt_limit' => 150000,
+            'debt_limit_currency' => 'USD',
+            'stop_on_limit' => true,
+            'default_customer_payment_form' => 'no_vat',
+            'default_customer_payment_term' => '5 дн OTTN',
+            'default_carrier_payment_schedule' => [
+                'has_prepayment' => false,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 0,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 100,
+                'postpayment_mode' => 'fttn',
+            ],
+            'default_carrier_payment_form' => 'cash',
+            'default_carrier_payment_term' => '100 дн FTTN',
+            'cooperation_terms_notes' => 'Только по предоплате.',
+            'debt_limit' => 150000,
+            'debt_limit_currency' => 'USD',
+            'stop_on_limit' => true,
+            'default_customer_payment_form' => 'no_vat',
+            'default_customer_payment_term' => '5 дн OTTN',
+            'default_carrier_payment_form' => 'cash',
+            'default_carrier_payment_term' => '100 дн FTTN',
+            'cooperation_terms_notes' => 'Только по предоплате.',
             'is_active' => false,
             'is_verified' => false,
             'is_own_company' => true,
+            'debt_limit' => 150000,
+            'debt_limit_currency' => 'USD',
+            'stop_on_limit' => true,
+            'default_customer_payment_schedule' => [
+                'has_prepayment' => false,
+                'prepayment_ratio' => 50,
+                'prepayment_days' => 0,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 5,
+                'postpayment_mode' => 'ottn',
+            ],
+            'default_customer_payment_form' => 'no_vat',
+            'default_customer_payment_term' => '5 дн OTTN',
+            'default_carrier_payment_form' => 'cash',
+            'default_carrier_payment_term' => '100 дн FTTN',
+            'cooperation_terms_notes' => 'Только по предоплате.',
             'contacts' => [],
             'interactions' => [],
             'documents' => [],
@@ -283,8 +423,17 @@ class ContractorManagementTest extends TestCase
             'name' => 'ООО Новое название',
             'is_active' => false,
             'is_own_company' => true,
+            'debt_limit' => '150000.00',
+            'debt_limit_currency' => 'USD',
+            'stop_on_limit' => true,
+            'default_carrier_payment_form' => 'cash',
+            'short_description' => 'Работает по РФ.',
             'updated_by' => $admin->id,
         ]);
+        $this->assertSame(
+            ['Внутрироссийские перевозки'],
+            json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('activity_types'), true, 512, JSON_THROW_ON_ERROR)
+        );
     }
 
     public function test_cannot_delete_contractor_with_orders(): void
@@ -341,6 +490,111 @@ class ContractorManagementTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('suggestions.0.value', 'ООО Логистика Плюс');
+    }
+
+    public function test_admin_can_open_contractors_page_without_nested_tables(): void
+    {
+        Schema::dropIfExists('contractor_documents');
+        Schema::dropIfExists('contractor_interactions');
+        Schema::dropIfExists('contractor_contacts');
+        Schema::table('contractors', function (Blueprint $table) {
+            $table->dropColumn('is_own_company');
+        });
+
+        $admin = $this->createAdminUser();
+
+        DB::table('contractors')->insert([
+            'type' => 'customer',
+            'name' => 'Compatibility contractor',
+            'inn' => '1234567890',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('contractors.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->where('contractors.0.contacts_count', 0)
+            ->where('contractors.0.is_own_company', false)
+        );
+    }
+
+    public function test_selected_contractor_includes_current_debt_and_related_order_documents(): void
+    {
+        Schema::create('order_documents', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('order_id');
+            $table->string('type');
+            $table->string('document_group')->nullable();
+            $table->string('number')->nullable();
+            $table->date('document_date')->nullable();
+            $table->string('original_name')->nullable();
+            $table->string('status')->nullable();
+            $table->string('signature_status')->nullable();
+            $table->string('file_path')->nullable();
+            $table->timestamps();
+        });
+
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'debt_limit' => 100000,
+            'stop_on_limit' => true,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-500',
+            'status' => 'documents',
+            'order_date' => '2026-04-03',
+            'customer_rate' => 80000,
+            'carrier_rate' => 55000,
+            'customer_id' => $contractorId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 110000,
+            'status' => 'overdue',
+            'planned_date' => '2026-04-02',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_documents')->insert([
+            'order_id' => $orderId,
+            'type' => 'request',
+            'document_group' => 'request',
+            'number' => 'REQ-500',
+            'document_date' => '2026-04-03',
+            'original_name' => 'request.pdf',
+            'status' => 'sent',
+            'signature_status' => 'signed_internal',
+            'file_path' => 'order-documents/request.pdf',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('contractors.show', $contractorId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('selectedContractor.current_debt', 110000)
+            ->where('selectedContractor.debt_limit_reached', true)
+            ->where('selectedContractor.order_documents.0.order_number', 'ORD-500')
+            ->where('selectedContractor.order_documents.0.signature_status', 'signed_internal')
+        );
     }
 
     private function createAdminUser(): User

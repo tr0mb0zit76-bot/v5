@@ -36,7 +36,7 @@ const submit = () => {
         <div class="mb-6 space-y-2">
             <h2 class="text-2xl font-semibold">Вход в кабинет</h2>
             <p class="text-sm leading-6 text-zinc-500">
-                Используйте рабочий email и пароль, чтобы продолжить работу с заказами.
+                Используйте рабочий email и пароль, выданные администратором.
             </p>
         </div>
 
@@ -50,9 +50,9 @@ const submit = () => {
 
                 <TextInput
                     id="email"
+                    v-model="form.email"
                     type="email"
                     class="mt-1 block w-full"
-                    v-model="form.email"
                     required
                     autofocus
                     autocomplete="username"
@@ -66,9 +66,9 @@ const submit = () => {
 
                 <TextInput
                     id="password"
+                    v-model="form.password"
                     type="password"
                     class="mt-1 block w-full"
-                    v-model="form.password"
                     required
                     autocomplete="current-password"
                 />
@@ -77,7 +77,7 @@ const submit = () => {
             </div>
 
             <label class="flex items-center gap-3">
-                <Checkbox name="remember" v-model:checked="form.remember" />
+                <Checkbox v-model:checked="form.remember" name="remember" />
                 <span class="text-sm text-zinc-600">Запомнить меня</span>
             </label>
 
