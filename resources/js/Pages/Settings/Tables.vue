@@ -138,7 +138,7 @@ import { useForm } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'table-presets' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'table-presets' }, () => page),
 });
 
 const props = defineProps({

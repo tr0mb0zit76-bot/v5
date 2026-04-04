@@ -66,6 +66,9 @@ class ContractorManagementTest extends TestCase
             $table->string('contact_person_phone', 50)->nullable();
             $table->string('contact_person_email')->nullable();
             $table->string('contact_person_position')->nullable();
+            $table->string('signer_name_nominative')->nullable();
+            $table->string('signer_name_prepositional')->nullable();
+            $table->string('signer_authority_basis')->nullable();
             $table->string('bank_name')->nullable();
             $table->string('bik', 9)->nullable();
             $table->string('account_number', 20)->nullable();
@@ -359,6 +362,9 @@ class ContractorManagementTest extends TestCase
             'contact_person_phone' => '',
             'contact_person_email' => '',
             'contact_person_position' => '',
+            'signer_name_nominative' => 'Иванов Иван Иванович',
+            'signer_name_prepositional' => 'Иванове Иване Ивановиче',
+            'signer_authority_basis' => 'Устав',
             'bank_name' => '',
             'bik' => '',
             'account_number' => '',
@@ -428,6 +434,9 @@ class ContractorManagementTest extends TestCase
             'stop_on_limit' => true,
             'default_carrier_payment_form' => 'cash',
             'short_description' => 'Работает по РФ.',
+            'signer_name_nominative' => 'Иванов Иван Иванович',
+            'signer_name_prepositional' => 'Иванове Иване Ивановиче',
+            'signer_authority_basis' => 'Устав',
             'updated_by' => $admin->id,
         ]);
         $this->assertSame(

@@ -11,6 +11,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
 use App\Http\Controllers\SettingsTableManagementController;
+use App\Http\Controllers\SettingsTemplateController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -80,6 +81,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/settings/motivation', [SettingsController::class, 'motivation'])
         ->middleware('visibility.area:settings')
         ->name('settings.motivation.index');
+
+    Route::controller(SettingsTemplateController::class)->middleware('visibility.area:settings')->group(function () {
+        Route::get('/settings/templates', 'index')->name('settings.templates.index');
+        Route::post('/settings/templates', 'store')->name('settings.templates.store');
+        Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
+        Route::delete('/settings/templates/{printFormTemplate}', 'destroy')->name('settings.templates.destroy');
+        Route::get('/settings/templates/{printFormTemplate}/generate-order-draft', 'generateOrderDraft')->name('settings.templates.generate-order-draft');
+    });
 
     Route::controller(SettingsDictionariesController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/dictionaries', 'index')->name('settings.dictionaries.index');

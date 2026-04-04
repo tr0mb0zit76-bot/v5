@@ -332,6 +332,14 @@ class OrderWizardController extends Controller
             'responsible_id' => $order->manager_id,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
+            'cargo_sender_name' => $order->cargo_sender_name,
+            'cargo_sender_address' => $order->cargo_sender_address,
+            'cargo_sender_contact' => $order->cargo_sender_contact,
+            'cargo_sender_phone' => $order->cargo_sender_phone,
+            'cargo_recipient_name' => $order->cargo_recipient_name,
+            'cargo_recipient_address' => $order->cargo_recipient_address,
+            'cargo_recipient_contact' => $order->cargo_recipient_contact,
+            'cargo_recipient_phone' => $order->cargo_recipient_phone,
             'performers' => $order->performers ?? [],
             'route_points' => $primaryLeg?->routePoints->map(fn ($point): array => [
                 'id' => $point->id,
@@ -417,6 +425,14 @@ class OrderWizardController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'ogrn',
+            'bank_name',
+            'bik',
+            'account_number',
+            'correspondent_account',
+            'signer_name_nominative',
+            'signer_name_prepositional',
+            'signer_authority_basis',
         ] as $column) {
             if (Schema::hasColumn('contractors', $column)) {
                 $columns[] = $column;

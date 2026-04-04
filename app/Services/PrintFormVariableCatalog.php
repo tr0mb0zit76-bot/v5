@@ -1,0 +1,115 @@
+<?php
+
+namespace App\Services;
+
+class PrintFormVariableCatalog
+{
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    public function orderOptions(): array
+    {
+        return [
+            ['value' => 'order.id', 'label' => 'Заказ: ID'],
+            ['value' => 'order.order_number', 'label' => 'Заказ: Номер'],
+            ['value' => 'order.order_date', 'label' => 'Заказ: Дата'],
+            ['value' => 'order.loading_date', 'label' => 'Заказ: Дата загрузки'],
+            ['value' => 'order.unloading_date', 'label' => 'Заказ: Дата выгрузки'],
+            ['value' => 'order.status', 'label' => 'Заказ: Статус'],
+            ['value' => 'order.customer_rate', 'label' => 'Заказ: Ставка клиента'],
+            ['value' => 'order.carrier_rate', 'label' => 'Заказ: Ставка перевозчика'],
+            ['value' => 'order.customer_payment_form', 'label' => 'Заказ: Форма оплаты клиента'],
+            ['value' => 'order.customer_payment_term', 'label' => 'Заказ: Оплата по клиенту'],
+            ['value' => 'order.carrier_payment_form', 'label' => 'Заказ: Форма оплаты перевозчику'],
+            ['value' => 'order.carrier_payment_term', 'label' => 'Заказ: Оплата по перевозчику'],
+            ['value' => 'order.invoice_number', 'label' => 'Заказ: Номер счета'],
+            ['value' => 'order.waybill_number', 'label' => 'Заказ: Номер ТТН'],
+            ['value' => 'order.special_notes', 'label' => 'Заказ: Особые отметки'],
+            ['value' => 'cargo_sender.name', 'label' => 'Грузоотправитель: Наименование'],
+            ['value' => 'cargo_sender.address', 'label' => 'Грузоотправитель: Адрес'],
+            ['value' => 'cargo_sender.contact', 'label' => 'Грузоотправитель: Контактное лицо'],
+            ['value' => 'cargo_sender.phone', 'label' => 'Грузоотправитель: Телефон'],
+            ['value' => 'cargo_recipient.name', 'label' => 'Грузополучатель: Наименование'],
+            ['value' => 'cargo_recipient.address', 'label' => 'Грузополучатель: Адрес'],
+            ['value' => 'cargo_recipient.contact', 'label' => 'Грузополучатель: Контактное лицо'],
+            ['value' => 'cargo_recipient.phone', 'label' => 'Грузополучатель: Телефон'],
+
+            ['value' => 'customer.name', 'label' => 'Заказчик: Наименование'],
+            ['value' => 'customer.full_name', 'label' => 'Заказчик: Полное наименование'],
+            ['value' => 'customer.inn', 'label' => 'Заказчик: ИНН'],
+            ['value' => 'customer.kpp', 'label' => 'Заказчик: КПП'],
+            ['value' => 'customer.ogrn', 'label' => 'Заказчик: ОГРН'],
+            ['value' => 'customer.legal_address', 'label' => 'Заказчик: Юр. адрес'],
+            ['value' => 'customer.actual_address', 'label' => 'Заказчик: Факт. адрес'],
+            ['value' => 'customer.phone', 'label' => 'Заказчик: Телефон'],
+            ['value' => 'customer.email', 'label' => 'Заказчик: Email'],
+            ['value' => 'customer.contact_person', 'label' => 'Заказчик: Контактное лицо'],
+            ['value' => 'customer.bank_name', 'label' => 'Заказчик: Банк'],
+            ['value' => 'customer.bik', 'label' => 'Заказчик: БИК'],
+            ['value' => 'customer.account_number', 'label' => 'Заказчик: Р/с'],
+            ['value' => 'customer.correspondent_account', 'label' => 'Заказчик: К/с'],
+            ['value' => 'customer.signer_name_nominative', 'label' => 'Заказчик: Подписант, именительный'],
+            ['value' => 'customer.signer_name_prepositional', 'label' => 'Заказчик: Подписант, предложный'],
+            ['value' => 'customer.signer_authority_basis', 'label' => 'Заказчик: Основание подписи'],
+
+            ['value' => 'carrier.name', 'label' => 'Перевозчик: Наименование'],
+            ['value' => 'carrier.full_name', 'label' => 'Перевозчик: Полное наименование'],
+            ['value' => 'carrier.inn', 'label' => 'Перевозчик: ИНН'],
+            ['value' => 'carrier.kpp', 'label' => 'Перевозчик: КПП'],
+            ['value' => 'carrier.ogrn', 'label' => 'Перевозчик: ОГРН'],
+            ['value' => 'carrier.legal_address', 'label' => 'Перевозчик: Юр. адрес'],
+            ['value' => 'carrier.actual_address', 'label' => 'Перевозчик: Факт. адрес'],
+            ['value' => 'carrier.phone', 'label' => 'Перевозчик: Телефон'],
+            ['value' => 'carrier.email', 'label' => 'Перевозчик: Email'],
+            ['value' => 'carrier.contact_person', 'label' => 'Перевозчик: Контактное лицо'],
+            ['value' => 'carrier.bank_name', 'label' => 'Перевозчик: Банк'],
+            ['value' => 'carrier.bik', 'label' => 'Перевозчик: БИК'],
+            ['value' => 'carrier.account_number', 'label' => 'Перевозчик: Р/с'],
+            ['value' => 'carrier.correspondent_account', 'label' => 'Перевозчик: К/с'],
+            ['value' => 'carrier.signer_name_nominative', 'label' => 'Перевозчик: Подписант, именительный'],
+            ['value' => 'carrier.signer_name_prepositional', 'label' => 'Перевозчик: Подписант, предложный'],
+            ['value' => 'carrier.signer_authority_basis', 'label' => 'Перевозчик: Основание подписи'],
+
+            ['value' => 'own_company.name', 'label' => 'Своя компания: Наименование'],
+            ['value' => 'own_company.full_name', 'label' => 'Своя компания: Полное наименование'],
+            ['value' => 'own_company.inn', 'label' => 'Своя компания: ИНН'],
+            ['value' => 'own_company.kpp', 'label' => 'Своя компания: КПП'],
+            ['value' => 'own_company.ogrn', 'label' => 'Своя компания: ОГРН'],
+            ['value' => 'own_company.bank_name', 'label' => 'Своя компания: Банк'],
+            ['value' => 'own_company.bik', 'label' => 'Своя компания: БИК'],
+            ['value' => 'own_company.account_number', 'label' => 'Своя компания: Р/с'],
+            ['value' => 'own_company.correspondent_account', 'label' => 'Своя компания: К/с'],
+            ['value' => 'own_company.signer_name_nominative', 'label' => 'Своя компания: Подписант, именительный'],
+            ['value' => 'own_company.signer_name_prepositional', 'label' => 'Своя компания: Подписант, предложный'],
+            ['value' => 'own_company.signer_authority_basis', 'label' => 'Своя компания: Основание подписи'],
+
+            ['value' => 'manager.name', 'label' => 'Менеджер: Имя'],
+
+            ['value' => 'driver.full_name', 'label' => 'Водитель: ФИО'],
+            ['value' => 'driver.phone', 'label' => 'Водитель: Телефон'],
+            ['value' => 'driver.passport_data', 'label' => 'Водитель: Паспортные данные'],
+
+            ['value' => 'contacts.customer_name', 'label' => 'Контакты: Имя заказчика'],
+            ['value' => 'contacts.customer_phone', 'label' => 'Контакты: Телефон заказчика'],
+            ['value' => 'contacts.customer_email', 'label' => 'Контакты: Email заказчика'],
+            ['value' => 'contacts.carrier_name', 'label' => 'Контакты: Имя перевозчика'],
+            ['value' => 'contacts.carrier_phone', 'label' => 'Контакты: Телефон перевозчика'],
+            ['value' => 'contacts.carrier_email', 'label' => 'Контакты: Email перевозчика'],
+
+            ['value' => 'route.loading_addresses', 'label' => 'Маршрут: Адреса загрузки'],
+            ['value' => 'route.loading_cities', 'label' => 'Маршрут: Города загрузки'],
+            ['value' => 'route.loading_first_address', 'label' => 'Маршрут: Первая загрузка, адрес'],
+            ['value' => 'route.loading_first_city', 'label' => 'Маршрут: Первая загрузка, город'],
+            ['value' => 'route.unloading_addresses', 'label' => 'Маршрут: Адреса выгрузки'],
+            ['value' => 'route.unloading_cities', 'label' => 'Маршрут: Города выгрузки'],
+            ['value' => 'route.unloading_first_address', 'label' => 'Маршрут: Первая выгрузка, адрес'],
+            ['value' => 'route.unloading_first_city', 'label' => 'Маршрут: Первая выгрузка, город'],
+
+            ['value' => 'cargo.summary', 'label' => 'Груз: Сводка'],
+            ['value' => 'cargo.names', 'label' => 'Груз: Наименования'],
+            ['value' => 'cargo.total_weight', 'label' => 'Груз: Общий вес, кг'],
+            ['value' => 'cargo.total_volume', 'label' => 'Груз: Общий объем, м3'],
+            ['value' => 'cargo.total_packages', 'label' => 'Груз: Всего мест'],
+        ];
+    }
+}

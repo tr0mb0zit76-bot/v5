@@ -35,6 +35,9 @@ class RoleManagementController extends Controller
                     'visibility_scopes' => Schema::hasColumn('roles', 'visibility_scopes')
                         ? ($role->visibility_scopes ?? RoleAccess::defaultVisibilityScopes($role->name))
                         : RoleAccess::defaultVisibilityScopes($role->name),
+                    'default_has_signing_authority' => Schema::hasColumn('roles', 'has_signing_authority')
+                        ? (bool) $role->has_signing_authority
+                        : false,
                     'users_count' => $role->users_count,
                 ])
                 ->values(),
@@ -58,6 +61,10 @@ class RoleManagementController extends Controller
             );
         }
 
+        if (Schema::hasColumn('roles', 'has_signing_authority')) {
+            $attributes['has_signing_authority'] = (bool) $request->validated('has_signing_authority', false);
+        }
+
         Role::query()->create($attributes);
 
         return to_route('settings.roles.index');
@@ -75,6 +82,10 @@ class RoleManagementController extends Controller
                 $request->validated('visibility_scopes', []),
                 $request->validated('visibility_areas', [])
             );
+        }
+
+        if (Schema::hasColumn('roles', 'has_signing_authority')) {
+            $attributes['has_signing_authority'] = (bool) $request->validated('has_signing_authority', false);
         }
 
         $role->update($attributes);

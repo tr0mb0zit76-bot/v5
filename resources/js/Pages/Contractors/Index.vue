@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
@@ -50,50 +50,50 @@ const addressTimers = {};
 let innLookupTimer = null;
 const lastAutoFilledInn = ref('');
 
-/** РџРѕРґРїРёСЃРё РЅР° С„СЂРѕРЅС‚Рµ (UTF-8), С‡С‚РѕР±С‹ РЅРµ Р·Р°РІРёСЃРµС‚СЊ РѕС‚ РєРѕРґРёСЂРѕРІРєРё РѕС‚РІРµС‚Р° СЃРµСЂРІРµСЂР° РІ СЃРїРёСЃРєРµ РѕРїС†РёР№ */
+/** Подписи на фронте (UTF-8), чтобы не зависеть от кодировки ответа сервера в списке опций */
 const legalFormLabelByValue = {
-    ooo: 'РћРћРћ',
-    zao: 'Р—РђРћ',
-    ao: 'РђРћ',
-    ip: 'РРџ',
-    samozanyaty: 'РЎР°РјРѕР·Р°РЅСЏС‚С‹Р№',
-    other: 'Р”СЂСѓРіРѕРµ',
+    ooo: 'ООО',
+    zao: 'ЗАО',
+    ao: 'АО',
+    ip: 'ИП',
+    samozanyaty: 'Самозанятый',
+    other: 'Другое',
 };
 
 const tabs = [
-    { key: 'general', label: 'РћР±С‰РёРµ СЃРІРµРґРµРЅРёСЏ', icon: Building2 },
-    { key: 'cooperation', label: 'РЈСЃР»РѕРІРёСЏ СЃРѕС‚СЂСѓРґРЅРёС‡РµСЃС‚РІР°', icon: FileText },
-    { key: 'requisites', label: 'Р РµРєРІРёР·РёС‚С‹', icon: ShieldCheck },
-    { key: 'contacts', label: 'РљРѕРЅС‚Р°РєС‚С‹', icon: Users },
-    { key: 'history', label: 'РСЃС‚РѕСЂРёСЏ РѕР±С‰РµРЅРёСЏ', icon: History },
-    { key: 'orders', label: 'Р—Р°РєР°Р·С‹', icon: FileText },
-    { key: 'documents', label: 'Р”РѕРєСѓРјРµРЅС‚С‹', icon: FileText },
+    { key: 'general', label: 'Общие сведения', icon: Building2 },
+    { key: 'cooperation', label: 'Условия сотрудничества', icon: FileText },
+    { key: 'requisites', label: 'Реквизиты', icon: ShieldCheck },
+    { key: 'contacts', label: 'Контакты', icon: Users },
+    { key: 'history', label: 'История общения', icon: History },
+    { key: 'orders', label: 'Заказы', icon: FileText },
+    { key: 'documents', label: 'Документы', icon: FileText },
 ];
 
 const contractorTypes = [
-    { value: 'customer', label: 'Р—Р°РєР°Р·С‡РёРє' },
-    { value: 'carrier', label: 'РџРµСЂРµРІРѕР·С‡РёРє' },
-    { value: 'both', label: 'Р—Р°РєР°Р·С‡РёРє Рё РїРµСЂРµРІРѕР·С‡РёРє' },
+    { value: 'customer', label: 'Заказчик' },
+    { value: 'carrier', label: 'Перевозчик' },
+    { value: 'both', label: 'Заказчик и перевозчик' },
 ];
 
 const interactionChannels = [
-    { value: 'phone', label: 'РўРµР»РµС„РѕРЅ' },
+    { value: 'phone', label: 'Телефон' },
     { value: 'email', label: 'Email' },
-    { value: 'messenger', label: 'РњРµСЃСЃРµРЅРґР¶РµСЂ' },
-    { value: 'meeting', label: 'Р’СЃС‚СЂРµС‡Р°' },
+    { value: 'messenger', label: 'Мессенджер' },
+    { value: 'meeting', label: 'Встреча' },
 ];
 
 const paymentFormOptions = [
-    { value: 'vat', label: 'РЎ РќР”РЎ' },
-    { value: 'no_vat', label: 'Р‘РµР· РќР”РЎ' },
-    { value: 'cash', label: 'РќР°Р»РёС‡РЅС‹Рµ' },
+    { value: 'vat', label: 'С НДС' },
+    { value: 'no_vat', label: 'Без НДС' },
+    { value: 'cash', label: 'Наличные' },
 ];
 
 const paymentBasisOptions = [
-    { value: 'fttn', label: 'Р¤РўРўРќ' },
-    { value: 'ottn', label: 'РћРўРўРќ' },
-    { value: 'fttn', label: 'РќР° Р·Р°РіСЂСѓР·РєРµ' },
-    { value: 'ottn', label: 'РќР° РІС‹РіСЂСѓР·РєРµ' },
+    { value: 'fttn', label: 'ФТТН' },
+    { value: 'ottn', label: 'ОТТН' },
+    { value: 'fttn', label: 'На загрузке' },
+    { value: 'ottn', label: 'На выгрузке' },
 ];
 
 const currencyOptions = ['RUB', 'USD', 'CNY', 'EUR'];
@@ -142,10 +142,10 @@ function paymentScheduleSummary(schedule) {
         const prepaymentRatio = Number(normalized.prepayment_ratio || 0);
         const postpaymentRatio = Math.max(0, 100 - prepaymentRatio);
 
-        return `${prepaymentRatio}/${postpaymentRatio}, ${Number(normalized.prepayment_days || 0)} РґРЅ ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${Number(normalized.postpayment_days || 0)} РґРЅ ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+        return `${prepaymentRatio}/${postpaymentRatio}, ${Number(normalized.prepayment_days || 0)} дн ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
     }
 
-    return `${Number(normalized.postpayment_days || 0)} РґРЅ ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+    return `${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
 }
 
 function parsePaymentTermPreset(term) {
@@ -154,7 +154,7 @@ function parsePaymentTermPreset(term) {
     }
 
     const normalized = String(term).trim().toUpperCase();
-    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+Р”Рќ\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+Р”Рќ\s+(FTTN|OTTN)$/u);
+    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
 
     if (prepaymentMatch) {
         return normalizePaymentSchedule({
@@ -167,7 +167,7 @@ function parsePaymentTermPreset(term) {
         });
     }
 
-    const postpaymentMatch = normalized.match(/^(\d+)\s+Р”Рќ\s+(FTTN|OTTN)$/u);
+    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
 
     if (postpaymentMatch) {
         return normalizePaymentSchedule({
@@ -201,6 +201,9 @@ function blankForm() {
         contact_person_phone: '',
         contact_person_email: '',
         contact_person_position: '',
+        signer_name_nominative: '',
+        signer_name_prepositional: '',
+        signer_authority_basis: '',
         bank_name: '',
         bik: '',
         account_number: '',
@@ -253,6 +256,9 @@ function contractorToForm(contractor) {
         contact_person_phone: contractor.contact_person_phone ?? '',
         contact_person_email: contractor.contact_person_email ?? '',
         contact_person_position: contractor.contact_person_position ?? '',
+        signer_name_nominative: contractor.signer_name_nominative ?? '',
+        signer_name_prepositional: contractor.signer_name_prepositional ?? '',
+        signer_authority_basis: contractor.signer_authority_basis ?? '',
         bank_name: contractor.bank_name ?? '',
         bik: contractor.bik ?? '',
         account_number: contractor.account_number ?? '',
@@ -322,7 +328,7 @@ const availableActivityTypeOptions = computed(() => {
 
 const activityTypeDropdownLabel = computed(() => {
     if (!Array.isArray(form.activity_types) || form.activity_types.length === 0) {
-        return 'Выберите виды деятельности';
+        return '�������� ���� ������������';
     }
 
     if (form.activity_types.length <= 2) {
@@ -433,7 +439,7 @@ function removeContractor() {
         return;
     }
 
-    if (!window.confirm('РЈРґР°Р»РёС‚СЊ РєРѕРЅС‚СЂР°РіРµРЅС‚Р°?')) {
+    if (!window.confirm('Удалить контрагента?')) {
         return;
     }
 
@@ -578,7 +584,7 @@ function selectAddress(field, suggestion) {
 
 function formatDate(value) {
     if (!value) {
-        return 'вЂ”';
+        return '—';
     }
 
     return new Date(value).toLocaleDateString('ru-RU');
@@ -586,7 +592,7 @@ function formatDate(value) {
 
 function formatMoney(value, currency = 'RUB') {
     if (value === null || value === undefined || value === '') {
-        return 'вЂ”';
+        return '—';
     }
 
     return `${new Intl.NumberFormat('ru-RU', {
@@ -600,7 +606,7 @@ function contractorTypeLabel(value) {
 }
 
 function paymentFormLabel(value) {
-    return paymentFormOptions.find((item) => item.value === value)?.label ?? 'РќРµ Р·Р°РґР°РЅРѕ';
+    return paymentFormOptions.find((item) => item.value === value)?.label ?? 'Не задано';
 }
 
 watch(() => form.inn, (inn) => {
@@ -623,9 +629,9 @@ watch(() => form.inn, (inn) => {
     <div class="flex h-full min-h-0 flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">РљРѕРЅС‚СЂР°РіРµРЅС‚С‹</h1>
+                <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Р•РґРёРЅР°СЏ РєР°СЂС‚РѕС‡РєР° РєРѕРЅС‚СЂР°РіРµРЅС‚Р° СЃ СЂРµРєРІРёР·РёС‚Р°РјРё, РєРѕРЅС‚Р°РєС‚Р°РјРё, РёСЃС‚РѕСЂРёРµР№ РєРѕРјРјСѓРЅРёРєР°С†РёР№ Рё СЃРІСЏР·Р°РЅРЅС‹РјРё Р·Р°РєР°Р·Р°РјРё.
+                    Единая карточка контрагента с реквизитами, контактами, историей коммуникаций и связанными заказами.
                 </p>
             </div>
 
@@ -635,7 +641,7 @@ watch(() => form.inn, (inn) => {
                 @click="openCreateForm"
             >
                 <Plus class="h-4 w-4" />
-                РќРѕРІС‹Р№ РєРѕРЅС‚СЂР°РіРµРЅС‚
+                Новый контрагент
             </button>
         </div>
 
@@ -647,14 +653,14 @@ watch(() => form.inn, (inn) => {
                         <input
                             v-model="search"
                             type="text"
-                            placeholder="РџРѕРёСЃРє РїРѕ РЅР°Р·РІР°РЅРёСЋ, РРќРќ, С‚РµР»РµС„РѕРЅСѓ"
+                            placeholder="Поиск по названию, ИНН, телефону"
                             class="w-full border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                         />
                     </div>
                 </div>
 
                 <div class="border-b border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                    Р’СЃРµРіРѕ РєРѕРЅС‚СЂР°РіРµРЅС‚РѕРІ: {{ contractors.length }}
+                    Всего контрагентов: {{ contractors.length }}
                 </div>
 
                 <div class="min-h-0 flex-1 overflow-auto">
@@ -672,7 +678,7 @@ watch(() => form.inn, (inn) => {
                             <div class="space-y-1">
                                 <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ contractor.name }}</div>
                                 <div v-if="contractor.is_own_company" class="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
-                                    РЎРІРѕСЏ РєРѕРјРїР°РЅРёСЏ
+                                    Своя компания
                                 </div>
                             </div>
                             <span
@@ -681,22 +687,22 @@ watch(() => form.inn, (inn) => {
                                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
                                     : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'"
                             >
-                                {{ contractor.is_active ? 'РђРєС‚РёРІРµРЅ' : 'РђСЂС…РёРІ' }}
+                                {{ contractor.is_active ? 'Активен' : 'Архив' }}
                             </span>
                         </div>
 
                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ contractorTypeLabel(contractor.type) }}<span v-if="contractor.inn"> В· РРќРќ {{ contractor.inn }}</span>
+                            {{ contractorTypeLabel(contractor.type) }}<span v-if="contractor.inn"> · ИНН {{ contractor.inn }}</span>
                         </div>
 
                         <div class="flex flex-wrap gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                            <span>РљРѕРЅС‚Р°РєС‚С‹: {{ contractor.contacts_count }}</span>
-                            <span>Р—Р°РєР°Р·С‹: {{ contractor.orders_count }}</span>
+                            <span>Контакты: {{ contractor.contacts_count }}</span>
+                            <span>Заказы: {{ contractor.orders_count }}</span>
                         </div>
                     </button>
 
                     <div v-if="filteredContractors.length === 0" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        РљРѕРЅС‚СЂР°РіРµРЅС‚С‹ РЅРµ РЅР°Р№РґРµРЅС‹.
+                        Контрагенты не найдены.
                     </div>
                 </div>
             </aside>
@@ -705,13 +711,13 @@ watch(() => form.inn, (inn) => {
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <div class="space-y-1">
                         <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                            {{ isCreating ? 'РќРѕРІС‹Р№ РєРѕРЅС‚СЂР°РіРµРЅС‚' : (selectedContractor?.name || 'РљР°СЂС‚РѕС‡РєР° РєРѕРЅС‚СЂР°РіРµРЅС‚Р°') }}
+                            {{ isCreating ? 'Новый контрагент' : (selectedContractor?.name || 'Карточка контрагента') }}
                         </div>
                         <div class="flex flex-wrap gap-3 text-sm text-zinc-500 dark:text-zinc-400">
-                            <span v-if="selectedContractor?.inn">РРќРќ {{ selectedContractor.inn }}</span>
+                            <span v-if="selectedContractor?.inn">ИНН {{ selectedContractor.inn }}</span>
                             <span v-if="selectedContractor?.phone">{{ selectedContractor.phone }}</span>
                             <span v-if="selectedContractor?.email">{{ selectedContractor.email }}</span>
-                            <span v-if="selectedContractorId !== null">Р—Р°РєР°Р·С‹: {{ totalOrdersCount }}</span>
+                            <span v-if="selectedContractorId !== null">Заказы: {{ totalOrdersCount }}</span>
                         </div>
                     </div>
 
@@ -721,7 +727,7 @@ watch(() => form.inn, (inn) => {
                             class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                             @click="resetToSelected"
                         >
-                            РЎР±СЂРѕСЃРёС‚СЊ
+                            Сбросить
                         </button>
                         <button
                             v-if="selectedContractorId !== null"
@@ -730,7 +736,7 @@ watch(() => form.inn, (inn) => {
                             @click="removeContractor"
                         >
                             <Trash2 class="h-4 w-4" />
-                            РЈРґР°Р»РёС‚СЊ
+                            Удалить
                         </button>
                         <button
                             type="button"
@@ -739,7 +745,7 @@ watch(() => form.inn, (inn) => {
                             @click="submit"
                         >
                             <Save class="h-4 w-4" />
-                            {{ form.processing ? 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' : 'РЎРѕС…СЂР°РЅРёС‚СЊ' }}
+                            {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
                         </button>
                     </div>
                 </div>
@@ -766,143 +772,9 @@ watch(() => form.inn, (inn) => {
                     <div v-if="activeTab === 'general'" class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
                             <div class="space-y-4">
-                                <div v-if="false" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">РўРёРї РєРѕРЅС‚СЂР°РіРµРЅС‚Р°</label>
-                                        <select
-                                            v-model="form.type"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        >
-                                            <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
-                                                {{ type.label }}
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    <div class="flex items-end gap-3">
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
-                                            РђРєС‚РёРІРµРЅ
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
-                                            РџСЂРѕРІРµСЂРµРЅ
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
-                                            РЎРІРѕСЏ РєРѕРјРїР°РЅРёСЏ
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div v-if="false" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-                                        <div v-if="false" class="space-y-2">
-                                            <label class="text-sm font-medium">РћРїР»Р°С‚Р° РїРѕ</label>
-                                            <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                <option value="">РќРµ Р·Р°РґР°РЅР°</option>
-                                                <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                            </select>
-                                        </div>
-                                        <div v-if="false" class="space-y-2">
-                                            <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ РѕРїР»Р°С‚С‹ Р·Р°РєР°Р·С‡РёРєР°</label>
-                                            <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ paymentScheduleSummary(form.default_customer_payment_schedule) || 'РќРµ Р·Р°РґР°РЅС‹' }}
-                                            </p>
-                                        </div>
-                                        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє, РґРЅРµР№</label>
-                                                <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РўРёРї РґРѕРєСѓРјРµРЅС‚РѕРІ</label>
-                                                <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                                <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                                РџСЂРµРґРѕРїР»Р°С‚Р°
-                                            </label>
-                                        </div>
-                                        <div v-if="form.default_customer_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџСЂРµРґРѕРїР»Р°С‚Р°, %</label>
-                                                <input v-model="form.default_customer_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє РїСЂРµРґРѕРїР»Р°С‚С‹, РґРЅРµР№</label>
-                                                <input v-model="form.default_customer_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РўРёРї РґРѕРєСѓРјРµРЅС‚РѕРІ РґР»СЏ РїСЂРµРґРѕРїР»Р°С‚С‹</label>
-                                                <select v-model="form.default_customer_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџРѕСЃС‚РѕРїР»Р°С‚Р°, %</label>
-                                                <input :value="100 - Number(form.default_customer_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-                                        <div v-if="false" class="space-y-2">
-                                            <label class="text-sm font-medium">РћРїР»Р°С‚Р° РїРѕ</label>
-                                            <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                <option value="">РќРµ Р·Р°РґР°РЅР°</option>
-                                                <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                            </select>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ РѕРїР»Р°С‚С‹ РїРµСЂРµРІРѕР·С‡РёРєР°</label>
-                                            <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ paymentScheduleSummary(form.default_carrier_payment_schedule) || 'РќРµ Р·Р°РґР°РЅС‹' }}
-                                            </p>
-                                        </div>
-                                        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє, РґРЅРµР№</label>
-                                                <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РўРёРї РґРѕРєСѓРјРµРЅС‚РѕРІ</label>
-                                                <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                                <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                                РџСЂРµРґРѕРїР»Р°С‚Р°
-                                            </label>
-                                        </div>
-                                        <div v-if="form.default_carrier_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџСЂРµРґРѕРїР»Р°С‚Р°, %</label>
-                                                <input v-model="form.default_carrier_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє РїСЂРµРґРѕРїР»Р°С‚С‹, РґРЅРµР№</label>
-                                                <input v-model="form.default_carrier_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РўРёРї РґРѕРєСѓРјРµРЅС‚РѕРІ РґР»СЏ РїСЂРµРґРѕРїР»Р°С‚С‹</label>
-                                                <select v-model="form.default_carrier_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџРѕСЃС‚РѕРїР»Р°С‚Р°, %</label>
-                                                <input :value="100 - Number(form.default_carrier_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РљСЂР°С‚РєРѕРµ РЅР°Р·РІР°РЅРёРµ</label>
+                                        <label class="text-sm font-medium">Краткое название</label>
                                         <input
                                             v-model="form.name"
                                             type="text"
@@ -912,7 +784,7 @@ watch(() => form.inn, (inn) => {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РџРѕР»РЅРѕРµ РЅР°Р·РІР°РЅРёРµ</label>
+                                        <label class="text-sm font-medium">Полное название</label>
                                         <input
                                             v-model="form.full_name"
                                             type="text"
@@ -924,14 +796,14 @@ watch(() => form.inn, (inn) => {
                                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                     <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                         <div>
-                                            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">РџСЂРѕС„РёР»СЊ РєРѕРЅС‚СЂР°РіРµРЅС‚Р°</div>
+                                            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Профиль контрагента</div>
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                                Р РѕР»СЊ РєРѕРјРїР°РЅРёРё РІ СЂР°Р±РѕС‚Рµ Рё РІРЅСѓС‚СЂРµРЅРЅРёРµ РїСЂРёР·РЅР°РєРё РєР°СЂС‚РѕС‡РєРё.
+                                                Роль компании в работе и внутренние признаки карточки.
                                             </div>
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">РўРёРї РєРѕРЅС‚СЂР°РіРµРЅС‚Р°</label>
+                                            <label class="text-sm font-medium">Тип контрагента</label>
                                             <select
                                                 v-model="form.type"
                                                 class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
@@ -945,35 +817,36 @@ watch(() => form.inn, (inn) => {
                                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
                                                 <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
-                                                РђРєС‚РёРІРµРЅ
+                                                Активен
                                             </label>
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
                                                 <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
-                                                РџСЂРѕРІРµСЂРµРЅ
+                                                Проверен
                                             </label>
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60 sm:col-span-2">
                                                 <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
-                                                РЎРІРѕСЏ РєРѕРјРїР°РЅРёСЏ
+                                                Своя компания
                                             </label>
                                         </div>
                                     </div>
 
+                                    <div class="space-y-4">
                                 <div class="grid grid-cols-1 gap-4">
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">РРќРќ</label>
+                                            <label class="text-sm font-medium">ИНН</label>
                                             <input
                                                 v-model="form.inn"
                                                 type="text"
                                                 class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                             />
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                                РџРѕСЃР»Рµ РІРІРѕРґР° РєРѕСЂСЂРµРєС‚РЅРѕРіРѕ РРќРќ DaData РїРѕРґСЃС‚Р°РІРёС‚ СЂРµРєРІРёР·РёС‚С‹ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.
+                                                После ввода корректного ИНН DaData подставит реквизиты автоматически.
                                             </div>
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">РћСЃРЅРѕРІРЅРѕР№ С‚РµР»РµС„РѕРЅ</label>
+                                            <label class="text-sm font-medium">Основной телефон</label>
                                             <input
                                                 v-model="form.phone"
                                                 type="text"
@@ -983,7 +856,7 @@ watch(() => form.inn, (inn) => {
                                     </div>
                                     <div v-if="isInnLookupPending" class="inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                                         <Search class="h-4 w-4 animate-pulse" />
-                                        РРґС‘С‚ РїРѕРёСЃРє СЂРµРєРІРёР·РёС‚РѕРІ РІ DaData...
+                                        Идёт поиск реквизитов в DaData...
                                     </div>
                                 </div>
 
@@ -998,7 +871,7 @@ watch(() => form.inn, (inn) => {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РЎР°Р№С‚</label>
+                                        <label class="text-sm font-medium">Сайт</label>
                                         <input
                                             v-model="form.website"
                                             type="text"
@@ -1008,21 +881,21 @@ watch(() => form.inn, (inn) => {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">РљСЂР°С‚РєРѕРµ РѕРїРёСЃР°РЅРёРµ РєРѕРЅС‚СЂР°РіРµРЅС‚Р°</label>
+                                    <label class="text-sm font-medium">Краткое описание контрагента</label>
                                     <textarea
                                         v-model="form.short_description"
                                         rows="4"
-                                        placeholder="РљРѕСЂРѕС‚РєРѕ: С‡РµРј Р·Р°РЅРёРјР°РµС‚СЃСЏ РєРѕРјРїР°РЅРёСЏ, СЃРёР»СЊРЅС‹Рµ СЃС‚РѕСЂРѕРЅС‹, РїСЂРѕС„РёР»СЊ СЂР°Р±РѕС‚С‹"
+                                        placeholder="Коротко: чем занимается компания, сильные стороны, профиль работы"
                                         class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                     />
                                 </div>
                             </div>
 
                             <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">РћСЃРЅРѕРІРЅРѕР№ РєРѕРЅС‚Р°РєС‚</div>
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Основной контакт</div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">РљРѕРЅС‚Р°РєС‚РЅРѕРµ Р»РёС†Рѕ</label>
+                                    <label class="text-sm font-medium">Контактное лицо</label>
                                     <input
                                         v-model="form.contact_person"
                                         type="text"
@@ -1031,7 +904,7 @@ watch(() => form.inn, (inn) => {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Р”РѕР»Р¶РЅРѕСЃС‚СЊ</label>
+                                    <label class="text-sm font-medium">Должность</label>
                                     <input
                                         v-model="form.contact_person_position"
                                         type="text"
@@ -1040,7 +913,7 @@ watch(() => form.inn, (inn) => {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">РўРµР»РµС„РѕРЅ</label>
+                                    <label class="text-sm font-medium">Телефон</label>
                                     <input
                                         v-model="form.contact_person_phone"
                                         type="text"
@@ -1056,118 +929,35 @@ watch(() => form.inn, (inn) => {
                                         class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                     />
                                 </div>
-                            </div>
-                        </div>
-                        <div v-if="false" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                            <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="flex items-center justify-between gap-3">
-                                    <div>
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">РљРѕРјРјРµСЂС‡РµСЃРєРёРµ СѓСЃР»РѕРІРёСЏ</div>
-                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                            Р­С‚Рё Р·РЅР°С‡РµРЅРёСЏ РїРѕРґСЃС‚Р°РІР»СЏСЋС‚СЃСЏ РІ Р·Р°РєР°Р· РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ Рё СѓС‡Р°СЃС‚РІСѓСЋС‚ РІ РїСЂРѕРІРµСЂРєРµ Р»РёРјРёС‚Р°.
-                                        </div>
-                                    </div>
-                                    <label class="flex items-center gap-2 text-sm">
-                                        <input v-model="form.stop_on_limit" type="checkbox" class="rounded border-zinc-300" />
-                                        РЎС‚РѕРї-СЂР°Р±РѕС‚Р° РїРѕ Р»РёРјРёС‚Сѓ
-                                    </label>
                                 </div>
-
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                    <div class="space-y-2 md:col-span-2">
-                                        <label class="text-sm font-medium">Р›РёРјРёС‚ Р·Р°РґРѕР»Р¶РµРЅРЅРѕСЃС‚Рё</label>
-                                        <input v-model="form.debt_limit" type="number" min="0" step="0.01" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р’Р°Р»СЋС‚Р°</label>
-                                        <select v-model="form.debt_limit_currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                            <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹ Р·Р°РєР°Р·С‡РёРєР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</label>
-                                        <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                            <option value="">РќРµ Р·Р°РґР°РЅР°</option>
-                                            <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ РѕРїР»Р°С‚С‹ Р·Р°РєР°Р·С‡РёРєР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</label>
-                                        <input v-model="form.default_customer_payment_term" type="text" placeholder="РќР°РїСЂРёРјРµСЂ: 7 РґРЅ OTTN" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹ РїРµСЂРµРІРѕР·С‡РёРєР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</label>
-                                        <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                            <option value="">РќРµ Р·Р°РґР°РЅР°</option>
-                                            <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ РѕРїР»Р°С‚С‹ РїРµСЂРµРІРѕР·С‡РёРєР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</label>
-                                        <input v-model="form.default_carrier_payment_term" type="text" placeholder="РќР°РїСЂРёРјРµСЂ: 50/50, 1 РґРЅ FTTN / 5 РґРЅ OTTN" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                </div>
-
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ СЃРѕС‚СЂСѓРґРЅРёС‡РµСЃС‚РІР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</label>
-                                    <textarea v-model="form.cooperation_terms_notes" rows="3" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                            </div>
-
-                            <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">РљСЂРµРґРёС‚РЅС‹Р№ СЃС‚Р°С‚СѓСЃ</div>
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">РўРµРєСѓС‰Р°СЏ Р·Р°РґРѕР»Р¶РµРЅРЅРѕСЃС‚СЊ</span>
-                                        <span class="font-medium">{{ formatMoney(selectedContractor?.current_debt, selectedContractor?.debt_limit_currency || form.debt_limit_currency) }}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">Р›РёРјРёС‚</span>
-                                        <span class="font-medium">{{ formatMoney(form.debt_limit, form.debt_limit_currency) }}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹ Р·Р°РєР°Р·С‡РёРєР°</span>
-                                        <span class="font-medium">{{ paymentFormLabel(form.default_customer_payment_form) }}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹ РїРµСЂРµРІРѕР·С‡РёРєР°</span>
-                                        <span class="font-medium">{{ paymentFormLabel(form.default_carrier_payment_form) }}</span>
-                                    </div>
-                                </div>
-
-                                <div class="rounded-xl border px-3 py-3 text-sm" :class="selectedContractor?.debt_limit_reached ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'">
-                                    {{ selectedContractor?.debt_limit_reached ? 'Р›РёРјРёС‚ РґРѕСЃС‚РёРіРЅСѓС‚. РќРѕРІС‹Рµ Р·Р°РєР°Р·С‹ РґРѕР»Р¶РЅС‹ Р±Р»РѕРєРёСЂРѕРІР°С‚СЊСЃСЏ.' : 'РџРѕ С‚РµРєСѓС‰РёРј РґР°РЅРЅС‹Рј Р»РёРјРёС‚ РЅРµ РґРѕСЃС‚РёРіРЅСѓС‚.' }}
-                                </div>
-                            </div>
-                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
 
                     <div v-else-if="activeTab === 'cooperation'" class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                             <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Р¤РёРЅР°РЅСЃРѕРІС‹Рµ СѓСЃР»РѕРІРёСЏ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ</div>
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Финансовые условия по умолчанию</div>
                                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                            Р­С‚Рё Р·РЅР°С‡РµРЅРёСЏ РїРѕРґСЃС‚Р°РІР»СЏСЋС‚СЃСЏ РІ Р·Р°РєР°Р· РїСЂРё РІС‹Р±РѕСЂРµ РєРѕРЅС‚СЂР°РіРµРЅС‚Р°.
+                                            Эти значения подставляются в заказ при выборе контрагента.
                                         </div>
                                     </div>
                                     <label class="flex items-center gap-2 text-sm">
                                         <input v-model="form.stop_on_limit" type="checkbox" class="rounded border-zinc-300" />
-                                        РЎС‚РѕРї-СЂР°Р±РѕС‚Р° РїРѕ Р»РёРјРёС‚Сѓ
+                                        Стоп-работа по лимиту
                                     </label>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                     <div class="space-y-2 md:col-span-2">
-                                        <label class="text-sm font-medium">Р›РёРјРёС‚ Р·Р°РґРѕР»Р¶РµРЅРЅРѕСЃС‚Рё</label>
+                                        <label class="text-sm font-medium">Лимит задолженности</label>
                                         <input v-model="form.debt_limit" type="number" min="0" step="0.01" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р’Р°Р»СЋС‚Р°</label>
+                                        <label class="text-sm font-medium">Валюта</label>
                                         <select v-model="form.debt_limit_currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                             <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
                                         </select>
@@ -1177,51 +967,51 @@ watch(() => form.inn, (inn) => {
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹</label>
+                                            <label class="text-sm font-medium">Форма оплаты</label>
                                             <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                <option value="">РќРµ Р·Р°РґР°РЅР°</option>
+                                                <option value="">Не задана</option>
                                                 <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                             </select>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ РѕРїР»Р°С‚С‹ Р·Р°РєР°Р·С‡РёРєР°</label>
+                                            <label class="text-sm font-medium">Условия оплаты заказчика</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ paymentScheduleSummary(form.default_customer_payment_schedule) || 'РќРµ Р·Р°РґР°РЅС‹' }}
+                                                {{ paymentScheduleSummary(form.default_customer_payment_schedule) || 'Не заданы' }}
                                             </p>
                                         </div>
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє, РґРЅРµР№</label>
+                                                <label class="text-sm font-medium">Срок, дней</label>
                                                 <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РћРїР»Р°С‚Р° РїРѕ</label>
+                                                <label class="text-sm font-medium">Оплата по</label>
                                                 <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                                                 <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                                РџСЂРµРґРѕРїР»Р°С‚Р°
+                                                Предоплата
                                             </label>
                                         </div>
                                         <div v-if="form.default_customer_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџСЂРµРґРѕРїР»Р°С‚Р°, %</label>
+                                                <label class="text-sm font-medium">Предоплата, %</label>
                                                 <input v-model="form.default_customer_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє РїСЂРµРґРѕРїР»Р°С‚С‹, РґРЅРµР№</label>
+                                                <label class="text-sm font-medium">Срок предоплаты, дней</label>
                                                 <input v-model="form.default_customer_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РћРїР»Р°С‚Р° РїРѕ</label>
+                                                <label class="text-sm font-medium">Оплата по</label>
                                                 <select v-model="form.default_customer_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџРѕСЃС‚РѕРїР»Р°С‚Р°, %</label>
+                                                <label class="text-sm font-medium">Постоплата, %</label>
                                                 <input :value="100 - Number(form.default_customer_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
                                             </div>
                                         </div>
@@ -1229,51 +1019,51 @@ watch(() => form.inn, (inn) => {
 
                                     <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹</label>
+                                            <label class="text-sm font-medium">Форма оплаты</label>
                                             <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                <option value="">РќРµ Р·Р°РґР°РЅР°</option>
+                                                <option value="">Не задана</option>
                                                 <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                             </select>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ РѕРїР»Р°С‚С‹ РїРµСЂРµРІРѕР·С‡РёРєР°</label>
+                                            <label class="text-sm font-medium">Условия оплаты перевозчика</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ paymentScheduleSummary(form.default_carrier_payment_schedule) || 'РќРµ Р·Р°РґР°РЅС‹' }}
+                                                {{ paymentScheduleSummary(form.default_carrier_payment_schedule) || 'Не заданы' }}
                                             </p>
                                         </div>
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє, РґРЅРµР№</label>
+                                                <label class="text-sm font-medium">Срок, дней</label>
                                                 <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РћРїР»Р°С‚Р° РїРѕ</label>
+                                                <label class="text-sm font-medium">Оплата по</label>
                                                 <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                                                 <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                                РџСЂРµРґРѕРїР»Р°С‚Р°
+                                                Предоплата
                                             </label>
                                         </div>
                                         <div v-if="form.default_carrier_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџСЂРµРґРѕРїР»Р°С‚Р°, %</label>
+                                                <label class="text-sm font-medium">Предоплата, %</label>
                                                 <input v-model="form.default_carrier_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РЎСЂРѕРє РїСЂРµРґРѕРїР»Р°С‚С‹, РґРЅРµР№</label>
+                                                <label class="text-sm font-medium">Срок предоплаты, дней</label>
                                                 <input v-model="form.default_carrier_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РћРїР»Р°С‚Р° РїРѕ</label>
+                                                <label class="text-sm font-medium">Оплата по</label>
                                                 <select v-model="form.default_carrier_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">РџРѕСЃС‚РѕРїР»Р°С‚Р°, %</label>
+                                                <label class="text-sm font-medium">Постоплата, %</label>
                                                 <input :value="100 - Number(form.default_carrier_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
                                             </div>
                                         </div>
@@ -1281,34 +1071,34 @@ watch(() => form.inn, (inn) => {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">РЈСЃР»РѕРІРёСЏ СЃРѕС‚СЂСѓРґРЅРёС‡РµСЃС‚РІР°</label>
-                                    <textarea v-model="form.cooperation_terms_notes" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    <label class="text-sm font-medium">Условия сотрудничества</label>
+                                    <textarea v-model="form.cooperation_terms_notes" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
                                 </div>
                             </div>
 
                             <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">РљСЂРµРґРёС‚РЅС‹Р№ СЃС‚Р°С‚СѓСЃ</div>
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Кредитный статус</div>
                                 <div class="space-y-2 text-sm">
                                     <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">РўРµРєСѓС‰Р°СЏ Р·Р°РґРѕР»Р¶РµРЅРЅРѕСЃС‚СЊ</span>
+                                        <span class="text-zinc-500 dark:text-zinc-400">Текущая задолженность</span>
                                         <span class="font-medium">{{ formatMoney(selectedContractor?.current_debt, selectedContractor?.debt_limit_currency || form.debt_limit_currency) }}</span>
                                     </div>
                                     <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">Р›РёРјРёС‚</span>
+                                        <span class="text-zinc-500 dark:text-zinc-400">Лимит</span>
                                         <span class="font-medium">{{ formatMoney(form.debt_limit, form.debt_limit_currency) }}</span>
                                     </div>
                                     <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹ Р·Р°РєР°Р·С‡РёРєР°</span>
+                                        <span class="text-zinc-500 dark:text-zinc-400">Форма оплаты заказчика</span>
                                         <span class="font-medium">{{ paymentFormLabel(form.default_customer_payment_form) }}</span>
                                     </div>
                                     <div class="flex items-center justify-between gap-3">
-                                        <span class="text-zinc-500 dark:text-zinc-400">Р¤РѕСЂРјР° РѕРїР»Р°С‚С‹ РїРµСЂРµРІРѕР·С‡РёРєР°</span>
+                                        <span class="text-zinc-500 dark:text-zinc-400">Форма оплаты перевозчика</span>
                                         <span class="font-medium">{{ paymentFormLabel(form.default_carrier_payment_form) }}</span>
                                     </div>
                                 </div>
 
                                 <div class="rounded-xl border px-3 py-3 text-sm" :class="selectedContractor?.debt_limit_reached ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'">
-                                    {{ selectedContractor?.debt_limit_reached ? 'Р›РёРјРёС‚ РґРѕСЃС‚РёРіРЅСѓС‚. РќРѕРІС‹Рµ Р·Р°РєР°Р·С‹ РґРѕР»Р¶РЅС‹ Р±Р»РѕРєРёСЂРѕРІР°С‚СЊСЃСЏ.' : 'РџРѕ С‚РµРєСѓС‰РёРј РґР°РЅРЅС‹Рј Р»РёРјРёС‚ РЅРµ РґРѕСЃС‚РёРіРЅСѓС‚.' }}
+                                    {{ selectedContractor?.debt_limit_reached ? 'Лимит достигнут. Новые заказы должны блокироваться.' : 'По текущим данным лимит не достигнут.' }}
                                 </div>
                             </div>
                         </div>
@@ -1319,12 +1109,12 @@ watch(() => form.inn, (inn) => {
                             <div class="space-y-4">
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РћСЂРі.-РїСЂР°РІРѕРІР°СЏ С„РѕСЂРјР°</label>
+                                        <label class="text-sm font-medium">Орг.-правовая форма</label>
                                         <select
                                             v-model="form.legal_form"
                                             class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                         >
-                                            <option value="">РќРµ СѓРєР°Р·Р°РЅР°</option>
+                                            <option value="">Не указана</option>
                                             <option v-for="option in legalFormOptions" :key="option.value" :value="option.value">
                                                 {{ legalFormLabelByValue[option.value] ?? option.label }}
                                             </option>
@@ -1332,7 +1122,7 @@ watch(() => form.inn, (inn) => {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РљРџРџ</label>
+                                        <label class="text-sm font-medium">КПП</label>
                                         <input
                                             v-model="form.kpp"
                                             type="text"
@@ -1343,7 +1133,7 @@ watch(() => form.inn, (inn) => {
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РћР“Р Рќ</label>
+                                        <label class="text-sm font-medium">ОГРН</label>
                                         <input
                                             v-model="form.ogrn"
                                             type="text"
@@ -1352,7 +1142,7 @@ watch(() => form.inn, (inn) => {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РћРљРџРћ</label>
+                                        <label class="text-sm font-medium">ОКПО</label>
                                         <input
                                             v-model="form.okpo"
                                             type="text"
@@ -1363,24 +1153,24 @@ watch(() => form.inn, (inn) => {
                             </div>
 
                             <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="mb-3 text-sm font-medium">Р‘Р°РЅРєРѕРІСЃРєРёРµ СЂРµРєРІРёР·РёС‚С‹</div>
+                                <div class="mb-3 text-sm font-medium">Банковские реквизиты</div>
                                 <div class="space-y-3">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р‘Р°РЅРє</label>
+                                        <label class="text-sm font-medium">Банк</label>
                                         <input v-model="form.bank_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Р‘РРљ</label>
+                                            <label class="text-sm font-medium">БИК</label>
                                             <input v-model="form.bik" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Р Р°СЃС‡С‘С‚РЅС‹Р№ СЃС‡С‘С‚</label>
+                                            <label class="text-sm font-medium">Расчётный счёт</label>
                                             <input v-model="form.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                         </div>
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РљРѕСЂСЂРµСЃРїРѕРЅРґРµРЅС‚СЃРєРёР№ СЃС‡С‘С‚</label>
+                                        <label class="text-sm font-medium">Корреспондентский счёт</label>
                                         <input v-model="form.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
@@ -1391,11 +1181,41 @@ watch(() => form.inn, (inn) => {
                             </div>
                         </div>
 
+                        <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="mb-3 text-sm font-medium">Подписант</div>
+                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">ФИО, именительный падеж</label>
+                                    <input
+                                        v-model="form.signer_name_nominative"
+                                        type="text"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">ФИО, родительный падеж</label>
+                                    <input
+                                        v-model="form.signer_name_prepositional"
+                                        type="text"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Основание права подписи</label>
+                                    <input
+                                        v-model="form.signer_authority_basis"
+                                        type="text"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <div class="space-y-4">
                                 <div class="relative space-y-2">
-                                    <label class="text-sm font-medium">Р®СЂРёРґРёС‡РµСЃРєРёР№ Р°РґСЂРµСЃ</label>
-                                    <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')" />
+                                    <label class="text-sm font-medium">Юридический адрес</label>
+                                    <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
                                     <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                         <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
                                             {{ suggestion.value }}
@@ -1404,8 +1224,8 @@ watch(() => form.inn, (inn) => {
                                 </div>
 
                                 <div class="relative space-y-2">
-                                    <label class="text-sm font-medium">Р¤Р°РєС‚РёС‡РµСЃРєРёР№ Р°РґСЂРµСЃ</label>
-                                    <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')" />
+                                    <label class="text-sm font-medium">Фактический адрес</label>
+                                    <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
                                     <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                         <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
                                             {{ suggestion.value }}
@@ -1414,8 +1234,8 @@ watch(() => form.inn, (inn) => {
                                 </div>
 
                                 <div class="relative space-y-2">
-                                    <label class="text-sm font-medium">РџРѕС‡С‚РѕРІС‹Р№ Р°РґСЂРµСЃ</label>
-                                    <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')" />
+                                    <label class="text-sm font-medium">Почтовый адрес</label>
+                                    <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
                                     <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                         <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
                                             {{ suggestion.value }}
@@ -1426,21 +1246,21 @@ watch(() => form.inn, (inn) => {
 
                             <div class="space-y-4">
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">РЎРїРµС†РёР°Р»РёР·Р°С†РёРё</div>
+                                    <div class="mb-3 text-sm font-medium">Специализации</div>
                                     <textarea
                                         v-model="specializationsText"
                                         rows="6"
-                                        placeholder="РџРѕ РѕРґРЅРѕР№ СЃРїРµС†РёР°Р»РёР·Р°С†РёРё РЅР° СЃС‚СЂРѕРєСѓ"
+                                        placeholder="По одной специализации на строку"
                                         class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                     />
                                 </div>
 
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">РўСЂРµР±РѕРІР°РЅРёСЏ Рє РїРµСЂРµРІРѕР·РєРµ</div>
+                                    <div class="mb-3 text-sm font-medium">Требования к перевозке</div>
                                     <textarea
                                         v-model="transportRequirementsText"
                                         rows="6"
-                                        placeholder="РџРѕ РѕРґРЅРѕРјСѓ С‚СЂРµР±РѕРІР°РЅРёСЋ РЅР° СЃС‚СЂРѕРєСѓ"
+                                        placeholder="По одному требованию на строку"
                                         class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                     />
                                 </div>
@@ -1450,38 +1270,38 @@ watch(() => form.inn, (inn) => {
                     <div v-else-if="activeTab === 'contacts'" class="space-y-4">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                РћС‚РґРµР»СЊРЅС‹Рµ РєРѕРЅС‚Р°РєС‚С‹ СѓРґРѕР±РЅРѕ С…СЂР°РЅРёС‚СЊ РѕС‚РґРµР»СЊРЅРѕ РѕС‚ РѕСЃРЅРѕРІРЅРѕР№ РєР°СЂС‚РѕС‡РєРё РєРѕРјРїР°РЅРёРё.
+                                Отдельные контакты удобно хранить отдельно от основной карточки компании.
                             </div>
                             <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addContact">
                                 <Plus class="h-4 w-4" />
-                                Р”РѕР±Р°РІРёС‚СЊ РєРѕРЅС‚Р°РєС‚
+                                Добавить контакт
                             </button>
                         </div>
 
                         <div class="space-y-3">
                             <div v-for="(contact, index) in form.contacts" :key="`contact-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium">РљРѕРЅС‚Р°РєС‚ #{{ index + 1 }}</div>
+                                    <div class="text-sm font-medium">Контакт #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.contacts, index)">
-                                        РЈРґР°Р»РёС‚СЊ
+                                        Удалить
                                     </button>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р¤РРћ</label>
+                                        <label class="text-sm font-medium">ФИО</label>
                                         <input v-model="contact.full_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р”РѕР»Р¶РЅРѕСЃС‚СЊ</label>
+                                        <label class="text-sm font-medium">Должность</label>
                                         <input v-model="contact.position" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <label class="flex items-center gap-2 pt-8 text-sm">
                                         <input v-model="contact.is_primary" type="checkbox" class="rounded border-zinc-300" />
-                                        РћСЃРЅРѕРІРЅРѕР№ РєРѕРЅС‚Р°РєС‚
+                                        Основной контакт
                                     </label>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РўРµР»РµС„РѕРЅ</label>
+                                        <label class="text-sm font-medium">Телефон</label>
                                         <input v-model="contact.phone" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
@@ -1489,14 +1309,14 @@ watch(() => form.inn, (inn) => {
                                         <input v-model="contact.email" type="email" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2 md:col-span-2 xl:col-span-1">
-                                        <label class="text-sm font-medium">РљРѕРјРјРµРЅС‚Р°СЂРёР№</label>
+                                        <label class="text-sm font-medium">Комментарий</label>
                                         <input v-model="contact.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
                             </div>
 
                             <div v-if="form.contacts.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                РћС‚РґРµР»СЊРЅС‹Рµ РєРѕРЅС‚Р°РєС‚С‹ РїРѕРєР° РЅРµ РґРѕР±Р°РІР»РµРЅС‹.
+                                Отдельные контакты пока не добавлены.
                             </div>
                         </div>
                     </div>
@@ -1504,89 +1324,89 @@ watch(() => form.inn, (inn) => {
                     <div v-else-if="activeTab === 'history'" class="space-y-4">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                РСЃС‚РѕСЂРёСЏ Р·РІРѕРЅРєРѕРІ, РїРёСЃРµРј, РІСЃС‚СЂРµС‡ Рё СЂРµР·СѓР»СЊС‚Р°С‚РѕРІ РєРѕРјРјСѓРЅРёРєР°С†РёРё.
+                                История звонков, писем, встреч и результатов коммуникации.
                             </div>
                             <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addInteraction">
                                 <Plus class="h-4 w-4" />
-                                Р”РѕР±Р°РІРёС‚СЊ Р·Р°РїРёСЃСЊ
+                                Добавить запись
                             </button>
                         </div>
 
                         <div class="space-y-3">
                             <div v-for="(interaction, index) in form.interactions" :key="`interaction-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium">РЎРѕР±С‹С‚РёРµ #{{ index + 1 }}</div>
+                                    <div class="text-sm font-medium">Событие #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.interactions, index)">
-                                        РЈРґР°Р»РёС‚СЊ
+                                        Удалить
                                     </button>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р”Р°С‚Р° Рё РІСЂРµРјСЏ</label>
+                                        <label class="text-sm font-medium">Дата и время</label>
                                         <input v-model="interaction.contacted_at" type="datetime-local" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РљР°РЅР°Р»</label>
+                                        <label class="text-sm font-medium">Канал</label>
                                         <select v-model="interaction.channel" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                            <option value="">РќРµ СѓРєР°Р·Р°РЅ</option>
+                                            <option value="">Не указан</option>
                                             <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
                                                 {{ channel.label }}
                                             </option>
                                         </select>
                                     </div>
                                     <div class="space-y-2 md:col-span-2">
-                                        <label class="text-sm font-medium">РўРµРјР°</label>
+                                        <label class="text-sm font-medium">Тема</label>
                                         <input v-model="interaction.subject" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
 
                                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РљСЂР°С‚РєРѕРµ СЃРѕРґРµСЂР¶Р°РЅРёРµ</label>
-                                        <textarea v-model="interaction.summary" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <label class="text-sm font-medium">Краткое содержание</label>
+                                        <textarea v-model="interaction.summary" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р РµР·СѓР»СЊС‚Р°С‚</label>
+                                        <label class="text-sm font-medium">Результат</label>
                                         <input v-model="interaction.result" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
                             </div>
 
                             <div v-if="form.interactions.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                РСЃС‚РѕСЂРёСЏ РѕР±С‰РµРЅРёСЏ РїРѕРєР° РЅРµ Р·Р°РїРѕР»РЅРµРЅР°.
+                                История общения пока не заполнена.
                             </div>
                         </div>
                     </div>
                     <div v-else-if="activeTab === 'orders'" class="space-y-4">
                         <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                            РџРѕСЃР»РµРґРЅРёРµ СЃРІСЏР·Р°РЅРЅС‹Рµ Р·Р°РєР°Р·С‹. РўР°Р±Р»РёС†Р° РїРѕРєР° read-only, Р±РµР· СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РёР· РєР°СЂС‚РѕС‡РєРё РєРѕРЅС‚СЂР°РіРµРЅС‚Р°.
+                            Последние связанные заказы. Таблица пока read-only, без редактирования из карточки контрагента.
                         </div>
 
                         <div class="overflow-auto border border-zinc-200 dark:border-zinc-800">
                             <table class="min-w-full border-collapse text-sm">
                                 <thead class="bg-zinc-100 dark:bg-zinc-800">
                                     <tr class="text-left">
-                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Р—Р°РєР°Р·</th>
-                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Р РѕР»СЊ</th>
-                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">РЎС‚Р°С‚СѓСЃ</th>
-                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Р”Р°С‚Р°</th>
-                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">РЎС‚Р°РІРєР° РєР»РёРµРЅС‚Р°</th>
-                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">РЎС‚Р°РІРєР° РїРµСЂРµРІРѕР·С‡РёРєР°</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Заказ</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Роль</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Статус</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Дата</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Ставка клиента</th>
+                                        <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Ставка перевозчика</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-for="order in selectedContractor?.orders || []" :key="order.id" class="border-b border-zinc-100 dark:border-zinc-800">
                                         <td class="px-3 py-3 font-medium">{{ order.order_number || `#${order.id}` }}</td>
-                                        <td class="px-3 py-3">{{ order.relation === 'customer' ? 'Р—Р°РєР°Р·С‡РёРє' : 'РџРµСЂРµРІРѕР·С‡РёРє' }}</td>
-                                        <td class="px-3 py-3">{{ order.status || 'вЂ”' }}</td>
+                                        <td class="px-3 py-3">{{ order.relation === 'customer' ? 'Заказчик' : 'Перевозчик' }}</td>
+                                        <td class="px-3 py-3">{{ order.status || '—' }}</td>
                                         <td class="px-3 py-3">{{ formatDate(order.order_date) }}</td>
-                                        <td class="px-3 py-3">{{ order.customer_rate ?? 'вЂ”' }}</td>
-                                        <td class="px-3 py-3">{{ order.carrier_rate ?? 'вЂ”' }}</td>
+                                        <td class="px-3 py-3">{{ order.customer_rate ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ order.carrier_rate ?? '—' }}</td>
                                     </tr>
                                     <tr v-if="(selectedContractor?.orders || []).length === 0">
                                         <td colspan="6" class="px-3 py-12 text-center text-zinc-500 dark:text-zinc-400">
-                                            РЈ РєРѕРЅС‚СЂР°РіРµРЅС‚Р° РїРѕРєР° РЅРµС‚ СЃРІСЏР·Р°РЅРЅС‹С… Р·Р°РєР°Р·РѕРІ.
+                                            У контрагента пока нет связанных заказов.
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1597,53 +1417,53 @@ watch(() => form.inn, (inn) => {
                     <div v-else-if="activeTab === 'documents'" class="space-y-4">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                РљР°СЂС‚РѕС‡РєР° С…СЂР°РЅРёС‚ РјРµС‚Р°РґР°РЅРЅС‹Рµ РїРѕ РґРѕРєСѓРјРµРЅС‚Р°Рј РєРѕРЅС‚СЂР°РіРµРЅС‚Р°. Р¤Р°Р№Р»РѕРІРѕРµ С…СЂР°РЅРёР»РёС‰Рµ РјРѕР¶РЅРѕ РїРѕРґРєР»СЋС‡РёС‚СЊ РѕС‚РґРµР»СЊРЅС‹Рј С€Р°РіРѕРј.
+                                Карточка хранит метаданные по документам контрагента. Файловое хранилище можно подключить отдельным шагом.
                             </div>
                             <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocument">
                                 <Plus class="h-4 w-4" />
-                                Р”РѕР±Р°РІРёС‚СЊ РґРѕРєСѓРјРµРЅС‚
+                                Добавить документ
                             </button>
                         </div>
 
                         <div class="space-y-3">
                             <div v-for="(document, index) in form.documents" :key="`document-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium">Р”РѕРєСѓРјРµРЅС‚ #{{ index + 1 }}</div>
+                                    <div class="text-sm font-medium">Документ #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.documents, index)">
-                                        РЈРґР°Р»РёС‚СЊ
+                                        Удалить
                                     </button>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РўРёРї</label>
+                                        <label class="text-sm font-medium">Тип</label>
                                         <input v-model="document.type" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РќР°РёРјРµРЅРѕРІР°РЅРёРµ</label>
+                                        <label class="text-sm font-medium">Наименование</label>
                                         <input v-model="document.title" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РќРѕРјРµСЂ</label>
+                                        <label class="text-sm font-medium">Номер</label>
                                         <input v-model="document.number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Р”Р°С‚Р° РґРѕРєСѓРјРµРЅС‚Р°</label>
+                                        <label class="text-sm font-medium">Дата документа</label>
                                         <input v-model="document.document_date" type="date" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">РЎС‚Р°С‚СѓСЃ</label>
+                                        <label class="text-sm font-medium">Статус</label>
                                         <input v-model="document.status" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2 md:col-span-2 xl:col-span-1">
-                                        <label class="text-sm font-medium">РљРѕРјРјРµРЅС‚Р°СЂРёР№</label>
+                                        <label class="text-sm font-medium">Комментарий</label>
                                         <input v-model="document.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
                             </div>
 
                             <div v-if="form.documents.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                Р”РѕРєСѓРјРµРЅС‚С‹ РїРѕРєР° РЅРµ РґРѕР±Р°РІР»РµРЅС‹.
+                                Документы пока не добавлены.
                             </div>
                         </div>
                     </div>

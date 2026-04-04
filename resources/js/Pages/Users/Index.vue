@@ -41,6 +41,7 @@
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Имя</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Email</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Роль</th>
+                            <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Подпись</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Статус</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Создан</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Действия</th>
@@ -57,6 +58,16 @@
                             <td class="px-3 py-3">
                                 <span class="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
                                     {{ user.role?.display_name || user.role?.name || 'Без роли' }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-3">
+                                <span
+                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                                    :class="user.has_signing_authority
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'"
+                                >
+                                    {{ user.has_signing_authority ? 'Есть' : 'Нет' }}
                                 </span>
                             </td>
                             <td class="px-3 py-3">
@@ -99,7 +110,7 @@
                             </td>
                         </tr>
                         <tr v-if="displayedUsers.length === 0">
-                            <td colspan="6" class="px-3 py-12 text-center text-zinc-500">
+                            <td colspan="7" class="px-3 py-12 text-center text-zinc-500">
                                 Пользователи в этой вкладке не найдены.
                             </td>
                         </tr>
@@ -179,6 +190,20 @@
                             </label>
                         </div>
 
+                        <label class="flex items-start gap-3 border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
+                            <input
+                                v-model="form.has_signing_authority"
+                                type="checkbox"
+                                class="mt-1 rounded border-zinc-300"
+                            />
+                            <div>
+                                <div class="font-medium">Имеет право подписи</div>
+                                <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    Фактическое персональное право пользователя на выпуск документов с подписью и печатью.
+                                </div>
+                            </div>
+                        </label>
+
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">
@@ -226,7 +251,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { Pencil, Plus, Power, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -266,6 +291,7 @@ const form = useForm({
     email: '',
     role_id: null,
     is_active: true,
+    has_signing_authority: false,
     password: '',
     password_confirmation: '',
 });
@@ -285,6 +311,7 @@ function resetForm() {
     form.email = '';
     form.role_id = null;
     form.is_active = true;
+    form.has_signing_authority = false;
     form.password = '';
     form.password_confirmation = '';
 }
@@ -302,10 +329,20 @@ function openEditModal(user) {
     form.email = user.email;
     form.role_id = user.role_id;
     form.is_active = user.is_active;
+    form.has_signing_authority = Boolean(user.has_signing_authority);
     form.password = '';
     form.password_confirmation = '';
     showModal.value = true;
 }
+
+watch(() => form.role_id, (roleId) => {
+    if (editingUser.value !== null) {
+        return;
+    }
+
+    const selectedRole = props.roles.find((role) => role.id === roleId) ?? null;
+    form.has_signing_authority = Boolean(selectedRole?.default_has_signing_authority);
+});
 
 function closeModal() {
     showModal.value = false;
@@ -333,6 +370,7 @@ function buildUpdatePayload(user, overrides = {}) {
         email: user.email,
         role_id: user.role_id,
         is_active: user.is_active,
+        has_signing_authority: user.has_signing_authority,
         password: '',
         password_confirmation: '',
         ...overrides,

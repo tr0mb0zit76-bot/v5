@@ -25,6 +25,7 @@ class UserManagementTest extends TestCase
             $table->text('description')->nullable();
             $table->json('permissions')->nullable();
             $table->json('columns_config')->nullable();
+            $table->boolean('has_signing_authority')->default(false);
             $table->timestamps();
         });
 
@@ -38,6 +39,7 @@ class UserManagementTest extends TestCase
             $table->string('password');
             $table->string('theme', 20)->default('light');
             $table->boolean('is_active')->default(true);
+            $table->boolean('has_signing_authority')->default(false);
             $table->json('ai_preferences')->nullable();
             $table->boolean('ai_learning_enabled')->default(true);
             $table->rememberToken();
@@ -60,6 +62,7 @@ class UserManagementTest extends TestCase
             ->component('Users/Index')
             ->has('users', 2)
             ->has('roles', 2)
+            ->where('roles.1.default_has_signing_authority', false)
         );
     }
 
@@ -86,6 +89,7 @@ class UserManagementTest extends TestCase
             'password_confirmation' => 'password123',
             'role_id' => $managerRoleId,
             'is_active' => true,
+            'has_signing_authority' => true,
         ]);
 
         $response->assertRedirect(route('settings.users.index'));
@@ -93,6 +97,7 @@ class UserManagementTest extends TestCase
             'email' => 'new-manager@example.com',
             'role_id' => $managerRoleId,
             'is_active' => true,
+            'has_signing_authority' => true,
         ]);
     }
 
@@ -117,6 +122,7 @@ class UserManagementTest extends TestCase
             'password_confirmation' => '',
             'role_id' => $managerRoleId,
             'is_active' => false,
+            'has_signing_authority' => true,
         ]);
 
         $response->assertRedirect(route('settings.users.index'));
@@ -125,6 +131,7 @@ class UserManagementTest extends TestCase
             'name' => 'Новое имя',
             'role_id' => $managerRoleId,
             'is_active' => false,
+            'has_signing_authority' => true,
         ]);
     }
 

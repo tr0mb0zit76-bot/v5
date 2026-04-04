@@ -25,6 +25,7 @@ class StoreUserRequest extends FormRequest
             'password' => ['required', 'confirmed', Password::min(8)],
             'role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'is_active' => ['required', 'boolean'],
+            'has_signing_authority' => ['nullable', 'boolean'],
         ];
     }
 }

@@ -25,6 +25,7 @@
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Название</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Пользователи</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Права</th>
+                            <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">По умолчанию</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Области видимости</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Действия</th>
                         </tr>
@@ -42,6 +43,16 @@
                             </td>
                             <td class="px-3 py-3">{{ role.users_count }}</td>
                             <td class="px-3 py-3">{{ role.permissions.length }}</td>
+                            <td class="px-3 py-3">
+                                <span
+                                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                                    :class="role.default_has_signing_authority
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'"
+                                >
+                                    {{ role.default_has_signing_authority ? 'Право подписи' : 'Нет' }}
+                                </span>
+                            </td>
                             <td class="px-3 py-3">
                                 <div class="space-y-1">
                                     <div>{{ role.visibility_areas.length }}</div>
@@ -135,6 +146,18 @@
                                     />
                                     <div v-if="form.errors.description" class="text-sm text-rose-600">{{ form.errors.description }}</div>
                                 </div>
+
+                                <label class="flex items-start gap-3 border border-zinc-200 px-3 py-3 dark:border-zinc-800">
+                                    <input
+                                        v-model="form.has_signing_authority"
+                                        type="checkbox"
+                                        class="mt-1 rounded border-zinc-300"
+                                    />
+                                    <div>
+                                        <div class="text-sm font-medium">Право подписи по умолчанию</div>
+                                        <div class="text-xs text-zinc-500">Подставляется новым пользователям этой роли, но может быть изменено персонально.</div>
+                                    </div>
+                                </label>
                             </div>
 
                             <div class="space-y-6">
@@ -272,6 +295,7 @@ const form = useForm({
     name: '',
     display_name: '',
     description: '',
+    has_signing_authority: false,
     permissions: [],
     visibility_areas: [],
     visibility_scopes: {},
@@ -283,6 +307,7 @@ function resetForm() {
     form.name = '';
     form.display_name = '';
     form.description = '';
+    form.has_signing_authority = false;
     form.permissions = [];
     form.visibility_areas = [];
     form.visibility_scopes = {};
@@ -300,6 +325,7 @@ function openEditModal(role) {
     form.name = role.name;
     form.display_name = role.display_name;
     form.description = role.description || '';
+    form.has_signing_authority = Boolean(role.default_has_signing_authority);
     form.permissions = [...role.permissions];
     form.visibility_areas = [...role.visibility_areas];
     form.visibility_scopes = { ...(role.visibility_scopes || {}) };

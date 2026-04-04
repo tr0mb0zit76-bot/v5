@@ -98,7 +98,23 @@ class SettingsManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Settings/Index')
-            ->has('sections', 5)
+            ->has('sections', 6)
+        );
+    }
+
+    public function test_admin_can_open_templates_page(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $response = $this->actingAs($admin)->get(route('settings.templates.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Settings/Templates')
+            ->has('templates', 0)
+            ->has('documentTypeOptions')
+            ->has('sourceTypeOptions')
         );
     }
 

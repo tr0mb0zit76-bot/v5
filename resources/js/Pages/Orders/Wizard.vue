@@ -4,7 +4,7 @@
             <div class="flex items-center gap-3">
                 <button
                     type="button"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                    class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
                     title="К реестру"
                     @click="goBack"
                 >
@@ -13,11 +13,8 @@
                 </button>
 
                 <div class="min-w-0">
-                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                        {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
-                    </div>
                     <h1 class="truncate text-lg font-semibold">
-                        {{ isEditing ? `Заказ ${form.order_number || `#${order.id}`}` : 'Создание заказа' }}
+                        {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
                     </h1>
                 </div>
             </div>
@@ -139,6 +136,58 @@
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Особые отметки</label>
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    </div>
+
+                    <div class="grid gap-4 lg:grid-cols-2">
+                        <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div>
+                                <h2 class="text-base font-semibold">Грузоотправитель</h2>
+                                <p class="text-sm text-zinc-500">Данные для заявок и печатных форм.</p>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Наименование</label>
+                                <input v-model="form.cargo_sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Адрес</label>
+                                <textarea v-model="form.cargo_sender_address" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Контактное лицо</label>
+                                    <input v-model="form.cargo_sender_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Телефон</label>
+                                    <input v-model="form.cargo_sender_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div>
+                                <h2 class="text-base font-semibold">Грузополучатель</h2>
+                                <p class="text-sm text-zinc-500">Данные для заявок и печатных форм.</p>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Наименование</label>
+                                <input v-model="form.cargo_recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Адрес</label>
+                                <textarea v-model="form.cargo_recipient_address" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Контактное лицо</label>
+                                    <input v-model="form.cargo_recipient_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Телефон</label>
+                                    <input v-model="form.cargo_recipient_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
@@ -847,6 +896,14 @@ function blankOrder() {
         order_number: '',
         payment_terms: '',
         special_notes: '',
+        cargo_sender_name: '',
+        cargo_sender_address: '',
+        cargo_sender_contact: '',
+        cargo_sender_phone: '',
+        cargo_recipient_name: '',
+        cargo_recipient_address: '',
+        cargo_recipient_contact: '',
+        cargo_recipient_phone: '',
         performers: [
             { stage: 'leg_1', contractor_id: null },
         ],
@@ -1505,7 +1562,4 @@ function goBack() {
 }
 
 </script>
-
-
-
 

@@ -56,7 +56,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Shield, Table2, TrendingUp, Users } from 'lucide-vue-next';
+import { BookOpen, Files, Shield, Table2, TrendingUp, Users } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -92,6 +92,7 @@ function iconFor(icon) {
         shield: Shield,
         table: Table2,
         'book-open': BookOpen,
+        files: Files,
         'trending-up': TrendingUp,
     }[icon] || Table2;
 }

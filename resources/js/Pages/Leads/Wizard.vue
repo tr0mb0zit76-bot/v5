@@ -2,10 +2,17 @@
     <div class="flex h-full min-h-0 flex-col border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
             <div class="flex items-center gap-3">
-                <button type="button" class="secondary-button" @click="goBack">К реестру</button>
+                <button
+                    type="button"
+                    class="inline-flex h-11 w-11 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                    title="К реестру"
+                    @click="goBack"
+                >
+                    <X class="h-5 w-5" />
+                    <span class="sr-only">К реестру</span>
+                </button>
                 <div class="min-w-0">
-                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">{{ selectedLeadId ? form.number || 'Лид' : 'Новый лид' }}</div>
-                    <h1 class="truncate text-lg font-semibold">{{ selectedLeadId ? form.title || 'Карточка лида' : 'Создание лида' }}</h1>
+                    <h1 class="truncate text-lg font-semibold">{{ selectedLeadId ? form.number || 'Лид' : 'Новый лид' }}</h1>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -128,7 +135,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2 } from 'lucide-vue-next';
+import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });

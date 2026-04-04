@@ -34,6 +34,7 @@ class UpdateRoleRequest extends FormRequest
             'visibility_scopes' => ['nullable', 'array'],
             'visibility_scopes.*' => ['array'],
             'visibility_scopes.*.mode' => ['required_with:visibility_scopes', 'string', Rule::in(array_column(RoleAccess::visibilityScopeOptions(), 'value'))],
+            'has_signing_authority' => ['nullable', 'boolean'],
         ];
     }
 }

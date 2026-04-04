@@ -97,6 +97,14 @@ class OrderWizardTest extends TestCase
             $table->string('customer_payment_term', 50)->nullable();
             $table->text('payment_terms')->nullable();
             $table->text('special_notes')->nullable();
+            $table->string('cargo_sender_name')->nullable();
+            $table->string('cargo_sender_address')->nullable();
+            $table->string('cargo_sender_contact')->nullable();
+            $table->string('cargo_sender_phone', 50)->nullable();
+            $table->string('cargo_recipient_name')->nullable();
+            $table->string('cargo_recipient_address')->nullable();
+            $table->string('cargo_recipient_contact')->nullable();
+            $table->string('cargo_recipient_phone', 50)->nullable();
             $table->decimal('carrier_rate', 12, 2)->nullable();
             $table->string('carrier_payment_form', 50)->nullable();
             $table->string('carrier_payment_term', 50)->nullable();
@@ -364,6 +372,14 @@ class OrderWizardTest extends TestCase
             'order_date' => '2026-04-01',
             'order_number' => '',
             'special_notes' => 'Хрупкий груз',
+            'cargo_sender_name' => 'ООО Отправитель',
+            'cargo_sender_address' => 'Самара, Заводская, 1',
+            'cargo_sender_contact' => 'Склад',
+            'cargo_sender_phone' => '+79990000001',
+            'cargo_recipient_name' => 'ООО Получатель',
+            'cargo_recipient_address' => 'Казань, Логистическая, 5',
+            'cargo_recipient_contact' => 'Приемка',
+            'cargo_recipient_phone' => '+79990000002',
             'performers' => [
                 ['stage' => 'leg_1', 'contractor_id' => $carrierId],
             ],
@@ -457,6 +473,8 @@ class OrderWizardTest extends TestCase
             'status' => 'documents',
             'customer_payment_form' => 'vat',
             'carrier_payment_form' => 'no_vat',
+            'cargo_sender_name' => 'ООО Отправитель',
+            'cargo_recipient_name' => 'ООО Получатель',
         ]);
         $this->assertDatabaseHas('route_points', [
             'address' => 'Самара, Московское шоссе, 10',
@@ -547,6 +565,14 @@ class OrderWizardTest extends TestCase
             'order_date' => '2026-04-02',
             'order_number' => 'ORD-2026-001',
             'special_notes' => '',
+            'cargo_sender_name' => 'ООО Новый отправитель',
+            'cargo_sender_address' => 'Самара, Промышленная, 3',
+            'cargo_sender_contact' => 'Диспетчер',
+            'cargo_sender_phone' => '+79990000003',
+            'cargo_recipient_name' => 'ООО Новый получатель',
+            'cargo_recipient_address' => 'Уфа, Центральная, 9',
+            'cargo_recipient_contact' => 'Приемка',
+            'cargo_recipient_phone' => '+79990000004',
             'performers' => [
                 ['stage' => 'leg_custom', 'contractor_id' => $carrierId],
             ],
@@ -598,6 +624,8 @@ class OrderWizardTest extends TestCase
             'id' => $orderId,
             'carrier_rate' => '99000.50',
             'customer_rate' => '150000.00',
+            'cargo_sender_name' => 'ООО Новый отправитель',
+            'cargo_recipient_name' => 'ООО Новый получатель',
         ]);
 
         $this->assertDatabaseHas('financial_terms', [

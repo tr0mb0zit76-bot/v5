@@ -238,10 +238,23 @@ const menuItems = computed(() => {
             visibilityArea: 'settings',
             children: authUser.value?.role?.name === 'admin'
                 ? [
-                    { key: 'users', label: 'Пользователи' },
-                    { key: 'roles', label: 'Роли' },
-                    { key: 'table-presets', label: 'Управление таблицей' },
-                    { key: 'dictionaries', label: 'Справочники' },
+                    {
+                        key: 'administration',
+                        label: 'Администрирование',
+                        children: [
+                            { key: 'users', label: 'Пользователи' },
+                            { key: 'roles', label: 'Роли' },
+                        ],
+                    },
+                    {
+                        key: 'configuration',
+                        label: 'Конфигурация',
+                        children: [
+                            { key: 'table-presets', label: 'Управление таблицей' },
+                            { key: 'dictionaries', label: 'Справочники' },
+                            { key: 'templates', label: 'Шаблоны' },
+                        ],
+                    },
                     {
                         key: 'motivation',
                         label: 'Мотивация',
@@ -281,8 +294,8 @@ watch(
 watch(
     () => props.activeSubKey,
     (value) => {
-        if (value === 'motivation' && !expandedGroups.value.includes('motivation')) {
-            expandedGroups.value = [...expandedGroups.value, 'motivation'];
+        if (value && !expandedGroups.value.includes(value)) {
+            expandedGroups.value = [...expandedGroups.value, value];
         }
     },
     { immediate: true },
@@ -324,8 +337,8 @@ onMounted(() => {
         expandedGroups.value = [...expandedGroups.value, 'settings'];
     }
 
-    if (props.activeSubKey === 'motivation' && !expandedGroups.value.includes('motivation')) {
-        expandedGroups.value = [...expandedGroups.value, 'motivation'];
+    if (props.activeSubKey && !expandedGroups.value.includes(props.activeSubKey)) {
+        expandedGroups.value = [...expandedGroups.value, props.activeSubKey];
     }
 });
 
@@ -367,12 +380,13 @@ function handleMenuSelect(key) {
         roles: '/settings/roles',
         'table-presets': '/settings/tables',
         dictionaries: '/settings/dictionaries',
+        templates: '/settings/templates',
         motivation: '/settings/motivation',
         'kpi-settings': '/settings/motivation/kpi',
         'salary-settings': '/settings/motivation/salary',
     };
 
-    if (key === 'settings' || key === 'motivation') {
+    if (['settings', 'administration', 'configuration', 'motivation'].includes(key)) {
         toggleMenuGroup(key);
     }
 

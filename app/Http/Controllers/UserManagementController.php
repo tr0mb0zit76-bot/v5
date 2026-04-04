@@ -34,6 +34,7 @@ class UserManagementController extends Controller
                         'display_name' => $user->role->display_name,
                     ],
                     'is_active' => $user->is_active,
+                    'has_signing_authority' => (bool) $user->has_signing_authority,
                     'created_at' => optional($user->created_at)?->toIso8601String(),
                 ])
                 ->values(),
@@ -45,6 +46,7 @@ class UserManagementController extends Controller
                     'id' => $role->id,
                     'name' => $role->name,
                     'display_name' => $role->display_name,
+                    'default_has_signing_authority' => (bool) ($role->has_signing_authority ?? false),
                 ])
                 ->values(),
         ]);

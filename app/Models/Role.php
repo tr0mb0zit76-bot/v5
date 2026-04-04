@@ -18,6 +18,7 @@ class Role extends Model
         'visibility_areas',
         'visibility_scopes',
         'columns_config',
+        'has_signing_authority',
     ];
 
     /**
@@ -30,6 +31,7 @@ class Role extends Model
             'visibility_areas' => 'array',
             'visibility_scopes' => 'array',
             'columns_config' => 'array',
+            'has_signing_authority' => 'boolean',
         ];
     }
 

@@ -12,6 +12,7 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory;
+
     use Notifiable;
 
     /**
@@ -25,6 +26,7 @@ class User extends Authenticatable
         'role_id',
         'theme',
         'is_active',
+        'has_signing_authority',
         'ai_preferences',
         'ai_learning_enabled',
     ];
@@ -46,6 +48,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'has_signing_authority' => 'boolean',
             'ai_learning_enabled' => 'boolean',
             'ai_preferences' => 'array',
         ];
@@ -77,5 +80,10 @@ class User extends Authenticatable
     public function isManager(): bool
     {
         return $this->hasRole('manager');
+    }
+
+    public function hasSigningAuthority(): bool
+    {
+        return (bool) $this->has_signing_authority;
     }
 }

@@ -19,7 +19,7 @@
           <input
             v-model="quickSearch"
             type="text"
-            class="field pl-9"
+            class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
             placeholder="Поиск по реестру"
           />
         </div>

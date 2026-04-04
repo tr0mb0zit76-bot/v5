@@ -92,7 +92,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'dictionaries' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'dictionaries' }, () => page),
 });
 
 const props = defineProps({

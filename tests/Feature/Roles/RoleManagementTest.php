@@ -27,6 +27,7 @@ class RoleManagementTest extends TestCase
             $table->json('visibility_areas')->nullable();
             $table->json('visibility_scopes')->nullable();
             $table->json('columns_config')->nullable();
+            $table->boolean('has_signing_authority')->default(false);
             $table->timestamps();
         });
 
@@ -58,6 +59,7 @@ class RoleManagementTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Roles/Index')
             ->has('roles', 1)
+            ->where('roles.0.default_has_signing_authority', false)
             ->has('permissionOptions')
             ->has('visibilityAreaOptions')
             ->has('visibilityScopeOptions', 2)
@@ -100,12 +102,14 @@ class RoleManagementTest extends TestCase
                 'reports' => ['mode' => 'all'],
                 'documents' => ['mode' => 'all'],
             ],
+            'has_signing_authority' => true,
         ]);
 
         $response->assertRedirect(route('settings.roles.index'));
         $this->assertDatabaseHas('roles', [
             'name' => 'auditor',
             'display_name' => 'Аудитор',
+            'has_signing_authority' => true,
         ]);
     }
 
@@ -126,6 +130,7 @@ class RoleManagementTest extends TestCase
                 'orders' => ['mode' => 'all'],
                 'documents' => ['mode' => 'all'],
             ],
+            'has_signing_authority' => true,
         ]);
 
         $response->assertRedirect(route('settings.roles.index'));
@@ -135,6 +140,7 @@ class RoleManagementTest extends TestCase
         $this->assertSame('Обновленное описание', $updatedRole->description);
         $this->assertSame(['dashboard', 'orders', 'documents'], json_decode($updatedRole->visibility_areas, true, 512, JSON_THROW_ON_ERROR));
         $this->assertSame('all', json_decode($updatedRole->visibility_scopes, true, 512, JSON_THROW_ON_ERROR)['orders']);
+        $this->assertSame(1, (int) $updatedRole->has_signing_authority);
     }
 
     public function test_admin_can_update_role_when_visibility_scopes_column_is_missing(): void
@@ -156,6 +162,7 @@ class RoleManagementTest extends TestCase
             'visibility_scopes' => [
                 'orders' => ['mode' => 'all'],
             ],
+            'has_signing_authority' => false,
         ]);
 
         $response->assertRedirect(route('settings.roles.index'));
