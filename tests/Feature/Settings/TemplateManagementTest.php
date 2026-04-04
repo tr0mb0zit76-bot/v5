@@ -19,6 +19,11 @@ class TemplateManagementTest extends TestCase
         parent::setUp();
 
         Schema::dropIfExists('print_form_templates');
+        Schema::dropIfExists('lead_offers');
+        Schema::dropIfExists('lead_cargo_items');
+        Schema::dropIfExists('lead_route_points');
+        Schema::dropIfExists('leads');
+        Schema::dropIfExists('orders');
         Schema::dropIfExists('contractors');
         Schema::dropIfExists('users');
         Schema::dropIfExists('roles');
@@ -129,6 +134,57 @@ class TemplateManagementTest extends TestCase
             $table->string('carrier_contact_email')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('leads', function (Blueprint $table) {
+            $table->id();
+            $table->string('number')->unique();
+            $table->string('status', 50)->default('new');
+            $table->unsignedBigInteger('counterparty_id')->nullable();
+            $table->unsignedBigInteger('responsible_id')->nullable();
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->string('transport_type', 100)->nullable();
+            $table->string('loading_location')->nullable();
+            $table->string('unloading_location')->nullable();
+            $table->date('planned_shipping_date')->nullable();
+            $table->decimal('target_price', 12, 2)->nullable();
+            $table->string('target_currency', 3)->default('RUB');
+            $table->decimal('calculated_cost', 12, 2)->nullable();
+            $table->decimal('expected_margin', 12, 2)->nullable();
+            $table->timestamp('next_contact_at')->nullable();
+            $table->json('lead_qualification')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('lead_route_points', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('lead_id');
+            $table->string('type', 50);
+            $table->unsignedInteger('sequence')->default(1);
+            $table->string('address', 500);
+            $table->json('normalized_data')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('lead_cargo_items', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('lead_id');
+            $table->string('name');
+            $table->decimal('weight_kg', 10, 2)->nullable();
+            $table->decimal('volume_m3', 10, 2)->nullable();
+            $table->unsignedInteger('package_count')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('lead_offers', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('lead_id');
+            $table->string('number')->nullable();
+            $table->date('offer_date')->nullable();
+            $table->decimal('price', 12, 2)->nullable();
+            $table->string('currency', 3)->default('RUB');
+            $table->timestamps();
+        });
     }
 
     public function test_admin_can_open_templates_page_with_existing_templates(): void
@@ -174,6 +230,9 @@ class TemplateManagementTest extends TestCase
             ->where('orderVariableOptions.33.value', 'customer.bank_name')
             ->where('orderVariableOptions.70.value', 'driver.full_name')
             ->where('orderVariableOptions.80.value', 'route.loading_cities')
+            ->where('leadVariableOptions.0.value', 'lead.id')
+            ->where('leadVariableOptions.20.value', 'counterparty.name')
+            ->where('leadVariableOptions.47.value', 'cargo.summary')
             ->has('contractorOptions', 1)
         );
     }
@@ -382,6 +441,123 @@ class TemplateManagementTest extends TestCase
         $downloadedPath = $downloadResponse->baseResponse->getFile()->getPathname();
 
         $this->assertFileExists($downloadedPath);
+    }
+
+    public function test_admin_can_save_lead_variable_mapping_and_download_draft_docx(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId, 'name' => 'Менеджер КП']);
+        $contractorId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент КП',
+            'bank_name' => 'АО Банк Лид',
+            'ogrn' => '1234567890123',
+            'signer_name_nominative' => 'Иванов Иван Иванович',
+            'signer_authority_basis' => 'Устав',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'lead_offer_template',
+            'name' => 'Коммерческое предложение',
+            'entity_type' => 'lead',
+            'document_type' => 'offer',
+            'document_group' => 'commercial',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'is_default' => true,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/2/lead-offer-template-v1.docx',
+            'original_filename' => 'lead-offer-template.docx',
+            'settings' => json_encode([
+                'variables' => ['lead.number', 'counterparty.name', 'route.loading_addresses', 'cargo.summary'],
+                'variable_mapping' => [],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/2/lead-offer-template-v1.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${lead.number}</w:t></w:r></w:p><w:p><w:r><w:t>${counterparty.name}</w:t></w:r></w:p><w:p><w:r><w:t>${route.loading_addresses}</w:t></w:r></w:p><w:p><w:r><w:t>${cargo.summary}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $leadId = DB::table('leads')->insertGetId([
+            'number' => 'LD-260404-001',
+            'status' => 'new',
+            'counterparty_id' => $contractorId,
+            'responsible_id' => $admin->id,
+            'title' => 'Коммерческое на перевозку',
+            'loading_location' => 'Самара',
+            'unloading_location' => 'Казань',
+            'planned_shipping_date' => '2026-04-10',
+            'target_price' => 125000,
+            'target_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('lead_route_points')->insert([
+            'lead_id' => $leadId,
+            'type' => 'loading',
+            'sequence' => 1,
+            'address' => 'Самара, Заводская 1',
+            'normalized_data' => json_encode(['city' => 'Самара'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('lead_cargo_items')->insert([
+            'lead_id' => $leadId,
+            'name' => 'Оборудование',
+            'weight_kg' => 1200,
+            'volume_m3' => 8.4,
+            'package_count' => 4,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $updateResponse = $this->actingAs($admin)->patch(route('settings.templates.update', $templateId), [
+            'code' => 'lead_offer_template',
+            'name' => 'Коммерческое предложение',
+            'entity_type' => 'lead',
+            'document_type' => 'offer',
+            'document_group' => 'commercial',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => true,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'variable_mappings' => [
+                ['placeholder' => 'lead.number', 'source_path' => 'lead.number'],
+                ['placeholder' => 'counterparty.name', 'source_path' => 'counterparty.name'],
+                ['placeholder' => 'route.loading_addresses', 'source_path' => 'route.loading_addresses'],
+                ['placeholder' => 'cargo.summary', 'source_path' => 'cargo.summary'],
+            ],
+        ]);
+
+        $updateResponse->assertRedirect(route('settings.templates.index'));
+
+        $downloadResponse = $this->actingAs($admin)->get(route('settings.templates.generate-lead-draft', [
+            'printFormTemplate' => $templateId,
+            'lead_id' => $leadId,
+        ]));
+
+        $downloadResponse->assertOk();
+        $downloadResponse->assertDownload('lead-offer-template-lead-'.$leadId.'-draft.docx');
+        $this->assertFileExists($downloadResponse->baseResponse->getFile()->getPathname());
     }
 
     private function createRole(string $name, string $displayName): int

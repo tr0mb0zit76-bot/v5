@@ -7,15 +7,19 @@ use App\Http\Requests\StoreLeadRequest;
 use App\Http\Requests\UpdateLeadRequest;
 use App\Models\Contractor;
 use App\Models\Lead;
+use App\Models\PrintFormTemplate;
 use App\Services\LeadConversionService;
+use App\Services\LeadPrintFormDraftService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LeadController extends Controller
 {
@@ -199,12 +203,33 @@ class LeadController extends Controller
         return to_route('orders.edit', $order);
     }
 
+    public function generateCommercialDraft(
+        Request $request,
+        Lead $lead,
+        PrintFormTemplate $printFormTemplate,
+        LeadPrintFormDraftService $draftService,
+    ): BinaryFileResponse {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_if($printFormTemplate->entity_type !== 'lead', 422, 'Черновик можно сформировать только для шаблона лида.');
+        abort_if($printFormTemplate->document_type !== 'offer' || $printFormTemplate->document_group !== 'commercial', 422, 'В лидах доступны только коммерческие шаблоны.');
+        abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
+        abort_unless($this->isTemplateAvailableForLead($printFormTemplate, $lead), 404);
+
+        $generatedFile = $draftService->generate($printFormTemplate, $lead);
+
+        return response()->download(
+            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
+            $generatedFile['download_name']
+        );
+    }
+
     private function renderWizardPage(Request $request, ?Lead $selectedLead = null, bool $isCreating = false): Response
     {
         return Inertia::render('Leads/Wizard', [
             'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
             'isCreating' => $isCreating,
-            ...$this->sharedWizardProps(),
+            ...$this->sharedWizardProps($selectedLead),
         ]);
     }
 
@@ -247,7 +272,7 @@ class LeadController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function sharedWizardProps(): array
+    private function sharedWizardProps(?Lead $selectedLead = null): array
     {
         $contractorColumns = ['id', 'name', 'inn', 'phone', 'email', 'type'];
 
@@ -300,6 +325,7 @@ class LeadController extends Controller
                 ['value' => 'CNY', 'label' => 'CNY'],
                 ['value' => 'EUR', 'label' => 'EUR'],
             ],
+            'printFormTemplateOptions' => $this->availableCommercialTemplates($selectedLead)->values(),
         ];
     }
 
@@ -370,6 +396,66 @@ class LeadController extends Controller
             && Schema::hasTable('lead_cargo_items')
             && Schema::hasTable('lead_activities')
             && Schema::hasTable('lead_offers');
+    }
+
+    /**
+     * @return Collection<int, array{id:int,name:string,code:string,contractor_id:int|null,contractor_name:string|null,is_default:bool}>
+     */
+    private function availableCommercialTemplates(?Lead $lead = null): Collection
+    {
+        if (! Schema::hasTable('print_form_templates')) {
+            return collect();
+        }
+
+        $counterpartyId = $lead?->counterparty_id;
+
+        return PrintFormTemplate::query()
+            ->when(
+                Schema::hasColumn('print_form_templates', 'contractor_id'),
+                fn ($query) => $query->with(['contractor:id,name'])
+            )
+            ->where('entity_type', 'lead')
+            ->where('document_type', 'offer')
+            ->where('document_group', 'commercial')
+            ->where('is_active', true)
+            ->whereNotNull('file_path')
+            ->where(function ($query) use ($counterpartyId): void {
+                $query->whereNull('contractor_id');
+
+                if ($counterpartyId !== null) {
+                    $query->orWhere('contractor_id', $counterpartyId);
+                }
+            })
+            ->orderByRaw('case when contractor_id is null then 1 else 0 end')
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PrintFormTemplate $template): array => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'code' => $template->code,
+                'contractor_id' => $template->contractor_id,
+                'contractor_name' => $template->contractor?->name,
+                'is_default' => (bool) $template->is_default,
+            ])
+            ->values();
+    }
+
+    private function isTemplateAvailableForLead(PrintFormTemplate $template, Lead $lead): bool
+    {
+        if (! $template->is_active || blank($template->file_path) || $template->entity_type !== 'lead') {
+            return false;
+        }
+
+        if ($template->document_type !== 'offer' || $template->document_group !== 'commercial') {
+            return false;
+        }
+
+        if ($template->contractor_id === null) {
+            return true;
+        }
+
+        return (int) $template->contractor_id === (int) $lead->counterparty_id;
     }
 
     /**

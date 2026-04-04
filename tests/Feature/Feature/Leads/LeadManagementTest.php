@@ -7,8 +7,10 @@ use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
+use ZipArchive;
 
 class LeadManagementTest extends TestCase
 {
@@ -32,6 +34,7 @@ class LeadManagementTest extends TestCase
         Schema::dropIfExists('contractors');
         Schema::dropIfExists('salary_coefficients');
         Schema::dropIfExists('kpi_settings');
+        Schema::dropIfExists('print_form_templates');
         Schema::dropIfExists('users');
         Schema::dropIfExists('roles');
 
@@ -61,6 +64,14 @@ class LeadManagementTest extends TestCase
             $table->string('type')->default('customer');
             $table->string('name');
             $table->string('inn', 20)->nullable();
+            $table->string('ogrn')->nullable();
+            $table->string('bank_name')->nullable();
+            $table->string('bik', 9)->nullable();
+            $table->string('account_number', 20)->nullable();
+            $table->string('correspondent_account', 20)->nullable();
+            $table->string('signer_name_nominative')->nullable();
+            $table->string('signer_name_prepositional')->nullable();
+            $table->string('signer_authority_basis')->nullable();
             $table->boolean('is_active')->default(true);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
@@ -305,6 +316,32 @@ class LeadManagementTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+
+        Schema::create('print_form_templates', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 100)->unique();
+            $table->string('name');
+            $table->string('entity_type', 50)->default('order');
+            $table->string('document_type', 50);
+            $table->string('document_group', 50);
+            $table->string('party', 50)->default('internal');
+            $table->string('source_type', 50)->default('system');
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->boolean('is_default')->default(false);
+            $table->string('vue_component', 255);
+            $table->string('pdf_view', 255)->nullable();
+            $table->boolean('requires_internal_signature')->default(true);
+            $table->boolean('requires_counterparty_signature')->default(false);
+            $table->boolean('is_active')->default(true);
+            $table->unsignedInteger('version')->default(1);
+            $table->string('file_disk', 50)->nullable();
+            $table->string('file_path')->nullable();
+            $table->string('original_filename')->nullable();
+            $table->json('settings')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+        });
     }
 
     public function test_manager_sees_only_own_leads(): void
@@ -439,9 +476,77 @@ class LeadManagementTest extends TestCase
     public function test_manager_opens_lead_card_on_separate_page(): void
     {
         $manager = $this->createUserWithRole('manager');
+        $contractorId = $this->createContractor();
         $lead = Lead::factory()->create([
+            'counterparty_id' => $contractorId,
             'responsible_id' => $manager->id,
             'title' => 'Отдельная карточка лида',
+        ]);
+
+        DB::table('print_form_templates')->insert([
+            [
+                'code' => 'lead_offer_default',
+                'name' => 'Коммерческое по умолчанию',
+                'entity_type' => 'lead',
+                'document_type' => 'offer',
+                'document_group' => 'commercial',
+                'party' => 'customer',
+                'source_type' => 'external_docx',
+                'contractor_id' => null,
+                'is_default' => true,
+                'vue_component' => 'ExternalDocxTemplate',
+                'requires_internal_signature' => true,
+                'requires_counterparty_signature' => false,
+                'is_active' => true,
+                'version' => 1,
+                'file_disk' => 'local',
+                'file_path' => 'print-form-templates/lead/default.docx',
+                'original_filename' => 'default.docx',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'code' => 'lead_offer_for_contractor',
+                'name' => 'Коммерческое клиента',
+                'entity_type' => 'lead',
+                'document_type' => 'offer',
+                'document_group' => 'commercial',
+                'party' => 'customer',
+                'source_type' => 'external_docx',
+                'contractor_id' => $contractorId,
+                'is_default' => false,
+                'vue_component' => 'ExternalDocxTemplate',
+                'requires_internal_signature' => true,
+                'requires_counterparty_signature' => false,
+                'is_active' => true,
+                'version' => 1,
+                'file_disk' => 'local',
+                'file_path' => 'print-form-templates/lead/customer.docx',
+                'original_filename' => 'customer.docx',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'code' => 'lead_contract_should_not_show',
+                'name' => 'Договорный шаблон',
+                'entity_type' => 'lead',
+                'document_type' => 'contract',
+                'document_group' => 'contractual',
+                'party' => 'customer',
+                'source_type' => 'external_docx',
+                'contractor_id' => null,
+                'is_default' => false,
+                'vue_component' => 'ExternalDocxTemplate',
+                'requires_internal_signature' => true,
+                'requires_counterparty_signature' => false,
+                'is_active' => true,
+                'version' => 1,
+                'file_disk' => 'local',
+                'file_path' => 'print-form-templates/lead/contract.docx',
+                'original_filename' => 'contract.docx',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
 
         $response = $this->actingAs($manager)->get(route('leads.show', $lead));
@@ -451,7 +556,93 @@ class LeadManagementTest extends TestCase
             ->component('Leads/Wizard')
             ->where('selectedLead.id', $lead->id)
             ->where('selectedLead.title', 'Отдельная карточка лида')
+            ->has('printFormTemplateOptions', 2)
+            ->where('printFormTemplateOptions.0.code', 'lead_offer_for_contractor')
+            ->where('printFormTemplateOptions.1.code', 'lead_offer_default')
         );
+    }
+
+    public function test_manager_can_download_commercial_draft_for_lead(): void
+    {
+        Storage::fake('local');
+
+        $manager = $this->createUserWithRole('manager');
+        $contractorId = $this->createContractor();
+        $lead = Lead::factory()->create([
+            'counterparty_id' => $contractorId,
+            'responsible_id' => $manager->id,
+            'title' => 'Коммерческое из шаблона',
+            'target_price' => 180000,
+            'target_currency' => 'RUB',
+        ]);
+
+        DB::table('lead_route_points')->insert([
+            'lead_id' => $lead->id,
+            'type' => 'loading',
+            'sequence' => 1,
+            'address' => 'Самара, Заводская 1',
+            'normalized_data' => json_encode(['city' => 'Самара'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('lead_cargo_items')->insert([
+            'lead_id' => $lead->id,
+            'name' => 'Оборудование',
+            'weight_kg' => 1200,
+            'volume_m3' => 8.5,
+            'package_count' => 4,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'lead_offer_template',
+            'name' => 'Коммерческое предложение',
+            'entity_type' => 'lead',
+            'document_type' => 'offer',
+            'document_group' => 'commercial',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => $contractorId,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/lead-offer-template.docx',
+            'original_filename' => 'lead-offer-template.docx',
+            'settings' => json_encode([
+                'variables' => ['lead.number', 'counterparty.name', 'route.loading_addresses', 'cargo.summary'],
+                'variable_mapping' => [
+                    'lead.number' => 'lead.number',
+                    'counterparty.name' => 'counterparty.name',
+                    'route.loading_addresses' => 'route.loading_addresses',
+                    'cargo.summary' => 'cargo.summary',
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/lead-offer-template.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${lead.number}</w:t></w:r></w:p><w:p><w:r><w:t>${counterparty.name}</w:t></w:r></w:p><w:p><w:r><w:t>${route.loading_addresses}</w:t></w:r></w:p><w:p><w:r><w:t>${cargo.summary}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $response = $this->actingAs($manager)->get(route('leads.templates.generate-draft', [
+            'lead' => $lead,
+            'printFormTemplate' => $templateId,
+        ]));
+
+        $response->assertOk();
+        $response->assertDownload('lead-offer-template-lead-'.$lead->id.'-draft.docx');
+        $this->assertFileExists($response->baseResponse->getFile()->getPathname());
     }
 
     public function test_manager_can_convert_lead_into_order(): void
@@ -543,11 +734,36 @@ class LeadManagementTest extends TestCase
         return (int) DB::table('contractors')->insertGetId([
             'type' => 'customer',
             'name' => 'ООО Клиент',
+            'ogrn' => '1234567890123',
+            'bank_name' => 'АО Банк Клиент',
+            'signer_name_nominative' => 'Иванов Иван Иванович',
+            'signer_authority_basis' => 'Устав',
             'is_active' => true,
             'is_verified' => true,
             'is_own_company' => false,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    private function makeDocxPath(array $entries): string
+    {
+        $directory = storage_path('framework/testing/disks/local');
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        $path = $directory.'/'.uniqid('docx-template-', true).'.docx';
+        $zip = new ZipArchive;
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        foreach ($entries as $entryName => $contents) {
+            $zip->addFromString($entryName, $contents);
+        }
+
+        $zip->close();
+
+        return $path;
     }
 }

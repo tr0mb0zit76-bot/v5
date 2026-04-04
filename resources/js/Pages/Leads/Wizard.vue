@@ -105,7 +105,21 @@
 
             <div v-else class="grid gap-4 xl:grid-cols-[1.4fr,0.9fr]">
                 <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммерческое предложение</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Печатную форму подключим следующим модулем.</p></div><button type="button" class="secondary-button" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать</button></div>
+                    <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммерческое предложение</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Для лида доступны только коммерческие шаблоны и черновики DOCX.</p></div><button type="button" class="secondary-button" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать</button></div>
+                    <div class="grid gap-3 md:grid-cols-[minmax(0,1fr),auto]">
+                        <div class="space-y-2">
+                            <label class="label">Шаблон коммерческого</label>
+                            <select v-model="selectedTemplateId" class="field">
+                                <option value="">Не выбран</option>
+                                <option v-for="template in printFormTemplateOptions" :key="template.id" :value="String(template.id)">
+                                    {{ templateOptionLabel(template) }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button type="button" class="secondary-button" :disabled="!selectedLeadId || !selectedTemplateId" @click="generateCommercialDraft"><FileText class="h-4 w-4" />Скачать DOCX</button>
+                        </div>
+                    </div>
                     <div class="grid gap-3 md:grid-cols-2">
                         <div><div class="meta">Тема</div><div class="text-sm">{{ form.title || '—' }}</div></div>
                         <div><div class="meta">Цена</div><div class="text-sm">{{ form.target_price ? formatMoney(form.target_price, form.target_currency) : '—' }}</div></div>
@@ -142,10 +156,11 @@ defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => 
 
 const props = defineProps({
     selectedLead: Object, isCreating: Boolean, contractors: Array, responsibleUsers: Array,
-    statusOptions: Array, sourceOptions: Array, transportTypeOptions: Array, currencyOptions: Array,
+    statusOptions: Array, sourceOptions: Array, transportTypeOptions: Array, currencyOptions: Array, printFormTemplateOptions: Array,
 });
 
 const activeTab = ref('main');
+const selectedTemplateId = ref('');
 const tabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
@@ -174,6 +189,7 @@ watch(() => props.selectedLead, (lead) => {
     form.reset();
     Object.entries(payload).forEach(([key, value]) => { form[key] = value; });
     activeTab.value = 'main';
+    selectedTemplateId.value = props.printFormTemplateOptions?.[0]?.id ? String(props.printFormTemplateOptions[0].id) : '';
 }, { immediate: true });
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
@@ -202,6 +218,28 @@ function prepareProposal() { if (selectedLeadId.value) router.post(route('leads.
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
 function destroyLead() { if (selectedLeadId.value) router.delete(route('leads.destroy', selectedLeadId.value)); }
 function formatMoney(value, currency = 'RUB') { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value)); }
+function templateOptionLabel(template) {
+    if (template.contractor_name) {
+        return `${template.name} • ${template.contractor_name}`;
+    }
+
+    if (template.is_default) {
+        return `${template.name} • по умолчанию`;
+    }
+
+    return template.name;
+}
+function generateCommercialDraft() {
+    if (!selectedLeadId.value || !selectedTemplateId.value) { return; }
+
+    window.open(
+        route('leads.templates.generate-draft', {
+            lead: selectedLeadId.value,
+            printFormTemplate: selectedTemplateId.value,
+        }),
+        '_blank'
+    );
+}
 </script>
 
 <style scoped>

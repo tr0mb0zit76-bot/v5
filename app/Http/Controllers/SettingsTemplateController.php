@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StorePrintFormTemplateRequest;
 use App\Http\Requests\UpdatePrintFormTemplateRequest;
 use App\Models\Contractor;
+use App\Models\Lead;
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
 use App\Services\DocxPlaceholderExtractor;
+use App\Services\LeadPrintFormDraftService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -24,7 +26,8 @@ class SettingsTemplateController extends Controller
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
         private readonly PrintFormVariableCatalog $variableCatalog,
-        private readonly OrderPrintFormDraftService $draftService,
+        private readonly OrderPrintFormDraftService $orderDraftService,
+        private readonly LeadPrintFormDraftService $leadDraftService,
     ) {}
 
     public function index(Request $request): Response
@@ -90,6 +93,7 @@ class SettingsTemplateController extends Controller
             'partyOptions' => PrintFormTemplate::partyOptions(),
             'sourceTypeOptions' => PrintFormTemplate::sourceTypeOptions(),
             'orderVariableOptions' => $this->variableCatalog->orderOptions(),
+            'leadVariableOptions' => $this->variableCatalog->leadOptions(),
         ]);
     }
 
@@ -166,7 +170,26 @@ class SettingsTemplateController extends Controller
         ]);
 
         $order = Order::query()->findOrFail($validated['order_id']);
-        $generatedFile = $this->draftService->generate($printFormTemplate, $order);
+        $generatedFile = $this->orderDraftService->generate($printFormTemplate, $order);
+
+        return response()->download(
+            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
+            $generatedFile['download_name']
+        );
+    }
+
+    public function generateLeadDraft(Request $request, PrintFormTemplate $printFormTemplate): BinaryFileResponse
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+        abort_if($printFormTemplate->entity_type !== 'lead', 422, 'Черновик можно сформировать только для шаблона лида.');
+        abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
+
+        $validated = $request->validate([
+            'lead_id' => ['required', 'integer', 'exists:leads,id'],
+        ]);
+
+        $lead = Lead::query()->findOrFail($validated['lead_id']);
+        $generatedFile = $this->leadDraftService->generate($printFormTemplate, $lead);
 
         return response()->download(
             Storage::disk($generatedFile['disk'])->path($generatedFile['path']),

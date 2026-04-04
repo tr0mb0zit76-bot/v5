@@ -2,17 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\Order;
+use App\Models\Lead;
 use App\Models\PrintFormTemplate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\TemplateProcessor;
 
-class OrderPrintFormDraftService
+class LeadPrintFormDraftService
 {
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
@@ -21,7 +19,7 @@ class OrderPrintFormDraftService
     /**
      * @return array{disk: string, path: string, download_name: string}
      */
-    public function generate(PrintFormTemplate $template, Order $order): array
+    public function generate(PrintFormTemplate $template, Lead $lead): array
     {
         $templatePath = Storage::disk($template->file_disk)->path($template->file_path);
         $processor = new TemplateProcessor($templatePath);
@@ -33,7 +31,7 @@ class OrderPrintFormDraftService
             ->unique()
             ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
-        $snapshot = $this->buildSnapshot($this->loadOrderContext($order));
+        $snapshot = $this->buildSnapshot($this->loadLeadContext($lead));
 
         $processor->setMacroChars('${', '}');
 
@@ -57,7 +55,7 @@ class OrderPrintFormDraftService
         }
 
         $disk = 'local';
-        $downloadName = Str::slug($template->code ?: 'template').'-order-'.$order->id.'-draft.docx';
+        $downloadName = Str::slug($template->code ?: 'template').'-lead-'.$lead->id.'-draft.docx';
         $storagePath = 'generated-documents/drafts/'.$template->id.'/'.Str::uuid().'-'.$downloadName;
         $absoluteTarget = Storage::disk($disk)->path($storagePath);
         $targetDirectory = dirname($absoluteTarget);
@@ -75,73 +73,65 @@ class OrderPrintFormDraftService
         ];
     }
 
+    private function loadLeadContext(Lead $lead): Lead
+    {
+        return $lead->loadMissing([
+            'counterparty',
+            'responsible',
+            'routePoints',
+            'cargoItems',
+            'offers',
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private function buildSnapshot(Order $order): array
+    private function buildSnapshot(Lead $lead): array
     {
         /** @var Collection<int, mixed> $routePoints */
-        $routePoints = $order->relationLoaded('routePoints') ? $order->routePoints : collect();
+        $routePoints = $lead->relationLoaded('routePoints') ? $lead->routePoints : collect();
         /** @var Collection<int, mixed> $cargoItems */
-        $cargoItems = $order->relationLoaded('cargoItems') ? $order->cargoItems : collect();
+        $cargoItems = $lead->relationLoaded('cargoItems') ? $lead->cargoItems : collect();
 
         $loadingPoints = $routePoints->where('type', 'loading')->values();
         $unloadingPoints = $routePoints->where('type', 'unloading')->values();
-        $driver = $this->driverPayload((int) ($order->driver_id ?? 0));
+        $latestOffer = $lead->relationLoaded('offers') ? $lead->offers->sortByDesc('id')->first() : null;
 
-        $cargoNames = $cargoItems
-            ->map(fn ($cargo): ?string => $cargo->title ?: $cargo->description)
-            ->filter()
-            ->implode('; ');
-
-        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight ?? 0));
-        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume ?? 0));
-        $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? $cargo->pallet_count ?? 0));
+        $cargoNames = $cargoItems->pluck('name')->filter()->implode('; ');
+        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight_kg ?? 0));
+        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume_m3 ?? 0));
+        $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? 0));
 
         return [
-            'order' => [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'order_date' => $this->formatDate($order->order_date),
-                'loading_date' => $this->formatDate($order->loading_date),
-                'unloading_date' => $this->formatDate($order->unloading_date),
-                'status' => $order->status,
-                'customer_rate' => $this->formatMoney($order->customer_rate),
-                'carrier_rate' => $this->formatMoney($order->carrier_rate),
-                'customer_payment_form' => $order->customer_payment_form,
-                'customer_payment_term' => $order->customer_payment_term,
-                'carrier_payment_form' => $order->carrier_payment_form,
-                'carrier_payment_term' => $order->carrier_payment_term,
-                'invoice_number' => $order->invoice_number,
-                'waybill_number' => $order->waybill_number,
-                'special_notes' => $order->special_notes,
+            'lead' => [
+                'id' => $lead->id,
+                'number' => $lead->number,
+                'status' => $lead->status,
+                'source' => $lead->source,
+                'title' => $lead->title,
+                'description' => $lead->description,
+                'transport_type' => $lead->transport_type,
+                'loading_location' => $lead->loading_location,
+                'unloading_location' => $lead->unloading_location,
+                'planned_shipping_date' => $this->formatDate($lead->planned_shipping_date),
+                'target_price' => $this->formatMoney($lead->target_price),
+                'target_currency' => $lead->target_currency,
+                'calculated_cost' => $this->formatMoney($lead->calculated_cost),
+                'expected_margin' => $this->formatMoney($lead->expected_margin),
+                'next_contact_at' => $this->formatDateTime($lead->next_contact_at),
+                'lost_reason' => $lead->lost_reason,
             ],
-            'cargo_sender' => [
-                'name' => $order->cargo_sender_name,
-                'address' => $order->cargo_sender_address,
-                'contact' => $order->cargo_sender_contact,
-                'phone' => $order->cargo_sender_phone,
+            'qualification' => [
+                'need' => data_get($lead->lead_qualification, 'need'),
+                'timeline' => data_get($lead->lead_qualification, 'timeline'),
+                'authority' => data_get($lead->lead_qualification, 'authority'),
+                'budget' => data_get($lead->lead_qualification, 'budget'),
             ],
-            'cargo_recipient' => [
-                'name' => $order->cargo_recipient_name,
-                'address' => $order->cargo_recipient_address,
-                'contact' => $order->cargo_recipient_contact,
-                'phone' => $order->cargo_recipient_phone,
-            ],
-            'customer' => $this->contractorPayload($order->client),
-            'carrier' => $this->contractorPayload($order->carrier),
-            'own_company' => $this->contractorPayload($order->ownCompany),
+            'counterparty' => $this->contractorPayload($lead->counterparty),
             'manager' => [
-                'name' => $order->manager?->name,
-            ],
-            'driver' => $driver,
-            'contacts' => [
-                'customer_name' => $order->customer_contact_name,
-                'customer_phone' => $order->customer_contact_phone,
-                'customer_email' => $order->customer_contact_email,
-                'carrier_name' => $order->carrier_contact_name,
-                'carrier_phone' => $order->carrier_contact_phone,
-                'carrier_email' => $order->carrier_contact_email,
+                'name' => $lead->responsible?->name,
+                'email' => $lead->responsible?->email,
             ],
             'route' => [
                 'loading_addresses' => $loadingPoints->pluck('address')->filter()->implode('; '),
@@ -156,9 +146,9 @@ class OrderPrintFormDraftService
             'cargo' => [
                 'summary' => $cargoItems
                     ->map(fn ($cargo): string => trim(implode(', ', array_filter([
-                        $cargo->title,
-                        $cargo->weight !== null ? $this->formatNumber($cargo->weight).' кг' : null,
-                        $cargo->volume !== null ? $this->formatNumber($cargo->volume).' м3' : null,
+                        $cargo->name,
+                        $cargo->weight_kg !== null ? $this->formatNumber($cargo->weight_kg).' кг' : null,
+                        $cargo->volume_m3 !== null ? $this->formatNumber($cargo->volume_m3).' м3' : null,
                     ]))))
                     ->filter()
                     ->implode('; '),
@@ -167,22 +157,13 @@ class OrderPrintFormDraftService
                 'total_volume' => $this->formatNumber($cargoTotalVolume),
                 'total_packages' => (string) $cargoTotalPackages,
             ],
+            'offer' => [
+                'number' => $latestOffer?->number,
+                'offer_date' => $this->formatDate($latestOffer?->offer_date),
+                'price' => $this->formatMoney($latestOffer?->price),
+                'currency' => $latestOffer?->currency,
+            ],
         ];
-    }
-
-    private function loadOrderContext(Order $order): Order
-    {
-        $relations = ['client', 'carrier', 'ownCompany', 'manager'];
-
-        if (Schema::hasTable('order_legs') && Schema::hasTable('route_points')) {
-            $relations[] = 'routePoints';
-        }
-
-        if (Schema::hasTable('cargos')) {
-            $relations[] = 'cargoItems';
-        }
-
-        return $order->loadMissing($relations);
     }
 
     /**
@@ -211,46 +192,6 @@ class OrderPrintFormDraftService
         ];
     }
 
-    /**
-     * @return array<string, string|null>
-     */
-    private function driverPayload(int $driverId): array
-    {
-        if ($driverId <= 0 || ! Schema::hasTable('drivers')) {
-            return [
-                'full_name' => null,
-                'phone' => null,
-                'passport_data' => null,
-            ];
-        }
-
-        $driver = DB::table('drivers')
-            ->select('first_name', 'last_name', 'patronymic', 'phone', 'metadata')
-            ->where('id', $driverId)
-            ->first();
-
-        if ($driver === null) {
-            return [
-                'full_name' => null,
-                'phone' => null,
-                'passport_data' => null,
-            ];
-        }
-
-        $metadata = is_string($driver->metadata) ? json_decode($driver->metadata, true) : $driver->metadata;
-        $passportData = is_array($metadata) ? data_get($metadata, 'passport_data', data_get($metadata, 'passport')) : null;
-
-        return [
-            'full_name' => trim(implode(' ', array_filter([
-                $driver->last_name,
-                $driver->first_name,
-                $driver->patronymic,
-            ]))) ?: null,
-            'phone' => $driver->phone,
-            'passport_data' => is_scalar($passportData) ? (string) $passportData : null,
-        ];
-    }
-
     private function stringifyValue(mixed $value): string
     {
         if ($value === null) {
@@ -270,11 +211,20 @@ class OrderPrintFormDraftService
 
     private function formatDate(mixed $value): ?string
     {
-        if (! $value instanceof Carbon) {
-            return $value === null ? null : (string) $value;
+        if ($value instanceof Carbon) {
+            return $value->format('d.m.Y');
         }
 
-        return $value->format('d.m.Y');
+        return $value === null ? null : (string) $value;
+    }
+
+    private function formatDateTime(mixed $value): ?string
+    {
+        if ($value instanceof Carbon) {
+            return $value->format('d.m.Y H:i');
+        }
+
+        return $value === null ? null : (string) $value;
     }
 
     private function formatMoney(mixed $value): ?string

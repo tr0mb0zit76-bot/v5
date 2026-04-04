@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/leads/{lead}', 'update')->name('leads.update');
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
         Route::post('/leads/{lead}/proposal', 'prepareProposal')->name('leads.proposal');
+        Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
     });
 
@@ -89,6 +90,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
         Route::delete('/settings/templates/{printFormTemplate}', 'destroy')->name('settings.templates.destroy');
         Route::get('/settings/templates/{printFormTemplate}/generate-order-draft', 'generateOrderDraft')->name('settings.templates.generate-order-draft');
+        Route::get('/settings/templates/{printFormTemplate}/generate-lead-draft', 'generateLeadDraft')->name('settings.templates.generate-lead-draft');
     });
 
     Route::controller(SettingsDictionariesController::class)->middleware('visibility.area:settings')->group(function () {

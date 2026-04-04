@@ -123,7 +123,7 @@
                             <td class="px-3 py-3">
                                 <div class="flex items-center gap-2">
                                     <button
-                                        v-if="template.entity_type === 'order' && template.has_source_file"
+                                        v-if="template.has_source_file"
                                         type="button"
                                         class="rounded-lg border border-emerald-200 p-2 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
                                         @click="openDraftModal(template)"
@@ -278,11 +278,11 @@
                                 </div>
 
                                 <div
-                                    v-if="editingTemplate !== null && form.entity_type === 'order' && editingTemplate.has_source_file"
+                                    v-if="editingTemplate !== null && editingTemplate.has_source_file"
                                     class="border border-zinc-200 p-4 dark:border-zinc-800"
                                 >
                                     <div class="mb-3 text-sm font-medium">Тестовая генерация DOCX</div>
-                                    <div class="space-y-3">
+                                    <div v-if="form.entity_type === 'order'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID заказа</label>
                                             <input v-model="previewOrderId" type="number" min="1" class="field" placeholder="Например, 125" />
@@ -291,6 +291,20 @@
                                             type="button"
                                             class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
                                             @click="generateOrderDraft"
+                                        >
+                                            <FileText class="h-4 w-4" />
+                                            Сформировать черновик DOCX
+                                        </button>
+                                    </div>
+                                    <div v-else-if="form.entity_type === 'lead'" class="space-y-3">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">ID лида</label>
+                                            <input v-model="previewLeadId" type="number" min="1" class="field" placeholder="Например, 18" />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+                                            @click="generateLeadDraft"
                                         >
                                             <FileText class="h-4 w-4" />
                                             Сформировать черновик DOCX
@@ -353,10 +367,10 @@
                                                 <div class="mt-1 font-mono text-sm">{{ mapping.placeholder }}</div>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Поле заказа</label>
+                                                <label class="text-sm font-medium">Поле источника</label>
                                                 <select v-model="form.variable_mappings[index].source_path" class="field">
                                                     <option value="">Не сопоставлено</option>
-                                                    <option v-for="option in orderVariableOptions" :key="option.value" :value="option.value">
+                                                    <option v-for="option in activeVariableOptions" :key="option.value" :value="option.value">
                                                         {{ option.label }}
                                                     </option>
                                                 </select>
@@ -440,11 +454,16 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    leadVariableOptions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const showModal = ref(false);
 const editingTemplate = ref(null);
 const previewOrderId = ref('');
+const previewLeadId = ref('');
 
 const form = useForm({
     code: '',
@@ -465,6 +484,7 @@ const form = useForm({
 
 const externalTemplateCount = computed(() => props.templates.filter((template) => template.source_type === 'external_docx').length);
 const defaultTemplateCount = computed(() => props.templates.filter((template) => template.is_default).length);
+const activeVariableOptions = computed(() => (form.entity_type === 'lead' ? props.leadVariableOptions : props.orderVariableOptions));
 
 function resetForm() {
     form.reset();
@@ -484,6 +504,7 @@ function resetForm() {
     form.source_file = null;
     form.variable_mappings = [];
     previewOrderId.value = '';
+    previewLeadId.value = '';
 }
 
 function openCreateModal() {
@@ -510,6 +531,7 @@ function openEditModal(template) {
     form.source_file = null;
     form.variable_mappings = buildVariableMappings(template);
     previewOrderId.value = '';
+    previewLeadId.value = '';
     showModal.value = true;
 }
 
@@ -632,6 +654,27 @@ function generateOrderDraft() {
         route('settings.templates.generate-order-draft', {
             printFormTemplate: editingTemplate.value.id,
             order_id: orderId,
+        }),
+        '_blank'
+    );
+}
+
+function generateLeadDraft() {
+    if (editingTemplate.value === null) {
+        return;
+    }
+
+    const leadId = String(previewLeadId.value || '').trim();
+
+    if (leadId === '') {
+        window.alert('Укажи ID лида для тестовой генерации.');
+        return;
+    }
+
+    window.open(
+        route('settings.templates.generate-lead-draft', {
+            printFormTemplate: editingTemplate.value.id,
+            lead_id: leadId,
         }),
         '_blank'
     );
