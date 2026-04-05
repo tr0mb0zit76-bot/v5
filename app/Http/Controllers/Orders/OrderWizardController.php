@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\PrintFormTemplate;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
+use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
@@ -55,8 +56,11 @@ class OrderWizardController extends Controller
         return to_route('orders.edit', $order);
     }
 
-    public function inlineUpdate(UpdateInlineOrderFieldRequest $request, Order $order): RedirectResponse
-    {
+    public function inlineUpdate(
+        UpdateInlineOrderFieldRequest $request,
+        Order $order,
+        OrderCompensationService $orderCompensationService,
+    ): RedirectResponse {
         abort_unless($this->canEditInlineField($request, $order), 403);
 
         $payload = $request->validatedPayload();
@@ -66,8 +70,18 @@ class OrderWizardController extends Controller
             'updated_by' => $request->user()?->id,
         ])->save();
 
-        if (in_array($payload['field'], ['customer_rate', 'carrier_rate'], true)) {
+        if (in_array($payload['field'], ['customer_rate', 'carrier_rate', 'additional_expenses'], true)) {
             $this->syncFinancialTermsFromOrderRates($order->fresh());
+        }
+
+        if (in_array($payload['field'], [
+            'customer_rate',
+            'carrier_rate',
+            'additional_expenses',
+            'customer_payment_form',
+            'carrier_payment_form',
+        ], true)) {
+            $orderCompensationService->recalculateImpactedPeriods($order->fresh());
         }
 
         return to_route('orders.index');

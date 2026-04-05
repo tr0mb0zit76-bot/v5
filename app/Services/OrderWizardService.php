@@ -10,7 +10,6 @@ use App\Models\OrderDocument;
 use App\Models\OrderLeg;
 use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
-use App\Models\SalaryCoefficient;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -24,7 +23,7 @@ class OrderWizardService
     public function __construct(
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly OrderStatusService $orderStatusService,
-        private readonly KpiConfigurationService $kpiConfigurationService,
+        private readonly OrderCompensationService $orderCompensationService,
     ) {}
 
     /**
@@ -41,6 +40,7 @@ class OrderWizardService
             $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true));
 
             $this->syncNestedData($order, $validated, $user);
+            $this->orderCompensationService->recalculateImpactedPeriods($order->fresh());
             $this->syncDerivedStatus($order, $validated, $user, null);
 
             return $order->load($this->relationsForOrderReload());
@@ -54,6 +54,8 @@ class OrderWizardService
     {
         return DB::transaction(function () use ($order, $validated, $user): Order {
             $previousStatus = $order->status;
+            $previousOrderDate = optional($order->order_date)?->toDateString();
+            $previousManagerId = $order->manager_id;
             $ownCompany = $this->resolveOwnCompany($validated);
             $generatedNumber = blank($validated['order_number'] ?? null)
                 ? $this->orderNumberGenerator->generate($ownCompany)
@@ -62,6 +64,7 @@ class OrderWizardService
             $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false));
 
             $this->syncNestedData($order, $validated, $user);
+            $this->orderCompensationService->recalculateImpactedPeriods($order->fresh(), $previousManagerId, $previousOrderDate);
             $this->syncDerivedStatus($order, $validated, $user, $previousStatus);
 
             return $order->load($this->relationsForOrderReload());
@@ -85,16 +88,7 @@ class OrderWizardService
         $additionalTotal = collect(Arr::get($financialTerm, 'additional_costs', []))
             ->sum(fn (array $item): float => (float) ($item['amount'] ?? 0));
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
-        $kpiPercent = (float) Arr::get($financialTerm, 'kpi_percent', 0);
-        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $bonus = (float) ($validated['bonus'] ?? 0);
-        $bonusPart = $bonus * $bonusMultiplier;
-        $totalCost = $performerTotal + $additionalTotal + $bonusPart;
-        $margin = ($clientPrice * (1 - ($kpiPercent / 100))) - $totalCost;
-        $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($user->id, $validated['order_date'] ?? null);
-        $salaryAccrued = $salaryCoefficient === null
-            ? 0
-            : ($margin * ($salaryCoefficient->bonus_percent / 100)) + $salaryCoefficient->base_salary;
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
         $clientPaymentSummary = $this->formatPaymentScheduleSummary($clientPaymentSchedule);
         $carrierPaymentForm = $this->resolveCarrierPaymentForm($contractorCosts);
@@ -128,9 +122,9 @@ class OrderWizardService
             'carrier_payment_term' => $carrierPaymentSummary,
             'additional_expenses' => $additionalTotal,
             'bonus' => $bonus,
-            'kpi_percent' => $kpiPercent ?: null,
-            'delta' => $margin,
-            'salary_accrued' => round($salaryAccrued, 2),
+            'kpi_percent' => 0,
+            'delta' => 0,
+            'salary_accrued' => 0,
             'status' => $validated['status'],
             'status_updated_by' => $user->id,
             'status_updated_at' => now(),
