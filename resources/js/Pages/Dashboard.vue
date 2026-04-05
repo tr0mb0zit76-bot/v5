@@ -216,11 +216,11 @@ const mobileSections = [
         description: 'Ключевые показатели и сводки без перегруженных desktop-таблиц.',
         icon: BarChart3,
     },
-    {
-        href: '/documents',
-        title: 'Счета и документы',
-        description: 'Следующий шаг мобильного контура: выставление и сопровождение документов.',
-        icon: FileText,
-    },
-];
+      {
+          href: '/finance?section=documents',
+          title: 'Финансы',
+          description: 'Журнал ДДС и документы в одном месте для мобильной команды.',
+          icon: FileText,
+      },
+  ];
 </script>

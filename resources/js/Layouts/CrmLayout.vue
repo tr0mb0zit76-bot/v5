@@ -82,7 +82,7 @@
             </main>
 
             <nav class="shrink-0 border-t border-zinc-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-                <div class="grid grid-cols-5 gap-2">
+                <div class="grid grid-cols-6 gap-2">
                     <button
                         v-for="item in mobileNavItems"
                         :key="item.key"
@@ -261,11 +261,14 @@
                 <ThemeToggle />
             </header>
 
-            <main class="min-h-0 flex-1 overflow-y-auto p-3 md:p-4">
+            <main class="min-h-0 flex-1 overflow-y-auto p-3 md:p-4 pb-[120px] md:pb-[140px]">
                 <slot />
             </main>
 
-            <footer class="shrink-0 border-t border-zinc-200 bg-zinc-50/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+            <footer
+                class="fixed bottom-0 left-0 right-0 z-50 shrink-0 border-t border-zinc-200 bg-zinc-50/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95 transition-[left]"
+                :class="collapsed ? 'lg:left-20' : 'lg:left-64'"
+            >
                 <div class="px-3 py-3 md:px-4">
                     <CrmCommandBar @submit="handleAiSubmit" />
                 </div>
@@ -282,7 +285,6 @@ import {
     BarChart3,
     ChevronDown,
     Download,
-    FileText,
     House,
     LayoutDashboard,
     LogOut,
@@ -297,6 +299,7 @@ import {
     Target,
     Truck,
     Users,
+    Wallet,
 } from 'lucide-vue-next';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
@@ -333,6 +336,7 @@ const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
 const mobileNavItems = computed(() => [
     { key: 'dashboard', label: 'Главная', icon: House },
     { key: 'orders', label: 'Заказы', icon: Package },
+    { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'orders-create', label: 'Новый', icon: SquarePen },
     { key: 'contractors', label: 'База', icon: Users },
     { key: 'reports', label: 'Отчёты', icon: BarChart3 },
@@ -345,7 +349,16 @@ const menuItems = computed(() => {
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         { key: 'drivers', label: 'Водители', icon: Truck, visibilityArea: 'drivers' },
-        { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
+        {
+            key: 'finance',
+            label: 'Финансы',
+            icon: Wallet,
+            visibilityArea: 'documents',
+            children: [
+                { key: 'finance-documents', label: 'Документы' },
+                { key: 'finance-dds', label: 'ДДС' },
+            ],
+        },
         { key: 'activities', label: 'Активности', icon: Activity, visibilityArea: 'activities' },
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
         { key: 'modules', label: 'Модули', icon: Puzzle, visibilityArea: 'modules' },
@@ -404,6 +417,9 @@ watch(
     (value) => {
         if (value === 'settings' && !expandedGroups.value.includes('settings')) {
             expandedGroups.value = [...expandedGroups.value, 'settings'];
+        }
+        if (value === 'finance' && !expandedGroups.value.includes('finance')) {
+            expandedGroups.value = [...expandedGroups.value, 'finance'];
         }
     },
     { immediate: true },
@@ -534,7 +550,9 @@ function handleMenuSelect(key) {
         'orders-create': '/orders/create',
         contractors: '/contractors',
         drivers: '/drivers',
-        documents: '/documents',
+        finance: '/finance?section=documents',
+        'finance-documents': '/finance?section=documents',
+        'finance-dds': '/finance?section=dds',
         activities: '/activities',
         reports: '/reports',
         modules: '/modules',
@@ -549,7 +567,7 @@ function handleMenuSelect(key) {
         'salary-settings': '/settings/motivation/salary',
     };
 
-    if (['settings', 'administration', 'configuration', 'motivation'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance'].includes(key)) {
         toggleMenuGroup(key);
     }
 

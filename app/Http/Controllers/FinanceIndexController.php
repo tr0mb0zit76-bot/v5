@@ -22,8 +22,9 @@ class FinanceIndexController extends Controller
         $invoices = $this->invoiceRows($user?->id, $role['name'], $ordersScope);
         $upds = $this->updRows($user?->id, $role['name'], $ordersScope);
         $cashFlow = $this->cashFlowRows($user?->id, $role['name'], $ordersScope);
+        $activeSubmodule = $request->query('section') === 'dds' ? 'dds' : 'documents';
 
-        return Inertia::render('Documents/Index', [
+        return Inertia::render('Finance/Index', [
             'summary' => [
                 'invoices_total' => $invoices->count(),
                 'invoices_issued' => $invoices->where('is_issued', true)->count(),
@@ -37,6 +38,7 @@ class FinanceIndexController extends Controller
             'cashFlowJournal' => $cashFlow->values(),
             'orders' => $this->availableOrders($user?->id, $role['name'], $ordersScope)->values(),
             'documents' => $this->documents($user?->id, $role['name'], $ordersScope),
+            'active_submodule' => $activeSubmodule,
         ]);
     }
 

@@ -179,11 +179,11 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->actingAs($manager)->get(route('documents.index'));
+        $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'documents']));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('Documents/Index')
+            ->component('Finance/Index')
             ->where('summary.invoices_total', 1)
             ->where('summary.invoices_issued', 1)
             ->where('summary.upds_total', 1)
@@ -194,6 +194,7 @@ class FinanceIndexTest extends TestCase
             ->has('upds', 1)
             ->has('cashFlowJournal', 1)
             ->has('documents', 1)
+            ->where('active_submodule', 'documents')
             ->where('documents.0.document_type', 'invoice')
             ->has('orders')
             ->where('invoices.0.order_number', 'ORD-100')
