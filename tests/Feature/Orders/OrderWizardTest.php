@@ -29,6 +29,7 @@ class OrderWizardTest extends TestCase
         Schema::dropIfExists('route_points');
         Schema::dropIfExists('order_legs');
         Schema::dropIfExists('salary_coefficients');
+        Schema::dropIfExists('kpi_thresholds');
         Schema::dropIfExists('kpi_settings');
         Schema::dropIfExists('orders');
         Schema::dropIfExists('print_form_templates');
@@ -310,6 +311,16 @@ class OrderWizardTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('kpi_thresholds', function (Blueprint $table) {
+            $table->id();
+            $table->string('deal_type', 50);
+            $table->decimal('threshold_from', 5, 2);
+            $table->decimal('threshold_to', 5, 2);
+            $table->integer('kpi_percent');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
         Schema::create('salary_coefficients', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('manager_id');
@@ -518,13 +529,33 @@ class OrderWizardTest extends TestCase
         ]);
         $this->assertDatabaseHas('orders', [
             'id' => $orderId,
-            'delta' => '23000.00',
-            'salary_accrued' => '12300.00',
+            'kpi_percent' => '7.00',
+            'delta' => '26600.00',
+            'salary_accrued' => '12660.00',
         ]);
         $financialTerm = DB::table('financial_terms')->where('order_id', $orderId)->first();
         $this->assertNotNull($financialTerm);
         $this->assertSame('30/70, 1 дн FTTN / 5 дн OTTN', $financialTerm->client_payment_terms);
         $this->assertStringContainsString('"payment_form":"no_vat"', (string) $financialTerm->contractors_costs);
+        $this->assertDatabaseHas('payment_schedules', [
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'prepayment',
+            'amount' => '36000.00',
+            'planned_date' => '2026-04-03',
+        ]);
+        $this->assertDatabaseHas('payment_schedules', [
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => '84000.00',
+        ]);
+        $this->assertDatabaseHas('payment_schedules', [
+            'order_id' => $orderId,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => '80000.00',
+        ]);
         $this->assertDatabaseHas('order_documents', [
             'order_id' => $orderId,
             'number' => 'REQ-1',
@@ -661,6 +692,12 @@ class OrderWizardTest extends TestCase
             'order_id' => $orderId,
             'client_price' => '150000.00',
         ]);
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'kpi_percent' => '7.00',
+            'delta' => '40499.50',
+            'salary_accrued' => '20249.75',
+        ]);
 
         $contractorsCosts = DB::table('financial_terms')
             ->where('order_id', $orderId)
@@ -669,6 +706,161 @@ class OrderWizardTest extends TestCase
         $this->assertIsString($contractorsCosts);
         $this->assertStringContainsString('"amount":99000.5', $contractorsCosts);
         $this->assertStringContainsString('"stage":"leg_custom"', $contractorsCosts);
+    }
+
+    public function test_second_order_in_same_period_recalculates_existing_orders(): void
+    {
+        $admin = $this->createAdminUser();
+
+        DB::table('kpi_thresholds')->insert([
+            [
+                'deal_type' => 'direct',
+                'threshold_from' => '0.00',
+                'threshold_to' => '0.50',
+                'kpi_percent' => 4,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'indirect',
+                'threshold_from' => '0.00',
+                'threshold_to' => '0.50',
+                'kpi_percent' => 8,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'direct',
+                'threshold_from' => '0.51',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 5,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'indirect',
+                'threshold_from' => '0.51',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 9,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $directCarrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Direct Carrier',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $indirectCarrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Indirect Carrier',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.store'), [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-10',
+            'order_number' => '',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $directCarrierId],
+            ],
+            'route_points' => [
+                ['type' => 'loading', 'sequence' => 1, 'address' => 'A', 'normalized_data' => [], 'planned_date' => '2026-04-11', 'actual_date' => null, 'contact_person' => null, 'contact_phone' => null],
+                ['type' => 'unloading', 'sequence' => 2, 'address' => 'B', 'normalized_data' => [], 'planned_date' => '2026-04-12', 'actual_date' => null, 'contact_person' => null, 'contact_phone' => null],
+            ],
+            'cargo_items' => [
+                ['name' => 'Cargo', 'description' => '', 'weight_kg' => 10, 'volume_m3' => 1, 'package_type' => 'box', 'package_count' => 1, 'dangerous_goods' => false, 'dangerous_class' => null, 'hs_code' => '', 'cargo_type' => 'general'],
+            ],
+            'financial_term' => [
+                'client_price' => 100000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn'],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    ['stage' => 'leg_1', 'contractor_id' => $directCarrierId, 'amount' => 70000, 'currency' => 'RUB', 'payment_form' => 'vat', 'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn']],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ]);
+
+        $firstOrderId = (int) DB::table('orders')->orderByDesc('id')->value('id');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $firstOrderId,
+            'kpi_percent' => '5.00',
+            'delta' => '25000.00',
+            'salary_accrued' => '12500.00',
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.store'), [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-12',
+            'order_number' => '',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $indirectCarrierId],
+            ],
+            'route_points' => [
+                ['type' => 'loading', 'sequence' => 1, 'address' => 'C', 'normalized_data' => [], 'planned_date' => '2026-04-13', 'actual_date' => null, 'contact_person' => null, 'contact_phone' => null],
+                ['type' => 'unloading', 'sequence' => 2, 'address' => 'D', 'normalized_data' => [], 'planned_date' => '2026-04-14', 'actual_date' => null, 'contact_person' => null, 'contact_phone' => null],
+            ],
+            'cargo_items' => [
+                ['name' => 'Cargo 2', 'description' => '', 'weight_kg' => 20, 'volume_m3' => 2, 'package_type' => 'box', 'package_count' => 2, 'dangerous_goods' => false, 'dangerous_class' => null, 'hs_code' => '', 'cargo_type' => 'general'],
+            ],
+            'financial_term' => [
+                'client_price' => 100000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn'],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    ['stage' => 'leg_1', 'contractor_id' => $indirectCarrierId, 'amount' => 70000, 'currency' => 'RUB', 'payment_form' => 'no_vat', 'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn']],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ]);
+
+        $secondOrderId = (int) DB::table('orders')->orderByDesc('id')->value('id');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $firstOrderId,
+            'kpi_percent' => '4.00',
+            'delta' => '26000.00',
+            'salary_accrued' => '13000.00',
+        ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $secondOrderId,
+            'kpi_percent' => '8.00',
+            'delta' => '22000.00',
+            'salary_accrued' => '11000.00',
+        ]);
     }
 
     public function test_edit_page_restores_contractor_costs_from_order_rate_when_financial_terms_row_is_missing(): void

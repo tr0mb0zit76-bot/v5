@@ -17,9 +17,44 @@ document.documentElement.classList.remove('light');
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch((error) => {
-            console.error('Service worker registration failed', error);
-        });
+        let hasReloadedForServiceWorkerUpdate = false;
+
+        const reloadForServiceWorkerUpdate = () => {
+            if (hasReloadedForServiceWorkerUpdate) {
+                return;
+            }
+
+            hasReloadedForServiceWorkerUpdate = true;
+            window.location.reload();
+        };
+
+        navigator.serviceWorker.addEventListener('controllerchange', reloadForServiceWorkerUpdate);
+
+        navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+                if (registration.waiting) {
+                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+
+                registration.addEventListener('updatefound', () => {
+                    const installingWorker = registration.installing;
+
+                    if (!installingWorker) {
+                        return;
+                    }
+
+                    installingWorker.addEventListener('statechange', () => {
+                        if (installingWorker.state !== 'installed' || !navigator.serviceWorker.controller) {
+                            return;
+                        }
+
+                        installingWorker.postMessage({ type: 'SKIP_WAITING' });
+                    });
+                });
+            })
+            .catch((error) => {
+                console.error('Service worker registration failed', error);
+            });
     });
 }
 

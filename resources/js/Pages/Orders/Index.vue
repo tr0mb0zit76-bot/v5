@@ -1,6 +1,6 @@
 <template>
     <div class="flex h-full min-h-0 flex-col gap-2">
-        <div v-if="isMobileStandalone" class="space-y-4">
+        <div v-if="isMobileStandalone" class="space-y-4 pb-24">
             <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
                 <div class="flex items-start justify-between gap-4">
                     <div>
@@ -92,6 +92,28 @@
                     По текущему запросу заказы не найдены.
                 </div>
             </section>
+
+            <div class="sticky bottom-0 z-20 -mx-1 pt-2">
+                <div class="rounded-[26px] border border-zinc-200/80 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/95">
+                    <div class="flex items-center gap-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-xs uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500">Быстрое действие</div>
+                            <div class="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                {{ mobileRows.length === rows.length ? `Все заказы: ${rows.length}` : `Найдено: ${mobileRows.length} из ${rows.length}` }}
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            @click="openCreateOrder"
+                        >
+                            <Plus class="h-4 w-4" />
+                            Новый заказ
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <template v-else>

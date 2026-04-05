@@ -1,5 +1,6 @@
-const CACHE_NAME = 'logist-crm-shell-v1';
-const ASSET_CACHE_NAME = 'logist-crm-assets-v1';
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `logist-crm-shell-${CACHE_VERSION}`;
+const ASSET_CACHE_NAME = `logist-crm-assets-${CACHE_VERSION}`;
 const SHELL_URLS = [
     '/',
     '/manifest.webmanifest',
@@ -8,6 +9,12 @@ const SHELL_URLS = [
     '/assets/favicon/web-app-manifest-192x192.png',
     '/assets/favicon/web-app-manifest-512x512.png',
 ];
+
+self.addEventListener('message', (event) => {
+    if (event.data?.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
@@ -49,6 +56,10 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(event.request)
                 .then((response) => {
+                    if (!response || response.status >= 400) {
+                        return response;
+                    }
+
                     const responseClone = response.clone();
 
                     caches.open(CACHE_NAME).then((cache) => cache.put('/', responseClone));
@@ -69,6 +80,10 @@ self.addEventListener('fetch', (event) => {
                 }
 
                 return fetch(event.request).then((response) => {
+                    if (!response || response.status >= 400) {
+                        return response;
+                    }
+
                     const responseClone = response.clone();
 
                     caches.open(ASSET_CACHE_NAME).then((cache) => cache.put(event.request, responseClone));

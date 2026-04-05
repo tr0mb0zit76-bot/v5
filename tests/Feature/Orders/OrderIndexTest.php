@@ -19,6 +19,7 @@ class OrderIndexTest extends TestCase
         Schema::dropIfExists('cargos');
         Schema::dropIfExists('order_status_logs');
         Schema::dropIfExists('financial_terms');
+        Schema::dropIfExists('kpi_thresholds');
         Schema::dropIfExists('order_documents');
         Schema::dropIfExists('route_points');
         Schema::dropIfExists('order_legs');
@@ -169,6 +170,16 @@ class OrderIndexTest extends TestCase
             $table->json('additional_costs')->nullable();
             $table->decimal('total_cost', 12, 2)->nullable();
             $table->decimal('margin', 12, 2)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('kpi_thresholds', function (Blueprint $table) {
+            $table->id();
+            $table->string('deal_type', 50);
+            $table->decimal('threshold_from', 5, 2);
+            $table->decimal('threshold_to', 5, 2);
+            $table->integer('kpi_percent');
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
 
@@ -402,6 +413,167 @@ class OrderIndexTest extends TestCase
         $this->assertDatabaseHas('financial_terms', [
             'order_id' => $orderId,
             'client_price' => 2500.50,
+        ]);
+    }
+
+    public function test_inline_update_payment_form_recalculates_kpi_for_period(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        DB::table('kpi_thresholds')->insert([
+            [
+                'deal_type' => 'direct',
+                'threshold_from' => '0.00',
+                'threshold_to' => '0.50',
+                'kpi_percent' => 4,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'indirect',
+                'threshold_from' => '0.00',
+                'threshold_to' => '0.50',
+                'kpi_percent' => 8,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'direct',
+                'threshold_from' => '0.51',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 5,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'indirect',
+                'threshold_from' => '0.51',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 9,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Carrier',
+        ]);
+
+        $firstOrderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'PERIOD-1',
+            'manager_id' => $manager->id,
+            'order_date' => '2026-04-10',
+            'customer_rate' => 100000,
+            'customer_payment_form' => 'vat',
+            'carrier_rate' => 70000,
+            'carrier_payment_form' => 'vat',
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 5,
+            'delta' => 25000,
+            'salary_accrued' => 12500,
+            'salary_paid' => 0,
+            'carrier_id' => $carrierId,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $secondOrderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'PERIOD-2',
+            'manager_id' => $manager->id,
+            'order_date' => '2026-04-12',
+            'customer_rate' => 100000,
+            'customer_payment_form' => 'vat',
+            'carrier_rate' => 70000,
+            'carrier_payment_form' => 'no_vat',
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 8,
+            'delta' => 22000,
+            'salary_accrued' => 11000,
+            'salary_paid' => 0,
+            'carrier_id' => $carrierId,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            [
+                'order_id' => $firstOrderId,
+                'client_price' => 100000,
+                'client_currency' => 'RUB',
+                'contractors_costs' => json_encode([
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 70000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'vat',
+                        'payment_schedule' => [],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+                'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+                'total_cost' => 70000,
+                'margin' => 25000,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'order_id' => $secondOrderId,
+                'client_price' => 100000,
+                'client_currency' => 'RUB',
+                'contractors_costs' => json_encode([
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 70000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+                'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+                'total_cost' => 70000,
+                'margin' => 22000,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $secondOrderId), [
+            'field' => 'carrier_payment_form',
+            'value' => 'vat',
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $firstOrderId,
+            'kpi_percent' => '5.00',
+            'delta' => '25000.00',
+            'salary_accrued' => '12500.00',
+        ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $secondOrderId,
+            'carrier_payment_form' => 'vat',
+            'kpi_percent' => '5.00',
+            'delta' => '25000.00',
+            'salary_accrued' => '12500.00',
         ]);
     }
 

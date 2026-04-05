@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\ContractorController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FinanceDocumentController;
+use App\Http\Controllers\FinanceIndexController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderWizardController;
@@ -32,9 +35,7 @@ Route::controller(PublicSiteController::class)->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->middleware('visibility.area:dashboard')->name('dashboard');
+    Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
 
     Route::controller(LeadController::class)->middleware('visibility.area:leads')->group(function () {
         Route::get('/leads', 'index')->name('leads.index');
@@ -125,9 +126,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:drivers')->name('drivers.index');
 
-    Route::get('/documents', function () {
-        return Inertia::render('Dashboard');
-    })->middleware('visibility.area:documents')->name('documents.index');
+    Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area:documents')->name('finance.index');
+    Route::get('/documents', FinanceIndexController::class)->middleware('visibility.area:documents')->name('documents.index');
+    Route::post('/finance/documents', [FinanceDocumentController::class, 'store'])->middleware('visibility.area:documents')->name('finance.documents.store');
+    Route::patch('/finance/documents/{financeDocument}', [FinanceDocumentController::class, 'update'])->middleware('visibility.area:documents')->name('finance.documents.update');
 
     Route::get('/activities', function () {
         return Inertia::render('Dashboard');

@@ -181,6 +181,19 @@
                         </div>
                     </div>
 
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Расчётный период</label>
+                            <input :value="orderPeriodPreview.label" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                            <p class="text-xs text-zinc-500">Период определяется автоматически по дате заказа: 1-15 или 16-последний день месяца.</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium">Тип сделки</label>
+                            <input :value="dealTypePreview.label" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                            <p class="text-xs text-zinc-500">Тип сделки определяется по формам оплаты клиента и перевозчика.</p>
+                        </div>
+                    </div>
+
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Особые отметки</label>
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
@@ -239,7 +252,8 @@
                     </div>
 
                     <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
-                        <div class="mb-3 text-sm font-semibold">Сводка по финансам</div>
+                        <div class="mb-1 text-sm font-semibold">Предварительная сводка по финансам</div>
+                        <p class="mb-3 text-xs text-zinc-500">Итоговые KPI, дельта и начисление пересчитываются на сервере после сохранения заказа.</p>
                         <div class="grid gap-3 md:grid-cols-3">
                             <div>Дельта: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
                             <div>Маржинальность: <span class="font-medium">{{ financialMarginPercent.toFixed(2) }}%</span></div>
@@ -566,8 +580,8 @@
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">KPI %</label>
-                            <input v-model="form.financial_term.kpi_percent" :disabled="isManager" type="number" min="0" max="100" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:disabled:bg-zinc-800" />
-                            <p v-if="isManager" class="text-xs text-zinc-500">Для менеджера KPI рассчитывается и задаётся без ручного редактирования.</p>
+                            <input :value="Number(form.financial_term.kpi_percent || 0).toFixed(2)" disabled type="number" min="0" max="100" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                            <p class="text-xs text-zinc-500">KPI рассчитывается автоматически по периоду и типу сделки после сохранения заказа.</p>
                         </div>
                     </div>
 
@@ -827,7 +841,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -874,7 +888,6 @@ const addressSuggestions = ref({});
 const addressTimers = {};
 const draggedRoutePointIndex = ref(null);
 const dragOverRoutePointIndex = ref(null);
-const page = usePage();
 const paymentFormOptions = [
     { value: 'vat', label: 'С НДС' },
     { value: 'no_vat', label: 'Без НДС' },
@@ -1045,11 +1058,53 @@ const isMobileStandalone = computed(() => {
     return window.matchMedia('(max-width: 1023px)').matches
         && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
 });
-const currentRoleKey = computed(() => page.props.auth?.user?.role?.name ?? 'manager');
-const isManager = computed(() => currentRoleKey.value === 'manager');
 const selectedClient = computed(() => contractors.value.find((contractor) => contractor.id === form.client_id) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
+const orderPeriodPreview = computed(() => {
+    if (!form.order_date) {
+        return {
+            label: 'Появится после выбора даты',
+        };
+    }
+
+    const [year, month, day] = String(form.order_date).split('-').map(Number);
+
+    if (!year || !month || !day) {
+        return {
+            label: 'Некорректная дата',
+        };
+    }
+
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    const startDay = day <= 15 ? 1 : 16;
+    const endDay = day <= 15 ? 15 : lastDayOfMonth;
+    const paddedMonth = String(month).padStart(2, '0');
+
+    return {
+        label: `${String(startDay).padStart(2, '0')}-${String(endDay).padStart(2, '0')}.${paddedMonth}.${year}`,
+    };
+});
+const dealTypePreview = computed(() => {
+    const clientPaymentForm = String(form.financial_term.client_payment_form ?? '').trim();
+    const carrierPaymentForms = form.financial_term.contractors_costs
+        .map((cost) => String(cost.payment_form ?? '').trim())
+        .filter((value) => value !== '');
+
+    if (clientPaymentForm === '' || carrierPaymentForms.length === 0) {
+        return {
+            key: 'unknown',
+            label: 'Появится после заполнения оплат',
+        };
+    }
+
+    const isDirectDeal = carrierPaymentForms.every((paymentForm) => paymentForm === clientPaymentForm);
+
+    return {
+        key: isDirectDeal ? 'direct' : 'indirect',
+        label: isDirectDeal ? 'Прямая' : 'Кривая',
+    };
+});
 
 const filteredClients = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
