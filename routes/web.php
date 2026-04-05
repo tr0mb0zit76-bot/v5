@@ -135,6 +135,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:activities')->name('activities.index');
 
+    Route::get('/tasks', function () {
+        return Inertia::render('Tasks/Index');
+    })->middleware('visibility.area:tasks')->name('tasks.index');
+
+    Route::get('/kanban', function () {
+        return Inertia::render('Kanban/Index');
+    })->middleware('visibility.area:kanban')->name('kanban.index');
+
     Route::get('/reports', function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:reports')->name('reports.index');

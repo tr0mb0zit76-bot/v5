@@ -28,6 +28,7 @@ class FinanceIndexController extends Controller
             'documents' => 'documents',
             default => 'overview',
         };
+        $cashFlowStats = $this->cashFlowStats($user?->id, $role['name'], $ordersScope);
 
         return Inertia::render('Finance/Index', [
             'summary' => [
@@ -44,7 +45,8 @@ class FinanceIndexController extends Controller
             'orders' => $this->availableOrders($user?->id, $role['name'], $ordersScope)->values(),
             'documents' => $this->documents($user?->id, $role['name'], $ordersScope),
             'active_submodule' => $activeSubmodule,
-            'todays_cash_flow' => $this->todaysCashFlow($user?->id, $role['name'], $ordersScope),
+            'todays_cash_flow' => $cashFlowStats['periods']['today'],
+            'cash_flow_stats' => $cashFlowStats,
         ]);
     }
 
@@ -173,19 +175,16 @@ class FinanceIndexController extends Controller
             ]);
     }
 
-    /**
-     * @return array{incoming: float, outgoing: float}
-     */
-    private function todaysCashFlow(?int $userId, ?string $roleName, string $ordersScope): array
+    private function cashFlowStats(?int $userId, ?string $roleName, string $ordersScope): array
     {
         if (! Schema::hasTable('payment_schedules')) {
-            return [
-                'incoming' => 0.0,
-                'outgoing' => 0.0,
-            ];
+            return $this->defaultCashFlowStats();
         }
 
-        $today = Carbon::now()->toDateString();
+        $today = Carbon::today();
+        $weekEnd = $today->copy()->addDays(6);
+        $monthStart = $today->copy()->startOfMonth();
+        $monthEnd = $today->copy()->endOfMonth();
 
         $rows = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
@@ -197,17 +196,66 @@ class FinanceIndexController extends Controller
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('orders.deleted_at'),
             )
-            ->whereDate('payment_schedules.planned_date', $today)
-            ->selectRaw('payment_schedules.party, SUM(payment_schedules.amount) as total_amount')
+            ->selectRaw(<<<'SQL'
+                payment_schedules.party,
+                SUM(CASE WHEN payment_schedules.planned_date = ? THEN payment_schedules.amount ELSE 0 END) as today,
+                SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN payment_schedules.amount ELSE 0 END) as week,
+                SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN payment_schedules.amount ELSE 0 END) as month,
+                SUM(CASE WHEN payment_schedules.status IN (?, ?) THEN payment_schedules.amount ELSE 0 END) as outstanding,
+                SUM(CASE WHEN payment_schedules.status = ? THEN payment_schedules.amount ELSE 0 END) as overdue
+            SQL, [
+                $today,
+                $today,
+                $weekEnd,
+                $monthStart,
+                $monthEnd,
+                'pending',
+                'overdue',
+                'overdue',
+            ])
             ->groupBy('payment_schedules.party')
-            ->pluck('total_amount', 'party');
+            ->get()
+            ->keyBy('party');
 
-        $incoming = (float) ($rows['customer'] ?? 0);
-        $outgoing = (float) ($rows['carrier'] ?? 0);
+        $customerRow = $rows->get('customer');
+        $carrierRow = $rows->get('carrier');
 
         return [
-            'incoming' => $incoming,
-            'outgoing' => $outgoing,
+            'periods' => [
+                'today' => [
+                    'incoming' => (float) (optional($customerRow)->today ?? 0),
+                    'outgoing' => (float) (optional($carrierRow)->today ?? 0),
+                ],
+                'week' => [
+                    'incoming' => (float) (optional($customerRow)->week ?? 0),
+                    'outgoing' => (float) (optional($carrierRow)->week ?? 0),
+                ],
+                'month' => [
+                    'incoming' => (float) (optional($customerRow)->month ?? 0),
+                    'outgoing' => (float) (optional($carrierRow)->month ?? 0),
+                ],
+            ],
+            'receivables' => [
+                'total' => (float) (optional($customerRow)->outstanding ?? 0),
+                'overdue' => (float) (optional($customerRow)->overdue ?? 0),
+            ],
+            'payables' => [
+                'total' => (float) (optional($carrierRow)->outstanding ?? 0),
+                'overdue' => (float) (optional($carrierRow)->overdue ?? 0),
+            ],
+        ];
+    }
+
+    private function defaultCashFlowStats(): array
+    {
+        return [
+            'periods' => [
+                'today' => ['incoming' => 0.0, 'outgoing' => 0.0],
+                'week' => ['incoming' => 0.0, 'outgoing' => 0.0],
+                'month' => ['incoming' => 0.0, 'outgoing' => 0.0],
+            ],
+            'receivables' => ['total' => 0.0, 'overdue' => 0.0],
+            'payables' => ['total' => 0.0, 'overdue' => 0.0],
         ];
     }
 

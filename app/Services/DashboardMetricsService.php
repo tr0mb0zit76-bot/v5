@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardMetricsService
@@ -12,7 +13,7 @@ class DashboardMetricsService
     ) {}
 
     /**
-     * @return array{total_orders:int,direct_orders:int,direct_share_percent:float,period_delta:float}
+     * @return array{total_orders:int,direct_orders:int,direct_share_percent:float,period_delta:float,weekly_client_returns:float}
      */
     public function forManager(int $managerId, string $dateFrom, string $dateTo): array
     {
@@ -28,6 +29,8 @@ class DashboardMetricsService
                 'customer_payment_form',
                 'carrier_payment_form',
                 'delta',
+                'order_customer_date',
+                'customer_rate',
             ]);
 
         $totalOrders = $orders->count();
@@ -35,11 +38,29 @@ class DashboardMetricsService
             ->filter(fn (Order $order): bool => $this->dealTypeClassifier->classify($order) === 'direct')
             ->count();
 
+        $weekStart = Carbon::now()->startOfWeek();
+        $weekEnd = Carbon::now()->endOfWeek();
+
+        $weeklyClientReturns = Order::query()
+            ->where('manager_id', $managerId)
+            ->where(function ($query) use ($weekStart, $weekEnd) {
+                $query->whereBetween('order_customer_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+                    ->orWhere(function ($subQuery) use ($weekStart, $weekEnd) {
+                        $subQuery->whereBetween('order_date', [$weekStart->toDateString(), $weekEnd->toDateString()]);
+                    });
+            })
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('deleted_at')
+            )
+            ->sum('customer_rate');
+
         return [
             'total_orders' => $totalOrders,
             'direct_orders' => $directOrders,
             'direct_share_percent' => $totalOrders > 0 ? round(($directOrders / $totalOrders) * 100, 2) : 0.0,
             'period_delta' => round($orders->sum(fn (Order $order): float => (float) ($order->delta ?? 0)), 2),
+            'weekly_client_returns' => round((float) $weeklyClientReturns, 2),
         ];
     }
 }

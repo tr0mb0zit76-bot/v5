@@ -264,6 +264,78 @@
                             </table>
                         </div>
                     </div>
+                    <div class="mt-4 grid gap-4 md:grid-cols-2">
+                        <div class="border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                            <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                Ожидаемые поступления
+                            </div>
+                            <div class="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                <div class="flex justify-between">
+                                    <span>Сегодня</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.periods.today.incoming) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>На неделю</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.periods.week.incoming) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>За месяц</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.periods.month.incoming) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                            <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                Ожидаемые платежи
+                            </div>
+                            <div class="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                <div class="flex justify-between">
+                                    <span>Сегодня</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.periods.today.outgoing) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>На неделю</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.periods.week.outgoing) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>За месяц</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.periods.month.outgoing) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 grid gap-4 md:grid-cols-2">
+                        <div class="border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                            <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                Дебиторская задолженность
+                            </div>
+                            <div class="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                <div class="flex justify-between">
+                                    <span>Общая</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.receivables.total) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Просроченная</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.receivables.overdue) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                            <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                Кредиторская задолженность
+                            </div>
+                            <div class="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                <div class="flex justify-between">
+                                    <span>Общая</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.payables.total) }}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Просроченная</span>
+                                    <span class="font-semibold text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.payables.overdue) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
             </section>
         </div>
@@ -353,6 +425,18 @@ import { Link, router, useForm } from '@inertiajs/vue3';
 import { BarChart3, FileText } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
+function defaultCashFlowStats() {
+    return {
+        periods: {
+            today: { incoming: 0.0, outgoing: 0.0 },
+            week: { incoming: 0.0, outgoing: 0.0 },
+            month: { incoming: 0.0, outgoing: 0.0 },
+        },
+        receivables: { total: 0.0, overdue: 0.0 },
+        payables: { total: 0.0, overdue: 0.0 },
+    };
+}
+
 defineOptions({
     layout: (h, page) =>
         h(
@@ -394,6 +478,10 @@ const props = defineProps({
         type: Object,
         default: () => ({ incoming: 0, outgoing: 0 }),
     },
+    cash_flow_stats: {
+        type: Object,
+        default: () => ({}),
+    },
     active_submodule: {
         type: String,
         default: 'overview',
@@ -420,6 +508,9 @@ const submoduleTiles = [
         icon: 'bar-chart-3',
     },
 ];
+
+const cashFlowStats = computed(() => props.cash_flow_stats ?? defaultCashFlowStats());
+const todaysCashFlow = computed(() => props.todays_cash_flow ?? cashFlowStats.value.periods.today);
 
 const activeSubmodule = computed(() => {
     if (props.active_submodule === 'dds') {
@@ -457,8 +548,6 @@ const documentForm = useForm({
     notes: '',
     status: 'draft',
 });
-
-const todaysCashFlow = computed(() => props.todays_cash_flow ?? { incoming: 0, outgoing: 0 });
 
 function formatMoney(value) {
     return new Intl.NumberFormat('ru-RU', {

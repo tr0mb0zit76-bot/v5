@@ -43,6 +43,8 @@ class RoleAccess
             ['key' => 'drivers', 'label' => 'Водители', 'description' => 'Реестр водителей и перевозчиков'],
             ['key' => 'documents', 'label' => 'Документы', 'description' => 'Реестр документов'],
             ['key' => 'activities', 'label' => 'Активности', 'description' => 'История действий и событий'],
+            ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
+            ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
             ['key' => 'settings', 'label' => 'Настройки', 'description' => 'Системные настройки'],
@@ -83,11 +85,11 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'reports', 'settings'],
-            'manager' => ['dashboard', 'leads', 'orders', 'contractors', 'documents', 'activities'],
-            'dispatcher' => ['dashboard', 'orders', 'drivers', 'activities'],
-            'accountant' => ['dashboard', 'orders', 'documents', 'reports'],
-            'clerk' => ['dashboard', 'orders', 'documents', 'contractors'],
+            'supervisor' => ['dashboard', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'tasks', 'kanban', 'reports', 'settings'],
+            'manager' => ['dashboard', 'leads', 'orders', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
+            'dispatcher' => ['dashboard', 'orders', 'drivers', 'activities', 'tasks', 'kanban'],
+            'accountant' => ['dashboard', 'orders', 'documents', 'tasks', 'kanban', 'reports'],
+            'clerk' => ['dashboard', 'orders', 'documents', 'contractors', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'orders'],
             default => ['dashboard'],
         };

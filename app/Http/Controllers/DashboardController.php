@@ -31,6 +31,7 @@ class DashboardController extends Controller
                     'direct_orders' => 0,
                     'direct_share_percent' => 0,
                     'period_delta' => 0,
+                    'weekly_client_returns' => 0,
                 ]
                 : $dashboardMetricsService->forManager($request->user()->id, $dateFrom, $dateTo),
         ]);

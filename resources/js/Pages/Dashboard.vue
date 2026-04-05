@@ -127,6 +127,12 @@
                     <div class="text-sm text-sky-700 dark:text-sky-300">Дельта за период</div>
                     <div class="mt-3 text-3xl font-semibold text-sky-900 dark:text-sky-100">{{ formatCurrency(metrics.period_delta) }}</div>
                 </article>
+
+                <article class="rounded-[28px] border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
+                    <div class="text-sm text-rose-700 dark:text-rose-300">Сколько вернуть от клиентов (эта неделя)</div>
+                    <div class="mt-3 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
+                    <div class="mt-2 text-xs text-rose-600 dark:text-rose-300">Сумма заказов, чья дата документа клиента или дата заказа попадает в текущую неделю.</div>
+                </article>
             </section>
         </div>
     </div>
@@ -153,6 +159,7 @@ const props = defineProps({
             direct_orders: 0,
             direct_share_percent: 0,
             period_delta: 0,
+            weekly_client_returns: 0,
         }),
     },
 });
