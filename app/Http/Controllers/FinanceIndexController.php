@@ -6,6 +6,7 @@ use App\Models\FinanceDocument;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -22,7 +23,11 @@ class FinanceIndexController extends Controller
         $invoices = $this->invoiceRows($user?->id, $role['name'], $ordersScope);
         $upds = $this->updRows($user?->id, $role['name'], $ordersScope);
         $cashFlow = $this->cashFlowRows($user?->id, $role['name'], $ordersScope);
-        $activeSubmodule = $request->query('section') === 'dds' ? 'dds' : 'documents';
+        $activeSubmodule = match ($request->query('section')) {
+            'dds' => 'dds',
+            'documents' => 'documents',
+            default => 'overview',
+        };
 
         return Inertia::render('Finance/Index', [
             'summary' => [
@@ -39,6 +44,7 @@ class FinanceIndexController extends Controller
             'orders' => $this->availableOrders($user?->id, $role['name'], $ordersScope)->values(),
             'documents' => $this->documents($user?->id, $role['name'], $ordersScope),
             'active_submodule' => $activeSubmodule,
+            'todays_cash_flow' => $this->todaysCashFlow($user?->id, $role['name'], $ordersScope),
         ]);
     }
 
@@ -165,6 +171,44 @@ class FinanceIndexController extends Controller
                 'actual_date' => $row->actual_date,
                 'status' => $row->status,
             ]);
+    }
+
+    /**
+     * @return array{incoming: float, outgoing: float}
+     */
+    private function todaysCashFlow(?int $userId, ?string $roleName, string $ordersScope): array
+    {
+        if (! Schema::hasTable('payment_schedules')) {
+            return [
+                'incoming' => 0.0,
+                'outgoing' => 0.0,
+            ];
+        }
+
+        $today = Carbon::now()->toDateString();
+
+        $rows = DB::table('payment_schedules')
+            ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
+            ->when(
+                $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
+                fn ($query) => $query->where('orders.manager_id', $userId),
+            )
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('orders.deleted_at'),
+            )
+            ->whereDate('payment_schedules.planned_date', $today)
+            ->selectRaw('payment_schedules.party, SUM(payment_schedules.amount) as total_amount')
+            ->groupBy('payment_schedules.party')
+            ->pluck('total_amount', 'party');
+
+        $incoming = (float) ($rows['customer'] ?? 0);
+        $outgoing = (float) ($rows['carrier'] ?? 0);
+
+        return [
+            'incoming' => $incoming,
+            'outgoing' => $outgoing,
+        ];
     }
 
     private function baseOrdersQuery(?int $userId, ?string $roleName, string $ordersScope)

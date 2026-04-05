@@ -543,16 +543,16 @@ function isSettingsChildActive(child) {
 }
 
 function handleMenuSelect(key) {
-    const routes = {
-        dashboard: '/dashboard',
-        leads: '/leads',
-        orders: '/orders',
-        'orders-create': '/orders/create',
-        contractors: '/contractors',
-        drivers: '/drivers',
-        finance: '/finance?section=documents',
-        'finance-documents': '/finance?section=documents',
-        'finance-dds': '/finance?section=dds',
+        const routes = {
+            dashboard: '/dashboard',
+            leads: '/leads',
+            orders: '/orders',
+            'orders-create': '/orders/create',
+            contractors: '/contractors',
+            drivers: '/drivers',
+            finance: '/finance',
+            'finance-documents': '/finance?section=documents',
+            'finance-dds': '/finance?section=dds',
         activities: '/activities',
         reports: '/reports',
         modules: '/modules',
