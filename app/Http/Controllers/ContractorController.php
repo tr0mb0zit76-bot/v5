@@ -8,6 +8,7 @@ use App\Models\Contractor;
 use App\Models\ContractorActivityType;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -142,15 +143,48 @@ class ContractorController extends Controller
 
         $contractorsQuery = Contractor::query();
 
+        // Add search functionality
+        $search = $request->input('search', '');
+        if ($search) {
+            $contractorsQuery->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('inn', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
         if ($hasContactsTable) {
             $contractorsQuery->withCount('contacts');
         }
 
-        $contractorsCollection = $contractorsQuery
-            ->withCount(['customerOrders', 'carrierOrders'])
-            ->orderByDesc('is_active')
-            ->orderBy('name')
-            ->get();
+        $contractorsQuery->withCount(['customerOrders', 'carrierOrders']);
+
+        // Add pagination - load 10 contractors per page
+        $perPage = 10;
+        $page = $request->input('page', 1);
+
+        try {
+            $contractorsPaginator = $contractorsQuery
+                ->orderByDesc('is_active')
+                ->orderBy('name')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            $contractorsCollection = $contractorsPaginator->getCollection();
+        } catch (QueryException $exception) {
+            if ($this->isMissingTableException($exception, 'contractor_contacts')) {
+                $contractorsPaginator = Contractor::query()
+                    ->withCount(['customerOrders', 'carrierOrders'])
+                    ->orderByDesc('is_active')
+                    ->orderBy('name')
+                    ->paginate($perPage, ['*'], 'page', $page);
+
+                $contractorsCollection = $contractorsPaginator->getCollection();
+                $hasContactsTable = false;
+            } else {
+                throw $exception;
+            }
+        }
 
         $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
 
@@ -173,6 +207,17 @@ class ContractorController extends Controller
                 'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
             ])
             ->values();
+
+        // Add pagination metadata
+        $pagination = [
+            'current_page' => $contractorsPaginator->currentPage(),
+            'last_page' => $contractorsPaginator->lastPage(),
+            'per_page' => $contractorsPaginator->perPage(),
+            'total' => $contractorsPaginator->total(),
+            'from' => $contractorsPaginator->firstItem(),
+            'to' => $contractorsPaginator->lastItem(),
+            'links' => $contractorsPaginator->linkCollection()->toArray(),
+        ];
 
         $contractorDetails = null;
 
@@ -312,6 +357,7 @@ class ContractorController extends Controller
         return Inertia::render('Contractors/Index', [
             'contractors' => $contractors,
             'selectedContractor' => $contractorDetails,
+            'pagination' => $pagination,
             'activityTypeOptions' => $this->activityTypeOptions(),
             'legalFormOptions' => [
                 ['value' => 'ooo', 'label' => 'ООО'],
@@ -627,5 +673,13 @@ class ContractorController extends Controller
         }
 
         return $ordersQuery->exists();
+    }
+
+    private function isMissingTableException(QueryException $exception, string $table): bool
+    {
+        $message = strtolower($exception->getMessage());
+        $needle = strtolower($table);
+
+        return str_contains($message, 'table') && str_contains($message, $needle);
     }
 }

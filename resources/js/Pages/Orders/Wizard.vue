@@ -199,58 +199,6 @@
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     </div>
 
-                    <div class="grid gap-4 lg:grid-cols-2">
-                        <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div>
-                                <h2 class="text-base font-semibold">Грузоотправитель</h2>
-                                <p class="text-sm text-zinc-500">Данные для заявок и печатных форм.</p>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Наименование</label>
-                                <input v-model="form.cargo_sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Адрес</label>
-                                <textarea v-model="form.cargo_sender_address" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контактное лицо</label>
-                                    <input v-model="form.cargo_sender_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Телефон</label>
-                                    <input v-model="form.cargo_sender_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div>
-                                <h2 class="text-base font-semibold">Грузополучатель</h2>
-                                <p class="text-sm text-zinc-500">Данные для заявок и печатных форм.</p>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Наименование</label>
-                                <input v-model="form.cargo_recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Адрес</label>
-                                <textarea v-model="form.cargo_recipient_address" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контактное лицо</label>
-                                    <input v-model="form.cargo_recipient_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Телефон</label>
-                                    <input v-model="form.cargo_recipient_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
                         <div class="mb-1 text-sm font-semibold">Предварительная сводка по финансам</div>
                         <p class="mb-3 text-xs text-zinc-500">Итоговые KPI, дельта и начисление пересчитываются на сервере после сохранения заказа.</p>
@@ -278,7 +226,13 @@
                             <div class="grid gap-3 md:grid-cols-4">
                                 <div class="space-y-2">
                                     <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Этап</label>
-                                    <input v-model="performer.stage" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input
+                                        type="text"
+                                        :value="stageLabel(performer.stage)"
+                                        readonly
+                                        class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                                    />
+                                    <input type="hidden" v-model="performer.stage" />
                                 </div>
                                 <div class="relative space-y-2 md:col-span-2">
                                     <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Исполнитель</label>
@@ -415,6 +369,36 @@
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Телефон</label>
                                 <input v-model="point.contact_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                        </div>
+
+                        <div v-if="point.type === 'loading'" class="grid gap-3 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Отправитель</label>
+                                <input v-model="point.sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Контакт отправителя</label>
+                                <input v-model="point.sender_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="text-sm font-medium">Телефон отправителя</label>
+                                <input v-model="point.sender_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                        </div>
+
+                        <div v-if="point.type === 'unloading'" class="grid gap-3 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Получатель</label>
+                                <input v-model="point.recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Контакт получателя</label>
+                                <input v-model="point.recipient_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="text-sm font-medium">Телефон получателя</label>
+                                <input v-model="point.recipient_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                             </div>
                         </div>
                     </div>
@@ -1005,7 +989,7 @@ function blankOrder() {
         cargo_recipient_contact: '',
         cargo_recipient_phone: '',
         performers: [
-            { stage: 'leg_1', contractor_id: null },
+            { stage: stageLabel('leg_1'), contractor_id: null },
         ],
         route_points: [
             { type: 'loading', sequence: 1, address: '', normalized_data: {}, planned_date: '', actual_date: '', contact_person: '', contact_phone: '' },
@@ -1032,7 +1016,7 @@ const form = useForm({
     ...(props.order ?? {}),
     performers: Array.isArray(props.order?.performers)
         ? props.order.performers.map((performer) => ({
-            stage: performer.stage ?? 'leg_1',
+            stage: stageLabel(performer.stage ?? 'leg_1'),
             contractor_id: performer.contractor_id ?? null,
         }))
         : blankOrder().performers,
@@ -1048,6 +1032,78 @@ const form = useForm({
         ? props.order.documents.map((document) => normalizeDocument(document))
         : [],
 });
+
+const calculatedCompensation = ref({
+    kpi_percent: 0,
+    delta: 0,
+    salary_accrued: 0,
+    deal_type: 'unknown',
+});
+
+const isCalculatingCompensation = ref(false);
+
+async function calculateCompensation() {
+    if (isCalculatingCompensation.value) {
+        return;
+    }
+
+    isCalculatingCompensation.value = true;
+
+    try {
+        const response = await fetch(route('orders.calculate-compensation'), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            body: JSON.stringify({
+                customer_rate: form.financial_term.client_price,
+                carrier_rate: form.financial_term.contractors_costs.reduce((sum, cost) => sum + Number(cost.amount || 0), 0),
+                additional_expenses: form.financial_term.additional_costs.reduce((sum, cost) => sum + Number(cost.amount || 0), 0),
+                insurance: 0, // TODO: add insurance field if needed
+                bonus: 0, // TODO: add bonus field if needed
+                manager_id: props.currentUser?.id,
+                order_date: form.order_date,
+                client_id: form.client_id,
+                carrier_id: form.performers.find(p => p.contractor_id)?.contractor_id,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Calculation failed with status ${response.status}`);
+        }
+
+        const result = await response.json();
+        calculatedCompensation.value = result;
+    } catch (error) {
+        console.error('Compensation calculation error', error);
+        calculatedCompensation.value = {
+            kpi_percent: 0,
+            delta: 0,
+            salary_accrued: 0,
+            deal_type: 'unknown',
+        };
+    } finally {
+        isCalculatingCompensation.value = false;
+    }
+}
+
+watch(
+    [
+        () => form.financial_term.client_price,
+        () => form.financial_term.contractors_costs,
+        () => form.financial_term.additional_costs,
+        () => form.order_date,
+        () => form.client_id,
+        () => form.performers,
+    ],
+    () => {
+        calculateCompensation();
+    },
+    { deep: true, immediate: false },
+);
 
 const isEditing = computed(() => props.order !== null);
 const isMobileStandalone = computed(() => {
@@ -1132,9 +1188,29 @@ function selectClient(contractor) {
 
 function addPerformer() {
     form.performers.push({
-        stage: `leg_${form.performers.length + 1}`,
+        stage: stageLabel(`leg_${form.performers.length + 1}`),
         contractor_id: null,
     });
+}
+
+function stageLabel(stage) {
+    const match = String(stage ?? '').match(/^leg_(\d+)$/);
+
+    if (match) {
+        return `Плечо ${match[1]}`;
+    }
+
+    return String(stage ?? '');
+}
+
+function toStageKey(label) {
+    const match = String(label ?? '').match(/^Плечо (\d+)$/);
+
+    if (match) {
+        return `leg_${match[1]}`;
+    }
+
+    return String(label ?? '');
 }
 
 function getContractorById(contractorId) {

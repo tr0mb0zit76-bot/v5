@@ -108,7 +108,7 @@
 
         <aside
             v-if="!showMobileAppShell"
-            class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950 lg:static lg:z-auto"
+            class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-zinc-200 bg-zinc-50 transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950"
             :class="[
                 mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
                 collapsed ? 'w-20' : 'w-64',
@@ -244,7 +244,7 @@
             </div>
         </aside>
 
-        <div v-if="!showMobileAppShell" class="flex min-h-0 min-w-0 flex-1 flex-col lg:pl-0">
+        <div v-if="!showMobileAppShell" :class="[collapsed ? 'lg:pl-20' : 'lg:pl-64', 'flex min-h-0 min-w-0 flex-1 flex-col']">
             <header class="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 lg:hidden">
                 <button
                     type="button"

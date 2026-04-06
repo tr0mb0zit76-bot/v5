@@ -1,6 +1,9 @@
 # HTTP Client Best Practices
 
+
+
 ## Always Set Explicit Timeouts
+
 
 The default timeout is 30 seconds — too long for most API calls. Always set explicit `timeout` and `connectTimeout` to fail fast.
 
@@ -29,7 +32,9 @@ Http::macro('github', function () {
 $response = Http::github()->get('/repos/laravel/framework');
 ```
 
+
 ## Use Retry with Backoff for External APIs
+
 
 External APIs have transient failures. Use `retry()` with increasing delays.
 
@@ -58,7 +63,9 @@ $response = Http::retry(3, 100, function (Exception $exception, PendingRequest $
 })->post('https://api.example.com/data');
 ```
 
+
 ## Handle Errors Explicitly
+
 
 The HTTP Client does not throw on 4xx/5xx by default. Always check status or use `throw()`.
 
@@ -93,7 +100,9 @@ if ($response->notFound()) {
 $response->throw();
 ```
 
+
 ## Use Request Pooling for Concurrent Requests
+
 
 When making multiple independent API calls, use `Http::pool()` instead of sequential calls.
 
@@ -118,7 +127,9 @@ $users = $responses['users']->json();
 $posts = $responses['posts']->json();
 ```
 
+
 ## Fake HTTP Calls in Tests
+
 
 Never make real HTTP requests in tests. Use `Http::fake()` and `preventStrayRequests()`.
 

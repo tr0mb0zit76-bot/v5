@@ -32,6 +32,10 @@ class DashboardController extends Controller
                     'direct_share_percent' => 0,
                     'period_delta' => 0,
                     'weekly_client_returns' => 0,
+                    'tasks_today' => 0,
+                    'tasks_overdue' => 0,
+                    'plan_completion_percent' => 0.0,
+                    'margin_rank' => '—',
                 ]
                 : $dashboardMetricsService->forManager($request->user()->id, $dateFrom, $dateTo),
         ]);

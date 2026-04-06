@@ -1,6 +1,9 @@
 # Configuration Best Practices
 
+
+
 ## `env()` Only in Config Files
+
 
 Direct `env()` calls return `null` when config is cached.
 
@@ -18,7 +21,9 @@ Correct:
 $key = config('services.key');
 ```
 
+
 ## Use Encrypted Env or External Secrets
+
 
 Never store production secrets in plain `.env` files in version control.
 
@@ -39,7 +44,9 @@ php artisan env:decrypt --env=production
 
 For cloud deployments, prefer the platform's native secret store (AWS Secrets Manager, Vault, etc.) and inject at runtime.
 
+
 ## Use `App::environment()` for Environment Checks
+
 
 Incorrect:
 ```php
@@ -53,7 +60,9 @@ if (app()->isProduction()) {
 if (App::environment('production')) {
 ```
 
+
 ## Use Constants and Language Files
+
 
 Use class constants instead of hardcoded magic strings for model states, types, and statuses.
 

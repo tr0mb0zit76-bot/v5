@@ -35,6 +35,9 @@ class RoleAccess
     {
         return [
             ['key' => 'dashboard', 'label' => 'Дашборд', 'description' => 'Главная панель и сводные карточки'],
+            ['key' => 'dashboard_tiles', 'label' => 'Плитки дашборда', 'description' => 'Доступ к отдельным карточкам на дашборде'],
+            ['key' => 'dashboard_widgets', 'label' => 'Виджеты дашборда', 'description' => 'Виджеты с трендами и дополнительными данными'],
+            ['key' => 'dashboard_reports', 'label' => 'Отчёты в дашборде', 'description' => 'Расширенные отчёты и списки в дашборде'],
             ['key' => 'leads', 'label' => 'Лиды', 'description' => 'Воронка до конверсии в заказ'],
             ['key' => 'orders', 'label' => 'Заказы', 'description' => 'Раздел работы с заказами'],
             ['key' => 'users', 'label' => 'Пользователи', 'description' => 'Управление пользователями'],
@@ -85,12 +88,12 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'tasks', 'kanban', 'reports', 'settings'],
-            'manager' => ['dashboard', 'leads', 'orders', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
-            'dispatcher' => ['dashboard', 'orders', 'drivers', 'activities', 'tasks', 'kanban'],
-            'accountant' => ['dashboard', 'orders', 'documents', 'tasks', 'kanban', 'reports'],
-            'clerk' => ['dashboard', 'orders', 'documents', 'contractors', 'tasks', 'kanban'],
-            'viewer' => ['dashboard', 'orders'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'tasks', 'kanban', 'reports', 'settings'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'drivers', 'activities', 'tasks', 'kanban'],
+            'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'tasks', 'kanban', 'reports'],
+            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'contractors', 'tasks', 'kanban'],
+            'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
             default => ['dashboard'],
         };
     }

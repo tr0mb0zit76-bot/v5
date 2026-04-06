@@ -34,6 +34,12 @@ class RoutePoint extends Model
         'contact_phone',
         'instructions',
         'metadata',
+        'sender_name',
+        'sender_contact',
+        'sender_phone',
+        'recipient_name',
+        'recipient_contact',
+        'recipient_phone',
     ];
 
     /**

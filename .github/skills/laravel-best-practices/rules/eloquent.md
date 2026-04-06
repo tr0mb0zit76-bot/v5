@@ -1,6 +1,9 @@
 # Eloquent Best Practices
 
+
+
 ## Use Correct Relationship Types
+
 
 Use `hasMany`, `belongsTo`, `morphMany`, etc. with proper return type hints.
 
@@ -16,7 +19,9 @@ public function author(): BelongsTo
 }
 ```
 
+
 ## Use Local Scopes for Reusable Queries
+
 
 Extract reusable query constraints into local scopes to avoid duplication.
 
@@ -40,7 +45,9 @@ $active = User::active()->get();
 $articles = Article::whereHas('user', fn ($q) => $q->active())->get();
 ```
 
+
 ## Apply Global Scopes Sparingly
+
 
 Global scopes silently modify every query on the model, making debugging difficult. Prefer local scopes and reserve global scopes for truly universal constraints like soft deletes or multi-tenancy.
 
@@ -67,7 +74,9 @@ Post::published()->paginate(); // Explicit
 Post::paginate(); // Admin sees all
 ```
 
+
 ## Define Attribute Casts
+
 
 Use the `casts()` method (or `$casts` property following project convention) for automatic type conversion.
 
@@ -82,7 +91,9 @@ protected function casts(): array
 }
 ```
 
+
 ## Cast Date Columns Properly
+
 
 Always cast date columns. Use Carbon instances in templates instead of formatting strings manually.
 
@@ -106,7 +117,9 @@ protected function casts(): array
 {{ $order->ordered_at->format('m-d') }}
 ```
 
+
 ## Use `whereBelongsTo()` for Relationship Queries
+
 
 Cleaner than manually specifying foreign keys.
 
@@ -121,7 +134,9 @@ Post::whereBelongsTo($user)->get();
 Post::whereBelongsTo($user, 'author')->get();
 ```
 
+
 ## Avoid Hardcoded Table Names in Queries
+
 
 Never use string literals for table names in raw queries, joins, or subqueries. Hardcoded table names make it impossible to find all places a model is used and break refactoring (e.g., renaming a table requires hunting through every raw string).
 

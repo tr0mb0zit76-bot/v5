@@ -113,14 +113,6 @@ class TemplateManagementTest extends TestCase
             $table->string('carrier_payment_term', 50)->nullable();
             $table->string('status', 50)->default('draft');
             $table->text('special_notes')->nullable();
-            $table->string('cargo_sender_name')->nullable();
-            $table->string('cargo_sender_address')->nullable();
-            $table->string('cargo_sender_contact')->nullable();
-            $table->string('cargo_sender_phone', 50)->nullable();
-            $table->string('cargo_recipient_name')->nullable();
-            $table->string('cargo_recipient_address')->nullable();
-            $table->string('cargo_recipient_contact')->nullable();
-            $table->string('cargo_recipient_phone', 50)->nullable();
             $table->string('invoice_number')->nullable();
             $table->string('waybill_number')->nullable();
             $table->unsignedBigInteger('customer_id')->nullable();
@@ -392,7 +384,6 @@ class TemplateManagementTest extends TestCase
             'order_date' => '2026-04-04',
             'status' => 'new',
             'customer_id' => $customerId,
-            'cargo_sender_address' => 'Самара, Складская, 7',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

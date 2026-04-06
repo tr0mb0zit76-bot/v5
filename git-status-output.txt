@@ -1,0 +1,215 @@
+﻿ M .agents/skills/laravel-best-practices/SKILL.md
+ M .agents/skills/laravel-best-practices/rules/advanced-queries.md
+ M .agents/skills/laravel-best-practices/rules/architecture.md
+ M .agents/skills/laravel-best-practices/rules/blade-views.md
+ M .agents/skills/laravel-best-practices/rules/caching.md
+ M .agents/skills/laravel-best-practices/rules/collections.md
+ M .agents/skills/laravel-best-practices/rules/config.md
+ M .agents/skills/laravel-best-practices/rules/db-performance.md
+ M .agents/skills/laravel-best-practices/rules/eloquent.md
+ M .agents/skills/laravel-best-practices/rules/error-handling.md
+ M .agents/skills/laravel-best-practices/rules/events-notifications.md
+ M .agents/skills/laravel-best-practices/rules/http-client.md
+ M .agents/skills/laravel-best-practices/rules/mail.md
+ M .agents/skills/laravel-best-practices/rules/migrations.md
+ M .agents/skills/laravel-best-practices/rules/queue-jobs.md
+ M .agents/skills/laravel-best-practices/rules/routing.md
+ M .agents/skills/laravel-best-practices/rules/scheduling.md
+ M .agents/skills/laravel-best-practices/rules/security.md
+ M .agents/skills/laravel-best-practices/rules/style.md
+ M .agents/skills/laravel-best-practices/rules/testing.md
+ M .agents/skills/laravel-best-practices/rules/validation.md
+ M .agents/skills/tailwindcss-development/SKILL.md
+ M .codex/config.toml
+ M .cursor/skills/laravel-best-practices/SKILL.md
+ M .cursor/skills/laravel-best-practices/rules/advanced-queries.md
+ M .cursor/skills/laravel-best-practices/rules/architecture.md
+ M .cursor/skills/laravel-best-practices/rules/blade-views.md
+ M .cursor/skills/laravel-best-practices/rules/caching.md
+ M .cursor/skills/laravel-best-practices/rules/collections.md
+ M .cursor/skills/laravel-best-practices/rules/config.md
+ M .cursor/skills/laravel-best-practices/rules/db-performance.md
+ M .cursor/skills/laravel-best-practices/rules/eloquent.md
+ M .cursor/skills/laravel-best-practices/rules/error-handling.md
+ M .cursor/skills/laravel-best-practices/rules/events-notifications.md
+ M .cursor/skills/laravel-best-practices/rules/http-client.md
+ M .cursor/skills/laravel-best-practices/rules/mail.md
+ M .cursor/skills/laravel-best-practices/rules/migrations.md
+ M .cursor/skills/laravel-best-practices/rules/queue-jobs.md
+ M .cursor/skills/laravel-best-practices/rules/routing.md
+ M .cursor/skills/laravel-best-practices/rules/scheduling.md
+ M .cursor/skills/laravel-best-practices/rules/security.md
+ M .cursor/skills/laravel-best-practices/rules/style.md
+ M .cursor/skills/laravel-best-practices/rules/testing.md
+ M .cursor/skills/laravel-best-practices/rules/validation.md
+ M .cursor/skills/tailwindcss-development/SKILL.md
+ M .github/skills/laravel-best-practices/SKILL.md
+ M .github/skills/laravel-best-practices/rules/advanced-queries.md
+ M .github/skills/laravel-best-practices/rules/architecture.md
+ M .github/skills/laravel-best-practices/rules/blade-views.md
+ M .github/skills/laravel-best-practices/rules/caching.md
+ M .github/skills/laravel-best-practices/rules/collections.md
+ M .github/skills/laravel-best-practices/rules/config.md
+ M .github/skills/laravel-best-practices/rules/db-performance.md
+ M .github/skills/laravel-best-practices/rules/eloquent.md
+ M .github/skills/laravel-best-practices/rules/error-handling.md
+ M .github/skills/laravel-best-practices/rules/events-notifications.md
+ M .github/skills/laravel-best-practices/rules/http-client.md
+ M .github/skills/laravel-best-practices/rules/mail.md
+ M .github/skills/laravel-best-practices/rules/migrations.md
+ M .github/skills/laravel-best-practices/rules/queue-jobs.md
+ M .github/skills/laravel-best-practices/rules/routing.md
+ M .github/skills/laravel-best-practices/rules/scheduling.md
+ M .github/skills/laravel-best-practices/rules/security.md
+ M .github/skills/laravel-best-practices/rules/style.md
+ M .github/skills/laravel-best-practices/rules/testing.md
+ M .github/skills/laravel-best-practices/rules/validation.md
+ M .github/skills/tailwindcss-development/SKILL.md
+ M AGENTS.md
+ M GEMINI.md
+ M app/Http/Controllers/ContractorController.php
+ M app/Http/Controllers/DashboardController.php
+ M app/Http/Controllers/LeadController.php
+ M app/Http/Controllers/Orders/OrderWizardController.php
+ M app/Models/Order.php
+ M app/Services/DashboardMetricsService.php
+ M app/Support/RoleAccess.php
+ M boost.json
+ M composer.json
+ M resources/js/Pages/Dashboard.vue
+ M resources/js/Pages/Kanban/Index.vue
+ M resources/js/Pages/Roles/Index.vue
+ M routes/web.php
+?? .vite/
+?? _general_block.txt
+?? app/Http/Requests/UpdateLeadStatusRequest.php
+?? app/Support/LeadStatus.php
+?? database/migrations/0001_01_01_000000_create_roles_table.php
+?? database/migrations/0001_01_01_000001_create_cache_table.php
+?? database/migrations/0001_01_01_000001_create_users_table.php
+?? database/migrations/0001_01_01_000002_create_jobs_table.php
+?? database/migrations/0001_01_01_000002_create_password_reset_tokens_table.php
+?? database/migrations/2026_03_30_115230_create_modules_table.php
+?? database/migrations/2026_03_31_112755_add_visibility_areas_to_roles_table.php
+?? database/migrations/2026_03_31_115339_create_contractor_contacts_table.php
+?? database/migrations/2026_03_31_115339_create_contractor_documents_table.php
+?? database/migrations/2026_03_31_115339_create_contractor_interactions_table.php
+?? database/migrations/2026_03_31_122655_add_is_own_company_to_contractors_table.php
+?? database/migrations/2026_04_01_120000_enhance_orders_for_wizard_module.php
+?? database/migrations/2026_04_02_070620_add_visibility_scopes_to_roles_table.php
+?? database/migrations/2026_04_02_124107_create_core_auth_tables.php
+?? database/migrations/2026_04_02_125119_add_lead_id_to_orders_table.php
+?? database/migrations/2026_04_02_125119_create_lead_activities_table.php
+?? database/migrations/2026_04_02_125119_create_lead_cargo_items_table.php
+?? database/migrations/2026_04_02_125119_create_lead_offers_table.php
+?? database/migrations/2026_04_02_125119_create_leads_table.php
+?? database/migrations/2026_04_02_125223_create_lead_route_points_table.php
+?? database/migrations/2026_04_02_131448_ensure_lead_id_on_orders_table.php
+?? database/migrations/2026_04_02_131731_add_lead_foreign_keys.php
+?? database/migrations/2026_04_03_180000_add_print_forms_workflow_foundation.php
+?? database/migrations/2026_04_03_230000_add_credit_policy_and_default_terms_to_contractors_table.php
+?? database/migrations/2026_04_04_000000_ensure_contractor_operational_schema.php
+?? database/migrations/2026_04_04_000100_ensure_order_operational_schema.php
+?? database/migrations/2026_04_04_010000_add_default_payment_schedules_to_contractors_table.php
+?? database/migrations/2026_04_04_020000_add_profile_fields_to_contractors_table.php
+?? database/migrations/2026_04_04_030000_create_contractor_activity_types_table.php
+?? database/migrations/2026_04_04_040000_extend_roles_and_print_form_templates.php
+?? database/migrations/2026_04_04_041000_add_user_signing_authority_flag.php
+?? database/migrations/2026_04_04_143300_add_signer_fields_to_contractors_table.php
+?? database/migrations/2026_04_04_143305_add_cargo_party_fields_to_orders_table.php
+?? database/migrations/create_all_tables.php
+?? database/migrations/create_logist_v5_plus_schema.php
+?? git-status-output.txt
+?? public/change/Wizard.vue
+?? "public/change/~$govor_zayavka_\320\236\320\236\320\236_\302\253\320\220\320\222\321\202\320\276\320\237\320\260\321\200\321\202\320\275\320\265\321\200_\320\237\320\276\320\262\320\276\320\273\320\266\321\214\321\217\302\273_\320\241_\320\227\320\220\320\232\320\220\320\227\320\247\320\230\320\232\320\236\320\234_3.docx"
+?? resources/js/Pages/Documents/
+---
+0fc2329 (HEAD -> master) ╨Ф╨╛╨▒╨░╨▓╨╗╨╡╨╜ ╨║╨░╨╜╨▒╨░╨╜ ╨╕ ╨╖╨░╨┤╨░╤З╨╕
+693fe60 ╨Ь╨╛╨┤╤Г╨╗╤М ╤Д╨╕╨╜╨░╨╜╤Б╨╛╨▓ ╨┐╤А╨╡╨┤╨┐╤А╨╛╨┤╨░╨║╤И╨╡╨╜
+36c084b ╨Ь╨╛╨┤╤Г╨╗╤М ╤Д╨╕╨╜╨░╨╜╤Б╨╛╨▓ ╨┐╨╛╨┤╨┐╤А╨░╨▓╨╗╨╡╨╜
+c31d975 ╨Ф╨╛╨▒╨░╨▓╨╗╨╡╨╜ ╨╝╨╛╨┤╤Г╨╗╤М ╤Д╨╕╨╜╨░╨╜╤Б╨╛╨▓
+9d80ff5 feat: add finance documents workflow
+---
+ .agents/skills/laravel-best-practices/SKILL.md     |  46 ++++
+ .../rules/advanced-queries.md                      |  17 ++
+ .../laravel-best-practices/rules/architecture.md   |  21 ++
+ .../laravel-best-practices/rules/blade-views.md    |  13 +
+ .../skills/laravel-best-practices/rules/caching.md |  15 +
+ .../laravel-best-practices/rules/collections.md    |  11 +
+ .../skills/laravel-best-practices/rules/config.md  |   9 +
+ .../laravel-best-practices/rules/db-performance.md |  17 ++
+ .../laravel-best-practices/rules/eloquent.md       |  15 +
+ .../laravel-best-practices/rules/error-handling.md |  13 +
+ .../rules/events-notifications.md                  |  17 ++
+ .../laravel-best-practices/rules/http-client.md    |  11 +
+ .../skills/laravel-best-practices/rules/mail.md    |  11 +
+ .../laravel-best-practices/rules/migrations.md     |  15 +
+ .../laravel-best-practices/rules/queue-jobs.md     |  19 ++
+ .../skills/laravel-best-practices/rules/routing.md |  11 +
+ .../laravel-best-practices/rules/scheduling.md     |  13 +
+ .../laravel-best-practices/rules/security.md       |  21 ++
+ .../skills/laravel-best-practices/rules/style.md   | Bin 4443 -> 4456 bytes
+ .../skills/laravel-best-practices/rules/testing.md |  13 +
+ .../laravel-best-practices/rules/validation.md     |  11 +
+ .agents/skills/tailwindcss-development/SKILL.md    |  21 ++
+ .codex/config.toml                                 |  10 +-
+ .cursor/skills/laravel-best-practices/SKILL.md     |  46 ++++
+ .../rules/advanced-queries.md                      |  17 ++
+ .../laravel-best-practices/rules/architecture.md   |  21 ++
+ .../laravel-best-practices/rules/blade-views.md    |  13 +
+ .../skills/laravel-best-practices/rules/caching.md |  15 +
+ .../laravel-best-practices/rules/collections.md    |  11 +
+ .../skills/laravel-best-practices/rules/config.md  |   9 +
+ .../laravel-best-practices/rules/db-performance.md |  17 ++
+ .../laravel-best-practices/rules/eloquent.md       |  15 +
+ .../laravel-best-practices/rules/error-handling.md |  13 +
+ .../rules/events-notifications.md                  |  17 ++
+ .../laravel-best-practices/rules/http-client.md    |  11 +
+ .../skills/laravel-best-practices/rules/mail.md    |  11 +
+ .../laravel-best-practices/rules/migrations.md     |  15 +
+ .../laravel-best-practices/rules/queue-jobs.md     |  19 ++
+ .../skills/laravel-best-practices/rules/routing.md |  11 +
+ .../laravel-best-practices/rules/scheduling.md     |  13 +
+ .../laravel-best-practices/rules/security.md       |  21 ++
+ .../skills/laravel-best-practices/rules/style.md   | Bin 4443 -> 4456 bytes
+ .../skills/laravel-best-practices/rules/testing.md |  13 +
+ .../laravel-best-practices/rules/validation.md     |  11 +
+ .cursor/skills/tailwindcss-development/SKILL.md    |  21 ++
+ .github/skills/laravel-best-practices/SKILL.md     |  46 ++++
+ .../rules/advanced-queries.md                      |  17 ++
+ .../laravel-best-practices/rules/architecture.md   |  21 ++
+ .../laravel-best-practices/rules/blade-views.md    |  13 +
+ .../skills/laravel-best-practices/rules/caching.md |  15 +
+ .../laravel-best-practices/rules/collections.md    |  11 +
+ .../skills/laravel-best-practices/rules/config.md  |   9 +
+ .../laravel-best-practices/rules/db-performance.md |  17 ++
+ .../laravel-best-practices/rules/eloquent.md       |  15 +
+ .../laravel-best-practices/rules/error-handling.md |  13 +
+ .../rules/events-notifications.md                  |  17 ++
+ .../laravel-best-practices/rules/http-client.md    |  11 +
+ .../skills/laravel-best-practices/rules/mail.md    |  11 +
+ .../laravel-best-practices/rules/migrations.md     |  15 +
+ .../laravel-best-practices/rules/queue-jobs.md     |  19 ++
+ .../skills/laravel-best-practices/rules/routing.md |  11 +
+ .../laravel-best-practices/rules/scheduling.md     |  13 +
+ .../laravel-best-practices/rules/security.md       |  21 ++
+ .../skills/laravel-best-practices/rules/style.md   | Bin 4443 -> 4456 bytes
+ .../skills/laravel-best-practices/rules/testing.md |  13 +
+ .../laravel-best-practices/rules/validation.md     |  11 +
+ .github/skills/tailwindcss-development/SKILL.md    |  21 ++
+ AGENTS.md                                          |  34 ++-
+ GEMINI.md                                          |  34 ++-
+ app/Http/Controllers/ContractorController.php      |  34 ++-
+ app/Http/Controllers/DashboardController.php       |   4 +
+ app/Http/Controllers/LeadController.php            |  52 +++-
+ .../Controllers/Orders/OrderWizardController.php   |  18 +-
+ app/Models/Order.php                               |   9 +
+ app/Services/DashboardMetricsService.php           |  66 ++++-
+ app/Support/RoleAccess.php                         |  15 +-
+ boost.json                                         |   9 +-
+ composer.json                                      |   5 +-
+ resources/js/Pages/Dashboard.vue                   |  30 +-
+ resources/js/Pages/Kanban/Index.vue                | 304 +++++++++++++++++----
+ resources/js/Pages/Roles/Index.vue                 | 139 +++++++++-
+ routes/web.php                                     |  10 +-
+ 82 files changed, 1657 insertions(+), 136 deletions(-)

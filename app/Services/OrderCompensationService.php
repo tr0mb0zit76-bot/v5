@@ -22,6 +22,7 @@ class OrderCompensationService
         Order $order,
         ?int $previousManagerId = null,
         ?string $previousOrderDate = null,
+        bool $dealTypeChanged = false,
     ): void {
         $targets = collect([
             [
@@ -38,6 +39,39 @@ class OrderCompensationService
 
         foreach ($targets as $target) {
             $this->recalculateManagerPeriod((int) $target['manager_id'], (string) $target['order_date']);
+        }
+
+        // If deal type changed, recalculate entire period for all managers
+        if ($dealTypeChanged) {
+            $affectedDates = collect([
+                $previousOrderDate,
+                optional($order->order_date)?->toDateString(),
+            ])->filter()->unique()->all();
+
+            foreach ($affectedDates as $date) {
+                $this->recalculatePeriodForAllManagers($date);
+            }
+        }
+    }
+
+    public function recalculatePeriodForAllManagers(string $date): void
+    {
+        $period = $this->periodCalculator->getPeriodForDate($date);
+
+        $managerIds = Order::query()
+            ->whereBetween('order_date', [$period['start'], $period['end']])
+            ->whereNotNull('manager_id')
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('deleted_at')
+            )
+            ->distinct()
+            ->pluck('manager_id')
+            ->filter()
+            ->all();
+
+        foreach ($managerIds as $managerId) {
+            $this->recalculateManagerPeriod((int) $managerId, $date);
         }
     }
 
@@ -114,8 +148,64 @@ class OrderCompensationService
             'delta' => round($delta, 2),
             'salary_accrued' => round($salaryAccrued, 2),
             'deal_type' => $dealType,
-            'period_info' => $periodStats,
         ];
+    }
+
+    /**
+     * @return array{kpi_percent: float, delta: float, salary_accrued: float, deal_type: string}
+     */
+    public function calculateRealtime(array $data): array
+    {
+        $customerRate = (float) ($data['customer_rate'] ?? 0);
+        $carrierRate = (float) ($data['carrier_rate'] ?? 0);
+        $additionalExpenses = (float) ($data['additional_expenses'] ?? 0);
+        $insurance = (float) ($data['insurance'] ?? 0);
+        $bonus = (float) ($data['bonus'] ?? 0);
+        $managerId = (int) ($data['manager_id'] ?? 0);
+        $orderDate = $data['order_date'] ?? null;
+
+        // Classify deal type based on available data
+        $dealType = $this->classifyDealTypeFromData($data);
+
+        if ($dealType === 'unknown' || $orderDate === null || $managerId === 0) {
+            return [
+                'kpi_percent' => 0.0,
+                'delta' => 0.0,
+                'salary_accrued' => 0.0,
+                'deal_type' => 'unknown',
+            ];
+        }
+
+        // Get period stats for KPI calculation
+        $period = $this->periodCalculator->getPeriodForDate($orderDate);
+        $periodStats = $this->periodCalculator->getManagerPeriodStats($managerId, $period['start'], $period['end']);
+
+        $kpiPercent = $this->resolveKpiPercent($dealType, $periodStats['direct_ratio']);
+        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
+        $delta = $customerRate - ($customerRate * ($kpiPercent / 100)) - ($carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier));
+
+        $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
+        $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
+
+        return [
+            'kpi_percent' => round($kpiPercent, 2),
+            'delta' => round($delta, 2),
+            'salary_accrued' => round($salaryAccrued, 2),
+            'deal_type' => $dealType,
+        ];
+    }
+
+    private function classifyDealTypeFromData(array $data): string
+    {
+        // Use the same logic as DealTypeClassifier but with form data
+        $customerId = $data['client_id'] ?? null;
+        $carrierId = $data['carrier_id'] ?? null;
+
+        if ($customerId === null || $carrierId === null) {
+            return 'unknown';
+        }
+
+        return $customerId === $carrierId ? 'direct' : 'indirect';
     }
 
     private function resolveKpiPercent(string $dealType, float $directRatio): float

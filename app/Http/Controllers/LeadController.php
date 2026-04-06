@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ConvertLeadRequest;
 use App\Http\Requests\StoreLeadRequest;
 use App\Http\Requests\UpdateLeadRequest;
+use App\Http\Requests\UpdateLeadStatusRequest;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
+use App\Support\LeadStatus;
 use App\Support\RoleAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -34,6 +37,17 @@ class LeadController extends Controller
 
         return Inertia::render('Leads/Index', [
             'leads' => $this->leadRows($request),
+        ]);
+    }
+
+    public function kanban(Request $request): Response
+    {
+        $disabled = ! $this->hasLeadsFeatureTables();
+
+        return Inertia::render('Kanban/Index', [
+            'leads' => $disabled ? collect() : $this->leadRows($request),
+            'statusOptions' => LeadStatus::options(),
+            'featureUnavailable' => $disabled,
         ]);
     }
 
@@ -292,17 +306,7 @@ class LeadController extends Controller
                 ->get(['id', 'name'])
                 ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
                 ->values(),
-            'statusOptions' => [
-                ['value' => 'new', 'label' => 'Новый'],
-                ['value' => 'qualification', 'label' => 'Квалификация'],
-                ['value' => 'calculation', 'label' => 'Просчёт'],
-                ['value' => 'proposal_ready', 'label' => 'КП подготовлено'],
-                ['value' => 'proposal_sent', 'label' => 'КП отправлено'],
-                ['value' => 'negotiation', 'label' => 'Переговоры'],
-                ['value' => 'won', 'label' => 'Конвертирован'],
-                ['value' => 'lost', 'label' => 'Закрыт без сделки'],
-                ['value' => 'on_hold', 'label' => 'Отложен'],
-            ],
+            'statusOptions' => LeadStatus::options(),
             'sourceOptions' => [
                 ['value' => 'inbound', 'label' => 'Входящий'],
                 ['value' => 'outbound', 'label' => 'Исходящий'],
@@ -533,5 +537,30 @@ class LeadController extends Controller
                 'status' => $order->status,
             ])->values()->all(),
         ];
+    }
+
+    public function updateStatus(UpdateLeadStatusRequest $request, Lead $lead): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        $lead->update([
+            'status' => $request->string('status')->toString(),
+            'updated_by' => $request->user()?->id,
+        ]);
+
+        $lead->activities()->create([
+            'type' => 'status_change',
+            'subject' => 'Статус лида обновлён',
+            'content' => sprintf('Переведён в статус «%s»', LeadStatus::label($lead->status)),
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return response()->json([
+            'lead' => [
+                'id' => $lead->id,
+                'status' => $lead->status,
+            ],
+        ]);
     }
 }

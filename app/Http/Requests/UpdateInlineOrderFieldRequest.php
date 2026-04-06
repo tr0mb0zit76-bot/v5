@@ -26,6 +26,7 @@ class UpdateInlineOrderFieldRequest extends FormRequest
         'customer_payment_form',
         'carrier_payment_form',
         'manual_status',
+        'order_date',
     ];
 
     public function authorize(): bool
@@ -73,6 +74,7 @@ class UpdateInlineOrderFieldRequest extends FormRequest
             'track_received_date_customer',
             'track_sent_date_carrier',
             'track_received_date_carrier',
+            'order_date',
         ], true)) {
             return blank($value) ? null : $value;
         }

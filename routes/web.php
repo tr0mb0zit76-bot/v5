@@ -55,6 +55,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders', 'store')->name('orders.store');
         Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
         Route::patch('/orders/{order}', 'update')->name('orders.update');
+        Route::post('/orders/calculate-compensation', 'calculateCompensation')->name('orders.calculate-compensation');
         Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
         Route::patch('/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
         Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
@@ -139,9 +140,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Tasks/Index');
     })->middleware('visibility.area:tasks')->name('tasks.index');
 
-    Route::get('/kanban', function () {
-        return Inertia::render('Kanban/Index');
-    })->middleware('visibility.area:kanban')->name('kanban.index');
+    Route::get('/kanban', [LeadController::class, 'kanban'])
+        ->middleware('visibility.area:kanban')
+        ->name('kanban.index');
+
+    Route::patch('/leads/{lead}/status', [LeadController::class, 'updateStatus'])
+        ->middleware('visibility.area:leads')
+        ->name('leads.status.update');
 
     Route::get('/reports', function () {
         return Inertia::render('Dashboard');

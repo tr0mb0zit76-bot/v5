@@ -1,6 +1,9 @@
 # Validation & Forms Best Practices
 
+
+
 ## Use Form Request Classes
+
 
 Extract validation from controllers into dedicated Form Request classes.
 
@@ -23,7 +26,9 @@ public function store(StorePostRequest $request)
 }
 ```
 
+
 ## Array vs. String Notation for Rules
+
 
 Array syntax is more readable and composes cleanly with `Rule::` objects. Prefer it in new code, but check existing Form Requests first and match whatever notation the project already uses.
 
@@ -35,7 +40,9 @@ Array syntax is more readable and composes cleanly with `Rule::` objects. Prefer
 'email' => 'required|email|unique:users',
 ```
 
+
 ## Always Use `validated()`
+
 
 Get only validated data. Never use `$request->all()` for mass operations.
 
@@ -49,7 +56,9 @@ Correct:
 Post::create($request->validated());
 ```
 
+
 ## Use `Rule::when()` for Conditional Validation
+
 
 ```php
 'company_name' => [
@@ -57,7 +66,9 @@ Post::create($request->validated());
 ],
 ```
 
+
 ## Use the `after()` Method for Custom Validation
+
 
 Use `after()` instead of `withValidator()` for custom validation logic that depends on multiple fields.
 

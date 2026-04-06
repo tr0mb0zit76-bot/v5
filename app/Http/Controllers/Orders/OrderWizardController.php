@@ -65,6 +65,8 @@ class OrderWizardController extends Controller
 
         $payload = $request->validatedPayload();
 
+        $previousOrderDate = $order->order_date?->toDateString();
+
         $order->forceFill([
             $payload['field'] => $payload['value'],
             'updated_by' => $request->user()?->id,
@@ -74,14 +76,20 @@ class OrderWizardController extends Controller
             $this->syncFinancialTermsFromOrderRates($order->fresh());
         }
 
+        if (in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true)) {
+            $this->syncFinancialTermsFromOrderRates($order->fresh());
+        }
+
         if (in_array($payload['field'], [
             'customer_rate',
             'carrier_rate',
             'additional_expenses',
             'customer_payment_form',
             'carrier_payment_form',
+            'order_date',
         ], true)) {
-            $orderCompensationService->recalculateImpactedPeriods($order->fresh());
+            $dealTypeChanged = in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true);
+            $orderCompensationService->recalculateImpactedPeriods($order->fresh(), null, $previousOrderDate, $dealTypeChanged);
         }
 
         return to_route('orders.index');
@@ -186,6 +194,25 @@ class OrderWizardController extends Controller
         ], 201);
     }
 
+    public function calculateCompensation(Request $request, OrderCompensationService $orderCompensationService): JsonResponse
+    {
+        $request->validate([
+            'customer_rate' => ['nullable', 'numeric', 'min:0'],
+            'carrier_rate' => ['nullable', 'numeric', 'min:0'],
+            'additional_expenses' => ['nullable', 'numeric', 'min:0'],
+            'insurance' => ['nullable', 'numeric', 'min:0'],
+            'bonus' => ['nullable', 'numeric', 'min:0'],
+            'manager_id' => ['nullable', 'integer', 'exists:users,id'],
+            'order_date' => ['nullable', 'date'],
+            'client_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'carrier_id' => ['nullable', 'integer', 'exists:contractors,id'],
+        ]);
+
+        $calculation = $orderCompensationService->calculateRealtime($request->all());
+
+        return response()->json($calculation);
+    }
+
     public function generateDocumentDraft(
         Request $request,
         Order $order,
@@ -211,25 +238,29 @@ class OrderWizardController extends Controller
         $creditService = app(ContractorCreditService::class);
         $documentRequirementService = app(OrderDocumentRequirementService::class);
 
-        $contractors = Contractor::query()
-            ->where('is_active', true)
-            ->when(
-                Schema::hasColumn('contractors', 'is_own_company'),
-                fn ($query) => $query->orderByDesc('is_own_company')
-            )
-            ->orderBy('name')
-            ->get($this->contractorSelectColumns());
+        // Оптимизация: загружаем только нужных контрагентов
+        $contractors = $this->loadRelevantContractors($order);
 
-        $debtMap = $creditService->currentDebtByContractorIds($contractors->pluck('id')->all());
+        // Оптимизация: рассчитываем долги ТОЛЬКО для контрагентов с лимитом
+        $contractorsWithLimit = $contractors
+            ->filter(fn (Contractor $contractor): bool => ($contractor->stop_on_limit ?? false) && $contractor->debt_limit !== null);
 
-        $contractors->transform(function (Contractor $contractor) use ($creditService, $debtMap): Contractor {
-            $currentDebt = $debtMap[$contractor->id] ?? 0;
+        if ($contractorsWithLimit->isNotEmpty()) {
+            $debtMap = $creditService->currentDebtByContractorIds(
+                $contractorsWithLimit->pluck('id')->all()
+            );
 
-            $contractor->setAttribute('current_debt', $currentDebt);
-            $contractor->setAttribute('debt_limit_reached', $creditService->isBlockedByDebtLimit($contractor, $currentDebt));
+            $contractors->transform(function (Contractor $contractor) use ($creditService, $debtMap): Contractor {
+                if (isset($debtMap[$contractor->id])) {
+                    $contractor->setAttribute('current_debt', $debtMap[$contractor->id]);
+                    $contractor->setAttribute('debt_limit_reached',
+                        $creditService->isBlockedByDebtLimit($contractor, $debtMap[$contractor->id])
+                    );
+                }
 
-            return $contractor;
-        });
+                return $contractor;
+            });
+        }
 
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($order),
@@ -370,14 +401,6 @@ class OrderWizardController extends Controller
             'responsible_id' => $order->manager_id,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
-            'cargo_sender_name' => $order->cargo_sender_name,
-            'cargo_sender_address' => $order->cargo_sender_address,
-            'cargo_sender_contact' => $order->cargo_sender_contact,
-            'cargo_sender_phone' => $order->cargo_sender_phone,
-            'cargo_recipient_name' => $order->cargo_recipient_name,
-            'cargo_recipient_address' => $order->cargo_recipient_address,
-            'cargo_recipient_contact' => $order->cargo_recipient_contact,
-            'cargo_recipient_phone' => $order->cargo_recipient_phone,
             'performers' => $order->performers ?? [],
             'route_points' => $primaryLeg?->routePoints->map(fn ($point): array => [
                 'id' => $point->id,
@@ -393,6 +416,12 @@ class OrderWizardController extends Controller
                 'actual_date' => optional($point->actual_date)?->toDateString(),
                 'contact_person' => $point->contact_person,
                 'contact_phone' => $point->contact_phone,
+                'sender_name' => $point->sender_name,
+                'sender_contact' => $point->sender_contact,
+                'sender_phone' => $point->sender_phone,
+                'recipient_name' => $point->recipient_name,
+                'recipient_contact' => $point->recipient_contact,
+                'recipient_phone' => $point->recipient_phone,
             ])->values()->all() ?? [],
             'cargo_items' => $cargoItems->map(fn ($cargo): array => [
                 'id' => $cargo->id,
@@ -633,6 +662,15 @@ class OrderWizardController extends Controller
                     'payment_schedule' => [],
                 ]];
             }
+        } else {
+            // Update existing contractors costs with current payment_form from order
+            $contractorsCosts = collect($contractorsCosts)
+                ->map(function (array $cost) use ($order): array {
+                    $cost['payment_form'] = $order->carrier_payment_form ?? 'no_vat';
+
+                    return $cost;
+                })
+                ->all();
         }
 
         return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
@@ -731,5 +769,81 @@ class OrderWizardController extends Controller
         $costs[0]['amount'] = max(0, (float) $carrierRate - $rest);
 
         return $costs;
+    }
+
+    /**
+     * Оптимизированная загрузка контрагентов: только нужные для текущего заказа
+     */
+    private function loadRelevantContractors(?Order $order): Collection
+    {
+        $query = Contractor::query();
+
+        // Если есть заказ, загружаем связанных контрагентов + топ активных
+        if ($order) {
+            $relatedIds = $this->getRelatedContractorIds($order);
+
+            if (! empty($relatedIds)) {
+                return $query->where(function ($q) use ($relatedIds) {
+                    // Связанные контрагенты
+                    $q->whereIn('id', $relatedIds)
+                      // Или активные (топ 100)
+                        ->orWhere('is_active', true);
+                })
+                    ->orderByRaw('FIELD(id, '.implode(',', $relatedIds).') DESC') // Связанные первые
+                    ->orderBy('name')
+                    ->limit(150) // Ограничиваем количество
+                    ->get($this->contractorSelectColumns());
+            }
+        }
+
+        // Для нового заказа или заказа без связанных контрагентов - только активные (топ 100)
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $query->where(function ($q): void {
+                $q->where('is_active', true)
+                    ->orWhere('is_own_company', true);
+            })->orderByDesc('is_own_company');
+        } else {
+            $query->where('is_active', true);
+        }
+
+        return $query->orderBy('name')
+            ->limit(100)
+            ->get($this->contractorSelectColumns());
+    }
+
+    /**
+     * Получить ID контрагентов, связанных с заказом
+     */
+    private function getRelatedContractorIds(Order $order): array
+    {
+        $ids = [];
+
+        if ($order->customer_id) {
+            $ids[] = $order->customer_id;
+        }
+        if ($order->carrier_id) {
+            $ids[] = $order->carrier_id;
+        }
+        if ($order->own_company_id) {
+            $ids[] = $order->own_company_id;
+        }
+
+        // Также можно добавить контрагентов из финансовых условий
+        if (Schema::hasTable('financial_terms')) {
+            $financialTerm = $order->financialTerms->first();
+            if ($financialTerm && $financialTerm->contractors_costs) {
+                $costs = is_array($financialTerm->contractors_costs)
+                    ? $financialTerm->contractors_costs
+                    : json_decode($financialTerm->contractors_costs, true) ?? [];
+
+                foreach ($costs as $cost) {
+                    if (! empty($cost['contractor_id'])) {
+                        $ids[] = $cost['contractor_id'];
+                    }
+                }
+            }
+        }
+
+        return array_unique(array_filter($ids));
     }
 }

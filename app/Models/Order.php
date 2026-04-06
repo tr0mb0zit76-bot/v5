@@ -76,14 +76,6 @@ class Order extends Model
         'carrier_contact_name',
         'carrier_contact_phone',
         'carrier_contact_email',
-        'cargo_sender_name',
-        'cargo_sender_address',
-        'cargo_sender_contact',
-        'cargo_sender_phone',
-        'cargo_recipient_name',
-        'cargo_recipient_address',
-        'cargo_recipient_contact',
-        'cargo_recipient_phone',
         'created_by',
         'updated_by',
         'metadata',
@@ -92,6 +84,15 @@ class Order extends Model
         'payment_terms',
         'special_notes',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $order): void {
+            if ($order->salary_accrued === null) {
+                $order->salary_accrued = 0;
+            }
+        });
+    }
 
     /**
      * @return array<string, string>

@@ -671,6 +671,11 @@ class LeadManagementTest extends TestCase
 
         $response = $this->actingAs($manager)->post(route('leads.convert', $lead));
 
+        // Debug: check response status and content
+        if ($response->status() !== 302) {
+            dd($response->status(), $response->getContent());
+        }
+
         $orderId = DB::table('orders')->where('lead_id', $lead->id)->value('id');
 
         $this->assertNotNull($orderId);

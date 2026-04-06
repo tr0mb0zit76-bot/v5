@@ -1,6 +1,9 @@
 # Architecture Best Practices
 
+
+
 ## Single-Purpose Action Classes
+
 
 Extract discrete business operations into invokable Action classes.
 
@@ -19,7 +22,9 @@ class CreateOrderAction
 }
 ```
 
+
 ## Use Dependency Injection
+
 
 Always use constructor injection. Avoid `app()` or `resolve()` inside classes.
 
@@ -49,7 +54,9 @@ class OrderController extends Controller
 }
 ```
 
+
 ## Code to Interfaces
+
 
 Depend on contracts at system boundaries (payment gateways, notification channels, external APIs) for testability and swappability.
 
@@ -80,7 +87,9 @@ Bind in a service provider:
 $this->app->bind(PaymentGateway::class, StripeGateway::class);
 ```
 
+
 ## Default Sort by Descending
+
 
 When no explicit order is specified, sort by `id` or `created_at` descending. Explicit ordering prevents cross-database inconsistencies between MySQL and Postgres.
 
@@ -94,7 +103,9 @@ Correct:
 $posts = Post::latest()->paginate();
 ```
 
+
 ## Use Atomic Locks for Race Conditions
+
 
 Prevent race conditions with `Cache::lock()` or `lockForUpdate()`.
 
@@ -107,7 +118,9 @@ Cache::lock('order-processing-'.$order->id, 10)->block(5, function () use ($orde
 $product = Product::where('id', $id)->lockForUpdate()->first();
 ```
 
+
 ## Use `mb_*` String Functions
+
 
 When no Laravel helper exists, prefer `mb_strlen`, `mb_strtolower`, etc. for UTF-8 safety. Standard PHP string functions count bytes, not characters.
 
@@ -127,7 +140,9 @@ Str::length('José');          // 4
 Str::lower('MÜNCHEN');        // 'münchen'
 ```
 
+
 ## Use `defer()` for Post-Response Work
+
 
 For lightweight tasks that don't need to survive a crash (logging, analytics, cleanup), use `defer()` instead of dispatching a job. The callback runs after the HTTP response is sent — no queue overhead.
 
@@ -143,7 +158,9 @@ defer(fn () => PageView::create(['page_id' => $page->id, 'user_id' => auth()->id
 
 Use jobs when the work must survive process crashes or needs retry logic. Use `defer()` for fire-and-forget work.
 
+
 ## Use `Context` for Request-Scoped Data
+
 
 The `Context` facade passes data through the entire request lifecycle — middleware, controllers, jobs, logs — without passing arguments manually.
 
@@ -157,7 +174,9 @@ $tenantId = Context::get('tenant_id');
 
 Context data automatically propagates to queued jobs and is included in log entries. Use `Context::addHidden()` for sensitive data that should be available in queued jobs but excluded from log context. If data must not leave the current process, do not store it in `Context`.
 
+
 ## Use `Concurrency::run()` for Parallel Execution
+
 
 Run independent operations in parallel using child processes — no async libraries needed.
 
@@ -172,7 +191,9 @@ use Illuminate\Support\Facades\Concurrency;
 
 Each closure runs in a separate process with full Laravel access. Use for independent database queries, API calls, or computations that would otherwise run sequentially.
 
+
 ## Convention Over Configuration
+
 
 Follow Laravel conventions. Don't override defaults unnecessarily.
 

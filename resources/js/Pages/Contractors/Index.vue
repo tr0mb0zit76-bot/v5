@@ -35,6 +35,18 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    pagination: {
+        type: Object,
+        default: () => ({
+            current_page: 1,
+            last_page: 1,
+            per_page: 50,
+            total: 0,
+            from: 0,
+            to: 0,
+            links: [],
+        }),
+    },
 });
 
 const page = usePage();
@@ -384,18 +396,20 @@ watch(() => props.activityTypeOptions, (options) => {
 const isCreating = computed(() => page.url.endsWith('/contractors/create'));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
 
-const filteredContractors = computed(() => {
-    const query = search.value.trim().toLowerCase();
+// Server-side search will be handled by the backend
+// The filtered contractors are already in props.contractors
 
-    if (query === '') {
-        return props.contractors;
-    }
-
-    return props.contractors.filter((contractor) => {
-        return [contractor.name, contractor.inn, contractor.phone, contractor.email]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(query));
-    });
+// Watch for search input changes and trigger server request
+let searchTimer = null;
+watch(() => search.value, (newSearch) => {
+    clearTimeout(searchTimer);
+    
+    searchTimer = setTimeout(() => {
+        router.get(route('contractors.index', { 
+            search: newSearch.trim(),
+            page: 1 // Reset to first page when searching
+        }), {}, { preserveScroll: true });
+    }, 500); // Debounce 500ms
 });
 
 const isMobileStandalone = computed(() => {
@@ -644,6 +658,14 @@ watch(() => form.inn, (inn) => {
         fetchPartySuggestions();
     }, 500);
 });
+
+function goToPage(pageNumber) {
+    if (pageNumber < 1 || pageNumber > props.pagination.last_page) {
+        return;
+    }
+    
+    router.get(route('contractors.index', { page: pageNumber }), {}, { preserveScroll: true });
+}
 </script>
 
 <template>
@@ -723,14 +745,14 @@ watch(() => form.inn, (inn) => {
             </div>
 
             <div class="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                <span>Найдено: {{ filteredContractors.length }}</span>
+                <span>Найдено: {{ pagination.total }}</span>
                 <span>Всего: {{ contractors.length }}</span>
             </div>
         </section>
 
         <section class="space-y-3">
             <button
-                v-for="contractor in filteredContractors"
+                v-for="contractor in contractors"
                 :key="contractor.id"
                 type="button"
                 class="w-full rounded-[24px] border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
@@ -777,7 +799,7 @@ watch(() => form.inn, (inn) => {
             </button>
 
             <div
-                v-if="filteredContractors.length === 0"
+                v-if="contractors.length === 0"
                 class="rounded-[24px] border border-dashed border-zinc-300 bg-white px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
             >
                 По текущему запросу контрагенты не найдены.
@@ -819,12 +841,40 @@ watch(() => form.inn, (inn) => {
                 </div>
 
                 <div class="border-b border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                    Всего контрагентов: {{ contractors.length }}
+                    <div class="flex items-center justify-between">
+                        <div>
+                            Всего контрагентов: {{ pagination.total }}
+                            <span v-if="pagination.total > pagination.per_page" class="ml-2">
+                                (показано {{ pagination.from }}-{{ pagination.to }})
+                            </span>
+                        </div>
+                        <div v-if="pagination.last_page > 1" class="flex items-center gap-1">
+                            <button
+                                type="button"
+                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-zinc-300 bg-white text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                :disabled="pagination.current_page === 1"
+                                @click="goToPage(pagination.current_page - 1)"
+                            >
+                                ←
+                            </button>
+                            <span class="px-2 text-xs">
+                                {{ pagination.current_page }} / {{ pagination.last_page }}
+                            </span>
+                            <button
+                                type="button"
+                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-zinc-300 bg-white text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                                :disabled="pagination.current_page === pagination.last_page"
+                                @click="goToPage(pagination.current_page + 1)"
+                            >
+                                →
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain" scroll-region>
                     <button
-                        v-for="contractor in filteredContractors"
+                        v-for="contractor in contractors"
                         :key="contractor.id"
                         type="button"
                         class="flex w-full flex-col gap-1 border-b border-zinc-100 px-3 py-3 text-left transition-colors dark:border-zinc-800"
@@ -860,7 +910,7 @@ watch(() => form.inn, (inn) => {
                         </div>
                     </button>
 
-                    <div v-if="filteredContractors.length === 0" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                    <div v-if="contractors.length === 0" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
                         Контрагенты не найдены.
                     </div>
                 </div>

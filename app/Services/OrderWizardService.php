@@ -56,6 +56,9 @@ class OrderWizardService
             $previousStatus = $order->status;
             $previousOrderDate = optional($order->order_date)?->toDateString();
             $previousManagerId = $order->manager_id;
+
+            // Check if deal type changed
+            $oldDealType = $this->orderCompensationService->calculateOrder($order)['deal_type'];
             $ownCompany = $this->resolveOwnCompany($validated);
             $generatedNumber = blank($validated['order_number'] ?? null)
                 ? $this->orderNumberGenerator->generate($ownCompany)
@@ -64,10 +67,15 @@ class OrderWizardService
             $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false));
 
             $this->syncNestedData($order, $validated, $user);
-            $this->orderCompensationService->recalculateImpactedPeriods($order->fresh(), $previousManagerId, $previousOrderDate);
-            $this->syncDerivedStatus($order, $validated, $user, $previousStatus);
 
-            return $order->load($this->relationsForOrderReload());
+            $updatedOrder = $order->fresh();
+            $newDealType = $this->orderCompensationService->calculateOrder($updatedOrder)['deal_type'];
+            $dealTypeChanged = $oldDealType !== $newDealType && $oldDealType !== 'unknown' && $newDealType !== 'unknown';
+
+            $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate, $dealTypeChanged);
+            $this->syncDerivedStatus($updatedOrder, $validated, $user, $previousStatus);
+
+            return $updatedOrder->load($this->relationsForOrderReload());
         });
     }
 
@@ -94,6 +102,21 @@ class OrderWizardService
         $carrierPaymentForm = $this->resolveCarrierPaymentForm($contractorCosts);
         $carrierPaymentSummary = $this->resolveCarrierPaymentTerm($contractorCosts);
 
+        // Нормализуем contractor_id в массиве performers (преобразуем строку в integer)
+        $normalizedPerformers = collect($performers)
+            ->map(function (array $performer): array {
+                if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
+                    $performer['contractor_id'] = (int) $performer['contractor_id'];
+                }
+
+                return $performer;
+            })
+            ->all();
+
+        // Преобразуем contractor_id из строки в integer для carrier_id
+        $carrierId = collect($normalizedPerformers)->pluck('contractor_id')->filter()->first();
+        $carrierId = $carrierId !== null ? (int) $carrierId : null;
+
         $attributes = [
             'order_number' => $numberData['order_number'],
             'company_code' => $numberData['company_code'],
@@ -103,20 +126,12 @@ class OrderWizardService
             'unloading_date' => $lastUnloadingDate,
             'customer_id' => $validated['client_id'],
             'own_company_id' => $validated['own_company_id'] ?? null,
-            'carrier_id' => collect($performers)->pluck('contractor_id')->filter()->first(),
+            'carrier_id' => $carrierId,
             'customer_rate' => $clientPrice ?: null,
             'customer_payment_form' => Arr::get($financialTerm, 'client_payment_form'),
             'customer_payment_term' => $clientPaymentSummary,
             'payment_terms' => $this->encodePaymentTermsPayload($financialTerm),
             'special_notes' => $validated['special_notes'] ?? null,
-            'cargo_sender_name' => $validated['cargo_sender_name'] ?? null,
-            'cargo_sender_address' => $validated['cargo_sender_address'] ?? null,
-            'cargo_sender_contact' => $validated['cargo_sender_contact'] ?? null,
-            'cargo_sender_phone' => $validated['cargo_sender_phone'] ?? null,
-            'cargo_recipient_name' => $validated['cargo_recipient_name'] ?? null,
-            'cargo_recipient_address' => $validated['cargo_recipient_address'] ?? null,
-            'cargo_recipient_contact' => $validated['cargo_recipient_contact'] ?? null,
-            'cargo_recipient_phone' => $validated['cargo_recipient_phone'] ?? null,
             'carrier_rate' => $performerTotal ?: null,
             'carrier_payment_form' => $carrierPaymentForm,
             'carrier_payment_term' => $carrierPaymentSummary,
@@ -129,7 +144,7 @@ class OrderWizardService
             'status_updated_by' => $user->id,
             'status_updated_at' => now(),
             'is_active' => true,
-            'performers' => $performers,
+            'performers' => $normalizedPerformers,
             'updated_by' => $user->id,
             ...($isCreating ? ['created_by' => $user->id] : []),
         ];
@@ -143,7 +158,20 @@ class OrderWizardService
     private function syncNestedData(Order $order, array $validated, User $user): void
     {
         $order->loadMissing($this->relationsForNestedSync());
-        $legs = $this->syncLegs($order, $validated['performers'] ?? []);
+
+        // Нормализуем performers для передачи в syncLegs
+        $performers = collect($validated['performers'] ?? [])->values()->all();
+        $normalizedPerformers = collect($performers)
+            ->map(function (array $performer): array {
+                if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
+                    $performer['contractor_id'] = (int) $performer['contractor_id'];
+                }
+
+                return $performer;
+            })
+            ->all();
+
+        $legs = $this->syncLegs($order, $normalizedPerformers);
         $primaryLeg = $legs->first();
 
         $this->deleteExistingCargoItems($order);
@@ -174,6 +202,12 @@ class OrderWizardService
                 'actual_date' => $routePoint['actual_date'] ?? null,
                 'contact_person' => $routePoint['contact_person'] ?? null,
                 'contact_phone' => $routePoint['contact_phone'] ?? null,
+                'sender_name' => $routePoint['sender_name'] ?? null,
+                'sender_contact' => $routePoint['sender_contact'] ?? null,
+                'sender_phone' => $routePoint['sender_phone'] ?? null,
+                'recipient_name' => $routePoint['recipient_name'] ?? null,
+                'recipient_contact' => $routePoint['recipient_contact'] ?? null,
+                'recipient_phone' => $routePoint['recipient_phone'] ?? null,
             ];
 
             if (Schema::hasColumn('route_points', 'address')) {
@@ -279,7 +313,19 @@ class OrderWizardService
             $financialTerm = $validated['financial_term'];
             $contractorsCosts = Arr::get($financialTerm, 'contractors_costs', []);
             $additionalCosts = Arr::get($financialTerm, 'additional_costs', []);
-            $totalCost = collect($contractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0))
+
+            // Нормализуем contractor_id в contractors_costs
+            $normalizedContractorsCosts = collect($contractorsCosts)
+                ->map(function (array $cost): array {
+                    if (isset($cost['contractor_id']) && $cost['contractor_id'] !== null) {
+                        $cost['contractor_id'] = (int) $cost['contractor_id'];
+                    }
+
+                    return $cost;
+                })
+                ->all();
+
+            $totalCost = collect($normalizedContractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0))
                 + collect($additionalCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
             $margin = (float) Arr::get($financialTerm, 'client_price', 0) * (1 - ((float) Arr::get($financialTerm, 'kpi_percent', 0) / 100)) - $totalCost;
 
@@ -287,7 +333,7 @@ class OrderWizardService
                 'order_id' => $order->id,
                 'client_price' => Arr::get($financialTerm, 'client_price'),
                 'client_currency' => Arr::get($financialTerm, 'client_currency', 'RUB'),
-                'contractors_costs' => $contractorsCosts,
+                'contractors_costs' => $normalizedContractorsCosts,
                 'total_cost' => $totalCost,
                 'margin' => $margin,
                 'additional_costs' => $additionalCosts,
@@ -436,7 +482,7 @@ class OrderWizardService
             'carriers' => collect(Arr::get($financialTerm, 'contractors_costs', []))
                 ->map(fn (array $cost): array => [
                     'stage' => $cost['stage'] ?? null,
-                    'contractor_id' => $cost['contractor_id'] ?? null,
+                    'contractor_id' => $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
                     'payment_form' => $cost['payment_form'] ?? null,
                     'payment_schedule' => $cost['payment_schedule'] ?? [],
                 ])

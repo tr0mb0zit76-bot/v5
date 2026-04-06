@@ -108,30 +108,46 @@
             </section>
 
             <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <article class="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Сделок за период</div>
                     <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.total_orders }}</div>
                 </article>
 
-                <article class="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Прямых сделок</div>
                     <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.direct_orders }}</div>
                 </article>
 
-                <article class="rounded-[28px] border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                <article class="rounded-none border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
                     <div class="text-sm text-emerald-700 dark:text-emerald-300">Доля прямых сделок</div>
                     <div class="mt-3 text-3xl font-semibold text-emerald-900 dark:text-emerald-100">{{ formatPercent(metrics.direct_share_percent) }}</div>
                 </article>
 
-                <article class="rounded-[28px] border border-sky-200 bg-sky-50/70 p-5 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/20">
+                <article class="rounded-none border border-sky-200 bg-sky-50/70 p-5 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/20">
                     <div class="text-sm text-sky-700 dark:text-sky-300">Дельта за период</div>
                     <div class="mt-3 text-3xl font-semibold text-sky-900 dark:text-sky-100">{{ formatCurrency(metrics.period_delta) }}</div>
                 </article>
 
-                <article class="rounded-[28px] border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
-                    <div class="text-sm text-rose-700 dark:text-rose-300">Сколько вернуть от клиентов (эта неделя)</div>
+                <article class="rounded-none border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
+                    <div class="text-sm text-rose-700 dark:text-rose-300">На этой неделе необходимо проконтроллировать возврат</div>
+                    <div class="mt-2 text-sm text-rose-600 dark:text-rose-300">от клиентов</div>
                     <div class="mt-3 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
-                    <div class="mt-2 text-xs text-rose-600 dark:text-rose-300">Сумма заказов, чья дата документа клиента или дата заказа попадает в текущую неделю.</div>
+                </article>
+
+                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="text-sm text-zinc-500 dark:text-zinc-400">Задач на сегодня</div>
+                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.tasks_today }}</div>
+                    <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">в том числе просроченных {{ metrics.tasks_overdue }}</div>
+                </article>
+
+                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="text-sm text-zinc-500 dark:text-zinc-400">План выполнен на</div>
+                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ formatPercent(metrics.plan_completion_percent) }}</div>
+                </article>
+
+                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="text-sm text-zinc-500 dark:text-zinc-400">Ты на месте по марже</div>
+                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.margin_rank }}</div>
                 </article>
             </section>
         </div>
