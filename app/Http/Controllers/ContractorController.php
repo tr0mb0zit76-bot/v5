@@ -132,6 +132,71 @@ class ContractorController extends Controller
         ], 201);
     }
 
+    public function search(Request $request): JsonResponse
+    {
+        $request->validate([
+            'q' => ['nullable', 'string', 'max:255'],
+            'type' => ['nullable', 'string', 'in:customer,carrier,both'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $query = $request->get('q', '');
+        $type = $request->get('type', 'customer');
+        $limit = $request->get('limit', 50);
+
+        $contractorsQuery = Contractor::query();
+
+        // Apply type filter
+        if ($type === 'customer') {
+            $contractorsQuery->where('type', 'customer');
+        } elseif ($type === 'carrier') {
+            $contractorsQuery->where('type', 'carrier');
+        } elseif ($type === 'both') {
+            $contractorsQuery->whereIn('type', ['customer', 'both']);
+        }
+
+        // Apply search query
+        if ($query !== '') {
+            $contractorsQuery->where(function ($q) use ($query) {
+                $q->where('name', 'like', "%{$query}%")
+                    ->orWhere('inn', 'like', "%{$query}%")
+                    ->orWhere('phone', 'like', "%{$query}%")
+                    ->orWhere('email', 'like', "%{$query}%");
+            });
+        }
+
+        // Get contractors with basic info
+        $contractors = $contractorsQuery
+            ->orderBy('name')
+            ->limit($limit)
+            ->get()
+            ->map(fn (Contractor $contractor): array => [
+                'id' => $contractor->id,
+                'name' => $contractor->name,
+                'type' => $contractor->type,
+                'inn' => $contractor->inn,
+                'phone' => $contractor->phone,
+                'email' => $contractor->email,
+                'is_active' => $contractor->is_active,
+                'is_own_company' => $contractor->is_own_company ?? false,
+                'debt_limit' => $contractor->debt_limit,
+                'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
+                'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
+                'default_customer_payment_form' => $contractor->default_customer_payment_form,
+                'default_customer_payment_schedule' => $contractor->default_customer_payment_schedule,
+                'default_customer_payment_term' => $contractor->default_customer_payment_term,
+                'default_carrier_payment_form' => $contractor->default_carrier_payment_form,
+                'default_carrier_payment_schedule' => $contractor->default_carrier_payment_schedule,
+                'default_carrier_payment_term' => $contractor->default_carrier_payment_term,
+                'cooperation_terms_notes' => $contractor->cooperation_terms_notes,
+            ]);
+
+        return response()->json([
+            'contractors' => $contractors,
+            'count' => $contractors->count(),
+        ]);
+    }
+
     private function renderPage(Request $request, ?Contractor $selectedContractor = null): Response
     {
         /** @var ContractorCreditService $creditService */

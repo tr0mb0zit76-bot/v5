@@ -121,6 +121,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
         Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
         Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
+        Route::get('/contractors-search', 'search')->name('contractors.search');
     });
 
     Route::get('/drivers', function () {
