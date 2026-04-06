@@ -194,6 +194,27 @@
                         </div>
                     </div>
 
+                    <div v-if="form.performers.length > 1" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div>
+                            <h2 class="text-base font-semibold">Клиентская заявка</h2>
+                            <p class="text-sm text-zinc-500">Выбери, оформляем ли весь маршрут одной заявкой или разбиваем по плечам.</p>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <label
+                                v-for="option in clientRequestModeOptions"
+                                :key="option.value"
+                                class="flex cursor-pointer gap-3 rounded-2xl border border-zinc-200 p-4 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/70"
+                                :class="form.financial_term.client_request_mode === option.value ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-200 dark:bg-zinc-800/70' : ''"
+                            >
+                                <input v-model="form.financial_term.client_request_mode" type="radio" :value="option.value" class="mt-1 rounded border-zinc-300" />
+                                <span class="space-y-1">
+                                    <span class="block text-sm font-medium">{{ option.label }}</span>
+                                    <span class="block text-xs text-zinc-500">{{ option.description }}</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Особые отметки</label>
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
@@ -261,7 +282,7 @@
                                     </div>
                                 </div>
                                 <div class="flex items-end justify-end">
-                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.performers, index)">
+                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removePerformer(index)">
                                         Удалить
                                     </button>
                                 </div>
@@ -311,8 +332,11 @@
                         @dragend="handleRoutePointDragEnd"
                     >
                         <div class="flex items-center justify-between">
-                            <div class="text-sm font-medium">
-                                {{ routePointTitle(point, index) }}
+                            <div>
+                                <div class="text-xs uppercase tracking-wide text-zinc-500">{{ stageLabel(point.stage) }}</div>
+                                <div class="text-sm font-medium">
+                                    {{ routePointTitle(point, index) }}
+                                </div>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500" title="Перетащить этап">
@@ -325,6 +349,14 @@
                         </div>
 
                         <div class="grid gap-3 md:grid-cols-2">
+                            <div v-if="form.performers.length > 1" class="space-y-2">
+                                <label class="text-sm font-medium">Плечо</label>
+                                <select v-model="point.stage" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">
+                                        {{ stageLabel(performer.stage) }}
+                                    </option>
+                                </select>
+                            </div>
                             <div class="space-y-2 md:col-span-2">
                                 <label class="text-sm font-medium">Адрес</label>
                                 <div class="relative">
@@ -494,10 +526,18 @@
                 </div>
             </div>
 
-            <div v-else-if="activeTab === 'finance'" class="space-y-4">
-                <div class="grid gap-4 lg:grid-cols-2">
+            <div v-else-if="activeTab === 'finance'" class="space-y-6">
+                <div class="space-y-6">
                     <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <h2 class="text-base font-semibold">Оплата клиентом</h2>
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 class="text-base font-semibold">Оплата клиентом</h2>
+                                <p class="text-xs text-zinc-500">Условия клиента задаются первым блоком, остальные расходы идут ниже по маршруту.</p>
+                            </div>
+                            <div v-if="form.performers.length > 1" class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-right text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                                {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Маршрут разбивается на несколько клиентских заявок' : 'Маршрут оформляется одной клиентской заявкой' }}
+                            </div>
+                        </div>
                         <div class="grid gap-3 md:grid-cols-3">
                             <div class="space-y-2 md:col-span-2">
                                 <label class="text-sm font-medium">Цена клиента</label>
@@ -570,10 +610,10 @@
                     </div>
 
                     <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-center justify-between gap-3">
                             <div>
                                 <h2 class="text-base font-semibold">Затраты по исполнителям</h2>
-                                <p class="text-xs text-zinc-500">Здесь задаются стоимость, форма оплаты и условия оплаты перевозчика по каждому этапу.</p>
+                                <p class="text-xs text-zinc-500">Каждое плечо идет отдельной карточкой, чтобы структура не ломалась при нескольких этапах.</p>
                             </div>
                             <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
                                 Подтянуть из этапов
@@ -582,8 +622,16 @@
 
                     <div class="space-y-3">
                         <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <div class="text-sm font-semibold">{{ stageLabel(cost.stage) }}</div>
+                                    <p class="text-xs text-zinc-500">Перевозчик и условия оплаты для этого плеча.</p>
+                                </div>
+                            </div>
                             <div class="grid gap-3 md:grid-cols-4">
-                            <input v-model="cost.stage" type="text" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Этап" />
+                            <select v-model="cost.stage" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
+                            </select>
                             <input
                                 :value="carrierSearchValue('cost', index)"
                                 type="text"
@@ -893,6 +941,10 @@ const paymentFormOptions = [
     { value: 'no_vat', label: 'Без НДС' },
     { value: 'cash', label: 'Нал' },
 ];
+const clientRequestModeOptions = [
+    { value: 'single_request', label: 'Одна заявка', description: 'Все плечи включаются в одну клиентскую заявку.' },
+    { value: 'split_by_leg', label: 'Разбить по плечам', description: 'Для каждого плеча оформляется отдельная клиентская заявка.' },
+];
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
     { value: 'ottn', label: 'ОТТН' },
@@ -987,6 +1039,26 @@ function normalizeContractorCost(cost = {}) {
     };
 }
 
+function blankRoutePoint(type, sequence, stage) {
+    return {
+        stage,
+        type,
+        sequence,
+        address: '',
+        normalized_data: {},
+        planned_date: '',
+        actual_date: '',
+        contact_person: '',
+        contact_phone: '',
+        sender_name: '',
+        sender_contact: '',
+        sender_phone: '',
+        recipient_name: '',
+        recipient_contact: '',
+        recipient_phone: '',
+    };
+}
+
 function blankOrder() {
     return {
         status: 'new',
@@ -1008,8 +1080,8 @@ function blankOrder() {
             { stage: stageLabel('leg_1'), contractor_id: null },
         ],
         route_points: [
-            { type: 'loading', sequence: 1, address: '', normalized_data: {}, planned_date: '', actual_date: '', contact_person: '', contact_phone: '' },
-            { type: 'unloading', sequence: 2, address: '', normalized_data: {}, planned_date: '', actual_date: '', contact_person: '', contact_phone: '' },
+            blankRoutePoint('loading', 1, stageLabel('leg_1')),
+            blankRoutePoint('unloading', 2, stageLabel('leg_1')),
         ],
         cargo_items: [
             { name: '', description: '', weight_kg: null, volume_m3: null, package_type: null, package_count: null, dangerous_goods: false, dangerous_class: '', hs_code: '', cargo_type: 'general' },
@@ -1018,6 +1090,7 @@ function blankOrder() {
             client_price: null,
             client_currency: 'RUB',
             client_payment_form: 'vat',
+            client_request_mode: 'single_request',
             client_payment_schedule: blankPaymentSchedule(),
             contractors_costs: [],
             additional_costs: [],
@@ -1036,6 +1109,14 @@ const form = useForm({
             contractor_id: performer.contractor_id ?? null,
         }))
         : blankOrder().performers,
+    route_points: Array.isArray(props.order?.route_points)
+        ? props.order.route_points.map((point, index) => ({
+            ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), stageLabel(point.stage ?? 'leg_1')),
+            ...point,
+            stage: stageLabel(point.stage ?? 'leg_1'),
+            sequence: Number(point.sequence ?? (index + 1)),
+        }))
+        : blankOrder().route_points,
     financial_term: {
         ...blankOrder().financial_term,
         ...(props.order?.financial_term ?? {}),
@@ -1208,10 +1289,26 @@ function selectClient(contractor) {
 }
 
 function addPerformer() {
+    const stage = stageLabel(`leg_${form.performers.length + 1}`);
+
     form.performers.push({
-        stage: stageLabel(`leg_${form.performers.length + 1}`),
+        stage,
         contractor_id: null,
     });
+    syncRoutePointsFromPerformers();
+}
+
+function removePerformer(index) {
+    const performer = form.performers[index];
+
+    if (!performer) {
+        return;
+    }
+
+    form.performers.splice(index, 1);
+    form.route_points = form.route_points.filter((point) => !stageMatches(point.stage, performer.stage));
+    normalizeRoutePointSequences();
+    syncContractorCostsFromPerformers();
 }
 
 function stageLabel(stage) {
@@ -1232,6 +1329,10 @@ function toStageKey(label) {
     }
 
     return String(label ?? '');
+}
+
+function stageMatches(left, right) {
+    return toStageKey(left) === toStageKey(right);
 }
 
 function getContractorById(contractorId) {
@@ -1494,20 +1595,58 @@ const missingRequiredDocumentsSummary = computed(() => {
 });
 
 function addRoutePoint(type) {
-    form.route_points.push({
+    form.route_points.push(blankRoutePoint(
         type,
-        sequence: form.route_points.length + 1,
-        address: '',
-        normalized_data: {},
-        planned_date: '',
-        actual_date: '',
-        contact_person: '',
-        contact_phone: '',
-    });
+        form.route_points.length + 1,
+        form.performers[0]?.stage ?? stageLabel('leg_1'),
+    ));
 }
 
 function normalizeRoutePointSequences() {
     form.route_points = form.route_points.map((point, index) => ({
+        ...point,
+        sequence: index + 1,
+    }));
+}
+
+function syncRoutePointsFromPerformers() {
+    const performerStages = form.performers.map((performer) => performer.stage);
+
+    if (performerStages.length === 0) {
+        form.route_points = [];
+
+        return;
+    }
+
+    const existingPoints = Array.isArray(form.route_points)
+        ? form.route_points.map((point, index) => ({
+            ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), point.stage ?? performerStages[0]),
+            ...point,
+            stage: point.stage ?? performerStages[0],
+        }))
+        : [];
+
+    const nextPoints = [];
+
+    performerStages.forEach((stage) => {
+        const stagePoints = existingPoints.filter((point) => stageMatches(point.stage, stage));
+        const normalizedStagePoints = stagePoints.map((point) => ({
+            ...point,
+            stage,
+        }));
+
+        if (!normalizedStagePoints.some((point) => point.type === 'loading')) {
+            normalizedStagePoints.unshift(blankRoutePoint('loading', 0, stage));
+        }
+
+        if (!normalizedStagePoints.some((point) => point.type === 'unloading')) {
+            normalizedStagePoints.push(blankRoutePoint('unloading', 0, stage));
+        }
+
+        nextPoints.push(...normalizedStagePoints);
+    });
+
+    form.route_points = nextPoints.map((point, index) => ({
         ...point,
         sequence: index + 1,
     }));
@@ -1635,6 +1774,7 @@ watch(
     () => form.performers,
     () => {
         syncContractorCostsFromPerformers();
+        syncRoutePointsFromPerformers();
     },
     { deep: true },
 );

@@ -717,6 +717,151 @@ class OrderWizardTest extends TestCase
         $this->assertStringContainsString('"stage":"leg_custom"', $contractorsCosts);
     }
 
+    public function test_order_with_two_legs_persists_route_points_per_leg_and_restores_client_request_mode(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Multi Leg Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierOneId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier One',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierTwoId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier Two',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('orders.store'), [
+            'status' => 'new',
+            'client_id' => $clientId,
+            'order_date' => '2026-04-05',
+            'order_number' => '',
+            'special_notes' => 'Split route order',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierOneId],
+                ['stage' => 'leg_2', 'contractor_id' => $carrierTwoId],
+            ],
+            'route_points' => [
+                ['stage' => 'leg_1', 'type' => 'loading', 'sequence' => 1, 'address' => 'Samara pickup', 'normalized_data' => []],
+                ['stage' => 'leg_1', 'type' => 'unloading', 'sequence' => 2, 'address' => 'Kazan hub', 'normalized_data' => []],
+                ['stage' => 'leg_2', 'type' => 'loading', 'sequence' => 3, 'address' => 'Kazan hub', 'normalized_data' => []],
+                ['stage' => 'leg_2', 'type' => 'unloading', 'sequence' => 4, 'address' => 'Moscow delivery', 'normalized_data' => []],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 180000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_request_mode' => 'split_by_leg',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierOneId,
+                        'amount' => 70000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 5,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                    [
+                        'stage' => 'leg_2',
+                        'contractor_id' => $carrierTwoId,
+                        'amount' => 50000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 3,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ]);
+
+        $orderId = DB::table('orders')->value('id');
+
+        $response->assertRedirect(route('orders.edit', $orderId));
+
+        $legs = DB::table('order_legs')
+            ->where('order_id', $orderId)
+            ->orderBy('sequence')
+            ->get();
+
+        $this->assertCount(2, $legs);
+        $this->assertSame('leg_1', $legs[0]->description);
+        $this->assertSame('leg_2', $legs[1]->description);
+
+        $legOneId = $legs[0]->id;
+        $legTwoId = $legs[1]->id;
+
+        $this->assertDatabaseHas('route_points', [
+            'order_leg_id' => $legOneId,
+            'sequence' => 1,
+            'type' => 'loading',
+            'address' => 'Samara pickup',
+        ]);
+        $this->assertDatabaseHas('route_points', [
+            'order_leg_id' => $legOneId,
+            'sequence' => 2,
+            'type' => 'unloading',
+            'address' => 'Kazan hub',
+        ]);
+        $this->assertDatabaseHas('route_points', [
+            'order_leg_id' => $legTwoId,
+            'sequence' => 1,
+            'type' => 'loading',
+            'address' => 'Kazan hub',
+        ]);
+        $this->assertDatabaseHas('route_points', [
+            'order_leg_id' => $legTwoId,
+            'sequence' => 2,
+            'type' => 'unloading',
+            'address' => 'Moscow delivery',
+        ]);
+
+        $paymentTerms = DB::table('orders')->where('id', $orderId)->value('payment_terms');
+        $this->assertIsString($paymentTerms);
+        $this->assertStringContainsString('"request_mode":"split_by_leg"', $paymentTerms);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $orderId))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('order.financial_term.client_request_mode', 'split_by_leg')
+                ->where('order.route_points.0.stage', 'leg_1')
+                ->where('order.route_points.1.stage', 'leg_1')
+                ->where('order.route_points.2.stage', 'leg_2')
+                ->where('order.route_points.3.stage', 'leg_2')
+                ->where('order.route_points.3.address', 'Moscow delivery')
+            );
+    }
+
     public function test_second_order_in_same_period_recalculates_existing_orders(): void
     {
         $admin = $this->createAdminUser();

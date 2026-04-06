@@ -173,6 +173,11 @@ class OrderWizardService
 
         $legs = $this->syncLegs($order, $normalizedPerformers);
         $primaryLeg = $legs->first();
+        $legsByStage = $legs->keyBy(fn (OrderLeg $leg): string => $this->normalizeStageIdentifier($leg->description));
+        $routePoints = collect($validated['route_points'] ?? [])
+            ->sortBy('sequence')
+            ->values();
+        $routePointSequenceByLeg = [];
 
         $this->deleteExistingCargoItems($order);
 
@@ -184,17 +189,21 @@ class OrderWizardService
             $order->financialTerms()->delete();
         }
 
-        foreach ($validated['route_points'] ?? [] as $index => $routePoint) {
+        foreach ($routePoints as $index => $routePoint) {
             if ($primaryLeg === null) {
                 break;
             }
 
+            $routePointStage = $this->normalizeStageIdentifier((string) ($routePoint['stage'] ?? ''));
+            $targetLeg = $legsByStage->get($routePointStage, $primaryLeg);
             $normalizedData = Arr::get($routePoint, 'normalized_data', []);
+            $legSequence = ($routePointSequenceByLeg[$targetLeg->id] ?? 0) + 1;
+            $routePointSequenceByLeg[$targetLeg->id] = $legSequence;
 
             $routePointAttributes = [
-                'order_leg_id' => $primaryLeg->id,
+                'order_leg_id' => $targetLeg->id,
                 'type' => $routePoint['type'],
-                'sequence' => $routePoint['sequence'] ?? ($index + 1),
+                'sequence' => $legSequence,
                 'kladr_id' => Arr::get($normalizedData, 'kladr_id'),
                 'latitude' => Arr::get($normalizedData, 'coordinates.lat'),
                 'longitude' => Arr::get($normalizedData, 'coordinates.lng'),
@@ -477,6 +486,7 @@ class OrderWizardService
         $payload = [
             'client' => [
                 'payment_form' => Arr::get($financialTerm, 'client_payment_form'),
+                'request_mode' => Arr::get($financialTerm, 'client_request_mode', 'single_request'),
                 'payment_schedule' => Arr::get($financialTerm, 'client_payment_schedule', []),
             ],
             'carriers' => collect(Arr::get($financialTerm, 'contractors_costs', []))
@@ -557,6 +567,21 @@ class OrderWizardService
     /**
      * @return list<string>
      */
+    private function normalizeStageIdentifier(?string $stage): string
+    {
+        $value = trim((string) $stage);
+
+        if ($value === '') {
+            return 'leg_1';
+        }
+
+        if (preg_match('/^Плечо\s+(\d+)$/u', $value, $matches) === 1) {
+            return 'leg_'.$matches[1];
+        }
+
+        return $value;
+    }
+
     private function relationsForOrderReload(): array
     {
         $relations = ['client', 'ownCompany', 'legs.routePoints'];

@@ -85,6 +85,7 @@ class StoreOrderRequest extends FormRequest
 
             'route_points' => ['nullable', 'array'],
             'route_points.*.type' => ['required', Rule::in(['loading', 'unloading'])],
+            'route_points.*.stage' => ['nullable', 'string', 'max:50'],
             'route_points.*.sequence' => ['nullable', 'integer', 'min:1'],
             'route_points.*.address' => ['required', 'string', 'max:500'],
             'route_points.*.normalized_data' => ['nullable', 'array'],
@@ -115,6 +116,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.client_price' => ['nullable', 'numeric', 'min:0'],
             'financial_term.client_currency' => ['required_with:financial_term', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
             'financial_term.client_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'financial_term.client_request_mode' => ['nullable', Rule::in(['single_request', 'split_by_leg'])],
             'financial_term.client_payment_schedule' => ['nullable', 'array'],
             'financial_term.client_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'financial_term.client_payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],

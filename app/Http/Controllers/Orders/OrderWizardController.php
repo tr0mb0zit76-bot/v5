@@ -371,13 +371,43 @@ class OrderWizardController extends Controller
     private function serializeOrder(Order $order): array
     {
         $financialTerm = Schema::hasTable('financial_terms') ? $order->financialTerms->first() : null;
-        $primaryLeg = $order->legs->sortBy('sequence')->first();
         $paymentTermsConfig = $this->decodePaymentTermsConfig($order->payment_terms);
         $routePointHasAddressColumn = Schema::hasColumn('route_points', 'address');
         $routePointHasMetadataColumn = Schema::hasColumn('route_points', 'metadata');
         $cargoItems = $this->orderCargoItems($order);
         $documents = Schema::hasTable('order_documents') ? $order->documents : collect();
         $statusLogs = Schema::hasTable('order_status_logs') ? $order->statusLogs : collect();
+        $routePoints = $order->legs
+            ->sortBy('sequence')
+            ->flatMap(function ($leg) use ($routePointHasAddressColumn, $routePointHasMetadataColumn) {
+                return $leg->routePoints
+                    ->sortBy('sequence')
+                    ->map(fn ($point): array => [
+                        'id' => $point->id,
+                        'stage' => $leg->description,
+                        'leg_sequence' => $leg->sequence,
+                        'type' => $point->type,
+                        'sequence' => $point->sequence,
+                        'address' => $routePointHasAddressColumn
+                            ? $point->address
+                            : data_get($point->metadata, 'address', $point->instructions),
+                        'normalized_data' => $routePointHasMetadataColumn
+                            ? (data_get($point->metadata, 'normalized_data', []))
+                            : ($point->normalized_data ?? []),
+                        'planned_date' => optional($point->planned_date)?->toDateString(),
+                        'actual_date' => optional($point->actual_date)?->toDateString(),
+                        'contact_person' => $point->contact_person,
+                        'contact_phone' => $point->contact_phone,
+                        'sender_name' => $point->sender_name,
+                        'sender_contact' => $point->sender_contact,
+                        'sender_phone' => $point->sender_phone,
+                        'recipient_name' => $point->recipient_name,
+                        'recipient_contact' => $point->recipient_contact,
+                        'recipient_phone' => $point->recipient_phone,
+                    ]);
+            })
+            ->values()
+            ->all();
 
         $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTerm))
             ->map(fn (array $cost): array => [
@@ -402,27 +432,7 @@ class OrderWizardController extends Controller
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
             'performers' => $order->performers ?? [],
-            'route_points' => $primaryLeg?->routePoints->map(fn ($point): array => [
-                'id' => $point->id,
-                'type' => $point->type,
-                'sequence' => $point->sequence,
-                'address' => $routePointHasAddressColumn
-                    ? $point->address
-                    : data_get($point->metadata, 'address', $point->instructions),
-                'normalized_data' => $routePointHasMetadataColumn
-                    ? (data_get($point->metadata, 'normalized_data', []))
-                    : ($point->normalized_data ?? []),
-                'planned_date' => optional($point->planned_date)?->toDateString(),
-                'actual_date' => optional($point->actual_date)?->toDateString(),
-                'contact_person' => $point->contact_person,
-                'contact_phone' => $point->contact_phone,
-                'sender_name' => $point->sender_name,
-                'sender_contact' => $point->sender_contact,
-                'sender_phone' => $point->sender_phone,
-                'recipient_name' => $point->recipient_name,
-                'recipient_contact' => $point->recipient_contact,
-                'recipient_phone' => $point->recipient_phone,
-            ])->values()->all() ?? [],
+            'route_points' => $routePoints,
             'cargo_items' => $cargoItems->map(fn ($cargo): array => [
                 'id' => $cargo->id,
                 'name' => $cargo->title,
@@ -442,6 +452,7 @@ class OrderWizardController extends Controller
                     : $financialTerm?->client_price,
                 'client_currency' => $financialTerm?->client_currency ?? 'RUB',
                 'client_payment_form' => $order->customer_payment_form ?? 'vat',
+                'client_request_mode' => data_get($paymentTermsConfig, 'client.request_mode', 'single_request'),
                 'client_payment_schedule' => $paymentTermsConfig['client']['payment_schedule'] ?? [],
                 'contractors_costs' => $contractorsCosts,
                 'additional_costs' => $financialTerm?->additional_costs ?? [],
@@ -789,7 +800,6 @@ class OrderWizardController extends Controller
                       // Или активные (топ 100)
                         ->orWhere('is_active', true);
                 })
-                    ->orderByRaw('FIELD(id, '.implode(',', $relatedIds).') DESC') // Связанные первые
                     ->orderBy('name')
                     ->limit(150) // Ограничиваем количество
                     ->get($this->contractorSelectColumns());
