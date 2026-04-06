@@ -497,7 +497,7 @@
             <div v-else-if="activeTab === 'finance'" class="space-y-4">
                 <div class="grid gap-4 lg:grid-cols-2">
                     <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <h2 class="text-base font-semibold">Клиент</h2>
+                        <h2 class="text-base font-semibold">Оплата клиентом</h2>
                         <div class="grid gap-3 md:grid-cols-3">
                             <div class="space-y-2 md:col-span-2">
                                 <label class="text-sm font-medium">Цена клиента</label>
@@ -571,39 +571,14 @@
 
                     <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div class="flex items-center justify-between">
-                            <h2 class="text-base font-semibold">Дополнительные расходы</h2>
-                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addAdditionalCost">
-                                Добавить
+                            <div>
+                                <h2 class="text-base font-semibold">Затраты по исполнителям</h2>
+                                <p class="text-xs text-zinc-500">Здесь задаются стоимость, форма оплаты и условия оплаты перевозчика по каждому этапу.</p>
+                            </div>
+                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
+                                Подтянуть из этапов
                             </button>
                         </div>
-
-                        <div class="space-y-3">
-                            <div v-for="(cost, index) in form.financial_term.additional_costs" :key="`extra-${index}`" class="grid gap-3 md:grid-cols-4">
-                                <input v-model="cost.label" type="text" placeholder="Статья" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
-                                <input v-model="cost.amount" type="number" min="0" step="0.01" placeholder="Сумма" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                <div class="flex gap-2">
-                                    <select v-model="cost.currency" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.financial_term.additional_costs, index)">
-                                        ×
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-base font-semibold">Затраты по исполнителям</h2>
-                            <p class="text-xs text-zinc-500">Здесь задаются стоимость, форма оплаты и условия оплаты перевозчика по каждому этапу.</p>
-                        </div>
-                        <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="syncContractorCostsFromPerformers">
-                            Подтянуть из этапов
-                        </button>
-                    </div>
 
                     <div class="space-y-3">
                         <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
@@ -696,13 +671,54 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-4">
-                    <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
-                    <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
-                    <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
-                    <div>Доп. расходы: <span class="font-medium">{{ financialSummary.additionalCosts.toFixed(2) }}</span></div>
+            <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-semibold">Дополнительные затраты</h2>
+                        <p class="text-xs text-zinc-500">Прочие расходы, не связанные с оплатой перевозчикам</p>
+                    </div>
+                    <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addAdditionalCost">
+                        Добавить затрату
+                    </button>
                 </div>
+
+                <div class="space-y-3">
+                    <div v-for="(cost, index) in form.financial_term.additional_costs" :key="`additional-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div class="grid gap-3 md:grid-cols-3">
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="text-sm font-medium">Наименование</label>
+                                <input v-model="cost.label" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Например: Страховка, Топливо, и т.д." />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Валюта</label>
+                                <select v-model="cost.currency" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Сумма</label>
+                                <input v-model="cost.amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="flex items-end justify-end">
+                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.financial_term.additional_costs, index)">
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-4">
+                <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
+                <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
+                <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
+                <div>Доп. расходы: <span class="font-medium">{{ financialSummary.additionalCosts.toFixed(2) }}</span></div>
+            </div>
             </div>
 
             <div v-else-if="activeTab === 'documents'" class="space-y-4">
@@ -1077,6 +1093,9 @@ async function calculateCompensation() {
 
         const result = await response.json();
         calculatedCompensation.value = result;
+        
+        // Update the form's KPI percentage with the calculated value
+        form.financial_term.kpi_percent = result.kpi_percent || 0;
     } catch (error) {
         console.error('Compensation calculation error', error);
         calculatedCompensation.value = {
@@ -1085,6 +1104,8 @@ async function calculateCompensation() {
             salary_accrued: 0,
             deal_type: 'unknown',
         };
+        // Reset KPI to 0 on error
+        form.financial_term.kpi_percent = 0;
     } finally {
         isCalculatingCompensation.value = false;
     }
@@ -1166,13 +1187,13 @@ const filteredClients = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
 
     if (query === '') {
-        return contractors.value.slice(0, 8);
+        return contractors.value.slice(0, 50); // Увеличено с 8 до 50
     }
 
     return contractors.value
         .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
-        .slice(0, 8);
+        .slice(0, 50); // Увеличено с 8 до 50
 });
 
 if (selectedClient.value) {
@@ -1251,19 +1272,19 @@ function filteredCarrierResults(kind, index) {
     const selectedContractor = getContractorById(selectedContractorId);
 
     if (query === '') {
-        const visibleContractors = carrierOptions.value.slice(0, 8);
+        const visibleContractors = carrierOptions.value.slice(0, 50); // Увеличено с 8 до 50
 
         if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
             return visibleContractors;
         }
 
-        return [selectedContractor, ...visibleContractors.slice(0, 7)];
+        return [selectedContractor, ...visibleContractors.slice(0, 49)]; // Увеличено с 7 до 49
     }
 
     return carrierOptions.value
         .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
-        .slice(0, 8);
+        .slice(0, 50); // Увеличено с 8 до 50
 }
 
 function parsePaymentTermPreset(term) {
