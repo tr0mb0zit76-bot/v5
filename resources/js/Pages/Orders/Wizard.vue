@@ -1291,6 +1291,11 @@ const serverSearchResults = ref([]);
 const isSearchingClients = ref(false);
 const searchTimer = ref(null);
 
+// Server-side search for carriers
+const serverCarrierSearchResults = ref({});
+const isSearchingCarriers = ref({});
+const carrierSearchTimers = ref({});
+
 watch(clientSearch, (newQuery) => {
     clearTimeout(searchTimer.value);
     
@@ -1332,6 +1337,76 @@ async function searchClients(query) {
         serverSearchResults.value = [];
     } finally {
         isSearchingClients.value = false;
+    }
+}
+
+// Watch for carrier search input changes
+watch(carrierSearch, (newSearchValues, oldSearchValues) => {
+    // Find changed fields
+    for (const [key, value] of Object.entries(newSearchValues)) {
+        const oldValue = oldSearchValues[key] || '';
+        if (value !== oldValue) {
+            // Parse kind and index from key
+            const match = key.match(/^(\w+)-(\d+)$/);
+            if (match) {
+                const [, kind, indexStr] = match;
+                const index = parseInt(indexStr, 10);
+                queueCarrierSearch(kind, index, value);
+            }
+        }
+    }
+}, { deep: true });
+
+function queueCarrierSearch(kind, index, query) {
+    const key = carrierSearchKey(kind, index);
+    
+    // Clear existing timer
+    if (carrierSearchTimers.value[key]) {
+        clearTimeout(carrierSearchTimers.value[key]);
+    }
+    
+    // Clear results for empty query
+    if (query.trim().length < 2) {
+        serverCarrierSearchResults.value[key] = [];
+        return;
+    }
+    
+    // Set new timer
+    carrierSearchTimers.value[key] = setTimeout(async () => {
+        await searchCarriers(kind, index, query.trim());
+    }, 300);
+}
+
+async function searchCarriers(kind, index, query) {
+    if (query.length < 2) {
+        const key = carrierSearchKey(kind, index);
+        serverCarrierSearchResults.value[key] = [];
+        return;
+    }
+    
+    const key = carrierSearchKey(kind, index);
+    isSearchingCarriers.value[key] = true;
+    
+    try {
+        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=carrier&limit=50`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Carrier search failed with status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        serverCarrierSearchResults.value[key] = data.contractors || [];
+    } catch (error) {
+        console.error('Carrier search error', error);
+        serverCarrierSearchResults.value[key] = [];
+    } finally {
+        isSearchingCarriers.value[key] = false;
     }
 }
 
@@ -1445,21 +1520,28 @@ function filteredCarrierResults(kind, index) {
         ? form.performers[index]?.contractor_id
         : form.financial_term.contractors_costs[index]?.contractor_id;
     const selectedContractor = getContractorById(selectedContractorId);
+    
+    // Get server search results for this specific field
+    const serverResults = serverCarrierSearchResults.value[carrierSearchKey(kind, index)] || [];
+    const serverIds = new Set(serverResults.map(c => c.id));
 
     if (query === '') {
-        const visibleContractors = carrierOptions.value.slice(0, 50); // Увеличено с 8 до 50
+        const visibleContractors = carrierOptions.value.slice(0, 50);
 
         if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
             return visibleContractors;
         }
 
-        return [selectedContractor, ...visibleContractors.slice(0, 49)]; // Увеличено с 7 до 49
+        return [selectedContractor, ...visibleContractors.slice(0, 49)];
     }
 
-    return carrierOptions.value
+    // Combine server results with local results
+    const localResults = carrierOptions.value
         .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
-        .slice(0, 50); // Увеличено с 8 до 50
+        .filter(c => !serverIds.has(c.id));
+    
+    return [...serverResults, ...localResults].slice(0, 50);
 }
 
 function parsePaymentTermPreset(term) {
