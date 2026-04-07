@@ -54,10 +54,22 @@ const props = defineProps({
             links: [],
         }),
     },
+    users: {
+        type: Array,
+        default: () => [],
+    },
+    filters: {
+        type: Object,
+        default: () => ({
+            search: '',
+            type: '',
+        }),
+    },
 });
 
 const page = usePage();
-const search = ref('');
+const search = ref(props.filters.search || '');
+const typeFilter = ref(props.filters.type || '');
 const activeTab = ref('general');
 const isInnLookupPending = ref(false);
 const addressSuggestions = ref({
@@ -255,6 +267,7 @@ function blankForm() {
         is_active: true,
         is_verified: false,
         is_own_company: false,
+        owner_id: null,
         contacts: [],
         interactions: [],
         documents: [],
@@ -310,6 +323,7 @@ function contractorToForm(contractor) {
         is_active: Boolean(contractor.is_active),
         is_verified: Boolean(contractor.is_verified),
         is_own_company: Boolean(contractor.is_own_company),
+        owner_id: contractor.owner_id ?? null,
         contacts: Array.isArray(contractor.contacts)
             ? contractor.contacts.map((contact) => ({
                 full_name: contact.full_name ?? '',
@@ -425,9 +439,25 @@ watch(() => search.value, (newSearch) => {
     searchTimer = setTimeout(() => {
         router.get(route('contractors.index', { 
             search: newSearch.trim(),
+            type: typeFilter.value,
             page: 1 // Reset to first page when searching
         }), {}, { preserveScroll: true });
     }, 500); // Debounce 500ms
+});
+
+// Watch for type filter changes
+let typeFilterTimer = null;
+watch(() => typeFilter.value, (newType) => {
+    clearTimeout(typeFilterTimer);
+    clearTimeout(searchTimer); // Also clear search timer to avoid conflicts
+    
+    typeFilterTimer = setTimeout(() => {
+        router.get(route('contractors.index', { 
+            search: search.value.trim(),
+            type: newType,
+            page: 1 // Reset to first page when filtering
+        }), {}, { preserveScroll: true });
+    }, 300); // Debounce 300ms
 });
 
 const isMobileStandalone = computed(() => {
@@ -882,7 +912,7 @@ function handleMobileNavSelect(key) {
         <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden xl:h-full xl:grid-cols-[320px_minmax(0,1fr)]">
             <aside class="flex min-h-0 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="border-b border-zinc-200 p-3 dark:border-zinc-800">
-                    <div class="relative">
+                    <div class="relative mb-2">
                         <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                         <input
                             v-model="search"
@@ -890,6 +920,18 @@ function handleMobileNavSelect(key) {
                             placeholder="Поиск по названию, ИНН, телефону"
                             class="w-full border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                         />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs font-medium text-zinc-700 dark:text-zinc-300">Тип контрагента</label>
+                        <select
+                            v-model="typeFilter"
+                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                        >
+                            <option value="">Все типы</option>
+                            <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
+                                {{ type.label }}
+                            </option>
+                        </select>
                     </div>
                 </div>
 
@@ -1304,6 +1346,19 @@ function handleMobileNavSelect(key) {
                                         >
                                             <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
                                                 {{ type.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Владелец</label>
+                                        <select
+                                            v-model="form.owner_id"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        >
+                                            <option :value="null">Не назначен</option>
+                                            <option v-for="user in users" :key="user.id" :value="user.id">
+                                                {{ user.name }}
                                             </option>
                                         </select>
                                     </div>

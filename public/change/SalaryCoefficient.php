@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SalaryCoefficient extends Model
 {
     protected $table = 'salary_coefficients';
-    
+
     protected $fillable = [
         'manager_id',
         'base_salary',
         'bonus_percent',
         'effective_from',
         'effective_to',
-        'is_active'
+        'is_active',
     ];
 
     protected $casts = [
@@ -23,14 +23,14 @@ class SalaryCoefficient extends Model
         'bonus_percent' => 'integer',
         'effective_from' => 'date',
         'effective_to' => 'date',
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
     ];
 
     protected $dates = [
         'effective_from',
         'effective_to',
         'created_at',
-        'updated_at'
+        'updated_at',
     ];
 
     public function manager(): BelongsTo
@@ -46,9 +46,9 @@ class SalaryCoefficient extends Model
         return self::where('manager_id', $managerId)
             ->where('is_active', true)
             ->where('effective_from', '<=', $date)
-            ->where(function($q) use ($date) {
+            ->where(function ($q) use ($date) {
                 $q->whereNull('effective_to')
-                  ->orWhere('effective_to', '>=', $date);
+                    ->orWhere('effective_to', '>=', $date);
             })
             ->orderBy('effective_from', 'desc')
             ->first();
@@ -84,10 +84,10 @@ class SalaryCoefficient extends Model
         self::where('manager_id', $this->manager_id)
             ->where('id', '!=', $this->id)
             ->update(['is_active' => false]);
-        
+
         // Активируем текущую
         $this->update(['is_active' => true]);
-        
+
         return $this;
     }
 }

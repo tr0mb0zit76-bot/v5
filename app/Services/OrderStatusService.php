@@ -8,8 +8,7 @@ class OrderStatusService
 {
     public function __construct(
         private readonly OrderDocumentRequirementService $orderDocumentRequirementService
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{

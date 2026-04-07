@@ -12,7 +12,7 @@ return new class extends Migration
             $table->foreignId('role_id')->nullable()->constrained();
         });
     }
-    
+
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {

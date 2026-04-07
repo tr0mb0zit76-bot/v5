@@ -12,12 +12,12 @@ class CoreServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Загружаем миграции
-        $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
-        
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
+
         // Загружаем маршруты
-        $this->loadRoutesFrom(__DIR__ . '/../Routes/web.php');
+        $this->loadRoutesFrom(__DIR__.'/../Routes/web.php');
     }
-    
+
     /**
      * Register any module services.
      */
@@ -25,7 +25,7 @@ class CoreServiceProvider extends ServiceProvider
     {
         // Регистрируем конфиг
         $this->mergeConfigFrom(
-            __DIR__ . '/../Config/module.php',
+            __DIR__.'/../Config/module.php',
             'core'
         );
     }

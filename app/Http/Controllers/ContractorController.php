@@ -6,6 +6,7 @@ use App\Http\Requests\StoreContractorRequest;
 use App\Http\Requests\UpdateContractorRequest;
 use App\Models\Contractor;
 use App\Models\ContractorActivityType;
+use App\Models\User;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use Illuminate\Database\QueryException;
@@ -37,6 +38,7 @@ class ContractorController extends Controller
 
             $contractor = Contractor::query()->create([
                 ...$this->extractContractorAttributes($validated),
+                'owner_id' => $request->user()?->id,
                 'created_by' => $request->user()?->id,
                 'updated_by' => $request->user()?->id,
             ]);
@@ -132,6 +134,27 @@ class ContractorController extends Controller
         ], 201);
     }
 
+    public function massUpdateOwner(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'contractor_ids' => ['required', 'array', 'min:1'],
+            'contractor_ids.*' => ['integer', 'exists:contractors,id'],
+            'owner_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $contractorIds = $validated['contractor_ids'];
+        $ownerId = $validated['owner_id'];
+
+        $updatedCount = Contractor::query()
+            ->whereIn('id', $contractorIds)
+            ->update(['owner_id' => $ownerId]);
+
+        return response()->json([
+            'message' => 'Владелец успешно обновлён для '.$updatedCount.' контрагентов.',
+            'updated_count' => $updatedCount,
+        ]);
+    }
+
     private function renderPage(Request $request, ?Contractor $selectedContractor = null): Response
     {
         /** @var ContractorCreditService $creditService */
@@ -141,7 +164,12 @@ class ContractorController extends Controller
         $hasDocumentsTable = Schema::hasTable('contractor_documents');
         $hasOrderDocumentsTable = Schema::hasTable('order_documents');
 
-        $contractorsQuery = Contractor::query();
+        // Get type filter from request
+        $type = $request->input('type', '');
+
+        // Apply visibility scope with type filter parameter
+        // The scope will handle type-specific visibility rules
+        $contractorsQuery = Contractor::query()->visibleTo($request->user(), $type);
 
         // Add search functionality
         $search = $request->input('search', '');
@@ -153,6 +181,9 @@ class ContractorController extends Controller
                     ->orWhere('email', 'like', "%{$search}%");
             });
         }
+
+        // Note: Type filtering is handled within the visibleTo scope
+        // based on the $type parameter passed above
 
         if ($hasContactsTable) {
             $contractorsQuery->withCount('contacts');
@@ -366,6 +397,11 @@ class ContractorController extends Controller
                 ['value' => 'ip', 'label' => 'ИП'],
                 ['value' => 'samozanyaty', 'label' => 'Самозанятый'],
                 ['value' => 'other', 'label' => 'Другое'],
+            ],
+            'users' => User::select('id', 'name')->orderBy('name')->get(),
+            'filters' => [
+                'search' => $search,
+                'type' => $type,
             ],
         ]);
     }

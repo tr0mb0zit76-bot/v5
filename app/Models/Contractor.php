@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,7 @@ class Contractor extends Model
         'is_active',
         'is_verified',
         'is_own_company',
+        'owner_id',
         'created_by',
         'updated_by',
     ];
@@ -153,5 +155,67 @@ class Contractor extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    /**
+     * Scope a query to apply visibility rules based on user role.
+     *
+     * @param  Builder  $query
+     * @param  User|null  $user
+     * @param  string|null  $typeFilter  Optional type filter ('customer', 'carrier', 'both')
+     * @return Builder
+     */
+    public function scopeVisibleTo($query, ?User $user = null, ?string $typeFilter = null)
+    {
+        if (! $user) {
+            return $query;
+        }
+
+        // Check user's role to determine visibility
+        // If user has admin role or can view all contractors, show all
+        $role = $user->role;
+        if ($role && ($role->name === 'admin' || (is_array($role->permissions) && in_array('view_all_contractors', $role->permissions)))) {
+            // Admin can see all, but still apply type filter if specified
+            if (in_array($typeFilter, ['customer', 'carrier', 'both'])) {
+                $query->where('type', $typeFilter);
+            }
+            return $query;
+        }
+
+        // For non-admin users (managers):
+        // Apply visibility rules based on type filter
+        return $query->where(function ($q) use ($user, $typeFilter) {
+            // If filtering by specific type
+            if (in_array($typeFilter, ['customer', 'carrier', 'both'])) {
+                if ($typeFilter === 'customer') {
+                    // When filtering by customer type, show all customers
+                    // (not just owned ones, because user explicitly wants to see customers)
+                    $q->where('type', 'customer');
+                } elseif ($typeFilter === 'carrier') {
+                    // When filtering by carrier type, show all carriers
+                    $q->where('type', 'carrier');
+                } else {
+                    // When filtering by 'both' type
+                    $q->where('type', 'both');
+                }
+            } else {
+                // No type filter - apply standard visibility rules
+                // 1. All carriers (type = 'carrier' or 'both') are visible to everyone
+                // 2. Only their own customers (type = 'customer' and owner_id = user->id) are visible
+                $q->whereIn('type', ['carrier', 'both'])
+                    ->orWhere(function ($subQ) use ($user) {
+                        $subQ->where('type', 'customer')
+                            ->where('owner_id', $user->id);
+                    });
+            }
+        });
     }
 }

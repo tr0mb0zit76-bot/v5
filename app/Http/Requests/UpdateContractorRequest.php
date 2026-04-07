@@ -2,6 +2,4 @@
 
 namespace App\Http\Requests;
 
-class UpdateContractorRequest extends StoreContractorRequest
-{
-}
+class UpdateContractorRequest extends StoreContractorRequest {}

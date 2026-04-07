@@ -364,9 +364,8 @@ class OrderWizardService
      */
     private function syncLegs(Order $order, array $performers)
     {
-        OrderLeg::query()
-            ->where('order_id', $order->id)
-            ->delete();
+        // Use a raw query to avoid prepared statement issues with MySQL error 1615
+        DB::statement('DELETE FROM order_legs WHERE order_id = ?', [$order->id]);
 
         $legs = collect($performers)
             ->values()

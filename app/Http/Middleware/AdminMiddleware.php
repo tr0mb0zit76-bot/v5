@@ -17,7 +17,7 @@ class AdminMiddleware
         if ($request->user() && $request->user()->email === 'admin@example.com') {
             return $next($request);
         }
-        
+
         abort(403, 'Access denied. Admin rights required.');
     }
 }
