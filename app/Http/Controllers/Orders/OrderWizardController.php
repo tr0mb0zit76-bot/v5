@@ -649,30 +649,37 @@ class OrderWizardController extends Controller
             $contractorsCosts = [];
         }
 
-        if ($contractorsCosts === []) {
-            $performers = collect($order->performers ?? [])->values();
-
-            if ($performers->isNotEmpty()) {
-                $contractorsCosts = $performers
-                    ->map(fn (array $performer, int $index): array => [
+        // Если есть performers в заказе, используем их как основной источник данных
+        $performers = collect($order->performers ?? [])->values();
+        
+        if ($performers->isNotEmpty()) {
+            // Создаем contractors_costs на основе performers
+            $contractorsCosts = $performers
+                ->map(function (array $performer, int $index) use ($financialTerm, $order, $contractorsCosts): array {
+                    // Ищем существующую запись для этого этапа
+                    $existingCost = collect($contractorsCosts)
+                        ->firstWhere('stage', $performer['stage'] ?? 'leg_'.($index + 1));
+                    
+                    return [
                         'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
                         'contractor_id' => $performer['contractor_id'] ?? null,
-                        'amount' => null,
-                        'currency' => $financialTerm?->client_currency ?? 'RUB',
-                        'payment_form' => $order->carrier_payment_form ?? 'no_vat',
-                        'payment_schedule' => [],
-                    ])
-                    ->all();
-            } elseif ($order->carrier_id !== null || $order->carrier_rate !== null) {
-                $contractorsCosts = [[
-                    'stage' => 'leg_1',
-                    'contractor_id' => $order->carrier_id,
-                    'amount' => null,
-                    'currency' => $financialTerm?->client_currency ?? 'RUB',
-                    'payment_form' => $order->carrier_payment_form ?? 'no_vat',
-                    'payment_schedule' => [],
-                ]];
-            }
+                        'amount' => $existingCost['amount'] ?? null,
+                        'currency' => $existingCost['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
+                        'payment_form' => $existingCost['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
+                        'payment_schedule' => $existingCost['payment_schedule'] ?? [],
+                    ];
+                })
+                ->all();
+        } elseif ($contractorsCosts === [] && ($order->carrier_id !== null || $order->carrier_rate !== null)) {
+            // Только если нет performers и нет contractors_costs, но есть carrier_id в заказе
+            $contractorsCosts = [[
+                'stage' => 'leg_1',
+                'contractor_id' => $order->carrier_id,
+                'amount' => null,
+                'currency' => $financialTerm?->client_currency ?? 'RUB',
+                'payment_form' => $order->carrier_payment_form ?? 'no_vat',
+                'payment_schedule' => [],
+            ]];
         } else {
             // Update existing contractors costs with current payment_form from order
             $contractorsCosts = collect($contractorsCosts)

@@ -263,14 +263,27 @@
                                 </div>
                                 <div class="relative space-y-2 md:col-span-2">
                                     <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Исполнитель</label>
-                                    <input
-                                        :value="carrierSearchValue('performer', index)"
-                                        type="text"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                        placeholder="Начни вводить название или ИНН"
-                                        @focus="setCarrierResultsVisible('performer', index, true)"
-                                        @input="setCarrierSearchValue('performer', index, $event.target.value); setCarrierResultsVisible('performer', index, true)"
-                                    />
+                                    <div class="relative">
+                                        <input
+                                            :value="carrierSearchValue('performer', index)"
+                                            type="text"
+                                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                            placeholder="Начни вводить название или ИНН"
+                                            @focus="setCarrierResultsVisible('performer', index, true)"
+                                            @input="setCarrierSearchValue('performer', index, $event.target.value); setCarrierResultsVisible('performer', index, true)"
+                                        />
+                                        <button
+                                            v-if="performer.contractor_id"
+                                            type="button"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                                            @click="clearPerformerContractor(index)"
+                                            title="Очистить выбор"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                     <div
                                         v-if="isCarrierResultsVisible('performer', index) && filteredCarrierResults('performer', index).length > 0"
                                         class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
@@ -1632,6 +1645,13 @@ function selectPerformerContractor(index, contractor) {
     applyCarrierDefaultsByStage(form.performers[index].stage, contractor.id);
 }
 
+function clearPerformerContractor(index) {
+    form.performers[index].contractor_id = null;
+    setCarrierSearchValue('performer', index, '');
+    setCarrierResultsVisible('performer', index, false);
+    syncContractorCostsFromPerformers();
+}
+
 function syncPerformerContractor(stage, contractorId) {
     const performer = form.performers.find((item) => item.stage === stage);
 
@@ -1912,7 +1932,8 @@ function syncContractorCostsFromPerformers() {
             contractor_id: performer.contractor_id,
         });
 
-        if (!existingRow && performer.contractor_id) {
+        // Apply carrier defaults when contractor is set (even if row already exists)
+        if (performer.contractor_id) {
             const contractor = getContractorById(performer.contractor_id);
 
             if (contractor?.default_carrier_payment_form) {
@@ -1931,6 +1952,20 @@ watch(
     () => {
         syncContractorCostsFromPerformers();
         syncRoutePointsFromPerformers();
+    },
+    { deep: true },
+);
+
+// Watch for changes in contractors_costs to sync back to performers
+watch(
+    () => form.financial_term.contractors_costs,
+    (costs) => {
+        costs.forEach((cost) => {
+            const performer = form.performers.find((item) => item.stage === cost.stage);
+            if (performer && performer.contractor_id !== cost.contractor_id) {
+                performer.contractor_id = cost.contractor_id;
+            }
+        });
     },
     { deep: true },
 );

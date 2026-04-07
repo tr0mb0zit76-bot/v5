@@ -323,16 +323,11 @@ class OrderWizardService
             $contractorsCosts = Arr::get($financialTerm, 'contractors_costs', []);
             $additionalCosts = Arr::get($financialTerm, 'additional_costs', []);
 
-            // Нормализуем contractor_id в contractors_costs
-            $normalizedContractorsCosts = collect($contractorsCosts)
-                ->map(function (array $cost): array {
-                    if (isset($cost['contractor_id']) && $cost['contractor_id'] !== null) {
-                        $cost['contractor_id'] = (int) $cost['contractor_id'];
-                    }
-
-                    return $cost;
-                })
-                ->all();
+            // Синхронизируем contractors_costs с performers
+            $normalizedContractorsCosts = $this->syncContractorsCostsWithPerformers(
+                $contractorsCosts,
+                $performers
+            );
 
             $totalCost = collect($normalizedContractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0))
                 + collect($additionalCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
@@ -394,6 +389,40 @@ class OrderWizardService
         }
 
         return $legs;
+    }
+
+    /**
+     * Синхронизирует contractors_costs с performers
+     * 
+     * @param  list<array<string, mixed>>  $contractorsCosts
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array<string, mixed>>
+     */
+    private function syncContractorsCostsWithPerformers(array $contractorsCosts, array $performers): array
+    {
+        $performersByStage = collect($performers)
+            ->keyBy(fn (array $performer): string => $performer['stage'] ?? 'leg_1');
+
+        return collect($contractorsCosts)
+            ->map(function (array $cost) use ($performersByStage): array {
+                $stage = $cost['stage'] ?? 'leg_1';
+                $performer = $performersByStage->get($stage);
+                
+                // Обновляем contractor_id из performers, если он есть
+                if ($performer && array_key_exists('contractor_id', $performer)) {
+                    $cost['contractor_id'] = $performer['contractor_id'] !== null 
+                        ? (int) $performer['contractor_id'] 
+                        : null;
+                }
+                
+                // Нормализуем contractor_id
+                if (isset($cost['contractor_id']) && $cost['contractor_id'] !== null) {
+                    $cost['contractor_id'] = (int) $cost['contractor_id'];
+                }
+
+                return $cost;
+            })
+            ->all();
     }
 
     private function logStatusChange(Order $order, ?string $from, string $to, int $userId): void
