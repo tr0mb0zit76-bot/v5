@@ -20,7 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        //
+        // Добавляем глобальный middleware для обработки ошибки 1615 Prepared statement
+        $middleware->appendToGroup('web', \App\Http\Middleware\ReconnectOnPreparedStatementError::class);
+        $middleware->appendToGroup('api', \App\Http\Middleware\ReconnectOnPreparedStatementError::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

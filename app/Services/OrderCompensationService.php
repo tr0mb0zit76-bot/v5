@@ -290,7 +290,36 @@ class OrderCompensationService
             return;
         }
 
-        DB::table('payment_schedules')->where('order_id', $order->id)->delete();
+        try {
+            // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
+            DB::table('payment_schedules')
+                ->where('order_id', $order->id)
+                ->orderBy('id')
+                ->chunk(100, function ($schedules) {
+                    DB::table('payment_schedules')
+                        ->whereIn('id', $schedules->pluck('id')->toArray())
+                        ->delete();
+                });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Если возникает ошибка 1615, пытаемся переподключиться и удалить снова
+            if (str_contains($e->getMessage(), '1615') || str_contains($e->getMessage(), 'Prepared statement needs to be re-prepared')) {
+                // Закрываем текущее соединение и переподключаемся
+                DB::purge('mysql');
+                DB::reconnect('mysql');
+                
+                // Пытаемся удалить снова с chunk
+                DB::table('payment_schedules')
+                    ->where('order_id', $order->id)
+                    ->orderBy('id')
+                    ->chunk(100, function ($schedules) {
+                        DB::table('payment_schedules')
+                            ->whereIn('id', $schedules->pluck('id')->toArray())
+                            ->delete();
+                    });
+            } else {
+                throw $e;
+            }
+        }
 
         $paymentTerms = $this->decodePaymentTerms($order);
         $rows = [];

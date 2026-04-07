@@ -364,9 +364,30 @@ class OrderWizardService
      */
     private function syncLegs(Order $order, array $performers)
     {
-        OrderLeg::query()
-            ->where('order_id', $order->id)
-            ->delete();
+        try {
+            // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
+            OrderLeg::query()
+                ->where('order_id', $order->id)
+                ->chunkById(100, function ($legs) {
+                    $legs->each->delete();
+                });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Если возникает ошибка 1615, пытаемся переподключиться и удалить снова
+            if (str_contains($e->getMessage(), '1615') || str_contains($e->getMessage(), 'Prepared statement needs to be re-prepared')) {
+                // Закрываем текущее соединение и переподключаемся
+                DB::purge('mysql');
+                DB::reconnect('mysql');
+                
+                // Пытаемся удалить снова с chunk
+                OrderLeg::query()
+                    ->where('order_id', $order->id)
+                    ->chunkById(100, function ($legs) {
+                        $legs->each->delete();
+                    });
+            } else {
+                throw $e;
+            }
+        }
 
         $legs = collect($performers)
             ->values()
