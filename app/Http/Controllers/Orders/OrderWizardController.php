@@ -789,7 +789,7 @@ class OrderWizardController extends Controller
     {
         $query = Contractor::query();
 
-        // Если есть заказ, загружаем связанных контрагентов + топ активных
+        // Если есть заказ, загружаем связанных контрагентов + топ активных + собственные компании
         if ($order) {
             $relatedIds = $this->getRelatedContractorIds($order);
 
@@ -797,16 +797,19 @@ class OrderWizardController extends Controller
                 return $query->where(function ($q) use ($relatedIds) {
                     // Связанные контрагенты
                     $q->whereIn('id', $relatedIds)
-                      // Или активные (топ 100)
-                        ->orWhere('is_active', true);
+                      // Или активные
+                        ->orWhere('is_active', true)
+                      // Или собственные компании (даже если не активны)
+                        ->orWhere('is_own_company', true);
                 })
+                    ->orderByDesc('is_own_company')
                     ->orderBy('name')
                     ->limit(150) // Ограничиваем количество
                     ->get($this->contractorSelectColumns());
             }
         }
 
-        // Для нового заказа или заказа без связанных контрагентов - только активные (топ 100)
+        // Для нового заказа или заказа без связанных контрагентов - активные + собственные компании
         if (Schema::hasColumn('contractors', 'is_own_company')) {
             $query->where(function ($q): void {
                 $q->where('is_active', true)

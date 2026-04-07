@@ -131,11 +131,14 @@
                             />
 
                             <div
-                                v-if="showClientResults && filteredClients.length > 0"
+                                v-if="showClientResults && combinedClientResults.length > 0"
                                 class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
                             >
+                                <div v-if="isSearchingClients" class="px-4 py-3 text-center text-sm text-zinc-500">
+                                    Поиск...
+                                </div>
                                 <button
-                                    v-for="contractor in filteredClients"
+                                    v-for="contractor in combinedClientResults"
                                     :key="contractor.id"
                                     type="button"
                                     class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -143,6 +146,9 @@
                                 >
                                     <span class="text-sm font-medium">{{ contractor.name }}</span>
                                     <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                    <span v-if="serverSearchResults.some(c => c.id === contractor.id)" class="text-xs text-green-500 mt-1">
+                                        ✓ Найден в базе
+                                    </span>
                                 </button>
                             </div>
                         </div>
@@ -948,8 +954,6 @@ const clientRequestModeOptions = [
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
     { value: 'ottn', label: 'ОТТН' },
-    { value: 'fttn', label: 'На загрузке' },
-    { value: 'ottn', label: 'На выгрузке' },
 ];
 
 const counterpartyForm = useForm({
@@ -1267,14 +1271,84 @@ const dealTypePreview = computed(() => {
 const filteredClients = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
 
+    // Filter contractors that can be customers (type === 'customer' or type === 'both')
+    const customerContractors = contractors.value.filter((contractor) => 
+        contractor.type === 'customer' || contractor.type === 'both'
+    );
+
     if (query === '') {
-        return contractors.value.slice(0, 50); // Увеличено с 8 до 50
+        return customerContractors.slice(0, 50); // Увеличено с 8 до 50
     }
 
-    return contractors.value
+    return customerContractors
         .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
         .slice(0, 50); // Увеличено с 8 до 50
+});
+
+// Server-side search for clients
+const serverSearchResults = ref([]);
+const isSearchingClients = ref(false);
+const searchTimer = ref(null);
+
+watch(clientSearch, (newQuery) => {
+    clearTimeout(searchTimer.value);
+    
+    if (newQuery.trim().length < 2) {
+        serverSearchResults.value = [];
+        return;
+    }
+    
+    searchTimer.value = setTimeout(async () => {
+        await searchClients(newQuery.trim());
+    }, 300);
+});
+
+async function searchClients(query) {
+    if (query.length < 2) {
+        serverSearchResults.value = [];
+        return;
+    }
+    
+    isSearchingClients.value = true;
+    
+    try {
+        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=customer&limit=50`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Search failed with status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        serverSearchResults.value = data.contractors || [];
+    } catch (error) {
+        console.error('Client search error', error);
+        serverSearchResults.value = [];
+    } finally {
+        isSearchingClients.value = false;
+    }
+}
+
+// Combined results: server search results + local preloaded results
+const combinedClientResults = computed(() => {
+    const query = clientSearch.value.trim().toLowerCase();
+    
+    if (query.length < 2) {
+        // Use local results for short queries
+        return filteredClients.value;
+    }
+    
+    // Combine server results with local results, removing duplicates
+    const serverIds = new Set(serverSearchResults.value.map(c => c.id));
+    const localResults = filteredClients.value.filter(c => !serverIds.has(c.id));
+    
+    return [...serverSearchResults.value, ...localResults].slice(0, 50);
 });
 
 if (selectedClient.value) {
