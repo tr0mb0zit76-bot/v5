@@ -410,6 +410,9 @@ class OrderWizardTest extends TestCase
             'order_date' => '2026-04-01',
             'order_number' => '',
             'special_notes' => 'Хрупкий груз',
+            'additional_expenses' => 5000,
+            'insurance' => 0,
+            'bonus' => 0,
             'performers' => [
                 ['stage' => 'leg_1', 'contractor_id' => $carrierId],
             ],
@@ -480,9 +483,7 @@ class OrderWizardTest extends TestCase
                         ],
                     ],
                 ],
-                'additional_costs' => [
-                    ['label' => 'Страхование', 'amount' => 5000, 'currency' => 'RUB'],
-                ],
+                'additional_costs' => [],
             ],
             'documents' => [
                 [

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 class Order extends Model
@@ -29,6 +30,7 @@ class Order extends Model
         'customer_rate',
         'customer_payment_form',
         'customer_payment_term',
+        'payment_terms',
         'carrier_rate',
         'carrier_payment_form',
         'carrier_payment_term',
@@ -80,9 +82,8 @@ class Order extends Model
         'updated_by',
         'metadata',
         'payment_statuses',
-        'performers',
-        'payment_terms',
         'special_notes',
+        'performers',
     ];
 
     protected static function booted(): void
@@ -117,9 +118,7 @@ class Order extends Model
             'ati_response' => 'array',
             'metadata' => 'array',
             'payment_statuses' => 'array',
-            'performers' => 'array',
             'customer_rate' => 'decimal:2',
-            'carrier_rate' => 'decimal:2',
             'additional_expenses' => 'decimal:2',
             'insurance' => 'decimal:2',
             'bonus' => 'decimal:2',
@@ -131,6 +130,10 @@ class Order extends Model
 
         if ($this->hasDeletedAtColumn()) {
             $casts['deleted_at'] = 'datetime';
+        }
+
+        if (Schema::hasColumn($this->getTable(), 'performers')) {
+            $casts['performers'] = 'array';
         }
 
         return $casts;
@@ -262,5 +265,107 @@ class Order extends Model
     public function routePoints(): HasManyThrough
     {
         return $this->hasManyThrough(RoutePoint::class, OrderLeg::class, 'order_id', 'order_leg_id');
+    }
+
+    /**
+     * @return HasManyThrough<LegContractorAssignment, OrderLeg, $this>
+     */
+    public function legContractorAssignments(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            LegContractorAssignment::class,
+            OrderLeg::class,
+            'order_id',
+            'order_leg_id',
+            'id',
+            'id'
+        );
+    }
+
+    /**
+     * @return HasManyThrough<LegCost, OrderLeg, $this>
+     */
+    public function legCosts(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            LegCost::class,
+            OrderLeg::class,
+            'order_id',
+            'order_leg_id',
+            'id',
+            'id'
+        );
+    }
+
+    /**
+     * Получить всех исполнителей заказа через назначения на плечи
+     *
+     * @return Collection<int, Contractor>
+     */
+    public function getAllContractors(): Collection
+    {
+        return $this->legContractorAssignments()
+            ->with('contractor')
+            ->get()
+            ->pluck('contractor')
+            ->filter()
+            ->unique('id');
+    }
+
+    /**
+     * Получить основного исполнителя (первый по sequence)
+     */
+    public function getPrimaryContractorAttribute(): ?Contractor
+    {
+        $assignment = $this->legContractorAssignments()
+            ->with('contractor')
+            ->whereHas('leg', function ($query) {
+                $query->orderBy('sequence');
+            })
+            ->first();
+
+        return $assignment?->contractor;
+    }
+
+    /**
+     * Получить все ID исполнителей
+     *
+     * @return array<int>
+     */
+    public function getAllContractorIdsAttribute(): array
+    {
+        return $this->legContractorAssignments()
+            ->pluck('contractor_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * Получить общую стоимость всех плеч
+     */
+    public function getTotalLegCostsAttribute(): float
+    {
+        return (float) $this->legCosts()->sum('amount');
+    }
+
+    /**
+     * Получить статус оплаты по всем плечам
+     *
+     * @return array<string, mixed>
+     */
+    public function getLegPaymentStatusAttribute(): array
+    {
+        $costs = $this->legCosts()->get();
+
+        return [
+            'total_amount' => $costs->sum('amount'),
+            'paid_amount' => $costs->where('status', 'paid')->sum('amount'),
+            'pending_amount' => $costs->where('status', 'confirmed')->sum('amount'),
+            'draft_amount' => $costs->where('status', 'draft')->sum('amount'),
+            'count' => $costs->count(),
+            'paid_count' => $costs->where('status', 'paid')->count(),
+        ];
     }
 }

@@ -123,8 +123,8 @@ const paymentFormOptions = [
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
     { value: 'ottn', label: 'ОТТН' },
-    { value: 'fttn', label: 'На загрузке' },
-    { value: 'ottn', label: 'На выгрузке' },
+    { value: 'loading', label: 'На загрузке' },
+    { value: 'unloading', label: 'На выгрузке' },
 ];
 
 const currencyOptions = ['RUB', 'USD', 'CNY', 'EUR'];
@@ -196,7 +196,7 @@ function parsePaymentTermPreset(term) {
     }
 
     const normalized = String(term).trim().toUpperCase();
-    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
+    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
 
     if (prepaymentMatch) {
         return normalizePaymentSchedule({
@@ -209,7 +209,7 @@ function parsePaymentTermPreset(term) {
         });
     }
 
-    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
+    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
 
     if (postpaymentMatch) {
         return normalizePaymentSchedule({
@@ -473,11 +473,18 @@ const totalOrdersCount = computed(() => props.selectedContractor?.orders?.length
 const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.order_documents?.length ?? 0);
 
 function openCreateForm() {
-    router.get(route('contractors.create'), {}, { preserveScroll: true });
+    router.get(route('contractors.create', {
+        search: search.value.trim(),
+        type: typeFilter.value,
+    }), {}, { preserveScroll: true });
 }
 
 function openContractor(contractorId) {
-    router.get(route('contractors.show', contractorId), {}, { preserveScroll: true });
+    router.get(route('contractors.show', {
+        contractor: contractorId,
+        search: search.value.trim(),
+        type: typeFilter.value,
+    }), {}, { preserveScroll: true });
 }
 
 function resetToSelected() {
@@ -712,7 +719,11 @@ function goToPage(pageNumber) {
         return;
     }
     
-    router.get(route('contractors.index', { page: pageNumber }), {}, { preserveScroll: true });
+    router.get(route('contractors.index', {
+        page: pageNumber,
+        search: search.value.trim(),
+        type: typeFilter.value,
+    }), {}, { preserveScroll: true });
 }
 
 function handleMobileNavSelect(key) {

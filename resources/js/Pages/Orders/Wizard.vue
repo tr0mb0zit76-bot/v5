@@ -27,7 +27,7 @@
                 <button
                     type="button"
                     class="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                    :disabled="form.processing || customerDebtBlocked"
+                        :disabled="form.processing || customerDebtBlocked"
                     @click="submit"
                 >
                     <Save class="h-4 w-4" />
@@ -187,19 +187,6 @@
                         </div>
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Расчётный период</label>
-                            <input :value="orderPeriodPreview.label" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
-                            <p class="text-xs text-zinc-500">Период определяется автоматически по дате заказа: 1-15 или 16-последний день месяца.</p>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Тип сделки</label>
-                            <input :value="dealTypePreview.label" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
-                            <p class="text-xs text-zinc-500">Тип сделки определяется по формам оплаты клиента и перевозчика.</p>
-                        </div>
-                    </div>
-
                     <div v-if="form.performers.length > 1" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div>
                             <h2 class="text-base font-semibold">Клиентская заявка</h2>
@@ -226,6 +213,19 @@
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     </div>
 
+                </div>
+
+                <div class="space-y-4">
+                    <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <h2 class="text-base font-semibold">Этапы маршрута</h2>
+                        <p class="mt-1 text-sm text-zinc-500">Этапы и исполнители настраиваются на вкладках «Маршрут» и «Финансы».</p>
+                        <div class="mt-3 space-y-2 text-sm">
+                            <div v-for="(performer, index) in form.performers" :key="`stage-preview-${index}`" class="rounded-xl bg-zinc-50 px-3 py-2 dark:bg-zinc-800/60">
+                                {{ stageLabel(performer.stage) }}
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
                         <div class="mb-1 text-sm font-semibold">Предварительная сводка по финансам</div>
                         <p class="mb-3 text-xs text-zinc-500">Итоговые KPI, дельта и начисление пересчитываются на сервере после сохранения заказа.</p>
@@ -236,97 +236,17 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-base font-semibold">Исполнители по этапам</h2>
-                            <p class="text-sm text-zinc-500">Каждый этап формирует плечо в маршруте заказа</p>
-                        </div>
-                        <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addPerformer">
-                            Добавить этап
-                        </button>
-                    </div>
-
-                    <div class="space-y-3">
-                        <div v-for="(performer, index) in form.performers" :key="`performer-${index}`" class="grid gap-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="grid gap-3 md:grid-cols-4">
-                                <div class="space-y-2">
-                                    <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Этап</label>
-                                    <input
-                                        type="text"
-                                        :value="stageLabel(performer.stage)"
-                                        readonly
-                                        class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                                    />
-                                    <input type="hidden" v-model="performer.stage" />
-                                </div>
-                                <div class="relative space-y-2 md:col-span-2">
-                                    <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Исполнитель</label>
-                                    <div class="relative">
-                                        <input
-                                            :value="carrierSearchValue('performer', index)"
-                                            type="text"
-                                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                            placeholder="Начни вводить название или ИНН"
-                                            @focus="setCarrierResultsVisible('performer', index, true)"
-                                            @input="setCarrierSearchValue('performer', index, $event.target.value); setCarrierResultsVisible('performer', index, true)"
-                                        />
-                                        <button
-                                            v-if="performer.contractor_id"
-                                            type="button"
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-                                            @click="clearPerformerContractor(index)"
-                                            title="Очистить выбор"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div
-                                        v-if="isCarrierResultsVisible('performer', index) && filteredCarrierResults('performer', index).length > 0"
-                                        class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                    >
-                                        <button
-                                            v-for="contractor in filteredCarrierResults('performer', index)"
-                                            :key="contractor.id"
-                                            type="button"
-                                            class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                            @click="selectPerformerContractor(index, contractor)"
-                                        >
-                                            <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                            <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="flex items-end justify-end">
-                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removePerformer(index)">
-                                        Удалить
-                                    </button>
-                                </div>
-                            </div>
-
-                            <p class="text-xs text-zinc-500">
-                                Стоимость, форма оплаты и условия для этапа задаются на вкладке «Финансы».
-                            </p>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div v-else-if="activeTab === 'route'" class="space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="text-base font-semibold">Маршрут</h2>
-                        <p class="text-sm text-zinc-500">Последовательность точек погрузки и выгрузки</p>
+                        <p class="text-sm text-zinc-500">Этапы маршрута, точки погрузки и выгрузки</p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addRoutePoint('loading')">
-                            Погрузка
-                        </button>
-                        <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addRoutePoint('unloading')">
-                            Выгрузка
+                        <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addPerformer">
+                            Добавить этап
                         </button>
                     </div>
                 </div>
@@ -651,28 +571,40 @@
                             <select v-model="cost.stage" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                                 <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
                             </select>
-                            <input
-                                :value="carrierSearchValue('cost', index)"
-                                type="text"
-                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                placeholder="Поиск перевозчика"
-                                @focus="setCarrierResultsVisible('cost', index, true)"
-                                @input="setCarrierSearchValue('cost', index, $event.target.value); setCarrierResultsVisible('cost', index, true)"
-                            />
-                            <div
-                                v-if="isCarrierResultsVisible('cost', index) && filteredCarrierResults('cost', index).length > 0"
-                                class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                            >
+                            <div class="relative">
+                                <input
+                                    :value="carrierSearchValue('cost', index)"
+                                    type="text"
+                                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                    placeholder="Поиск перевозчика"
+                                    @focus="setCarrierResultsVisible('cost', index, true)"
+                                    @input="onCostCarrierInput(index, $event.target.value)"
+                                    @blur="restoreCostCarrierSearch(index)"
+                                />
                                 <button
-                                    v-for="contractor in filteredCarrierResults('cost', index)"
-                                    :key="contractor.id"
+                                    v-if="form.financial_term.contractors_costs[index]?.contractor_id !== null"
                                     type="button"
-                                    class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                    @click="selectCostContractor(index, contractor)"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                    title="Очистить перевозчика"
+                                    @click="clearCostContractor(index)"
                                 >
-                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                            <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                    <X class="h-4 w-4" />
                                 </button>
+                                <div
+                                    v-if="isCarrierResultsVisible('cost', index) && filteredCarrierResults('cost', index).length > 0"
+                                    class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                >
+                                    <button
+                                        v-for="contractor in filteredCarrierResults('cost', index)"
+                                        :key="contractor.id"
+                                        type="button"
+                                        class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                        @click="selectCostContractor(index, contractor)"
+                                    >
+                                        <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                        <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                    </button>
+                                </div>
                             </div>
                             <select v-model="cost.contractor_id" class="hidden rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="applyCarrierDefaultsByStage(cost.stage, cost.contractor_id); syncPerformerContractor(cost.stage, cost.contractor_id)">
                                 <option :value="null">Исполнитель</option>
@@ -741,41 +673,22 @@
             </div>
 
             <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-base font-semibold">Дополнительные затраты</h2>
-                        <p class="text-xs text-zinc-500">Прочие расходы, не связанные с оплатой перевозчикам</p>
-                    </div>
-                    <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addAdditionalCost">
-                        Добавить затрату
-                    </button>
+                <div>
+                    <h2 class="text-base font-semibold">Дополнительные затраты</h2>
+                    <p class="text-xs text-zinc-500">Прочие расходы по заказу (не оплата перевозчикам по этапам)</p>
                 </div>
-
-                <div class="space-y-3">
-                    <div v-for="(cost, index) in form.financial_term.additional_costs" :key="`additional-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div class="grid gap-3 md:grid-cols-3">
-                            <div class="space-y-2 md:col-span-2">
-                                <label class="text-sm font-medium">Наименование</label>
-                                <input v-model="cost.label" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Например: Страховка, Топливо, и т.д." />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Валюта</label>
-                                <select v-model="cost.currency" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid gap-3 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Сумма</label>
-                                <input v-model="cost.amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="flex items-end justify-end">
-                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.financial_term.additional_costs, index)">
-                                    Удалить
-                                </button>
-                            </div>
-                        </div>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Доп. расходы</label>
+                        <input v-model="form.additional_expenses" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Страховка</label>
+                        <input v-model="form.insurance" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Бонус</label>
+                        <input v-model="form.bonus" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
                     </div>
                 </div>
             </div>
@@ -792,78 +705,160 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="text-base font-semibold">Документы</h2>
-                        <p class="text-sm text-zinc-500">Тип, номер, дата, файл и статус документа</p>
+                        <p class="text-sm text-zinc-500">Общий блок заказчика + отдельные блоки по каждому плечу перевозки</p>
                     </div>
-                    <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocument">
-                        Добавить документ
-                    </button>
                 </div>
 
                 <div class="space-y-4">
-                    <div v-for="(document, index) in form.documents" :key="`document-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div class="flex items-center justify-between">
-                            <div class="text-sm font-medium">Документ {{ index + 1 }}</div>
-                            <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.documents, index)">
-                                Удалить
+                            <div class="text-sm font-semibold">Документы заказчика</div>
+                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocumentFor('customer', null)">
+                                Добавить документ заказчика
                             </button>
                         </div>
 
-                        <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Тип</label>
-                                <select v-model="document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Сторона</label>
-                                <select v-model="document.party" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="option in documentPartyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Номер</label>
-                                <input v-model="document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Дата</label>
-                                <input v-model="document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Статус</label>
-                                <select v-model="document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                </select>
-                            </div>
+                        <div v-if="customerDocuments.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                            Документы заказчика пока не добавлены.
                         </div>
 
-                        <div class="grid gap-3 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Файл</label>
-                                <input type="file" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onDocumentFileChange(index, $event)" />
-                                <p v-if="document.original_name" class="text-xs text-zinc-500">Текущий файл: {{ document.original_name }}</p>
+                        <div v-for="item in customerDocuments" :key="`customer-document-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="flex items-center justify-between">
+                                <div class="text-sm font-medium">Документ заказчика</div>
+                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
+                                    Удалить
+                                </button>
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Шаблон DOCX</label>
-                                <div class="flex items-center gap-2">
-                                    <select v-model="document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option :value="null">Не выбран</option>
-                                        <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">
-                                            {{ templateOptionLabel(template) }}
-                                        </option>
+                            <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Вид</label>
+                                    <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option value="uploaded">Загружаемый</option>
+                                        <option value="generated">Формируемый</option>
                                     </select>
-                                    <button
-                                        type="button"
-                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                        :disabled="!isEditing || !order?.id || !document.template_id"
-                                        @click="generateDocumentDraft(document)"
-                                    >
-                                        Скачать DOCX
-                                    </button>
                                 </div>
-                                <p class="text-xs text-zinc-500">
-                                    Доступны шаблоны, назначенные на контрагента заказа, и общие шаблоны по умолчанию.
-                                </p>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Тип</label>
+                                    <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Номер</label>
+                                    <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Дата</label>
+                                    <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Статус</label>
+                                    <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <div v-if="item.document.flow === 'generated'" class="space-y-2">
+                                    <label class="text-sm font-medium">Шаблон DOCX</label>
+                                    <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option :value="null">Не выбран</option>
+                                        <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div v-if="item.document.flow === 'generated'" class="flex justify-end">
+                                <button
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    @click="generateDocumentDraft(item.document)"
+                                >
+                                    Скачать DOCX
+                                </button>
+                            </div>
+                            <div v-if="item.document.flow === 'uploaded'" class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Файл</label>
+                                    <input type="file" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onDocumentFileChange(item.index, $event)" />
+                                    <p v-if="item.document.original_name" class="text-xs text-zinc-500">Текущий файл: {{ item.document.original_name }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-for="(performer, performerIndex) in form.performers" :key="`carrier-doc-stage-${performerIndex}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-sm font-semibold">Документы перевозчика — {{ stageLabel(performer.stage) }}</div>
+                                <p class="text-xs text-zinc-500">Блок связан с конкретным плечом маршрута.</p>
+                            </div>
+                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocumentFor('carrier', performer.stage)">
+                                Добавить документ перевозчика
+                            </button>
+                        </div>
+
+                        <div v-if="carrierDocumentsForStage(performer.stage).length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                            Для {{ stageLabel(performer.stage) }} документы перевозчика пока не добавлены.
+                        </div>
+
+                        <div v-for="item in carrierDocumentsForStage(performer.stage)" :key="`carrier-document-${performerIndex}-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="flex items-center justify-between">
+                                <div class="text-sm font-medium">Документ перевозчика</div>
+                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
+                                    Удалить
+                                </button>
+                            </div>
+                            <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Вид</label>
+                                    <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option value="uploaded">Загружаемый</option>
+                                        <option value="generated">Формируемый</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Тип</label>
+                                    <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Номер</label>
+                                    <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Дата</label>
+                                    <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Статус</label>
+                                    <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
+                                <div v-if="item.document.flow === 'generated'" class="space-y-2">
+                                    <label class="text-sm font-medium">Шаблон DOCX</label>
+                                    <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option :value="null">Не выбран</option>
+                                        <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div v-if="item.document.flow === 'generated'" class="flex justify-end">
+                                <button
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    @click="generateDocumentDraft(item.document)"
+                                >
+                                    Скачать DOCX
+                                </button>
+                            </div>
+                            <div v-if="item.document.flow === 'uploaded'" class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Файл</label>
+                                    <input type="file" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onDocumentFileChange(item.index, $event)" />
+                                    <p v-if="item.document.original_name" class="text-xs text-zinc-500">Текущий файл: {{ item.document.original_name }}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -967,6 +962,8 @@ const clientRequestModeOptions = [
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
     { value: 'ottn', label: 'ОТТН' },
+    { value: 'loading', label: 'На загрузке' },
+    { value: 'unloading', label: 'На выгрузке' },
 ];
 
 const counterpartyForm = useForm({
@@ -997,6 +994,7 @@ function templateOptionLabel(template) {
 function normalizeDocument(document = {}) {
     return {
         type: 'request',
+        flow: 'uploaded',
         number: '',
         document_date: '',
         status: 'draft',
@@ -1005,6 +1003,7 @@ function normalizeDocument(document = {}) {
         original_name: '',
         generated_pdf_path: null,
         party: 'internal',
+        stage: null,
         requirement_key: null,
         ...document,
     };
@@ -1113,17 +1112,34 @@ function blankOrder() {
             additional_costs: [],
             kpi_percent: 0,
         },
+        additional_expenses: null,
+        insurance: null,
+        bonus: null,
         documents: [],
     };
+}
+
+function normalizeNullableNumber(value) {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
 }
 
 const form = useForm({
     ...blankOrder(),
     ...(props.order ?? {}),
+    own_company_id: normalizeNullableNumber(props.order?.own_company_id),
+    client_id: normalizeNullableNumber(props.order?.client_id),
+    additional_expenses: props.order?.additional_expenses ?? null,
+    insurance: props.order?.insurance ?? null,
+    bonus: props.order?.bonus ?? null,
     performers: Array.isArray(props.order?.performers)
         ? props.order.performers.map((performer) => ({
             stage: stageLabel(performer.stage ?? 'leg_1'),
-            contractor_id: performer.contractor_id ?? null,
+            contractor_id: normalizeNullableNumber(performer.contractor_id),
         }))
         : blankOrder().performers,
     route_points: Array.isArray(props.order?.route_points)
@@ -1175,9 +1191,9 @@ async function calculateCompensation() {
             body: JSON.stringify({
                 customer_rate: form.financial_term.client_price,
                 carrier_rate: form.financial_term.contractors_costs.reduce((sum, cost) => sum + Number(cost.amount || 0), 0),
-                additional_expenses: form.financial_term.additional_costs.reduce((sum, cost) => sum + Number(cost.amount || 0), 0),
-                insurance: 0, // TODO: add insurance field if needed
-                bonus: 0, // TODO: add bonus field if needed
+                additional_expenses: Number(form.additional_expenses || 0),
+                insurance: Number(form.insurance || 0),
+                bonus: Number(form.bonus || 0),
                 manager_id: props.currentUser?.id,
                 order_date: form.order_date,
                 client_id: form.client_id,
@@ -1213,7 +1229,9 @@ watch(
     [
         () => form.financial_term.client_price,
         () => form.financial_term.contractors_costs,
-        () => form.financial_term.additional_costs,
+        () => form.additional_expenses,
+        () => form.insurance,
+        () => form.bonus,
         () => form.order_date,
         () => form.client_id,
         () => form.performers,
@@ -1233,7 +1251,7 @@ const isMobileStandalone = computed(() => {
     return window.matchMedia('(max-width: 1023px)').matches
         && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
 });
-const selectedClient = computed(() => contractors.value.find((contractor) => contractor.id === form.client_id) ?? null);
+const selectedClient = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.client_id)) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
 
@@ -1487,7 +1505,7 @@ if (selectedClient.value) {
 }
 
 function selectClient(contractor) {
-    form.client_id = contractor.id;
+    form.client_id = normalizeNullableNumber(contractor.id);
     clientSearch.value = contractor.name;
     showClientResults.value = false;
     applyClientDefaults(contractor);
@@ -1500,6 +1518,7 @@ function addPerformer() {
         stage,
         contractor_id: null,
     });
+    syncContractorCostsFromPerformers();
     syncRoutePointsFromPerformers();
 }
 
@@ -1541,7 +1560,7 @@ function stageMatches(left, right) {
 }
 
 function getContractorById(contractorId) {
-    return contractors.value.find((contractor) => contractor.id === contractorId) ?? null;
+    return contractors.value.find((contractor) => Number(contractor.id) === Number(contractorId)) ?? null;
 }
 
 function carrierSearchKey(kind, index) {
@@ -1573,8 +1592,8 @@ function isCarrierResultsVisible(kind, index) {
 function filteredCarrierResults(kind, index) {
     const query = carrierSearchValue(kind, index).trim().toLowerCase();
     const selectedContractorId = kind === 'performer'
-        ? form.performers[index]?.contractor_id
-        : form.financial_term.contractors_costs[index]?.contractor_id;
+        ? normalizeNullableNumber(form.performers[index]?.contractor_id)
+        : normalizeNullableNumber(form.financial_term.contractors_costs[index]?.contractor_id);
     const selectedContractor = getContractorById(selectedContractorId);
     
     // Get server search results for this specific field
@@ -1606,7 +1625,7 @@ function parsePaymentTermPreset(term) {
     }
 
     const normalized = String(term).trim().toUpperCase();
-    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
+    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
 
     if (prepaymentMatch) {
         return normalizePaymentSchedule({
@@ -1619,7 +1638,7 @@ function parsePaymentTermPreset(term) {
         });
     }
 
-    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN)$/u);
+    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
 
     if (postpaymentMatch) {
         return normalizePaymentSchedule({
@@ -1667,7 +1686,7 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
         return;
     }
 
-    const costRow = form.financial_term.contractors_costs.find((row) => row.stage === stage);
+    const costRow = form.financial_term.contractors_costs.find((row) => stageMatches(row.stage, stage));
 
     if (!costRow) {
         return;
@@ -1681,29 +1700,17 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
 }
 
 function selectPerformerContractor(index, contractor) {
-    console.log('=== selectPerformerContractor called ===');
-    console.log('Index:', index);
-    console.log('Contractor ID:', contractor.id, 'Name:', contractor.name);
-    console.log('Old performers:', JSON.parse(JSON.stringify(form.performers)));
-    console.log('Old performers[0].contractor_id:', form.performers[0]?.contractor_id);
-    
-    // Создаем новый массив performers с обновленным contractor_id
     const updatedPerformers = [...form.performers];
     updatedPerformers[index] = {
         ...updatedPerformers[index],
-        contractor_id: contractor.id
+        contractor_id: Number(contractor.id),
     };
     form.performers = updatedPerformers;
-    
-    console.log('New performers:', JSON.parse(JSON.stringify(form.performers)));
-    console.log('New performers[0].contractor_id:', form.performers[0]?.contractor_id);
-    
+
     setCarrierSearchValue('performer', index, contractor.name);
     setCarrierResultsVisible('performer', index, false);
     syncContractorCostsFromPerformers();
     applyCarrierDefaultsByStage(form.performers[index].stage, contractor.id);
-    
-    console.log('=== selectPerformerContractor finished ===');
 }
 
 function clearPerformerContractor(index) {
@@ -1721,21 +1728,72 @@ function clearPerformerContractor(index) {
 }
 
 function syncPerformerContractor(stage, contractorId) {
-    const performer = form.performers.find((item) => item.stage === stage);
+    const performer = form.performers.find((item) => stageMatches(item.stage, stage));
 
     if (!performer) {
         return;
     }
 
-    performer.contractor_id = contractorId;
+    performer.contractor_id = contractorId !== null ? Number(contractorId) : null;
 }
 
 function selectCostContractor(index, contractor) {
-    form.financial_term.contractors_costs[index].contractor_id = contractor.id;
+    form.financial_term.contractors_costs[index].contractor_id = Number(contractor.id);
     setCarrierSearchValue('cost', index, contractor.name);
     setCarrierResultsVisible('cost', index, false);
-    syncPerformerContractor(form.financial_term.contractors_costs[index].stage, contractor.id);
-    applyCarrierDefaultsByStage(form.financial_term.contractors_costs[index].stage, contractor.id);
+    syncPerformerContractor(form.financial_term.contractors_costs[index].stage, Number(contractor.id));
+    applyCarrierDefaultsByStage(form.financial_term.contractors_costs[index].stage, Number(contractor.id));
+}
+
+function clearCostContractor(index) {
+    const cost = form.financial_term.contractors_costs[index];
+
+    if (!cost) {
+        return;
+    }
+
+    cost.contractor_id = null;
+    setCarrierSearchValue('cost', index, '');
+    setCarrierResultsVisible('cost', index, false);
+    syncPerformerContractor(cost.stage, null);
+}
+
+function onCostCarrierInput(index, value) {
+    setCarrierSearchValue('cost', index, value);
+    setCarrierResultsVisible('cost', index, true);
+
+    const cost = form.financial_term.contractors_costs[index];
+    if (!cost) {
+        return;
+    }
+
+    const typed = String(value ?? '').trim().toLowerCase();
+    const selectedContractor = getContractorById(cost.contractor_id);
+    const selectedName = String(selectedContractor?.name ?? '').trim().toLowerCase();
+
+    if (typed === '') {
+        clearCostContractor(index);
+        return;
+    }
+
+    // Если пользователь начал вводить другое имя, снимаем текущее привязанное contractor_id.
+    if (cost.contractor_id !== null && selectedName !== '' && selectedName !== typed) {
+        cost.contractor_id = null;
+        syncPerformerContractor(cost.stage, null);
+    }
+}
+
+function restoreCostCarrierSearch(index) {
+    window.setTimeout(() => {
+        const cost = form.financial_term.contractors_costs[index];
+        if (!cost) {
+            return;
+        }
+
+        const selectedContractor = getContractorById(cost.contractor_id);
+        setCarrierSearchValue('cost', index, selectedContractor?.name ?? '');
+        setCarrierResultsVisible('cost', index, false);
+    }, 120);
 }
 
 const routeChainLabel = computed(() => {
@@ -1767,7 +1825,10 @@ const cargoSummary = computed(() => {
 const financialSummary = computed(() => {
     const clientPrice = Number(form.financial_term.client_price || 0);
     const contractorCosts = form.financial_term.contractors_costs.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const additionalCosts = form.financial_term.additional_costs.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const additionalCosts =
+        Number(form.additional_expenses || 0)
+        + Number(form.insurance || 0)
+        + Number(form.bonus || 0);
     const totalCost = contractorCosts + additionalCosts;
     const margin = clientPrice * (1 - (Number(form.financial_term.kpi_percent || 0) / 100)) - totalCost;
 
@@ -1837,6 +1898,18 @@ const missingRequiredDocumentsSummary = computed(() => {
 
     return `Не хватает документов. ${summary}`;
 });
+
+const customerDocuments = computed(() => {
+    return form.documents
+        .map((document, index) => ({ document, index }))
+        .filter((item) => item.document.party === 'customer');
+});
+
+function carrierDocumentsForStage(stage) {
+    return form.documents
+        .map((document, index) => ({ document, index }))
+        .filter((item) => item.document.party === 'carrier' && stageMatches(item.document.stage, stage));
+}
 
 function addRoutePoint(type) {
     form.route_points.push(blankRoutePoint(
@@ -1966,16 +2039,19 @@ function addCargoItem() {
     });
 }
 
-function addAdditionalCost() {
-    form.financial_term.additional_costs.push({
-        label: '',
-        amount: null,
-        currency: 'RUB',
-    });
+function addDocument() {
+    addDocumentFor('customer', null);
 }
 
-function addDocument() {
-    form.documents.push(normalizeDocument());
+function addDocumentFor(party, stage = null) {
+    form.documents.push(normalizeDocument({
+        party,
+        stage,
+    }));
+}
+
+function removeDocumentAt(index) {
+    form.documents.splice(index, 1);
 }
 
 function removeItem(collection, index) {
@@ -1987,19 +2063,12 @@ function removeItem(collection, index) {
 }
 
 function syncContractorCostsFromPerformers() {
-    console.log('=== syncContractorCostsFromPerformers called ===');
-    console.log('Current performers:', JSON.parse(JSON.stringify(form.performers)));
-    console.log('Current performers[0].contractor_id:', form.performers[0]?.contractor_id);
-    
     const existingRows = Array.isArray(form.financial_term.contractors_costs)
         ? form.financial_term.contractors_costs
         : [];
 
-    console.log('Existing contractors_costs:', JSON.parse(JSON.stringify(existingRows)));
-    console.log('Existing contractors_costs[0].contractor_id:', existingRows[0]?.contractor_id);
-
     form.financial_term.contractors_costs = form.performers.map((performer) => {
-        const existingRow = existingRows.find((row) => row.stage === performer.stage);
+        const existingRow = existingRows.find((row) => stageMatches(row.stage, performer.stage));
 
         const nextRow = normalizeContractorCost({
             ...existingRow,
@@ -2020,20 +2089,7 @@ function syncContractorCostsFromPerformers() {
 
         return nextRow;
     });
-    
-    console.log('Updated contractors_costs:', JSON.parse(JSON.stringify(form.financial_term.contractors_costs)));
-    console.log('Updated contractors_costs[0].contractor_id:', form.financial_term.contractors_costs[0]?.contractor_id);
-    console.log('=== syncContractorCostsFromPerformers finished ===');
 }
-
-watch(
-    () => form.performers,
-    () => {
-        syncContractorCostsFromPerformers();
-        syncRoutePointsFromPerformers();
-    },
-    { deep: true },
-);
 
 // Watch for changes in contractors_costs to sync back to performers
 // Удалено для предотвращения циклической синхронизации при очистке исполнителя
@@ -2057,7 +2113,7 @@ watch(
             const contractor = getContractorById(contractorId);
 
             setCarrierSearchValue('performer', index, contractor?.name ?? '');
-            const costIndex = form.financial_term.contractors_costs.findIndex((row) => row.stage === stage);
+            const costIndex = form.financial_term.contractors_costs.findIndex((row) => stageMatches(row.stage, stage));
 
             if (costIndex !== -1) {
                 setCarrierSearchValue('cost', costIndex, contractor?.name ?? '');
@@ -2198,14 +2254,18 @@ async function createInlineCounterparty() {
 }
 
 function submit() {
-    console.log('=== submit called ===');
-    console.log('Current form.performers:', JSON.parse(JSON.stringify(form.performers)));
-    console.log('Current form.financial_term.contractors_costs:', JSON.parse(JSON.stringify(form.financial_term.contractors_costs)));
-    
-    syncContractorCostsFromPerformers();
+    const costsByStage = new Map(
+        form.financial_term.contractors_costs.map((cost) => [toStageKey(cost.stage), cost]),
+    );
+    form.performers = form.performers.map((performer) => {
+        const syncedCost = costsByStage.get(toStageKey(performer.stage));
 
-    // Create clean form data without any unexpected fields
-    // Build the data structure explicitly to avoid sending 'carriers' field
+        return {
+            ...performer,
+            contractor_id: syncedCost?.contractor_id ?? performer.contractor_id ?? null,
+        };
+    });
+
     const formData = {
         // Basic order fields
         status: form.status,
@@ -2215,11 +2275,14 @@ function submit() {
         order_number: form.order_number,
         payment_terms: form.payment_terms,
         special_notes: form.special_notes,
+        additional_expenses: form.additional_expenses,
+        insurance: form.insurance,
+        bonus: form.bonus,
         
         // Performers array (the server expects this field)
         performers: form.performers.map(performer => ({
             stage: performer.stage,
-            contractor_id: performer.contractor_id,
+            contractor_id: normalizeNullableNumber(performer.contractor_id),
         })),
         
         // Route points
@@ -2264,20 +2327,22 @@ function submit() {
             client_payment_schedule: form.financial_term.client_payment_schedule || {},
             contractors_costs: form.financial_term.contractors_costs.map(cost => ({
                 stage: cost.stage,
-                contractor_id: cost.contractor_id,
+                contractor_id: normalizeNullableNumber(cost.contractor_id),
                 amount: cost.amount,
                 currency: cost.currency || 'RUB',
                 payment_form: cost.payment_form || 'no_vat',
                 payment_schedule: cost.payment_schedule || {},
             })),
-            additional_costs: form.financial_term.additional_costs || [],
+            additional_costs: [],
             kpi_percent: form.financial_term.kpi_percent,
         },
         
         // Documents
         documents: form.documents.map(document => ({
             type: document.type,
+            flow: document.flow,
             party: document.party,
+            stage: document.stage,
             requirement_key: document.requirement_key,
             number: document.number,
             document_date: document.document_date,
@@ -2288,24 +2353,19 @@ function submit() {
             generated_pdf_path: document.generated_pdf_path,
         })),
     };
-    
-    console.log('FormData to be sent:', JSON.parse(JSON.stringify(formData)));
-    console.log('=== submit finished, sending request ===');
 
     if (isEditing.value) {
-        form.patch(route('orders.update', props.order.id), {
+        form.transform(() => formData).patch(route('orders.update', props.order.id), {
             forceFormData: true,
             preserveScroll: true,
-            data: formData,
         });
 
         return;
     }
 
-    form.post(route('orders.store'), {
+    form.transform(() => formData).post(route('orders.store'), {
         forceFormData: true,
         preserveScroll: true,
-        data: formData,
     });
 }
 

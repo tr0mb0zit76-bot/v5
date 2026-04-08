@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
+use App\Models\LegContractorAssignment;
+use App\Models\LegCost;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderLeg;
@@ -93,10 +95,7 @@ class OrderWizardService
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
         $performerTotal = collect($contractorCosts)->sum(fn (array $performer): float => (float) ($performer['amount'] ?? 0));
-        $additionalTotal = collect(Arr::get($financialTerm, 'additional_costs', []))
-            ->sum(fn (array $item): float => (float) ($item['amount'] ?? 0));
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
-        $bonus = (float) ($validated['bonus'] ?? 0);
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
         $clientPaymentSummary = $this->formatPaymentScheduleSummary($clientPaymentSchedule);
         $carrierPaymentForm = $this->resolveCarrierPaymentForm($contractorCosts);
@@ -135,8 +134,6 @@ class OrderWizardService
             'carrier_rate' => $performerTotal ?: null,
             'carrier_payment_form' => $carrierPaymentForm,
             'carrier_payment_term' => $carrierPaymentSummary,
-            'additional_expenses' => $additionalTotal,
-            'bonus' => $bonus,
             'kpi_percent' => 0,
             'delta' => 0,
             'salary_accrued' => 0,
@@ -148,6 +145,15 @@ class OrderWizardService
             'updated_by' => $user->id,
             ...($isCreating ? ['created_by' => $user->id] : []),
         ];
+
+        foreach (['additional_expenses', 'insurance', 'bonus'] as $key) {
+            if (! $isCreating && ! array_key_exists($key, $validated)) {
+                continue;
+            }
+
+            $raw = $validated[$key] ?? null;
+            $attributes[$key] = $raw !== null && $raw !== '' ? (float) $raw : 0.0;
+        }
 
         return $this->onlyExistingOrderColumns($attributes);
     }
@@ -179,10 +185,18 @@ class OrderWizardService
             ->values();
         $routePointSequenceByLeg = [];
 
+        // Синхронизируем назначения исполнителей и стоимость
+        $this->syncLegContractorAssignmentsAndCosts($order, $legs, $validated, $user);
+
         $this->deleteExistingCargoItems($order);
 
         if (Schema::hasTable('order_documents')) {
             $order->documents()->delete();
+        }
+
+        // Удаляем старые financial_terms
+        if (Schema::hasTable('financial_terms')) {
+            $order->financialTerms()->delete();
         }
 
         foreach ($routePoints as $index => $routePoint) {
@@ -286,6 +300,8 @@ class OrderWizardService
                     'uploaded_by' => $user->id,
                     'metadata' => [
                         'party' => $document['party'] ?? 'internal',
+                        'flow' => $document['flow'] ?? 'uploaded',
+                        'stage' => $document['stage'] ?? null,
                         'requirement_key' => $document['requirement_key'] ?? null,
                     ],
                 ];
@@ -317,7 +333,6 @@ class OrderWizardService
         if (Schema::hasTable('financial_terms') && filled($validated['financial_term'] ?? null)) {
             $financialTerm = $validated['financial_term'];
             $contractorsCosts = Arr::get($financialTerm, 'contractors_costs', []);
-            $additionalCosts = Arr::get($financialTerm, 'additional_costs', []);
 
             // Синхронизируем contractors_costs с performers
             $normalizedContractorsCosts = $this->syncContractorsCostsWithPerformers(
@@ -325,8 +340,14 @@ class OrderWizardService
                 $performers
             );
 
+            $order->refresh();
+
+            $additionalFromOrder = (float) ($order->additional_expenses ?? 0)
+                + (float) ($order->insurance ?? 0)
+                + (float) ($order->bonus ?? 0);
+
             $totalCost = collect($normalizedContractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0))
-                + collect($additionalCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0));
+                + $additionalFromOrder;
             $margin = (float) Arr::get($financialTerm, 'client_price', 0) * (1 - ((float) Arr::get($financialTerm, 'kpi_percent', 0) / 100)) - $totalCost;
 
             $financialTermAttributes = [
@@ -336,7 +357,7 @@ class OrderWizardService
                 'contractors_costs' => $normalizedContractorsCosts,
                 'total_cost' => $totalCost,
                 'margin' => $margin,
-                'additional_costs' => $additionalCosts,
+                'additional_costs' => [],
             ];
 
             if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
@@ -357,8 +378,21 @@ class OrderWizardService
      */
     private function syncLegs(Order $order, array $performers)
     {
-        // Use a raw query to avoid prepared statement issues with MySQL error 1615
-        DB::statement('DELETE FROM order_legs WHERE order_id = ?', [$order->id]);
+        // Получаем ID всех плечей заказа перед удалением
+        $legIds = OrderLeg::query()->where('order_id', $order->id)->pluck('id');
+
+        if ($legIds->isNotEmpty()) {
+            if (Schema::hasTable('leg_costs')) {
+                LegCost::query()->whereIn('order_leg_id', $legIds)->delete();
+            }
+
+            if (Schema::hasTable('leg_contractor_assignments')) {
+                LegContractorAssignment::query()->whereIn('order_leg_id', $legIds)->delete();
+            }
+
+            // Только после этого удаляем сами плечи
+            DB::statement('DELETE FROM order_legs WHERE order_id = ?', [$order->id]);
+        }
 
         $legs = collect($performers)
             ->values()
@@ -391,7 +425,7 @@ class OrderWizardService
 
     /**
      * Синхронизирует contractors_costs с performers
-     * 
+     *
      * @param  list<array<string, mixed>>  $contractorsCosts
      * @param  list<array<string, mixed>>  $performers
      * @return list<array<string, mixed>>
@@ -399,20 +433,20 @@ class OrderWizardService
     private function syncContractorsCostsWithPerformers(array $contractorsCosts, array $performers): array
     {
         $performersByStage = collect($performers)
-            ->keyBy(fn (array $performer): string => $performer['stage'] ?? 'leg_1');
+            ->keyBy(fn (array $performer): string => $this->normalizeStageIdentifier((string) ($performer['stage'] ?? 'leg_1')));
 
         return collect($contractorsCosts)
             ->map(function (array $cost) use ($performersByStage): array {
-                $stage = $cost['stage'] ?? 'leg_1';
+                $stage = $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1'));
                 $performer = $performersByStage->get($stage);
-                
+
                 // Обновляем contractor_id из performers, если он есть
                 if ($performer && array_key_exists('contractor_id', $performer)) {
-                    $cost['contractor_id'] = $performer['contractor_id'] !== null 
-                        ? (int) $performer['contractor_id'] 
+                    $cost['contractor_id'] = $performer['contractor_id'] !== null
+                        ? (int) $performer['contractor_id']
                         : null;
                 }
-                
+
                 // Нормализуем contractor_id
                 if (isset($cost['contractor_id']) && $cost['contractor_id'] !== null) {
                     $cost['contractor_id'] = (int) $cost['contractor_id'];
@@ -677,4 +711,95 @@ class OrderWizardService
         DB::table('cargo_leg')->whereIn('cargo_id', $cargoIds)->delete();
         Cargo::query()->whereIn('id', $cargoIds)->delete();
     }
+
+    /**
+     * Синхронизирует назначения исполнителей и стоимость для плечей
+     *
+     * @param  Collection<int, OrderLeg>  $legs
+     * @param  array<string, mixed>  $validated
+     */
+    private function syncLegContractorAssignmentsAndCosts(Order $order, Collection $legs, array $validated, User $user): void
+    {
+        $performers = collect($validated['performers'] ?? [])->values()->all();
+        $financialTerm = Arr::get($validated, 'financial_term', []);
+        $contractorsCosts = Arr::get($financialTerm, 'contractors_costs', []);
+
+        // Группируем performers и contractors_costs по stage
+        $performersByStage = collect($performers)
+            ->keyBy(fn (array $performer): string => $this->normalizeStageIdentifier((string) ($performer['stage'] ?? 'leg_1')));
+
+        $costsByStage = collect($contractorsCosts)
+            ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1')));
+
+        foreach ($legs as $leg) {
+            $stage = $this->normalizeStageIdentifier($leg->description);
+            $performer = $performersByStage->get($stage);
+            $cost = $costsByStage->get($stage);
+            $resolvedContractorId = null;
+
+            if (is_array($cost) && array_key_exists('contractor_id', $cost) && $cost['contractor_id'] !== null) {
+                $resolvedContractorId = (int) $cost['contractor_id'];
+            } elseif (is_array($performer) && array_key_exists('contractor_id', $performer) && $performer['contractor_id'] !== null) {
+                $resolvedContractorId = (int) $performer['contractor_id'];
+            }
+
+            // Удаляем старые записи для этого плеча
+            if (Schema::hasTable('leg_contractor_assignments')) {
+                LegContractorAssignment::query()->where('order_leg_id', $leg->id)->delete();
+            }
+
+            if (Schema::hasTable('leg_costs')) {
+                LegCost::query()->where('order_leg_id', $leg->id)->delete();
+            }
+
+            $hasAssignmentsTable = Schema::hasTable('leg_contractor_assignments');
+            $hasLegCostsTable = Schema::hasTable('leg_costs');
+
+            if (! $hasAssignmentsTable && ! $hasLegCostsTable) {
+                continue;
+            }
+
+            $assignment = null;
+            if ($resolvedContractorId !== null) {
+                if ($hasAssignmentsTable) {
+                    $assignment = LegContractorAssignment::query()->create([
+                        'order_leg_id' => $leg->id,
+                        'contractor_id' => $resolvedContractorId,
+                        'assigned_at' => now(),
+                        'assigned_by' => $user->id,
+                        'status' => 'confirmed',
+                        'notes' => is_array($performer) ? ($performer['notes'] ?? null) : null,
+                    ]);
+                }
+
+                // Создаем стоимость, если есть данные о стоимости
+                if ($cost && $hasLegCostsTable) {
+                    LegCost::query()->create([
+                        'order_leg_id' => $leg->id,
+                        'amount' => $cost['amount'] ?? null,
+                        'currency' => $cost['currency'] ?? 'RUB',
+                        'payment_form' => $cost['payment_form'] ?? null,
+                        'payment_schedule' => $cost['payment_schedule'] ?? null,
+                        'status' => 'draft',
+                        'calculated_at' => now(),
+                        'calculated_by' => $user->id,
+                        'leg_contractor_assignment_id' => $assignment?->id,
+                    ]);
+                }
+            } elseif ($cost && $hasLegCostsTable) {
+                // Если есть только стоимость без исполнителя
+                LegCost::query()->create([
+                    'order_leg_id' => $leg->id,
+                    'amount' => $cost['amount'] ?? null,
+                    'currency' => $cost['currency'] ?? 'RUB',
+                    'payment_form' => $cost['payment_form'] ?? null,
+                    'payment_schedule' => $cost['payment_schedule'] ?? null,
+                    'status' => 'draft',
+                    'calculated_at' => now(),
+                    'calculated_by' => $user->id,
+                ]);
+            }
+        }
+    }
 }
+

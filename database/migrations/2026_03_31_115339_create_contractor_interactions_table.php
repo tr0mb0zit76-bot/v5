@@ -13,7 +13,14 @@ return new class extends Migration
             // Таблицы нет — создаём с нуля
             Schema::create('contractor_interactions', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('contractor_id')->constrained()->cascadeOnDelete();
+
+                // Проверяем существование таблицы contractors перед добавлением внешнего ключа
+                if (Schema::hasTable('contractors')) {
+                    $table->foreignId('contractor_id')->constrained()->cascadeOnDelete();
+                } else {
+                    $table->foreignId('contractor_id')->nullable();
+                }
+
                 $table->timestamp('contacted_at')->nullable();
                 $table->string('channel', 50)->nullable();
                 $table->string('subject')->nullable();
@@ -32,7 +39,12 @@ return new class extends Migration
 
                 // Проверяем и добавляем contractor_id
                 if (! Schema::hasColumn('contractor_interactions', 'contractor_id')) {
-                    $table->foreignId('contractor_id')->after('id')->constrained()->cascadeOnDelete();
+                    // Проверяем существование таблицы contractors перед добавлением внешнего ключа
+                    if (Schema::hasTable('contractors')) {
+                        $table->foreignId('contractor_id')->after('id')->constrained()->cascadeOnDelete();
+                    } else {
+                        $table->foreignId('contractor_id')->after('id')->nullable();
+                    }
                 }
 
                 // Проверяем и добавляем contacted_at

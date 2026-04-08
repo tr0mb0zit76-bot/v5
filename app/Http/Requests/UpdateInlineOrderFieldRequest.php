@@ -14,6 +14,8 @@ class UpdateInlineOrderFieldRequest extends FormRequest
         'customer_rate',
         'carrier_rate',
         'additional_expenses',
+        'insurance',
+        'bonus',
         'invoice_number',
         'upd_number',
         'waybill_number',
@@ -65,7 +67,7 @@ class UpdateInlineOrderFieldRequest extends FormRequest
             return null;
         }
 
-        if (in_array($field, ['customer_rate', 'carrier_rate', 'additional_expenses'], true)) {
+        if (in_array($field, ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
             return $value === null ? null : round((float) $value, 2);
         }
 

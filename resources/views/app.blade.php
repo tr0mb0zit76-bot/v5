@@ -17,9 +17,6 @@
         <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon/apple-touch-icon.png">
         <link rel="manifest" href="/manifest.webmanifest">
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
         @routes
         @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
         @inertiaHead

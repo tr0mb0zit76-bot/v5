@@ -23,6 +23,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -51,7 +52,20 @@ class OrderWizardController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order, OrderWizardService $orderWizardService): RedirectResponse
     {
+        Log::info('orders.update request received', [
+            'order_id' => $order->id,
+            'user_id' => $request->user()?->id,
+            'client_id' => $request->input('client_id'),
+            'performers_count' => count((array) $request->input('performers', [])),
+        ]);
+
         $order = $orderWizardService->update($order, $request->validated(), $request->user());
+
+        Log::info('orders.update completed', [
+            'order_id' => $order->id,
+            'carrier_id' => $order->carrier_id,
+            'updated_at' => optional($order->updated_at)?->toDateTimeString(),
+        ]);
 
         return to_route('orders.edit', $order);
     }
@@ -72,7 +86,7 @@ class OrderWizardController extends Controller
             'updated_by' => $request->user()?->id,
         ])->save();
 
-        if (in_array($payload['field'], ['customer_rate', 'carrier_rate', 'additional_expenses'], true)) {
+        if (in_array($payload['field'], ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
             $this->syncFinancialTermsFromOrderRates($order->fresh());
         }
 
@@ -84,6 +98,8 @@ class OrderWizardController extends Controller
             'customer_rate',
             'carrier_rate',
             'additional_expenses',
+            'insurance',
+            'bonus',
             'customer_payment_form',
             'carrier_payment_form',
             'order_date',
@@ -409,7 +425,9 @@ class OrderWizardController extends Controller
             ->values()
             ->all();
 
-        $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTerm))
+        $performers = $this->serializePerformersPayload($order, $financialTerm);
+
+        $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTerm, $performers))
             ->map(fn (array $cost): array => [
                 'stage' => $cost['stage'] ?? null,
                 'contractor_id' => $cost['contractor_id'] ?? null,
@@ -431,7 +449,10 @@ class OrderWizardController extends Controller
             'responsible_id' => $order->manager_id,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
-            'performers' => $order->performers ?? [],
+            'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
+            'insurance' => Schema::hasColumn('orders', 'insurance') ? $order->insurance : null,
+            'bonus' => Schema::hasColumn('orders', 'bonus') ? $order->bonus : null,
+            'performers' => $performers,
             'route_points' => $routePoints,
             'cargo_items' => $cargoItems->map(fn ($cargo): array => [
                 'id' => $cargo->id,
@@ -461,7 +482,9 @@ class OrderWizardController extends Controller
             'documents' => $documents->map(fn ($document): array => [
                 'id' => $document->id,
                 'type' => $document->type,
+                'flow' => data_get($document->metadata, 'flow', 'uploaded'),
                 'party' => data_get($document->metadata, 'party', 'internal'),
+                'stage' => data_get($document->metadata, 'stage'),
                 'requirement_key' => data_get($document->metadata, 'requirement_key'),
                 'number' => $document->number,
                 'document_date' => optional($document->document_date)?->toDateString(),
@@ -479,6 +502,95 @@ class OrderWizardController extends Controller
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Должен совпадать с {@see OrderWizardService} для сопоставления этапов.
+     */
+    private function normalizeStageIdentifierForWizard(?string $stage): string
+    {
+        $value = trim((string) $stage);
+
+        if ($value === '') {
+            return 'leg_1';
+        }
+
+        if (preg_match('/^Плечо\s+(\d+)$/u', $value, $matches) === 1) {
+            return 'leg_'.$matches[1];
+        }
+
+        return $value;
+    }
+
+    /**
+     * Исполнители для мастера: назначения на плечах, при пустом assignment — из financial_terms, затем carrier_id первого плеча.
+     *
+     * @return list<array{stage: string|null, contractor_id: int|null}>
+     */
+    private function serializePerformersPayload(Order $order, ?FinancialTerm $financialTerm): array
+    {
+        $costRows = $financialTerm?->contractors_costs ?? [];
+        if (! is_array($costRows)) {
+            $costRows = [];
+        }
+
+        $costsByNormalizedStage = collect($costRows)
+            ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? 'leg_1')));
+
+        $performers = [];
+
+        if (Schema::hasTable('leg_contractor_assignments') && $order->relationLoaded('legs')) {
+            $legs = $order->legs->sortBy('sequence')->values();
+
+            foreach ($legs as $index => $leg) {
+                $normalized = $this->normalizeStageIdentifierForWizard((string) ($leg->description ?? 'leg_1'));
+                $contractorId = $leg->contractorAssignment?->contractor_id;
+
+                if ($contractorId === null) {
+                    $fromCost = $costsByNormalizedStage->get($normalized);
+                    $contractorId = $fromCost['contractor_id'] ?? null;
+                }
+
+                if ($contractorId === null && $index === 0 && $order->carrier_id !== null) {
+                    $contractorId = $order->carrier_id;
+                }
+
+                $performers[] = [
+                    'stage' => $leg->description,
+                    'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
+                ];
+            }
+        }
+
+        if ($performers === [] && Schema::hasColumn('orders', 'performers')) {
+            $legacy = $order->getAttribute('performers');
+            if (is_array($legacy)) {
+                $performers = $legacy;
+            }
+        }
+
+        if ($performers === [] && $costRows !== []) {
+            $performers = collect($costRows)
+                ->map(fn (array $cost): array => [
+                    'stage' => $cost['stage'] ?? 'leg_1',
+                    'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null
+                        ? (int) $cost['contractor_id']
+                        : null,
+                ])
+                ->values()
+                ->all();
+        }
+
+        if ($performers === [] && $order->carrier_id !== null) {
+            $performers = [
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => (int) $order->carrier_id,
+                ],
+            ];
+        }
+
+        return $performers;
     }
 
     /**
@@ -523,6 +635,14 @@ class OrderWizardController extends Controller
     private function loadOrderForEditing(Order $order): Order
     {
         $relations = ['client', 'ownCompany', 'legs.routePoints'];
+
+        if (Schema::hasTable('leg_contractor_assignments')) {
+            $relations[] = 'legs.contractorAssignment';
+        }
+
+        if (Schema::hasTable('leg_costs')) {
+            $relations[] = 'legs.cost';
+        }
 
         if (Schema::hasColumn('cargos', 'order_id')) {
             $relations[] = 'cargoItems';
@@ -639,9 +759,10 @@ class OrderWizardController extends Controller
     }
 
     /**
+     * @param  list<array{stage: string|null, contractor_id: int|null}>  $serializedPerformers
      * @return list<array<string, mixed>>
      */
-    private function normalizeContractorsCosts(Order $order, ?FinancialTerm $financialTerm): array
+    private function normalizeContractorsCosts(Order $order, ?FinancialTerm $financialTerm, array $serializedPerformers = []): array
     {
         $contractorsCosts = $financialTerm?->contractors_costs ?? [];
 
@@ -649,8 +770,19 @@ class OrderWizardController extends Controller
             $contractorsCosts = [];
         }
 
-        // Если есть performers в заказе, используем их как основной источник данных
-        $performers = collect($order->performers ?? [])->values();
+        $performersList = $serializedPerformers;
+
+        if ($performersList === [] && Schema::hasColumn('orders', 'performers')) {
+            $rawPerformers = $order->getAttribute('performers');
+            if (is_string($rawPerformers)) {
+                $decoded = json_decode($rawPerformers, true);
+                $rawPerformers = is_array($decoded) ? $decoded : [];
+            }
+            $performersList = is_array($rawPerformers) ? $rawPerformers : [];
+        }
+
+        // Если есть исполнители (из плечей / JSON заказа), строим строки затрат по ним
+        $performers = collect($performersList)->values();
 
         if ($performers->isNotEmpty()) {
             // Создаем contractors_costs на основе performers
@@ -668,9 +800,13 @@ class OrderWizardController extends Controller
                         ];
                     }
 
-                    // Ищем существующую запись для этого этапа
+                    $stageKey = $this->normalizeStageIdentifierForWizard((string) ($performer['stage'] ?? 'leg_'.($index + 1)));
+
+                    // Ищем существующую запись для этого этапа (по нормализованному ключу)
                     $existingCost = collect($contractorsCosts)
-                        ->firstWhere('stage', $performer['stage'] ?? 'leg_'.($index + 1));
+                        ->first(function (array $cost) use ($stageKey): bool {
+                            return $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? '')) === $stageKey;
+                        });
 
                     return [
                         'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
@@ -887,6 +1023,15 @@ class OrderWizardController extends Controller
         }
         if ($order->own_company_id) {
             $ids[] = $order->own_company_id;
+        }
+
+        if (Schema::hasTable('leg_contractor_assignments') && $order->relationLoaded('legs')) {
+            foreach ($order->legs as $leg) {
+                $contractorId = $leg->contractorAssignment?->contractor_id;
+                if ($contractorId) {
+                    $ids[] = $contractorId;
+                }
+            }
         }
 
         // Также можно добавить контрагентов из финансовых условий

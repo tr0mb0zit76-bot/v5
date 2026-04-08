@@ -93,7 +93,13 @@ class FinanceIndexController extends Controller
         return $this->baseOrdersQuery($userId, $roleName, $ordersScope)
             ->where(function ($query) {
                 $query->whereNotNull('orders.customer_rate')
-                    ->orWhereNotNull('orders.carrier_rate');
+                    ->orWhereExists(function ($subQuery) {
+                        $subQuery->select(DB::raw(1))
+                            ->from('order_legs')
+                            ->join('leg_costs', 'leg_costs.order_leg_id', '=', 'order_legs.id')
+                            ->whereColumn('order_legs.order_id', 'orders.id')
+                            ->whereNotNull('leg_costs.carrier_rate');
+                    });
             })
             ->select([
                 'orders.id',

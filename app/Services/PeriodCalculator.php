@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 
 class PeriodCalculator
@@ -39,16 +40,36 @@ class PeriodCalculator
      */
     public function getManagerPeriodStats(int $managerId, string $periodStart, string $periodEnd): array
     {
-        $orders = Order::query()
-            ->where('manager_id', $managerId)
-            ->whereBetween('order_date', [$periodStart, $periodEnd])
-            ->whereNotNull('customer_payment_form')
-            ->whereNotNull('carrier_payment_form')
-            ->when(
-                Schema::hasColumn('orders', 'deleted_at'),
-                fn ($query) => $query->whereNull('deleted_at')
-            )
-            ->get(['id', 'customer_payment_form', 'carrier_payment_form']);
+        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
+            return [
+                'total' => 0,
+                'direct' => 0,
+                'indirect' => 0,
+                'direct_ratio' => 0.0,
+                'indirect_ratio' => 0.0,
+            ];
+        }
+
+        try {
+            $orders = Order::query()
+                ->where('manager_id', $managerId)
+                ->whereBetween('order_date', [$periodStart, $periodEnd])
+                ->whereNotNull('customer_payment_form')
+                ->whereNotNull('carrier_payment_form')
+                ->when(
+                    Schema::hasColumn('orders', 'deleted_at'),
+                    fn ($query) => $query->whereNull('deleted_at')
+                )
+                ->get(['id', 'customer_payment_form', 'carrier_payment_form']);
+        } catch (QueryException) {
+            return [
+                'total' => 0,
+                'direct' => 0,
+                'indirect' => 0,
+                'direct_ratio' => 0.0,
+                'indirect_ratio' => 0.0,
+            ];
+        }
 
         $total = $orders->count();
         $direct = $orders

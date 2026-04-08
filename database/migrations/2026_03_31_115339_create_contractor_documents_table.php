@@ -12,7 +12,14 @@ return new class extends Migration
             // Если таблицы нет - создаём полностью
             Schema::create('contractor_documents', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('contractor_id')->constrained()->cascadeOnDelete();
+
+                // Проверяем существование таблицы contractors перед добавлением внешнего ключа
+                if (Schema::hasTable('contractors')) {
+                    $table->foreignId('contractor_id')->constrained()->cascadeOnDelete();
+                } else {
+                    $table->foreignId('contractor_id')->nullable();
+                }
+
                 $table->string('type')->nullable();
                 $table->string('title');
                 $table->string('number')->nullable();
@@ -26,7 +33,12 @@ return new class extends Migration
             // Если таблица существует - добавляем только недостающие колонки
             Schema::table('contractor_documents', function (Blueprint $table) {
                 if (! Schema::hasColumn('contractor_documents', 'contractor_id')) {
-                    $table->foreignId('contractor_id')->after('id')->constrained()->cascadeOnDelete();
+                    // Проверяем существование таблицы contractors перед добавлением внешнего ключа
+                    if (Schema::hasTable('contractors')) {
+                        $table->foreignId('contractor_id')->after('id')->constrained()->cascadeOnDelete();
+                    } else {
+                        $table->foreignId('contractor_id')->after('id')->nullable();
+                    }
                 }
 
                 if (! Schema::hasColumn('contractor_documents', 'type')) {

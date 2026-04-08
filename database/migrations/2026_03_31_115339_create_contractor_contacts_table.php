@@ -8,12 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Проверяем, существует ли таблица
         if (! Schema::hasTable('contractor_contacts')) {
             // Таблицы нет — создаём с нуля
             Schema::create('contractor_contacts', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('contractor_id')->constrained()->cascadeOnDelete();
+
+                // Проверяем существование таблицы contractors перед добавлением внешнего ключа
+                if (Schema::hasTable('contractors')) {
+                    $table->foreignId('contractor_id')->constrained('contractors')->cascadeOnDelete();
+                } else {
+                    $table->unsignedBigInteger('contractor_id');
+                    $table->index('contractor_id');
+                }
+
                 $table->string('full_name');
                 $table->string('position')->nullable();
                 $table->string('phone', 50)->nullable();
@@ -25,9 +32,20 @@ return new class extends Migration
         } else {
             // Таблица существует — проверяем каждый столбец и добавляем, если отсутствует
             Schema::table('contractor_contacts', function (Blueprint $table) {
-                // Проверяем и добавляем foreignId, если нет
+                // Проверяем и добавляем id
+                if (! Schema::hasColumn('contractor_contacts', 'id')) {
+                    $table->id();
+                }
+
+                // Проверяем и добавляем contractor_id
                 if (! Schema::hasColumn('contractor_contacts', 'contractor_id')) {
-                    $table->foreignId('contractor_id')->after('id')->constrained()->cascadeOnDelete();
+                    // Проверяем существование таблицы contractors перед добавлением внешнего ключа
+                    if (Schema::hasTable('contractors')) {
+                        $table->foreignId('contractor_id')->after('id')->constrained('contractors')->cascadeOnDelete();
+                    } else {
+                        $table->unsignedBigInteger('contractor_id')->after('id');
+                        $table->index('contractor_id');
+                    }
                 }
 
                 // Проверяем и добавляем full_name
@@ -66,6 +84,26 @@ return new class extends Migration
                 }
             });
         }
+    }
+
+    /**
+     * Получить список внешних ключей таблицы
+     */
+    private function getForeignKeys($table)
+    {
+        $conn = Schema::getConnection();
+        $dbName = $conn->getDatabaseName();
+        $tableName = $table;
+
+        $results = $conn->select('
+            SELECT CONSTRAINT_NAME 
+            FROM information_schema.KEY_COLUMN_USAGE 
+            WHERE REFERENCED_TABLE_SCHEMA = ? 
+            AND TABLE_NAME = ?
+            AND REFERENCED_TABLE_NAME IS NOT NULL
+        ', [$dbName, $tableName]);
+
+        return array_column($results, 'CONSTRAINT_NAME');
     }
 
     public function down(): void
