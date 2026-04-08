@@ -523,7 +523,7 @@ class OrderWizardController extends Controller
     }
 
     /**
-     * Исполнители для мастера: назначения на плечах, при пустом assignment — из financial_terms, затем carrier_id первого плеча.
+     * Исполнители для мастера: плечи заказа; перевозчик — из назначения на плече, при отсутствии — из snapshot `financial_terms.contractors_costs`.
      *
      * @return list<array{stage: string|null, contractor_id: int|null}>
      */
@@ -537,14 +537,20 @@ class OrderWizardController extends Controller
         $costsByNormalizedStage = collect($costRows)
             ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? 'leg_1')));
 
-        $performers = [];
+        if (! $order->relationLoaded('legs')) {
+            return [];
+        }
 
-        if (Schema::hasTable('leg_contractor_assignments') && $order->relationLoaded('legs')) {
-            $legs = $order->legs->sortBy('sequence')->values();
-
-            foreach ($legs as $index => $leg) {
+        return $order->legs
+            ->sortBy('sequence')
+            ->values()
+            ->map(function ($leg, int $index) use ($costsByNormalizedStage, $order): array {
                 $normalized = $this->normalizeStageIdentifierForWizard((string) ($leg->description ?? 'leg_1'));
-                $contractorId = $leg->contractorAssignment?->contractor_id;
+                $contractorId = null;
+
+                if (Schema::hasTable('leg_contractor_assignments')) {
+                    $contractorId = $leg->contractorAssignment?->contractor_id;
+                }
 
                 if ($contractorId === null) {
                     $fromCost = $costsByNormalizedStage->get($normalized);
@@ -555,42 +561,12 @@ class OrderWizardController extends Controller
                     $contractorId = $order->carrier_id;
                 }
 
-                $performers[] = [
+                return [
                     'stage' => $leg->description,
                     'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
                 ];
-            }
-        }
-
-        if ($performers === [] && Schema::hasColumn('orders', 'performers')) {
-            $legacy = $order->getAttribute('performers');
-            if (is_array($legacy)) {
-                $performers = $legacy;
-            }
-        }
-
-        if ($performers === [] && $costRows !== []) {
-            $performers = collect($costRows)
-                ->map(fn (array $cost): array => [
-                    'stage' => $cost['stage'] ?? 'leg_1',
-                    'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null
-                        ? (int) $cost['contractor_id']
-                        : null,
-                ])
-                ->values()
-                ->all();
-        }
-
-        if ($performers === [] && $order->carrier_id !== null) {
-            $performers = [
-                [
-                    'stage' => 'leg_1',
-                    'contractor_id' => (int) $order->carrier_id,
-                ],
-            ];
-        }
-
-        return $performers;
+            })
+            ->all();
     }
 
     /**
@@ -729,11 +705,22 @@ class OrderWizardController extends Controller
             return [];
         }
 
-        return collect([
+        $ids = collect([
             $order->customer_id,
             $order->carrier_id,
             $order->own_company_id,
-        ])->filter(fn (mixed $value): bool => is_int($value) || ctype_digit((string) $value))
+        ]);
+
+        if ($order->relationLoaded('legs') && Schema::hasTable('leg_contractor_assignments')) {
+            foreach ($order->legs as $leg) {
+                $cid = $leg->contractorAssignment?->contractor_id;
+                if ($cid !== null) {
+                    $ids->push($cid);
+                }
+            }
+        }
+
+        return $ids->filter(fn (mixed $value): bool => is_int($value) || ctype_digit((string) $value))
             ->map(fn (mixed $value): int => (int) $value)
             ->unique()
             ->values()
@@ -764,109 +751,42 @@ class OrderWizardController extends Controller
      */
     private function normalizeContractorsCosts(Order $order, ?FinancialTerm $financialTerm, array $serializedPerformers = []): array
     {
-        $contractorsCosts = $financialTerm?->contractors_costs ?? [];
+        $savedCosts = $financialTerm?->contractors_costs ?? [];
 
-        if (! is_array($contractorsCosts)) {
-            $contractorsCosts = [];
+        if (! is_array($savedCosts)) {
+            $savedCosts = [];
         }
 
-        $performersList = $serializedPerformers;
-
-        if ($performersList === [] && Schema::hasColumn('orders', 'performers')) {
-            $rawPerformers = $order->getAttribute('performers');
-            if (is_string($rawPerformers)) {
-                $decoded = json_decode($rawPerformers, true);
-                $rawPerformers = is_array($decoded) ? $decoded : [];
-            }
-            $performersList = is_array($rawPerformers) ? $rawPerformers : [];
-        }
-
-        // Если есть исполнители (из плечей / JSON заказа), строим строки затрат по ним
-        $performers = collect($performersList)->values();
-
-        if ($performers->isNotEmpty()) {
-            // Создаем contractors_costs на основе performers
-            $contractorsCosts = $performers
-                ->map(function ($performer, int $index) use ($financialTerm, $order, $contractorsCosts): array {
-                    // Проверяем, что $performer - массив
-                    if (! is_array($performer)) {
-                        return [
-                            'stage' => 'leg_'.($index + 1),
-                            'contractor_id' => null,
-                            'amount' => null,
-                            'currency' => $financialTerm?->client_currency ?? 'RUB',
-                            'payment_form' => $order->carrier_payment_form ?? 'no_vat',
-                            'payment_schedule' => [],
-                        ];
-                    }
-
-                    $stageKey = $this->normalizeStageIdentifierForWizard((string) ($performer['stage'] ?? 'leg_'.($index + 1)));
-
-                    // Ищем существующую запись для этого этапа (по нормализованному ключу)
-                    $existingCost = collect($contractorsCosts)
-                        ->first(function (array $cost) use ($stageKey): bool {
-                            return $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? '')) === $stageKey;
-                        });
-
+        $contractorsCosts = collect($serializedPerformers)
+            ->values()
+            ->map(function ($performer, int $index) use ($financialTerm, $savedCosts, $order): array {
+                if (! is_array($performer)) {
                     return [
-                        'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
-                        'contractor_id' => $performer['contractor_id'] ?? null,
-                        'amount' => $existingCost['amount'] ?? null,
-                        'currency' => $existingCost['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
-                        'payment_form' => $existingCost['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
-                        'payment_schedule' => $existingCost['payment_schedule'] ?? [],
+                        'stage' => 'leg_'.($index + 1),
+                        'contractor_id' => null,
+                        'amount' => null,
+                        'currency' => $financialTerm?->client_currency ?? 'RUB',
+                        'payment_form' => $order->carrier_payment_form ?? 'no_vat',
+                        'payment_schedule' => [],
                     ];
-                })
-                ->all();
-        } elseif ($contractorsCosts === [] && ($order->carrier_id !== null || $order->carrier_rate !== null)) {
-            // Только если нет performers и нет contractors_costs, но есть carrier_id в заказе
-            // Проверяем, что в performers действительно нет данных
-            $performers = collect($order->performers ?? [])->values();
-            if ($performers->isEmpty()) {
-                $contractorsCosts = [[
-                    'stage' => 'leg_1',
-                    'contractor_id' => $order->carrier_id,
-                    'amount' => null,
-                    'currency' => $financialTerm?->client_currency ?? 'RUB',
-                    'payment_form' => $order->carrier_payment_form ?? 'no_vat',
-                    'payment_schedule' => [],
-                ]];
-            } else {
-                // Если есть performers, используем их данные
-                $contractorsCosts = $performers
-                    ->map(function ($performer, int $index) use ($financialTerm, $order): array {
-                        if (! is_array($performer)) {
-                            return [
-                                'stage' => 'leg_'.($index + 1),
-                                'contractor_id' => null,
-                                'amount' => null,
-                                'currency' => $financialTerm?->client_currency ?? 'RUB',
-                                'payment_form' => $order->carrier_payment_form ?? 'no_vat',
-                                'payment_schedule' => [],
-                            ];
-                        }
+                }
 
-                        return [
-                            'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
-                            'contractor_id' => $performer['contractor_id'] ?? null,
-                            'amount' => null,
-                            'currency' => $financialTerm?->client_currency ?? 'RUB',
-                            'payment_form' => $order->carrier_payment_form ?? 'no_vat',
-                            'payment_schedule' => [],
-                        ];
-                    })
-                    ->all();
-            }
-        } else {
-            // Update existing contractors costs with current payment_form from order
-            $contractorsCosts = collect($contractorsCosts)
-                ->map(function (array $cost) use ($order): array {
-                    $cost['payment_form'] = $order->carrier_payment_form ?? 'no_vat';
+                $stageKey = $this->normalizeStageIdentifierForWizard((string) ($performer['stage'] ?? 'leg_'.($index + 1)));
+                $existingCost = collect($savedCosts)
+                    ->first(function (array $cost) use ($stageKey): bool {
+                        return $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? '')) === $stageKey;
+                    });
 
-                    return $cost;
-                })
-                ->all();
-        }
+                return [
+                    'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
+                    'contractor_id' => $performer['contractor_id'] ?? null,
+                    'amount' => $existingCost['amount'] ?? null,
+                    'currency' => $existingCost['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
+                    'payment_form' => $existingCost['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
+                    'payment_schedule' => $existingCost['payment_schedule'] ?? [],
+                ];
+            })
+            ->all();
 
         return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
     }

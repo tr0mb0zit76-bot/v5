@@ -88,12 +88,12 @@ class OrderWizardService
      */
     private function extractOrderAttributes(array $validated, User $user, array $numberData, bool $isCreating): array
     {
-        $performers = collect($validated['performers'] ?? [])->values()->all();
+        $financialTerm = Arr::get($validated, 'financial_term', []);
+        $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
+        $performers = $this->performersForLegSync($validated);
         $routePoints = collect($validated['route_points'] ?? [])->sortBy('sequence')->values();
         $firstLoadingDate = $routePoints->firstWhere('type', 'loading')['planned_date'] ?? null;
         $lastUnloadingDate = $routePoints->where('type', 'unloading')->last()['planned_date'] ?? null;
-        $financialTerm = Arr::get($validated, 'financial_term', []);
-        $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
         $performerTotal = collect($contractorCosts)->sum(fn (array $performer): float => (float) ($performer['amount'] ?? 0));
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
@@ -101,7 +101,6 @@ class OrderWizardService
         $carrierPaymentForm = $this->resolveCarrierPaymentForm($contractorCosts);
         $carrierPaymentSummary = $this->resolveCarrierPaymentTerm($contractorCosts);
 
-        // Нормализуем contractor_id в массиве performers (преобразуем строку в integer)
         $normalizedPerformers = collect($performers)
             ->map(function (array $performer): array {
                 if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
@@ -159,14 +158,54 @@ class OrderWizardService
     }
 
     /**
+     * Исполнители по этапам: приоритет у `financial_term.contractors_costs`; если пусто — массив `performers` из запроса.
+     *
+     * @return list<array{stage: string, contractor_id: int|null}>
+     */
+    private function performersForLegSync(array $validated): array
+    {
+        $financialTerm = Arr::get($validated, 'financial_term', []);
+        $costs = Arr::get($financialTerm, 'contractors_costs', []);
+
+        if (is_array($costs) && $costs !== []) {
+            return collect($costs)
+                ->map(function (array $cost): array {
+                    $id = $cost['contractor_id'] ?? null;
+
+                    return [
+                        'stage' => (string) ($cost['stage'] ?? 'leg_1'),
+                        'contractor_id' => $id !== null && $id !== '' ? (int) $id : null,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return collect($validated['performers'] ?? [])
+            ->map(function ($performer): array {
+                if (! is_array($performer)) {
+                    return ['stage' => 'leg_1', 'contractor_id' => null];
+                }
+
+                $id = $performer['contractor_id'] ?? null;
+
+                return [
+                    'stage' => (string) ($performer['stage'] ?? 'leg_1'),
+                    'contractor_id' => $id !== null && $id !== '' ? (int) $id : null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $validated
      */
     private function syncNestedData(Order $order, array $validated, User $user): void
     {
         $order->loadMissing($this->relationsForNestedSync());
 
-        // Нормализуем performers для передачи в syncLegs
-        $performers = collect($validated['performers'] ?? [])->values()->all();
+        $performers = $this->performersForLegSync($validated);
         $normalizedPerformers = collect($performers)
             ->map(function (array $performer): array {
                 if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
@@ -337,7 +376,7 @@ class OrderWizardService
             // Синхронизируем contractors_costs с performers
             $normalizedContractorsCosts = $this->syncContractorsCostsWithPerformers(
                 $contractorsCosts,
-                $performers
+                $normalizedPerformers
             );
 
             $order->refresh();
@@ -802,4 +841,3 @@ class OrderWizardService
         }
     }
 }
-
