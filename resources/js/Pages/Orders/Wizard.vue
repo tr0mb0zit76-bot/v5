@@ -125,7 +125,7 @@
                             <input
                                 v-model="clientSearch"
                                 type="text"
-                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_id', form.client_id)]"
                                 placeholder="Начни вводить название или ИНН"
                                 @focus="showClientResults = true"
                             />
@@ -162,9 +162,9 @@
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Дата заказа</label>
-                            <input v-model="form.order_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Дата заказа</label>
+                        <input v-model="form.order_date" type="date" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('order_date', form.order_date)]" />
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Номер</label>
@@ -382,7 +382,7 @@
                                     <input
                                         v-model="point.address"
                                         type="text"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + index, point.address)]"
                                         placeholder="Начни вводить адрес"
                                         @input="queueAddressLookup(index)"
                                     />
@@ -479,11 +479,11 @@
                         <div class="grid gap-3 md:grid-cols-2">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Наименование</label>
-                                <input v-model="item.name" list="cargo-title-suggestions" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <input v-model="item.name" list="cargo-title-suggestions" type="text" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]" />
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Тип груза</label>
-                                <select v-model="item.cargo_type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <select v-model="item.cargo_type" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_type_' + index, item.cargo_type)]">
                                     <option v-for="option in cargoTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
@@ -564,7 +564,7 @@
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Валюта</label>
-                                <select v-model="form.financial_term.client_currency" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <select v-model="form.financial_term.client_currency" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_currency', form.financial_term.client_currency, form.financial_term.client_price)]">
                                     <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
@@ -1236,6 +1236,49 @@ const isMobileStandalone = computed(() => {
 const selectedClient = computed(() => contractors.value.find((contractor) => contractor.id === form.client_id) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
+
+// Проверка обязательных полей
+const requiredFieldsValid = computed(() => {
+    // Основные обязательные поля
+    const hasClient = !!form.client_id;
+    const hasOrderDate = !!form.order_date;
+    const hasStatus = !!form.status;
+    
+    // Обязательные поля в performers
+    const performersValid = form.performers.every(performer => !!performer.stage);
+    
+    // Обязательные поля в route_points
+    const routePointsValid = form.route_points.every(point => {
+        return !!point.type && !!point.address;
+    });
+    
+    // Обязательные поля в cargo_items
+    const cargoItemsValid = form.cargo_items.every(item => {
+        return !!item.name && item.dangerous_goods !== undefined && !!item.cargo_type;
+    });
+    
+    // Обязательные поля в financial_term (если financial_term заполнен)
+    const financialTermValid = !form.financial_term.client_price || !!form.financial_term.client_currency;
+    
+    return hasClient && hasOrderDate && hasStatus && performersValid && routePointsValid && cargoItemsValid && financialTermValid;
+});
+
+// Подсветка для конкретных полей
+const highlightRequiredField = (fieldName, value, conditionValue = null) => {
+    // Для поля client_currency проверяем, заполнена ли цена клиента
+    if (fieldName === 'client_currency') {
+        if (conditionValue && (!value || value === '' || value === null)) {
+            return 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30';
+        }
+        return 'border-zinc-200 dark:border-zinc-700';
+    }
+    
+    // Для остальных полей
+    if (!value || value === '' || value === null) {
+        return 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30';
+    }
+    return 'border-zinc-200 dark:border-zinc-700';
+};
 const orderPeriodPreview = computed(() => {
     if (!form.order_date) {
         return {
@@ -1322,36 +1365,36 @@ watch(clientSearch, (newQuery) => {
     }, 300);
 });
 
-async function searchClients(query) {
-    if (query.length < 2) {
-        serverSearchResults.value = [];
-        return;
-    }
-    
-    isSearchingClients.value = true;
-    
-    try {
-        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=customer&limit=50`, {
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'include',
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Search failed with status ${response.status}`);
+    async function searchClients(query) {
+        if (query.length < 2) {
+            serverSearchResults.value = [];
+            return;
         }
         
-        const data = await response.json();
-        serverSearchResults.value = data.contractors || [];
-    } catch (error) {
-        console.error('Client search error', error);
-        serverSearchResults.value = [];
-    } finally {
-        isSearchingClients.value = false;
+        isSearchingClients.value = true;
+        
+        try {
+            const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=customer&limit=100`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'include',
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Search failed with status ${response.status}`);
+            }
+            
+            const data = await response.json();
+            serverSearchResults.value = data.contractors || [];
+        } catch (error) {
+            console.error('Client search error', error);
+            serverSearchResults.value = [];
+        } finally {
+            isSearchingClients.value = false;
+        }
     }
-}
 
 // Watch for carrier search input changes
 watch(carrierSearch, (newSearchValues, oldSearchValues) => {
@@ -1401,7 +1444,7 @@ async function searchCarriers(kind, index, query) {
     isSearchingCarriers.value[key] = true;
     
     try {
-        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=carrier&limit=50`, {
+        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=carrier&limit=100`, {
             headers: {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -1638,15 +1681,40 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
 }
 
 function selectPerformerContractor(index, contractor) {
-    form.performers[index].contractor_id = contractor.id;
+    console.log('=== selectPerformerContractor called ===');
+    console.log('Index:', index);
+    console.log('Contractor ID:', contractor.id, 'Name:', contractor.name);
+    console.log('Old performers:', JSON.parse(JSON.stringify(form.performers)));
+    console.log('Old performers[0].contractor_id:', form.performers[0]?.contractor_id);
+    
+    // Создаем новый массив performers с обновленным contractor_id
+    const updatedPerformers = [...form.performers];
+    updatedPerformers[index] = {
+        ...updatedPerformers[index],
+        contractor_id: contractor.id
+    };
+    form.performers = updatedPerformers;
+    
+    console.log('New performers:', JSON.parse(JSON.stringify(form.performers)));
+    console.log('New performers[0].contractor_id:', form.performers[0]?.contractor_id);
+    
     setCarrierSearchValue('performer', index, contractor.name);
     setCarrierResultsVisible('performer', index, false);
     syncContractorCostsFromPerformers();
     applyCarrierDefaultsByStage(form.performers[index].stage, contractor.id);
+    
+    console.log('=== selectPerformerContractor finished ===');
 }
 
 function clearPerformerContractor(index) {
-    form.performers[index].contractor_id = null;
+    // Создаем новый массив performers с очищенным contractor_id
+    const updatedPerformers = [...form.performers];
+    updatedPerformers[index] = {
+        ...updatedPerformers[index],
+        contractor_id: null
+    };
+    form.performers = updatedPerformers;
+    
     setCarrierSearchValue('performer', index, '');
     setCarrierResultsVisible('performer', index, false);
     syncContractorCostsFromPerformers();
@@ -1919,9 +1987,16 @@ function removeItem(collection, index) {
 }
 
 function syncContractorCostsFromPerformers() {
+    console.log('=== syncContractorCostsFromPerformers called ===');
+    console.log('Current performers:', JSON.parse(JSON.stringify(form.performers)));
+    console.log('Current performers[0].contractor_id:', form.performers[0]?.contractor_id);
+    
     const existingRows = Array.isArray(form.financial_term.contractors_costs)
         ? form.financial_term.contractors_costs
         : [];
+
+    console.log('Existing contractors_costs:', JSON.parse(JSON.stringify(existingRows)));
+    console.log('Existing contractors_costs[0].contractor_id:', existingRows[0]?.contractor_id);
 
     form.financial_term.contractors_costs = form.performers.map((performer) => {
         const existingRow = existingRows.find((row) => row.stage === performer.stage);
@@ -1945,6 +2020,10 @@ function syncContractorCostsFromPerformers() {
 
         return nextRow;
     });
+    
+    console.log('Updated contractors_costs:', JSON.parse(JSON.stringify(form.financial_term.contractors_costs)));
+    console.log('Updated contractors_costs[0].contractor_id:', form.financial_term.contractors_costs[0]?.contractor_id);
+    console.log('=== syncContractorCostsFromPerformers finished ===');
 }
 
 watch(
@@ -1957,18 +2036,19 @@ watch(
 );
 
 // Watch for changes in contractors_costs to sync back to performers
-watch(
-    () => form.financial_term.contractors_costs,
-    (costs) => {
-        costs.forEach((cost) => {
-            const performer = form.performers.find((item) => item.stage === cost.stage);
-            if (performer && performer.contractor_id !== cost.contractor_id) {
-                performer.contractor_id = cost.contractor_id;
-            }
-        });
-    },
-    { deep: true },
-);
+// Удалено для предотвращения циклической синхронизации при очистке исполнителя
+// watch(
+//     () => form.financial_term.contractors_costs,
+//     (costs) => {
+//         costs.forEach((cost) => {
+//             const performer = form.performers.find((item) => item.stage === cost.stage);
+//             if (performer && performer.contractor_id !== cost.contractor_id) {
+//                 performer.contractor_id = cost.contractor_id;
+//             }
+//         });
+//     },
+//     { deep: true },
+// );
 
 watch(
     () => form.performers.map((performer) => [performer.stage, performer.contractor_id]),
@@ -2118,12 +2198,105 @@ async function createInlineCounterparty() {
 }
 
 function submit() {
+    console.log('=== submit called ===');
+    console.log('Current form.performers:', JSON.parse(JSON.stringify(form.performers)));
+    console.log('Current form.financial_term.contractors_costs:', JSON.parse(JSON.stringify(form.financial_term.contractors_costs)));
+    
     syncContractorCostsFromPerformers();
+
+    // Create clean form data without any unexpected fields
+    // Build the data structure explicitly to avoid sending 'carriers' field
+    const formData = {
+        // Basic order fields
+        status: form.status,
+        own_company_id: form.own_company_id,
+        client_id: form.client_id,
+        order_date: form.order_date,
+        order_number: form.order_number,
+        payment_terms: form.payment_terms,
+        special_notes: form.special_notes,
+        
+        // Performers array (the server expects this field)
+        performers: form.performers.map(performer => ({
+            stage: performer.stage,
+            contractor_id: performer.contractor_id,
+        })),
+        
+        // Route points
+        route_points: form.route_points.map(point => ({
+            stage: point.stage,
+            type: point.type,
+            sequence: point.sequence,
+            address: point.address,
+            normalized_data: point.normalized_data || {},
+            planned_date: point.planned_date,
+            actual_date: point.actual_date,
+            contact_person: point.contact_person,
+            contact_phone: point.contact_phone,
+            sender_name: point.sender_name,
+            sender_contact: point.sender_contact,
+            sender_phone: point.sender_phone,
+            recipient_name: point.recipient_name,
+            recipient_contact: point.recipient_contact,
+            recipient_phone: point.recipient_phone,
+        })),
+        
+        // Cargo items
+        cargo_items: form.cargo_items.map(item => ({
+            name: item.name,
+            description: item.description,
+            weight_kg: item.weight_kg,
+            volume_m3: item.volume_m3,
+            package_type: item.package_type,
+            package_count: item.package_count,
+            dangerous_goods: item.dangerous_goods,
+            dangerous_class: item.dangerous_class,
+            hs_code: item.hs_code,
+            cargo_type: item.cargo_type,
+        })),
+        
+        // Financial term
+        financial_term: {
+            client_price: form.financial_term.client_price,
+            client_currency: form.financial_term.client_currency,
+            client_payment_form: form.financial_term.client_payment_form,
+            client_request_mode: form.financial_term.client_request_mode,
+            client_payment_schedule: form.financial_term.client_payment_schedule || {},
+            contractors_costs: form.financial_term.contractors_costs.map(cost => ({
+                stage: cost.stage,
+                contractor_id: cost.contractor_id,
+                amount: cost.amount,
+                currency: cost.currency || 'RUB',
+                payment_form: cost.payment_form || 'no_vat',
+                payment_schedule: cost.payment_schedule || {},
+            })),
+            additional_costs: form.financial_term.additional_costs || [],
+            kpi_percent: form.financial_term.kpi_percent,
+        },
+        
+        // Documents
+        documents: form.documents.map(document => ({
+            type: document.type,
+            party: document.party,
+            requirement_key: document.requirement_key,
+            number: document.number,
+            document_date: document.document_date,
+            status: document.status,
+            template_id: document.template_id,
+            file: document.file,
+            original_name: document.original_name,
+            generated_pdf_path: document.generated_pdf_path,
+        })),
+    };
+    
+    console.log('FormData to be sent:', JSON.parse(JSON.stringify(formData)));
+    console.log('=== submit finished, sending request ===');
 
     if (isEditing.value) {
         form.patch(route('orders.update', props.order.id), {
             forceFormData: true,
             preserveScroll: true,
+            data: formData,
         });
 
         return;
@@ -2132,6 +2305,7 @@ function submit() {
     form.post(route('orders.store'), {
         forceFormData: true,
         preserveScroll: true,
+        data: formData,
     });
 }
 

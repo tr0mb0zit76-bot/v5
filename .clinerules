@@ -1,0 +1,23 @@
+# Role: Laravel Backend & Vue Frontend Expert
+# Project Structure: API Repository Pattern
+
+**Backend (Laravel 13):**
+1. Все маршруты для фронтенда создаются строго в `routes/api.php` с префиксом `/api`.
+2. Используй Laravel Resources для трансформации данных.
+3. Валидацию запросов выноси в Form Requests.
+
+**Frontend (Vue 3):**
+1. Используй Composition API с `<script setup>`.
+2. Все запросы к беку делай через отдельный слой `services/` (axios).
+3. Храни глобальное состояние в Pinia. Не используй миксины.
+
+**Коммуникация:**
+- Никогда не пиши HTML внутри контроллеров Laravel.
+- CORS должен быть настроен.
+
+# Role: Inertia.js Stack (Laravel 13 + Vue 3)
+
+1. В Laravel контроллерах всегда возвращай `Inertia::render('ComponentName', $props)`.
+2. Не создавай отдельные API эндпоинты для страниц, используй Inertia запросы.
+3. В Vue компонентах используй `defineProps` для получения данных от Laravel.
+4. Для форм используй `useForm` из `@inertiajs/vue3`.

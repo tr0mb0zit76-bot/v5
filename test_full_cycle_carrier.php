@@ -2,6 +2,7 @@
 
 require __DIR__.'/vendor/autoload.php';
 
+use App\Http\Controllers\Orders\OrderWizardController;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\User;
@@ -12,7 +13,7 @@ use Illuminate\Contracts\Console\Kernel;
 $app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
-echo "=== Тестирование очистки перевозчика ===\n\n";
+echo "=== Тестирование полного цикла очистки перевозчика ===\n\n";
 
 try {
     // Создаем тестовые данные напрямую с уникальными значениями
@@ -108,7 +109,7 @@ try {
         ],
     ];
 
-    echo "\nОбновляем заказ с очищенным перевозчиком...\n";
+    echo "\n=== Шаг 1: Обновляем заказ с очищенным перевозчиком ===\n";
 
     // Обновляем заказ через сервис
     $updatedOrder = $service->update($order, $data, $user);
@@ -128,20 +129,59 @@ try {
         echo "✗ ОШИБКА: performers contractor_id не null\n";
     }
 
-    // Проверяем, что contractors_costs также обновлен
-    // Загружаем отношение financialTerms
-    $updatedOrder->load('financialTerms');
-    $financialTerm = $updatedOrder->financialTerms->first();
+    echo "\n=== Шаг 2: Загружаем заказ для редактирования ===\n";
 
-    if ($financialTerm && is_array($financialTerm->contractors_costs) && isset($financialTerm->contractors_costs[0]) && $financialTerm->contractors_costs[0]['contractor_id'] === null) {
-        echo "✓ contractors_costs успешно синхронизирован\n";
+    // Создаем экземпляр контроллера
+    $controller = app(OrderWizardController::class);
+
+    // Используем рефлексию для вызова приватного метода serializeOrder
+    $reflection = new ReflectionClass($controller);
+    $method = $reflection->getMethod('serializeOrder');
+    $method->setAccessible(true);
+
+    // Загружаем заказ с отношениями
+    $orderForEdit = $updatedOrder->fresh()->load(['financialTerms', 'legs.routePoints']);
+
+    // Сериализуем заказ
+    $serializedOrder = $method->invoke($controller, $orderForEdit);
+
+    // Проверяем, что в сериализованных данных contractor_id = null
+    $contractorsCosts = $serializedOrder['financial_term']['contractors_costs'] ?? [];
+
+    if (isset($contractorsCosts[0]) && $contractorsCosts[0]['contractor_id'] === null) {
+        echo "✓ В сериализованных данных contractor_id = null\n";
     } else {
-        echo "✗ ОШИБКА: contractors_costs contractor_id не null\n";
-        if ($financialTerm) {
-            echo '  contractors_costs: '.json_encode($financialTerm->contractors_costs)."\n";
-        } else {
-            echo "  financialTerm не найден\n";
-        }
+        echo "✗ ОШИБКА: В сериализованных данных contractor_id не null\n";
+        echo '  contractors_costs: '.json_encode($contractorsCosts)."\n";
+    }
+
+    // Проверяем performers в сериализованных данных
+    $serializedPerformers = $serializedOrder['performers'] ?? [];
+    if (isset($serializedPerformers[0]) && $serializedPerformers[0]['contractor_id'] === null) {
+        echo "✓ В сериализованных performers contractor_id = null\n";
+    } else {
+        echo "✗ ОШИБКА: В сериализованных performers contractor_id не null\n";
+        echo '  performers: '.json_encode($serializedPerformers)."\n";
+    }
+
+    echo "\n=== Шаг 3: Проверяем метод normalizeContractorsCosts ===\n";
+
+    // Используем рефлексию для вызова приватного метода normalizeContractorsCosts
+    $normalizeMethod = $reflection->getMethod('normalizeContractorsCosts');
+    $normalizeMethod->setAccessible(true);
+
+    // Загружаем financialTerm
+    $orderForEdit->load('financialTerms');
+    $financialTerm = $orderForEdit->financialTerms->first();
+
+    // Вызываем метод normalizeContractorsCosts
+    $normalizedCosts = $normalizeMethod->invoke($controller, $orderForEdit, $financialTerm);
+
+    if (isset($normalizedCosts[0]) && $normalizedCosts[0]['contractor_id'] === null) {
+        echo "✓ normalizeContractorsCosts возвращает contractor_id = null\n";
+    } else {
+        echo "✗ ОШИБКА: normalizeContractorsCosts возвращает contractor_id не null\n";
+        echo '  normalizedCosts: '.json_encode($normalizedCosts)."\n";
     }
 
     echo "\n=== Тест пройден успешно ===\n";

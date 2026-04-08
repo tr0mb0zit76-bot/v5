@@ -160,12 +160,12 @@ class ContractorController extends Controller
         $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
             'type' => ['nullable', 'string', 'in:customer,carrier,both'],
-            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
         ]);
 
         $query = $request->get('q', '');
         $type = $request->get('type', 'customer');
-        $limit = $request->get('limit', 50);
+        $limit = $request->get('limit', 100);
 
         $contractorsQuery = Contractor::query();
 

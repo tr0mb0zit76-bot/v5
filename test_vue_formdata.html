@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test FormData Conversion</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/@inertiajs/vue3@1.0.0/dist/index.umd.js"></script>
+</head>
+<body>
+    <div id="app">
+        <h1>Test FormData Conversion</h1>
+        <div>
+            <h2>Original Data:</h2>
+            <pre>{{ JSON.stringify(formData, null, 2) }}</pre>
+        </div>
+        <div>
+            <h2>FormData Conversion:</h2>
+            <pre>{{ formDataString }}</pre>
+        </div>
+        <div>
+            <h2>Test Performers Array:</h2>
+            <pre>{{ performersTest }}</pre>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+        const { useForm } = InertiaVue3;
+
+        createApp({
+            setup() {
+                // Test data similar to Wizard.vue
+                const formData = {
+                    status: 'new',
+                    client_id: 1,
+                    order_date: '2024-01-01',
+                    performers: [
+                        { stage: 'Плечо 1', contractor_id: 2053 },
+                        { stage: 'Плечо 2', contractor_id: null }
+                    ],
+                    financial_term: {
+                        client_price: 1000,
+                        contractors_costs: [
+                            { stage: 'Плечо 1', contractor_id: 2053, amount: 500 },
+                            { stage: 'Плечо 2', contractor_id: null, amount: null }
+                        ]
+                    }
+                };
+
+                // Simulate FormData conversion
+                const convertToFormData = (data) => {
+                    const formData = new FormData();
+                    
+                    const appendFormData = (key, value) => {
+                        if (value === null || value === undefined) {
+                            formData.append(key, '');
+                        } else if (typeof value === 'object' && !(value instanceof File)) {
+                            if (Array.isArray(value)) {
+                                value.forEach((item, index) => {
+                                    if (typeof item === 'object') {
+                                        Object.keys(item).forEach(subKey => {
+                                            formData.append(`${key}[${index}][${subKey}]`, item[subKey] ?? '');
+                                        });
+                                    } else {
+                                        formData.append(`${key}[${index}]`, item);
+                                    }
+                                });
+                            } else {
+                                Object.keys(value).forEach(subKey => {
+                                    appendFormData(`${key}[${subKey}]`, value[subKey]);
+                                });
+                            }
+                        } else {
+                            formData.append(key, value);
+                        }
+                    };
+
+                    Object.keys(data).forEach(key => {
+                        appendFormData(key, data[key]);
+                    });
+
+                    return formData;
+                };
+
+                const formDataObj = convertToFormData(formData);
+                let formDataString = '';
+                for (let [key, value] of formDataObj.entries()) {
+                    formDataString += `${key} = ${value}\n`;
+                }
+
+                // Test: what happens if we send "carriers" instead of "performers"
+                const performersTest = {
+                    original: formData.performers,
+                    asCarriers: formData.performers.map(p => ({ ...p })) // copy
+                };
+
+                return {
+                    formData,
+                    formDataString,
+                    performersTest: JSON.stringify(performersTest, null, 2)
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

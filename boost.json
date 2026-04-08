@@ -3,7 +3,8 @@
         "cursor",
         "codex",
         "copilot",
-        "gemini"
+        "gemini",
+        "deepseek"
     ],
     "guidelines": true,
     "mcp": true,

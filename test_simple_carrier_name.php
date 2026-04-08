@@ -7,12 +7,13 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\OrderWizardService;
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\DB;
 
 // Инициализируем приложение Laravel
 $app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
-echo "=== Тестирование очистки перевозчика ===\n\n";
+echo "=== Простой тест отображения перевозчика в таблице заказов ===\n\n";
 
 try {
     // Создаем тестовые данные напрямую с уникальными значениями
@@ -49,25 +50,30 @@ try {
         'performers' => json_encode([
             ['stage' => 'leg_1', 'contractor_id' => $carrier->id],
         ]),
-        'financial_term' => json_encode([
-            'contractors_costs' => [
-                [
-                    'stage' => 'leg_1',
-                    'contractor_id' => $carrier->id,
-                    'amount' => 500,
-                    'currency' => 'RUB',
-                    'payment_form' => 'no_vat',
-                    'payment_schedule' => [
-                        'has_prepayment' => false,
-                        'postpayment_days' => 0,
-                        'postpayment_mode' => 'fttn',
-                    ],
-                ],
-            ],
-        ]),
     ]);
 
     echo "Создан заказ ID: {$order->id} с перевозчиком ID: {$order->carrier_id}\n";
+
+    echo "\n=== Шаг 1: Проверяем SQL запрос для таблицы заказов ===\n";
+
+    // Выполняем тот же запрос, что и в OrderIndexController
+    $result = DB::table('orders')
+        ->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id')
+        ->select('orders.carrier_id', 'carriers.name as carrier_name')
+        ->where('orders.id', $order->id)
+        ->first();
+
+    echo "  Результат SQL запроса:\n";
+    echo '  carrier_id: '.($result->carrier_id ?? 'null')."\n";
+    echo '  carrier_name: '.($result->carrier_name ?? 'null')."\n";
+
+    if ($result->carrier_id == $carrier->id && $result->carrier_name == $carrier->name) {
+        echo "✓ Данные корректны: перевозчик отображается\n";
+    } else {
+        echo "✗ ОШИБКА: Данные не совпадают\n";
+    }
+
+    echo "\n=== Шаг 2: Обновляем заказ с очищенным перевозчиком ===\n";
 
     // Получаем экземпляр сервиса через контейнер Laravel
     $service = app(OrderWizardService::class);
@@ -108,43 +114,51 @@ try {
         ],
     ];
 
-    echo "\nОбновляем заказ с очищенным перевозчиком...\n";
-
     // Обновляем заказ через сервис
     $updatedOrder = $service->update($order, $data, $user);
 
-    // Проверяем, что carrier_id стал null
+    echo '  carrier_id после обновления: '.($updatedOrder->carrier_id ?? 'null')."\n";
+
     if ($updatedOrder->carrier_id === null) {
         echo "✓ carrier_id успешно обновлен на null\n";
     } else {
-        echo "✗ ОШИБКА: carrier_id не null, значение: {$updatedOrder->carrier_id}\n";
+        echo "✗ ОШИБКА: carrier_id не null\n";
     }
 
-    // Проверяем, что performers содержит null для contractor_id
-    $performers = $updatedOrder->performers;
-    if (is_array($performers) && isset($performers[0]) && $performers[0]['contractor_id'] === null) {
-        echo "✓ performers содержит null для contractor_id\n";
+    echo "\n=== Шаг 3: Проверяем SQL запрос после обновления ===\n";
+
+    // Снова выполняем SQL запрос
+    $resultAfterUpdate = DB::table('orders')
+        ->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id')
+        ->select('orders.carrier_id', 'carriers.name as carrier_name')
+        ->where('orders.id', $order->id)
+        ->first();
+
+    echo "  Результат SQL запроса после обновления:\n";
+    echo '  carrier_id: '.($resultAfterUpdate->carrier_id ?? 'null')."\n";
+    echo '  carrier_name: '.($resultAfterUpdate->carrier_name ?? 'null')."\n";
+
+    if ($resultAfterUpdate->carrier_id === null && $resultAfterUpdate->carrier_name === null) {
+        echo "✓ Данные корректны: перевозчик очищен\n";
+    } elseif ($resultAfterUpdate->carrier_id === null && $resultAfterUpdate->carrier_name !== null) {
+        echo "✗ ОШИБКА: carrier_id = null, но carrier_name не null\n";
+        echo "  Это означает, что LEFT JOIN все еще находит запись в таблице contractors.\n";
+        echo "  Возможные причины:\n";
+        echo "  1. carrier_id в orders не равен null\n";
+        echo "  2. Есть другая запись в contractors с id = null (невозможно)\n";
+        echo "  3. Проблема с кэшированием запроса\n";
     } else {
-        echo "✗ ОШИБКА: performers contractor_id не null\n";
+        echo "✗ ОШИБКА: carrier_id не null\n";
     }
 
-    // Проверяем, что contractors_costs также обновлен
-    // Загружаем отношение financialTerms
-    $updatedOrder->load('financialTerms');
-    $financialTerm = $updatedOrder->financialTerms->first();
+    echo "\n=== Шаг 4: Проверяем данные напрямую в таблице orders ===\n";
 
-    if ($financialTerm && is_array($financialTerm->contractors_costs) && isset($financialTerm->contractors_costs[0]) && $financialTerm->contractors_costs[0]['contractor_id'] === null) {
-        echo "✓ contractors_costs успешно синхронизирован\n";
-    } else {
-        echo "✗ ОШИБКА: contractors_costs contractor_id не null\n";
-        if ($financialTerm) {
-            echo '  contractors_costs: '.json_encode($financialTerm->contractors_costs)."\n";
-        } else {
-            echo "  financialTerm не найден\n";
-        }
-    }
+    $directOrder = Order::find($order->id);
+    echo "  Прямое чтение модели Order:\n";
+    echo '  carrier_id: '.($directOrder->carrier_id ?? 'null')."\n";
+    echo '  performers: '.json_encode($directOrder->performers ?? [])."\n";
 
-    echo "\n=== Тест пройден успешно ===\n";
+    echo "\n=== Тест завершен ===\n";
 
     // Очистка тестовых данных
     $order->delete();

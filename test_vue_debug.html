@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vue Form Data Test</title>
+    <script>
+        // Simulating the form.data() method behavior
+        function simulateFormData() {
+            // Simulate form with carriers field
+            const form = {
+                performers: [
+                    { stage: 'leg_1', contractor_id: 4 }
+                ],
+                carriers: [ // This field shouldn't exist but might be added somewhere
+                    { id: 4, name: 'Some Carrier' }
+                ],
+                financial_term: {
+                    contractors_costs: [
+                        { stage: 'leg_1', contractor_id: 4, amount: 16000 }
+                    ]
+                },
+                other_field: 'test'
+            };
+            
+            // Simulate form.data() method that returns all fields
+            function formData() {
+                return { ...form };
+            }
+            
+            const formDataRaw = formData();
+            console.log('Original form data:', JSON.stringify(formDataRaw, null, 2));
+            
+            // Remove 'carriers' field
+            const { carriers, ...formDataWithoutCarriers } = formDataRaw;
+            console.log('\nAfter removing carriers:', JSON.stringify(formDataWithoutCarriers, null, 2));
+            console.log('\nRemoved carriers:', carriers);
+            
+            // Check if carriers still exists
+            if ('carriers' in formDataWithoutCarriers) {
+                console.log('ERROR: carriers still exists in formDataWithoutCarriers!');
+            } else {
+                console.log('OK: carriers removed successfully');
+            }
+        }
+        
+        window.onload = simulateFormData;
+    </script>
+</head>
+<body>
+    <h1>Check console for output</h1>
+</body>
+</html>

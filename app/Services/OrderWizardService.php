@@ -185,10 +185,6 @@ class OrderWizardService
             $order->documents()->delete();
         }
 
-        if (Schema::hasTable('financial_terms')) {
-            $order->financialTerms()->delete();
-        }
-
         foreach ($routePoints as $index => $routePoint) {
             if ($primaryLeg === null) {
                 break;
@@ -349,6 +345,8 @@ class OrderWizardService
                 );
             }
 
+            // Удаляем старые financial_terms для этого заказа и создаем новую запись
+            FinancialTerm::query()->where('order_id', $order->id)->delete();
             FinancialTerm::query()->create($financialTermAttributes);
         }
     }
