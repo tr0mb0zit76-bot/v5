@@ -125,4 +125,78 @@ class DashboardTest extends TestCase
             ->where('metrics.period_delta', 20000)
         );
     }
+
+    public function test_dashboard_metrics_work_when_orders_table_has_no_carrier_payment_form_column(): void
+    {
+        Schema::create('order_legs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('order_id')->constrained('orders')->cascadeOnDelete();
+            $table->unsignedInteger('sequence')->default(1);
+            $table->string('type')->nullable();
+            $table->string('description')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('leg_costs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('order_leg_id')->constrained('order_legs')->cascadeOnDelete();
+            $table->string('payment_form', 50)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn('carrier_payment_form');
+        });
+
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['dashboard'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'email_verified_at' => now(),
+        ])->refresh();
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'manager_id' => $user->id,
+            'order_date' => '2026-04-05',
+            'customer_payment_form' => 'vat',
+            'delta' => 1000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legId = (int) DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('leg_costs')->insert([
+            'order_leg_id' => $legId,
+            'payment_form' => 'vat',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard', [
+            'date_from' => '2026-04-01',
+            'date_to' => '2026-04-30',
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Dashboard')
+            ->where('metrics.total_orders', 1)
+            ->where('metrics.direct_orders', 1)
+            ->where('metrics.direct_share_percent', 100)
+        );
+    }
 }

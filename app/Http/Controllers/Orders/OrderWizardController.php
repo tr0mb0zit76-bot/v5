@@ -18,6 +18,7 @@ use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
+use App\Services\OrderWizardStateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,6 +75,7 @@ class OrderWizardController extends Controller
         UpdateInlineOrderFieldRequest $request,
         Order $order,
         OrderCompensationService $orderCompensationService,
+        OrderWizardStateService $orderWizardStateService,
     ): RedirectResponse {
         abort_unless($this->canEditInlineField($request, $order), 403);
 
@@ -106,6 +108,18 @@ class OrderWizardController extends Controller
         ], true)) {
             $dealTypeChanged = in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true);
             $orderCompensationService->recalculateImpactedPeriods($order->fresh(), null, $previousOrderDate, $dealTypeChanged);
+        }
+
+        if (in_array($payload['field'], [
+            'customer_rate',
+            'carrier_rate',
+            'additional_expenses',
+            'insurance',
+            'bonus',
+            'customer_payment_form',
+            'carrier_payment_form',
+        ], true)) {
+            $orderWizardStateService->mergeInlineIntoOrder($order->fresh(), $payload['field'], $payload['value']);
         }
 
         return to_route('orders.index');
@@ -387,7 +401,31 @@ class OrderWizardController extends Controller
     private function serializeOrder(Order $order): array
     {
         $financialTerm = Schema::hasTable('financial_terms') ? $order->financialTerms->first() : null;
-        $paymentTermsConfig = $this->decodePaymentTermsConfig($order->payment_terms);
+        $wizardState = $this->resolveWizardState($order);
+        $useWizardState = is_array($wizardState) && filled($wizardState['financial_term'] ?? null);
+        /** @var array<string, mixed> $wizardFt */
+        $wizardFt = $useWizardState ? ($wizardState['financial_term'] ?? []) : [];
+
+        $paymentTermsRaw = null;
+        if (! $useWizardState) {
+            if (Schema::hasColumn('orders', 'payment_terms')) {
+                $paymentTermsRaw = $order->getAttribute('payment_terms');
+            }
+            if (blank($paymentTermsRaw) && $financialTerm !== null && Schema::hasColumn('financial_terms', 'payment_terms_snapshot')) {
+                $paymentTermsRaw = $financialTerm->payment_terms_snapshot;
+            }
+        }
+
+        if ($useWizardState) {
+            $paymentTermsConfig = [
+                'client' => [
+                    'request_mode' => $wizardFt['client_request_mode'] ?? 'single_request',
+                    'payment_schedule' => $wizardFt['client_payment_schedule'] ?? [],
+                ],
+            ];
+        } else {
+            $paymentTermsConfig = $this->decodePaymentTermsConfig($paymentTermsRaw);
+        }
         $routePointHasAddressColumn = Schema::hasColumn('route_points', 'address');
         $routePointHasMetadataColumn = Schema::hasColumn('route_points', 'metadata');
         $cargoItems = $this->orderCargoItems($order);
@@ -426,14 +464,28 @@ class OrderWizardController extends Controller
             ->all();
 
         $performers = $this->serializePerformersPayload($order, $financialTerm);
+        if ($useWizardState && is_array($wizardState) && filled($wizardState['performers'] ?? null)) {
+            $normalizedPerformers = $this->normalizePerformersFromWizardState($wizardState['performers']);
+            if ($normalizedPerformers !== []) {
+                $performers = $normalizedPerformers;
+            }
+        }
 
-        $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTerm, $performers))
+        $financialTermForNormalize = $financialTerm;
+        if ($useWizardState) {
+            $financialTermForNormalize = new FinancialTerm([
+                'contractors_costs' => $wizardFt['contractors_costs'] ?? [],
+                'client_currency' => $wizardFt['client_currency'] ?? 'RUB',
+            ]);
+        }
+
+        $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTermForNormalize, $performers))
             ->map(fn (array $cost): array => [
                 'stage' => $cost['stage'] ?? null,
                 'contractor_id' => $cost['contractor_id'] ?? null,
                 'amount' => $cost['amount'] ?? null,
                 'currency' => $cost['currency'] ?? 'RUB',
-                'payment_form' => $cost['payment_form'] ?? 'no_vat',
+                'payment_form' => $this->normalizePaymentFormCodeForWizard($cost['payment_form'] ?? null, 'no_vat'),
                 'payment_schedule' => $cost['payment_schedule'] ?? [],
             ])
             ->values()
@@ -445,6 +497,14 @@ class OrderWizardController extends Controller
             'status' => $order->status,
             'order_date' => optional($order->order_date)?->toDateString(),
             'client_id' => $order->customer_id,
+            'client_snapshot' => $order->relationLoaded('client') && $order->client !== null
+                ? [
+                    'id' => $order->client->id,
+                    'name' => $order->client->name,
+                    'inn' => $order->client->inn,
+                    'type' => $order->client->type,
+                ]
+                : null,
             'own_company_id' => $order->own_company_id,
             'responsible_id' => $order->manager_id,
             'payment_terms' => $order->payment_terms,
@@ -468,16 +528,29 @@ class OrderWizardController extends Controller
                 'cargo_type' => $cargo->cargo_type ?: 'general',
             ])->values()->all(),
             'financial_term' => [
-                'client_price' => $order->customer_rate !== null
-                    ? $order->customer_rate
-                    : $financialTerm?->client_price,
-                'client_currency' => $financialTerm?->client_currency ?? 'RUB',
-                'client_payment_form' => $order->customer_payment_form ?? 'vat',
+                'client_price' => $useWizardState
+                    ? ($wizardFt['client_price'] ?? $order->customer_rate)
+                    : ($order->customer_rate !== null
+                        ? $order->customer_rate
+                        : $financialTerm?->client_price),
+                'client_currency' => $useWizardState
+                    ? ($wizardFt['client_currency'] ?? 'RUB')
+                    : ($financialTerm?->client_currency ?? 'RUB'),
+                'client_payment_form' => $this->normalizePaymentFormCodeForWizard(
+                    $useWizardState
+                        ? ($wizardFt['client_payment_form'] ?? $order->customer_payment_form)
+                        : $order->customer_payment_form,
+                    'vat',
+                ),
                 'client_request_mode' => data_get($paymentTermsConfig, 'client.request_mode', 'single_request'),
                 'client_payment_schedule' => $paymentTermsConfig['client']['payment_schedule'] ?? [],
                 'contractors_costs' => $contractorsCosts,
-                'additional_costs' => $financialTerm?->additional_costs ?? [],
-                'kpi_percent' => $order->kpi_percent,
+                'additional_costs' => $useWizardState
+                    ? ($wizardFt['additional_costs'] ?? $financialTerm?->additional_costs ?? [])
+                    : ($financialTerm?->additional_costs ?? []),
+                'kpi_percent' => $useWizardState
+                    ? ($wizardFt['kpi_percent'] ?? $order->kpi_percent)
+                    : $order->kpi_percent,
             ],
             'documents' => $documents->map(fn ($document): array => [
                 'id' => $document->id,
@@ -502,6 +575,80 @@ class OrderWizardController extends Controller
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Приводит форму оплаты к кодам валидации мастера (vat / no_vat / cash), т.к. в БД и старых снимках могли быть подписи («с НДС» и т.п.).
+     *
+     * @param  'vat'|'no_vat'|'cash'  $default
+     */
+    private function normalizePaymentFormCodeForWizard(?string $value, string $default = 'vat'): string
+    {
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        $trimmed = trim($value);
+        if (in_array($trimmed, ['vat', 'no_vat', 'cash'], true)) {
+            return $trimmed;
+        }
+
+        $lower = mb_strtolower($trimmed, 'UTF-8');
+        if (str_contains($lower, 'без') && str_contains($lower, 'ндс')) {
+            return 'no_vat';
+        }
+
+        if (str_contains($lower, 'нал')) {
+            return 'cash';
+        }
+
+        if (str_contains($lower, 'ндс')) {
+            return 'vat';
+        }
+
+        return $default;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveWizardState(Order $order): ?array
+    {
+        if (! Schema::hasColumn('orders', 'wizard_state')) {
+            return null;
+        }
+
+        $payload = $order->wizard_state;
+        if (! is_array($payload) || $payload === []) {
+            return null;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>|mixed  $performers
+     * @return list<array{stage: string|null, contractor_id: int|null}>
+     */
+    private function normalizePerformersFromWizardState(mixed $performers): array
+    {
+        if (! is_array($performers) || $performers === []) {
+            return [];
+        }
+
+        return collect($performers)
+            ->map(function (mixed $p): array {
+                if (! is_array($p)) {
+                    return ['stage' => null, 'contractor_id' => null];
+                }
+
+                return [
+                    'stage' => $p['stage'] ?? null,
+                    'contractor_id' => isset($p['contractor_id']) && $p['contractor_id'] !== null ? (int) $p['contractor_id'] : null,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -537,36 +684,67 @@ class OrderWizardController extends Controller
         $costsByNormalizedStage = collect($costRows)
             ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? 'leg_1')));
 
-        if (! $order->relationLoaded('legs')) {
-            return [];
+        if (Schema::hasTable('order_legs')) {
+            if (Schema::hasTable('leg_contractor_assignments')) {
+                $order->loadMissing(['legs.contractorAssignment']);
+            } else {
+                $order->loadMissing(['legs']);
+            }
         }
 
-        return $order->legs
-            ->sortBy('sequence')
-            ->values()
-            ->map(function ($leg, int $index) use ($costsByNormalizedStage, $order): array {
-                $normalized = $this->normalizeStageIdentifierForWizard((string) ($leg->description ?? 'leg_1'));
-                $contractorId = null;
+        $fromLegs = $order->relationLoaded('legs')
+            ? $order->legs
+                ->sortBy('sequence')
+                ->values()
+                ->map(function ($leg, int $index) use ($costsByNormalizedStage, $order): array {
+                    $normalized = $this->normalizeStageIdentifierForWizard((string) ($leg->description ?? 'leg_1'));
+                    $contractorId = null;
 
-                if (Schema::hasTable('leg_contractor_assignments')) {
-                    $contractorId = $leg->contractorAssignment?->contractor_id;
-                }
+                    if (Schema::hasTable('leg_contractor_assignments')) {
+                        $contractorId = $leg->contractorAssignment?->contractor_id;
+                    }
 
-                if ($contractorId === null) {
-                    $fromCost = $costsByNormalizedStage->get($normalized);
-                    $contractorId = $fromCost['contractor_id'] ?? null;
-                }
+                    if ($contractorId === null) {
+                        $fromCost = $costsByNormalizedStage->get($normalized);
+                        $contractorId = $fromCost['contractor_id'] ?? null;
+                    }
 
-                if ($contractorId === null && $index === 0 && $order->carrier_id !== null) {
-                    $contractorId = $order->carrier_id;
-                }
+                    if ($contractorId === null && $index === 0 && $order->carrier_id !== null) {
+                        $contractorId = $order->carrier_id;
+                    }
 
-                return [
-                    'stage' => $leg->description,
-                    'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
-                ];
-            })
-            ->all();
+                    return [
+                        'stage' => $leg->description,
+                        'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
+                    ];
+                })
+                ->all()
+            : [];
+
+        if ($fromLegs !== []) {
+            return $fromLegs;
+        }
+
+        if ($costRows !== []) {
+            return collect($costRows)
+                ->map(fn (array $cost): array => [
+                    'stage' => $cost['stage'] ?? 'leg_1',
+                    'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
+                ])
+                ->values()
+                ->all();
+        }
+
+        if ($order->carrier_id !== null) {
+            return [
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => (int) $order->carrier_id,
+                ],
+            ];
+        }
+
+        return [];
     }
 
     /**
@@ -822,11 +1000,12 @@ class OrderWizardController extends Controller
         $financialTerm = FinancialTerm::query()->where('order_id', $order->id)->first();
 
         if ($financialTerm === null) {
+            $serializedPerformers = $this->serializePerformersPayload($order, null);
             $attributes = [
                 'order_id' => $order->id,
                 'client_price' => $order->customer_rate,
                 'client_currency' => 'RUB',
-                'contractors_costs' => $this->normalizeContractorsCosts($order, null),
+                'contractors_costs' => $this->normalizeContractorsCosts($order, null, $serializedPerformers),
                 'total_cost' => 0,
                 'margin' => 0,
                 'additional_costs' => [],
@@ -843,7 +1022,9 @@ class OrderWizardController extends Controller
             $financialTerm->client_price = $order->customer_rate;
         }
 
-        $costs = $this->normalizeContractorsCosts($order, $financialTerm);
+        $serializedPerformers = $this->serializePerformersPayload($order, $financialTerm);
+        $costs = $this->normalizeContractorsCosts($order, $financialTerm, $serializedPerformers);
+        $costs = $this->applyOrderCarrierPaymentFormToSyncedCosts($order, $costs);
         $financialTerm->contractors_costs = $costs;
 
         $contractorsSum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
@@ -856,6 +1037,28 @@ class OrderWizardController extends Controller
         $financialTerm->margin = ($clientPrice * (1 - ($kpiPercent / 100))) - $financialTerm->total_cost;
 
         $financialTerm->save();
+    }
+
+    /**
+     * После инлайна в гриде `orders.carrier_payment_form` — источник правды для одной строки затрат (одно плечо).
+     *
+     * @param  list<array<string, mixed>>  $costs
+     * @return list<array<string, mixed>>
+     */
+    private function applyOrderCarrierPaymentFormToSyncedCosts(Order $order, array $costs): array
+    {
+        $form = $order->carrier_payment_form;
+        if ($form === null || $form === '' || $form === 'mixed') {
+            return $costs;
+        }
+
+        if (count($costs) !== 1) {
+            return $costs;
+        }
+
+        $costs[0]['payment_form'] = $form;
+
+        return $costs;
     }
 
     /**

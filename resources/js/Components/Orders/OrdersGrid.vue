@@ -691,6 +691,14 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.headerClass = 'orders-grid-order-number-header';
     }
 
+    if (column.field === 'carrier_name') {
+      columnDefinition.tooltipValueGetter = (params) => {
+        const tip = params.data?.carrier_name_tooltip;
+
+        return tip && String(tip).trim() !== '' ? String(tip) : null;
+      };
+    }
+
     if (column.type === 'numeric') {
       columnDefinition.valueFormatter = moneyFormatter;
       columnDefinition.valueParser = (params) => {

@@ -84,6 +84,7 @@ class Order extends Model
         'payment_statuses',
         'special_notes',
         'performers',
+        'wizard_state',
     ];
 
     protected static function booted(): void
@@ -134,6 +135,10 @@ class Order extends Model
 
         if (Schema::hasColumn($this->getTable(), 'performers')) {
             $casts['performers'] = 'array';
+        }
+
+        if (Schema::hasColumn($this->getTable(), 'wizard_state')) {
+            $casts['wizard_state'] = 'array';
         }
 
         return $casts;

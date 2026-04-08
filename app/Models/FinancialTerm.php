@@ -20,6 +20,7 @@ class FinancialTerm extends Model
         'client_price',
         'client_currency',
         'client_payment_terms',
+        'payment_terms_snapshot',
         'contractors_costs',
         'total_cost',
         'margin',

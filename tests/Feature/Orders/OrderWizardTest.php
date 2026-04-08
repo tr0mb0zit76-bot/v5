@@ -151,6 +151,7 @@ class OrderWizardTest extends TestCase
             $table->json('metadata')->nullable();
             $table->json('payment_statuses')->nullable();
             $table->json('performers')->nullable();
+            $table->json('wizard_state')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -537,6 +538,10 @@ class OrderWizardTest extends TestCase
             'delta' => '26600.00',
             'salary_accrued' => '12660.00',
         ]);
+        $wizardState = json_decode((string) DB::table('orders')->where('id', $orderId)->value('wizard_state'), true);
+        $this->assertIsArray($wizardState);
+        $this->assertSame(1, $wizardState['version']);
+        $this->assertSame(120000, (int) ($wizardState['financial_term']['client_price'] ?? 0));
         $financialTerm = DB::table('financial_terms')->where('order_id', $orderId)->first();
         $this->assertNotNull($financialTerm);
         $this->assertSame('30/70, 1 дн FTTN / 5 дн OTTN', $financialTerm->client_payment_terms);

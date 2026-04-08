@@ -27,22 +27,28 @@ class DashboardMetricsService
      */
     public function forManager(int $managerId, string $dateFrom, string $dateTo): array
     {
-        $orders = Order::query()
+        $query = Order::query()
             ->where('manager_id', $managerId)
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
-            )
-            ->get([
-                'id',
-                'customer_payment_form',
-                'carrier_payment_form',
-                'delta',
-                'order_customer_date',
-                'customer_rate',
-                'payment_statuses',
-            ]);
+            );
+
+        if (! Schema::hasColumn('orders', 'carrier_payment_form') && Schema::hasTable('leg_costs')) {
+            $query->with(['legs.cost']);
+        }
+
+        $orders = $query->get($this->orderSelectColumnsForMetrics());
+
+        $orders->each(function (Order $order): void {
+            if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
+                $order->setAttribute(
+                    'carrier_payment_form',
+                    $this->resolveCarrierPaymentFormFromLegCosts($order),
+                );
+            }
+        });
 
         $totalOrders = $orders->count();
         $directOrders = $orders
@@ -67,6 +73,47 @@ class DashboardMetricsService
             'plan_completion_percent' => 0.0,
             'margin_rank' => '—',
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function orderSelectColumnsForMetrics(): array
+    {
+        $candidates = [
+            'id',
+            'customer_payment_form',
+            'carrier_payment_form',
+            'delta',
+            'order_customer_date',
+            'customer_rate',
+            'payment_statuses',
+        ];
+
+        return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn('orders', $column)));
+    }
+
+    private function resolveCarrierPaymentFormFromLegCosts(Order $order): ?string
+    {
+        if (! Schema::hasTable('leg_costs')) {
+            return null;
+        }
+
+        if (! $order->relationLoaded('legs')) {
+            $order->load('legs.cost');
+        }
+
+        $forms = $order->legs
+            ->map(fn ($leg) => $leg->cost?->payment_form)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($forms->isEmpty()) {
+            return null;
+        }
+
+        return $forms->count() === 1 ? (string) $forms->first() : 'mixed';
     }
 
     private function isPaymentScheduledThisWeek(Order $order, Carbon $weekStart, Carbon $weekEnd): bool

@@ -902,7 +902,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRaw, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -939,6 +939,24 @@ const tabs = [
 
 const activeTab = ref('main');
 const contractors = ref([...props.contractors]);
+
+if (props.order?.client_snapshot) {
+    const snap = props.order.client_snapshot;
+    const exists = contractors.value.some((c) => Number(c.id) === Number(snap.id));
+
+    if (!exists) {
+        contractors.value.unshift({
+            id: snap.id,
+            name: snap.name,
+            inn: snap.inn ?? null,
+            type: snap.type ?? 'customer',
+            phone: null,
+            email: null,
+            is_own_company: false,
+        });
+    }
+}
+
 const ownCompanyOptions = ref([...props.ownCompanies]);
 const clientSearch = ref('');
 const showClientResults = ref(false);
@@ -955,6 +973,28 @@ const paymentFormOptions = [
     { value: 'no_vat', label: 'Без НДС' },
     { value: 'cash', label: 'Нал' },
 ];
+
+/** Коды vat/no_vat/cash — в данных заказа иногда приходят человекочитаемые подписи; без этого <select> не совпадает с option и кажется, что «сохраняется старое». */
+function normalizePaymentFormCode(value, fallback = 'vat') {
+    if (value === null || value === undefined || value === '') {
+        return fallback;
+    }
+    if (['vat', 'no_vat', 'cash'].includes(value)) {
+        return value;
+    }
+    const lower = String(value).trim().toLowerCase();
+    if (lower.includes('без') && lower.includes('ндс')) {
+        return 'no_vat';
+    }
+    if (lower.includes('нал')) {
+        return 'cash';
+    }
+    if (lower.includes('ндс')) {
+        return 'vat';
+    }
+
+    return fallback;
+}
 const clientRequestModeOptions = [
     { value: 'single_request', label: 'Одна заявка', description: 'Все плечи включаются в одну клиентскую заявку.' },
     { value: 'split_by_leg', label: 'Разбить по плечам', description: 'Для каждого плеча оформляется отдельная клиентская заявка.' },
@@ -1043,7 +1083,7 @@ function normalizePaymentSchedule(schedule = {}) {
 }
 
 function normalizeContractorCost(cost = {}) {
-    return {
+    const merged = {
         stage: '',
         contractor_id: null,
         amount: null,
@@ -1053,6 +1093,9 @@ function normalizeContractorCost(cost = {}) {
         ...cost,
         payment_schedule: normalizePaymentSchedule(cost.payment_schedule),
     };
+    merged.payment_form = normalizePaymentFormCode(merged.payment_form, 'no_vat');
+
+    return merged;
 }
 
 function blankRoutePoint(type, sequence, stage) {
@@ -1154,6 +1197,10 @@ const form = useForm({
         ...blankOrder().financial_term,
         ...(props.order?.financial_term ?? {}),
         client_payment_schedule: normalizePaymentSchedule(props.order?.financial_term?.client_payment_schedule),
+        client_payment_form: normalizePaymentFormCode(
+            props.order?.financial_term?.client_payment_form ?? blankOrder().financial_term.client_payment_form,
+            'vat',
+        ),
         contractors_costs: Array.isArray(props.order?.financial_term?.contractors_costs)
             ? props.order.financial_term.contractors_costs.map((cost) => normalizeContractorCost(cost))
             : [],
@@ -1669,7 +1716,7 @@ function applyClientDefaults(contractor) {
     }
 
     if (contractor.default_customer_payment_form) {
-        form.financial_term.client_payment_form = contractor.default_customer_payment_form;
+        form.financial_term.client_payment_form = normalizePaymentFormCode(contractor.default_customer_payment_form, 'vat');
     }
 
     form.financial_term.client_payment_schedule = contractorPaymentSchedule(contractor, 'default_customer_payment_schedule', 'default_customer_payment_term');
@@ -1693,7 +1740,7 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
     }
 
     if (contractor.default_carrier_payment_form) {
-        costRow.payment_form = contractor.default_carrier_payment_form;
+        costRow.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
     }
 
     costRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
@@ -2081,7 +2128,7 @@ function syncContractorCostsFromPerformers() {
             const contractor = getContractorById(performer.contractor_id);
 
             if (contractor?.default_carrier_payment_form) {
-                nextRow.payment_form = contractor.default_carrier_payment_form;
+                nextRow.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
             }
 
             nextRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
@@ -2253,20 +2300,11 @@ async function createInlineCounterparty() {
     }
 }
 
-function submit() {
-    const costsByStage = new Map(
-        form.financial_term.contractors_costs.map((cost) => [toStageKey(cost.stage), cost]),
-    );
-    form.performers = form.performers.map((performer) => {
-        const syncedCost = costsByStage.get(toStageKey(performer.stage));
+function buildSubmitPayload() {
+    // Снимок без Vue/Inertia proxy: иначе вложенные суммы иногда уходят в запросе «как при загрузке».
+    const rawFinancial = JSON.parse(JSON.stringify(toRaw(form.financial_term)));
 
-        return {
-            ...performer,
-            contractor_id: syncedCost?.contractor_id ?? performer.contractor_id ?? null,
-        };
-    });
-
-    const formData = {
+    return {
         // Basic order fields
         status: form.status,
         own_company_id: form.own_company_id,
@@ -2278,15 +2316,15 @@ function submit() {
         additional_expenses: form.additional_expenses,
         insurance: form.insurance,
         bonus: form.bonus,
-        
+
         // Performers array (the server expects this field)
-        performers: form.performers.map(performer => ({
+        performers: form.performers.map((performer) => ({
             stage: performer.stage,
             contractor_id: normalizeNullableNumber(performer.contractor_id),
         })),
-        
+
         // Route points
-        route_points: form.route_points.map(point => ({
+        route_points: form.route_points.map((point) => ({
             stage: point.stage,
             type: point.type,
             sequence: point.sequence,
@@ -2303,9 +2341,9 @@ function submit() {
             recipient_contact: point.recipient_contact,
             recipient_phone: point.recipient_phone,
         })),
-        
+
         // Cargo items
-        cargo_items: form.cargo_items.map(item => ({
+        cargo_items: form.cargo_items.map((item) => ({
             name: item.name,
             description: item.description,
             weight_kg: item.weight_kg,
@@ -2317,28 +2355,28 @@ function submit() {
             hs_code: item.hs_code,
             cargo_type: item.cargo_type,
         })),
-        
+
         // Financial term
         financial_term: {
-            client_price: form.financial_term.client_price,
-            client_currency: form.financial_term.client_currency,
-            client_payment_form: form.financial_term.client_payment_form,
-            client_request_mode: form.financial_term.client_request_mode,
-            client_payment_schedule: form.financial_term.client_payment_schedule || {},
-            contractors_costs: form.financial_term.contractors_costs.map(cost => ({
+            client_price: rawFinancial.client_price,
+            client_currency: rawFinancial.client_currency,
+            client_payment_form: normalizePaymentFormCode(rawFinancial.client_payment_form, 'vat'),
+            client_request_mode: rawFinancial.client_request_mode,
+            client_payment_schedule: rawFinancial.client_payment_schedule || {},
+            contractors_costs: (rawFinancial.contractors_costs || []).map((cost) => ({
                 stage: cost.stage,
                 contractor_id: normalizeNullableNumber(cost.contractor_id),
                 amount: cost.amount,
                 currency: cost.currency || 'RUB',
-                payment_form: cost.payment_form || 'no_vat',
+                payment_form: normalizePaymentFormCode(cost.payment_form, 'no_vat'),
                 payment_schedule: cost.payment_schedule || {},
             })),
             additional_costs: [],
-            kpi_percent: form.financial_term.kpi_percent,
+            kpi_percent: rawFinancial.kpi_percent,
         },
-        
+
         // Documents
-        documents: form.documents.map(document => ({
+        documents: form.documents.map((document) => ({
             type: document.type,
             flow: document.flow,
             party: document.party,
@@ -2348,25 +2386,42 @@ function submit() {
             document_date: document.document_date,
             status: document.status,
             template_id: document.template_id,
-            file: document.file,
+            file: document.file instanceof File ? document.file : null,
             original_name: document.original_name,
             generated_pdf_path: document.generated_pdf_path,
         })),
     };
+}
+
+function submit() {
+    const costsByStage = new Map(
+        form.financial_term.contractors_costs.map((cost) => [toStageKey(cost.stage), cost]),
+    );
+    form.performers = form.performers.map((performer) => {
+        const syncedCost = costsByStage.get(toStageKey(performer.stage));
+
+        return {
+            ...performer,
+            contractor_id: syncedCost?.contractor_id ?? performer.contractor_id ?? null,
+        };
+    });
+
+    // Multipart FormData глубоко вложенные массивы (financial_term, contractors_costs и т.д.) на бэкенде
+    // часто приходят пустыми/обрезанными — без JSON сохранение не совпадает с тем, что в форме.
+    // FormData нужен только при загрузке новых файлов документов.
+    const hasNewDocumentFiles = form.documents.some((document) => document.file instanceof File);
+    const submitOptions = {
+        preserveScroll: true,
+        forceFormData: hasNewDocumentFiles,
+    };
 
     if (isEditing.value) {
-        form.transform(() => formData).patch(route('orders.update', props.order.id), {
-            forceFormData: true,
-            preserveScroll: true,
-        });
+        form.transform(() => buildSubmitPayload()).patch(route('orders.update', props.order.id), submitOptions);
 
         return;
     }
 
-    form.transform(() => formData).post(route('orders.store'), {
-        forceFormData: true,
-        preserveScroll: true,
-    });
+    form.transform(() => buildSubmitPayload()).post(route('orders.store'), submitOptions);
 }
 
 function goBack() {

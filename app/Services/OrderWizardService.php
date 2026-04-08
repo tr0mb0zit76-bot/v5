@@ -26,6 +26,7 @@ class OrderWizardService
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly OrderStatusService $orderStatusService,
         private readonly OrderCompensationService $orderCompensationService,
+        private readonly OrderWizardStateService $orderWizardStateService,
     ) {}
 
     /**
@@ -45,7 +46,9 @@ class OrderWizardService
             $this->orderCompensationService->recalculateImpactedPeriods($order->fresh());
             $this->syncDerivedStatus($order, $validated, $user, null);
 
-            return $order->load($this->relationsForOrderReload());
+            $this->orderWizardStateService->persistFromValidated($order->fresh(), $validated);
+
+            return $order->fresh()->load($this->relationsForOrderReload());
         });
     }
 
@@ -77,7 +80,9 @@ class OrderWizardService
             $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate, $dealTypeChanged);
             $this->syncDerivedStatus($updatedOrder, $validated, $user, $previousStatus);
 
-            return $updatedOrder->load($this->relationsForOrderReload());
+            $this->orderWizardStateService->persistFromValidated($updatedOrder->fresh(), $validated);
+
+            return $updatedOrder->fresh()->load($this->relationsForOrderReload());
         });
     }
 
@@ -231,11 +236,6 @@ class OrderWizardService
 
         if (Schema::hasTable('order_documents')) {
             $order->documents()->delete();
-        }
-
-        // Удаляем старые financial_terms
-        if (Schema::hasTable('financial_terms')) {
-            $order->financialTerms()->delete();
         }
 
         foreach ($routePoints as $index => $routePoint) {
