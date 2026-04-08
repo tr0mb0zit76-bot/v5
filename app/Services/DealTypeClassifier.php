@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\CarrierPaymentFormResolver;
 
 class DealTypeClassifier
 {
@@ -15,7 +16,7 @@ class DealTypeClassifier
             ? $order->customer_payment_form
             : ($order['customer_payment_form'] ?? null);
         $carrierPaymentForm = $order instanceof Order
-            ? $order->carrier_payment_form
+            ? CarrierPaymentFormResolver::forOrder($order)
             : ($order['carrier_payment_form'] ?? null);
 
         if (blank($customerPaymentForm) || blank($carrierPaymentForm)) {

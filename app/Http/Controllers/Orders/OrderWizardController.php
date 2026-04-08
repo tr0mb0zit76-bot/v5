@@ -83,17 +83,27 @@ class OrderWizardController extends Controller
 
         $previousOrderDate = $order->order_date?->toDateString();
 
-        $order->forceFill([
-            $payload['field'] => $payload['value'],
+        $fill = [
             'updated_by' => $request->user()?->id,
-        ])->save();
+        ];
+
+        if (Schema::hasColumn('orders', $payload['field'])) {
+            $fill[$payload['field']] = $payload['value'];
+        }
+
+        $order->forceFill($fill)->save();
+
+        $syncOrder = $order->fresh();
+        if (! Schema::hasColumn('orders', $payload['field'])) {
+            $syncOrder->setAttribute($payload['field'], $payload['value']);
+        }
 
         if (in_array($payload['field'], ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
-            $this->syncFinancialTermsFromOrderRates($order->fresh());
+            $this->syncFinancialTermsFromOrderRates($syncOrder);
         }
 
         if (in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true)) {
-            $this->syncFinancialTermsFromOrderRates($order->fresh());
+            $this->syncFinancialTermsFromOrderRates($syncOrder);
         }
 
         if (in_array($payload['field'], [
@@ -107,7 +117,7 @@ class OrderWizardController extends Controller
             'order_date',
         ], true)) {
             $dealTypeChanged = in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true);
-            $orderCompensationService->recalculateImpactedPeriods($order->fresh(), null, $previousOrderDate, $dealTypeChanged);
+            $orderCompensationService->recalculateImpactedPeriods($syncOrder, null, $previousOrderDate, $dealTypeChanged);
         }
 
         if (in_array($payload['field'], [
@@ -236,6 +246,10 @@ class OrderWizardController extends Controller
             'order_date' => ['nullable', 'date'],
             'client_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'carrier_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'customer_payment_form' => ['nullable', 'string', 'max:50'],
+            'carrier_payment_form' => ['nullable', 'string', 'max:50'],
+            'contractors_costs' => ['nullable', 'array'],
+            'contractors_costs.*.payment_form' => ['nullable', 'string', 'max:50'],
         ]);
 
         $calculation = $orderCompensationService->calculateRealtime($request->all());
@@ -548,9 +562,8 @@ class OrderWizardController extends Controller
                 'additional_costs' => $useWizardState
                     ? ($wizardFt['additional_costs'] ?? $financialTerm?->additional_costs ?? [])
                     : ($financialTerm?->additional_costs ?? []),
-                'kpi_percent' => $useWizardState
-                    ? ($wizardFt['kpi_percent'] ?? $order->kpi_percent)
-                    : $order->kpi_percent,
+                // Источник истины — пересчёт в orders.kpi_percent; снимок wizard_state отстаёт после inline/grid.
+                'kpi_percent' => $order->kpi_percent ?? ($useWizardState ? ($wizardFt['kpi_percent'] ?? 0) : 0),
             ],
             'documents' => $documents->map(fn ($document): array => [
                 'id' => $document->id,

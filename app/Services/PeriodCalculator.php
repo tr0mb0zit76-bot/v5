@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\CarrierPaymentFormResolver;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
@@ -40,7 +41,37 @@ class PeriodCalculator
      */
     public function getManagerPeriodStats(int $managerId, string $periodStart, string $periodEnd): array
     {
-        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
+        try {
+            $query = Order::query()
+                ->where('manager_id', $managerId)
+                ->whereBetween('order_date', [$periodStart, $periodEnd])
+                ->whereNotNull('customer_payment_form')
+                ->when(
+                    Schema::hasColumn('orders', 'deleted_at'),
+                    fn ($query) => $query->whereNull('deleted_at')
+                );
+
+            if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+                $query->whereNotNull('carrier_payment_form');
+            } else {
+                $eager = [];
+                if (Schema::hasTable('financial_terms')) {
+                    $eager[] = 'financialTerms';
+                }
+                if (Schema::hasTable('leg_costs')) {
+                    $eager[] = 'legs.cost';
+                }
+                if ($eager !== []) {
+                    $query->with($eager);
+                }
+            }
+
+            $orders = $query->get(
+                Schema::hasColumn('orders', 'carrier_payment_form')
+                    ? ['id', 'customer_payment_form', 'carrier_payment_form']
+                    : ['id', 'customer_payment_form'],
+            );
+        } catch (QueryException) {
             return [
                 'total' => 0,
                 'direct' => 0,
@@ -50,25 +81,10 @@ class PeriodCalculator
             ];
         }
 
-        try {
-            $orders = Order::query()
-                ->where('manager_id', $managerId)
-                ->whereBetween('order_date', [$periodStart, $periodEnd])
-                ->whereNotNull('customer_payment_form')
-                ->whereNotNull('carrier_payment_form')
-                ->when(
-                    Schema::hasColumn('orders', 'deleted_at'),
-                    fn ($query) => $query->whereNull('deleted_at')
-                )
-                ->get(['id', 'customer_payment_form', 'carrier_payment_form']);
-        } catch (QueryException) {
-            return [
-                'total' => 0,
-                'direct' => 0,
-                'indirect' => 0,
-                'direct_ratio' => 0.0,
-                'indirect_ratio' => 0.0,
-            ];
+        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
+            $orders = $orders->filter(function (Order $order): bool {
+                return ! blank(CarrierPaymentFormResolver::forOrder($order));
+            });
         }
 
         $total = $orders->count();

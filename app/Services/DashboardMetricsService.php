@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\CarrierPaymentFormResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 
@@ -35,18 +36,32 @@ class DashboardMetricsService
                 fn ($query) => $query->whereNull('deleted_at')
             );
 
-        if (! Schema::hasColumn('orders', 'carrier_payment_form') && Schema::hasTable('leg_costs')) {
-            $query->with(['legs.cost']);
+        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
+            $eager = [];
+            if (Schema::hasTable('leg_costs')) {
+                $eager[] = 'legs.cost';
+            }
+            if (Schema::hasTable('financial_terms')) {
+                $eager[] = 'financialTerms';
+            }
+            if ($eager !== []) {
+                $query->with($eager);
+            }
         }
 
         $orders = $query->get($this->orderSelectColumnsForMetrics());
 
+        // Частичный select ломает eager-load ног/стоимостей для подстановки формы оплаты перевозчика.
+        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
+            $orders->loadMissing(array_filter([
+                Schema::hasTable('leg_costs') ? 'legs.cost' : null,
+                Schema::hasTable('financial_terms') ? 'financialTerms' : null,
+            ]));
+        }
+
         $orders->each(function (Order $order): void {
             if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
-                $order->setAttribute(
-                    'carrier_payment_form',
-                    $this->resolveCarrierPaymentFormFromLegCosts($order),
-                );
+                $order->setAttribute('carrier_payment_form', CarrierPaymentFormResolver::forOrder($order));
             }
         });
 
@@ -91,29 +106,6 @@ class DashboardMetricsService
         ];
 
         return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn('orders', $column)));
-    }
-
-    private function resolveCarrierPaymentFormFromLegCosts(Order $order): ?string
-    {
-        if (! Schema::hasTable('leg_costs')) {
-            return null;
-        }
-
-        if (! $order->relationLoaded('legs')) {
-            $order->load('legs.cost');
-        }
-
-        $forms = $order->legs
-            ->map(fn ($leg) => $leg->cost?->payment_form)
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($forms->isEmpty()) {
-            return null;
-        }
-
-        return $forms->count() === 1 ? (string) $forms->first() : 'mixed';
     }
 
     private function isPaymentScheduledThisWeek(Order $order, Carbon $weekStart, Carbon $weekEnd): bool

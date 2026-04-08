@@ -51,6 +51,11 @@
   font-weight: 600;
 }
 
+.orders-grid-theme .orders-grid-status-cell {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
 .orders-grid-theme .orders-grid-editable-cell {
   cursor: text;
   background-image: linear-gradient(

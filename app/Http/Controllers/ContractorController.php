@@ -7,8 +7,10 @@ use App\Http\Requests\UpdateContractorRequest;
 use App\Models\Contractor;
 use App\Models\ContractorActivityType;
 use App\Models\User;
+use App\Services\Checko\ContractorScoringService;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
+use App\Support\CarrierRateFromFinancialTerms;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -153,6 +155,13 @@ class ContractorController extends Controller
             'message' => 'Владелец успешно обновлён для '.$updatedCount.' контрагентов.',
             'updated_count' => $updatedCount,
         ]);
+    }
+
+    public function scoring(Request $request, Contractor $contractor, ContractorScoringService $scoringService): JsonResponse
+    {
+        $refresh = $request->boolean('refresh');
+
+        return response()->json($scoringService->buildPayload($contractor, $refresh));
     }
 
     public function search(Request $request): JsonResponse
@@ -336,24 +345,53 @@ class ContractorController extends Controller
                 $selectedContractor->load($relations);
             }
 
-            $orders = DB::table('orders')
-                ->select('id', 'order_number', 'status', 'order_date', 'customer_rate', 'carrier_rate', 'customer_id', 'carrier_id')
+            $orderSelect = [
+                'id',
+                'order_number',
+                'status',
+                'order_date',
+                'customer_rate',
+                'customer_id',
+                'carrier_id',
+            ];
+            if (Schema::hasColumn('orders', 'carrier_rate')) {
+                $orderSelect[] = 'carrier_rate';
+            }
+
+            $orderRows = DB::table('orders')
+                ->select($orderSelect)
                 ->where(function ($query) use ($selectedContractor): void {
                     $query->where('customer_id', $selectedContractor->id)
                         ->orWhere('carrier_id', $selectedContractor->id);
                 })
                 ->orderByDesc('order_date')
                 ->limit(20)
-                ->get()
-                ->map(fn (object $order): array => [
-                    'id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'status' => $order->status,
-                    'order_date' => $order->order_date,
-                    'customer_rate' => $order->customer_rate,
-                    'carrier_rate' => $order->carrier_rate,
-                    'relation' => (int) $order->customer_id === $selectedContractor->id ? 'customer' : 'carrier',
-                ])
+                ->get();
+
+            $carrierRateByOrderId = CarrierRateFromFinancialTerms::sumsByOrderId(
+                $orderRows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+            );
+
+            $orders = $orderRows
+                ->map(function (object $order) use ($selectedContractor, $carrierRateByOrderId): array {
+                    $carrierRate = Schema::hasColumn('orders', 'carrier_rate')
+                        ? ($order->carrier_rate ?? null)
+                        : null;
+                    $computedCarrierRate = $carrierRateByOrderId->get((int) $order->id);
+                    if ($computedCarrierRate !== null) {
+                        $carrierRate = $computedCarrierRate;
+                    }
+
+                    return [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'status' => $order->status,
+                        'order_date' => $order->order_date,
+                        'customer_rate' => $order->customer_rate,
+                        'carrier_rate' => $carrierRate,
+                        'relation' => (int) $order->customer_id === $selectedContractor->id ? 'customer' : 'carrier',
+                    ];
+                })
                 ->values();
 
             $currentDebt = $creditService->currentDebtForContractor($selectedContractor->id);
@@ -498,24 +536,43 @@ class ContractorController extends Controller
             }
         }
 
-        $validated['default_customer_payment_schedule'] = $this->resolvePaymentSchedule(
-            Arr::get($validated, 'default_customer_payment_schedule'),
-            Arr::get($validated, 'default_customer_payment_term'),
-            Arr::get($validated, 'default_customer_payment_form'),
-        );
+        if ($this->hasAnyPaymentScheduleInput($validated, 'default_customer')) {
+            $resolvedCustomer = $this->resolvePaymentSchedule(
+                Arr::get($validated, 'default_customer_payment_schedule'),
+                Arr::get($validated, 'default_customer_payment_term'),
+                Arr::get($validated, 'default_customer_payment_form'),
+            );
 
-        $validated['default_carrier_payment_schedule'] = $this->resolvePaymentSchedule(
-            Arr::get($validated, 'default_carrier_payment_schedule'),
-            Arr::get($validated, 'default_carrier_payment_term'),
-            Arr::get($validated, 'default_carrier_payment_form'),
-        );
+            if ($resolvedCustomer === null) {
+                unset(
+                    $validated['default_customer_payment_schedule'],
+                    $validated['default_customer_payment_term'],
+                    $validated['default_customer_payment_form'],
+                );
+            } else {
+                $validated['default_customer_payment_schedule'] = $resolvedCustomer;
+                $validated['default_customer_payment_term'] = $this->paymentScheduleSummary($resolvedCustomer);
+            }
+        }
 
-        $validated['default_customer_payment_term'] = $this->paymentScheduleSummary(
-            $validated['default_customer_payment_schedule'] ?? null
-        );
-        $validated['default_carrier_payment_term'] = $this->paymentScheduleSummary(
-            $validated['default_carrier_payment_schedule'] ?? null
-        );
+        if ($this->hasAnyPaymentScheduleInput($validated, 'default_carrier')) {
+            $resolvedCarrier = $this->resolvePaymentSchedule(
+                Arr::get($validated, 'default_carrier_payment_schedule'),
+                Arr::get($validated, 'default_carrier_payment_term'),
+                Arr::get($validated, 'default_carrier_payment_form'),
+            );
+
+            if ($resolvedCarrier === null) {
+                unset(
+                    $validated['default_carrier_payment_schedule'],
+                    $validated['default_carrier_payment_term'],
+                    $validated['default_carrier_payment_form'],
+                );
+            } else {
+                $validated['default_carrier_payment_schedule'] = $resolvedCarrier;
+                $validated['default_carrier_payment_term'] = $this->paymentScheduleSummary($resolvedCarrier);
+            }
+        }
 
         if (($validated['debt_limit_currency'] ?? null) === '') {
             $validated['debt_limit_currency'] = 'RUB';
@@ -557,6 +614,16 @@ class ContractorController extends Controller
         }
 
         return $validated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function hasAnyPaymentScheduleInput(array $validated, string $prefix): bool
+    {
+        return array_key_exists("{$prefix}_payment_schedule", $validated)
+            || array_key_exists("{$prefix}_payment_term", $validated)
+            || array_key_exists("{$prefix}_payment_form", $validated);
     }
 
     /**
@@ -730,18 +797,22 @@ class ContractorController extends Controller
      */
     private function syncNestedData(Contractor $contractor, array $validated, ?int $userId): void
     {
-        if (Schema::hasTable('contractor_contacts')) {
+        if (Schema::hasTable('contractor_contacts')
+            && array_key_exists('contacts', $validated)
+            && is_array($validated['contacts'])) {
             $contractor->contacts()->delete();
 
-            foreach ($validated['contacts'] ?? [] as $contact) {
+            foreach ($validated['contacts'] as $contact) {
                 $contractor->contacts()->create($contact);
             }
         }
 
-        if (Schema::hasTable('contractor_interactions')) {
+        if (Schema::hasTable('contractor_interactions')
+            && array_key_exists('interactions', $validated)
+            && is_array($validated['interactions'])) {
             $contractor->interactions()->delete();
 
-            foreach ($validated['interactions'] ?? [] as $interaction) {
+            foreach ($validated['interactions'] as $interaction) {
                 $contractor->interactions()->create([
                     ...$interaction,
                     'created_by' => $userId,
@@ -749,10 +820,12 @@ class ContractorController extends Controller
             }
         }
 
-        if (Schema::hasTable('contractor_documents')) {
+        if (Schema::hasTable('contractor_documents')
+            && array_key_exists('documents', $validated)
+            && is_array($validated['documents'])) {
             $contractor->documents()->delete();
 
-            foreach ($validated['documents'] ?? [] as $document) {
+            foreach ($validated['documents'] as $document) {
                 $contractor->documents()->create([
                     ...$document,
                     'created_by' => $userId,

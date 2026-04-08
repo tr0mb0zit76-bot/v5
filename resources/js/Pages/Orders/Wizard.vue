@@ -246,7 +246,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                         <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addPerformer">
-                            Добавить этап
+                            Добавить плечо
                         </button>
                     </div>
                 </div>
@@ -255,121 +255,151 @@
                     {{ routeChainLabel }}
                 </div>
 
-                <div class="space-y-4">
+                <div class="space-y-6">
                     <div
-                        v-for="(point, index) in form.route_points"
-                        :key="`point-${index}`"
-                        draggable="true"
-                        class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
-                        :class="[
-                            draggedRoutePointIndex === index ? 'opacity-60 ring-2 ring-zinc-300 dark:ring-zinc-700' : '',
-                            dragOverRoutePointIndex === index ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-200 dark:bg-zinc-800/60' : '',
-                        ]"
-                        @dragstart="handleRoutePointDragStart(index, $event)"
-                        @dragover.prevent="handleRoutePointDragOver(index)"
-                        @drop.prevent="handleRoutePointDrop(index)"
-                        @dragend="handleRoutePointDragEnd"
+                        v-for="(performer, legIndex) in form.performers"
+                        :key="`leg-route-${legIndex}`"
+                        class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
                     >
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-start justify-between gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-800">
                             <div>
-                                <div class="text-xs uppercase tracking-wide text-zinc-500">{{ stageLabel(point.stage) }}</div>
-                                <div class="text-sm font-medium">
-                                    {{ routePointTitle(point, index) }}
-                                </div>
+                                <div class="text-xs uppercase tracking-wide text-zinc-500">Плечо</div>
+                                <div class="text-base font-semibold">{{ stageLabel(performer.stage) }}</div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <span class="inline-flex h-9 w-9 cursor-grab items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500" title="Перетащить этап">
-                                    ⋮⋮
-                                </span>
-                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.route_points, index)">
-                                    Удалить
-                                </button>
-                            </div>
+                            <button
+                                v-if="form.performers.length > 1"
+                                type="button"
+                                class="shrink-0 rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+                                @click="removePerformer(legIndex)"
+                            >
+                                Удалить плечо
+                            </button>
                         </div>
 
-                        <div class="grid gap-3 md:grid-cols-2">
-                            <div v-if="form.performers.length > 1" class="space-y-2">
-                                <label class="text-sm font-medium">Плечо</label>
-                                <select v-model="point.stage" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">
-                                        {{ stageLabel(performer.stage) }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="space-y-2 md:col-span-2">
-                                <label class="text-sm font-medium">Адрес</label>
-                                <div class="relative">
-                                    <input
-                                        v-model="point.address"
-                                        type="text"
-                                        :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + index, point.address)]"
-                                        placeholder="Начни вводить адрес"
-                                        @input="queueAddressLookup(index)"
-                                    />
-
-                                    <div
-                                        v-if="addressSuggestions[index]?.length"
-                                        class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                    >
-                                        <button
-                                            v-for="suggestion in addressSuggestions[index]"
-                                            :key="suggestion.value"
-                                            type="button"
-                                            class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                            @click="selectAddress(index, suggestion)"
-                                        >
-                                            <span class="text-sm font-medium">{{ suggestion.value }}</span>
-                                            <span class="text-xs text-zinc-500">{{ suggestion.data?.region_with_type || suggestion.data?.region || '' }}</span>
-                                        </button>
+                        <div
+                            v-for="item in routePointsWithIndicesForLeg(performer.stage)"
+                            :key="`point-${item.globalIndex}`"
+                            :draggable="routePointsDragEnabled()"
+                            class="space-y-3 rounded-2xl border border-zinc-200 bg-white/40 p-4 dark:border-zinc-700 dark:bg-zinc-950/30"
+                            :class="[
+                                draggedRoutePointIndex === item.globalIndex ? 'opacity-60 ring-2 ring-zinc-300 dark:ring-zinc-700' : '',
+                                dragOverRoutePointIndex === item.globalIndex ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-200 dark:bg-zinc-800/60' : '',
+                            ]"
+                            @dragstart="handleRoutePointDragStart(item.globalIndex, $event)"
+                            @dragover.prevent="handleRoutePointDragOver(item.globalIndex)"
+                            @drop.prevent="handleRoutePointDrop(item.globalIndex)"
+                            @dragend="handleRoutePointDragEnd"
+                        >
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs uppercase tracking-wide text-zinc-500">
+                                        {{ item.point.type === 'loading' ? 'Погрузка' : 'Выгрузка' }}
+                                    </div>
+                                    <div class="text-sm font-medium">
+                                        {{ routePointTitle(item.point, item.globalIndex) }}
                                     </div>
                                 </div>
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
+                                        :class="routePointsDragEnabled() ? 'cursor-grab' : 'cursor-not-allowed opacity-50'"
+                                        :title="routePointsDragEnabled() ? 'Перетащить этап' : 'Порядок этапов фиксирован по плечам — перетаскивание отключено'"
+                                    >
+                                        ⋮⋮
+                                    </span>
+                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeItem(form.route_points, item.globalIndex)">
+                                        Удалить
+                                    </button>
+                                </div>
                             </div>
 
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Плановая дата</label>
-                                <input v-model="point.planned_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Фактическая дата</label>
-                                <input v-model="point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Контактное лицо</label>
-                                <input v-model="point.contact_person" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Телефон</label>
-                                <input v-model="point.contact_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                        </div>
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-2 md:col-span-2">
+                                    <label class="text-sm font-medium">Адрес</label>
+                                    <div class="relative">
+                                        <input
+                                            v-model="item.point.address"
+                                            type="text"
+                                            :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, item.point.address)]"
+                                            placeholder="Начни вводить адрес"
+                                            @input="queueAddressLookup(item.globalIndex)"
+                                        />
 
-                        <div v-if="point.type === 'loading'" class="grid gap-3 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Отправитель</label>
-                                <input v-model="point.sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Контакт отправителя</label>
-                                <input v-model="point.sender_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2 md:col-span-2">
-                                <label class="text-sm font-medium">Телефон отправителя</label>
-                                <input v-model="point.sender_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                        </div>
+                                        <div
+                                            v-if="addressSuggestions[item.globalIndex]?.length"
+                                            class="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                        >
+                                            <button
+                                                v-for="suggestion in addressSuggestions[item.globalIndex]"
+                                                :key="suggestion.value"
+                                                type="button"
+                                                class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                                @click="selectAddress(item.globalIndex, suggestion)"
+                                            >
+                                                <span class="text-sm font-medium">{{ suggestion.value }}</span>
+                                                <span class="text-xs text-zinc-500">{{ suggestion.data?.region_with_type || suggestion.data?.region || '' }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <div v-if="point.type === 'unloading'" class="grid gap-3 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Получатель</label>
-                                <input v-model="point.recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Плановая дата</label>
+                                    <input v-model="item.point.planned_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Фактическая дата</label>
+                                    <input v-model="item.point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Контактное лицо</label>
+                                    <input v-model="item.point.contact_person" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Телефон</label>
+                                    <input v-model="item.point.contact_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Контакт получателя</label>
-                                <input v-model="point.recipient_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+
+                            <div v-if="item.point.type === 'loading'" class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Отправитель</label>
+                                    <input v-model="item.point.sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Контакт отправителя</label>
+                                    <input v-model="item.point.sender_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2 md:col-span-2">
+                                    <label class="text-sm font-medium">Телефон отправителя</label>
+                                    <input v-model="item.point.sender_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
                             </div>
-                            <div class="space-y-2 md:col-span-2">
-                                <label class="text-sm font-medium">Телефон получателя</label>
-                                <input v-model="point.recipient_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+
+                            <div v-if="item.point.type === 'unloading'" class="grid gap-3 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Получатель</label>
+                                    <input v-model="item.point.recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Контакт получателя</label>
+                                    <input v-model="item.point.recipient_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2 md:col-span-2">
+                                    <label class="text-sm font-medium">Телефон получателя</label>
+                                    <input v-model="item.point.recipient_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                            </div>
+
+                            <div v-if="form.performers.length > 1" class="border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-zinc-500">Отнести этап к плечу</label>
+                                    <select v-model="item.point.stage" class="w-full max-w-md rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onRoutePointLegChanged">
+                                        <option v-for="p in form.performers" :key="p.stage" :value="p.stage">
+                                            {{ stageLabel(p.stage) }}
+                                        </option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -902,7 +932,7 @@
 </template>
 
 <script setup>
-import { computed, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, ref, toRaw, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -1241,10 +1271,10 @@ async function calculateCompensation() {
                 additional_expenses: Number(form.additional_expenses || 0),
                 insurance: Number(form.insurance || 0),
                 bonus: Number(form.bonus || 0),
-                manager_id: props.currentUser?.id,
+                manager_id: props.order?.responsible_id ?? props.currentUser?.id,
                 order_date: form.order_date,
-                client_id: form.client_id,
-                carrier_id: form.performers.find(p => p.contractor_id)?.contractor_id,
+                customer_payment_form: normalizePaymentFormCode(form.financial_term.client_payment_form, 'vat'),
+                contractors_costs: form.financial_term.contractors_costs,
             }),
         });
 
@@ -1276,6 +1306,7 @@ watch(
     [
         () => form.financial_term.client_price,
         () => form.financial_term.contractors_costs,
+        () => form.financial_term.client_payment_form,
         () => form.additional_expenses,
         () => form.insurance,
         () => form.bonus,
@@ -1286,7 +1317,7 @@ watch(
     () => {
         calculateCompensation();
     },
-    { deep: true, immediate: false },
+    { deep: true, immediate: true },
 );
 
 const isEditing = computed(() => props.order !== null);
@@ -1576,9 +1607,22 @@ function removePerformer(index) {
         return;
     }
 
+    const removedStage = performer.stage;
+
+    removeCarrierDocumentsForStage(removedStage);
+
     form.performers.splice(index, 1);
-    form.route_points = form.route_points.filter((point) => !stageMatches(point.stage, performer.stage));
+    form.route_points = form.route_points.filter((point) => !stageMatches(point.stage, removedStage));
     normalizeRoutePointSequences();
+
+    if (form.performers.length > 0) {
+        reindexLegStagesAndRemap();
+    }
+
+    if (form.performers.length <= 1) {
+        form.financial_term.client_request_mode = 'single_request';
+    }
+
     syncContractorCostsFromPerformers();
 }
 
@@ -1604,6 +1648,101 @@ function toStageKey(label) {
 
 function stageMatches(left, right) {
     return toStageKey(left) === toStageKey(right);
+}
+
+function remapStageReferences(fromStage, toStage) {
+    if (stageMatches(fromStage, toStage)) {
+        return;
+    }
+
+    form.route_points.forEach((point) => {
+        if (stageMatches(point.stage, fromStage)) {
+            point.stage = toStage;
+        }
+    });
+
+    form.financial_term.contractors_costs.forEach((row) => {
+        if (stageMatches(row.stage, fromStage)) {
+            row.stage = toStage;
+        }
+    });
+
+    form.documents.forEach((doc) => {
+        if (doc.party === 'carrier' && doc.stage && stageMatches(doc.stage, fromStage)) {
+            doc.stage = toStage;
+        }
+    });
+}
+
+/**
+ * После удаления плеча оставшиеся «Плечо 2» и т.д. перенумеровываются в leg_1, leg_2…
+ */
+function reindexLegStagesAndRemap() {
+    const oldStages = form.performers.map((p) => p.stage);
+
+    form.performers = form.performers.map((performer, i) => ({
+        ...performer,
+        stage: stageLabel(`leg_${i + 1}`),
+    }));
+
+    const newStages = form.performers.map((p) => p.stage);
+
+    for (let i = 0; i < form.performers.length; i++) {
+        if (!stageMatches(oldStages[i], newStages[i])) {
+            remapStageReferences(oldStages[i], newStages[i]);
+        }
+    }
+}
+
+function removeCarrierDocumentsForStage(stage) {
+    form.documents = form.documents.filter((doc) => {
+        if (doc.party !== 'carrier' || !doc.stage) {
+            return true;
+        }
+
+        return !stageMatches(doc.stage, stage);
+    });
+}
+
+/**
+ * Убирает плечи, для которых не осталось ни одной точки маршрута (например после удаления этапов).
+ */
+function pruneEmptyLegPerformers() {
+    const stagesWithPoints = new Set(form.route_points.map((p) => toStageKey(p.stage)));
+    const before = form.performers.length;
+
+    const filtered = form.performers.filter((p) => stagesWithPoints.has(toStageKey(p.stage)));
+
+    if (filtered.length === before) {
+        return;
+    }
+
+    const removedStages = form.performers
+        .filter((p) => !stagesWithPoints.has(toStageKey(p.stage)))
+        .map((p) => p.stage);
+
+    removedStages.forEach((stage) => removeCarrierDocumentsForStage(stage));
+
+    form.performers = filtered;
+
+    if (form.performers.length === 0) {
+        form.performers = [{ stage: stageLabel('leg_1'), contractor_id: null }];
+        syncRoutePointsFromPerformers();
+    } else {
+        reindexLegStagesAndRemap();
+    }
+
+    if (form.performers.length <= 1) {
+        form.financial_term.client_request_mode = 'single_request';
+    }
+
+    syncContractorCostsFromPerformers();
+}
+
+function onRoutePointLegChanged() {
+    nextTick(() => {
+        pruneEmptyLegPerformers();
+    });
 }
 
 function getContractorById(contractorId) {
@@ -2033,7 +2172,30 @@ function routePointTitle(point, index) {
         : `Выгрузка ${ordinal}`;
 }
 
+/**
+ * @return {Array<{ point: object, globalIndex: number }>}
+ */
+function routePointsWithIndicesForLeg(stage) {
+    const result = [];
+
+    form.route_points.forEach((point, globalIndex) => {
+        if (stageMatches(point.stage, stage)) {
+            result.push({ point, globalIndex });
+        }
+    });
+
+    return result.sort((left, right) => Number(left.point.sequence ?? 0) - Number(right.point.sequence ?? 0));
+}
+
+function routePointsDragEnabled() {
+    return form.performers.length <= 1;
+}
+
 function handleRoutePointDragStart(index, event) {
+    if (!routePointsDragEnabled()) {
+        return;
+    }
+
     draggedRoutePointIndex.value = index;
 
     if (event.dataTransfer) {
@@ -2043,6 +2205,10 @@ function handleRoutePointDragStart(index, event) {
 }
 
 function handleRoutePointDragOver(index) {
+    if (!routePointsDragEnabled()) {
+        return;
+    }
+
     if (draggedRoutePointIndex.value === null || draggedRoutePointIndex.value === index) {
         return;
     }
@@ -2051,6 +2217,10 @@ function handleRoutePointDragOver(index) {
 }
 
 function handleRoutePointDrop(targetIndex) {
+    if (!routePointsDragEnabled()) {
+        return;
+    }
+
     const sourceIndex = draggedRoutePointIndex.value;
 
     if (sourceIndex === null || sourceIndex === targetIndex) {
@@ -2067,6 +2237,10 @@ function handleRoutePointDrop(targetIndex) {
 }
 
 function handleRoutePointDragEnd() {
+    if (!routePointsDragEnabled()) {
+        return;
+    }
+
     draggedRoutePointIndex.value = null;
     dragOverRoutePointIndex.value = null;
 }
@@ -2106,6 +2280,7 @@ function removeItem(collection, index) {
 
     if (collection === form.route_points) {
         normalizeRoutePointSequences();
+        pruneEmptyLegPerformers();
     }
 }
 

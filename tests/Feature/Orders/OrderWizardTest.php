@@ -1478,6 +1478,79 @@ class OrderWizardTest extends TestCase
         $this->assertDatabaseCount('orders', 1);
     }
 
+    public function test_calculate_compensation_uses_payment_forms_for_deal_type(): void
+    {
+        $admin = $this->createAdminUser();
+
+        DB::table('kpi_thresholds')->insert([
+            [
+                'deal_type' => 'direct',
+                'threshold_from' => '0.00',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 5,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'indirect',
+                'threshold_from' => '0.00',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 9,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        DB::table('kpi_settings')->insert([
+            'key' => 'delta_bonus_multiplier',
+            'value' => '1.30',
+            'type' => 'float',
+            'group' => 'delta',
+            'description' => 'Multiplier',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('salary_coefficients')->insert([
+            'manager_id' => $admin->id,
+            'base_salary' => 0,
+            'bonus_percent' => 0,
+            'effective_from' => '2026-04-01',
+            'effective_to' => null,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $basePayload = [
+            'customer_rate' => 1000,
+            'carrier_rate' => 400,
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+        ];
+
+        $this->actingAs($admin)->postJson(route('orders.calculate-compensation'), array_merge($basePayload, [
+            'customer_payment_form' => 'vat',
+            'contractors_costs' => [
+                ['payment_form' => 'vat', 'amount' => 400],
+            ],
+        ]))->assertOk()
+            ->assertJson(['deal_type' => 'direct']);
+
+        $this->actingAs($admin)->postJson(route('orders.calculate-compensation'), array_merge($basePayload, [
+            'customer_payment_form' => 'vat',
+            'contractors_costs' => [
+                ['payment_form' => 'no_vat', 'amount' => 400],
+            ],
+        ]))->assertOk()
+            ->assertJson(['deal_type' => 'indirect']);
+    }
+
     private function makeDocxPath(array $entries): string
     {
         $directory = storage_path('framework/testing/disks/local');

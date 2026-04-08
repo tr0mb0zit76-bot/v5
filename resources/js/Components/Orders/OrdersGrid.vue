@@ -585,6 +585,160 @@ const formatEmpty = (value) => {
   return value === null || value === undefined || value === '' || value === 'null' ? '—' : value;
 };
 
+/** Короткие условия оплаты в БД хранятся латиницей (FTTN/OTTN); в таблице показываем кириллицей. */
+const formatPaymentTermsDisplay = (value) => {
+  const base = formatEmpty(value);
+
+  if (base === '—') {
+    return base;
+  }
+
+  return String(base)
+    .replace(/\bFTTN\b/gi, 'ФТТН')
+    .replace(/\bOTTN\b/gi, 'ОТТН')
+    .replace(/\bLOADING\b/gi, 'погрузка')
+    .replace(/\bUNLOADING\b/gi, 'выгрузка')
+    .replace(/\bdays\b/gi, 'дн');
+};
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Иконки Lucide (stroke), цвет через currentColor на родителе */
+const ORDER_STATUS_ICON_META = {
+  new: {
+    label: 'Новый заказ',
+    colorClass: 'text-sky-600 dark:text-sky-400',
+    paths: [
+      'm12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z',
+      'M5 3v4',
+      'M3 5h4',
+      'M19 17v4',
+      'M17 19h4',
+    ],
+  },
+  in_progress: {
+    label: 'Выполняется',
+    colorClass: 'text-amber-600 dark:text-amber-400',
+    paths: [
+      'M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2',
+      'M15 18H9',
+      'M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14',
+    ],
+    circles: [{ cx: '17', cy: '18', r: '2' }, { cx: '7', cy: '18', r: '2' }],
+  },
+  documents: {
+    label: 'Документы',
+    colorClass: 'text-violet-600 dark:text-violet-400',
+    paths: [
+      'M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z',
+      'M14 2v6h6',
+      'M16 13H8',
+      'M16 17H8',
+      'M10 9H8',
+    ],
+  },
+  payment: {
+    label: 'Оплата',
+    colorClass: 'text-emerald-600 dark:text-emerald-400',
+    paths: [
+      'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1',
+      'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4',
+    ],
+  },
+  closed: {
+    label: 'Закрыта',
+    colorClass: 'text-green-700 dark:text-green-400',
+    paths: [
+      'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+      'm9 12 2 2 4-4',
+    ],
+  },
+  cancelled: {
+    label: 'Отменена',
+    colorClass: 'text-rose-600 dark:text-rose-400',
+    paths: ['M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z', 'm15 9-6 6', 'm9 9 6 6'],
+  },
+  draft: {
+    label: 'Черновик',
+    colorClass: 'text-zinc-500 dark:text-zinc-400',
+    paths: ['M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z', 'm15 5 4 4'],
+  },
+};
+
+function buildOrderStatusIconSvg(meta) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', '20');
+  svg.setAttribute('height', '20');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('class', 'shrink-0');
+  meta.paths.forEach((d) => {
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', d);
+    svg.appendChild(p);
+  });
+  (meta.circles ?? []).forEach((c) => {
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    circle.setAttribute('cx', c.cx);
+    circle.setAttribute('cy', c.cy);
+    circle.setAttribute('r', c.r);
+    svg.appendChild(circle);
+  });
+
+  return svg;
+}
+
+function resolveOrderStatusLabel(code) {
+  if (code === null || code === undefined || code === '') {
+    return '—';
+  }
+  const key = String(code);
+
+  return ORDER_STATUS_ICON_META[key]?.label ?? key;
+}
+
+function renderOrderStatusTextCell(params) {
+  const code = params.value;
+  const wrap = document.createElement('div');
+  wrap.className = 'flex h-full w-full items-center justify-center';
+  wrap.setAttribute('role', 'presentation');
+
+  if (code === null || code === undefined || code === '') {
+    wrap.textContent = '—';
+    wrap.classList.add('text-zinc-400');
+    wrap.title = '';
+
+    return wrap;
+  }
+
+  const key = String(code);
+  const meta = ORDER_STATUS_ICON_META[key];
+
+  if (!meta) {
+    wrap.textContent = key;
+    wrap.title = key;
+    wrap.classList.add('max-w-full', 'truncate', 'px-1', 'text-xs', 'text-zinc-600', 'dark:text-zinc-300');
+    wrap.setAttribute('role', 'img');
+    wrap.setAttribute('aria-label', key);
+
+    return wrap;
+  }
+
+  wrap.title = meta.label;
+  wrap.setAttribute('role', 'img');
+  wrap.setAttribute('aria-label', meta.label);
+  const span = document.createElement('span');
+  span.className = `inline-flex ${meta.colorClass}`;
+  span.appendChild(buildOrderStatusIconSvg(meta));
+  wrap.appendChild(span);
+
+  return wrap;
+}
+
 const moneyFormatter = (params) => {
   const value = formatEmpty(params.value);
 
@@ -681,6 +835,10 @@ const dynamicColumnDefs = computed(() => {
           classes.push('orders-grid-order-number-cell');
         }
 
+        if (column.field === 'status_text') {
+          classes.push('orders-grid-status-cell');
+        }
+
         return classes;
       },
     };
@@ -743,6 +901,19 @@ const dynamicColumnDefs = computed(() => {
         no_vat: 'Без НДС',
         cash: 'Нал',
       }[params.value] ?? formatEmpty(params.value));
+    }
+
+    if (['customer_payment_term', 'carrier_payment_term'].includes(column.field)) {
+      columnDefinition.valueFormatter = (params) => formatPaymentTermsDisplay(params.value);
+    }
+
+    if (column.field === 'status_text') {
+      columnDefinition.width = 72;
+      columnDefinition.minWidth = 56;
+      columnDefinition.maxWidth = 96;
+      columnDefinition.cellRenderer = renderOrderStatusTextCell;
+      columnDefinition.valueFormatter = (params) => resolveOrderStatusLabel(params.value);
+      columnDefinition.getQuickFilterText = (params) => resolveOrderStatusLabel(params.value);
     }
 
     if (column.field === 'manual_status') {

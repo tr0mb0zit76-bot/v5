@@ -13,6 +13,7 @@ use App\Models\OrderLeg;
 use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
 use App\Models\User;
+use App\Support\CarrierPaymentFormResolver;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -103,7 +104,7 @@ class OrderWizardService
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
         $clientPaymentSummary = $this->formatPaymentScheduleSummary($clientPaymentSchedule);
-        $carrierPaymentForm = $this->resolveCarrierPaymentForm($contractorCosts);
+        $carrierPaymentForm = CarrierPaymentFormResolver::fromContractorsCostsArray($contractorCosts);
         $carrierPaymentSummary = $this->resolveCarrierPaymentTerm($contractorCosts);
 
         $normalizedPerformers = collect($performers)
@@ -625,24 +626,6 @@ class OrderWizardService
         $postpaymentRatio = max(0, 100 - $prepaymentRatio);
 
         return "{$prepaymentRatio}/{$postpaymentRatio}, {$prepaymentDays} дн {$prepaymentMode} / {$postpaymentDays} дн {$postpaymentMode}";
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $contractorCosts
-     */
-    private function resolveCarrierPaymentForm(array $contractorCosts): ?string
-    {
-        $forms = collect($contractorCosts)
-            ->pluck('payment_form')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($forms->isEmpty()) {
-            return null;
-        }
-
-        return $forms->count() === 1 ? $forms->first() : 'mixed';
     }
 
     /**

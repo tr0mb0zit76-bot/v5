@@ -13,6 +13,25 @@ class StoreContractorRequest extends FormRequest
         return $this->user() !== null;
     }
 
+    protected function prepareForValidation(): void
+    {
+        foreach (['inn', 'kpp', 'ogrn', 'okpo', 'bik', 'account_number'] as $key) {
+            if (! $this->has($key)) {
+                continue;
+            }
+
+            $value = $this->input($key);
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            if (! is_string($value)) {
+                $this->merge([$key => (string) $value]);
+            }
+        }
+    }
+
     /**
      * @return array<string, ValidationRule|array<int, ValidationRule|string>|string>
      */

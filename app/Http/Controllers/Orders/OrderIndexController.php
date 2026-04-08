@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
+use App\Support\CarrierPaymentFormResolver;
+use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\OrderTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -91,6 +93,10 @@ class OrderIndexController extends Controller
             $orderSelectColumns[] = 'orders.carrier_rate';
         }
 
+        if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+            $orderSelectColumns[] = 'orders.carrier_payment_form';
+        }
+
         $rows = DB::table('orders')
             ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id')
             ->leftJoin('contractors as customers', 'customers.id', '=', 'orders.customer_id')
@@ -116,7 +122,11 @@ class OrderIndexController extends Controller
             ->orderBy('orders.id')
             ->get();
 
-        $carrierRateFromFinancialByOrderId = $this->carrierRatesFromFinancialTerms(
+        $carrierRateFromFinancialByOrderId = CarrierRateFromFinancialTerms::sumsByOrderId(
+            $rows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
+
+        $carrierPaymentFormByOrderId = CarrierPaymentFormResolver::mapForOrderIds(
             $rows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
         );
 
@@ -124,7 +134,7 @@ class OrderIndexController extends Controller
             ? $this->assignedCarrierNamesByOrderIds($rows->pluck('id')->map(fn ($id): int => (int) $id)->all())
             : collect();
 
-        $rows = $rows->map(function ($order) use ($roleName, $user, $assignmentNamesByOrderId, $carrierRateFromFinancialByOrderId): array {
+        $rows = $rows->map(function ($order) use ($roleName, $user, $assignmentNamesByOrderId, $carrierRateFromFinancialByOrderId, $carrierPaymentFormByOrderId): array {
             $row = (array) $order;
             $assignmentNames = (string) ($assignmentNamesByOrderId->get((int) $order->id) ?? '');
             $row = $this->applyAssignedCarrierDisplay($row, $assignmentNames);
@@ -135,6 +145,12 @@ class OrderIndexController extends Controller
             } elseif (! array_key_exists('carrier_rate', $row)) {
                 $row['carrier_rate'] = null;
             }
+
+            $computedCarrierPaymentForm = $carrierPaymentFormByOrderId->get((int) $order->id);
+            $dbCarrierPaymentForm = $row['carrier_payment_form'] ?? null;
+            $row['carrier_payment_form'] = $computedCarrierPaymentForm !== null
+                ? $computedCarrierPaymentForm
+                : $dbCarrierPaymentForm;
 
             return [
                 ...$row,
@@ -147,54 +163,6 @@ class OrderIndexController extends Controller
             'roleKey' => $roleName ?? 'manager',
             'orderColumns' => OrderTableColumns::options(),
         ]);
-    }
-
-    /**
-     * @return array{name: string|null, visibility_scopes: array<string, string>}
-     */
-    /**
-     * Сумма сумм по плечам из `financial_terms.contractors_costs` — после миграции колонка `orders.carrier_rate` может отсутствовать.
-     *
-     * @param  list<int>  $orderIds
-     * @return Collection<int, float>
-     */
-    private function carrierRatesFromFinancialTerms(array $orderIds): Collection
-    {
-        if ($orderIds === [] || ! Schema::hasTable('financial_terms')) {
-            return collect();
-        }
-
-        $rows = DB::table('financial_terms')
-            ->whereIn('order_id', $orderIds)
-            ->get(['order_id', 'contractors_costs']);
-
-        return $rows->mapWithKeys(function (object $row): array {
-            $sum = $this->sumJsonContractorsCostsAmounts($row->contractors_costs);
-
-            return [(int) $row->order_id => $sum];
-        });
-    }
-
-    private function sumJsonContractorsCostsAmounts(mixed $payload): ?float
-    {
-        if ($payload === null || $payload === '') {
-            return null;
-        }
-
-        if (is_array($payload)) {
-            $costs = $payload;
-        } else {
-            $decoded = json_decode((string) $payload, true);
-            $costs = is_array($decoded) ? $decoded : [];
-        }
-
-        if ($costs === []) {
-            return null;
-        }
-
-        $sum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
-
-        return round($sum, 2);
     }
 
     /**

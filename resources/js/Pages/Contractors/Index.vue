@@ -93,8 +93,8 @@ const legalFormLabelByValue = {
 
 const tabs = [
     { key: 'general', label: 'Общие сведения', icon: Building2 },
-    { key: 'cooperation', label: 'Условия сотрудничества', icon: FileText },
     { key: 'requisites', label: 'Реквизиты', icon: ShieldCheck },
+    { key: 'cooperation', label: 'Условия сотрудничества', icon: FileText },
     { key: 'contacts', label: 'Контакты', icon: Users },
     { key: 'history', label: 'История общения', icon: History },
     { key: 'orders', label: 'Заказы', icon: FileText },
@@ -188,6 +188,23 @@ function paymentScheduleSummary(schedule) {
     }
 
     return `${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+}
+
+/** Как в OrdersGrid: в БД латиница (FTTN/OTTN), в подписи — кириллица. */
+function formatPaymentTermsForDisplay(value) {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+
+    return String(value)
+        .replace(/\bFTTN\b/gi, 'ФТТН')
+        .replace(/\bOTTN\b/gi, 'ОТТН')
+        .replace(/\bLOADING\b/gi, 'погрузка')
+        .replace(/\bUNLOADING\b/gi, 'выгрузка')
+        .replace(/\bfttn\b/gi, 'ФТТН')
+        .replace(/\bottn\b/gi, 'ОТТН')
+        .replace(/\bloading\b/gi, 'погрузка')
+        .replace(/\bunloading\b/gi, 'выгрузка');
 }
 
 function parsePaymentTermPreset(term) {
@@ -357,7 +374,6 @@ function contractorToForm(contractor) {
 }
 
 const form = useForm(contractorToForm(props.selectedContractor));
-const specializationsText = ref('');
 const transportRequirementsText = ref('');
 const globalActivityTypeOptions = ref(
     [...new Set((props.activityTypeOptions ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru'))
@@ -372,7 +388,7 @@ const availableActivityTypeOptions = computed(() => {
 
 const activityTypeDropdownLabel = computed(() => {
     if (!Array.isArray(form.activity_types) || form.activity_types.length === 0) {
-        return '�������� ���� ������������';
+        return 'Выберите виды деятельности';
     }
 
     if (form.activity_types.length <= 2) {
@@ -404,7 +420,6 @@ function applyFormState(contractor) {
         form[key] = value;
     }
 
-    specializationsText.value = payload.specializations.join('\n');
     transportRequirementsText.value = payload.transport_requirements.join('\n');
     activeTab.value = 'general';
     addressSuggestions.value = {
@@ -427,6 +442,83 @@ watch(() => props.activityTypeOptions, (options) => {
 
 const isCreating = computed(() => page.url.endsWith('/contractors/create'));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
+
+const contractorScoring = ref(null);
+const contractorScoringLoading = ref(false);
+const contractorScoringError = ref('');
+
+async function loadContractorScoring(options = { refresh: false }) {
+    if (selectedContractorId.value === null || !props.selectedContractor?.inn) {
+        contractorScoring.value = null;
+        contractorScoringError.value = '';
+
+        return;
+    }
+
+    contractorScoringLoading.value = true;
+    contractorScoringError.value = '';
+
+    try {
+        const params = new URLSearchParams();
+        if (options.refresh) {
+            params.set('refresh', '1');
+        }
+
+        const qs = params.toString();
+        const url = route('contractors.scoring', selectedContractorId.value) + (qs ? `?${qs}` : '');
+        const res = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.message || 'Ошибка запроса скоринга');
+        }
+
+        contractorScoring.value = data;
+
+        if (!data.ok) {
+            contractorScoringError.value = data.error || 'Не удалось рассчитать скоринг';
+        }
+    } catch (e) {
+        contractorScoring.value = null;
+        contractorScoringError.value = e.message || 'Не удалось загрузить скоринг';
+    } finally {
+        contractorScoringLoading.value = false;
+    }
+}
+
+watch([selectedContractorId, () => props.selectedContractor?.inn], () => {
+    loadContractorScoring({ refresh: false });
+});
+
+function scoringGradeClass(grade) {
+    switch (grade) {
+        case 'A':
+            return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300';
+        case 'B':
+            return 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300';
+        case 'C':
+            return 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200';
+        default:
+            return 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300';
+    }
+}
+
+function scoringEgrStatusLabel(egr) {
+    switch (egr) {
+        case 'active':
+            return 'Статус ЕГРЮЛ (авто): действующая';
+        case 'inactive':
+            return 'Статус ЕГРЮЛ (авто): ликвидация / исключение / иные блокирующие признаки';
+        default:
+            return 'Статус ЕГРЮЛ (авто): не распознан однозначно из ответа API';
+    }
+}
 
 // Server-side search will be handled by the backend
 // The filtered contractors are already in props.contractors
@@ -499,13 +591,16 @@ function parseMultilineList(value) {
 }
 
 function submit() {
-    form.specializations = parseMultilineList(specializationsText.value);
     form.transport_requirements = parseMultilineList(transportRequirementsText.value);
     form.activity_types = [...new Set((form.activity_types ?? []).map((item) => String(item).trim()).filter(Boolean))];
     form.default_customer_payment_schedule = normalizePaymentSchedule(form.default_customer_payment_schedule);
     form.default_carrier_payment_schedule = normalizePaymentSchedule(form.default_carrier_payment_schedule);
     form.default_customer_payment_term = paymentScheduleSummary(form.default_customer_payment_schedule) || '';
     form.default_carrier_payment_term = paymentScheduleSummary(form.default_carrier_payment_schedule) || '';
+
+    if (form.inn != null && form.inn !== '') {
+        form.inn = String(form.inn).replace(/\D/g, '');
+    }
 
     if (selectedContractorId.value === null) {
         form.post(route('contractors.store'), {
@@ -624,10 +719,10 @@ function applyPartySuggestion(suggestion) {
 
     form.name = suggestion.value ?? form.name;
     form.full_name = party.name?.full_with_opf ?? form.full_name;
-    form.inn = party.inn ?? form.inn;
-    form.kpp = party.kpp ?? form.kpp;
-    form.ogrn = party.ogrn ?? form.ogrn;
-    form.okpo = party.okpo ?? form.okpo;
+    form.inn = party.inn != null && party.inn !== '' ? String(party.inn) : form.inn;
+    form.kpp = party.kpp != null && party.kpp !== '' ? String(party.kpp) : form.kpp;
+    form.ogrn = party.ogrn != null && party.ogrn !== '' ? String(party.ogrn) : form.ogrn;
+    form.okpo = party.okpo != null && party.okpo !== '' ? String(party.okpo) : form.okpo;
     form.legal_address = party.address?.value ?? form.legal_address;
     form.actual_address = party.address?.value ?? form.actual_address;
     form.postal_address = party.address?.value ?? form.postal_address;
@@ -703,6 +798,10 @@ watch(() => form.inn, (inn) => {
     clearTimeout(innLookupTimer);
 
     const normalizedInn = String(inn ?? '').replace(/\D/g, '');
+
+    if ([10, 12].includes(normalizedInn.length) && form.inn !== normalizedInn) {
+        form.inn = normalizedInn;
+    }
 
     if (![10, 12].includes(normalizedInn.length) || normalizedInn === lastAutoFilledInn.value) {
         return;
@@ -1428,46 +1527,6 @@ function handleMobileNavSelect(key) {
 
                                     <div v-if="form.errors.activity_types" class="text-sm text-rose-600">{{ form.errors.activity_types }}</div>
                                 </div>
-
-                                <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Основной контакт</div>
-
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Контактное лицо</label>
-                                        <input
-                                            v-model="form.contact_person"
-                                            type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
-                                    </div>
-
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Должность</label>
-                                        <input
-                                            v-model="form.contact_person_position"
-                                            type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
-                                    </div>
-
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Телефон</label>
-                                        <input
-                                            v-model="form.contact_person_phone"
-                                            type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
-                                    </div>
-
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Email</label>
-                                        <input
-                                            v-model="form.contact_person_email"
-                                            type="email"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1513,7 +1572,7 @@ function handleMobileNavSelect(key) {
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">Условия оплаты заказчика</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ paymentScheduleSummary(form.default_customer_payment_schedule) || 'Не заданы' }}
+                                                {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_customer_payment_schedule)) || 'Не заданы' }}
                                             </p>
                                         </div>
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
@@ -1565,7 +1624,7 @@ function handleMobileNavSelect(key) {
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">Условия оплаты перевозчика</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ paymentScheduleSummary(form.default_carrier_payment_schedule) || 'Не заданы' }}
+                                                {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_carrier_payment_schedule)) || 'Не заданы' }}
                                             </p>
                                         </div>
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
@@ -1611,6 +1670,16 @@ function handleMobileNavSelect(key) {
                                     <label class="text-sm font-medium">Условия сотрудничества</label>
                                     <textarea v-model="form.cooperation_terms_notes" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
                                 </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Требования к перевозке</label>
+                                    <textarea
+                                        v-model="transportRequirementsText"
+                                        rows="6"
+                                        placeholder="По одному требованию на строку"
+                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    />
+                                </div>
                             </div>
 
                             <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
@@ -1631,6 +1700,56 @@ function handleMobileNavSelect(key) {
                                     <div class="flex items-center justify-between gap-3">
                                         <span class="text-zinc-500 dark:text-zinc-400">Форма оплаты перевозчика</span>
                                         <span class="font-medium">{{ paymentFormLabel(form.default_carrier_payment_form) }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Скоринг контрагента (Checko)</div>
+                                        <button
+                                            type="button"
+                                            class="text-xs font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+                                            :disabled="contractorScoringLoading || selectedContractorId === null"
+                                            @click="loadContractorScoring({ refresh: true })"
+                                        >
+                                            Обновить данные
+                                        </button>
+                                    </div>
+
+                                    <div v-if="!selectedContractor?.inn" class="text-xs text-zinc-500 dark:text-zinc-400">Укажите ИНН в реквизитах — без него скоринг недоступен.</div>
+
+                                    <div v-else-if="contractorScoringLoading" class="text-xs text-zinc-500 dark:text-zinc-400">Загрузка данных...</div>
+
+                                    <div v-else-if="contractorScoringError" class="whitespace-pre-wrap text-xs text-rose-600 dark:text-rose-400">{{ contractorScoringError }}</div>
+
+                                    <div v-else-if="contractorScoring?.ok" class="space-y-2 text-xs">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="inline-flex items-center rounded-full px-2 py-0.5 font-semibold" :class="scoringGradeClass(contractorScoring.grade)">
+                                                Класс {{ contractorScoring.grade }}
+                                            </span>
+                                            <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ contractorScoring.score }} / 100</span>
+                                            <span v-if="contractorScoring.checko_from_cache" class="text-zinc-500 dark:text-zinc-400">(кэш Checko)</span>
+                                        </div>
+                                        <div v-if="contractorScoring.company_name" class="text-zinc-600 dark:text-zinc-300">{{ contractorScoring.company_name }}</div>
+                                        <div v-if="contractorScoring.egr_status" class="text-zinc-500 dark:text-zinc-400">
+                                            {{ scoringEgrStatusLabel(contractorScoring.egr_status) }}
+                                            <span v-if="contractorScoring.status_text"> — «{{ contractorScoring.status_text }}»</span>
+                                        </div>
+                                        <div class="space-y-1">
+                                            <div class="font-medium text-zinc-800 dark:text-zinc-200">
+                                                Рекомендуемая отсрочка: до {{ contractorScoring.recommended_postpayment_days }} дн.
+                                                <span class="font-normal text-zinc-500 dark:text-zinc-400">(макс. 10 для «сильных» профилей)</span>
+                                            </div>
+                                            <div class="font-medium text-zinc-800 dark:text-zinc-200">
+                                                Рекомендуемый лимит задолженности:
+                                                {{ formatMoney(contractorScoring.recommended_debt_limit_rub ?? 0, 'RUB') }}
+                                                <span class="block font-normal text-zinc-500 dark:text-zinc-400">Ориентир по оценке и данным Checko; при известной выручке не выше ~8% от неё.</span>
+                                            </div>
+                                            <p class="text-zinc-600 dark:text-zinc-300">{{ contractorScoring.summary }}</p>
+                                        </div>
+                                        <ul class="list-disc space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
+                                            <li v-for="(factor, idx) in contractorScoring.factors" :key="`factor-${idx}`">{{ factor }}</li>
+                                        </ul>
                                     </div>
                                 </div>
 
@@ -1748,58 +1867,34 @@ function handleMobileNavSelect(key) {
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                            <div class="space-y-4">
-                                <div class="relative space-y-2">
-                                    <label class="text-sm font-medium">Юридический адрес</label>
-                                    <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
-                                    <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                        <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
-                                            {{ suggestion.value }}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="relative space-y-2">
-                                    <label class="text-sm font-medium">Фактический адрес</label>
-                                    <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
-                                    <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                        <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
-                                            {{ suggestion.value }}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="relative space-y-2">
-                                    <label class="text-sm font-medium">Почтовый адрес</label>
-                                    <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
-                                    <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                        <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
-                                            {{ suggestion.value }}
-                                        </button>
-                                    </div>
+                        <div class="space-y-4">
+                            <div class="relative space-y-2">
+                                <label class="text-sm font-medium">Юридический адрес</label>
+                                <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
+                                <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                    <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
+                                        {{ suggestion.value }}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div class="space-y-4">
-                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">Специализации</div>
-                                    <textarea
-                                        v-model="specializationsText"
-                                        rows="6"
-                                        placeholder="По одной специализации на строку"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                    />
+                            <div class="relative space-y-2">
+                                <label class="text-sm font-medium">Фактический адрес</label>
+                                <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
+                                <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                    <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
+                                        {{ suggestion.value }}
+                                    </button>
                                 </div>
+                            </div>
 
-                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">Требования к перевозке</div>
-                                    <textarea
-                                        v-model="transportRequirementsText"
-                                        rows="6"
-                                        placeholder="По одному требованию на строку"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                    />
+                            <div class="relative space-y-2">
+                                <label class="text-sm font-medium">Почтовый адрес</label>
+                                <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
+                                <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                    <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
+                                        {{ suggestion.value }}
+                                    </button>
                                 </div>
                             </div>
                         </div>

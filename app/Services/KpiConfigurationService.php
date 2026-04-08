@@ -109,6 +109,41 @@ class KpiConfigurationService
     }
 
     /**
+     * KPI по доле прямых сделок за период и типу текущей сделки.
+     *
+     * Если доля попадает в несколько интервалов (пересечение на границах), берётся строка с
+     * наибольшим `threshold_from` — более «узкий» верхний диапазон (например 0.5–1.0, а не 0–0.5).
+     */
+    public function resolveKpiPercentForDeal(string $dealType, float $directRatio): float
+    {
+        $thresholds = collect($this->groupedThresholds());
+
+        if ($thresholds->isEmpty()) {
+            return 0.0;
+        }
+
+        $matches = $thresholds->filter(function (array $threshold) use ($directRatio): bool {
+            return $directRatio >= (float) $threshold['threshold_from']
+                && $directRatio <= (float) $threshold['threshold_to'];
+        });
+
+        $matchedThreshold = $matches
+            ->sortByDesc(fn (array $t): float => (float) $t['threshold_from'])
+            ->first();
+
+        if ($matchedThreshold === null) {
+            $matchedThreshold = $thresholds
+                ->sortByDesc('threshold_from')
+                ->first(fn (array $threshold): bool => $directRatio >= (float) $threshold['threshold_from'])
+                ?? $thresholds->sortByDesc('threshold_from')->first();
+        }
+
+        return (float) ($dealType === 'direct'
+            ? ($matchedThreshold['direct_kpi'] ?? 0)
+            : ($matchedThreshold['indirect_kpi'] ?? 0));
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function defaultThresholdRows(): array

@@ -6,6 +6,7 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -86,6 +87,10 @@ class OrderCompensationService
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
             )
+            ->when(
+                Schema::hasTable('financial_terms'),
+                fn ($query) => $query->with('financialTerms'),
+            )
             ->orderBy('id')
             ->get();
 
@@ -127,7 +132,7 @@ class OrderCompensationService
             $period['end'],
         );
 
-        $kpiPercent = $this->resolveKpiPercent($dealType, $periodStats['direct_ratio']);
+        $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $customerRate = (float) ($order->customer_rate ?? 0);
         $carrierRate = (float) ($order->carrier_rate ?? 0);
@@ -164,8 +169,10 @@ class OrderCompensationService
         $managerId = (int) ($data['manager_id'] ?? 0);
         $orderDate = $data['order_date'] ?? null;
 
-        // Classify deal type based on available data
-        $dealType = $this->classifyDealTypeFromData($data);
+        $dealType = $this->dealTypeClassifier->classify([
+            'customer_payment_form' => $data['customer_payment_form'] ?? null,
+            'carrier_payment_form' => $this->resolveCarrierPaymentFormForRealtime($data),
+        ]);
 
         if ($dealType === 'unknown' || $orderDate === null || $managerId === 0) {
             return [
@@ -180,7 +187,7 @@ class OrderCompensationService
         $period = $this->periodCalculator->getPeriodForDate($orderDate);
         $periodStats = $this->periodCalculator->getManagerPeriodStats($managerId, $period['start'], $period['end']);
 
-        $kpiPercent = $this->resolveKpiPercent($dealType, $periodStats['direct_ratio']);
+        $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $delta = $customerRate - ($customerRate * ($kpiPercent / 100)) - ($carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier));
 
@@ -195,42 +202,32 @@ class OrderCompensationService
         ];
     }
 
-    private function classifyDealTypeFromData(array $data): string
+    /**
+     * Для превью в мастере: форма перевозчика из явного поля или из contractors_costs (одна форма либо mixed).
+     */
+    private function resolveCarrierPaymentFormForRealtime(array $data): ?string
     {
-        // Use the same logic as DealTypeClassifier but with form data
-        $customerId = $data['client_id'] ?? null;
-        $carrierId = $data['carrier_id'] ?? null;
-
-        if ($customerId === null || $carrierId === null) {
-            return 'unknown';
+        if (filled($data['carrier_payment_form'] ?? null)) {
+            return (string) $data['carrier_payment_form'];
         }
 
-        return $customerId === $carrierId ? 'direct' : 'indirect';
-    }
-
-    private function resolveKpiPercent(string $dealType, float $directRatio): float
-    {
-        $thresholds = collect($this->kpiConfigurationService->groupedThresholds());
-
-        if ($thresholds->isEmpty()) {
-            return 0.0;
+        $costs = $data['contractors_costs'] ?? null;
+        if (! is_array($costs) || $costs === []) {
+            return null;
         }
 
-        $matchedThreshold = $thresholds->first(function (array $threshold) use ($directRatio): bool {
-            return $directRatio >= (float) $threshold['threshold_from']
-                && $directRatio <= (float) $threshold['threshold_to'];
-        });
+        $forms = collect($costs)
+            ->pluck('payment_form')
+            ->filter(fn ($v) => filled($v))
+            ->map(fn ($v) => is_string($v) ? trim($v) : (string) $v)
+            ->unique()
+            ->values();
 
-        if ($matchedThreshold === null) {
-            $matchedThreshold = $thresholds
-                ->sortByDesc('threshold_from')
-                ->first(fn (array $threshold): bool => $directRatio >= (float) $threshold['threshold_from'])
-                ?? $thresholds->last();
+        if ($forms->isEmpty()) {
+            return null;
         }
 
-        return (float) ($dealType === 'direct'
-            ? ($matchedThreshold['direct_kpi'] ?? 0)
-            : ($matchedThreshold['indirect_kpi'] ?? 0));
+        return $forms->count() === 1 ? (string) $forms->first() : 'mixed';
     }
 
     private function resolveSalaryAccrued(float $delta, ?SalaryCoefficient $salaryCoefficient): float
@@ -300,13 +297,13 @@ class OrderCompensationService
                         ->whereIn('id', $schedules->pluck('id')->toArray())
                         ->delete();
                 });
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             // Если возникает ошибка 1615, пытаемся переподключиться и удалить снова
             if (str_contains($e->getMessage(), '1615') || str_contains($e->getMessage(), 'Prepared statement needs to be re-prepared')) {
                 // Закрываем текущее соединение и переподключаемся
                 DB::purge('mysql');
                 DB::reconnect('mysql');
-                
+
                 // Пытаемся удалить снова с chunk
                 DB::table('payment_schedules')
                     ->where('order_id', $order->id)

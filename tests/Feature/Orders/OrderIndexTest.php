@@ -248,6 +248,77 @@ class OrderIndexTest extends TestCase
         );
     }
 
+    public function test_orders_index_includes_carrier_payment_form_from_financial_terms_when_orders_column_missing(): void
+    {
+        if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+            Schema::table('orders', function (Blueprint $table) {
+                $table->dropColumn('carrier_payment_form');
+            });
+        }
+
+        $adminRoleId = $this->createRole('admin');
+        $admin = User::factory()->create();
+
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $adminRoleId]);
+        $admin->role_id = $adminRoleId;
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Carrier',
+        ]);
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'GRID-CPF',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'customer_rate' => 100000,
+            'customer_payment_form' => 'vat',
+            'carrier_id' => $carrierId,
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 5,
+            'delta' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 100000,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'amount' => 70000,
+                    'currency' => 'RUB',
+                    'payment_form' => 'no_vat',
+                    'payment_schedule' => [],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'total_cost' => 70000,
+            'margin' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('rows', 1, fn (Assert $row) => $row
+                ->where('order_number', 'GRID-CPF')
+                ->where('carrier_payment_form', 'no_vat')
+                ->etc()
+            )
+        );
+    }
+
     public function test_manager_sees_only_their_own_orders(): void
     {
         $managerRoleId = $this->createRole('manager');
@@ -797,6 +868,86 @@ class OrderIndexTest extends TestCase
         $this->assertIsString($contractorsCosts);
         $this->assertStringContainsString('"amount":3210.45', $contractorsCosts);
         $this->assertStringContainsString('"contractor_id":'.$carrierId, $contractorsCosts);
+    }
+
+    public function test_inline_carrier_payment_form_syncs_financial_terms_when_orders_carrier_columns_dropped(): void
+    {
+        if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+            Schema::table('orders', function (Blueprint $table) {
+                $table->dropColumn('carrier_payment_form');
+            });
+        }
+
+        if (Schema::hasColumn('orders', 'carrier_rate')) {
+            Schema::table('orders', function (Blueprint $table) {
+                $table->dropColumn('carrier_rate');
+            });
+        }
+
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Carrier',
+        ]);
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'NO-CARRIER-COLS',
+            'manager_id' => $manager->id,
+            'order_date' => '2026-04-10',
+            'customer_rate' => 100000,
+            'customer_payment_form' => 'vat',
+            'carrier_id' => $carrierId,
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 5,
+            'delta' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 100000,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'amount' => 70000,
+                    'currency' => 'RUB',
+                    'payment_form' => 'no_vat',
+                    'payment_schedule' => [],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'total_cost' => 70000,
+            'margin' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'carrier_payment_form',
+            'value' => 'vat',
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+
+        $contractorsCosts = DB::table('financial_terms')
+            ->where('order_id', $orderId)
+            ->value('contractors_costs');
+
+        $this->assertIsString($contractorsCosts);
+        $this->assertStringContainsString('"payment_form":"vat"', $contractorsCosts);
     }
 
     public function test_inline_update_rate_still_works_when_financial_terms_table_is_missing(): void
