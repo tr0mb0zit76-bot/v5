@@ -11,14 +11,19 @@ export default defineConfig({
         }),
         vue(),
     ],
+    server: {
+        host: '127.0.0.1',
+        port: 5173,
+        strictPort: true,
+        // Важно: разрешаем CORS для MCP
+        cors: true,
+    },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, 'resources/js'),
-            // Добавляем алиас для AG Grid (на случай проблем с путями)
             'ag-grid-community/styles': path.resolve(__dirname, 'node_modules/ag-grid-community/styles'),
         },
     },
-    // Добавляем оптимизацию для AG Grid
     optimizeDeps: {
         include: [
             'ag-grid-community',
