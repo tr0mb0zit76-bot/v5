@@ -218,10 +218,17 @@ class TemplateManagementTest extends TestCase
             ->where('templates.0.code', 'customer_request_default')
             ->where('templates.0.contractor_name', 'ООО Тестовый заказчик')
             ->where('templates.0.variables', [])
-            ->where('orderVariableOptions.15.value', 'cargo_sender.name')
-            ->where('orderVariableOptions.33.value', 'customer.bank_name')
-            ->where('orderVariableOptions.70.value', 'driver.full_name')
-            ->where('orderVariableOptions.80.value', 'route.loading_cities')
+            ->where('orderVariableOptions', fn ($options): bool => collect($options)->pluck('value')->intersect([
+                'cargo_sender.name',
+                'customer.bank_name',
+                'driver.full_name',
+                'route.loading_cities',
+                'customer.signer_position',
+                'vehicle.brand',
+                'vehicle.number',
+                'vehicle.transport_type',
+                'route.loading_method',
+            ])->count() === 9)
             ->where('leadVariableOptions.0.value', 'lead.id')
             ->where('leadVariableOptions.20.value', 'counterparty.name')
             ->where('leadVariableOptions.47.value', 'cargo.summary')

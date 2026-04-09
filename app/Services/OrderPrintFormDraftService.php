@@ -88,6 +88,8 @@ class OrderPrintFormDraftService
         $loadingPoints = $routePoints->where('type', 'loading')->values();
         $unloadingPoints = $routePoints->where('type', 'unloading')->values();
         $driver = $this->driverPayload((int) ($order->driver_id ?? 0));
+        $vehicle = $this->vehiclePayload($order, $driver);
+        $loadingMethod = $this->resolveLoadingMethod($loadingPoints->first(), $order);
 
         $cargoNames = $cargoItems
             ->map(fn ($cargo): ?string => $cargo->title ?: $cargo->description)
@@ -135,6 +137,7 @@ class OrderPrintFormDraftService
                 'name' => $order->manager?->name,
             ],
             'driver' => $driver,
+            'vehicle' => $vehicle,
             'contacts' => [
                 'customer_name' => $order->customer_contact_name,
                 'customer_phone' => $order->customer_contact_phone,
@@ -148,6 +151,7 @@ class OrderPrintFormDraftService
                 'loading_cities' => $loadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
                 'loading_first_address' => $loadingPoints->first()?->address,
                 'loading_first_city' => data_get($loadingPoints->first()?->normalized_data, 'city'),
+                'loading_method' => $loadingMethod,
                 'unloading_addresses' => $unloadingPoints->pluck('address')->filter()->implode('; '),
                 'unloading_cities' => $unloadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
                 'unloading_first_address' => $unloadingPoints->first()?->address,
@@ -207,6 +211,7 @@ class OrderPrintFormDraftService
             'correspondent_account' => $contractor?->correspondent_account,
             'signer_name_nominative' => $contractor?->signer_name_nominative,
             'signer_name_prepositional' => $contractor?->signer_name_prepositional,
+            'signer_position' => $contractor?->contact_person_position,
             'signer_authority_basis' => $contractor?->signer_authority_basis,
         ];
     }
@@ -249,6 +254,78 @@ class OrderPrintFormDraftService
             'phone' => $driver->phone,
             'passport_data' => is_scalar($passportData) ? (string) $passportData : null,
         ];
+    }
+
+    /**
+     * @param  array<string, string|null>  $driver
+     * @return array{brand: ?string, number: ?string, transport_type: ?string}
+     */
+    private function vehiclePayload(Order $order, array $driver): array
+    {
+        $orderMetadata = is_array($order->metadata) ? $order->metadata : [];
+        $orderWizardState = is_array($order->wizard_state) ? $order->wizard_state : [];
+
+        return [
+            'brand' => $this->firstFilledValue([
+                data_get($driver, 'vehicle_brand'),
+                data_get($driver, 'brand'),
+                data_get($orderWizardState, 'vehicle.brand'),
+                data_get($orderWizardState, 'transport.vehicle_brand'),
+                data_get($orderMetadata, 'vehicle.brand'),
+                data_get($orderMetadata, 'vehicle_brand'),
+            ]),
+            'number' => $this->firstFilledValue([
+                data_get($driver, 'vehicle_number'),
+                data_get($driver, 'car_number'),
+                data_get($orderWizardState, 'vehicle.number'),
+                data_get($orderWizardState, 'transport.vehicle_number'),
+                data_get($orderMetadata, 'vehicle.number'),
+                data_get($orderMetadata, 'vehicle_number'),
+                data_get($orderMetadata, 'gosnomer'),
+            ]),
+            'transport_type' => $this->firstFilledValue([
+                data_get($driver, 'transport_type'),
+                data_get($driver, 'vehicle_type'),
+                data_get($orderWizardState, 'vehicle.transport_type'),
+                data_get($orderWizardState, 'transport.type'),
+                data_get($orderMetadata, 'vehicle.transport_type'),
+                data_get($orderMetadata, 'transport_type'),
+            ]),
+        ];
+    }
+
+    private function resolveLoadingMethod(mixed $firstLoadingPoint, Order $order): ?string
+    {
+        $normalizedData = is_array($firstLoadingPoint?->normalized_data) ? $firstLoadingPoint->normalized_data : [];
+        $pointMetadata = is_array($firstLoadingPoint?->metadata) ? $firstLoadingPoint->metadata : [];
+        $orderMetadata = is_array($order->metadata) ? $order->metadata : [];
+        $orderWizardState = is_array($order->wizard_state) ? $order->wizard_state : [];
+
+        return $this->firstFilledValue([
+            data_get($normalizedData, 'loading_method'),
+            data_get($pointMetadata, 'loading_method'),
+            data_get($pointMetadata, 'loading_type'),
+            data_get($orderWizardState, 'loading_method'),
+            data_get($orderWizardState, 'transport.loading_method'),
+            data_get($orderMetadata, 'loading_method'),
+            data_get($orderMetadata, 'loading_type'),
+        ]);
+    }
+
+    private function firstFilledValue(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            if (! is_scalar($candidate)) {
+                continue;
+            }
+
+            $value = trim((string) $candidate);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function stringifyValue(mixed $value): string

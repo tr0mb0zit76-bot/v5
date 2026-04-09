@@ -49,7 +49,8 @@ class PrintFormVariableCatalog
             ['value' => 'customer.account_number', 'label' => 'Заказчик: Р/с'],
             ['value' => 'customer.correspondent_account', 'label' => 'Заказчик: К/с'],
             ['value' => 'customer.signer_name_nominative', 'label' => 'Заказчик: Подписант, именительный'],
-            ['value' => 'customer.signer_name_prepositional', 'label' => 'Заказчик: Подписант, предложный'],
+            ['value' => 'customer.signer_name_prepositional', 'label' => 'Заказчик: Подписант, родительный'],
+            ['value' => 'customer.signer_position', 'label' => 'Заказчик: Должность подписанта'],
             ['value' => 'customer.signer_authority_basis', 'label' => 'Заказчик: Основание подписи'],
 
             ['value' => 'carrier.name', 'label' => 'Перевозчик: Наименование'],
@@ -88,6 +89,9 @@ class PrintFormVariableCatalog
             ['value' => 'driver.full_name', 'label' => 'Водитель: ФИО'],
             ['value' => 'driver.phone', 'label' => 'Водитель: Телефон'],
             ['value' => 'driver.passport_data', 'label' => 'Водитель: Паспортные данные'],
+            ['value' => 'vehicle.brand', 'label' => 'Транспорт: Марка'],
+            ['value' => 'vehicle.number', 'label' => 'Транспорт: Номер'],
+            ['value' => 'vehicle.transport_type', 'label' => 'Транспорт: Тип транспортного средства'],
 
             ['value' => 'contacts.customer_name', 'label' => 'Контакты: Имя заказчика'],
             ['value' => 'contacts.customer_phone', 'label' => 'Контакты: Телефон заказчика'],
@@ -100,6 +104,7 @@ class PrintFormVariableCatalog
             ['value' => 'route.loading_cities', 'label' => 'Маршрут: Города загрузки'],
             ['value' => 'route.loading_first_address', 'label' => 'Маршрут: Первая загрузка, адрес'],
             ['value' => 'route.loading_first_city', 'label' => 'Маршрут: Первая загрузка, город'],
+            ['value' => 'route.loading_method', 'label' => 'Маршрут: Способ погрузки'],
             ['value' => 'route.unloading_addresses', 'label' => 'Маршрут: Адреса выгрузки'],
             ['value' => 'route.unloading_cities', 'label' => 'Маршрут: Города выгрузки'],
             ['value' => 'route.unloading_first_address', 'label' => 'Маршрут: Первая выгрузка, адрес'],
