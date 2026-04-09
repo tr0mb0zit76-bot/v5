@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
 use App\Support\CarrierPaymentFormResolver;
+use App\Support\CarrierPaymentTermResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\OrderTableColumns;
 use App\Support\RoleAccess;
+use App\Support\RoutePointDatesDisplay;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -97,6 +99,10 @@ class OrderIndexController extends Controller
             $orderSelectColumns[] = 'orders.carrier_payment_form';
         }
 
+        if (Schema::hasColumn('orders', 'carrier_payment_term')) {
+            $orderSelectColumns[] = 'orders.carrier_payment_term';
+        }
+
         $rows = DB::table('orders')
             ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id')
             ->leftJoin('contractors as customers', 'customers.id', '=', 'orders.customer_id')
@@ -130,14 +136,51 @@ class OrderIndexController extends Controller
             $rows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
         );
 
+        $carrierPaymentTermByOrderId = CarrierPaymentTermResolver::mapForOrderIds(
+            $rows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
+
+        $routePointDatesByOrderId = RoutePointDatesDisplay::mapForOrderIds(
+            $rows->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+        );
+
         $assignmentNamesByOrderId = Schema::hasTable('leg_contractor_assignments')
             ? $this->assignedCarrierNamesByOrderIds($rows->pluck('id')->map(fn ($id): int => (int) $id)->all())
             : collect();
 
-        $rows = $rows->map(function ($order) use ($roleName, $user, $assignmentNamesByOrderId, $carrierRateFromFinancialByOrderId, $carrierPaymentFormByOrderId): array {
+        $rows = $rows->map(function ($order) use ($roleName, $user, $assignmentNamesByOrderId, $carrierRateFromFinancialByOrderId, $carrierPaymentFormByOrderId, $carrierPaymentTermByOrderId, $routePointDatesByOrderId): array {
             $row = (array) $order;
             $assignmentNames = (string) ($assignmentNamesByOrderId->get((int) $order->id) ?? '');
             $row = $this->applyAssignedCarrierDisplay($row, $assignmentNames);
+
+            $dbLoadingDate = $row['loading_date'] ?? null;
+            $dbUnloadingDate = $row['unloading_date'] ?? null;
+
+            $route = $routePointDatesByOrderId->get((int) $order->id);
+            if ($route === null) {
+                $route = [
+                    'loading_display' => null,
+                    'unloading_display' => null,
+                    'loading_kind' => 'none',
+                    'unloading_kind' => 'none',
+                ];
+            }
+
+            $loadingDisplay = $route['loading_display'] ?? $dbLoadingDate;
+            $unloadingDisplay = $route['unloading_display'] ?? $dbUnloadingDate;
+            $loadingKind = $route['loading_kind'];
+            $unloadingKind = $route['unloading_kind'];
+            if ($loadingKind === 'none' && filled($dbLoadingDate)) {
+                $loadingKind = 'order';
+            }
+            if ($unloadingKind === 'none' && filled($dbUnloadingDate)) {
+                $unloadingKind = 'order';
+            }
+
+            $row['loading_date'] = $loadingDisplay;
+            $row['unloading_date'] = $unloadingDisplay;
+            $row['loading_date_route_kind'] = $loadingKind;
+            $row['unloading_date_route_kind'] = $unloadingKind;
 
             $computedCarrierRate = $carrierRateFromFinancialByOrderId->get((int) $order->id);
             if ($computedCarrierRate !== null) {
@@ -152,9 +195,15 @@ class OrderIndexController extends Controller
                 ? $computedCarrierPaymentForm
                 : $dbCarrierPaymentForm;
 
+            $computedCarrierPaymentTerm = $carrierPaymentTermByOrderId->get((int) $order->id);
+            $dbCarrierPaymentTerm = $row['carrier_payment_term'] ?? null;
+            $row['carrier_payment_term'] = $computedCarrierPaymentTerm !== null
+                ? $computedCarrierPaymentTerm
+                : $dbCarrierPaymentTerm;
+
             return [
                 ...$row,
-                'can_delete' => $this->canDeleteOrder($row, $roleName, $user?->id),
+                'can_delete' => $this->canDeleteOrder($row, $roleName, $user?->id, $dbLoadingDate),
             ];
         });
 
@@ -212,7 +261,7 @@ class OrderIndexController extends Controller
     /**
      * @param  array<string, mixed>  $order
      */
-    private function canDeleteOrder(array $order, ?string $roleName, ?int $userId): bool
+    private function canDeleteOrder(array $order, ?string $roleName, ?int $userId, mixed $loadingDateFromDb = null): bool
     {
         if ($userId === null) {
             return false;
@@ -226,8 +275,30 @@ class OrderIndexController extends Controller
             return false;
         }
 
-        return (int) ($order['manager_id'] ?? 0) === $userId
-            && empty($order['loading_date']);
+        if ((int) ($order['manager_id'] ?? 0) !== $userId) {
+            return false;
+        }
+
+        if ($this->orderRowHasBlockingLoading($order, $loadingDateFromDb)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Согласовано с маршрутом: план/факт на точке или дата погрузки в заказе.
+     *
+     * @param  array<string, mixed>  $order
+     */
+    private function orderRowHasBlockingLoading(array $order, mixed $loadingDateFromDb): bool
+    {
+        $kind = $order['loading_date_route_kind'] ?? 'none';
+        if (in_array($kind, ['planned', 'actual', 'order'], true)) {
+            return true;
+        }
+
+        return filled($loadingDateFromDb);
     }
 
     private function routePointSubquery(string $type)

@@ -56,6 +56,23 @@
   padding-right: 4px;
 }
 
+/* План/факт дат погрузки и выгрузки (маршрут) */
+.orders-grid-theme .orders-grid-route-date-planned {
+  background-color: rgb(254 252 232);
+}
+
+.orders-grid-theme .orders-grid-route-date-actual {
+  background-color: rgb(236 253 245);
+}
+
+.dark .orders-grid-theme .orders-grid-route-date-planned {
+  background-color: rgb(66 32 6 / 0.35);
+}
+
+.dark .orders-grid-theme .orders-grid-route-date-actual {
+  background-color: rgb(6 78 59 / 0.35);
+}
+
 .orders-grid-theme .orders-grid-editable-cell {
   cursor: text;
   background-image: linear-gradient(

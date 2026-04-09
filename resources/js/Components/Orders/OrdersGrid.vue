@@ -824,7 +824,7 @@ const dynamicColumnDefs = computed(() => {
       resizable: true,
       suppressSizeToFit: true,
       editable: isEditable,
-      cellClass: () => {
+      cellClass: (params) => {
         const classes = [];
 
         if (isEditable) {
@@ -837,6 +837,26 @@ const dynamicColumnDefs = computed(() => {
 
         if (column.field === 'status_text') {
           classes.push('orders-grid-status-cell');
+        }
+
+        if (column.field === 'loading_date') {
+          const k = params.data?.loading_date_route_kind;
+          if (k === 'planned') {
+            classes.push('orders-grid-route-date-planned');
+          }
+          if (k === 'actual') {
+            classes.push('orders-grid-route-date-actual');
+          }
+        }
+
+        if (column.field === 'unloading_date') {
+          const k = params.data?.unloading_date_route_kind;
+          if (k === 'planned') {
+            classes.push('orders-grid-route-date-planned');
+          }
+          if (k === 'actual') {
+            classes.push('orders-grid-route-date-actual');
+          }
         }
 
         return classes;

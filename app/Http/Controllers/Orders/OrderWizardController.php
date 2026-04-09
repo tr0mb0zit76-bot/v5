@@ -19,6 +19,7 @@ use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
+use App\Support\CarrierPaymentTermResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -1049,7 +1050,78 @@ class OrderWizardController extends Controller
         $clientPrice = (float) ($order->customer_rate ?? $financialTerm->client_price ?? 0);
         $financialTerm->margin = ($clientPrice * (1 - ($kpiPercent / 100))) - $financialTerm->total_cost;
 
+        $order->refresh();
+
+        $mergedPaymentTerms = $this->mergeOrderPaymentTermsCarriersIntoJson($order, $costs);
+        if (Schema::hasColumn('financial_terms', 'payment_terms_snapshot') && $mergedPaymentTerms !== null) {
+            $financialTerm->payment_terms_snapshot = $mergedPaymentTerms;
+        }
+
         $financialTerm->save();
+
+        $fill = [];
+        if (Schema::hasColumn('orders', 'carrier_payment_term')) {
+            $term = CarrierPaymentTermResolver::fromContractorsCostsArray($costs);
+            if ($term !== null) {
+                $fill['carrier_payment_term'] = $term;
+            }
+        }
+        if ($mergedPaymentTerms !== null && Schema::hasColumn('orders', 'payment_terms')) {
+            $fill['payment_terms'] = $mergedPaymentTerms;
+        }
+        if ($fill !== []) {
+            $order->forceFill($fill)->saveQuietly();
+        }
+    }
+
+    /**
+     * Обновляет блок `carriers` в JSON `orders.payment_terms`, сохраняя `client` при наличии.
+     *
+     * @param  list<array<string, mixed>>  $contractorsCosts
+     */
+    private function mergeOrderPaymentTermsCarriersIntoJson(Order $order, array $contractorsCosts): ?string
+    {
+        if (! Schema::hasColumn('orders', 'payment_terms')) {
+            return null;
+        }
+
+        try {
+            $raw = $order->getAttribute('payment_terms');
+            $config = [];
+            if (filled($raw)) {
+                $decoded = json_decode((string) $raw, true, 512, JSON_THROW_ON_ERROR);
+                $config = is_array($decoded) ? $decoded : [];
+            }
+
+            if (! isset($config['client']) || ! is_array($config['client'])) {
+                $config['client'] = [
+                    'payment_form' => $order->customer_payment_form,
+                    'request_mode' => 'single_request',
+                    'payment_schedule' => [],
+                ];
+            }
+
+            $config['carriers'] = collect($contractorsCosts)
+                ->map(function (array $c): array {
+                    $schedule = $c['payment_schedule'] ?? [];
+                    if (! is_array($schedule)) {
+                        $schedule = [];
+                    }
+
+                    return [
+                        'stage' => $c['stage'] ?? null,
+                        'contractor_id' => isset($c['contractor_id']) && $c['contractor_id'] !== null ? (int) $c['contractor_id'] : null,
+                        'payment_form' => $c['payment_form'] ?? null,
+                        'payment_schedule' => $schedule,
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return json_encode($config, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        } catch (JsonException) {
+            return null;
+        }
     }
 
     /**

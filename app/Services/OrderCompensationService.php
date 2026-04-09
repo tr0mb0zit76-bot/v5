@@ -5,9 +5,10 @@ namespace App\Services;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
+use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\PaymentScheduleSummaryFormatter;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -135,7 +136,7 @@ class OrderCompensationService
         $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $customerRate = (float) ($order->customer_rate ?? 0);
-        $carrierRate = (float) ($order->carrier_rate ?? 0);
+        $carrierRate = CarrierRateFromFinancialTerms::resolveForOrder($order);
         $additionalExpenses = (float) ($order->additional_expenses ?? 0);
         $insurance = (float) ($order->insurance ?? 0);
         $bonus = (float) ($order->bonus ?? 0);
@@ -269,7 +270,7 @@ class OrderCompensationService
         $financialTerm->margin = $order->delta;
 
         if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
-            $financialTerm->client_payment_terms = $this->formatPaymentScheduleSummary(
+            $financialTerm->client_payment_terms = PaymentScheduleSummaryFormatter::format(
                 (array) data_get($paymentTerms, 'client.payment_schedule', [])
             );
         }
@@ -471,26 +472,5 @@ class OrderCompensationService
             ->first();
 
         return is_array($financialTerm?->contractors_costs) ? $financialTerm->contractors_costs : [];
-    }
-
-    /**
-     * @param  array<string, mixed>  $schedule
-     */
-    private function formatPaymentScheduleSummary(array $schedule): ?string
-    {
-        $postpaymentDays = (int) Arr::get($schedule, 'postpayment_days', 0);
-        $postpaymentMode = strtoupper((string) Arr::get($schedule, 'postpayment_mode', 'ottn'));
-        $hasPrepayment = (bool) Arr::get($schedule, 'has_prepayment', false);
-
-        if (! $hasPrepayment) {
-            return $postpaymentDays > 0 ? "{$postpaymentDays} дн {$postpaymentMode}" : null;
-        }
-
-        $prepaymentRatio = (int) Arr::get($schedule, 'prepayment_ratio', 0);
-        $prepaymentDays = (int) Arr::get($schedule, 'prepayment_days', 0);
-        $prepaymentMode = strtoupper((string) Arr::get($schedule, 'prepayment_mode', 'fttn'));
-        $postpaymentRatio = max(0, 100 - $prepaymentRatio);
-
-        return "{$prepaymentRatio}/{$postpaymentRatio}, {$prepaymentDays} дн {$prepaymentMode} / {$postpaymentDays} дн {$postpaymentMode}";
     }
 }

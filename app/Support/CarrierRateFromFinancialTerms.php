@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\FinancialTerm;
+use App\Models\Order;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +15,30 @@ use Illuminate\Support\Facades\Schema;
  */
 final class CarrierRateFromFinancialTerms
 {
+    /**
+     * Ставка перевозчика для расчёта маржи (delta) и KPI: совпадает с тем, что показывает грид —
+     * при непустом `contractors_costs` берётся сумма по плечам, иначе `orders.carrier_rate`.
+     */
+    public static function resolveForOrder(Order $order): float
+    {
+        $fromOrder = (float) ($order->getAttribute('carrier_rate') ?? 0);
+
+        if (! Schema::hasTable('financial_terms')) {
+            return $fromOrder;
+        }
+
+        $payload = null;
+        if ($order->relationLoaded('financialTerms')) {
+            $payload = $order->financialTerms->first()?->contractors_costs;
+        } else {
+            $payload = FinancialTerm::query()->where('order_id', $order->id)->value('contractors_costs');
+        }
+
+        $fromFt = self::sumContractorsCostsAmounts($payload);
+
+        return $fromFt !== null ? $fromFt : $fromOrder;
+    }
+
     /**
      * @param  list<int>  $orderIds
      * @return Collection<int, float|null>

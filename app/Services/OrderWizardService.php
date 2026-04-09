@@ -14,6 +14,8 @@ use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
 use App\Models\User;
 use App\Support\CarrierPaymentFormResolver;
+use App\Support\CarrierPaymentTermResolver;
+use App\Support\PaymentScheduleSummaryFormatter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -98,8 +100,10 @@ class OrderWizardService
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
         $performers = $this->performersForLegSync($validated);
         $routePoints = collect($validated['route_points'] ?? [])->sortBy('sequence')->values();
-        $firstLoadingDate = $routePoints->firstWhere('type', 'loading')['planned_date'] ?? null;
-        $lastUnloadingDate = $routePoints->where('type', 'unloading')->last()['planned_date'] ?? null;
+        $firstLoading = $routePoints->firstWhere('type', 'loading');
+        $firstLoadingDate = $this->resolveRoutePointDateForOrderAggregate($firstLoading);
+        $lastUnloading = $routePoints->where('type', 'unloading')->last();
+        $lastUnloadingDate = $this->resolveRoutePointDateForOrderAggregate($lastUnloading);
         $performerTotal = collect($contractorCosts)->sum(fn (array $performer): float => (float) ($performer['amount'] ?? 0));
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
@@ -161,6 +165,30 @@ class OrderWizardService
         }
 
         return $this->onlyExistingOrderColumns($attributes);
+    }
+
+    /**
+     * Дата на заказе: факт точки маршрута, иначе план (для расчёта оплат и агрегата в `orders`).
+     *
+     * @param  array<string, mixed>|null  $point
+     */
+    private function resolveRoutePointDateForOrderAggregate(?array $point): ?string
+    {
+        if ($point === null) {
+            return null;
+        }
+
+        $actual = $point['actual_date'] ?? null;
+        if (filled($actual)) {
+            return is_string($actual) ? substr($actual, 0, 10) : (string) $actual;
+        }
+
+        $planned = $point['planned_date'] ?? null;
+        if (filled($planned)) {
+            return is_string($planned) ? substr($planned, 0, 10) : (string) $planned;
+        }
+
+        return null;
     }
 
     /**
@@ -406,6 +434,13 @@ class OrderWizardService
                 );
             }
 
+            if (Schema::hasColumn('financial_terms', 'payment_terms_snapshot')) {
+                $snapshot = $this->encodePaymentTermsPayload($financialTerm);
+                if ($snapshot !== null) {
+                    $financialTermAttributes['payment_terms_snapshot'] = $snapshot;
+                }
+            }
+
             // Удаляем старые financial_terms для этого заказа и создаем новую запись
             FinancialTerm::query()->where('order_id', $order->id)->delete();
             FinancialTerm::query()->create($financialTermAttributes);
@@ -610,22 +645,9 @@ class OrderWizardService
     /**
      * @param  array<string, mixed>  $schedule
      */
-    private function formatPaymentScheduleSummary(array $schedule): ?string
+    private function formatPaymentScheduleSummary(array $schedule): string
     {
-        $postpaymentDays = (int) Arr::get($schedule, 'postpayment_days', 0);
-        $postpaymentMode = strtoupper((string) Arr::get($schedule, 'postpayment_mode', 'ottn'));
-        $hasPrepayment = (bool) Arr::get($schedule, 'has_prepayment', false);
-
-        if (! $hasPrepayment) {
-            return "{$postpaymentDays} дн {$postpaymentMode}";
-        }
-
-        $prepaymentRatio = (int) Arr::get($schedule, 'prepayment_ratio', 0);
-        $prepaymentDays = (int) Arr::get($schedule, 'prepayment_days', 0);
-        $prepaymentMode = strtoupper((string) Arr::get($schedule, 'prepayment_mode', 'fttn'));
-        $postpaymentRatio = max(0, 100 - $prepaymentRatio);
-
-        return "{$prepaymentRatio}/{$postpaymentRatio}, {$prepaymentDays} дн {$prepaymentMode} / {$postpaymentDays} дн {$postpaymentMode}";
+        return PaymentScheduleSummaryFormatter::format($schedule);
     }
 
     /**
@@ -633,17 +655,7 @@ class OrderWizardService
      */
     private function resolveCarrierPaymentTerm(array $contractorCosts): ?string
     {
-        $summaries = collect($contractorCosts)
-            ->map(fn (array $cost): ?string => $this->formatPaymentScheduleSummary((array) ($cost['payment_schedule'] ?? [])))
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($summaries->isEmpty()) {
-            return null;
-        }
-
-        return $summaries->count() === 1 ? $summaries->first() : 'см. этапы';
+        return CarrierPaymentTermResolver::fromContractorsCostsArray($contractorCosts);
     }
 
     /**

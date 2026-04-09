@@ -544,7 +544,7 @@ class OrderWizardTest extends TestCase
         $this->assertSame(120000, (int) ($wizardState['financial_term']['client_price'] ?? 0));
         $financialTerm = DB::table('financial_terms')->where('order_id', $orderId)->first();
         $this->assertNotNull($financialTerm);
-        $this->assertSame('30/70, 1 дн FTTN / 5 дн OTTN', $financialTerm->client_payment_terms);
+        $this->assertSame('30% 1 дн ФТТН / 70% 5 дн ОТТН', $financialTerm->client_payment_terms);
         $this->assertStringContainsString('"payment_form":"no_vat"', (string) $financialTerm->contractors_costs);
         $this->assertDatabaseHas('payment_schedules', [
             'order_id' => $orderId,

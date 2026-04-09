@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Models\Order;
 use App\Models\User;
+use App\Services\OrderCompensationService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -142,6 +144,8 @@ class OrderIndexTest extends TestCase
             $table->unsignedBigInteger('address_id')->nullable();
             $table->string('type');
             $table->integer('sequence')->default(1);
+            $table->date('planned_date')->nullable();
+            $table->date('actual_date')->nullable();
         });
 
         Schema::create('cargos', function (Blueprint $table) {
@@ -314,6 +318,79 @@ class OrderIndexTest extends TestCase
             ->has('rows', 1, fn (Assert $row) => $row
                 ->where('order_number', 'GRID-CPF')
                 ->where('carrier_payment_form', 'no_vat')
+                ->etc()
+            )
+        );
+    }
+
+    public function test_orders_index_carrier_payment_term_matches_financial_terms_schedule(): void
+    {
+        $adminRoleId = $this->createRole('admin');
+        $admin = User::factory()->create();
+
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $adminRoleId]);
+        $admin->role_id = $adminRoleId;
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Carrier CPT',
+        ]);
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'GRID-CPT',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'customer_rate' => 100000,
+            'customer_payment_form' => 'vat',
+            'carrier_id' => $carrierId,
+            'carrier_payment_term' => 'устаревшая строка',
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 5,
+            'delta' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 100000,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'amount' => 70000,
+                    'currency' => 'RUB',
+                    'payment_form' => 'no_vat',
+                    'payment_schedule' => [
+                        'has_prepayment' => true,
+                        'prepayment_ratio' => 40,
+                        'prepayment_days' => 2,
+                        'prepayment_mode' => 'fttn',
+                        'postpayment_days' => 10,
+                        'postpayment_mode' => 'ottn',
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'total_cost' => 70000,
+            'margin' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('rows', 1, fn (Assert $row) => $row
+                ->where('order_number', 'GRID-CPT')
+                ->where('carrier_payment_term', '40% 2 дн ФТТН / 60% 10 дн ОТТН')
                 ->etc()
             )
         );
@@ -1051,6 +1128,215 @@ class OrderIndexTest extends TestCase
         $response = $this->actingAs($manager)->delete(route('orders.destroy', $orderId));
 
         $response->assertRedirect(route('orders.index'));
+    }
+
+    public function test_calculate_order_delta_uses_carrier_sum_from_financial_terms(): void
+    {
+        DB::table('kpi_thresholds')->insert([
+            [
+                'deal_type' => 'direct',
+                'threshold_from' => '0.00',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 3,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'deal_type' => 'indirect',
+                'threshold_from' => '0.00',
+                'threshold_to' => '1.00',
+                'kpi_percent' => 3,
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $adminRoleId = $this->createRole('admin');
+        $admin = User::factory()->create();
+
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $adminRoleId]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'Carrier Delta',
+        ]);
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'DELTA-FT',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'customer_rate' => 600000,
+            'carrier_rate' => 0,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'carrier_id' => $carrierId,
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 0,
+            'delta' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 600000,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'amount' => 400000,
+                    'currency' => 'RUB',
+                    'payment_form' => 'vat',
+                    'payment_schedule' => [],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'total_cost' => 400000,
+            'margin' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $order = Order::query()->findOrFail($orderId);
+        $calc = app(OrderCompensationService::class)->calculateOrder($order);
+
+        $this->assertSame(182000.0, $calc['delta']);
+    }
+
+    public function test_orders_index_shows_route_point_dates_and_kind_for_grid(): void
+    {
+        $adminRoleId = $this->createRole('admin');
+        $admin = User::factory()->create();
+
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $adminRoleId]);
+        $admin->role_id = $adminRoleId;
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'ROUTE-KIND',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 0,
+            'delta' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legId = (int) DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+        ]);
+
+        DB::table('route_points')->insert([
+            'order_leg_id' => $legId,
+            'address_id' => null,
+            'type' => 'loading',
+            'sequence' => 1,
+            'planned_date' => '2026-05-01',
+            'actual_date' => null,
+        ]);
+
+        DB::table('route_points')->insert([
+            'order_leg_id' => $legId,
+            'address_id' => null,
+            'type' => 'unloading',
+            'sequence' => 2,
+            'planned_date' => '2026-05-05',
+            'actual_date' => null,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('rows', 1, fn (Assert $row) => $row
+                ->where('order_number', 'ROUTE-KIND')
+                ->where('loading_date', '2026-05-01')
+                ->where('unloading_date', '2026-05-05')
+                ->where('loading_date_route_kind', 'planned')
+                ->where('unloading_date_route_kind', 'planned')
+                ->etc()
+            )
+        );
+    }
+
+    public function test_orders_index_shows_actual_route_dates_when_set(): void
+    {
+        $adminRoleId = $this->createRole('admin');
+        $admin = User::factory()->create();
+
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $adminRoleId]);
+        $admin->role_id = $adminRoleId;
+
+        $orderId = (int) DB::table('orders')->insertGetId([
+            'order_number' => 'ROUTE-ACT',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'loading_date' => '2026-04-01',
+            'unloading_date' => '2026-04-02',
+            'additional_expenses' => 0,
+            'insurance' => 0,
+            'bonus' => 0,
+            'kpi_percent' => 0,
+            'delta' => 0,
+            'salary_accrued' => 0,
+            'salary_paid' => 0,
+            'status' => 'new',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legId = (int) DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+        ]);
+
+        DB::table('route_points')->insert([
+            'order_leg_id' => $legId,
+            'address_id' => null,
+            'type' => 'loading',
+            'sequence' => 1,
+            'planned_date' => '2026-05-01',
+            'actual_date' => '2026-05-10',
+        ]);
+
+        DB::table('route_points')->insert([
+            'order_leg_id' => $legId,
+            'address_id' => null,
+            'type' => 'unloading',
+            'sequence' => 2,
+            'planned_date' => '2026-05-05',
+            'actual_date' => '2026-05-12',
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('rows', 1, fn (Assert $row) => $row
+                ->where('order_number', 'ROUTE-ACT')
+                ->where('loading_date', '2026-05-10')
+                ->where('unloading_date', '2026-05-12')
+                ->where('loading_date_route_kind', 'actual')
+                ->where('unloading_date_route_kind', 'actual')
+                ->etc()
+            )
+        );
     }
 
     private function createRole(string $name, array $visibilityScopes = []): int
