@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Middleware\EnsureSettingsVisibilityAccess;
 use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'visibility.area' => EnsureVisibilityAreaAccess::class,
+            'visibility.settings' => EnsureSettingsVisibilityAccess::class,
         ]);
 
         $middleware->web(append: [
@@ -24,8 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Добавляем глобальный middleware для обработки ошибки 1615 Prepared statement
-        $middleware->appendToGroup('web', \App\Http\Middleware\ReconnectOnPreparedStatementError::class);
-        $middleware->appendToGroup('api', \App\Http\Middleware\ReconnectOnPreparedStatementError::class);
+        $middleware->appendToGroup('web', ReconnectOnPreparedStatementError::class);
+        $middleware->appendToGroup('api', ReconnectOnPreparedStatementError::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

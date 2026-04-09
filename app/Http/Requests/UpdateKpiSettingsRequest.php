@@ -2,13 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Support\RoleAccess;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateKpiSettingsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isAdmin() === true;
+        return RoleAccess::canAccessSettingsMotivation($this->user());
     }
 
     /**

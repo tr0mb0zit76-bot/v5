@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ContractorActivityType;
+use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,7 @@ class SettingsDictionariesController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         return Inertia::render('Settings/Dictionaries', [
             'dictionaries' => [
@@ -36,7 +37,7 @@ class SettingsDictionariesController extends Controller
 
     public function storeActivityType(Request $request): RedirectResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('contractor_activity_types', 'name')],
@@ -51,7 +52,7 @@ class SettingsDictionariesController extends Controller
 
     public function destroyActivityType(Request $request, ContractorActivityType $contractorActivityType): RedirectResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         $contractorActivityType->delete();
 

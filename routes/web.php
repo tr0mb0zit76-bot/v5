@@ -63,30 +63,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
     });
 
-    Route::controller(UserManagementController::class)->middleware('visibility.area:settings')->group(function () {
+    Route::controller(UserManagementController::class)->middleware('visibility.settings:system')->group(function () {
         Route::get('/settings/users', 'index')->name('settings.users.index');
         Route::post('/users', 'store')->name('users.store');
         Route::patch('/users/{user}', 'update')->name('users.update');
         Route::delete('/users/{user}', 'destroy')->name('users.destroy');
     });
 
-    Route::controller(RoleManagementController::class)->middleware('visibility.area:settings')->group(function () {
+    Route::controller(RoleManagementController::class)->middleware('visibility.settings:system')->group(function () {
         Route::get('/settings/roles', 'index')->name('settings.roles.index');
         Route::post('/roles', 'store')->name('roles.store');
         Route::patch('/roles/{role}', 'update')->name('roles.update');
         Route::delete('/roles/{role}', 'destroy')->name('roles.destroy');
     });
 
-    Route::controller(SettingsTableManagementController::class)->middleware('visibility.area:settings')->group(function () {
+    Route::controller(SettingsTableManagementController::class)->middleware('visibility.settings:system')->group(function () {
         Route::get('/settings/tables', 'index')->name('settings.tables.index');
         Route::patch('/settings/tables/{role}', 'update')->name('settings.tables.update');
     });
 
     Route::get('/settings/motivation', [SettingsController::class, 'motivation'])
-        ->middleware('visibility.area:settings')
+        ->middleware('visibility.settings:motivation')
         ->name('settings.motivation.index');
 
-    Route::controller(SettingsTemplateController::class)->middleware('visibility.area:settings')->group(function () {
+    Route::controller(SettingsTemplateController::class)->middleware('visibility.settings:system')->group(function () {
         Route::get('/settings/templates', 'index')->name('settings.templates.index');
         Route::post('/settings/templates', 'store')->name('settings.templates.store');
         Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
@@ -95,13 +95,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/settings/templates/{printFormTemplate}/generate-lead-draft', 'generateLeadDraft')->name('settings.templates.generate-lead-draft');
     });
 
-    Route::controller(SettingsDictionariesController::class)->middleware('visibility.area:settings')->group(function () {
+    Route::controller(SettingsDictionariesController::class)->middleware('visibility.settings:system')->group(function () {
         Route::get('/settings/dictionaries', 'index')->name('settings.dictionaries.index');
         Route::post('/settings/dictionaries/activity-types', 'storeActivityType')->name('settings.dictionaries.activity-types.store');
         Route::delete('/settings/dictionaries/activity-types/{contractorActivityType}', 'destroyActivityType')->name('settings.dictionaries.activity-types.destroy');
     });
 
-    Route::controller(SettingsKpiController::class)->middleware('visibility.area:settings')->group(function () {
+    Route::controller(SettingsKpiController::class)->middleware('visibility.settings:motivation')->group(function () {
         Route::get('/settings/motivation/kpi', 'index')->name('settings.motivation.kpi');
         Route::patch('/settings/motivation/kpi', 'update')->name('settings.motivation.kpi.update');
         Route::get('/settings/motivation/salary', 'salaryIndex')->name('settings.motivation.salary');
@@ -159,7 +159,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:modules')->name('modules.index');
 
-    Route::get('/settings', SettingsController::class)->middleware('visibility.area:settings')->name('settings.index');
+    Route::get('/settings', SettingsController::class)->middleware('visibility.settings:overview')->name('settings.index');
 
     Route::get('/users', fn () => redirect('/settings/users'));
     Route::get('/roles', fn () => redirect('/settings/roles'));

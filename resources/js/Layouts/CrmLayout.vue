@@ -332,6 +332,18 @@ const menuStateStorageKey = 'crm-sidebar-expanded-groups';
 
 const authUser = computed(() => page.props.auth?.user ?? null);
 const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? ['dashboard']);
+const hasLegacyAllSettingsAccess = computed(() => {
+    const areas = visibleAreas.value;
+    return areas.includes('settings') && !areas.includes('settings_system') && !areas.includes('settings_motivation');
+});
+const hasSettingsSystemAccess = computed(() => {
+    const areas = visibleAreas.value;
+    return hasLegacyAllSettingsAccess.value || areas.includes('settings_system');
+});
+const hasSettingsMotivationAccess = computed(() => {
+    const areas = visibleAreas.value;
+    return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
+});
 const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value);
 const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
 const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
@@ -372,18 +384,24 @@ const menuItems = computed(() => {
             key: 'settings',
             label: 'Настройки',
             icon: Settings,
-            visibilityArea: 'settings',
-            children: authUser.value?.role?.name === 'admin'
-                ? [
-                    {
+            children: (() => {
+                const children = [];
+                const administrationChildren = [];
+                if (hasSettingsSystemAccess.value) {
+                    administrationChildren.push({ key: 'users', label: 'Пользователи' });
+                }
+                if (authUser.value?.role?.name === 'admin') {
+                    administrationChildren.push({ key: 'roles', label: 'Роли' });
+                }
+                if (administrationChildren.length > 0) {
+                    children.push({
                         key: 'administration',
                         label: 'Администрирование',
-                        children: [
-                            { key: 'users', label: 'Пользователи' },
-                            { key: 'roles', label: 'Роли' },
-                        ],
-                    },
-                    {
+                        children: administrationChildren,
+                    });
+                }
+                if (hasSettingsSystemAccess.value) {
+                    children.push({
                         key: 'configuration',
                         label: 'Конфигурация',
                         children: [
@@ -391,23 +409,30 @@ const menuItems = computed(() => {
                             { key: 'dictionaries', label: 'Справочники' },
                             { key: 'templates', label: 'Шаблоны' },
                         ],
-                    },
-                    {
+                    });
+                }
+                if (hasSettingsMotivationAccess.value) {
+                    children.push({
                         key: 'motivation',
                         label: 'Мотивация',
                         children: [
                             { key: 'kpi-settings', label: 'Настройки KPI' },
                             { key: 'salary-settings', label: 'Условия сотрудников' },
                         ],
-                    },
-                ]
-                : [],
+                    });
+                }
+                return children;
+            })(),
         },
     ];
 
     return items.filter((item) => {
         if (authUser.value?.role?.name === 'admin') {
             return true;
+        }
+
+        if (item.key === 'settings') {
+            return hasSettingsSystemAccess.value || hasSettingsMotivationAccess.value;
         }
 
         if (!item.visibilityArea) {

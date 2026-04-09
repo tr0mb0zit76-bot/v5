@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateSalaryCoefficientRequest;
 use App\Models\SalaryCoefficient;
 use App\Models\User;
 use App\Services\KpiConfigurationService;
+use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +20,7 @@ class SettingsKpiController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsMotivation($request->user()), 403);
 
         return Inertia::render('Settings/Kpi', [
             'bonusMultiplier' => $this->kpiConfigurationService->getBonusMultiplier(),
@@ -29,7 +30,7 @@ class SettingsKpiController extends Controller
 
     public function salaryIndex(Request $request): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsMotivation($request->user()), 403);
 
         return Inertia::render('Settings/MotivationSalary', [
             'employees' => $this->employeesPayload(),
@@ -65,7 +66,7 @@ class SettingsKpiController extends Controller
 
     public function destroySalaryCoefficient(Request $request, SalaryCoefficient $salaryCoefficient): RedirectResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsMotivation($request->user()), 403);
 
         $salaryCoefficient->delete();
 

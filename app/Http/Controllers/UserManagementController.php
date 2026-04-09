@@ -6,6 +6,7 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,7 +16,7 @@ class UserManagementController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         return Inertia::render('Users/Index', [
             'users' => User::query()
@@ -76,7 +77,7 @@ class UserManagementController extends Controller
 
     public function destroy(Request $request, User $user): RedirectResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
         abort_if($request->user()?->is($user), 422, 'Вы не можете удалить свою учетную запись.');
 
         $user->delete();

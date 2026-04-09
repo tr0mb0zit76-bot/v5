@@ -12,6 +12,7 @@ use App\Services\DocxPlaceholderExtractor;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
+use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -32,7 +33,7 @@ class SettingsTemplateController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         $templates = collect();
 
@@ -161,7 +162,7 @@ class SettingsTemplateController extends Controller
 
     public function generateOrderDraft(Request $request, PrintFormTemplate $printFormTemplate): BinaryFileResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
         abort_if($printFormTemplate->entity_type !== 'order', 422, 'Черновик можно сформировать только для шаблона заказа.');
         abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
 
@@ -180,7 +181,7 @@ class SettingsTemplateController extends Controller
 
     public function generateLeadDraft(Request $request, PrintFormTemplate $printFormTemplate): BinaryFileResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
         abort_if($printFormTemplate->entity_type !== 'lead', 422, 'Черновик можно сформировать только для шаблона лида.');
         abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
 
@@ -199,7 +200,7 @@ class SettingsTemplateController extends Controller
 
     public function destroy(Request $request, PrintFormTemplate $printFormTemplate): RedirectResponse
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         if (filled($printFormTemplate->file_path) && filled($printFormTemplate->file_disk)) {
             Storage::disk($printFormTemplate->file_disk)->delete($printFormTemplate->file_path);

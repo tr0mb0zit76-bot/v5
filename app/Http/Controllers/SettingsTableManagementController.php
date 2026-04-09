@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateRoleTablePresetRequest;
 use App\Models\Role;
 use App\Support\OrderTableColumns;
+use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,7 +15,7 @@ class SettingsTableManagementController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
 
         return Inertia::render('Settings/Tables', [
             'roles' => Role::query()

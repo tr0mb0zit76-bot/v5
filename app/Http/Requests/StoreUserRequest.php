@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,7 +12,7 @@ class StoreUserRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isAdmin() ?? false;
+        return RoleAccess::canAccessSettingsSystem($this->user());
     }
 
     /**

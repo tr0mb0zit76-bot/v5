@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Support\OrderTableColumns;
+use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,7 +12,7 @@ class UpdateRoleTablePresetRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isAdmin() ?? false;
+        return RoleAccess::canAccessSettingsSystem($this->user());
     }
 
     /**

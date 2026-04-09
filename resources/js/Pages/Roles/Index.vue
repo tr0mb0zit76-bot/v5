@@ -57,7 +57,7 @@
                                 <div class="space-y-1">
                                     <div>{{ role.visibility_areas.length }}</div>
                                     <div v-if="role.visibility_areas.includes('orders')" class="text-xs text-zinc-500">
-                                        Заказы: {{ visibilityScopeLabel(role.visibility_scopes?.orders) }}
+                                        Заказы: {{ visibilityScopeLabel(resolveScopeModeFromRole(role.visibility_scopes, 'orders')) }}
                                     </div>
                                 </div>
                             </td>
@@ -159,7 +159,7 @@
                                             <div class="text-xs text-zinc-500">Объём данных внутри отчетов</div>
                                             <select
                                                 class="w-40 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
-                                                :value="form.visibility_scopes[area.key]?.mode ?? (area.key === 'orders' ? 'own' : 'all')"
+                                                :value="scopeModeFromForm(area.key)"
                                                 @change="updateVisibilityScope(area.key, $event.target.value)"
                                             >
                                                 <option
@@ -305,7 +305,7 @@
                                                     <div class="text-xs text-zinc-500">Объём данных внутри раздела</div>
                                                     <select
                                                         class="w-40 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
-                                                        :value="form.visibility_scopes[area.key]?.mode ?? (area.key === 'orders' ? 'own' : 'all')"
+                                                        :value="scopeModeFromForm(area.key)"
                                                         @change="updateVisibilityScope(area.key, $event.target.value)"
                                                     >
                                                         <option
@@ -434,6 +434,38 @@ function openCreateModal() {
     showModal.value = true;
 }
 
+/**
+ * API и БД хранят visibility_scopes плоско: { orders: 'own', leads: 'all' }.
+ * Форма работает с вложенным видом: { orders: { mode: 'own' } }.
+ */
+function normalizeVisibilityScopesForForm(scopes) {
+    const out = {};
+    if (!scopes || typeof scopes !== 'object') {
+        return out;
+    }
+    for (const [key, val] of Object.entries(scopes)) {
+        if (val === null || val === undefined) {
+            continue;
+        }
+        if (typeof val === 'string' && (val === 'own' || val === 'all')) {
+            out[key] = { mode: val };
+        } else if (typeof val === 'object' && val !== null && (val.mode === 'own' || val.mode === 'all')) {
+            out[key] = { mode: val.mode };
+        }
+    }
+
+    return out;
+}
+
+function scopeModeFromForm(areaKey) {
+    const v = form.visibility_scopes[areaKey];
+    if (typeof v === 'string') {
+        return v === 'own' || v === 'all' ? v : (areaKey === 'orders' ? 'own' : 'all');
+    }
+
+    return v?.mode ?? (areaKey === 'orders' ? 'own' : 'all');
+}
+
 function openEditModal(role) {
     editingRole.value = role;
     form.clearErrors();
@@ -443,7 +475,7 @@ function openEditModal(role) {
     form.has_signing_authority = Boolean(role.default_has_signing_authority);
     form.permissions = [...role.permissions];
     form.visibility_areas = [...role.visibility_areas];
-    form.visibility_scopes = { ...(role.visibility_scopes || {}) };
+    form.visibility_scopes = normalizeVisibilityScopesForForm(role.visibility_scopes || {});
     showModal.value = true;
 }
 
@@ -481,6 +513,15 @@ function updateVisibilityScope(areaKey, mode) {
         ...form.visibility_scopes,
         [areaKey]: { mode },
     };
+}
+
+function resolveScopeModeFromRole(scopes, areaKey) {
+    const v = scopes?.[areaKey];
+    if (typeof v === 'string') {
+        return v === 'own' || v === 'all' ? v : undefined;
+    }
+
+    return v?.mode;
 }
 
 function visibilityScopeLabel(mode) {

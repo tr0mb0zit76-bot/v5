@@ -303,6 +303,49 @@ class SettingsManagementTest extends TestCase
         ]);
     }
 
+    public function test_user_with_only_settings_motivation_can_access_motivation_routes(): void
+    {
+        $roleId = $this->createRoleWithAreas('motivation_editor', 'Мотивация', ['dashboard', 'settings_motivation']);
+        $user = User::factory()->create(['role_id' => $roleId]);
+
+        $this->actingAs($user)->get(route('settings.motivation.kpi'))->assertOk();
+        $this->actingAs($user)->get(route('settings.index'))->assertOk();
+        $this->actingAs($user)->get(route('settings.users.index'))->assertForbidden();
+    }
+
+    public function test_user_with_only_settings_motivation_sees_only_motivation_section_on_hub(): void
+    {
+        $roleId = $this->createRoleWithAreas('motivation_editor2', 'Мотивация 2', ['dashboard', 'settings_motivation']);
+        $user = User::factory()->create(['role_id' => $roleId]);
+
+        $response = $this->actingAs($user)->get(route('settings.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Settings/Index')
+            ->has('sections', 1)
+            ->where('sections.0.key', 'motivation')
+        );
+    }
+
+    public function test_legacy_settings_visibility_area_grants_system_and_motivation_routes(): void
+    {
+        $roleId = $this->createRoleWithAreas('legacy_settings', 'Legacy', ['dashboard', 'settings']);
+        $user = User::factory()->create(['role_id' => $roleId]);
+
+        $this->actingAs($user)->get(route('settings.users.index'))->assertOk();
+        $this->actingAs($user)->get(route('settings.motivation.kpi'))->assertOk();
+    }
+
+    public function test_granular_settings_override_legacy_settings_area(): void
+    {
+        $roleId = $this->createRoleWithAreas('mixed_settings', 'Mixed', ['dashboard', 'settings', 'settings_motivation']);
+        $user = User::factory()->create(['role_id' => $roleId]);
+
+        $this->actingAs($user)->get(route('settings.motivation.kpi'))->assertOk();
+        $this->actingAs($user)->get(route('settings.users.index'))->assertForbidden();
+    }
+
     public function test_admin_can_create_salary_coefficient_for_employee(): void
     {
         $adminRoleId = $this->createRole('admin', 'Администратор');
@@ -335,6 +378,20 @@ class SettingsManagementTest extends TestCase
         return (int) DB::table('roles')->insertGetId([
             'name' => $name,
             'display_name' => $displayName,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $visibilityAreas
+     */
+    private function createRoleWithAreas(string $name, string $displayName, array $visibilityAreas): int
+    {
+        return (int) DB::table('roles')->insertGetId([
+            'name' => $name,
+            'display_name' => $displayName,
+            'visibility_areas' => json_encode($visibilityAreas, JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
         ]);

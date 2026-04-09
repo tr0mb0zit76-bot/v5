@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\User;
+
 class RoleAccess
 {
     /**
@@ -50,7 +52,9 @@ class RoleAccess
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
-            ['key' => 'settings', 'label' => 'Настройки', 'description' => 'Системные настройки'],
+            ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
+            ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
+            ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI, зарплата и условия сотрудников'],
         ];
     }
 
@@ -88,7 +92,7 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'tasks', 'kanban', 'reports', 'settings'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
             'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
             'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'drivers', 'activities', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'tasks', 'kanban', 'reports'],
@@ -127,5 +131,81 @@ class RoleAccess
         $value = $scopes[$area] ?? static::defaultVisibilityScopes($roleName)[$area] ?? 'own';
 
         return in_array($value, ['own', 'all'], true) ? $value : 'own';
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function userVisibilityAreas(User $user): array
+    {
+        $role = $user->role;
+
+        return is_array($role?->visibility_areas)
+            ? $role->visibility_areas
+            : static::defaultVisibilityAreas($role?->name);
+    }
+
+    /**
+     * @param  list<string>  $areas
+     */
+    public static function hasVisibilityArea(array $areas, string $required): bool
+    {
+        if (in_array($required, $areas, true)) {
+            return true;
+        }
+
+        if ($required === 'settings_system' || $required === 'settings_motivation') {
+            $hasLegacyAllSettings = in_array('settings', $areas, true)
+                && ! in_array('settings_system', $areas, true)
+                && ! in_array('settings_motivation', $areas, true);
+
+            if ($hasLegacyAllSettings) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function canAccessSettingsSystem(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'settings_system');
+    }
+
+    public static function canAccessSettingsMotivation(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'settings_motivation');
+    }
+
+    public static function canAccessSettingsOverview(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $areas = static::userVisibilityAreas($user);
+
+        return static::hasVisibilityArea($areas, 'settings_system')
+            || static::hasVisibilityArea($areas, 'settings_motivation');
     }
 }
