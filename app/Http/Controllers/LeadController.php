@@ -40,17 +40,6 @@ class LeadController extends Controller
         ]);
     }
 
-    public function kanban(Request $request): Response
-    {
-        $disabled = ! $this->hasLeadsFeatureTables();
-
-        return Inertia::render('Kanban/Index', [
-            'leads' => $disabled ? collect() : $this->leadRows($request),
-            'statusOptions' => LeadStatus::options(),
-            'featureUnavailable' => $disabled,
-        ]);
-    }
-
     public function create(Request $request): Response
     {
         if (! $this->hasLeadsFeatureTables()) {

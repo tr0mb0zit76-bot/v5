@@ -15,6 +15,7 @@ use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
 use App\Http\Controllers\SettingsTableManagementController;
 use App\Http\Controllers\SettingsTemplateController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -155,12 +156,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:activities')->name('activities.index');
 
-    Route::get('/tasks', function () {
-        return Inertia::render('Tasks/Index');
-    })->middleware('visibility.area:tasks')->name('tasks.index');
+    Route::controller(TaskController::class)->middleware('visibility.area:tasks')->group(function () {
+        Route::get('/tasks', 'index')->name('tasks.index');
+        Route::post('/tasks', 'store')->name('tasks.store');
+        Route::patch('/tasks/{task}', 'update')->name('tasks.update');
+        Route::patch('/tasks/{task}/status', 'updateStatus')->name('tasks.status.update');
+    });
 
-    Route::get('/kanban', [LeadController::class, 'kanban'])
-        ->middleware('visibility.area:kanban')
+    Route::get('/kanban', [TaskController::class, 'kanban'])
+        ->middleware('visibility.area.any:tasks|kanban')
         ->name('kanban.index');
 
     Route::patch('/leads/{lead}/status', [LeadController::class, 'updateStatus'])

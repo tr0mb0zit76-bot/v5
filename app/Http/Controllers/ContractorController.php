@@ -50,7 +50,10 @@ class ContractorController extends Controller
             return $contractor;
         });
 
-        return to_route('contractors.show', $contractor);
+        return to_route('contractors.show', [
+            'contractor' => $contractor,
+            ...$this->listContext($request),
+        ]);
     }
 
     public function show(Request $request, Contractor $contractor): Response
@@ -76,7 +79,10 @@ class ContractorController extends Controller
             $this->syncNestedData($contractor, $validated, $request->user()?->id);
         });
 
-        return to_route('contractors.show', $contractor);
+        return to_route('contractors.show', [
+            'contractor' => $contractor,
+            ...$this->listContext($request),
+        ]);
     }
 
     public function destroy(Contractor $contractor): RedirectResponse
@@ -855,5 +861,30 @@ class ContractorController extends Controller
         $needle = strtolower($table);
 
         return str_contains($message, 'table') && str_contains($message, $needle);
+    }
+
+    /**
+     * @return array{search?: string, type?: string, page?: int}
+     */
+    private function listContext(Request $request): array
+    {
+        $context = [];
+
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $context['search'] = $search;
+        }
+
+        $type = trim((string) $request->input('type', ''));
+        if ($type !== '') {
+            $context['type'] = $type;
+        }
+
+        $page = $request->integer('page');
+        if ($page > 0) {
+            $context['page'] = $page;
+        }
+
+        return $context;
     }
 }

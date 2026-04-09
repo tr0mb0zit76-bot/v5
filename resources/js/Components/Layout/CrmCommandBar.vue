@@ -121,10 +121,10 @@ const quickTiles = [
     },
     {
         key: 'task',
-        label: 'Задачи',
+        label: 'Создать задачу',
         short: 'Задача',
         icon: ClipboardList,
-        visit: () => route('tasks.index'),
+        visit: () => route('tasks.index', { create: 1 }),
     },
     {
         key: 'invoice',

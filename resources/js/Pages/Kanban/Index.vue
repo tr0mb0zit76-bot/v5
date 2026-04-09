@@ -4,16 +4,23 @@
             v-if="featureUnavailable"
             class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200"
         >
-            Модуль Канбан ещё недоступен: таблицы лидов не готовы, информация по лидам пока не отображается.
+            Модуль Канбан недоступен: таблица задач не создана. Выполните миграции.
+        </div>
+
+        <div
+            v-if="!featureUnavailable && !canMutateTasks"
+            class="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+        >
+            Режим просмотра: у вас нет права менять статусы задач (нужна область «Задачи»).
         </div>
 
         <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Визуальный Канбан</div>
-                    <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Лиды по статусам</h1>
+                    <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Задачи по статусам</h1>
                     <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        Перетаскивайте карточки между статусами, чтобы фиксировать прогресс без открытия подробного вида лида.
+                        Перетаскивайте карточки между статусами; те же данные отображаются в разделе «Задачи».
                     </p>
                 </div>
 
@@ -27,10 +34,10 @@
                     <button
                         type="button"
                         class="inline-flex items-center justify-center rounded-xl border border-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-50 dark:text-zinc-50 dark:hover:bg-zinc-800"
-                        @click="createLead"
-                        :disabled="featureUnavailable"
+                        :disabled="featureUnavailable || !canMutateTasks"
+                        @click="createTask"
                     >
-                        Создать лид
+                        Создать задачу
                     </button>
                 </div>
             </div>
@@ -58,35 +65,45 @@
                     >
                         <div class="flex items-center justify-between text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">
                             <span>{{ column.title }}</span>
-                            <span class="text-xs text-zinc-400">{{ column.leads.length }} шт.</span>
+                            <span class="text-xs text-zinc-400">{{ column.tasks.length }} шт.</span>
                         </div>
 
                         <div class="mt-4 flex-1 overflow-y-auto pr-1" style="max-height: calc(70vh - 90px);">
                             <div class="space-y-3">
                                 <article
-                                    v-for="lead in column.leads"
-                                    :key="lead.id"
+                                    v-for="task in column.tasks"
+                                    :key="task.id"
                                     class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 shadow-sm transition-colors hover:border-zinc-900 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-50 dark:hover:bg-zinc-950"
-                                    draggable="true"
-                                    @dragstart="(event) => handleDragStart(event, lead.id)"
+                                    :class="{ 'cursor-grab': canMutateTasks && !featureUnavailable, 'cursor-default opacity-80': !canMutateTasks || featureUnavailable }"
+                                    :draggable="canMutateTasks && !featureUnavailable"
+                                    @dragstart="(event) => handleDragStart(event, task.id)"
                                     @dragend="handleDragEnd"
                                 >
                                     <div class="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                                        <span class="text-zinc-900 dark:text-zinc-50">#{{ lead.number }}</span>
-                                        <span class="text-xs text-emerald-600 dark:text-emerald-300">{{ formatCurrency(lead.target_price, lead.target_currency) }}</span>
+                                        <span class="text-zinc-900 dark:text-zinc-50">{{ task.number }}</span>
+                                        <span
+                                            v-if="task.priority === 'critical'"
+                                            class="text-xs font-semibold text-rose-600 dark:text-rose-300"
+                                        >
+                                            срочно
+                                        </span>
                                     </div>
-                                    <h2 class="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ lead.title }}</h2>
+                                    <h2 class="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ task.title }}</h2>
                                     <div class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                                        {{ lead.counterparty_name || '—' }} · {{ lead.responsible_name || '—' }}
+                                        {{ task.responsible_name || '—' }}
+                                        <span v-if="task.lead_number"> · {{ task.lead_number }}</span>
                                     </div>
                                     <div class="mt-2 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-                                        <span>План. отгрузка: {{ lead.planned_shipping_date || '—' }}</span>
+                                        <span>Срок: {{ formatDue(task.due_at) }}</span>
                                         <span class="text-sky-600 dark:text-sky-300">{{ column.title }}</span>
                                     </div>
                                 </article>
 
-                                <div v-if="column.leads.length === 0" class="rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                    Лидов нет
+                                <div
+                                    v-if="column.tasks.length === 0"
+                                    class="rounded-xl border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                                >
+                                    Нет задач
                                 </div>
                             </div>
                         </div>
@@ -109,9 +126,10 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 const page = usePage();
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
+const canMutateTasks = computed(() => page.props.canMutateTasks !== false);
 const statusOptions = computed(() => page.props.statusOptions ?? []);
-const leads = ref(page.props.leads ?? []);
-const draggedLeadId = ref(null);
+const tasks = ref(page.props.tasks ?? []);
+const draggedTaskId = ref(null);
 const dragOverStatus = ref(null);
 const columnWidths = ref({});
 const resizingStatus = ref(null);
@@ -123,9 +141,9 @@ const MAX_WIDTH = 520;
 const STORAGE_KEY = 'kanban-column-widths';
 
 watch(
-    () => page.props.leads,
+    () => page.props.tasks,
     (next) => {
-        leads.value = next ?? [];
+        tasks.value = next ?? [];
     },
 );
 
@@ -133,7 +151,7 @@ const columns = computed(() =>
     statusOptions.value.map((option) => ({
         status: option.value,
         title: option.label,
-        leads: leads.value.filter((lead) => lead.status === option.value),
+        tasks: tasks.value.filter((task) => task.status === option.value),
     })),
 );
 
@@ -144,6 +162,7 @@ function getColumnWidth(status) {
 function startResizing(status, event) {
     if (featureUnavailable.value) {
         event.preventDefault();
+
         return;
     }
 
@@ -215,23 +234,24 @@ onBeforeUnmount(() => {
     stopResizing();
 });
 
-function handleDragStart(event, leadId) {
-    if (featureUnavailable.value) {
+function handleDragStart(event, taskId) {
+    if (featureUnavailable.value || !canMutateTasks.value) {
         event.preventDefault();
+
         return;
     }
 
-    draggedLeadId.value = leadId;
-    event.dataTransfer?.setData('text/plain', String(leadId));
+    draggedTaskId.value = taskId;
+    event.dataTransfer?.setData('text/plain', String(taskId));
 }
 
 function handleDragEnd() {
     dragOverStatus.value = null;
-    draggedLeadId.value = null;
+    draggedTaskId.value = null;
 }
 
 function handleColumnDragOver(status) {
-    if (featureUnavailable.value || draggedLeadId.value === null) {
+    if (featureUnavailable.value || !canMutateTasks.value || draggedTaskId.value === null) {
         return;
     }
 
@@ -249,45 +269,56 @@ function handleColumnDragLeave(status) {
 }
 
 function handleDrop(status) {
-    if (featureUnavailable.value || draggedLeadId.value === null) {
+    if (featureUnavailable.value || !canMutateTasks.value || draggedTaskId.value === null) {
         return;
     }
 
-    const lead = leads.value.find((item) => item.id === draggedLeadId.value);
+    const task = tasks.value.find((item) => item.id === draggedTaskId.value);
 
-    if (!lead || lead.status === status) {
+    if (!task || task.status === status) {
         handleDragEnd();
+
         return;
     }
 
     router.patch(
-        route('leads.status.update', lead.id),
+        route('tasks.status.update', task.id),
         { status },
         {
             preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
-                lead.status = status;
+                task.status = status;
+                if (status === 'done') {
+                    task.status_label = 'Завершена';
+                }
             },
             onFinish: handleDragEnd,
         },
     );
 }
 
-function formatCurrency(value, currency = 'RUB') {
-    if (value == null) {
+function formatDue(value) {
+    if (value == null || value === '') {
         return '—';
     }
 
-    return new Intl.NumberFormat('ru-RU', {
-        style: 'currency',
-        currency,
-        maximumFractionDigits: 0,
-    }).format(Number(value));
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return '—';
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
 }
 
-function createLead() {
-    router.get(route('leads.create'));
+function createTask() {
+    router.get(route('tasks.index'), { create: 1 });
 }
 
 defineOptions({

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Task;
 use App\Models\User;
 
 class RoleAccess
@@ -109,12 +110,12 @@ class RoleAccess
     public static function defaultVisibilityScopes(?string $roleName): array
     {
         return match ($roleName) {
-            'admin' => ['orders' => 'all', 'leads' => 'all'],
-            'supervisor' => ['orders' => 'all', 'leads' => 'all'],
-            'manager' => ['orders' => 'own', 'leads' => 'own'],
-            'dispatcher' => ['orders' => 'all'],
-            'accountant' => ['orders' => 'all'],
-            'clerk' => ['orders' => 'all'],
+            'admin' => ['orders' => 'all', 'leads' => 'all', 'tasks' => 'all'],
+            'supervisor' => ['orders' => 'all', 'leads' => 'all', 'tasks' => 'all'],
+            'manager' => ['orders' => 'own', 'leads' => 'own', 'tasks' => 'own'],
+            'dispatcher' => ['orders' => 'all', 'tasks' => 'all'],
+            'accountant' => ['orders' => 'all', 'tasks' => 'all'],
+            'clerk' => ['orders' => 'all', 'tasks' => 'all'],
             'viewer' => ['orders' => 'all'],
             default => [],
         };
@@ -166,6 +167,39 @@ class RoleAccess
         }
 
         return false;
+    }
+
+    /**
+     * @param  list<string>  $required
+     */
+    public static function hasAnyVisibilityArea(array $areas, array $required): bool
+    {
+        foreach ($required as $key) {
+            if (static::hasVisibilityArea($areas, $key)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function canMutateTask(?User $user, Task $task): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'tasks')) {
+            return false;
+        }
+
+        $scope = static::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+
+        return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
     }
 
     public static function canAccessSettingsSystem(?User $user): bool

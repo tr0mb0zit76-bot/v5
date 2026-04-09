@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
+use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'visibility.area' => EnsureVisibilityAreaAccess::class,
+            'visibility.area.any' => EnsureVisibilityAnyAreaAccess::class,
             'visibility.settings' => EnsureSettingsVisibilityAccess::class,
         ]);
 

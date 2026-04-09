@@ -576,6 +576,7 @@ function openContractor(contractorId) {
         contractor: contractorId,
         search: search.value.trim(),
         type: typeFilter.value,
+        page: props.pagination.current_page,
     }), {}, { preserveScroll: true });
 }
 

@@ -453,6 +453,10 @@ const menuItems = computed(() => {
             return (item.children?.length ?? 0) > 0;
         }
 
+        if (item.key === 'kanban') {
+            return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
+        }
+
         if (!item.visibilityArea) {
             return true;
         }

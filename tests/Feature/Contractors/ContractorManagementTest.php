@@ -606,6 +606,115 @@ class ContractorManagementTest extends TestCase
         );
     }
 
+    public function test_contractors_show_preserves_list_page_from_query_string(): void
+    {
+        $admin = $this->createAdminUser();
+
+        for ($i = 1; $i <= 11; $i++) {
+            DB::table('contractors')->insert([
+                'type' => 'customer',
+                'name' => sprintf('ООО Тест %02d', $i),
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $eleventhId = (int) DB::table('contractors')
+            ->orderBy('name')
+            ->skip(10)
+            ->value('id');
+
+        $response = $this->actingAs($admin)->get(route('contractors.show', [
+            'contractor' => $eleventhId,
+            'page' => 2,
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('pagination.current_page', 2)
+            ->where('selectedContractor.id', $eleventhId)
+        );
+    }
+
+    public function test_update_redirect_preserves_list_context(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Контекст',
+            'inn' => '1234567890',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', [
+            'contractor' => $contractorId,
+            'page' => 2,
+            'search' => 'Контекст',
+            'type' => 'customer',
+        ]), [
+            'type' => 'customer',
+            'name' => 'ООО Контекст Обновлён',
+            'full_name' => 'ООО Контекст Обновлён',
+            'inn' => '1234567890',
+            'kpp' => '',
+            'ogrn' => '',
+            'okpo' => '',
+            'legal_form' => 'ooo',
+            'legal_address' => '',
+            'actual_address' => '',
+            'postal_address' => '',
+            'phone' => '',
+            'email' => '',
+            'website' => '',
+            'contact_person' => '',
+            'contact_person_phone' => '',
+            'contact_person_email' => '',
+            'contact_person_position' => '',
+            'signer_name_nominative' => '',
+            'signer_name_prepositional' => '',
+            'signer_authority_basis' => '',
+            'bank_name' => '',
+            'bik' => '',
+            'account_number' => '',
+            'correspondent_account' => '',
+            'ati_id' => '',
+            'specializations' => [],
+            'activity_types' => [],
+            'transport_requirements' => [],
+            'short_description' => '',
+            'debt_limit' => null,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => false,
+            'default_customer_payment_form' => '',
+            'default_customer_payment_term' => '',
+            'default_carrier_payment_form' => '',
+            'default_carrier_payment_term' => '',
+            'cooperation_terms_notes' => '',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'contacts' => [],
+            'interactions' => [],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect();
+        $location = (string) $response->headers->get('Location');
+
+        $this->assertStringStartsWith(route('contractors.show', $contractorId), $location);
+
+        $queryString = (string) parse_url($location, PHP_URL_QUERY);
+        parse_str($queryString, $queryParams);
+
+        $this->assertSame('2', (string) ($queryParams['page'] ?? null));
+        $this->assertSame('Контекст', $queryParams['search'] ?? null);
+        $this->assertSame('customer', $queryParams['type'] ?? null);
+    }
+
     private function createAdminUser(): User
     {
         $adminRoleId = (int) DB::table('roles')->insertGetId([
