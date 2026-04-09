@@ -89,4 +89,66 @@ class MessengerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('messages.0.body', 'Документ: https://example.com/file.pdf');
     }
+
+    public function test_group_message_can_address_recipient(): void
+    {
+        $creator = User::factory()->create();
+        $member = User::factory()->create();
+
+        $open = $this->actingAs($creator)->postJson(route('messenger.conversations.groups.store'), [
+            'title' => 'Команда',
+            'user_ids' => [$member->id],
+        ])->assertOk();
+
+        $conversationId = (int) $open->json('conversation.id');
+
+        $this->actingAs($creator)->postJson(route('messenger.conversations.messages.store', $conversationId), [
+            'body' => 'Для тебя',
+            'recipient_user_id' => $member->id,
+        ])->assertOk()
+            ->assertJsonPath('message.recipient_user_id', $member->id)
+            ->assertJsonPath('message.recipient_name', $member->name);
+
+        $this->actingAs($member)->getJson(route('messenger.conversations.messages', $conversationId))
+            ->assertOk()
+            ->assertJsonPath('messages.0.recipient_user_id', $member->id);
+    }
+
+    public function test_group_message_rejects_recipient_not_in_group(): void
+    {
+        $creator = User::factory()->create();
+        $member = User::factory()->create();
+        $outsider = User::factory()->create();
+
+        $open = $this->actingAs($creator)->postJson(route('messenger.conversations.groups.store'), [
+            'title' => 'Команда',
+            'user_ids' => [$member->id],
+        ])->assertOk();
+
+        $conversationId = (int) $open->json('conversation.id');
+
+        $this->actingAs($creator)->postJson(route('messenger.conversations.messages.store', $conversationId), [
+            'body' => 'Тест',
+            'recipient_user_id' => $outsider->id,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['recipient_user_id']);
+    }
+
+    public function test_document_chips_endpoint_returns_json(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->getJson(route('messenger.document-chips'))
+            ->assertOk()
+            ->assertJsonStructure(['documents']);
+    }
+
+    public function test_document_chips_accepts_optional_search_query(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->getJson(route('messenger.document-chips', ['q' => 'счёт']))
+            ->assertOk()
+            ->assertJsonStructure(['documents']);
+    }
 }

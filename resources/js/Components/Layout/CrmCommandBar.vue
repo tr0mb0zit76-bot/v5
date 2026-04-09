@@ -8,7 +8,7 @@
                 @click.self="closeChatPanel"
             >
                 <div
-                    class="mx-auto mt-auto flex h-[min(52vh,480px)] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl border border-b-0 border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                    class="mx-auto mt-auto flex h-[min(52vh,480px)] w-full max-w-4xl flex-col rounded-t-3xl border border-b-0 border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
                     @click.stop
                 >
                     <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
@@ -85,7 +85,7 @@
                         </div>
                     </div>
 
-                    <div class="flex min-h-0 flex-1">
+                    <div class="flex min-h-0 flex-1 overflow-hidden">
                         <div class="w-[38%] max-w-[220px] shrink-0 overflow-y-auto border-r border-zinc-100 dark:border-zinc-800">
                             <div v-if="conversationsLoading" class="p-4 text-center text-xs text-zinc-500">…</div>
                             <button
@@ -143,15 +143,24 @@
                                 >
                                     <div
                                         class="max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm"
-                                        :class="m.user_id === currentUserId
-                                            ? 'border border-sky-200/80 bg-sky-100/90 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100 dark:shadow-none'
-                                            : 'border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100'"
+                                        :class="[
+                                            m.user_id === currentUserId
+                                                ? 'border border-sky-200/80 bg-sky-100/90 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100 dark:shadow-none'
+                                                : 'border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100',
+                                            messageHighlightForMe(m) ? 'ring-2 ring-sky-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950' : '',
+                                        ]"
                                     >
                                         <div v-if="m.user_id !== currentUserId" class="mb-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
                                             {{ m.author_name }}
                                         </div>
+                                        <div
+                                            v-if="activeConversation?.type === 'group' && m.recipient_name"
+                                            class="mb-1 text-[10px] font-medium text-sky-700 dark:text-sky-300"
+                                        >
+                                            Для {{ m.recipient_name }}
+                                        </div>
                                         <div class="whitespace-pre-wrap break-words">
-                                            <template v-for="(part, pi) in messageParts(m.body)" :key="`${m.id}-${pi}`">
+                                            <template v-for="(part, pi) in messagePartsWithMentions(m.body, activeConversation?.group_members)" :key="`${m.id}-${pi}`">
                                                 <a
                                                     v-if="part.type === 'link'"
                                                     :href="part.href"
@@ -163,6 +172,10 @@
                                                         : 'text-sky-600 dark:text-sky-400'"
                                                     @click.stop
                                                 >{{ part.text }}</a>
+                                                <span
+                                                    v-else-if="part.type === 'mention'"
+                                                    class="font-semibold text-sky-800 dark:text-sky-200"
+                                                >{{ part.text }}</span>
                                                 <span v-else>{{ part.text }}</span>
                                             </template>
                                         </div>
@@ -175,6 +188,125 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div
+                        v-if="activeConversationId"
+                        class="shrink-0 space-y-2 border-t border-zinc-200 bg-zinc-50/95 p-3 dark:border-zinc-800 dark:bg-zinc-900/95"
+                    >
+                        <div
+                            v-if="activeConversation?.type === 'group'"
+                            class="flex items-center gap-2"
+                        >
+                            <label class="shrink-0 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Кому</label>
+                            <select
+                                v-model="groupRecipientId"
+                                class="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-900 outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                            >
+                                <option value="">Всем в группе</option>
+                                <option
+                                    v-for="gm in groupMemberOptions"
+                                    :key="'gm-panel-' + gm.id"
+                                    :value="String(gm.id)"
+                                >
+                                    {{ gm.name }}
+                                </option>
+                            </select>
+                            <p class="text-[10px] leading-snug text-zinc-400 dark:text-zinc-500">
+                                Или введите <span class="font-mono">@</span> в поле ниже и выберите участника.
+                            </p>
+                        </div>
+                        <div class="relative flex flex-wrap items-center gap-1">
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                @click.stop="toggleDocumentChips"
+                            >
+                                <FileText class="h-3.5 w-3.5" />
+                                Документ
+                            </button>
+                            <div
+                                v-if="showDocumentChips"
+                                class="absolute left-0 top-full z-20 mt-1 flex max-h-72 w-full max-w-sm flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-900"
+                                @click.stop
+                            >
+                                <div class="shrink-0 border-b border-zinc-100 px-2 py-2 dark:border-zinc-700">
+                                    <div class="relative">
+                                        <Search class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                                        <input
+                                            v-model="documentChipSearch"
+                                            type="search"
+                                            autocomplete="off"
+                                            placeholder="Поиск: номер заказа, id, тип…"
+                                            class="w-full rounded-lg border border-zinc-200 bg-white py-1.5 pl-7 pr-2 text-xs text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-sky-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                                            @input="onDocumentChipSearchInput"
+                                            @keydown.stop
+                                        >
+                                    </div>
+                                    <p class="mt-1 text-[10px] leading-snug text-zinc-400 dark:text-zinc-500">
+                                        Без поиска — 40 последних; с запросом — до 50 совпадений по доступным заказам.
+                                    </p>
+                                </div>
+                                <div class="min-h-0 flex-1 overflow-y-auto py-1">
+                                    <div v-if="documentChipsLoading" class="px-3 py-3 text-center text-xs text-zinc-500">Загрузка…</div>
+                                    <button
+                                        v-for="d in documentChips"
+                                        v-else
+                                        :key="'doc-panel-' + d.id"
+                                        type="button"
+                                        class="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                        @click="insertDocumentChip(d)"
+                                    >
+                                        <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ d.label }}</span>
+                                        <span class="truncate text-[10px] text-zinc-500 dark:text-zinc-400">{{ d.url }}</span>
+                                    </button>
+                                    <div v-if="!documentChipsLoading && documentChips.length === 0" class="px-3 py-3 text-center text-xs text-zinc-500">
+                                        {{ documentChipSearch.trim() ? 'Ничего не найдено. Уточните номер заказа, id или тип документа.' : 'Нет доступных документов заказов.' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="relative flex items-end gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800">
+                            <div
+                                v-if="mentionState && activeConversation?.type === 'group'"
+                                class="absolute bottom-full left-0 right-12 z-30 mb-1 max-h-40 overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-600 dark:bg-zinc-900"
+                            >
+                                <button
+                                    v-for="(gm, gmi) in mentionFiltered"
+                                    :key="'mention-' + gm.id"
+                                    type="button"
+                                    class="flex w-full px-3 py-2 text-left text-xs"
+                                    :class="gmi === mentionHighlightIndex
+                                        ? 'bg-sky-100 text-sky-950 dark:bg-sky-900/50 dark:text-sky-50'
+                                        : 'text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800'"
+                                    @mousedown.prevent
+                                    @click="pickMentionMember(gm)"
+                                >
+                                    <span class="font-mono text-zinc-400">@</span>{{ gm.name }}
+                                </button>
+                                <div v-if="mentionFiltered.length === 0" class="px-3 py-2 text-center text-xs text-zinc-500">
+                                    Нет совпадений
+                                </div>
+                            </div>
+                            <textarea
+                                ref="textareaRef"
+                                v-model="message"
+                                rows="1"
+                                class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                                :placeholder="inputPlaceholder"
+                                @keydown="handleKeydown"
+                                @input="onComposerInput"
+                            />
+                            <button
+                                type="button"
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                                :disabled="isDisabled"
+                                @click="submit"
+                            >
+                                <SendHorizontal class="h-4 w-4" />
+                            </button>
+                        </div>
+                        <p v-if="messengerSendError" class="text-xs text-rose-600 dark:text-rose-400">{{ messengerSendError }}</p>
                     </div>
                 </div>
             </div>
@@ -226,8 +358,17 @@
                 </span>
             </button>
 
-            <div class="min-w-0 flex-1">
-                <div class="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
+            <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+                <div
+                    v-if="isChatInputMode"
+                    class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-3 py-2 text-center text-[11px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
+                >
+                    Ввод сообщения, вложения и «Документ» — в нижней части окна чата выше.
+                </div>
+                <div
+                    v-else
+                    class="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"
+                >
                     <textarea
                         ref="textareaRef"
                         v-model="message"
@@ -239,7 +380,6 @@
                     />
 
                     <label
-                        v-if="!isChatInputMode"
                         class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
                     >
                         <Paperclip class="h-4 w-4" />
@@ -256,7 +396,7 @@
                     </button>
                 </div>
 
-                <p v-if="messengerSendError" class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ messengerSendError }}</p>
+                <p v-if="messengerSendError && !isChatInputMode" class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ messengerSendError }}</p>
                 <div v-if="attachedFiles.length && !isChatInputMode" class="mt-2 flex flex-wrap gap-2">
                     <div
                         v-for="file in attachedFiles"
@@ -279,11 +419,13 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import {
     ClipboardList,
+    FileText,
     MessageCircle,
     Package,
     Paperclip,
     Receipt,
     ScrollText,
+    Search,
     SendHorizontal,
     Sparkles,
     Target,
@@ -316,8 +458,16 @@ const threadMessages = ref([]);
 const threadLoading = ref(false);
 const messengerUnread = ref(0);
 const messengerSendError = ref('');
+const groupRecipientId = ref('');
+const showDocumentChips = ref(false);
+const documentChips = ref([]);
+const documentChipsLoading = ref(false);
+const documentChipSearch = ref('');
+const mentionState = ref(null);
+const mentionHighlightIndex = ref(0);
 
 let pollUnreadTimer = null;
+let documentChipSearchTimer = null;
 
 function conversationRouteParams(id) {
     return { conversation: id };
@@ -327,6 +477,23 @@ const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
 
 const isChatInputMode = computed(() => chatPanelOpen.value && activeConversationId.value !== null);
 
+const groupMemberOptions = computed(() => {
+    const list = activeConversation.value?.group_members;
+    return Array.isArray(list) ? list : [];
+});
+
+const mentionFiltered = computed(() => {
+    if (!mentionState.value) {
+        return [];
+    }
+    const q = mentionState.value.query.toLowerCase();
+    const list = groupMemberOptions.value;
+    if (q === '') {
+        return list;
+    }
+    return list.filter((m) => m.name.toLowerCase().includes(q));
+});
+
 const inputPlaceholder = computed(() => {
     if (chatPanelOpen.value && activeConversationId.value === null) {
         return 'Сначала выберите диалог слева или «Новый чат»…';
@@ -335,7 +502,7 @@ const inputPlaceholder = computed(() => {
     if (isChatInputMode.value && conv) {
         if (conv.type === 'group') {
             const t = (conv.title || '').trim();
-            return t ? `Сообщение в группу «${t}»…` : 'Сообщение в группу…';
+            return t ? `«${t}»: @имя или текст…` : '@имя или текст…';
         }
         if (conv.other_user?.name) {
             return `Сообщение для ${conv.other_user.name}…`;
@@ -505,6 +672,37 @@ function scrollThreadToEnd() {
     }
 }
 
+function messageHighlightForMe(m) {
+    if (activeConversation.value?.type !== 'group') {
+        return false;
+    }
+    if (!m.recipient_user_id || currentUserId.value === null) {
+        return false;
+    }
+    return Number(m.recipient_user_id) === Number(currentUserId.value)
+        && Number(m.user_id) !== Number(currentUserId.value);
+}
+
+function syncRecipientFromAtMention() {
+    if (activeConversation.value?.type !== 'group') {
+        return;
+    }
+    const text = message.value;
+    const members = groupMemberOptions.value;
+    if (members.length === 0) {
+        return;
+    }
+    const sorted = [...members].sort((a, b) => b.name.length - a.name.length);
+    for (const m of sorted) {
+        const token = `@${m.name}`;
+        if (text.includes(`${token} `) || text.endsWith(token)) {
+            groupRecipientId.value = String(m.id);
+
+            return;
+        }
+    }
+}
+
 async function sendChatMessage() {
     const text = message.value.trim();
     const cid = activeConversationId.value;
@@ -513,10 +711,17 @@ async function sendChatMessage() {
     }
 
     messengerSendError.value = '';
+    syncRecipientFromAtMention();
+    mentionState.value = null;
     try {
+        const payload = { body: text };
+        if (activeConversation.value?.type === 'group' && groupRecipientId.value !== '') {
+            payload.recipient_user_id = Number(groupRecipientId.value);
+        }
+
         const { data } = await axios.post(
             route('messenger.conversations.messages.store', conversationRouteParams(cid)),
-            { body: text },
+            payload,
             { headers: { Accept: 'application/json' } },
         );
         if (data.message) {
@@ -535,6 +740,55 @@ async function sendChatMessage() {
         const msg = error.response?.data?.message ?? error.response?.data?.errors?.body?.[0];
         messengerSendError.value = typeof msg === 'string' ? msg : 'Не удалось отправить сообщение.';
     }
+}
+
+async function loadDocumentChips() {
+    documentChipsLoading.value = true;
+    try {
+        const params = {};
+        const q = documentChipSearch.value.trim();
+        if (q !== '') {
+            params.q = q;
+        }
+        const { data } = await axios.get(route('messenger.document-chips'), {
+            params,
+            headers: { Accept: 'application/json' },
+        });
+        documentChips.value = data.documents ?? [];
+    } finally {
+        documentChipsLoading.value = false;
+    }
+}
+
+function onDocumentChipSearchInput() {
+    if (documentChipSearchTimer !== null) {
+        window.clearTimeout(documentChipSearchTimer);
+    }
+    documentChipSearchTimer = window.setTimeout(() => {
+        documentChipSearchTimer = null;
+        loadDocumentChips();
+    }, 350);
+}
+
+function toggleDocumentChips() {
+    showDocumentChips.value = !showDocumentChips.value;
+    if (showDocumentChips.value) {
+        documentChipSearch.value = '';
+        loadDocumentChips();
+    }
+}
+
+function insertDocumentChip(doc) {
+    const url = doc.url;
+    const cur = message.value;
+    const sep = cur && !cur.endsWith('\n') && !cur.endsWith(' ') ? ' ' : '';
+    message.value = `${cur}${sep}${url} `;
+    showDocumentChips.value = false;
+    documentChipSearch.value = '';
+    nextTick(() => {
+        autosize();
+        textareaRef.value?.focus();
+    });
 }
 
 function toggleColleaguePicker() {
@@ -599,6 +853,8 @@ function toggleChatPanel() {
     } else {
         showColleaguePicker.value = false;
         showGroupForm.value = false;
+        showDocumentChips.value = false;
+        documentChipSearch.value = '';
     }
 }
 
@@ -607,6 +863,8 @@ function closeChatPanel() {
     chatPanelOpen.value = false;
     showColleaguePicker.value = false;
     showGroupForm.value = false;
+    showDocumentChips.value = false;
+    documentChipSearch.value = '';
 }
 
 function autosize() {
@@ -661,7 +919,91 @@ async function submit() {
     });
 }
 
+function updateMentionState() {
+    if (activeConversation.value?.type !== 'group') {
+        mentionState.value = null;
+
+        return;
+    }
+    const el = textareaRef.value;
+    if (!el) {
+        return;
+    }
+    const pos = el.selectionStart;
+    const text = message.value;
+    const before = text.slice(0, pos);
+    const lastAt = before.lastIndexOf('@');
+    if (lastAt === -1) {
+        mentionState.value = null;
+
+        return;
+    }
+    const afterAt = before.slice(lastAt + 1);
+    if (/\s/.test(afterAt)) {
+        mentionState.value = null;
+
+        return;
+    }
+    mentionState.value = { start: lastAt, query: afterAt };
+    mentionHighlightIndex.value = 0;
+}
+
+function onComposerInput() {
+    autosize();
+    updateMentionState();
+}
+
+function pickMentionMember(gm) {
+    const st = mentionState.value;
+    const el = textareaRef.value;
+    if (!st || !el) {
+        return;
+    }
+    const pos = el.selectionStart;
+    const before = message.value.slice(0, st.start);
+    const after = message.value.slice(pos);
+    message.value = `${before}@${gm.name} ${after}`;
+    groupRecipientId.value = String(gm.id);
+    mentionState.value = null;
+    nextTick(() => {
+        const newPos = before.length + gm.name.length + 2;
+        el.setSelectionRange(newPos, newPos);
+        autosize();
+        el.focus();
+    });
+}
+
 function handleKeydown(event) {
+    if (mentionState.value && activeConversation.value?.type === 'group') {
+        const list = mentionFiltered.value;
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (list.length > 0) {
+                mentionHighlightIndex.value = Math.min(mentionHighlightIndex.value + 1, list.length - 1);
+            }
+
+            return;
+        }
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            mentionHighlightIndex.value = Math.max(mentionHighlightIndex.value - 1, 0);
+
+            return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey && list.length > 0) {
+            event.preventDefault();
+            const pick = list[mentionHighlightIndex.value] ?? list[0];
+            pickMentionMember(pick);
+
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            mentionState.value = null;
+
+            return;
+        }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         submit();
@@ -700,6 +1042,69 @@ function messageParts(body) {
     return parts.length > 0 ? parts : [{ type: 'text', text: body }];
 }
 
+/**
+ * Ссылки + подсветка @Имя для участников группы (имена длиной по убыванию).
+ *
+ * @param  {Array<{id: number, name: string}>|undefined}  groupMembers
+ * @return {Array<{type: string, text: string, href?: string}>}
+ */
+function messagePartsWithMentions(body, groupMembers) {
+    const names = Array.isArray(groupMembers)
+        ? [...groupMembers].map((m) => m.name).sort((a, b) => b.length - a.length)
+        : [];
+    const linkParts = messageParts(body);
+    const out = [];
+    for (const part of linkParts) {
+        if (part.type === 'link') {
+            out.push(part);
+            continue;
+        }
+        out.push(...splitTextSegmentMentions(part.text, names));
+    }
+    return out.length > 0 ? out : [{ type: 'text', text: body || '' }];
+}
+
+/**
+ * @param  {string[]}  sortedNames  по убыванию длины
+ */
+function splitTextSegmentMentions(text, sortedNames) {
+    if (!text) {
+        return [];
+    }
+    if (!sortedNames.length) {
+        return [{ type: 'text', text }];
+    }
+    const parts = [];
+    let i = 0;
+    while (i < text.length) {
+        if (text[i] === '@') {
+            let matched = null;
+            for (const name of sortedNames) {
+                const after = text.slice(i + 1);
+                if (after.startsWith(name)) {
+                    const end = i + 1 + name.length;
+                    if (end === text.length || text[end] === ' ' || text[end] === '\n') {
+                        matched = name;
+                        break;
+                    }
+                }
+            }
+            if (matched) {
+                parts.push({ type: 'mention', text: `@${matched}` });
+                i += 1 + matched.length;
+                continue;
+            }
+        }
+        let j = i + 1;
+        while (j < text.length && text[j] !== '@') {
+            j++;
+        }
+        parts.push({ type: 'text', text: text.slice(i, j) });
+        i = j;
+    }
+    return parts.length > 0 ? parts : [{ type: 'text', text }];
+}
+
 function formatMsgTime(iso) {
     if (!iso) {
         return '';
@@ -724,6 +1129,13 @@ watch(chatPanelOpen, (open) => {
     }
 });
 
+watch(activeConversationId, () => {
+    groupRecipientId.value = '';
+    showDocumentChips.value = false;
+    documentChipSearch.value = '';
+    mentionState.value = null;
+});
+
 onMounted(() => {
     fetchMessengerUnread();
     pollUnreadTimer = window.setInterval(fetchMessengerUnread, 60000);
@@ -733,6 +1145,9 @@ onUnmounted(() => {
     document.body.classList.remove('overflow-hidden');
     if (pollUnreadTimer) {
         window.clearInterval(pollUnreadTimer);
+    }
+    if (documentChipSearchTimer !== null) {
+        window.clearTimeout(documentChipSearchTimer);
     }
 });
 </script>

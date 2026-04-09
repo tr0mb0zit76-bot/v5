@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChatMessage;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -111,5 +112,134 @@ class MessengerService
         $conversation->participants()->updateExistingPivot($user->id, [
             'last_read_at' => now(),
         ]);
+    }
+
+    /**
+     * Документы заказов для чипов-ссылок (видимость согласована со списком заказов).
+     * Без строки поиска — последние 40 по дате обновления; с непустым $search — фильтр по подстроке и числовому id (до 50 строк).
+     *
+     * @return list<array{id: int, order_id: int, label: string, url: string}>
+     */
+    public function orderDocumentsForChips(User $user, ?string $search = null): array
+    {
+        if (! Schema::hasTable('order_documents') || ! Schema::hasTable('orders')) {
+            return [];
+        }
+
+        $user->loadMissing('role');
+
+        if (! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {
+            return [];
+        }
+
+        $roleName = $user->role?->name;
+        $scopes = $user->role?->visibility_scopes;
+        if (is_string($scopes)) {
+            $scopes = json_decode($scopes, true);
+        }
+
+        $ordersScope = RoleAccess::resolveVisibilityScope($roleName, is_array($scopes) ? $scopes : null, 'orders');
+
+        $query = DB::table('order_documents')
+            ->join('orders', 'orders.id', '=', 'order_documents.order_id')
+            ->select([
+                'order_documents.id',
+                'order_documents.order_id',
+                'order_documents.type',
+                'order_documents.number',
+                'order_documents.original_name',
+            ]);
+
+        if (Schema::hasColumn('orders', 'order_customer_number')) {
+            $query->addSelect('orders.order_customer_number');
+        }
+
+        if ($roleName !== 'admin' && $ordersScope !== 'all') {
+            $query->where('orders.manager_id', $user->id);
+        }
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('orders.deleted_at');
+        }
+
+        $needle = $search !== null ? trim($search) : '';
+
+        if ($needle !== '') {
+            $like = '%'.$this->escapeLikeForSearch($needle).'%';
+            $query->where(function ($q) use ($like, $needle): void {
+                $q->where('order_documents.type', 'like', $like)
+                    ->orWhere('order_documents.number', 'like', $like)
+                    ->orWhere('order_documents.original_name', 'like', $like);
+
+                if (preg_match('/^\d+$/', $needle) === 1) {
+                    $id = (int) $needle;
+                    $q->orWhere('orders.id', $id)
+                        ->orWhere('order_documents.order_id', $id)
+                        ->orWhere('order_documents.id', $id);
+                }
+
+                if (Schema::hasColumn('orders', 'order_customer_number')) {
+                    $q->orWhere('orders.order_customer_number', 'like', $like);
+                }
+            });
+            $query->orderByDesc('order_documents.updated_at')->limit(50);
+        } else {
+            $query->orderByDesc('order_documents.updated_at')->limit(40);
+        }
+
+        $rows = $query->get();
+        $out = [];
+
+        foreach ($rows as $row) {
+            $orderRef = $this->formatOrderRefForDocumentChip($row);
+            $label = $this->formatDocumentChipLabel($row, $orderRef);
+            $url = route('orders.edit', (int) $row->order_id, absolute: true).'?tab=documents';
+
+            $out[] = [
+                'id' => (int) $row->id,
+                'order_id' => (int) $row->order_id,
+                'label' => $label,
+                'url' => $url,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function formatOrderRefForDocumentChip(object $row): string
+    {
+        if (property_exists($row, 'order_customer_number') && filled($row->order_customer_number)) {
+            return (string) $row->order_customer_number;
+        }
+
+        return '#'.(int) $row->order_id;
+    }
+
+    /**
+     * @param  object  $row  order_documents join row
+     */
+    private function formatDocumentChipLabel(object $row, string $orderRef): string
+    {
+        $type = trim((string) ($row->type ?? ''));
+        $num = trim((string) ($row->number ?? ''));
+        $parts = [];
+        if ($type !== '') {
+            $parts[] = $type;
+        }
+        if ($num !== '') {
+            $parts[] = '№ '.$num;
+        }
+        if ($parts === []) {
+            $fallback = trim((string) ($row->original_name ?? ''));
+            $parts[] = $fallback !== '' ? $fallback : 'Документ';
+        }
+        $parts[] = 'Заказ '.$orderRef;
+
+        return implode(' · ', $parts);
+    }
+
+    private function escapeLikeForSearch(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
     }
 }

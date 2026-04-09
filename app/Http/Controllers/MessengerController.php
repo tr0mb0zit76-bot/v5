@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class MessengerController extends Controller
 {
@@ -54,6 +55,27 @@ class MessengerController extends Controller
                 'name' => $u->name,
                 'email' => $u->email,
             ]),
+        ]);
+    }
+
+    public function documentChips(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        if (! Schema::hasTable('order_documents')) {
+            return response()->json(['documents' => []]);
+        }
+
+        $validated = $request->validate([
+            'q' => ['sometimes', 'nullable', 'string', 'max:100'],
+        ]);
+
+        return response()->json([
+            'documents' => $this->messengerService->orderDocumentsForChips(
+                $user,
+                $validated['q'] ?? null,
+            ),
         ]);
     }
 
@@ -132,7 +154,7 @@ class MessengerController extends Controller
 
         $messages = ChatMessage::query()
             ->where('conversation_id', $conversation->id)
-            ->with('author:id,name')
+            ->with(['author:id,name', 'recipient:id,name'])
             ->orderByDesc('id')
             ->limit(100)
             ->get()
@@ -154,17 +176,30 @@ class MessengerController extends Controller
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:8000'],
+            'recipient_user_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
+
+        $recipientId = $validated['recipient_user_id'] ?? null;
+        if ($conversation->type !== 'group') {
+            $recipientId = null;
+        } elseif ($recipientId !== null) {
+            if (! $conversation->participants()->where('user_id', $recipientId)->exists()) {
+                throw ValidationException::withMessages([
+                    'recipient_user_id' => ['Указанный получатель не состоит в этой группе.'],
+                ]);
+            }
+        }
 
         $message = ChatMessage::query()->create([
             'conversation_id' => $conversation->id,
             'user_id' => $user->id,
+            'recipient_user_id' => $recipientId,
             'body' => $validated['body'],
         ]);
 
         $conversation->touch();
 
-        $message->load('author:id,name');
+        $message->load(['author:id,name', 'recipient:id,name']);
 
         return response()->json([
             'message' => $this->serializeMessage($message),
@@ -204,6 +239,12 @@ class MessengerController extends Controller
         $membersPreview = $conversation->type === 'group'
             ? $conversation->participants->sortBy('name')->take(4)->pluck('name')->values()->all()
             : [];
+        $groupMembers = $conversation->type === 'group'
+            ? $conversation->participants->sortBy('name')->map(fn (User $u): array => [
+                'id' => $u->id,
+                'name' => $u->name,
+            ])->values()->all()
+            : [];
 
         return [
             'id' => $conversation->id,
@@ -211,6 +252,7 @@ class MessengerController extends Controller
             'title' => $conversation->type === 'group' ? $conversation->title : null,
             'member_count' => $memberCount,
             'members_preview' => $membersPreview,
+            'group_members' => $groupMembers,
             'other_user' => $other === null ? null : [
                 'id' => $other->id,
                 'name' => $other->name,
@@ -234,6 +276,8 @@ class MessengerController extends Controller
             'id' => $message->id,
             'user_id' => $message->user_id,
             'author_name' => $message->author?->name,
+            'recipient_user_id' => $message->recipient_user_id,
+            'recipient_name' => $message->recipient?->name,
             'body' => $message->body,
             'created_at' => $message->created_at?->toIso8601String(),
         ];

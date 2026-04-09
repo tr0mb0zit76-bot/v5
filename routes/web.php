@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/unread-count', [MessengerController::class, 'unreadCount'])->name('unread-count');
         Route::get('/colleagues', [MessengerController::class, 'colleagues'])->name('colleagues');
+        Route::get('/document-chips', [MessengerController::class, 'documentChips'])->name('document-chips');
         Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
         Route::post('/conversations/open', [MessengerController::class, 'openDirect'])->name('conversations.open');
         Route::post('/conversations/groups', [MessengerController::class, 'storeGroup'])->name('conversations.groups.store');
