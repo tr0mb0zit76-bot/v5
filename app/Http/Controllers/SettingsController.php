@@ -64,7 +64,7 @@ class SettingsController extends Controller
             [
                 'key' => 'motivation',
                 'title' => 'Мотивация',
-                'description' => 'Пороги KPI, bonus multiplier в delta и индивидуальные условия сотрудников.',
+                'description' => 'Пороги KPI, множитель bonus в delta и персональные коэффициенты (оклад, бонус).',
                 'href' => route('settings.motivation.index'),
                 'group' => 'Мотивация',
                 'icon' => 'trending-up',
@@ -97,8 +97,8 @@ class SettingsController extends Controller
                 ],
                 [
                     'key' => 'salary-settings',
-                    'title' => 'Условия сотрудников',
-                    'description' => 'Оклад, бонус и периоды действия индивидуальных условий по зарплате.',
+                    'title' => 'Условия',
+                    'description' => 'Оклад, бонус и срок действия персональных коэффициентов. Периоды и выплаты — в «Финансы → Зарплата».',
                     'href' => route('settings.motivation.salary'),
                     'icon' => 'wallet',
                     'accent' => 'amber',

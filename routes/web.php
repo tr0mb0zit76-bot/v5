@@ -105,6 +105,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/settings/motivation/kpi', 'index')->name('settings.motivation.kpi');
         Route::patch('/settings/motivation/kpi', 'update')->name('settings.motivation.kpi.update');
         Route::get('/settings/motivation/salary', 'salaryIndex')->name('settings.motivation.salary');
+        Route::post('/settings/motivation/salary/periods', 'storeSalaryPeriod')->name('settings.motivation.salary.periods.store');
+        Route::post('/settings/motivation/salary/periods/{salaryPeriod}/recalculate', 'recalculateSalaryPeriod')->name('settings.motivation.salary.periods.recalculate');
+        Route::post('/settings/motivation/salary/periods/{salaryPeriod}/approve', 'approveSalaryPeriod')->name('settings.motivation.salary.periods.approve');
+        Route::post('/settings/motivation/salary/periods/{salaryPeriod}/close', 'closeSalaryPeriod')->name('settings.motivation.salary.periods.close');
+        Route::post('/settings/motivation/salary/periods/{salaryPeriod}/payouts', 'storeSalaryPayout')->name('settings.motivation.salary.periods.payouts.store');
         Route::post('/settings/motivation/salary/coefficients', 'storeSalaryCoefficient')->name('settings.motivation.salary.store');
         Route::patch('/settings/motivation/salary/coefficients/{salaryCoefficient}', 'updateSalaryCoefficient')->name('settings.motivation.salary.update');
         Route::delete('/settings/motivation/salary/coefficients/{salaryCoefficient}', 'destroySalaryCoefficient')->name('settings.motivation.salary.destroy');
@@ -132,6 +137,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area:documents')->name('finance.index');
     Route::get('/documents', FinanceIndexController::class)->middleware('visibility.area:documents')->name('documents.index');
+    Route::controller(SettingsKpiController::class)->middleware('visibility.area:finance_salary')->group(function () {
+        Route::get('/finance/salary', 'financeSalaryIndex')->name('finance.salary.index');
+        Route::post('/finance/salary/periods', 'storeSalaryPeriod')->name('finance.salary.periods.store');
+        Route::post('/finance/salary/periods/{salaryPeriod}/recalculate', 'recalculateSalaryPeriod')->name('finance.salary.periods.recalculate');
+        Route::post('/finance/salary/periods/{salaryPeriod}/approve', 'approveSalaryPeriod')->name('finance.salary.periods.approve');
+        Route::post('/finance/salary/periods/{salaryPeriod}/close', 'closeSalaryPeriod')->name('finance.salary.periods.close');
+        Route::post('/finance/salary/periods/{salaryPeriod}/payouts', 'storeSalaryPayout')->name('finance.salary.periods.payouts.store');
+        Route::post('/finance/salary/coefficients', 'storeSalaryCoefficient')->name('finance.salary.coefficients.store');
+        Route::patch('/finance/salary/coefficients/{salaryCoefficient}', 'updateSalaryCoefficient')->name('finance.salary.coefficients.update');
+        Route::delete('/finance/salary/coefficients/{salaryCoefficient}', 'destroySalaryCoefficient')->name('finance.salary.coefficients.destroy');
+    });
     Route::post('/finance/documents', [FinanceDocumentController::class, 'store'])->middleware('visibility.area:documents')->name('finance.documents.store');
     Route::patch('/finance/documents/{financeDocument}', [FinanceDocumentController::class, 'update'])->middleware('visibility.area:documents')->name('finance.documents.update');
 

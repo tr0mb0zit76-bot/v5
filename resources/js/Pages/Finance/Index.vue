@@ -15,7 +15,7 @@
                 <span class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Выберите</span>
             </div>
 
-            <div class="mt-4 grid min-h-0 grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="mt-4 grid min-h-0 grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Link
                     v-for="tile in submoduleTiles"
                     :key="tile.key"
@@ -422,7 +422,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
-import { BarChart3, FileText } from 'lucide-vue-next';
+import { BarChart3, FileText, Wallet } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 function defaultCashFlowStats() {
@@ -486,9 +486,14 @@ const props = defineProps({
         type: String,
         default: 'overview',
     },
+    can_access_salary_module: {
+        type: Boolean,
+        default: false,
+    },
 });
 
-const submoduleTiles = [
+const submoduleTiles = computed(() => {
+    const tiles = [
     {
         key: 'documents',
         title: 'Документы',
@@ -507,7 +512,22 @@ const submoduleTiles = [
         accent: 'emerald',
         icon: 'bar-chart-3',
     },
-];
+    ];
+
+    if (props.can_access_salary_module) {
+        tiles.push({
+            key: 'salary',
+            title: 'Зарплата',
+            description: 'Периоды начислений, суммы к выплате по оплатам заказов и учёт фактических выплат.',
+            href: route('finance.salary.index'),
+            group: 'Зарплата',
+            accent: 'indigo',
+            icon: 'wallet',
+        });
+    }
+
+    return tiles;
+});
 
 const cashFlowStats = computed(() => props.cash_flow_stats ?? defaultCashFlowStats());
 const todaysCashFlow = computed(() => props.todays_cash_flow ?? cashFlowStats.value.periods.today);
@@ -640,6 +660,7 @@ function iconFor(icon) {
     return {
         'file-text': FileText,
         'bar-chart-3': BarChart3,
+        wallet: Wallet,
     }[icon] ?? FileText;
 }
 
@@ -647,6 +668,7 @@ function iconTone(accent) {
     return {
         slate: 'border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100',
         emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300',
+        indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300',
     }[accent] ?? 'border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100';
 }
 </script>

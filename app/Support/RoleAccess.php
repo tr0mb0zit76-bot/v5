@@ -47,6 +47,7 @@ class RoleAccess
             ['key' => 'contractors', 'label' => 'Контрагенты', 'description' => 'Справочник контрагентов'],
             ['key' => 'drivers', 'label' => 'Водители', 'description' => 'Реестр водителей и перевозчиков'],
             ['key' => 'documents', 'label' => 'Документы', 'description' => 'Реестр документов'],
+            ['key' => 'finance_salary', 'label' => 'Финансы: зарплата', 'description' => 'Зарплатные периоды, начисления и выплаты'],
             ['key' => 'activities', 'label' => 'Активности', 'description' => 'История действий и событий'],
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
@@ -54,7 +55,7 @@ class RoleAccess
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
-            ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI, зарплата и условия сотрудников'],
+            ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI и персональные условия (коэффициенты). Учёт зарплатных периодов — в модуле «Финансы»'],
         ];
     }
 
@@ -92,10 +93,10 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
             'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
             'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'drivers', 'activities', 'tasks', 'kanban'],
-            'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'tasks', 'kanban', 'reports'],
+            'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports'],
             'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'contractors', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
             default => ['dashboard'],
@@ -207,5 +208,18 @@ class RoleAccess
 
         return static::hasVisibilityArea($areas, 'settings_system')
             || static::hasVisibilityArea($areas, 'settings_motivation');
+    }
+
+    public static function canAccessFinanceSalary(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'finance_salary');
     }
 }

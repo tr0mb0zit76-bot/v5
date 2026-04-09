@@ -15,6 +15,7 @@ class SettingsManagementTest extends TestCase
     {
         parent::setUp();
 
+        Schema::dropIfExists('salary_periods');
         Schema::dropIfExists('salary_coefficients');
         Schema::dropIfExists('kpi_thresholds');
         Schema::dropIfExists('kpi_settings');
@@ -78,6 +79,19 @@ class SettingsManagementTest extends TestCase
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('salary_periods', function (Blueprint $table) {
+            $table->id();
+            $table->date('period_start');
+            $table->date('period_end');
+            $table->string('period_type', 10);
+            $table->string('status', 20)->default('draft');
+            $table->text('notes')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('approved_by')->nullable();
+            $table->unsignedBigInteger('closed_by')->nullable();
             $table->timestamps();
         });
 

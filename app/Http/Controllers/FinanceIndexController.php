@@ -48,6 +48,7 @@ class FinanceIndexController extends Controller
             'active_submodule' => $activeSubmodule,
             'todays_cash_flow' => $cashFlowStats['periods']['today'],
             'cash_flow_stats' => $cashFlowStats,
+            'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
         ]);
     }
 

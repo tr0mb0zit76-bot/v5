@@ -344,6 +344,7 @@ const hasSettingsMotivationAccess = computed(() => {
     const areas = visibleAreas.value;
     return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
 });
+const hasFinanceSalaryAccess = computed(() => visibleAreas.value.includes('finance_salary'));
 const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value);
 const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
 const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
@@ -370,10 +371,22 @@ const menuItems = computed(() => {
             label: 'Финансы',
             icon: Wallet,
             visibilityArea: 'documents',
-            children: [
-                { key: 'finance-documents', label: 'Документы' },
-                { key: 'finance-dds', label: 'ДДС' },
-            ],
+            children: (() => {
+                const children = [];
+
+                if (visibleAreas.value.includes('documents')) {
+                    children.push(
+                        { key: 'finance-documents', label: 'Документы' },
+                        { key: 'finance-dds', label: 'ДДС' },
+                    );
+                }
+
+                if (hasFinanceSalaryAccess.value) {
+                    children.push({ key: 'finance-salary', label: 'Зарплата' });
+                }
+
+                return children;
+            })(),
         },
         { key: 'activities', label: 'Активности', icon: Activity, visibilityArea: 'activities' },
         { key: 'tasks', label: 'Задачи', icon: ClipboardList, visibilityArea: 'tasks' },
@@ -417,7 +430,7 @@ const menuItems = computed(() => {
                         label: 'Мотивация',
                         children: [
                             { key: 'kpi-settings', label: 'Настройки KPI' },
-                            { key: 'salary-settings', label: 'Условия сотрудников' },
+                            { key: 'salary-settings', label: 'Условия' },
                         ],
                     });
                 }
@@ -433,6 +446,10 @@ const menuItems = computed(() => {
 
         if (item.key === 'settings') {
             return hasSettingsSystemAccess.value || hasSettingsMotivationAccess.value;
+        }
+
+        if (item.key === 'finance') {
+            return (item.children?.length ?? 0) > 0;
         }
 
         if (!item.visibilityArea) {
@@ -586,6 +603,7 @@ function handleMenuSelect(key) {
             finance: '/finance',
             'finance-documents': '/finance?section=documents',
             'finance-dds': '/finance?section=dds',
+            'finance-salary': '/finance/salary',
         activities: '/activities',
         reports: '/reports',
         modules: '/modules',
