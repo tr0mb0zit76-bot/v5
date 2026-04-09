@@ -161,11 +161,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/tasks', 'store')->name('tasks.store');
         Route::patch('/tasks/{task}', 'update')->name('tasks.update');
         Route::patch('/tasks/{task}/status', 'updateStatus')->name('tasks.status.update');
+        Route::post('/tasks/{task}/checklist-items', 'storeChecklistItem')->name('tasks.checklist-items.store');
+        Route::patch('/tasks/{task}/checklist-items/{taskChecklistItem}/toggle', 'toggleChecklistItem')->name('tasks.checklist-items.toggle');
+        Route::post('/tasks/{task}/comments', 'storeComment')->name('tasks.comments.store');
+        Route::post('/tasks/{task}/attachments', 'storeAttachment')->name('tasks.attachments.store');
+        Route::delete('/tasks/{task}/attachments/{taskAttachment}', 'destroyAttachment')->name('tasks.attachments.destroy');
     });
 
     Route::get('/kanban', [TaskController::class, 'kanban'])
         ->middleware('visibility.area.any:tasks|kanban')
         ->name('kanban.index');
+    Route::get('/tasks/{task}/attachments/{taskAttachment}/download', [TaskController::class, 'downloadAttachment'])
+        ->middleware('visibility.area.any:tasks|kanban')
+        ->name('tasks.attachments.download');
 
     Route::patch('/leads/{lead}/status', [LeadController::class, 'updateStatus'])
         ->middleware('visibility.area:leads')

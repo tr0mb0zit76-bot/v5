@@ -17,6 +17,10 @@ class TaskManagementTest extends TestCase
         parent::setUp();
 
         Schema::dropIfExists('tasks');
+        Schema::dropIfExists('task_events');
+        Schema::dropIfExists('task_comments');
+        Schema::dropIfExists('task_checklist_items');
+        Schema::dropIfExists('task_attachments');
         Schema::dropIfExists('users');
         Schema::dropIfExists('roles');
 
@@ -59,6 +63,48 @@ class TaskManagementTest extends TestCase
             $table->json('meta')->nullable();
             $table->timestamps();
             $table->softDeletes();
+        });
+
+        Schema::create('task_checklist_items', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->string('title');
+            $table->boolean('is_done')->default(false);
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('completed_by')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('task_comments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->text('body');
+            $table->timestamps();
+        });
+
+        Schema::create('task_attachments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('disk', 50)->default('public');
+            $table->string('path');
+            $table->string('original_name');
+            $table->string('mime_type', 120)->nullable();
+            $table->unsignedBigInteger('size_bytes')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('task_events', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('task_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('type', 40);
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->json('meta')->nullable();
+            $table->timestamps();
         });
     }
 
@@ -213,5 +259,64 @@ class TaskManagementTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Kanban/Index')
                 ->where('canMutateTasks', false));
+    }
+
+    public function test_task_detail_actions_create_checklist_comment_and_event(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-TEST-003',
+            'title' => 'Phase 2',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('tasks.checklist-items.store', $task), [
+                'title' => 'Проверить документы',
+            ])
+            ->assertRedirect(route('tasks.index'));
+
+        $this->actingAs($user)
+            ->post(route('tasks.comments.store', $task), [
+                'body' => 'Комментарий к задаче',
+            ])
+            ->assertRedirect(route('tasks.index'));
+
+        $this->assertDatabaseHas('task_checklist_items', [
+            'task_id' => $task->id,
+            'title' => 'Проверить документы',
+        ]);
+
+        $this->assertDatabaseHas('task_comments', [
+            'task_id' => $task->id,
+            'body' => 'Комментарий к задаче',
+        ]);
+
+        $this->assertDatabaseHas('task_events', [
+            'task_id' => $task->id,
+            'type' => 'checklist_added',
+        ]);
+
+        $this->assertDatabaseHas('task_events', [
+            'task_id' => $task->id,
+            'type' => 'comment_added',
+        ]);
     }
 }
