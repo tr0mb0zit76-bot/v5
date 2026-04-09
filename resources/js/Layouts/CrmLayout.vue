@@ -136,7 +136,6 @@
                 </div>
 
                 <div class="flex shrink-0 items-center gap-1">
-                    <CrmNotificationBell v-if="authUser" @badges="dynamicCabinetBadges = $event" />
                     <ThemeToggle v-if="!collapsed" />
 
                     <button
@@ -286,7 +285,7 @@
                 :class="collapsed ? 'lg:left-20' : 'lg:left-64'"
             >
                 <div class="px-3 py-3 md:px-4">
-                    <CrmCommandBar @submit="handleAiSubmit" />
+                    <CrmCommandBar @submit="handleAiSubmit" @badges="dynamicCabinetBadges = $event" />
                 </div>
             </footer>
         </div>
@@ -320,7 +319,6 @@ import {
     Wallet,
 } from 'lucide-vue-next';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
-import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
 
 const props = defineProps({

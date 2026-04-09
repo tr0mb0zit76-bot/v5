@@ -5,6 +5,14 @@ import { Bell } from 'lucide-vue-next';
 
 const emit = defineEmits(['badges']);
 
+const props = defineProps({
+    /** Размер как у кнопок в CrmCommandBar (h-11, rounded-2xl). */
+    large: {
+        type: Boolean,
+        default: false,
+    },
+});
+
 const page = usePage();
 const open = ref(false);
 const items = ref([]);
@@ -40,11 +48,26 @@ async function fetchList() {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
         });
+        if (!response.ok) {
+            items.value = [];
+            return;
+        }
         const data = await response.json();
         items.value = data.notifications ?? [];
     } finally {
         loading.value = false;
     }
+}
+
+/** Сбрасывает непрочитанные на сервере и обновляет бейджи (без перезагрузки страницы). */
+async function markAllReadQuiet() {
+    await fetch(route('cabinet-notifications.read-all'), {
+        method: 'POST',
+        headers: csrfHeaders(),
+        credentials: 'same-origin',
+    });
+    await pollSummary();
+    await fetchList();
 }
 
 async function pollSummary() {
@@ -96,13 +119,8 @@ async function markRead(id) {
 }
 
 async function markAllRead() {
-    await fetch(route('cabinet-notifications.read-all'), {
-        method: 'POST',
-        headers: csrfHeaders(),
-        credentials: 'same-origin',
-    });
+    await markAllReadQuiet();
     open.value = false;
-    await pollSummary();
     router.reload({ preserveScroll: true });
 }
 
@@ -164,12 +182,15 @@ watch(authUser, (u) => {
     <div v-if="authUser" class="relative">
         <button
             type="button"
-            class="relative flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            :class="[
+                'relative flex items-center justify-center border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
+                props.large ? 'h-11 w-11 shrink-0 rounded-2xl' : 'h-9 w-9 rounded-xl',
+            ]"
             :aria-expanded="open"
             aria-label="Уведомления"
             @click="toggle"
         >
-            <Bell class="h-4 w-4" />
+            <Bell :class="props.large ? 'h-5 w-5' : 'h-4 w-4'" />
             <span
                 v-if="(localBadges.total ?? 0) > 0"
                 class="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white"
@@ -180,7 +201,10 @@ watch(authUser, (u) => {
 
         <div
             v-if="open"
-            class="absolute right-0 z-[60] mt-2 w-[min(100vw-2rem,22rem)] rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+            :class="[
+                'absolute right-0 z-[70] w-[min(100vw-2rem,22rem)] rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900',
+                props.large ? 'bottom-full mb-2' : 'mt-2',
+            ]"
         >
             <div class="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
                 <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Уведомления</div>
@@ -216,7 +240,7 @@ watch(authUser, (u) => {
 
         <div
             v-if="open"
-            class="fixed inset-0 z-[55] bg-transparent"
+            class="fixed inset-0 z-[65] bg-transparent"
             aria-hidden="true"
             @click="open = false"
         />
@@ -224,7 +248,7 @@ watch(authUser, (u) => {
         <Teleport to="body">
             <div
                 v-if="toast"
-                class="fixed bottom-24 left-1/2 z-[80] w-[min(100vw-2rem,24rem)] -translate-x-1/2 rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 md:bottom-8"
+                class="fixed bottom-28 left-1/2 z-[80] w-[min(100vw-2rem,24rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 md:bottom-10"
                 role="status"
             >
                 <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Новое в кабинете</div>

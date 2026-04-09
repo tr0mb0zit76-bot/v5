@@ -342,6 +342,12 @@
                 <Sparkles class="h-5 w-5" />
             </button>
 
+            <CrmNotificationBell
+                v-if="page.props.auth?.user"
+                large
+                @badges="$emit('badges', $event)"
+            />
+
             <button
                 type="button"
                 class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -417,6 +423,7 @@
 import axios from 'axios';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
+import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import {
     ClipboardList,
     FileText,
@@ -433,7 +440,7 @@ import {
     X,
 } from 'lucide-vue-next';
 
-const emit = defineEmits(['submit']);
+const emit = defineEmits(['submit', 'badges']);
 
 const page = usePage();
 const message = ref('');
