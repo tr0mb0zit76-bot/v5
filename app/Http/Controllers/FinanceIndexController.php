@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FinanceDocument;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -92,14 +93,9 @@ class FinanceIndexController extends Controller
     {
         return $this->baseOrdersQuery($userId, $roleName, $ordersScope)
             ->where(function ($query) {
-                $query->whereNotNull('orders.customer_rate')
-                    ->orWhereExists(function ($subQuery) {
-                        $subQuery->select(DB::raw(1))
-                            ->from('order_legs')
-                            ->join('leg_costs', 'leg_costs.order_leg_id', '=', 'order_legs.id')
-                            ->whereColumn('order_legs.order_id', 'orders.id')
-                            ->whereNotNull('leg_costs.carrier_rate');
-                    });
+                $query->whereNotNull('orders.customer_rate');
+
+                $this->applyCarrierCostExistsCondition($query);
             })
             ->select([
                 'orders.id',
@@ -125,6 +121,33 @@ class FinanceIndexController extends Controller
                 'status' => $row->status,
                 'has_any_upd' => filled($row->upd_number) || filled($row->upd_carrier_number),
             ]);
+    }
+
+    /**
+     * Adds exists-condition for leg costs using available schema.
+     */
+    private function applyCarrierCostExistsCondition(Builder $query): void
+    {
+        if (! Schema::hasTable('order_legs') || ! Schema::hasTable('leg_costs')) {
+            return;
+        }
+
+        $amountColumn = Schema::hasColumn('leg_costs', 'amount');
+        $legacyCarrierRateColumn = Schema::hasColumn('leg_costs', 'carrier_rate');
+
+        if (! $amountColumn && ! $legacyCarrierRateColumn) {
+            return;
+        }
+
+        $costColumn = $amountColumn ? 'leg_costs.amount' : 'leg_costs.carrier_rate';
+
+        $query->orWhereExists(function ($subQuery) use ($costColumn) {
+            $subQuery->select(DB::raw(1))
+                ->from('order_legs')
+                ->join('leg_costs', 'leg_costs.order_leg_id', '=', 'order_legs.id')
+                ->whereColumn('order_legs.order_id', 'orders.id')
+                ->whereNotNull($costColumn);
+        });
     }
 
     /**
