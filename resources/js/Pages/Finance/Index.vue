@@ -420,7 +420,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { BarChart3, FileText, Wallet } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -602,12 +602,29 @@ function statusClass(status) {
     return classes[status] ?? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
 }
 
-function openCreateModal() {
+function openCreateModal(presetDocumentType = null) {
     modalMode.value = 'create';
     editingDocument.value = null;
     documentForm.reset();
+    if (presetDocumentType === 'invoice' || presetDocumentType === 'upd') {
+        documentForm.document_type = presetDocumentType;
+        activeTab.value = presetDocumentType === 'invoice' ? 'invoices' : 'upds';
+    }
     showDocumentModal.value = true;
 }
+
+onMounted(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nd = params.get('new_document');
+    if (nd === 'invoice' || nd === 'upd') {
+        activeTab.value = nd === 'invoice' ? 'invoices' : 'upds';
+        openCreateModal(nd);
+        params.delete('new_document');
+        const qs = params.toString();
+        const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
+        window.history.replaceState({}, '', next);
+    }
+});
 
 function openEditModal(doc) {
     modalMode.value = 'edit';

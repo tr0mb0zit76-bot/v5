@@ -56,11 +56,8 @@
         >
             <header class="shrink-0 border-b border-zinc-200 bg-zinc-50/95 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
                 <div class="flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                        <div class="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50">Logist CRM</div>
-                        <div class="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ authUser?.name || 'Пользователь' }}
-                        </div>
+                    <div class="min-w-0 truncate text-sm text-zinc-600 dark:text-zinc-300">
+                        {{ authUser?.name || 'Пользователь' }}
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -114,22 +111,23 @@
                 collapsed ? 'w-20' : 'w-64',
             ]"
         >
-            <div class="flex h-16 items-center justify-between gap-2 border-b border-zinc-200 px-4 dark:border-zinc-800">
-                <div class="flex min-w-0 items-center gap-3">
+            <div class="flex h-14 items-center justify-between gap-2 border-b border-zinc-200 px-2 dark:border-zinc-800 sm:px-3">
+                <div class="flex min-w-0 flex-1 items-center justify-start">
                     <div
                         v-if="!collapsed"
-                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-900 font-semibold text-white dark:bg-white dark:text-zinc-900"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-zinc-900 dark:bg-white"
                     >
-                        V5
-                    </div>
-
-                    <div v-if="!collapsed" class="min-w-0">
-                        <div class="truncate font-semibold">Logist CRM</div>
-                        <div class="truncate text-xs text-zinc-500 dark:text-zinc-400">AI-first workspace</div>
+                        <img
+                            :src="companyLogoSrc"
+                            alt=""
+                            class="h-8 w-8 object-contain"
+                            width="32"
+                            height="32"
+                        >
                     </div>
                 </div>
 
-                <div class="flex shrink-0 items-center gap-2">
+                <div class="flex shrink-0 items-center gap-1">
                     <ThemeToggle v-if="!collapsed" />
 
                     <button
@@ -214,6 +212,9 @@
             </nav>
 
             <div class="border-t border-zinc-200 p-4 dark:border-zinc-800">
+                <div v-if="collapsed" class="mb-3 flex justify-center">
+                    <ThemeToggle />
+                </div>
                 <div v-if="!collapsed" class="flex items-center gap-3">
                     <div class="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 font-medium dark:bg-zinc-800">
                         {{ authUser?.name?.charAt(0)?.toUpperCase() || 'U' }}
@@ -254,9 +255,7 @@
                     <Menu class="h-5 w-5" />
                 </button>
 
-                <div class="min-w-0 flex-1 text-center">
-                    <div class="truncate text-sm font-semibold">Logist CRM</div>
-                </div>
+                <div class="min-w-0 flex-1" />
 
                 <ThemeToggle />
             </header>
@@ -329,6 +328,8 @@ const deferredInstallPrompt = ref(null);
 const isStandaloneApp = ref(false);
 const isMobileViewport = ref(false);
 const menuStateStorageKey = 'crm-sidebar-expanded-groups';
+const sidebarCollapsedStorageKey = 'crm-sidebar-collapsed';
+const companyLogoSrc = '/assets/favicon/favicon-96x96.png';
 
 const authUser = computed(() => page.props.auth?.user ?? null);
 const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? ['dashboard']);
@@ -491,6 +492,14 @@ watch(
     { deep: true },
 );
 
+watch(collapsed, (value) => {
+    try {
+        localStorage.setItem(sidebarCollapsedStorageKey, value ? '1' : '0');
+    } catch {
+        /* ignore */
+    }
+});
+
 watch(
     mobileMenuOpen,
     (value) => {
@@ -510,6 +519,18 @@ watch(
 
 onMounted(() => {
     updateMobileEnvironment();
+
+    try {
+        const savedCollapsed = localStorage.getItem(sidebarCollapsedStorageKey);
+        if (savedCollapsed === '1') {
+            collapsed.value = true;
+        }
+        if (savedCollapsed === '0') {
+            collapsed.value = false;
+        }
+    } catch {
+        /* ignore */
+    }
 
     try {
         const savedState = localStorage.getItem(menuStateStorageKey);
