@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\CabinetNotificationBadges;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,10 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'flash' => fn () => $request->session()->get('flash'),
+            'cabinet_notification_badges' => $user === null
+                ? ['total' => 0, 'orders' => 0, 'tasks' => 0]
+                : CabinetNotificationBadges::unreadFor($user),
             'auth' => [
                 'user' => $user === null ? null : [
                     ...$user->toArray(),

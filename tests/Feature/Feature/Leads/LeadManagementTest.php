@@ -224,6 +224,12 @@ class LeadManagementTest extends TestCase
             $table->date('actual_date')->nullable();
             $table->string('contact_person')->nullable();
             $table->string('contact_phone', 50)->nullable();
+            $table->string('sender_name')->nullable();
+            $table->string('sender_contact')->nullable();
+            $table->string('sender_phone', 50)->nullable();
+            $table->string('recipient_name')->nullable();
+            $table->string('recipient_contact')->nullable();
+            $table->string('recipient_phone', 50)->nullable();
             $table->timestamps();
         });
 

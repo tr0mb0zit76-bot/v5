@@ -11,6 +11,7 @@ use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
@@ -20,6 +21,7 @@ use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -307,8 +309,12 @@ class OrderWizardController extends Controller
             });
         }
 
+        $canManageOrderDocuments = $order !== null && $this->canEditInlineField($request, $order);
+        $canApproveOrderDocuments = $request->user() !== null
+            && ($request->user()->isSupervisor() || $request->user()->isAdmin());
+
         return Inertia::render('Orders/Wizard', [
-            'order' => $order === null ? null : $this->serializeOrder($order),
+            'order' => $order === null ? null : $this->serializeOrder($order, $canManageOrderDocuments, $canApproveOrderDocuments),
             'contractors' => $contractors->values(),
             'ownCompanies' => Schema::hasColumn('contractors', 'is_own_company')
                 ? $contractors->where('is_own_company', true)->values()
@@ -356,6 +362,9 @@ class OrderWizardController extends Controller
                 ['value' => 'sent', 'label' => 'Отправлен'],
             ],
             'printFormTemplateOptions' => $this->availablePrintFormTemplates($order)->values(),
+            'orderDocumentWorkflow' => [
+                'status_options' => OrderDocumentWorkflowStatus::options(),
+            ],
             'currentUser' => [
                 'id' => $request->user()?->id,
                 'name' => $request->user()?->name,
@@ -413,7 +422,7 @@ class OrderWizardController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function serializeOrder(Order $order): array
+    private function serializeOrder(Order $order, bool $canManageOrderDocuments, bool $canApproveOrderDocuments): array
     {
         $financialTerm = Schema::hasTable('financial_terms') ? $order->financialTerms->first() : null;
         $wizardState = $this->resolveWizardState($order);
@@ -566,21 +575,12 @@ class OrderWizardController extends Controller
                 // Источник истины — пересчёт в orders.kpi_percent; снимок wizard_state отстаёт после inline/grid.
                 'kpi_percent' => $order->kpi_percent ?? ($useWizardState ? ($wizardFt['kpi_percent'] ?? 0) : 0),
             ],
-            'documents' => $documents->map(fn ($document): array => [
-                'id' => $document->id,
-                'type' => $document->type,
-                'flow' => data_get($document->metadata, 'flow', 'uploaded'),
-                'party' => data_get($document->metadata, 'party', 'internal'),
-                'stage' => data_get($document->metadata, 'stage'),
-                'requirement_key' => data_get($document->metadata, 'requirement_key'),
-                'number' => $document->number,
-                'document_date' => optional($document->document_date)?->toDateString(),
-                'status' => $document->status,
-                'original_name' => $document->original_name,
-                'file_path' => $document->file_path,
-                'generated_pdf_path' => $document->generated_pdf_path,
-                'template_id' => $document->template_id,
-            ])->values()->all(),
+            'documents' => $documents->map(fn (OrderDocument $document): array => $this->serializeOrderDocument(
+                $document,
+                $order,
+                $canManageOrderDocuments,
+                $canApproveOrderDocuments
+            ))->values()->all(),
             'status_logs' => $statusLogs->map(fn ($log): array => [
                 'id' => $log->id,
                 'status_from' => $log->status_from,
@@ -589,6 +589,155 @@ class OrderWizardController extends Controller
                 'created_at' => optional($log->created_at)?->toIso8601String(),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeOrderDocument(
+        OrderDocument $document,
+        Order $order,
+        bool $canManageOrderDocuments,
+        bool $canApproveOrderDocuments,
+    ): array {
+        $base = [
+            'id' => $document->id,
+            'type' => $document->type,
+            'flow' => data_get($document->metadata, 'flow', 'uploaded'),
+            'party' => data_get($document->metadata, 'party', 'internal'),
+            'stage' => data_get($document->metadata, 'stage'),
+            'requirement_key' => data_get($document->metadata, 'requirement_key'),
+            'number' => $document->number,
+            'document_date' => optional($document->document_date)?->toDateString(),
+            'status' => $document->status,
+            'original_name' => $document->original_name,
+            'file_path' => $document->file_path,
+            'generated_pdf_path' => $document->generated_pdf_path,
+            'template_id' => $document->template_id,
+            'is_print_workflow' => false,
+        ];
+
+        $isPrintWorkflow = (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template')
+            || (data_get($document->metadata, 'flow') === 'print_template_workflow');
+
+        if (! $isPrintWorkflow) {
+            return $base;
+        }
+
+        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
+            ? $document->workflow_status
+            : null;
+
+        $requiresCounterpartySignature = $this->orderDocumentRequiresCounterpartySignature($document);
+
+        $signatureStatus = Schema::hasColumn('order_documents', 'signature_status')
+            ? $document->signature_status
+            : null;
+
+        $draftUrl = filled($document->file_path)
+            ? route('orders.documents.download-draft', [$order, $document])
+            : null;
+
+        $finalUrl = filled($document->generated_pdf_path)
+            ? route('orders.documents.download-final', [$order, $document])
+            : null;
+
+        return array_merge($base, [
+            'is_print_workflow' => true,
+            'source' => Schema::hasColumn('order_documents', 'source') ? $document->source : null,
+            'workflow_status' => $workflowStatus,
+            'workflow_status_label' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
+            'approval_requested_at' => Schema::hasColumn('order_documents', 'approval_requested_at')
+                ? optional($document->approval_requested_at)?->toIso8601String()
+                : null,
+            'approved_at' => Schema::hasColumn('order_documents', 'approved_at')
+                ? optional($document->approved_at)?->toIso8601String()
+                : null,
+            'rejected_at' => Schema::hasColumn('order_documents', 'rejected_at')
+                ? optional($document->rejected_at)?->toIso8601String()
+                : null,
+            'rejection_reason' => Schema::hasColumn('order_documents', 'rejection_reason')
+                ? $document->rejection_reason
+                : null,
+            'draft_download_url' => $draftUrl,
+            'final_pdf_download_url' => $finalUrl,
+            'can_request_approval' => $canManageOrderDocuments && in_array($workflowStatus, [
+                OrderDocumentWorkflowStatus::DRAFT,
+                OrderDocumentWorkflowStatus::REJECTED,
+            ], true),
+            'can_regenerate_draft' => $canManageOrderDocuments && in_array($workflowStatus, [
+                OrderDocumentWorkflowStatus::DRAFT,
+                OrderDocumentWorkflowStatus::REJECTED,
+            ], true),
+            'can_approve' => $canApproveOrderDocuments && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'can_reject' => $canApproveOrderDocuments && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'can_finalize' => $canManageOrderDocuments && $workflowStatus === OrderDocumentWorkflowStatus::APPROVED,
+            'requires_counterparty_signature' => $requiresCounterpartySignature,
+            'signature_status' => $signatureStatus,
+            'signature_status_label' => $this->orderDocumentSignatureStatusLabel($signatureStatus),
+            'signature_followup_hint' => $this->orderDocumentSignatureFollowupHint(
+                $workflowStatus,
+                $signatureStatus,
+                $requiresCounterpartySignature
+            ),
+        ]);
+    }
+
+    private function orderDocumentRequiresCounterpartySignature(OrderDocument $document): bool
+    {
+        if (Schema::hasColumn('order_documents', 'requires_counterparty_signature')) {
+            return (bool) ($document->requires_counterparty_signature ?? false);
+        }
+
+        if ($document->template_id === null) {
+            return false;
+        }
+
+        $template = PrintFormTemplate::query()->find($document->template_id);
+
+        return (bool) ($template?->requires_counterparty_signature ?? false);
+    }
+
+    /**
+     * Подпись в смысле «документ подписан сторонами», не путать с workflow_status печатной заявки.
+     */
+    private function orderDocumentSignatureStatusLabel(?string $signatureStatus): ?string
+    {
+        if ($signatureStatus === null || $signatureStatus === '') {
+            return null;
+        }
+
+        return match ($signatureStatus) {
+            'not_requested' => 'Подпись не зафиксирована',
+            'pending_signature' => 'Ожидается подпись',
+            'signed_internal' => 'Подписано у нас (внутренняя)',
+            'signed_both_sides' => 'Подписано с обеих сторон',
+            default => $signatureStatus,
+        };
+    }
+
+    private function orderDocumentSignatureFollowupHint(
+        ?string $workflowStatus,
+        ?string $signatureStatus,
+        bool $requiresCounterpartySignature,
+    ): ?string {
+        if (! $requiresCounterpartySignature) {
+            return null;
+        }
+
+        if ($workflowStatus !== OrderDocumentWorkflowStatus::FINALIZED) {
+            return null;
+        }
+
+        if ($signatureStatus === 'signed_both_sides') {
+            return null;
+        }
+
+        if ($signatureStatus === 'signed_internal') {
+            return 'Нужна подпись клиента: приложите скан (или отдельный файл в блоке «Документы заказчика» ниже).';
+        }
+
+        return null;
     }
 
     /**

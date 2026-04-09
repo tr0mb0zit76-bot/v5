@@ -3,6 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use App\Models\User;
+use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -248,6 +249,8 @@ class OrderWizardTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('order_id');
             $table->string('type');
+            $table->string('document_group', 50)->nullable();
+            $table->string('source', 50)->default('uploaded');
             $table->string('number')->nullable();
             $table->date('document_date')->nullable();
             $table->string('original_name')->nullable();
@@ -255,12 +258,23 @@ class OrderWizardTest extends TestCase
             $table->string('generated_pdf_path')->nullable();
             $table->unsignedBigInteger('template_id')->nullable();
             $table->string('status')->default('draft');
+            $table->string('workflow_status', 40)->nullable();
+            $table->string('signature_status', 50)->nullable();
             $table->timestamp('signed_at')->nullable();
             $table->unsignedBigInteger('signed_by')->nullable();
             $table->integer('file_size')->nullable();
             $table->string('mime_type')->nullable();
             $table->unsignedBigInteger('uploaded_by')->nullable();
             $table->json('metadata')->nullable();
+            $table->timestamp('approval_requested_at')->nullable();
+            $table->unsignedBigInteger('approval_requested_by')->nullable();
+            $table->timestamp('approved_at')->nullable();
+            $table->unsignedBigInteger('approved_by')->nullable();
+            $table->timestamp('rejected_at')->nullable();
+            $table->unsignedBigInteger('rejected_by')->nullable();
+            $table->text('rejection_reason')->nullable();
+            $table->timestamp('internal_signed_at')->nullable();
+            $table->unsignedBigInteger('internal_signed_by')->nullable();
             $table->timestamps();
         });
 
@@ -1301,6 +1315,119 @@ class OrderWizardTest extends TestCase
 
         $this->assertStringContainsString('ORD-TPL-001', $documentXml);
         $this->assertStringContainsString('ООО Заказчик', $documentXml);
+    }
+
+    public function test_print_form_workflow_persists_document_and_completes_approval_and_finalize(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Заказчик WF',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WF-002',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/10/wf-flow.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'wf_flow',
+            'name' => 'Заявка WF',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/10/wf-flow.docx',
+            'original_filename' => 'wf-flow.docx',
+            'settings' => json_encode([
+                'variables' => ['order.number'],
+                'variable_mapping' => [
+                    'order.number' => 'order.order_number',
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.documents.from-template', $orderId), [
+            'print_form_template_id' => $templateId,
+        ])->assertRedirect(route('orders.edit', $orderId));
+
+        $documentId = DB::table('order_documents')->where('order_id', $orderId)->value('id');
+        $this->assertNotNull($documentId);
+
+        $this->assertDatabaseHas('order_documents', [
+            'id' => $documentId,
+            'order_id' => $orderId,
+            'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+            'source' => 'print_template',
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.documents.request-approval', [$orderId, $documentId]))
+            ->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('order_documents', [
+            'id' => $documentId,
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.documents.approve', [$orderId, $documentId]))
+            ->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('order_documents', [
+            'id' => $documentId,
+            'workflow_status' => OrderDocumentWorkflowStatus::APPROVED,
+        ]);
+
+        $pdf = UploadedFile::fake()->create('final.pdf', 100, 'application/pdf');
+
+        $this->actingAs($admin)->post(route('orders.documents.finalize', [$orderId, $documentId]), [
+            'pdf' => $pdf,
+        ])->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('order_documents', [
+            'id' => $documentId,
+            'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
+        ]);
     }
 
     public function test_order_create_page_exposes_contractor_credit_policy_and_default_terms(): void

@@ -5,11 +5,12 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Таблица contractors создаётся в create_all_tables.php (после всех миграций с числовым префиксом).
+ * Колонка owner_id добавляется здесь, чтобы миграция выполнялась после появления таблицы.
+ */
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         if (! Schema::hasTable('contractors') || Schema::hasColumn('contractors', 'owner_id')) {
@@ -25,15 +26,17 @@ return new class extends Migration
                 ->comment('Владелец контрагента (по умолчанию создатель)');
         });
 
-        // Устанавливаем owner_id = created_by для существующих записей
-        DB::statement('UPDATE contractors SET owner_id = created_by WHERE owner_id IS NULL');
+        if (Schema::hasColumn('contractors', 'created_by')) {
+            DB::statement('UPDATE contractors SET owner_id = created_by WHERE owner_id IS NULL');
+        }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
+        if (! Schema::hasTable('contractors') || ! Schema::hasColumn('contractors', 'owner_id')) {
+            return;
+        }
+
         Schema::table('contractors', function (Blueprint $table) {
             $table->dropForeign(['owner_id']);
             $table->dropColumn('owner_id');

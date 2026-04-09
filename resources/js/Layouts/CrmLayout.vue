@@ -84,13 +84,21 @@
                         v-for="item in mobileNavItems"
                         :key="item.key"
                         type="button"
-                        class="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition-colors"
+                        class="relative flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition-colors"
                         :class="activeKey === item.key
                             ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
                             : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
                         @click="handleMenuSelect(item.key)"
                     >
-                        <component :is="item.icon" class="h-4 w-4" />
+                        <span class="relative inline-flex">
+                            <component :is="item.icon" class="h-4 w-4" />
+                            <span
+                                v-if="menuBadgeFor(item.key) > 0"
+                                class="absolute -right-1.5 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-rose-600 px-0.5 text-[8px] font-bold leading-none text-white"
+                            >
+                                {{ menuBadgeFor(item.key) > 99 ? '99+' : menuBadgeFor(item.key) }}
+                            </span>
+                        </span>
                         <span class="truncate">{{ item.label }}</span>
                     </button>
                 </div>
@@ -128,6 +136,7 @@
                 </div>
 
                 <div class="flex shrink-0 items-center gap-1">
+                    <CrmNotificationBell v-if="authUser" @badges="dynamicCabinetBadges = $event" />
                     <ThemeToggle v-if="!collapsed" />
 
                     <button
@@ -144,13 +153,21 @@
                 <div v-for="item in menuItems" :key="item.key" class="space-y-1">
                     <div class="flex items-center gap-1">
                         <button
-                            class="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors"
+                            class="relative flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors"
                             :class="activeKey === item.key
                                 ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                                 : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
                             @click="handleMenuSelect(item.key)"
                         >
-                            <component :is="item.icon" class="h-5 w-5 shrink-0" />
+                            <span class="relative inline-flex shrink-0">
+                                <component :is="item.icon" class="h-5 w-5" />
+                                <span
+                                    v-if="menuBadgeFor(item.key) > 0"
+                                    class="absolute -right-1.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-rose-600 px-0.5 text-[9px] font-bold leading-none text-white"
+                                >
+                                    {{ menuBadgeFor(item.key) > 99 ? '99+' : menuBadgeFor(item.key) }}
+                                </span>
+                            </span>
                             <span v-if="!collapsed" class="truncate text-sm font-medium">{{ item.label }}</span>
                         </button>
 
@@ -303,6 +320,7 @@ import {
     Wallet,
 } from 'lucide-vue-next';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
+import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
 
 const props = defineProps({
@@ -332,6 +350,21 @@ const sidebarCollapsedStorageKey = 'crm-sidebar-collapsed';
 const companyLogoSrc = '/assets/favicon/favicon-96x96.png';
 
 const authUser = computed(() => page.props.auth?.user ?? null);
+const dynamicCabinetBadges = ref(null);
+const cabinetBadges = computed(
+    () => dynamicCabinetBadges.value ?? page.props.cabinet_notification_badges ?? { total: 0, orders: 0, tasks: 0 },
+);
+
+function menuBadgeFor(key) {
+    if (key === 'orders') {
+        return cabinetBadges.value.orders ?? 0;
+    }
+    if (key === 'tasks') {
+        return cabinetBadges.value.tasks ?? 0;
+    }
+
+    return 0;
+}
 const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? ['dashboard']);
 const hasLegacyAllSettingsAccess = computed(() => {
     const areas = visibleAreas.value;
@@ -376,10 +409,7 @@ const menuItems = computed(() => {
                 const children = [];
 
                 if (visibleAreas.value.includes('documents')) {
-                    children.push(
-                        { key: 'finance-documents', label: 'Документы' },
-                        { key: 'finance-dds', label: 'ДДС' },
-                    );
+                    children.push({ key: 'finance-cashflow', label: 'График оплат' });
                 }
 
                 if (hasFinanceSalaryAccess.value) {
@@ -626,8 +656,7 @@ function handleMenuSelect(key) {
             contractors: '/contractors',
             drivers: '/drivers',
             finance: '/finance',
-            'finance-documents': '/finance?section=documents',
-            'finance-dds': '/finance?section=dds',
+            'finance-cashflow': '/finance?section=cashflow',
             'finance-salary': '/finance/salary',
         activities: '/activities',
         reports: '/reports',

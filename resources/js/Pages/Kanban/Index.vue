@@ -97,6 +97,14 @@
                                         <span>Срок: {{ formatDue(task.due_at) }}</span>
                                         <span class="text-sky-600 dark:text-sky-300">{{ column.title }}</span>
                                     </div>
+                                    <div class="mt-3 flex justify-end">
+                                        <Link
+                                            class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 underline decoration-zinc-400 underline-offset-2 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                                            :href="route('tasks.index', { task: task.id })"
+                                        >
+                                            Открыть в задачах
+                                        </Link>
+                                    </div>
                                 </article>
 
                                 <div
@@ -130,6 +138,7 @@ const canMutateTasks = computed(() => page.props.canMutateTasks !== false);
 const statusOptions = computed(() => page.props.statusOptions ?? []);
 const tasks = ref(page.props.tasks ?? []);
 const draggedTaskId = ref(null);
+const statusPatching = ref(false);
 const dragOverStatus = ref(null);
 const columnWidths = ref({});
 const resizingStatus = ref(null);
@@ -269,7 +278,7 @@ function handleColumnDragLeave(status) {
 }
 
 function handleDrop(status) {
-    if (featureUnavailable.value || !canMutateTasks.value || draggedTaskId.value === null) {
+    if (featureUnavailable.value || !canMutateTasks.value || draggedTaskId.value === null || statusPatching.value) {
         return;
     }
 
@@ -281,19 +290,16 @@ function handleDrop(status) {
         return;
     }
 
+    statusPatching.value = true;
     router.patch(
         route('tasks.status.update', task.id),
         { status },
         {
-            preserveState: true,
             preserveScroll: true,
-            onSuccess: () => {
-                task.status = status;
-                if (status === 'done') {
-                    task.status_label = 'Завершена';
-                }
+            onFinish: () => {
+                statusPatching.value = false;
+                handleDragEnd();
             },
-            onFinish: handleDragEnd,
         },
     );
 }

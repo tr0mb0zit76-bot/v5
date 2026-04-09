@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Support\CarrierPaymentFormResolver;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardMetricsService
@@ -70,12 +71,7 @@ class DashboardMetricsService
             ->filter(fn (Order $order): bool => $this->dealTypeClassifier->classify($order) === 'direct')
             ->count();
 
-        $weekStart = Carbon::now()->startOfWeek();
-        $weekEnd = Carbon::now()->endOfWeek();
-
-        $weeklyClientReturns = $orders
-            ->filter(fn (Order $order): bool => $this->isPaymentScheduledThisWeek($order, $weekStart, $weekEnd))
-            ->sum(fn (Order $order): float => (float) ($order->customer_rate ?? 0));
+        $weeklyClientReturns = $this->weeklyExpectedCustomerIncomingFromSchedule($managerId);
 
         return [
             'total_orders' => $totalOrders,
@@ -102,40 +98,34 @@ class DashboardMetricsService
             'delta',
             'order_customer_date',
             'customer_rate',
-            'payment_statuses',
         ];
 
         return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn('orders', $column)));
     }
 
-    private function isPaymentScheduledThisWeek(Order $order, Carbon $weekStart, Carbon $weekEnd): bool
+    /**
+     * Сумма ожидаемых поступлений от клиентов на текущей календарной неделе по графику оплат (payment_schedules).
+     */
+    private function weeklyExpectedCustomerIncomingFromSchedule(int $managerId): float
     {
-        $paymentDate = $this->customerPaymentDate($order);
-
-        if ($paymentDate === null) {
-            return false;
+        if (! Schema::hasTable('payment_schedules')) {
+            return 0.0;
         }
 
-        return $paymentDate->between($weekStart, $weekEnd);
-    }
+        $weekStart = Carbon::now()->startOfWeek();
+        $weekEnd = Carbon::now()->endOfWeek();
 
-    private function customerPaymentDate(Order $order): ?Carbon
-    {
-        $payload = (array) ($order->payment_statuses ?? []);
-        $customer = is_array($payload['customer'] ?? null) ? $payload['customer'] : [];
-        $candidate = data_get($customer, 'payment_date')
-            ?? data_get($customer, 'paid_at')
-            ?? data_get($customer, 'paymentDate')
-            ?? data_get($customer, 'paymentDateTime');
+        $query = DB::table('payment_schedules')
+            ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
+            ->where('orders.manager_id', $managerId)
+            ->where('payment_schedules.party', 'customer')
+            ->whereBetween('payment_schedules.planned_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereIn('payment_schedules.status', ['pending', 'overdue']);
 
-        if (! $candidate) {
-            return null;
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('orders.deleted_at');
         }
 
-        try {
-            return Carbon::parse($candidate);
-        } catch (\Throwable) {
-            return null;
-        }
+        return round((float) $query->sum('payment_schedules.amount'), 2);
     }
 }

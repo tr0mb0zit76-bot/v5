@@ -236,6 +236,43 @@ class TaskManagementTest extends TestCase
         $this->assertSame('in_progress', $task->fresh()->status);
     }
 
+    public function test_patch_task_status_redirects_when_inertia_header_present(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks', 'kanban']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-TEST-INERTIA',
+            'title' => 'Канбан Inertia',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('kanban.index'))
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->patch(route('tasks.status.update', $task), [
+                'status' => 'review',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('review', $task->fresh()->status);
+    }
+
     public function test_kanban_accessible_with_kanban_visibility_only(): void
     {
         $roleId = DB::table('roles')->insertGetId([

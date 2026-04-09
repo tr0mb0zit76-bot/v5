@@ -174,7 +174,7 @@ class OrderPrintFormDraftService
         ];
     }
 
-    private function loadOrderContext(Order $order): Order
+    public function loadOrderContext(Order $order): Order
     {
         $relations = ['client', 'carrier', 'ownCompany', 'manager'];
 

@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
 use App\Http\Controllers\LeadController;
+use App\Http\Controllers\MessengerController;
+use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\ProfileController;
@@ -36,6 +39,24 @@ Route::controller(PublicSiteController::class)->group(function () {
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::prefix('cabinet-notifications')->name('cabinet-notifications.')->group(function () {
+        Route::get('/summary', [CabinetNotificationController::class, 'summary'])->name('summary');
+        Route::get('/', [CabinetNotificationController::class, 'index'])->name('index');
+        Route::post('/read-all', [CabinetNotificationController::class, 'markAllRead'])->name('read-all');
+        Route::post('/{notification}/read', [CabinetNotificationController::class, 'markRead'])->name('read');
+    });
+
+    Route::prefix('messenger')->name('messenger.')->group(function () {
+        Route::get('/unread-count', [MessengerController::class, 'unreadCount'])->name('unread-count');
+        Route::get('/colleagues', [MessengerController::class, 'colleagues'])->name('colleagues');
+        Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
+        Route::post('/conversations/open', [MessengerController::class, 'openDirect'])->name('conversations.open');
+        Route::post('/conversations/groups', [MessengerController::class, 'storeGroup'])->name('conversations.groups.store');
+        Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
+        Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'storeMessage'])->name('conversations.messages.store');
+        Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
+    });
+
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
 
     Route::controller(LeadController::class)->middleware('visibility.area:leads')->group(function () {
@@ -62,6 +83,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
+    });
+
+    Route::controller(OrderDocumentWorkflowController::class)->middleware('visibility.area:orders')->group(function () {
+        Route::post('/orders/{order}/documents/from-template', 'storeFromTemplate')->name('orders.documents.from-template');
+        Route::post('/orders/{order}/documents/{orderDocument}/request-approval', 'requestApproval')->name('orders.documents.request-approval');
+        Route::post('/orders/{order}/documents/{orderDocument}/approve', 'approve')->name('orders.documents.approve');
+        Route::post('/orders/{order}/documents/{orderDocument}/reject', 'reject')->name('orders.documents.reject');
+        Route::post('/orders/{order}/documents/{orderDocument}/finalize', 'finalize')->name('orders.documents.finalize');
+        Route::post('/orders/{order}/documents/{orderDocument}/regenerate-draft', 'regenerateDraft')->name('orders.documents.regenerate-draft');
+        Route::get('/orders/{order}/documents/{orderDocument}/download-draft', 'downloadDraft')->name('orders.documents.download-draft');
+        Route::get('/orders/{order}/documents/{orderDocument}/download-final', 'downloadFinal')->name('orders.documents.download-final');
     });
 
     Route::controller(UserManagementController::class)->middleware('visibility.settings:system')->group(function () {

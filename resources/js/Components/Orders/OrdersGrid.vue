@@ -603,6 +603,39 @@ const formatPaymentTermsDisplay = (value) => {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/**
+ * Подписи из мастера / старые текстовые значения в БД → код статуса для иконки.
+ * Ключи в нижнем регистре (см. normalizeRuStatusKey).
+ */
+const ORDER_STATUS_RU_LABEL_TO_CODE = {
+  'новый заказ': 'new',
+  'выполняется': 'in_progress',
+  документы: 'documents',
+  оплата: 'payment',
+  закрыта: 'closed',
+  отменена: 'cancelled',
+  черновик: 'draft',
+  'черновик (legacy)': 'draft',
+  'на согласовании (legacy)': 'pending',
+  'подтвержден (legacy)': 'confirmed',
+  'завершен (legacy)': 'completed',
+  'на согласовании': 'pending',
+  подтвержден: 'confirmed',
+  завершен: 'completed',
+  завершён: 'completed',
+  'завершён (legacy)': 'completed',
+};
+
+function normalizeRuStatusKey(raw) {
+  if (raw === null || raw === undefined || raw === '') {
+    return null;
+  }
+
+  const k = String(raw).trim().toLowerCase();
+
+  return ORDER_STATUS_RU_LABEL_TO_CODE[k] ?? null;
+}
+
 /** Иконки Lucide (stroke), цвет через currentColor на родителе */
 const ORDER_STATUS_ICON_META = {
   new: {
@@ -663,6 +696,28 @@ const ORDER_STATUS_ICON_META = {
     colorClass: 'text-zinc-500 dark:text-zinc-400',
     paths: ['M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z', 'm15 5 4 4'],
   },
+  pending: {
+    label: 'На согласовании (legacy)',
+    colorClass: 'text-orange-600 dark:text-orange-400',
+    paths: [
+      'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+      'M12 6v6l4 2',
+    ],
+  },
+  confirmed: {
+    label: 'Подтвержден (legacy)',
+    colorClass: 'text-blue-600 dark:text-blue-400',
+    paths: [
+      'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+      'm9 12 2 2 4-4',
+    ],
+  },
+  completed: {
+    label: 'Завершен (legacy)',
+    colorClass: 'text-green-600 dark:text-green-400',
+    /** Простая зелёная галочка (завершение / согласовано) */
+    paths: ['M20 6 L9 17 l-5 -5'],
+  },
 };
 
 function buildOrderStatusIconSvg(meta) {
@@ -692,22 +747,73 @@ function buildOrderStatusIconSvg(meta) {
   return svg;
 }
 
-function resolveOrderStatusLabel(code) {
-  if (code === null || code === undefined || code === '') {
+function pickStatusString(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  return String(value).trim();
+}
+
+/**
+ * Код для иконки: учитывает status_text (COALESCE(manual, status)), а также сырые поля строки.
+ * Если manual_status — не код (например русская подпись), для иконки берём orders.status.
+ */
+function resolveOrderStatusIconKey(row, statusTextCell) {
+  const text = pickStatusString(statusTextCell);
+  const manual = row ? pickStatusString(row.manual_status) : null;
+  const machine = row ? pickStatusString(row.status) : null;
+
+  const hasMeta = (k) => Boolean(k && ORDER_STATUS_ICON_META[k]);
+
+  if (hasMeta(manual)) {
+    return manual;
+  }
+
+  if (manual && !hasMeta(manual) && hasMeta(machine)) {
+    return machine;
+  }
+
+  if (hasMeta(machine)) {
+    return machine;
+  }
+
+  if (hasMeta(text)) {
+    return text;
+  }
+
+  const fromRu =
+    normalizeRuStatusKey(text) ?? normalizeRuStatusKey(manual) ?? normalizeRuStatusKey(machine);
+
+  if (fromRu && hasMeta(fromRu)) {
+    return fromRu;
+  }
+
+  return text ?? manual ?? machine ?? '';
+}
+
+function resolveOrderStatusLabel(cellValue, row) {
+  if (cellValue === null || cellValue === undefined || cellValue === '') {
     return '—';
   }
-  const key = String(code);
 
-  return ORDER_STATUS_ICON_META[key]?.label ?? key;
+  const key = resolveOrderStatusIconKey(row ?? null, cellValue);
+  const meta = key && ORDER_STATUS_ICON_META[key];
+
+  if (meta) {
+    return meta.label;
+  }
+
+  return String(cellValue);
 }
 
 function renderOrderStatusTextCell(params) {
-  const code = params.value;
+  const displayText = pickStatusString(params.value);
   const wrap = document.createElement('div');
   wrap.className = 'flex h-full w-full items-center justify-center';
   wrap.setAttribute('role', 'presentation');
 
-  if (code === null || code === undefined || code === '') {
+  if (!displayText) {
     wrap.textContent = '—';
     wrap.classList.add('text-zinc-400');
     wrap.title = '';
@@ -715,22 +821,30 @@ function renderOrderStatusTextCell(params) {
     return wrap;
   }
 
-  const key = String(code);
-  const meta = ORDER_STATUS_ICON_META[key];
+  const iconKey = resolveOrderStatusIconKey(params.data ?? null, params.value);
+  const meta = iconKey && ORDER_STATUS_ICON_META[iconKey];
 
   if (!meta) {
-    wrap.textContent = key;
-    wrap.title = key;
+    wrap.textContent = displayText;
+    wrap.title = displayText;
     wrap.classList.add('max-w-full', 'truncate', 'px-1', 'text-xs', 'text-zinc-600', 'dark:text-zinc-300');
     wrap.setAttribute('role', 'img');
-    wrap.setAttribute('aria-label', key);
+    wrap.setAttribute('aria-label', displayText);
 
     return wrap;
   }
 
-  wrap.title = meta.label;
+  const manual = pickStatusString(params.data?.manual_status);
+  const machine = pickStatusString(params.data?.status);
+  const titleParts = [meta.label];
+  if (manual && manual !== iconKey && manual !== machine) {
+    titleParts.push(manual);
+  }
+  const title = titleParts.filter(Boolean).join(' · ');
+
+  wrap.title = title;
   wrap.setAttribute('role', 'img');
-  wrap.setAttribute('aria-label', meta.label);
+  wrap.setAttribute('aria-label', title);
   const span = document.createElement('span');
   span.className = `inline-flex ${meta.colorClass}`;
   span.appendChild(buildOrderStatusIconSvg(meta));
@@ -932,14 +1046,25 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.minWidth = 56;
       columnDefinition.maxWidth = 96;
       columnDefinition.cellRenderer = renderOrderStatusTextCell;
-      columnDefinition.valueFormatter = (params) => resolveOrderStatusLabel(params.value);
-      columnDefinition.getQuickFilterText = (params) => resolveOrderStatusLabel(params.value);
+      columnDefinition.valueFormatter = (params) => resolveOrderStatusLabel(params.value, params.data);
+      columnDefinition.getQuickFilterText = (params) => resolveOrderStatusLabel(params.value, params.data);
     }
 
     if (column.field === 'manual_status') {
       columnDefinition.cellEditor = 'agSelectCellEditor';
       columnDefinition.cellEditorParams = {
-        values: ['new', 'in_progress', 'documents', 'payment', 'closed', 'cancelled'],
+        values: [
+          'new',
+          'in_progress',
+          'documents',
+          'payment',
+          'closed',
+          'cancelled',
+          'draft',
+          'pending',
+          'confirmed',
+          'completed',
+        ],
       };
       columnDefinition.valueFormatter = (params) => ({
         new: 'Новый заказ',
@@ -948,6 +1073,10 @@ const dynamicColumnDefs = computed(() => {
         payment: 'Оплата',
         closed: 'Закрыта',
         cancelled: 'Отменена',
+        draft: 'Черновик (legacy)',
+        pending: 'На согласовании (legacy)',
+        confirmed: 'Подтвержден (legacy)',
+        completed: 'Завершен (legacy)',
       }[params.value] ?? formatEmpty(params.value));
     }
 

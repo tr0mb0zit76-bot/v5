@@ -14,6 +14,7 @@ use App\Models\TaskAttachment;
 use App\Models\TaskChecklistItem;
 use App\Models\TaskEvent;
 use App\Models\User;
+use App\Services\CabinetNotifier;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Http\JsonResponse;
@@ -29,6 +30,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class TaskController extends Controller
 {
+    public function __construct(
+        private readonly CabinetNotifier $cabinetNotifier,
+    ) {}
+
     public function index(Request $request): Response
     {
         abort_unless($this->canAccessTasks($request), 403);
@@ -75,6 +80,7 @@ class TaskController extends Controller
 
         $this->logTaskEvent($task, $request->user()?->id, 'created', 'Создана задача', $task->title);
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
+        $this->cabinetNotifier->notifyTaskAssigned($task, $request->user());
 
         return to_route('tasks.index');
     }
@@ -96,13 +102,17 @@ class TaskController extends Controller
             'completed_at' => $validated['status'] === 'done' ? now() : null,
         ]);
 
+        if ($task->wasChanged('responsible_id')) {
+            $this->cabinetNotifier->notifyTaskAssigned($task->fresh(), $request->user());
+        }
+
         $this->logTaskEvent($task, $request->user()?->id, 'updated', 'Обновлены поля задачи', $task->title);
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
 
         return to_route('tasks.index');
     }
 
-    public function updateStatus(UpdateTaskStatusRequest $request, Task $task): JsonResponse
+    public function updateStatus(UpdateTaskStatusRequest $request, Task $task): JsonResponse|RedirectResponse
     {
         $status = $request->string('status')->toString();
         $task->update([
@@ -118,6 +128,10 @@ class TaskController extends Controller
             TaskStatus::label($task->status)
         );
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
+
+        if ($request->header('X-Inertia')) {
+            return back();
+        }
 
         return response()->json([
             'task' => [
@@ -174,6 +188,8 @@ class TaskController extends Controller
             'user_id' => $request->user()?->id,
             'body' => $request->string('body')->toString(),
         ]);
+
+        $this->cabinetNotifier->notifyTaskComment($task, $comment, $request->user());
 
         $this->logTaskEvent(
             $task,

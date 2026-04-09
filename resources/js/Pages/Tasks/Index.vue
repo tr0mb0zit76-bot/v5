@@ -367,10 +367,19 @@ function taskProgress(task) {
 onMounted(() => {
     syncSelectedTask();
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('create') === '1') {
+    let url = new URL(window.location.href);
+    const taskParam = url.searchParams.get('task');
+    if (taskParam) {
+        const id = Number.parseInt(taskParam, 10);
+        if (!Number.isNaN(id)) {
+            selectedTaskId.value = id;
+        }
+        url.searchParams.delete('task');
+        window.history.replaceState({}, '', url.pathname + url.search);
+    }
+    url = new URL(window.location.href);
+    if (url.searchParams.get('create') === '1') {
         openCreateModal();
-        const url = new URL(window.location.href);
         url.searchParams.delete('create');
         window.history.replaceState({}, '', url.pathname + url.search);
     }

@@ -94,6 +94,7 @@ class ContractorManagementTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
+            $table->unsignedBigInteger('owner_id')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
@@ -281,7 +282,10 @@ class ContractorManagementTest extends TestCase
 
         $contractorId = DB::table('contractors')->value('id');
 
-        $response->assertRedirect(route('contractors.show', $contractorId));
+        $response->assertRedirect(route('contractors.show', [
+            'contractor' => $contractorId,
+            'type' => 'both',
+        ]));
         $this->assertDatabaseHas('contractors', [
             'id' => $contractorId,
             'name' => 'ООО Логистика Плюс',
@@ -422,7 +426,10 @@ class ContractorManagementTest extends TestCase
             'documents' => [],
         ]);
 
-        $response->assertRedirect(route('contractors.show', $contractorId));
+        $response->assertRedirect(route('contractors.show', [
+            'contractor' => $contractorId,
+            'type' => 'carrier',
+        ]));
         $this->assertDatabaseHas('contractors', [
             'id' => $contractorId,
             'type' => 'carrier',
@@ -595,7 +602,7 @@ class ContractorManagementTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->actingAs($admin)->get(route('contractors.show', $contractorId));
+        $response = $this->actingAs($admin)->get(route('contractors.show', ['contractor' => $contractorId]));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
@@ -705,7 +712,7 @@ class ContractorManagementTest extends TestCase
         $response->assertRedirect();
         $location = (string) $response->headers->get('Location');
 
-        $this->assertStringStartsWith(route('contractors.show', $contractorId), $location);
+        $this->assertStringStartsWith(route('contractors.show', ['contractor' => $contractorId]), $location);
 
         $queryString = (string) parse_url($location, PHP_URL_QUERY);
         parse_str($queryString, $queryParams);

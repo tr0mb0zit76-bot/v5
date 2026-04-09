@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('task_checklist_items')) {
+            return;
+        }
+
         Schema::create('task_checklist_items', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('task_id')->index();

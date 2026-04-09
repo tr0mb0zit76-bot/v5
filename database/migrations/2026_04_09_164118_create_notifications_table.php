@@ -11,15 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (Schema::hasTable('task_comments')) {
+        if (Schema::hasTable('notifications')) {
             return;
         }
 
-        Schema::create('task_comments', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('task_id')->index();
-            $table->unsignedBigInteger('user_id')->nullable()->index();
-            $table->text('body');
+        Schema::create('notifications', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('type');
+            $table->morphs('notifiable');
+            $table->text('data');
+            $table->timestamp('read_at')->nullable();
             $table->timestamps();
         });
     }
@@ -29,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('task_comments');
+        Schema::dropIfExists('notifications');
     }
 };

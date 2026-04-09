@@ -739,6 +739,199 @@
                     </div>
                 </div>
 
+                <div
+                    v-if="documentChecklist.length > 0"
+                    class="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
+                >
+                    <div class="font-medium text-amber-950 dark:text-amber-100">Обязательные документы для этапов «Оплата» и «Закрыта»</div>
+                    <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
+                        Пока не выполнены все пункты, после выгрузки статус заказа останется «Документы». Для загружаемых файлов — прикрепите файл и поставьте статус «Отправлен» или «Подписан». Для заявки из шаблона — завершите цепочку печатной формы (финальный PDF и подписи по шаблону).
+                    </p>
+                    <ul class="mt-3 space-y-1.5">
+                        <li
+                            v-for="item in documentChecklist"
+                            :key="`doc-req-${item.key}`"
+                            class="flex items-start gap-2 text-amber-950 dark:text-amber-100"
+                        >
+                            <span class="mt-0.5 shrink-0" :class="item.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'">
+                                {{ item.completed ? '✓' : '○' }}
+                            </span>
+                            <span>
+                                <span class="font-medium">{{ item.label }}</span>
+                                <span class="text-zinc-600 dark:text-zinc-400"> — {{ item.description }}</span>
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div
+                    v-if="page.props.flash?.message"
+                    class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+                    role="status"
+                >
+                    {{ page.props.flash.message }}
+                </div>
+
+                <div
+                    v-if="!order?.id"
+                    class="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 text-sm dark:border-emerald-900/60 dark:bg-emerald-950/25"
+                >
+                    <h3 class="font-semibold text-emerald-950 dark:text-emerald-100">Создать документ из шаблона (заявка)</h3>
+                    <p class="mt-1 text-xs text-emerald-900/80 dark:text-emerald-200/80">
+                        Печатная форма привязана к заказу в базе. Сохраните заказ — на этой вкладке появится выбор шаблона и кнопка «Создать в карточке» (черновик DOCX и цепочка согласования).
+                    </p>
+                </div>
+
+                <div
+                    v-if="order?.id"
+                    class="space-y-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/25"
+                >
+                    <div>
+                        <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Заявка и согласование (печатная форма)</h3>
+                        <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
+                            Цепочка: черновик DOCX → согласование руководителем → печать/подпись у нас → загрузка финального PDF. Если по шаблону нужна подпись клиента, после PDF приложите скан в «Документы заказчика».
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div class="min-w-[200px] flex-1 space-y-1">
+                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Шаблон</label>
+                            <select
+                                v-model="workflowTemplateId"
+                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                            >
+                                <option :value="null">Выберите шаблон</option>
+                                <option v-for="template in printFormTemplateOptions" :key="`wf-tpl-${template.id}`" :value="template.id">
+                                    {{ templateOptionLabel(template) }}
+                                </option>
+                            </select>
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                            :disabled="!workflowTemplateId || !isEditing"
+                            @click="createPersistedPrintWorkflowDocument"
+                        >
+                            Создать в карточке
+                        </button>
+                    </div>
+
+                    <div v-if="printWorkflowDocuments.length === 0" class="rounded-xl border border-dashed border-emerald-300/80 px-3 py-3 text-sm text-emerald-900/70 dark:border-emerald-800 dark:text-emerald-200/70">
+                        Пока нет заявок по этому процессу.
+                    </div>
+
+                    <div v-for="doc in printWorkflowDocuments" :key="`print-wf-${doc.id}`" class="space-y-3 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="text-sm font-medium">
+                                {{ doc.original_name || 'Документ' }}
+                                <span
+                                    v-if="doc.workflow_status_label"
+                                    class="ml-2 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-normal text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                >
+                                    {{ doc.workflow_status_label }}
+                                </span>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <a
+                                    v-if="doc.draft_download_url"
+                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                    :href="doc.draft_download_url"
+                                >
+                                    Скачать черновик DOCX
+                                </a>
+                                <a
+                                    v-if="doc.final_pdf_download_url"
+                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                    :href="doc.final_pdf_download_url"
+                                >
+                                    Скачать финальный PDF
+                                </a>
+                            </div>
+                        </div>
+                        <p v-if="doc.rejection_reason" class="text-xs text-rose-700 dark:text-rose-300">
+                            Причина отклонения: {{ doc.rejection_reason }}
+                        </p>
+                        <p
+                            v-if="doc.signature_status_label"
+                            class="text-xs text-zinc-600 dark:text-zinc-400"
+                        >
+                            Подпись (юр.): {{ doc.signature_status_label }}
+                            <span v-if="doc.requires_counterparty_signature" class="text-zinc-500"> · по шаблону нужна сторона клиента</span>
+                        </p>
+                        <p
+                            v-if="doc.signature_followup_hint"
+                            class="rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                        >
+                            {{ doc.signature_followup_hint }}
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-if="doc.can_request_approval"
+                                type="button"
+                                class="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                                :disabled="!isEditing"
+                                @click="postWorkflowAction('request-approval', doc.id)"
+                            >
+                                Отправить на согласование
+                            </button>
+                            <button
+                                v-if="doc.can_regenerate_draft"
+                                type="button"
+                                class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                :disabled="!isEditing"
+                                @click="postWorkflowAction('regenerate-draft', doc.id)"
+                            >
+                                Пересоздать черновик
+                            </button>
+                            <button
+                                v-if="doc.can_approve"
+                                type="button"
+                                class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800"
+                                @click="postWorkflowAction('approve', doc.id)"
+                            >
+                                Согласовать
+                            </button>
+                            <button
+                                v-if="doc.can_reject"
+                                type="button"
+                                class="rounded-lg border border-rose-300 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                @click="toggleWorkflowReject(doc.id)"
+                            >
+                                Отклонить
+                            </button>
+                            <label
+                                v-if="doc.can_finalize"
+                                class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                            >
+                                <span>Загрузить финальный PDF</span>
+                                <input type="file" accept="application/pdf" class="hidden" @change="finalizeWorkflowPdf(doc, $event)" />
+                            </label>
+                        </div>
+                        <div v-if="workflowRejectTargetId === doc.id" class="space-y-2 rounded-lg border border-rose-200 bg-rose-50/50 p-2 dark:border-rose-900 dark:bg-rose-950/30">
+                            <label class="text-xs font-medium text-rose-900 dark:text-rose-200">Причина отклонения</label>
+                            <textarea
+                                v-model="workflowRejectReason"
+                                rows="2"
+                                class="w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm dark:border-rose-800 dark:bg-zinc-950"
+                                placeholder="Укажите причину"
+                            />
+                            <div class="flex gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-lg bg-rose-700 px-3 py-1 text-xs text-white hover:bg-rose-800"
+                                    :disabled="!workflowRejectReason.trim()"
+                                    @click="submitWorkflowReject(doc.id)"
+                                >
+                                    Подтвердить отклонение
+                                </button>
+                                <button type="button" class="rounded-lg border border-zinc-200 px-3 py-1 text-xs dark:border-zinc-600" @click="cancelWorkflowReject">
+                                    Отмена
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="space-y-4">
                     <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div class="flex items-center justify-between">
@@ -805,12 +998,15 @@
                                     Скачать DOCX
                                 </button>
                             </div>
-                            <div v-if="item.document.flow === 'uploaded'" class="grid gap-3 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Файл</label>
-                                    <input type="file" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onDocumentFileChange(item.index, $event)" />
-                                    <p v-if="item.document.original_name" class="text-xs text-zinc-500">Текущий файл: {{ item.document.original_name }}</p>
-                                </div>
+                            <div v-if="item.document.flow === 'uploaded'" class="flex flex-wrap items-center gap-3">
+                                <label
+                                    class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                >
+                                    <Paperclip class="h-4 w-4 text-zinc-500" />
+                                    <span>Прикрепить файл</span>
+                                    <input type="file" class="hidden" @change="onDocumentFileChange(item.index, $event)" />
+                                </label>
+                                <span v-if="item.document.original_name" class="text-xs text-zinc-500">Файл: {{ item.document.original_name }}</span>
                             </div>
                         </div>
                     </div>
@@ -883,12 +1079,15 @@
                                     Скачать DOCX
                                 </button>
                             </div>
-                            <div v-if="item.document.flow === 'uploaded'" class="grid gap-3 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Файл</label>
-                                    <input type="file" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="onDocumentFileChange(item.index, $event)" />
-                                    <p v-if="item.document.original_name" class="text-xs text-zinc-500">Текущий файл: {{ item.document.original_name }}</p>
-                                </div>
+                            <div v-if="item.document.flow === 'uploaded'" class="flex flex-wrap items-center gap-3">
+                                <label
+                                    class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                >
+                                    <Paperclip class="h-4 w-4 text-zinc-500" />
+                                    <span>Прикрепить файл</span>
+                                    <input type="file" class="hidden" @change="onDocumentFileChange(item.index, $event)" />
+                                </label>
+                                <span v-if="item.document.original_name" class="text-xs text-zinc-500">Файл: {{ item.document.original_name }}</span>
                             </div>
                         </div>
                     </div>
@@ -932,14 +1131,16 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, toRaw, watch } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
-import { ClipboardList, FileText, MapPinned, Package, Save, Wallet, X } from 'lucide-vue-next';
+import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
+import { router, useForm, usePage } from '@inertiajs/vue3';
+import { ClipboardList, FileText, MapPinned, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
 });
+
+const page = usePage();
 
 const props = defineProps({
     order: { type: Object, default: null },
@@ -953,6 +1154,7 @@ const props = defineProps({
     orderStatusOptions: { type: Array, default: () => [] },
     documentStatusOptions: { type: Array, default: () => [] },
     printFormTemplateOptions: { type: Array, default: () => [] },
+    orderDocumentWorkflow: { type: Object, default: () => ({ status_options: [] }) },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     currentUser: { type: Object, default: () => ({}) },
@@ -968,7 +1170,119 @@ const tabs = [
 ];
 
 const activeTab = ref('main');
+
+onMounted(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    const url = new URL(window.location.href);
+    const tab = url.searchParams.get('tab');
+    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'documents']);
+    if (tab && allowed.has(tab)) {
+        activeTab.value = tab;
+    }
+    if (tab) {
+        url.searchParams.delete('tab');
+        const qs = url.searchParams.toString();
+        const next = `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`;
+        window.history.replaceState({}, '', next);
+    }
+});
+
+const workflowTemplateId = ref(null);
+const workflowRejectTargetId = ref(null);
+const workflowRejectReason = ref('');
 const contractors = ref([...props.contractors]);
+
+const printWorkflowDocuments = computed(() => {
+    const docs = props.order?.documents;
+    if (!Array.isArray(docs)) {
+        return [];
+    }
+
+    return docs.filter((d) => d.is_print_workflow);
+});
+
+function createPersistedPrintWorkflowDocument() {
+    if (!props.order?.id || !workflowTemplateId.value) {
+        return;
+    }
+
+    router.post(
+        route('orders.documents.from-template', props.order.id),
+        { print_form_template_id: workflowTemplateId.value },
+        { preserveScroll: true },
+    );
+}
+
+function postWorkflowAction(action, documentId) {
+    if (!props.order?.id) {
+        return;
+    }
+
+    const routeNames = {
+        'request-approval': 'orders.documents.request-approval',
+        'regenerate-draft': 'orders.documents.regenerate-draft',
+        approve: 'orders.documents.approve',
+    };
+    const routeName = routeNames[action];
+
+    if (!routeName) {
+        return;
+    }
+
+    router.post(route(routeName, [props.order.id, documentId]), {}, { preserveScroll: true });
+}
+
+function toggleWorkflowReject(documentId) {
+    if (workflowRejectTargetId.value === documentId) {
+        cancelWorkflowReject();
+    } else {
+        workflowRejectTargetId.value = documentId;
+        workflowRejectReason.value = '';
+    }
+}
+
+function cancelWorkflowReject() {
+    workflowRejectTargetId.value = null;
+    workflowRejectReason.value = '';
+}
+
+function submitWorkflowReject(documentId) {
+    if (!props.order?.id || !workflowRejectReason.value.trim()) {
+        return;
+    }
+
+    router.post(
+        route('orders.documents.reject', [props.order.id, documentId]),
+        { rejection_reason: workflowRejectReason.value },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                cancelWorkflowReject();
+            },
+        },
+    );
+}
+
+function finalizeWorkflowPdf(doc, event) {
+    const target = event.target;
+    const file = target?.files?.[0];
+
+    if (!file || !props.order?.id) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('pdf', file);
+
+    router.post(route('orders.documents.finalize', [props.order.id, doc.id]), formData, {
+        forceFormData: true,
+        preserveScroll: true,
+    });
+
+    target.value = '';
+}
 
 if (props.order?.client_snapshot) {
     const snap = props.order.client_snapshot;
@@ -2038,13 +2352,25 @@ const financialMarginPercent = computed(() => {
 });
 
 const documentChecklist = computed(() => {
+    if (props.order?.id && Array.isArray(props.requiredDocumentChecklist) && props.requiredDocumentChecklist.length > 0) {
+        return props.requiredDocumentChecklist;
+    }
+
     const documents = Array.isArray(form.documents) ? form.documents : [];
 
     return props.requiredDocumentRules.map((rule) => {
         const matchedDocument = documents.find((document) => {
-            return Array.isArray(rule.accepted_types)
-                && rule.accepted_types.includes(document.type)
-                && String(document.party ?? 'internal') === rule.party;
+            if (!Array.isArray(rule.accepted_types) || !rule.accepted_types.includes(document.type)) {
+                return false;
+            }
+
+            if (String(document.party ?? 'internal') !== rule.party) {
+                return false;
+            }
+
+            const status = String(document.status ?? '');
+
+            return ['sent', 'signed'].includes(status);
         });
 
         return {

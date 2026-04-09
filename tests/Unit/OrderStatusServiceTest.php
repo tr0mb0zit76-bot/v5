@@ -18,8 +18,8 @@ class OrderStatusServiceTest extends TestCase
             'payment_statuses' => [],
             'salary_paid' => 0,
         ], [
-            ['type' => 'request', 'metadata' => ['party' => 'customer']],
-            ['type' => 'request', 'metadata' => ['party' => 'carrier']],
+            ['type' => 'request', 'metadata' => ['party' => 'customer'], 'status' => 'draft'],
+            ['type' => 'request', 'metadata' => ['party' => 'carrier'], 'status' => 'draft'],
         ]);
 
         $status = app(OrderStatusService::class)->describe($order);
@@ -41,11 +41,11 @@ class OrderStatusServiceTest extends TestCase
             ],
             'salary_paid' => 15000,
         ], [
-            ['type' => 'request', 'metadata' => ['party' => 'customer']],
-            ['type' => 'request', 'metadata' => ['party' => 'carrier']],
-            ['type' => 'waybill', 'metadata' => ['party' => 'internal']],
-            ['type' => 'upd', 'metadata' => ['party' => 'customer']],
-            ['type' => 'act', 'metadata' => ['party' => 'carrier']],
+            ['type' => 'request', 'metadata' => ['party' => 'customer'], 'status' => 'sent'],
+            ['type' => 'request', 'metadata' => ['party' => 'carrier'], 'status' => 'sent'],
+            ['type' => 'waybill', 'metadata' => ['party' => 'internal'], 'status' => 'sent'],
+            ['type' => 'upd', 'metadata' => ['party' => 'customer'], 'status' => 'sent'],
+            ['type' => 'act', 'metadata' => ['party' => 'carrier'], 'status' => 'sent'],
         ]);
 
         $status = app(OrderStatusService::class)->describe($order);

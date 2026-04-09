@@ -146,6 +146,12 @@ class OrderIndexTest extends TestCase
             $table->integer('sequence')->default(1);
             $table->date('planned_date')->nullable();
             $table->date('actual_date')->nullable();
+            $table->string('sender_name')->nullable();
+            $table->string('sender_contact')->nullable();
+            $table->string('sender_phone', 50)->nullable();
+            $table->string('recipient_name')->nullable();
+            $table->string('recipient_contact')->nullable();
+            $table->string('recipient_phone', 50)->nullable();
         });
 
         Schema::create('cargos', function (Blueprint $table) {

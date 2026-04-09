@@ -148,7 +148,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.additional_costs.*.currency' => ['required_with:financial_term.additional_costs', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
 
             'documents' => ['nullable', 'array'],
-            'documents.*.type' => ['required', Rule::in(['request', 'waybill', 'cmr', 'upd', 'invoice', 'invoice_factura', 'act', 'packing_list', 'customs_declaration', 'other'])],
+            'documents.*.type' => ['required', Rule::in(['request', 'contract_request', 'waybill', 'cmr', 'upd', 'invoice', 'invoice_factura', 'act', 'packing_list', 'customs_declaration', 'other'])],
             'documents.*.flow' => ['nullable', Rule::in(['uploaded', 'generated'])],
             'documents.*.party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],
             'documents.*.stage' => ['nullable', 'string', 'max:50'],

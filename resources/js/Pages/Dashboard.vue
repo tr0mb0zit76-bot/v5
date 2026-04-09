@@ -129,8 +129,8 @@
                 </article>
 
                 <article class="rounded-none border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
-                    <div class="text-sm text-rose-700 dark:text-rose-300">На этой неделе необходимо проконтроллировать возврат</div>
-                    <div class="mt-2 text-sm text-rose-600 dark:text-rose-300">от клиентов</div>
+                    <div class="text-sm text-rose-700 dark:text-rose-300">Ожидаемые поступления от клиентов на этой неделе</div>
+                    <div class="mt-2 text-sm text-rose-600 dark:text-rose-300">по графику оплат в заказах (не оплачено)</div>
                     <div class="mt-3 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
                 </article>
 
@@ -240,9 +240,9 @@ const mobileSections = [
         icon: BarChart3,
     },
       {
-          href: '/finance?section=documents',
+          href: '/finance?section=cashflow',
           title: 'Финансы',
-          description: 'Журнал ДДС и документы в одном месте для мобильной команды.',
+          description: 'График оплат и движение денег по заказам.',
           icon: FileText,
       },
   ];

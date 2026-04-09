@@ -15,7 +15,6 @@ class FinanceIndexTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('finance_documents');
         Schema::dropIfExists('payment_schedules');
         Schema::dropIfExists('orders');
         Schema::dropIfExists('contractors');
@@ -69,16 +68,6 @@ class FinanceIndexTest extends TestCase
             $table->softDeletes();
         });
 
-        Schema::create('finance_documents', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('order_id');
-            $table->string('document_type', 20);
-            $table->string('status', 20)->default('draft');
-            $table->string('number', 50)->nullable();
-            $table->decimal('amount', 12, 2)->default(0);
-            $table->timestamps();
-        });
-
         Schema::create('payment_schedules', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
@@ -92,7 +81,7 @@ class FinanceIndexTest extends TestCase
         });
     }
 
-    public function test_finance_hub_returns_invoices_upds_and_cash_flow_rows(): void
+    public function test_finance_hub_returns_cash_flow_journal_and_stats(): void
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
@@ -158,16 +147,6 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        DB::table('finance_documents')->insert([
-            'order_id' => $orderId,
-            'document_type' => 'invoice',
-            'status' => 'draft',
-            'number' => 'INV-100',
-            'amount' => 120000,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
         DB::table('payment_schedules')->insert([
             'order_id' => $orderId,
             'party' => 'customer',
@@ -179,26 +158,39 @@ class FinanceIndexTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'documents']));
+        $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Finance/Index')
-            ->where('summary.invoices_total', 1)
-            ->where('summary.invoices_issued', 1)
-            ->where('summary.upds_total', 1)
-            ->where('summary.upds_ready', 1)
             ->where('summary.cash_flow_total', 1)
             ->where('summary.cash_flow_pending', 1)
-            ->has('invoices', 1)
-            ->has('upds', 1)
             ->has('cashFlowJournal', 1)
-            ->has('documents', 1)
-            ->where('active_submodule', 'documents')
-            ->where('documents.0.document_type', 'invoice')
-            ->has('orders')
-            ->where('invoices.0.order_number', 'ORD-100')
+            ->where('active_submodule', 'cashflow')
             ->where('cashFlowJournal.0.direction', 'Нам')
+            ->where('cash_flow_stats.receivables.total', 120000)
+            ->where('cash_flow_stats.receivables.pending', 120000)
+            ->where('cash_flow_stats.receivables.overdue', 0)
         );
+    }
+
+    public function test_legacy_documents_section_redirects_to_finance_overview(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'visibility_areas' => json_encode(['documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('finance.index', ['section' => 'documents']))
+            ->assertRedirect(route('finance.index'));
     }
 }
