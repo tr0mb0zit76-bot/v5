@@ -276,7 +276,7 @@
                 <ThemeToggle />
             </header>
 
-            <main class="min-h-0 flex-1 overflow-y-auto p-3 md:p-4 pb-[120px] md:pb-[140px]">
+            <main class="min-h-0 flex-1 overflow-y-auto p-3 pb-[120px] md:p-4 md:pb-[140px]">
                 <slot />
             </main>
 
@@ -298,6 +298,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     Activity,
     BarChart3,
+    BookOpen,
     ChevronDown,
     ClipboardList,
     Download,
@@ -411,6 +412,7 @@ const menuItems = computed(() => {
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
+        { key: 'scripts', label: 'Скрипты', icon: BookOpen, visibilityArea: 'scripts' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         { key: 'drivers', label: 'Водители', icon: Truck, visibilityArea: 'drivers' },
@@ -675,6 +677,7 @@ function handleMenuSelect(key) {
         activities: '/activities',
         reports: '/reports',
         modules: '/modules',
+        scripts: '/scripts',
         settings: '/settings',
         users: '/settings/users',
         roles: '/settings/roles',

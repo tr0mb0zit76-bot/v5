@@ -54,6 +54,7 @@ class RoleAccess
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
+            ['key' => 'scripts', 'label' => 'Скрипты продаж', 'description' => 'Сценарии диалогов и подсказки для менеджеров'],
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
             ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI и персональные условия (коэффициенты). Учёт зарплатных периодов — в модуле «Финансы»'],
@@ -94,11 +95,11 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
-            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'drivers', 'activities', 'tasks', 'kanban'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'activities', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports'],
-            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'contractors', 'tasks', 'kanban'],
+            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'documents', 'contractors', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
             default => ['dashboard'],
         };
@@ -276,6 +277,22 @@ class RoleAccess
         }
 
         return static::hasVisibilityArea(static::userVisibilityAreas($user), 'settings_system');
+    }
+
+    /**
+     * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
+     */
+    public static function canManageSalesScripts(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::canAccessSettingsSystem($user);
     }
 
     public static function canAccessSettingsMotivation(?User $user): bool

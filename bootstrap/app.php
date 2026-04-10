@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureCanManageSalesScripts;
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
 use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAreaAccess;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'visibility.area' => EnsureVisibilityAreaAccess::class,
             'visibility.area.any' => EnsureVisibilityAnyAreaAccess::class,
             'visibility.settings' => EnsureSettingsVisibilityAccess::class,
+            'can.manage.sales.scripts' => EnsureCanManageSalesScripts::class,
         ]);
 
         $middleware->web(append: [

@@ -40,6 +40,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            'can_manage_sales_scripts' => fn () => $user !== null && RoleAccess::canManageSalesScripts($user),
             'flash' => fn () => $request->session()->get('flash'),
             'cabinet_notification_badges' => $user === null
                 ? ['total' => 0, 'orders' => 0, 'tasks' => 0]

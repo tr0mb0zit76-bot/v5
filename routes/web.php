@@ -13,6 +13,8 @@ use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\RoleManagementController;
+use App\Http\Controllers\SalesScriptController;
+use App\Http\Controllers\SalesScriptEditorController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
@@ -223,6 +225,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/modules', function () {
         return Inertia::render('Dashboard');
     })->middleware('visibility.area:modules')->name('modules.index');
+
+    Route::controller(SalesScriptController::class)->middleware('visibility.area:scripts')->prefix('scripts')->name('scripts.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/sessions', 'storeSession')->name('sessions.store');
+        Route::get('/sessions/{session}', 'showSession')->name('sessions.show');
+        Route::post('/sessions/{session}/advance', 'advance')->name('sessions.advance');
+        Route::post('/sessions/{session}/complete', 'complete')->name('sessions.complete');
+    });
+
+    Route::middleware(['can.manage.sales.scripts'])
+        ->prefix('scripts/editor')
+        ->name('scripts.editor.')
+        ->controller(SalesScriptEditorController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/scripts', 'storeScript')->name('scripts.store');
+            Route::patch('/scripts/{script}', 'updateScript')->name('scripts.update');
+            Route::delete('/scripts/{script}', 'destroyScript')->name('scripts.destroy');
+            Route::post('/scripts/{script}/versions', 'storeVersion')->name('scripts.versions.store');
+            Route::get('/versions/{version}', 'showVersion')->name('versions.show');
+            Route::patch('/versions/{version}', 'updateVersion')->name('versions.update');
+            Route::post('/versions/{version}/publish', 'publishVersion')->name('versions.publish');
+            Route::post('/versions/{version}/unpublish', 'unpublishVersion')->name('versions.unpublish');
+            Route::post('/versions/{version}/nodes', 'storeNode')->name('versions.nodes.store');
+            Route::patch('/nodes/{node}', 'updateNode')->name('nodes.update');
+            Route::delete('/nodes/{node}', 'destroyNode')->name('nodes.destroy');
+            Route::post('/versions/{version}/transitions', 'storeTransition')->name('versions.transitions.store');
+            Route::patch('/transitions/{transition}', 'updateTransition')->name('transitions.update');
+            Route::delete('/transitions/{transition}', 'destroyTransition')->name('transitions.destroy');
+        });
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.settings:overview')->name('settings.index');
 
