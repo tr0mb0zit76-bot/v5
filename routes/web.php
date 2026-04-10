@@ -70,6 +70,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads/{lead}/proposal', 'prepareProposal')->name('leads.proposal');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
+        Route::post('/leads/{lead}/next-step', 'storeNextStep')->name('leads.next-step.store');
     });
 
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
@@ -85,6 +86,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
     });
+
+    Route::get('/contractors-search', [ContractorController::class, 'search'])
+        ->middleware('visibility.area.any:orders|contractors')
+        ->name('contractors.search');
 
     Route::controller(OrderDocumentWorkflowController::class)->middleware('visibility.area:orders')->group(function () {
         Route::post('/orders/{order}/documents/from-template', 'storeFromTemplate')->name('orders.documents.from-template');
@@ -162,7 +167,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
         Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
         Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
-        Route::get('/contractors-search', 'search')->name('contractors.search');
     });
 
     Route::get('/drivers', function () {

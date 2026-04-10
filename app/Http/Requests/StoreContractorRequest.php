@@ -15,6 +15,10 @@ class StoreContractorRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->has('owner_id') && $this->input('owner_id') === '') {
+            $this->merge(['owner_id' => null]);
+        }
+
         foreach (['inn', 'kpp', 'ogrn', 'okpo', 'bik', 'account_number'] as $key) {
             if (! $this->has($key)) {
                 continue;
@@ -104,6 +108,7 @@ class StoreContractorRequest extends FormRequest
             'is_active' => ['required', 'boolean'],
             'is_verified' => ['required', 'boolean'],
             'is_own_company' => ['required', 'boolean'],
+            'owner_id' => ['nullable', 'integer', 'exists:users,id'],
             'contacts' => ['nullable', 'array'],
             'contacts.*.full_name' => ['required', 'string', 'max:255'],
             'contacts.*.position' => ['nullable', 'string', 'max:255'],

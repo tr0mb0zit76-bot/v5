@@ -452,6 +452,80 @@ class ContractorManagementTest extends TestCase
         );
     }
 
+    public function test_update_contractor_persists_owner_id(): void
+    {
+        $admin = $this->createAdminUser();
+        $newOwner = User::factory()->create([
+            'role_id' => $admin->role_id,
+        ]);
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Владелец тест',
+            'inn' => '1234509876',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'owner_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->patch(route('contractors.update', $contractorId), [
+            'type' => 'customer',
+            'name' => 'ООО Владелец тест',
+            'full_name' => '',
+            'inn' => '1234509876',
+            'kpp' => '',
+            'ogrn' => '',
+            'okpo' => '',
+            'legal_form' => 'ooo',
+            'legal_address' => '',
+            'actual_address' => '',
+            'postal_address' => '',
+            'phone' => '',
+            'email' => '',
+            'website' => '',
+            'contact_person' => '',
+            'contact_person_phone' => '',
+            'contact_person_email' => '',
+            'contact_person_position' => '',
+            'signer_name_nominative' => '',
+            'signer_name_prepositional' => '',
+            'signer_authority_basis' => '',
+            'bank_name' => '',
+            'bik' => '',
+            'account_number' => '',
+            'correspondent_account' => '',
+            'ati_id' => '',
+            'specializations' => [],
+            'activity_types' => [],
+            'transport_requirements' => [],
+            'short_description' => '',
+            'debt_limit' => null,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => false,
+            'default_customer_payment_form' => '',
+            'default_customer_payment_term' => '',
+            'default_carrier_payment_form' => '',
+            'default_carrier_payment_term' => '',
+            'cooperation_terms_notes' => '',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'owner_id' => $newOwner->id,
+            'contacts' => [],
+            'interactions' => [],
+            'documents' => [],
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('contractors', [
+            'id' => $contractorId,
+            'owner_id' => $newOwner->id,
+        ]);
+    }
+
     public function test_cannot_delete_contractor_with_orders(): void
     {
         $admin = $this->createAdminUser();
@@ -720,6 +794,91 @@ class ContractorManagementTest extends TestCase
         $this->assertSame('2', (string) ($queryParams['page'] ?? null));
         $this->assertSame('Контекст', $queryParams['search'] ?? null);
         $this->assertSame('customer', $queryParams['type'] ?? null);
+    }
+
+    public function test_contractor_search_with_type_carrier_includes_type_both(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $bothId = DB::table('contractors')->insertGetId([
+            'type' => 'both',
+            'name' => 'ИП Универсал Both',
+            'full_name' => null,
+            'inn' => null,
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->getJson(route('contractors.search', [
+            'type' => 'carrier',
+            'q' => 'Универсал',
+        ]));
+
+        $response->assertOk();
+        $ids = collect($response->json('contractors'))->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $this->assertContains($bothId, $ids);
+    }
+
+    public function test_contractor_search_matches_full_name(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $id = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Кратко',
+            'full_name' => 'ООО Полное наименование для поиска',
+            'inn' => null,
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->getJson(route('contractors.search', [
+            'type' => 'carrier',
+            'q' => 'Полное наименование',
+        ]));
+
+        $response->assertOk();
+        $ids = collect($response->json('contractors'))->pluck('id')->map(fn ($i): int => (int) $i)->all();
+        $this->assertContains($id, $ids);
+    }
+
+    public function test_contractor_search_is_allowed_for_user_with_orders_but_without_contractors_area(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'orders_only_test',
+            'display_name' => 'Только заказы',
+            'visibility_areas' => json_encode(['orders'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        DB::table('contractors')->insert([
+            'type' => 'carrier',
+            'name' => 'ТК Для Поиска',
+            'full_name' => null,
+            'inn' => null,
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('contractors.search', [
+            'type' => 'carrier',
+            'q' => 'Поиска',
+        ]));
+
+        $response->assertOk();
+        $this->assertGreaterThan(0, count($response->json('contractors') ?? []));
     }
 
     private function createAdminUser(): User

@@ -13,7 +13,7 @@
         </button>
       </div>
 
-      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr),180px,180px]">
+      <div class="grid gap-3" :class="props.canFilterResponsible ? 'md:grid-cols-[minmax(0,1fr),180px,180px]' : 'md:grid-cols-[minmax(0,1fr),180px]'">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
@@ -31,7 +31,7 @@
           </option>
         </select>
 
-        <select v-model="responsibleFilter" class="field">
+        <select v-if="props.canFilterResponsible" v-model="responsibleFilter" class="field">
           <option value="">Все ответственные</option>
           <option v-for="option in responsibleFilterOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -83,6 +83,10 @@ const props = defineProps({
   allowCreate: {
     type: Boolean,
     default: true,
+  },
+  canFilterResponsible: {
+    type: Boolean,
+    default: false,
   },
 });
 

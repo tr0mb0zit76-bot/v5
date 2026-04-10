@@ -7,6 +7,7 @@
             <LeadsGrid
                 :rows="rows"
                 :allow-create="!featureUnavailable"
+                :can-filter-responsible="canFilterResponsible"
                 @create="openCreateLead"
                 @row-dblclick="handleRowDblClick"
             />
@@ -27,6 +28,7 @@ defineOptions({
 const page = usePage();
 const rows = computed(() => page.props.leads ?? []);
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
+const canFilterResponsible = computed(() => Boolean(page.props.canFilterResponsible));
 
 function openCreateLead() {
     if (featureUnavailable.value) {

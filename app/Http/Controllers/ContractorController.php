@@ -184,11 +184,11 @@ class ContractorController extends Controller
 
         $contractorsQuery = Contractor::query();
 
-        // Apply type filter
+        // Как в мастере заказа: перевозчики — type carrier или both; клиенты — customer или both.
         if ($type === 'customer') {
-            $contractorsQuery->where('type', 'customer');
+            $contractorsQuery->whereIn('type', ['customer', 'both']);
         } elseif ($type === 'carrier') {
-            $contractorsQuery->where('type', 'carrier');
+            $contractorsQuery->whereIn('type', ['carrier', 'both']);
         } elseif ($type === 'both') {
             $contractorsQuery->whereIn('type', ['customer', 'both']);
         }
@@ -200,6 +200,10 @@ class ContractorController extends Controller
                     ->orWhere('inn', 'like', "%{$query}%")
                     ->orWhere('phone', 'like', "%{$query}%")
                     ->orWhere('email', 'like', "%{$query}%");
+
+                if (Schema::hasColumn('contractors', 'full_name')) {
+                    $q->orWhere('full_name', 'like', "%{$query}%");
+                }
             });
         }
 
@@ -211,6 +215,7 @@ class ContractorController extends Controller
             ->map(fn (Contractor $contractor): array => [
                 'id' => $contractor->id,
                 'name' => $contractor->name,
+                'full_name' => Schema::hasColumn('contractors', 'full_name') ? $contractor->full_name : null,
                 'type' => $contractor->type,
                 'inn' => $contractor->inn,
                 'phone' => $contractor->phone,
@@ -582,6 +587,10 @@ class ContractorController extends Controller
 
         if (($validated['debt_limit_currency'] ?? null) === '') {
             $validated['debt_limit_currency'] = 'RUB';
+        }
+
+        if (array_key_exists('owner_id', $validated) && $validated['owner_id'] === '') {
+            $validated['owner_id'] = null;
         }
 
         if (array_key_exists('activity_types', $validated)) {

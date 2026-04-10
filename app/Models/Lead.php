@@ -154,4 +154,12 @@ class Lead extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    /**
+     * @return HasMany<Task, $this>
+     */
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class)->orderByRaw('case when due_at is null then 1 else 0 end')->orderBy('due_at');
+    }
 }

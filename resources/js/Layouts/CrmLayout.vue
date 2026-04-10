@@ -74,12 +74,12 @@
                 </div>
             </header>
 
-            <main class="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 dark:bg-zinc-950" scroll-region>
+            <main class="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 pb-28 dark:bg-zinc-950" scroll-region>
                 <slot />
             </main>
 
-            <nav class="shrink-0 border-t border-zinc-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-                <div class="grid grid-cols-6 gap-2">
+            <nav class="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-200 bg-white/95 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
+                <div class="grid grid-cols-5 gap-2">
                     <button
                         v-for="item in mobileNavItems"
                         :key="item.key"
@@ -380,7 +380,8 @@ const hasFinanceSalaryAccess = computed(() => visibleAreas.value.includes('finan
 const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value);
 const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
 const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
-const mobileNavItems = computed(() => [
+const mobileNavItems = computed(() => {
+    const items = [
     { key: 'dashboard', label: 'Главная', icon: House },
     { key: 'orders', label: 'Заказы', icon: Package },
     { key: 'tasks', label: 'Задачи', icon: ClipboardList },
@@ -389,7 +390,22 @@ const mobileNavItems = computed(() => [
     { key: 'orders-create', label: 'Новый', icon: SquarePen },
     { key: 'contractors', label: 'База', icon: Users },
     { key: 'reports', label: 'Отчёты', icon: BarChart3 },
-]);
+    ];
+
+    return items
+        .filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'reports'].includes(item.key))
+        .filter((item) => {
+            if (authUser.value?.role?.name === 'admin' || item.key === 'dashboard') {
+                return true;
+            }
+
+            if (item.key === 'kanban') {
+                return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
+            }
+
+            return visibleAreas.value.includes(item.key);
+        });
+});
 
 const menuItems = computed(() => {
     const items = [

@@ -93,7 +93,7 @@
                 </div>
             </section>
 
-            <div class="sticky bottom-0 z-20 -mx-1 pt-2">
+            <div v-if="false" class="sticky bottom-0 z-20 -mx-1 pt-2">
                 <div class="rounded-[26px] border border-zinc-200/80 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/95">
                     <div class="flex items-center gap-3">
                         <div class="min-w-0 flex-1">

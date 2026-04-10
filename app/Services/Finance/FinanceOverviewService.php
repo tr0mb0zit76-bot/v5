@@ -20,10 +20,16 @@ class FinanceOverviewService
             return collect();
         }
 
-        return DB::table('payment_schedules')
+        $rows = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
             ->leftJoin('contractors as customers', 'customers.id', '=', 'orders.customer_id')
-            ->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id')
+            ->when(
+                Schema::hasColumn('payment_schedules', 'counterparty_id'),
+                fn ($query) => $query->leftJoin('contractors as carriers', function ($join): void {
+                    $join->whereRaw('carriers.id = COALESCE(payment_schedules.counterparty_id, orders.carrier_id)');
+                }),
+                fn ($query) => $query->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id'),
+            )
             ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id')
             ->when(
                 $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
@@ -44,25 +50,138 @@ class FinanceOverviewService
                 'orders.id as order_id',
                 'orders.order_number',
                 'managers.name as manager_name',
-                'customers.name as customer_name',
-                'carriers.name as carrier_name',
+                DB::raw($this->sqlContractorDisplayName('customers').' as customer_name'),
+                DB::raw($this->sqlContractorDisplayName('carriers').' as carrier_name'),
             ])
             ->orderByDesc('payment_schedules.planned_date')
             ->orderByDesc('payment_schedules.id')
-            ->get()
-            ->map(fn (object $row): array => [
-                'id' => $row->id,
-                'order_id' => $row->order_id,
-                'order_number' => $row->order_number,
-                'manager_name' => $row->manager_name,
-                'direction' => $row->party === 'customer' ? 'Нам' : 'Мы',
-                'counterparty_name' => $row->party === 'customer' ? $row->customer_name : $row->carrier_name,
-                'payment_type' => $row->type === 'prepayment' ? 'Предоплата' : 'Финальный платёж',
-                'amount' => (float) ($row->amount ?? 0),
-                'planned_date' => $row->planned_date,
-                'actual_date' => $row->actual_date,
-                'status' => $row->status,
-            ]);
+            ->get();
+
+        $carrierSummaries = $this->assignedCarrierSummariesByOrderIds(
+            $rows->pluck('order_id')->map(fn ($id): int => (int) $id)->unique()->values()->all()
+        );
+
+        return $rows->map(fn (object $row): array => $this->mapCashFlowJournalRow($row, $carrierSummaries));
+    }
+
+    /**
+     * @param  Collection<int, array{count: int, label: string}>  $carrierSummaries
+     * @return array<string, mixed>
+     */
+    private function mapCashFlowJournalRow(object $row, Collection $carrierSummaries): array
+    {
+        $party = strtolower(trim((string) ($row->party ?? '')));
+        $isCustomerParty = ($party === 'customer');
+
+        return [
+            'id' => $row->id,
+            'order_id' => $row->order_id,
+            'order_number' => $row->order_number,
+            'manager_name' => $row->manager_name,
+            'direction' => $isCustomerParty ? 'Нам' : 'Мы',
+            'counterparty_name' => $isCustomerParty
+                ? $row->customer_name
+                : $this->resolveCarrierDisplayName($row, $carrierSummaries),
+            'payment_type' => $row->type === 'prepayment' ? 'Предоплата' : 'Финальный платёж',
+            'amount' => (float) ($row->amount ?? 0),
+            'planned_date' => $row->planned_date,
+            'actual_date' => $row->actual_date,
+            'status' => $row->status,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, array{count: int, label: string}>  $carrierSummaries
+     */
+    private function resolveCarrierDisplayName(object $row, Collection $carrierSummaries): ?string
+    {
+        $orderId = (int) $row->order_id;
+        $joinName = $row->carrier_name;
+
+        if (! Schema::hasTable('leg_contractor_assignments')) {
+            return filled($joinName) ? $joinName : null;
+        }
+
+        $summary = $carrierSummaries->get($orderId);
+
+        if ($summary === null) {
+            return filled($joinName) ? $joinName : null;
+        }
+
+        $count = $summary['count'];
+        if ($count > 1) {
+            return $summary['label'];
+        }
+
+        if ($count === 1) {
+            return filled($summary['label']) ? $summary['label'] : (filled($joinName) ? $joinName : null);
+        }
+
+        return filled($joinName) ? $joinName : null;
+    }
+
+    /**
+     * Сводка по назначенным на плечи перевозчикам (как на списке заказов).
+     *
+     * @param  list<int>  $orderIds
+     * @return Collection<int, array{count: int, label: string}>
+     */
+    private function assignedCarrierSummariesByOrderIds(array $orderIds): Collection
+    {
+        if ($orderIds === [] || ! Schema::hasTable('leg_contractor_assignments') || ! Schema::hasTable('order_legs')) {
+            return collect();
+        }
+
+        $labelSql = $this->sqlContractorDisplayName('lcc');
+
+        $rows = DB::table('order_legs')
+            ->join('leg_contractor_assignments as lca', 'lca.order_leg_id', '=', 'order_legs.id')
+            ->join('contractors as lcc', 'lcc.id', '=', 'lca.contractor_id')
+            ->whereIn('order_legs.order_id', $orderIds)
+            ->orderByRaw($labelSql)
+            ->select([
+                'order_legs.order_id',
+                'lca.contractor_id',
+                DB::raw($labelSql.' as contractor_label'),
+            ])
+            ->get();
+
+        return $rows
+            ->groupBy('order_id')
+            ->map(function (Collection $group): array {
+                $uniqueContractorIds = $group->pluck('contractor_id')->unique()->filter()->values();
+                $count = $uniqueContractorIds->count();
+
+                if ($count > 1) {
+                    return [
+                        'count' => $count,
+                        'label' => $count.' перевозчиков',
+                    ];
+                }
+
+                $singleName = (string) $group->pluck('contractor_label')->unique()->filter()->values()->first();
+
+                return [
+                    'count' => $count,
+                    'label' => $singleName,
+                ];
+            });
+    }
+
+    /**
+     * Отображаемое имя контрагента: у недавно созданных карточек часто заполняют только full_name, а name остаётся пустым.
+     */
+    private function sqlContractorDisplayName(string $tableAlias): string
+    {
+        if (! in_array($tableAlias, ['customers', 'carriers', 'lcc'], true)) {
+            throw new \InvalidArgumentException('Invalid contractors table alias.');
+        }
+
+        if (! Schema::hasColumn('contractors', 'full_name')) {
+            return "{$tableAlias}.name";
+        }
+
+        return "COALESCE(NULLIF(TRIM({$tableAlias}.name), ''), {$tableAlias}.full_name)";
     }
 
     /**

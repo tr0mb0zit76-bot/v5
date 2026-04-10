@@ -22,6 +22,7 @@ const props = defineProps({
 const page = usePage();
 const activeSection = ref(0);
 const isLoginOpen = ref(false);
+const isMobileMenuOpen = ref(false);
 const isReady = ref(false);
 const logoUrl = '/assets/logo.png';
 const modalLogoUrl = '/assets/logo_black.png';
@@ -60,12 +61,21 @@ const switchSection = (index) => {
 };
 
 const openLogin = () => {
+    isMobileMenuOpen.value = false;
     isLoginOpen.value = true;
 };
 
 const closeLogin = () => {
     isLoginOpen.value = false;
     loginForm.reset('password');
+};
+
+const toggleMobileMenu = () => {
+    isMobileMenuOpen.value = !isMobileMenuOpen.value;
+};
+
+const closeMobileMenu = () => {
+    isMobileMenuOpen.value = false;
 };
 
 const submitLogin = () => {
@@ -136,8 +146,8 @@ watch(
     { deep: true },
 );
 
-watch(isLoginOpen, (open) => {
-    document.body.style.overflow = open ? 'hidden' : '';
+watch([isLoginOpen, isMobileMenuOpen], ([loginOpen, mobileMenuOpen]) => {
+    document.body.style.overflow = loginOpen || mobileMenuOpen ? 'hidden' : '';
 });
 
 onMounted(() => {
@@ -190,8 +200,58 @@ onBeforeUnmount(() => {
                         {{ t('cabinet', 'Личный кабинет') }}
                     </a>
                 </nav>
+
+                <button
+                    type="button"
+                    class="mobile-nav-toggle"
+                    :aria-expanded="isMobileMenuOpen"
+                    aria-label="Открыть меню"
+                    @click="toggleMobileMenu"
+                >
+                    <span />
+                    <span />
+                    <span />
+                </button>
             </div>
         </header>
+
+        <div
+            v-if="isMobileMenuOpen"
+            class="mobile-nav-overlay"
+            @click="closeMobileMenu"
+        />
+
+        <div class="mobile-nav-panel" :class="{ active: isMobileMenuOpen }">
+            <nav class="mobile-nav-list">
+                <Link
+                    v-for="item in publicNavigation"
+                    :key="`mobile-${item.key}`"
+                    :href="item.href"
+                    :class="{ active: item.key === page.pageKey }"
+                    @click="closeMobileMenu"
+                >
+                    {{ t(item.labelKey, item.key) }}
+                </Link>
+
+                <Link
+                    v-if="authUser"
+                    :href="route('dashboard')"
+                    class="mobile-nav-login"
+                    @click="closeMobileMenu"
+                >
+                    Р’ РєР°Р±РёРЅРµС‚
+                </Link>
+
+                <button
+                    v-else
+                    type="button"
+                    class="mobile-nav-login"
+                    @click="openLogin"
+                >
+                    {{ t('cabinet', 'Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚') }}
+                </button>
+            </nav>
+        </div>
 
         <main v-if="isVerticalMode" class="fullpage-carousel">
             <section
@@ -468,6 +528,12 @@ onBeforeUnmount(() => {
 
 .nav {
   display: flex;
+}
+
+.mobile-nav-toggle,
+.mobile-nav-panel,
+.mobile-nav-overlay {
+  display: none;
 }
 
 .nav :deep(a) {
@@ -1152,6 +1218,98 @@ onBeforeUnmount(() => {
 @media (max-width: 992px) {
   .nav {
     display: none;
+  }
+
+  .mobile-nav-toggle {
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    cursor: pointer;
+  }
+
+  .mobile-nav-toggle span {
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: #f5f5f5;
+  }
+
+  .mobile-nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 995;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+  }
+
+  .mobile-nav-panel {
+    display: block;
+    position: fixed;
+    top: 88px;
+    right: 20px;
+    left: 20px;
+    z-index: 998;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    background: rgba(17, 17, 17, 0.96);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(18px);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-12px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  .mobile-nav-panel.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .mobile-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px;
+  }
+
+  .mobile-nav-list :deep(a),
+  .mobile-nav-login {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 16px;
+    color: #f5f5f5;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid transparent;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  .mobile-nav-list :deep(a.active) {
+    color: #ff8c5a;
+    border-color: rgba(255, 87, 34, 0.35);
+    background: rgba(255, 87, 34, 0.12);
+  }
+
+  .mobile-nav-login {
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(45deg, #ff5722, #ff9800);
+    color: white;
   }
 }
 

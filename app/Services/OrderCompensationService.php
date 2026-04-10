@@ -327,9 +327,14 @@ class OrderCompensationService
             'customer',
             (float) ($order->customer_rate ?? 0),
             (array) data_get($paymentTerms, 'client.payment_schedule', []),
+            null,
         );
 
         foreach ($this->extractContractorsCosts($order) as $cost) {
+            $carrierContractorId = isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
+                ? (int) $cost['contractor_id']
+                : null;
+
             $rows = [
                 ...$rows,
                 ...$this->buildPaymentScheduleRows(
@@ -337,6 +342,7 @@ class OrderCompensationService
                     'carrier',
                     (float) ($cost['amount'] ?? 0),
                     (array) ($cost['payment_schedule'] ?? []),
+                    $carrierContractorId,
                 ),
             ];
         }
@@ -354,8 +360,13 @@ class OrderCompensationService
      * @param  array<string, mixed>  $schedule
      * @return list<array<string, mixed>>
      */
-    private function buildPaymentScheduleRows(Order $order, string $party, float $amount, array $schedule): array
-    {
+    private function buildPaymentScheduleRows(
+        Order $order,
+        string $party,
+        float $amount,
+        array $schedule,
+        ?int $carrierContractorId,
+    ): array {
         if ($amount <= 0) {
             return [];
         }
@@ -367,48 +378,71 @@ class OrderCompensationService
         $finalAmount = round($amount - $prepaymentAmount, 2);
 
         if ($hasPrepayment && $prepaymentAmount > 0) {
-            $rows[] = [
-                'order_id' => $order->id,
-                'party' => $party,
-                'type' => 'prepayment',
-                'amount' => $prepaymentAmount,
-                'planned_date' => $this->resolveScheduleDate(
+            $rows[] = $this->paymentScheduleRowAttributes(
+                $order,
+                $party,
+                'prepayment',
+                $prepaymentAmount,
+                $this->resolveScheduleDate(
                     $order,
                     $party,
                     (string) ($schedule['prepayment_mode'] ?? 'fttn'),
                     (int) ($schedule['prepayment_days'] ?? 0),
                     true,
                 ),
-                'actual_date' => null,
-                'status' => 'pending',
-                'notes' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
+                $carrierContractorId,
+            );
         }
 
         if ($finalAmount > 0) {
-            $rows[] = [
-                'order_id' => $order->id,
-                'party' => $party,
-                'type' => 'final',
-                'amount' => $finalAmount,
-                'planned_date' => $this->resolveScheduleDate(
+            $rows[] = $this->paymentScheduleRowAttributes(
+                $order,
+                $party,
+                'final',
+                $finalAmount,
+                $this->resolveScheduleDate(
                     $order,
                     $party,
                     (string) ($schedule['postpayment_mode'] ?? 'ottn'),
                     (int) ($schedule['postpayment_days'] ?? 0),
                     false,
                 ),
-                'actual_date' => null,
-                'status' => 'pending',
-                'notes' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
+                $carrierContractorId,
+            );
         }
 
         return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function paymentScheduleRowAttributes(
+        Order $order,
+        string $party,
+        string $type,
+        float $amount,
+        ?string $plannedDate,
+        ?int $carrierContractorId,
+    ): array {
+        $row = [
+            'order_id' => $order->id,
+            'party' => $party,
+            'type' => $type,
+            'amount' => $amount,
+            'planned_date' => $plannedDate,
+            'actual_date' => null,
+            'status' => 'pending',
+            'notes' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        if (Schema::hasColumn('payment_schedules', 'counterparty_id')) {
+            $row['counterparty_id'] = $party === 'carrier' ? $carrierContractorId : null;
+        }
+
+        return $row;
     }
 
     private function resolveScheduleDate(

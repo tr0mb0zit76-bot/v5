@@ -921,6 +921,10 @@ class OrderWizardController extends Controller
             $columns[] = 'is_own_company';
         }
 
+        if (Schema::hasColumn('contractors', 'full_name')) {
+            $columns[] = 'full_name';
+        }
+
         foreach ([
             'debt_limit',
             'debt_limit_currency',

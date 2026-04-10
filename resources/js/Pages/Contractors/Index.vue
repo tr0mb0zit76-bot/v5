@@ -523,18 +523,30 @@ function scoringEgrStatusLabel(egr) {
 // Server-side search will be handled by the backend
 // The filtered contractors are already in props.contractors
 
+/** Не уходим на сервер с одной буквой — иначе при каждом первом символе перезагружается список. */
+function effectiveIndexSearchQuery(raw) {
+    const trimmed = String(raw ?? '').trim();
+
+    return trimmed.length < 2 ? '' : trimmed;
+}
+
 // Watch for search input changes and trigger server request
 let searchTimer = null;
 watch(() => search.value, (newSearch) => {
     clearTimeout(searchTimer);
-    
+
+    const trimmed = newSearch.trim();
+    if (trimmed.length === 1) {
+        return;
+    }
+
     searchTimer = setTimeout(() => {
-        router.get(route('contractors.index', { 
-            search: newSearch.trim(),
+        router.get(route('contractors.index', {
+            search: effectiveIndexSearchQuery(newSearch),
             type: typeFilter.value,
-            page: 1 // Reset to first page when searching
+            page: 1, // Reset to first page when searching
         }), {}, { preserveScroll: true });
-    }, 500); // Debounce 500ms
+    }, 700); // Длиннее дебаунс — меньше лишних запросов при медленном наборе
 });
 
 // Watch for type filter changes
@@ -542,12 +554,12 @@ let typeFilterTimer = null;
 watch(() => typeFilter.value, (newType) => {
     clearTimeout(typeFilterTimer);
     clearTimeout(searchTimer); // Also clear search timer to avoid conflicts
-    
+
     typeFilterTimer = setTimeout(() => {
-        router.get(route('contractors.index', { 
-            search: search.value.trim(),
+        router.get(route('contractors.index', {
+            search: effectiveIndexSearchQuery(search.value),
             type: newType,
-            page: 1 // Reset to first page when filtering
+            page: 1, // Reset to first page when filtering
         }), {}, { preserveScroll: true });
     }, 300); // Debounce 300ms
 });
@@ -566,7 +578,7 @@ const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.orde
 
 function openCreateForm() {
     router.get(route('contractors.create', {
-        search: search.value.trim(),
+        search: effectiveIndexSearchQuery(search.value),
         type: typeFilter.value,
     }), {}, { preserveScroll: true });
 }
@@ -574,7 +586,7 @@ function openCreateForm() {
 function openContractor(contractorId) {
     router.get(route('contractors.show', {
         contractor: contractorId,
-        search: search.value.trim(),
+        search: effectiveIndexSearchQuery(search.value),
         type: typeFilter.value,
         page: props.pagination.current_page,
     }), {}, { preserveScroll: true });
@@ -821,7 +833,7 @@ function goToPage(pageNumber) {
     
     router.get(route('contractors.index', {
         page: pageNumber,
-        search: search.value.trim(),
+        search: effectiveIndexSearchQuery(search.value),
         type: typeFilter.value,
     }), {}, { preserveScroll: true });
 }

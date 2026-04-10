@@ -97,7 +97,14 @@
                             </thead>
                             <tbody class="divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
                                 <tr v-for="row in cashFlowJournal" :key="`cash-${row.id}`">
-                                    <td class="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-50">{{ row.order_number || `#${row.order_id}` }}</td>
+                                    <td class="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-50">
+                                        <Link
+                                            :href="route('orders.edit', row.order_id)"
+                                            class="text-zinc-900 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-900 dark:text-zinc-50 dark:decoration-zinc-600 dark:hover:decoration-zinc-200"
+                                        >
+                                            {{ row.order_number || `#${row.order_id}` }}
+                                        </Link>
+                                    </td>
                                     <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.direction }}</td>
                                     <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.counterparty_name || '—' }}</td>
                                     <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.payment_type }}</td>

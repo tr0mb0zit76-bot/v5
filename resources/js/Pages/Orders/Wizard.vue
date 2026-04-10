@@ -1734,6 +1734,9 @@ const dealTypePreview = computed(() => {
     };
 });
 
+/** Меньше порога не фильтруем и не даём «поиск по одной букве» — только общий топ без сужения. */
+const MIN_CONTRACTOR_QUERY_LENGTH = 2;
+
 const filteredClients = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
 
@@ -1742,12 +1745,12 @@ const filteredClients = computed(() => {
         contractor.type === 'customer' || contractor.type === 'both'
     );
 
-    if (query === '') {
+    if (query === '' || query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
         return customerContractors.slice(0, 50); // Увеличено с 8 до 50
     }
 
     return customerContractors
-        .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
+        .filter((contractor) => [contractor.name, contractor.full_name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
         .slice(0, 50); // Увеличено с 8 до 50
 });
@@ -1756,33 +1759,47 @@ const filteredClients = computed(() => {
 const serverSearchResults = ref([]);
 const isSearchingClients = ref(false);
 const searchTimer = ref(null);
+const clientSearchAbortController = ref(null);
+const clientSearchFetchSeq = ref(0);
 
 // Server-side search for carriers
 const serverCarrierSearchResults = ref({});
 const isSearchingCarriers = ref({});
 const carrierSearchTimers = ref({});
+const carrierSearchAbortControllers = ref({});
+const carrierSearchFetchSeq = ref({});
 
 watch(clientSearch, (newQuery) => {
     clearTimeout(searchTimer.value);
-    
-    if (newQuery.trim().length < 2) {
+
+    const trimmed = newQuery.trim();
+
+    if (trimmed.length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        clientSearchAbortController.value?.abort();
+        clientSearchFetchSeq.value += 1;
         serverSearchResults.value = [];
+        isSearchingClients.value = false;
         return;
     }
-    
+
     searchTimer.value = setTimeout(async () => {
-        await searchClients(newQuery.trim());
-    }, 300);
+        await searchClients(trimmed);
+    }, 550);
 });
 
     async function searchClients(query) {
-        if (query.length < 2) {
+        if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
             serverSearchResults.value = [];
             return;
         }
-        
+
+        clientSearchAbortController.value?.abort();
+        const ac = new AbortController();
+        clientSearchAbortController.value = ac;
+        const seq = (clientSearchFetchSeq.value += 1);
+
         isSearchingClients.value = true;
-        
+
         try {
             const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=customer&limit=100`, {
                 headers: {
@@ -1790,19 +1807,32 @@ watch(clientSearch, (newQuery) => {
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 credentials: 'include',
+                signal: ac.signal,
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Search failed with status ${response.status}`);
             }
-            
+
             const data = await response.json();
+            if (seq !== clientSearchFetchSeq.value) {
+                return;
+            }
+
             serverSearchResults.value = data.contractors || [];
         } catch (error) {
+            if (error?.name === 'AbortError') {
+                return;
+            }
+
             console.error('Client search error', error);
-            serverSearchResults.value = [];
+            if (seq === clientSearchFetchSeq.value) {
+                serverSearchResults.value = [];
+            }
         } finally {
-            isSearchingClients.value = false;
+            if (seq === clientSearchFetchSeq.value) {
+                isSearchingClients.value = false;
+            }
         }
     }
 
@@ -1825,34 +1855,64 @@ watch(carrierSearch, (newSearchValues, oldSearchValues) => {
 
 function queueCarrierSearch(kind, index, query) {
     const key = carrierSearchKey(kind, index);
-    
+
     // Clear existing timer
     if (carrierSearchTimers.value[key]) {
         clearTimeout(carrierSearchTimers.value[key]);
     }
-    
+
     // Clear results for empty query
-    if (query.trim().length < 2) {
-        serverCarrierSearchResults.value[key] = [];
+    if (query.trim().length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        carrierSearchAbortControllers.value[key]?.abort();
+        carrierSearchFetchSeq.value = {
+            ...carrierSearchFetchSeq.value,
+            [key]: (carrierSearchFetchSeq.value[key] ?? 0) + 1,
+        };
+        serverCarrierSearchResults.value = {
+            ...serverCarrierSearchResults.value,
+            [key]: [],
+        };
+        isSearchingCarriers.value = {
+            ...isSearchingCarriers.value,
+            [key]: false,
+        };
         return;
     }
-    
+
     // Set new timer
     carrierSearchTimers.value[key] = setTimeout(async () => {
         await searchCarriers(kind, index, query.trim());
-    }, 300);
+    }, 550);
 }
 
 async function searchCarriers(kind, index, query) {
-    if (query.length < 2) {
-        const key = carrierSearchKey(kind, index);
-        serverCarrierSearchResults.value[key] = [];
+    if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        const keyEmpty = carrierSearchKey(kind, index);
+        serverCarrierSearchResults.value = {
+            ...serverCarrierSearchResults.value,
+            [keyEmpty]: [],
+        };
         return;
     }
-    
+
     const key = carrierSearchKey(kind, index);
-    isSearchingCarriers.value[key] = true;
-    
+    carrierSearchAbortControllers.value[key]?.abort();
+    const ac = new AbortController();
+    carrierSearchAbortControllers.value = {
+        ...carrierSearchAbortControllers.value,
+        [key]: ac,
+    };
+    const seq = (carrierSearchFetchSeq.value[key] ?? 0) + 1;
+    carrierSearchFetchSeq.value = {
+        ...carrierSearchFetchSeq.value,
+        [key]: seq,
+    };
+
+    isSearchingCarriers.value = {
+        ...isSearchingCarriers.value,
+        [key]: true,
+    };
+
     try {
         const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=carrier&limit=100`, {
             headers: {
@@ -1860,19 +1920,41 @@ async function searchCarriers(kind, index, query) {
                 'X-Requested-With': 'XMLHttpRequest',
             },
             credentials: 'include',
+            signal: ac.signal,
         });
-        
+
         if (!response.ok) {
             throw new Error(`Carrier search failed with status ${response.status}`);
         }
-        
+
         const data = await response.json();
-        serverCarrierSearchResults.value[key] = data.contractors || [];
+        if (seq !== carrierSearchFetchSeq.value[key]) {
+            return;
+        }
+
+        serverCarrierSearchResults.value = {
+            ...serverCarrierSearchResults.value,
+            [key]: data.contractors || [],
+        };
     } catch (error) {
+        if (error?.name === 'AbortError') {
+            return;
+        }
+
         console.error('Carrier search error', error);
-        serverCarrierSearchResults.value[key] = [];
+        if (seq === carrierSearchFetchSeq.value[key]) {
+            serverCarrierSearchResults.value = {
+                ...serverCarrierSearchResults.value,
+                [key]: [],
+            };
+        }
     } finally {
-        isSearchingCarriers.value[key] = false;
+        if (seq === carrierSearchFetchSeq.value[key]) {
+            isSearchingCarriers.value = {
+                ...isSearchingCarriers.value,
+                [key]: false,
+            };
+        }
     }
 }
 
@@ -1880,7 +1962,7 @@ async function searchCarriers(kind, index, query) {
 const combinedClientResults = computed(() => {
     const query = clientSearch.value.trim().toLowerCase();
     
-    if (query.length < 2) {
+    if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
         // Use local results for short queries
         return filteredClients.value;
     }
@@ -1897,6 +1979,8 @@ if (selectedClient.value) {
 }
 
 function selectClient(contractor) {
+    ensureContractorInLocalList(contractor);
+
     form.client_id = normalizeNullableNumber(contractor.id);
     clientSearch.value = contractor.name;
     showClientResults.value = false;
@@ -2063,6 +2147,23 @@ function getContractorById(contractorId) {
     return contractors.value.find((contractor) => Number(contractor.id) === Number(contractorId)) ?? null;
 }
 
+/**
+ * Серверный поиск возвращает контрагента, которого может не быть в props.contractors.
+ * Без записи в локальный список getContractorById (blur, watch) обнуляет подпись в поле перевозчика.
+ */
+function ensureContractorInLocalList(contractor) {
+    if (!contractor?.id) {
+        return;
+    }
+
+    const id = Number(contractor.id);
+    if (contractors.value.some((c) => Number(c.id) === id)) {
+        return;
+    }
+
+    contractors.value.unshift({ ...contractor });
+}
+
 function carrierSearchKey(kind, index) {
     return `${kind}-${index}`;
 }
@@ -2100,7 +2201,7 @@ function filteredCarrierResults(kind, index) {
     const serverResults = serverCarrierSearchResults.value[carrierSearchKey(kind, index)] || [];
     const serverIds = new Set(serverResults.map(c => c.id));
 
-    if (query === '') {
+    if (query === '' || query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
         const visibleContractors = carrierOptions.value.slice(0, 50);
 
         if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
@@ -2112,7 +2213,7 @@ function filteredCarrierResults(kind, index) {
 
     // Combine server results with local results
     const localResults = carrierOptions.value
-        .filter((contractor) => [contractor.name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
+        .filter((contractor) => [contractor.name, contractor.full_name, contractor.inn, contractor.phone, contractor.email].filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(query)))
         .filter(c => !serverIds.has(c.id));
     
@@ -2200,6 +2301,8 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
 }
 
 function selectPerformerContractor(index, contractor) {
+    ensureContractorInLocalList(contractor);
+
     const updatedPerformers = [...form.performers];
     updatedPerformers[index] = {
         ...updatedPerformers[index],
@@ -2238,6 +2341,8 @@ function syncPerformerContractor(stage, contractorId) {
 }
 
 function selectCostContractor(index, contractor) {
+    ensureContractorInLocalList(contractor);
+
     form.financial_term.contractors_costs[index].contractor_id = Number(contractor.id);
     setCarrierSearchValue('cost', index, contractor.name);
     setCarrierResultsVisible('cost', index, false);

@@ -3,16 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ConvertLeadRequest;
+use App\Http\Requests\StoreLeadNextStepRequest;
 use App\Http\Requests\StoreLeadRequest;
 use App\Http\Requests\UpdateLeadRequest;
 use App\Http\Requests\UpdateLeadStatusRequest;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
+use App\Models\Task;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
 use App\Support\LeadStatus;
 use App\Support\RoleAccess;
+use App\Support\TaskStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,6 +40,7 @@ class LeadController extends Controller
 
         return Inertia::render('Leads/Index', [
             'leads' => $this->leadRows($request),
+            'canFilterResponsible' => $this->canFilterResponsible($request),
         ]);
     }
 
@@ -59,7 +63,7 @@ class LeadController extends Controller
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
 
-        return $this->renderWizardPage($request, $lead->load([
+        $relations = [
             'counterparty',
             'responsible',
             'cargoItems',
@@ -67,7 +71,13 @@ class LeadController extends Controller
             'activities',
             'offers',
             'orders',
-        ]));
+        ];
+
+        if (Schema::hasTable('tasks')) {
+            $relations[] = 'tasks.responsible';
+        }
+
+        return $this->renderWizardPage($request, $lead->load($relations));
     }
 
     public function store(StoreLeadRequest $request): RedirectResponse
@@ -75,12 +85,14 @@ class LeadController extends Controller
         abort_unless($this->hasLeadsFeatureTables(), 404);
 
         $lead = DB::transaction(function () use ($request): Lead {
+            $responsibleId = $this->sanitizeResponsibleId($request);
+
             $lead = Lead::query()->create([
                 'number' => $this->nextLeadNumber(),
                 'status' => $request->string('status')->toString(),
                 'source' => $request->string('source')->toString() ?: null,
                 'counterparty_id' => $request->input('counterparty_id'),
-                'responsible_id' => $request->integer('responsible_id'),
+                'responsible_id' => $responsibleId,
                 'title' => $request->string('title')->toString(),
                 'description' => $request->string('description')->toString() ?: null,
                 'transport_type' => $request->string('transport_type')->toString() ?: null,
@@ -112,11 +124,13 @@ class LeadController extends Controller
         abort_unless($this->canAccessLead($request, $lead), 403);
 
         DB::transaction(function () use ($request, $lead): void {
+            $responsibleId = $this->sanitizeResponsibleId($request);
+
             $lead->update([
                 'status' => $request->string('status')->toString(),
                 'source' => $request->string('source')->toString() ?: null,
                 'counterparty_id' => $request->input('counterparty_id'),
-                'responsible_id' => $request->integer('responsible_id'),
+                'responsible_id' => $responsibleId,
                 'title' => $request->string('title')->toString(),
                 'description' => $request->string('description')->toString() ?: null,
                 'transport_type' => $request->string('transport_type')->toString() ?: null,
@@ -147,6 +161,45 @@ class LeadController extends Controller
         $lead->delete();
 
         return to_route('leads.index');
+    }
+
+    public function storeNextStep(StoreLeadNextStepRequest $request, Lead $lead): RedirectResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless(Schema::hasTable('tasks'), 404);
+
+        $responsibleId = $this->sanitizeResponsibleId($request);
+        $dueAt = $request->input('due_at');
+
+        Task::query()->create([
+            'number' => $this->nextTaskNumber(),
+            'title' => $request->string('title')->toString(),
+            'description' => $request->string('description')->toString() ?: null,
+            'status' => 'new',
+            'priority' => $request->string('priority')->toString() ?: 'high',
+            'due_at' => $dueAt,
+            'responsible_id' => $responsibleId,
+            'created_by' => $request->user()?->id,
+            'lead_id' => $lead->id,
+        ]);
+
+        if ($dueAt !== null) {
+            $lead->forceFill([
+                'next_contact_at' => $dueAt,
+                'updated_by' => $request->user()?->id,
+            ])->save();
+        }
+
+        $lead->activities()->create([
+            'type' => 'note',
+            'subject' => 'Создан следующий шаг',
+            'content' => $request->string('title')->toString(),
+            'next_action_at' => $dueAt,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return to_route('leads.show', $lead);
     }
 
     public function prepareProposal(Request $request, Lead $lead): RedirectResponse
@@ -290,18 +343,17 @@ class LeadController extends Controller
 
         return [
             'contractors' => $contractors->values(),
-            'responsibleUsers' => DB::table('users')
-                ->orderBy('name')
-                ->get(['id', 'name'])
-                ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
-                ->values(),
+            'responsibleUsers' => $this->responsibleUsers(request())->values(),
             'statusOptions' => LeadStatus::options(),
+            'currentUserId' => request()->user()?->id,
+            'canAssignResponsible' => $this->canAssignResponsible(request()),
+            'canUseLeadTasks' => $this->canUseLeadTasks(request()),
             'sourceOptions' => [
                 ['value' => 'inbound', 'label' => 'Входящий'],
                 ['value' => 'outbound', 'label' => 'Исходящий'],
                 ['value' => 'referral', 'label' => 'Рекомендация'],
                 ['value' => 'website', 'label' => 'Сайт'],
-                ['value' => 'marketplace', 'label' => 'Маркетплейс'],
+                ['value' => 'existing_customer', 'label' => 'Действующий клиент'],
                 ['value' => 'other', 'label' => 'Другое'],
             ],
             'transportTypeOptions' => [
@@ -337,6 +389,69 @@ class LeadController extends Controller
         $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads');
 
         return $scope === 'all' || $lead->responsible_id === $user->id;
+    }
+
+    private function canAssignResponsible(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads') === 'all';
+    }
+
+    private function canFilterResponsible(Request $request): bool
+    {
+        return $this->canAssignResponsible($request);
+    }
+
+    private function canUseLeadTasks(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user !== null
+            && Schema::hasTable('tasks')
+            && RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'tasks');
+    }
+
+    /**
+     * @return Collection<int, array{id:int,name:string}>
+     */
+    private function responsibleUsers(Request $request): Collection
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return collect();
+        }
+
+        if (! $this->canAssignResponsible($request)) {
+            return collect([[
+                'id' => $user->id,
+                'name' => $user->name,
+            ]]);
+        }
+
+        return DB::table('users')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
+            ->values();
+    }
+
+    private function sanitizeResponsibleId(Request $request): int
+    {
+        if (! $this->canAssignResponsible($request)) {
+            return (int) $request->user()->id;
+        }
+
+        return (int) $request->integer('responsible_id');
     }
 
     private function syncNestedData(Lead $lead, Request $request): void
@@ -389,6 +504,21 @@ class LeadController extends Controller
             && Schema::hasTable('lead_cargo_items')
             && Schema::hasTable('lead_activities')
             && Schema::hasTable('lead_offers');
+    }
+
+    private function nextTaskNumber(): string
+    {
+        $prefix = 'TSK-'.now()->format('ymd');
+
+        if (! Schema::hasTable('tasks')) {
+            return sprintf('%s-%03d', $prefix, 1);
+        }
+
+        $sequence = DB::table('tasks')
+            ->where('number', 'like', $prefix.'-%')
+            ->count() + 1;
+
+        return sprintf('%s-%03d', $prefix, $sequence);
     }
 
     /**
@@ -463,6 +593,7 @@ class LeadController extends Controller
             'source' => $lead->source,
             'counterparty_id' => $lead->counterparty_id,
             'responsible_id' => $lead->responsible_id,
+            'responsible_name' => $lead->responsible?->name,
             'title' => $lead->title,
             'description' => $lead->description,
             'transport_type' => $lead->transport_type,
@@ -525,6 +656,20 @@ class LeadController extends Controller
                 'order_number' => $order->order_number,
                 'status' => $order->status,
             ])->values()->all(),
+            'tasks' => Schema::hasTable('tasks')
+                ? $lead->tasks->map(fn (Task $task): array => [
+                    'id' => $task->id,
+                    'number' => $task->number,
+                    'title' => $task->title,
+                    'description' => $task->description,
+                    'status' => $task->status,
+                    'status_label' => TaskStatus::label($task->status),
+                    'priority' => $task->priority,
+                    'due_at' => optional($task->due_at)?->format('Y-m-d\TH:i'),
+                    'responsible_id' => $task->responsible_id,
+                    'responsible_name' => $task->responsible?->name,
+                ])->values()->all()
+                : [],
         ];
     }
 

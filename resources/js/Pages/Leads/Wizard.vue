@@ -24,7 +24,14 @@
 
         <div class="border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
             <div class="flex flex-wrap gap-2">
-                <button v-for="tab in tabs" :key="tab.key" type="button" class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors" :class="activeTab === tab.key ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'" @click="activeTab = tab.key">
+                <button
+                    v-for="tab in tabs"
+                    :key="tab.key"
+                    type="button"
+                    class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
+                    :class="activeTab === tab.key ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                    @click="activeTab = tab.key"
+                >
                     <component :is="tab.icon" class="h-4 w-4" />
                     {{ tab.label }}
                 </button>
@@ -34,25 +41,125 @@
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
             <div v-if="activeTab === 'main'" class="space-y-5">
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div class="space-y-2"><label class="label">Статус</label><select v-model="form.status" class="field"><option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div>
-                    <div class="space-y-2"><label class="label">Источник</label><select v-model="form.source" class="field"><option value="">Не выбрано</option><option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div>
-                    <div class="space-y-2"><label class="label">Ответственный</label><select v-model="form.responsible_id" class="field"><option v-for="user in responsibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option></select></div>
-                    <div class="space-y-2"><label class="label">Плановая отгрузка</label><input v-model="form.planned_shipping_date" type="date" class="field" /></div>
+                    <div class="space-y-2">
+                        <label class="label">Статус</label>
+                        <select v-model="form.status" class="field">
+                            <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Источник</label>
+                        <select v-model="form.source" class="field">
+                            <option value="">Не выбрано</option>
+                            <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Ответственный</label>
+                        <select v-model="form.responsible_id" class="field" :disabled="!canAssignResponsible">
+                            <option v-for="user in responsibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Плановая отгрузка</label>
+                        <input v-model="form.planned_shipping_date" type="date" class="field" />
+                    </div>
                 </div>
-                <div class="space-y-2"><label class="label">Тема лида</label><input v-model="form.title" type="text" class="field" /></div>
-                <div class="space-y-2"><label class="label">Описание</label><textarea v-model="form.description" rows="4" class="field" /></div>
+
+                <div class="space-y-2">
+                    <label class="label">Тема лида</label>
+                    <input v-model="form.title" type="text" class="field" />
+                </div>
+
+                <div class="space-y-2">
+                    <label class="label">Описание</label>
+                    <textarea v-model="form.description" rows="4" class="field" />
+                </div>
+
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div class="space-y-2"><label class="label">Контрагент</label><select v-model="form.counterparty_id" class="field"><option :value="null">Не выбран</option><option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option></select></div>
-                    <div class="space-y-2"><label class="label">Тип перевозки</label><select v-model="form.transport_type" class="field"><option value="">Не выбрано</option><option v-for="option in transportTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div>
-                    <div class="space-y-2"><label class="label">Цена клиента</label><input v-model="form.target_price" type="number" min="0" step="0.01" class="field" /></div>
-                    <div class="space-y-2"><label class="label">Валюта</label><select v-model="form.target_currency" class="field"><option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div>
+                    <div class="space-y-2">
+                        <label class="label">Контрагент</label>
+                        <select v-model="form.counterparty_id" class="field">
+                            <option :value="null">Не выбран</option>
+                            <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Тип перевозки</label>
+                        <select v-model="form.transport_type" class="field">
+                            <option value="">Не выбрано</option>
+                            <option v-for="option in transportTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Цена клиента</label>
+                        <input v-model="form.target_price" type="number" min="0" step="0.01" class="field" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Валюта</label>
+                        <select v-model="form.target_currency" class="field">
+                            <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                    </div>
                 </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="space-y-2">
+                        <label class="label">Следующий контакт</label>
+                        <input v-model="form.next_contact_at" type="datetime-local" class="field" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="label">Причина потери</label>
+                        <input v-model="form.lost_reason" type="text" class="field" placeholder="Заполняется для проигранных лидов" />
+                    </div>
+                </div>
+
                 <div class="grid gap-4 xl:grid-cols-4">
                     <div class="space-y-2"><label class="label">Потребность</label><input v-model="form.qualification.need" type="text" class="field" /></div>
                     <div class="space-y-2"><label class="label">Срок</label><input v-model="form.qualification.timeline" type="text" class="field" /></div>
                     <div class="space-y-2"><label class="label">ЛПР</label><input v-model="form.qualification.authority" type="text" class="field" /></div>
                     <div class="space-y-2"><label class="label">Бюджет</label><input v-model="form.qualification.budget" type="text" class="field" /></div>
                 </div>
+
+                <section v-if="selectedLeadId" class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-base font-semibold">Следующий шаг</h3>
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400">Лид без следующего шага не должен зависать в воронке.</p>
+                        </div>
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Открытых задач: {{ openTasks.length }}</div>
+                    </div>
+
+                    <div v-if="canUseLeadTasks" class="grid gap-3 xl:grid-cols-[minmax(0,1.4fr),220px,220px,160px]">
+                        <input v-model="nextStepForm.title" type="text" class="field" placeholder="Например: перезвонить клиенту после расчёта" />
+                        <input v-model="nextStepForm.due_at" type="datetime-local" class="field" />
+                        <select v-model="nextStepForm.responsible_id" class="field" :disabled="!canAssignResponsible">
+                            <option v-for="user in responsibleUsers" :key="`next-step-${user.id}`" :value="user.id">{{ user.name }}</option>
+                        </select>
+                        <button type="button" class="secondary-button justify-center" :disabled="nextStepForm.processing || !nextStepForm.title" @click="createNextStep">Создать шаг</button>
+                    </div>
+
+                    <div v-else class="text-sm text-zinc-500 dark:text-zinc-400">
+                        Модуль задач недоступен для вашей роли.
+                    </div>
+
+                    <div class="space-y-2">
+                        <div v-for="task in openTasks" :key="task.id" class="flex flex-wrap items-center justify-between gap-3 border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ task.title }}</div>
+                                <div class="mt-1 text-xs uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                                    {{ task.status_label }} · {{ task.responsible_name || '—' }} · {{ formatDateTime(task.due_at) }}
+                                </div>
+                            </div>
+                            <button type="button" class="secondary-button" @click="openTask(task.id)">Открыть задачи</button>
+                        </div>
+                        <div v-if="openTasks.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Открытых следующих шагов пока нет.</div>
+                    </div>
+                </section>
+
+                <section v-else class="border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    Сохраните лид, чтобы назначить следующий шаг через модуль задач.
+                </section>
             </div>
 
             <div v-else-if="activeTab === 'route'" class="space-y-4">
@@ -155,8 +262,18 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });
 
 const props = defineProps({
-    selectedLead: Object, isCreating: Boolean, contractors: Array, responsibleUsers: Array,
-    statusOptions: Array, sourceOptions: Array, transportTypeOptions: Array, currencyOptions: Array, printFormTemplateOptions: Array,
+    selectedLead: Object,
+    isCreating: Boolean,
+    contractors: Array,
+    responsibleUsers: Array,
+    statusOptions: Array,
+    sourceOptions: Array,
+    transportTypeOptions: Array,
+    currencyOptions: Array,
+    printFormTemplateOptions: Array,
+    currentUserId: Number,
+    canAssignResponsible: Boolean,
+    canUseLeadTasks: Boolean,
 });
 
 const activeTab = ref('main');
@@ -170,7 +287,32 @@ const tabs = [
 ];
 
 function blankForm() {
-    return { number: '', status: 'new', source: '', counterparty_id: null, responsible_id: props.responsibleUsers?.[0]?.id ?? null, title: '', description: '', transport_type: '', loading_location: '', unloading_location: '', planned_shipping_date: '', target_price: null, target_currency: 'RUB', calculated_cost: null, expected_margin: null, next_contact_at: '', lost_reason: '', qualification: { need: '', timeline: '', authority: '', budget: '' }, route_points: [], cargo_items: [], activities: [], offers: [], orders: [] };
+    return {
+        number: '',
+        status: 'new',
+        source: '',
+        counterparty_id: null,
+        responsible_id: props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null,
+        title: '',
+        description: '',
+        transport_type: '',
+        loading_location: '',
+        unloading_location: '',
+        planned_shipping_date: '',
+        target_price: null,
+        target_currency: 'RUB',
+        calculated_cost: null,
+        expected_margin: null,
+        next_contact_at: '',
+        lost_reason: '',
+        qualification: { need: '', timeline: '', authority: '', budget: '' },
+        route_points: [],
+        cargo_items: [],
+        activities: [],
+        offers: [],
+        orders: [],
+        tasks: [],
+    };
 }
 
 function leadToForm(lead) {
@@ -178,10 +320,32 @@ function leadToForm(lead) {
         return blankForm();
     }
 
-    return { ...blankForm(), ...lead, qualification: { need: lead.qualification?.need ?? '', timeline: lead.qualification?.timeline ?? '', authority: lead.qualification?.authority ?? '', budget: lead.qualification?.budget ?? '' }, route_points: lead.route_points ?? [], cargo_items: lead.cargo_items ?? [], activities: lead.activities ?? [], offers: lead.offers ?? [], orders: lead.orders ?? [] };
+    return {
+        ...blankForm(),
+        ...lead,
+        qualification: {
+            need: lead.qualification?.need ?? '',
+            timeline: lead.qualification?.timeline ?? '',
+            authority: lead.qualification?.authority ?? '',
+            budget: lead.qualification?.budget ?? '',
+        },
+        route_points: lead.route_points ?? [],
+        cargo_items: lead.cargo_items ?? [],
+        activities: lead.activities ?? [],
+        offers: lead.offers ?? [],
+        orders: lead.orders ?? [],
+        tasks: lead.tasks ?? [],
+    };
 }
 
 const form = useForm(leadToForm(props.selectedLead));
+const nextStepForm = useForm({
+    title: '',
+    description: '',
+    due_at: '',
+    responsible_id: props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null,
+    priority: 'high',
+});
 
 watch(() => props.selectedLead, (lead) => {
     const payload = leadToForm(lead);
@@ -190,10 +354,16 @@ watch(() => props.selectedLead, (lead) => {
     Object.entries(payload).forEach(([key, value]) => { form[key] = value; });
     activeTab.value = 'main';
     selectedTemplateId.value = props.printFormTemplateOptions?.[0]?.id ? String(props.printFormTemplateOptions[0].id) : '';
+    nextStepForm.reset();
+    nextStepForm.responsible_id = lead?.responsible_id ?? props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null;
+    nextStepForm.priority = 'high';
 }, { immediate: true });
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const selectedCounterpartyName = computed(() => props.contractors?.find((contractor) => contractor.id === form.counterparty_id)?.name ?? 'Не выбран');
+const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
+const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
+const openTasks = computed(() => (form.tasks ?? []).filter((task) => task.status !== 'done'));
 
 function goBack() { router.get(route('leads.index')); }
 function addRoutePoint(type = 'loading') { form.route_points.push({ type, sequence: form.route_points.length + 1, address: '', normalized_data: {}, planned_date: '', contact_person: '', contact_phone: '' }); }
@@ -202,9 +372,10 @@ function addCargoItem() { form.cargo_items.push({ name: '', description: '', wei
 function removeCargoItem(index) { form.cargo_items.splice(index, 1); }
 function addActivity() { form.activities.push({ type: 'note', subject: '', content: '', next_action_at: '' }); }
 function removeActivity(index) { form.activities.splice(index, 1); }
+function openTask(taskId) { router.get(route('tasks.index'), taskId ? { task: taskId } : {}); }
 
 function submit() {
-    const payload = { ...form.data(), offers: undefined, orders: undefined };
+    const payload = { ...form.data(), offers: undefined, orders: undefined, tasks: undefined };
 
     if (selectedLeadId.value) {
         router.patch(route('leads.update', selectedLeadId.value), payload);
@@ -217,7 +388,27 @@ function submit() {
 function prepareProposal() { if (selectedLeadId.value) router.post(route('leads.proposal', selectedLeadId.value)); }
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
 function destroyLead() { if (selectedLeadId.value) router.delete(route('leads.destroy', selectedLeadId.value)); }
+function createNextStep() {
+    if (!selectedLeadId.value) {
+        return;
+    }
+
+    nextStepForm.post(route('leads.next-step.store', selectedLeadId.value), {
+        preserveScroll: true,
+        onSuccess: () => {
+            nextStepForm.reset();
+            nextStepForm.responsible_id = form.responsible_id;
+            nextStepForm.priority = 'high';
+        },
+    });
+}
 function formatMoney(value, currency = 'RUB') { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value)); }
+function formatDateTime(value) {
+    if (!value) { return '—'; }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) { return value; }
+    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
+}
 function templateOptionLabel(template) {
     if (template.contractor_name) {
         return `${template.name} • ${template.contractor_name}`;
@@ -243,7 +434,7 @@ function generateCommercialDraft() {
 </script>
 
 <style scoped>
-.field { @apply w-full border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400; }
+.field { @apply w-full border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-900 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400 dark:disabled:bg-zinc-900; }
 .label { @apply text-sm font-medium; }
 .meta { @apply text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400; }
 .secondary-button { @apply inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800; }

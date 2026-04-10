@@ -2,12 +2,28 @@
 
 namespace App\Http\Requests;
 
+use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreLeadRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $user = $this->user();
+
+        if ($user === null) {
+            return;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads');
+
+        if ($scope === 'own') {
+            $this->merge(['responsible_id' => $user->id]);
+        }
+    }
+
     public function authorize(): bool
     {
         return $this->user() !== null;

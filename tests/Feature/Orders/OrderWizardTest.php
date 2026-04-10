@@ -294,6 +294,7 @@ class OrderWizardTest extends TestCase
         Schema::create('payment_schedules', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
+            $table->unsignedBigInteger('counterparty_id')->nullable();
             $table->enum('party', ['customer', 'carrier']);
             $table->enum('type', ['prepayment', 'final']);
             $table->decimal('amount', 12, 2);

@@ -30,6 +30,7 @@ class LeadManagementTest extends TestCase
         Schema::dropIfExists('lead_activities');
         Schema::dropIfExists('lead_cargo_items');
         Schema::dropIfExists('lead_route_points');
+        Schema::dropIfExists('tasks');
         Schema::dropIfExists('leads');
         Schema::dropIfExists('contractors');
         Schema::dropIfExists('salary_coefficients');
@@ -158,6 +159,25 @@ class LeadManagementTest extends TestCase
             $table->string('generated_file_path')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('tasks', function (Blueprint $table) {
+            $table->id();
+            $table->string('number')->nullable();
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->string('status', 50)->default('new');
+            $table->string('priority', 50)->default('medium');
+            $table->timestamp('due_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->unsignedBigInteger('responsible_id')->nullable();
+            $table->unsignedBigInteger('lead_id')->nullable();
+            $table->unsignedBigInteger('order_id')->nullable();
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->json('meta')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
         });
 
         Schema::create('orders', function (Blueprint $table) {
@@ -479,6 +499,47 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
+    public function test_manager_create_page_defaults_responsible_to_current_user_and_hides_reassignment(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->get(route('leads.create'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Leads/Wizard')
+            ->where('currentUserId', $manager->id)
+            ->where('canAssignResponsible', false)
+            ->where('responsibleUsers.0.id', $manager->id)
+            ->where('sourceOptions.4.value', 'existing_customer')
+            ->where('sourceOptions.4.label', 'Действующий клиент')
+            ->missing('responsibleUsers.1')
+        );
+    }
+
+    public function test_manager_cannot_assign_other_responsible_when_creating_lead(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $otherManager = $this->createUserWithRole('manager');
+
+        $response = $this->actingAs($manager)->post(route('leads.store'), [
+            'status' => 'new',
+            'source' => 'inbound',
+            'responsible_id' => $otherManager->id,
+            'title' => 'Лид с подменой ответственного',
+            'target_currency' => 'RUB',
+        ]);
+
+        $leadId = DB::table('leads')->value('id');
+
+        $response->assertRedirect(route('leads.show', $leadId));
+        $this->assertDatabaseHas('leads', [
+            'id' => $leadId,
+            'responsible_id' => $manager->id,
+        ]);
+    }
+
     public function test_manager_opens_lead_card_on_separate_page(): void
     {
         $manager = $this->createUserWithRole('manager');
@@ -697,6 +758,34 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
+    public function test_manager_can_create_next_step_task_for_own_lead(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'title' => 'Лид для следующего шага',
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('leads.next-step.store', $lead), [
+            'title' => 'Перезвонить клиенту после согласования ставки',
+            'description' => 'Уточнить решение по коммерческому предложению',
+            'due_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            'responsible_id' => $manager->id,
+            'priority' => 'high',
+        ]);
+
+        $response->assertRedirect(route('leads.show', $lead));
+        $this->assertDatabaseHas('tasks', [
+            'lead_id' => $lead->id,
+            'title' => 'Перезвонить клиенту после согласования ставки',
+            'responsible_id' => $manager->id,
+        ]);
+        $this->assertDatabaseHas('lead_activities', [
+            'lead_id' => $lead->id,
+            'subject' => 'Создан следующий шаг',
+        ]);
+    }
+
     public function test_index_returns_feature_unavailable_when_lead_tables_are_missing(): void
     {
         Schema::dropIfExists('lead_offers');
@@ -725,10 +814,11 @@ class LeadManagementTest extends TestCase
             $roleId = DB::table('roles')->insertGetId([
                 'name' => $roleName,
                 'display_name' => ucfirst($roleName),
-                'visibility_areas' => json_encode(['dashboard', 'leads', 'orders'], JSON_THROW_ON_ERROR),
+                'visibility_areas' => json_encode(['dashboard', 'leads', 'orders', 'tasks'], JSON_THROW_ON_ERROR),
                 'visibility_scopes' => json_encode([
                     'leads' => $roleName === 'manager' ? 'own' : 'all',
                     'orders' => $roleName === 'manager' ? 'own' : 'all',
+                    'tasks' => $roleName === 'manager' ? 'own' : 'all',
                 ], JSON_THROW_ON_ERROR),
                 'created_at' => now(),
                 'updated_at' => now(),
