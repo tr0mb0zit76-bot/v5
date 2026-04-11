@@ -224,7 +224,8 @@
                             </select>
                         </div>
                         <div class="flex items-end">
-                            <button type="button" class="secondary-button" :disabled="!selectedLeadId || !selectedTemplateId" @click="generateCommercialDraft"><FileText class="h-4 w-4" />Скачать DOCX</button>
+                            <button type="button" class="secondary-button" :disabled="!selectedLeadId || !selectedTemplateId" @click="previewCommercialDraft"><FileText class="h-4 w-4" />Предпросмотр</button>
+                            <button type="button" class="secondary-button" :disabled="!selectedLeadId || !selectedTemplateId" @click="downloadCommercialDraft"><FileText class="h-4 w-4" />Скачать DOCX</button>
                         </div>
                     </div>
                     <div class="grid gap-3 md:grid-cols-2">
@@ -420,16 +421,26 @@ function templateOptionLabel(template) {
 
     return template.name;
 }
-function generateCommercialDraft() {
+function previewCommercialDraft() {
     if (!selectedLeadId.value || !selectedTemplateId.value) { return; }
 
     window.open(
         route('leads.templates.generate-draft', {
             lead: selectedLeadId.value,
             printFormTemplate: selectedTemplateId.value,
+            preview: 1,
         }),
         '_blank'
     );
+}
+
+function downloadCommercialDraft() {
+    if (!selectedLeadId.value || !selectedTemplateId.value) { return; }
+
+    window.location.href = route('leads.templates.generate-draft', {
+        lead: selectedLeadId.value,
+        printFormTemplate: selectedTemplateId.value,
+    });
 }
 </script>
 

@@ -7,8 +7,8 @@
           <input
             v-model="quickSearch"
             type="text"
-            class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
             placeholder="Поиск по реестру"
+            class="w-80 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
           />
         </div>
 
@@ -58,26 +58,10 @@
         </button>
       </div>
 
-      <button type="button" class="toolbar-button" :disabled="!allowCreate" @click="$emit('create')">
+      <button type="button" class="toolbar-button" @click="$emit('create')">
         <Plus class="h-4 w-4" />
-        Добавить
+        Новый контрагент
       </button>
-    </div>
-
-    <div class="grid gap-3" :class="props.canFilterResponsible ? 'md:grid-cols-[minmax(0,1fr),180px,180px]' : 'md:grid-cols-[minmax(0,1fr),180px]'">
-      <select v-model="statusFilter" class="field">
-        <option value="">Все статусы</option>
-        <option v-for="option in statusFilterOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
-
-      <select v-if="props.canFilterResponsible" v-model="responsibleFilter" class="field">
-        <option value="">Все ответственные</option>
-        <option v-for="option in responsibleFilterOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
     </div>
 
     <div class="min-h-0 flex-1 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -85,7 +69,7 @@
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
-          :rowData="filteredRows"
+          :rowData="rows"
           :columnDefs="dynamicColumnDefs"
           :defaultColDef="defaultColDef"
           :domLayout="'normal'"
@@ -97,6 +81,7 @@
           style="height: 100%; width: 100%;"
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
+          @cell-clicked="onCellClicked"
           @cell-double-clicked="onCellDoubleClicked"
           @column-visible="saveColumnState"
           @column-resized="saveColumnState"
@@ -228,60 +213,32 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
-  allowCreate: {
-    type: Boolean,
-    default: true,
-  },
-  canFilterResponsible: {
-    type: Boolean,
-    default: false,
-  },
   userId: {
     type: [String, Number],
     default: 'guest',
   },
 });
 
-const emit = defineEmits(['create', 'row-dblclick', 'columns-changed']);
-
-const statusLabels = {
-  new: 'Новый',
-  qualification: 'Квалификация',
-  calculation: 'Просчёт',
-  proposal_ready: 'КП готово',
-  proposal_sent: 'КП отправлено',
-  negotiation: 'Переговоры',
-  won: 'Конвертирован',
-  lost: 'Закрыт',
-  on_hold: 'Отложен',
-};
+const emit = defineEmits(['create', 'row-select', 'columns-changed']);
 
 const fallbackColumns = [
-  { field: 'number', label: '№ лида', width: 120, minWidth: 110, type: null },
-  { field: 'status', label: 'Статус', width: 150, minWidth: 130, type: null },
-  { field: 'title', label: 'Тема', width: 220, minWidth: 180, type: null },
-  { field: 'source', label: 'Источник', width: 150, minWidth: 130, type: null },
-  { field: 'counterparty_name', label: 'Контрагент', width: 200, minWidth: 160, type: null },
-  { field: 'responsible_name', label: 'Ответственный', width: 180, minWidth: 150, type: null },
-  { field: 'planned_shipping_date', label: 'План отгрузки', width: 140, minWidth: 120, type: 'date' },
-  { field: 'target_price', label: 'Цена', width: 130, minWidth: 120, type: 'numeric' },
-  { field: 'target_currency', label: 'Валюта', width: 100, minWidth: 90, type: null },
-  { field: 'has_offer', label: 'Есть КП', width: 110, minWidth: 100, type: 'boolean' },
-  { field: 'created_at', label: 'Создан', width: 160, minWidth: 140, type: 'datetime' },
+  { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },
+  { field: 'status_text', label: 'Статус', width: 130, minWidth: 110, type: null },
+  { field: 'activity_types_label', label: 'Вид деятельности', width: 220, minWidth: 180, type: null },
+  { field: 'inn', label: 'ИНН', width: 140, minWidth: 120, type: null },
+  { field: 'primary_contact', label: 'Основной контакт', width: 220, minWidth: 180, type: null },
 ];
 
 const defaultVisibleFields = [
-  'number',
-  'status',
-  'title',
-  'source',
-  'counterparty_name',
-  'responsible_name',
-  'planned_shipping_date',
-  'target_price',
-  'target_currency',
-  'has_offer',
-  'created_at',
+  'name',
+  'status_text',
+  'activity_types_label',
+  'inn',
+  'primary_contact',
+  'phone',
+  'email',
+  'orders_count',
+  'current_debt',
 ];
 
 const agGrid = ref(null);
@@ -291,8 +248,6 @@ const showDensityMenu = ref(false);
 const modalColumns = ref([]);
 const draggedColumnField = ref(null);
 const quickSearch = ref('');
-const statusFilter = ref('');
-const responsibleFilter = ref('');
 const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const bottomScrollbar = ref(null);
@@ -307,8 +262,8 @@ const gridOptions = {
   theme: 'legacy',
 };
 
-const storageKey = computed(() => `leads_grid_state_v1_${props.userId}`);
-const densityStorageKey = computed(() => `leads_grid_density_${props.userId}`);
+const storageKey = computed(() => `contractors_grid_state_v1_${props.userId}`);
+const densityStorageKey = computed(() => `contractors_grid_density_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const gridContainerStyle = computed(() => ({
@@ -322,7 +277,7 @@ const defaultColDef = {
   filter: true,
   resizable: true,
   floatingFilter: true,
-  minWidth: 80,
+  minWidth: 90,
   suppressSizeToFit: true,
 };
 
@@ -332,14 +287,14 @@ const getAllColumns = () => {
   return sourceColumns.map((column) => ({
     field: column.field,
     headerName: column.headerName ?? column.label ?? column.field,
-    width: column.width ?? 140,
+    width: column.width ?? 160,
     minWidth: column.minWidth ?? 100,
     type: column.type ?? null,
   }));
 };
 
 const getRoleColumnPreset = () => {
-  const preset = props.roleColumnsConfig?.leads;
+  const preset = props.roleColumnsConfig?.contractors;
 
   if (!Array.isArray(preset) || preset.length === 0) {
     return null;
@@ -394,26 +349,6 @@ const buildRoleDefaultState = () => {
   }));
 };
 
-const statusFilterOptions = computed(() => {
-  return Object.entries(statusLabels)
-    .filter(([value]) => props.rows.some((row) => row.status === value))
-    .map(([value, label]) => ({ value, label }));
-});
-
-const responsibleFilterOptions = computed(() => {
-  return [...new Set(props.rows.map((row) => row.responsible_name).filter(Boolean))]
-    .map((name) => ({ value: name, label: name }));
-});
-
-const filteredRows = computed(() => {
-  return props.rows.filter((row) => {
-    const matchesStatus = statusFilter.value === '' || row.status === statusFilter.value;
-    const matchesResponsible = responsibleFilter.value === '' || row.responsible_name === responsibleFilter.value;
-
-    return matchesStatus && matchesResponsible;
-  });
-});
-
 const dynamicColumnDefs = computed(() => {
   return getAllowedColumns().map((column) => {
     const columnDefinition = {
@@ -425,16 +360,14 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
-      valueFormatter: (params) => formatValue(params.value, column.type, column.field, params.data),
+      valueFormatter: (params) => formatValue(params.value, column.type),
     };
 
-    if (column.field === 'number') {
+    if (column.field === 'name') {
       columnDefinition.pinned = 'left';
       columnDefinition.lockPinned = true;
       columnDefinition.cellClass = 'orders-grid-order-number-cell';
       columnDefinition.headerClass = 'orders-grid-order-number-header';
-    } else if (column.field === 'title') {
-      columnDefinition.flex = 1;
     }
 
     return columnDefinition;
@@ -498,7 +431,7 @@ const loadColumnState = () => {
 
     return true;
   } catch (error) {
-    console.error('Error loading leads grid state', error);
+    console.error('Error loading contractors grid state', error);
 
     return false;
   }
@@ -656,6 +589,18 @@ const applyColumnModalChanges = () => {
   showColumnModal.value = false;
 };
 
+const onCellClicked = (params) => {
+  if (params.data?.id) {
+    emit('row-select', params.data.id);
+  }
+};
+
+const onCellDoubleClicked = (params) => {
+  if (params.data?.id) {
+    emit('row-select', params.data.id);
+  }
+};
+
 const onGridReady = async (params) => {
   gridApi.value = params.api;
 
@@ -681,12 +626,6 @@ const onFirstDataRendered = () => {
   });
 };
 
-const onCellDoubleClicked = (event) => {
-  if (event.data?.id) {
-    emit('row-dblclick', event.data);
-  }
-};
-
 watch(quickSearch, (value) => {
   if (!gridApi.value) {
     return;
@@ -695,7 +634,7 @@ watch(quickSearch, (value) => {
   gridApi.value.setGridOption('quickFilterText', value);
 });
 
-watch(filteredRows, async () => {
+watch(() => props.rows, async () => {
   await nextTick();
   updateGridViewportHeight();
   attachCenterViewportListener();
@@ -817,65 +756,17 @@ onUnmounted(() => {
   }
 });
 
-function formatDate(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const parsedDate = new Date(value);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return value;
-  }
-
-  return parsedDate.toLocaleDateString('ru-RU');
-}
-
-function formatDateTime(value) {
-  if (!value) {
-    return '—';
-  }
-
-  const parsedDate = new Date(value);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return value;
-  }
-
-  return parsedDate.toLocaleString('ru-RU');
-}
-
-function formatMoney(value, currency = 'RUB') {
-  return new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Number(value));
-}
-
-function formatValue(value, type, field, row) {
+function formatValue(value, type) {
   if (value === null || value === undefined || value === '') {
     return '—';
   }
 
-  if (field === 'status') {
-    return statusLabels[value] ?? value;
-  }
-
-  if (field === 'planned_shipping_date') {
-    return formatDate(value);
-  }
-
-  if (field === 'target_price') {
-    return formatMoney(value, row?.target_currency ?? 'RUB');
-  }
-
-  if (field === 'created_at' || type === 'datetime') {
-    return formatDateTime(value);
-  }
-
-  if (type === 'boolean' || field === 'has_offer') {
+  if (type === 'boolean') {
     return value ? 'Да' : 'Нет';
+  }
+
+  if (type === 'numeric') {
+    return new Intl.NumberFormat('ru-RU').format(Number(value));
   }
 
   return value;
@@ -883,11 +774,7 @@ function formatValue(value, type, field, row) {
 </script>
 
 <style scoped>
-.field {
-  @apply w-full border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400;
-}
-
 .toolbar-button {
-  @apply inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+  @apply inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
 </style>

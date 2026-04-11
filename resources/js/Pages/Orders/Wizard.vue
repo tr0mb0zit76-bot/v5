@@ -832,6 +832,13 @@
                                 </span>
                             </div>
                             <div class="flex flex-wrap gap-2">
+                                <Link
+                                    v-if="doc.draft_preview_url"
+                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                    :href="doc.draft_preview_url"
+                                >
+                                    Предпросмотр
+                                </Link>
                                 <a
                                     v-if="doc.draft_download_url"
                                     class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
@@ -988,12 +995,20 @@
                                     </select>
                                 </div>
                             </div>
-                            <div v-if="item.document.flow === 'generated'" class="flex justify-end">
+                            <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
                                 <button
                                     type="button"
                                     class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                                     :disabled="!isEditing || !order?.id || !item.document.template_id"
-                                    @click="generateDocumentDraft(item.document)"
+                                    @click="previewDocumentDraft(item.document)"
+                                >
+                                    Предпросмотр
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    @click="downloadDocumentDraft(item.document)"
                                 >
                                     Скачать DOCX
                                 </button>
@@ -1069,12 +1084,20 @@
                                     </select>
                                 </div>
                             </div>
-                            <div v-if="item.document.flow === 'generated'" class="flex justify-end">
+                            <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
                                 <button
                                     type="button"
                                     class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                                     :disabled="!isEditing || !order?.id || !item.document.template_id"
-                                    @click="generateDocumentDraft(item.document)"
+                                    @click="previewDocumentDraft(item.document)"
+                                >
+                                    Предпросмотр
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    @click="downloadDocumentDraft(item.document)"
                                 >
                                     Скачать DOCX
                                 </button>
@@ -1132,7 +1155,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -1393,7 +1416,22 @@ function normalizeDocument(document = {}) {
     };
 }
 
-function generateDocumentDraft(document) {
+function previewDocumentDraft(document) {
+    if (!props.order?.id || !document?.template_id) {
+        return;
+    }
+
+    window.open(
+        route('orders.templates.generate-draft', {
+            order: props.order.id,
+            printFormTemplate: document.template_id,
+            preview: 1,
+        }),
+        '_blank'
+    );
+}
+
+function downloadDocumentDraft(document) {
     if (!props.order?.id || !document?.template_id) {
         return;
     }

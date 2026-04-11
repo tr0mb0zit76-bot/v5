@@ -19,6 +19,8 @@ import {
     Users,
     Wallet,
 } from 'lucide-vue-next';
+import Modal from '@/Components/Modal.vue';
+import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -68,6 +70,9 @@ const props = defineProps({
 });
 
 const page = usePage();
+const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
+const availableColumns = computed(() => page.props.contractorColumns ?? []);
+const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const search = ref(props.filters.search || '');
 const typeFilter = ref(props.filters.type || '');
 const activeTab = ref('general');
@@ -442,6 +447,7 @@ watch(() => props.activityTypeOptions, (options) => {
 
 const isCreating = computed(() => page.url.endsWith('/contractors/create'));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
+const isContractorModalOpen = computed(() => isCreating.value || selectedContractorId.value !== null);
 
 const contractorScoring = ref(null);
 const contractorScoringLoading = ref(false);
@@ -586,6 +592,14 @@ function openCreateForm() {
 function openContractor(contractorId) {
     router.get(route('contractors.show', {
         contractor: contractorId,
+        search: effectiveIndexSearchQuery(search.value),
+        type: typeFilter.value,
+        page: props.pagination.current_page,
+    }), {}, { preserveScroll: true });
+}
+
+function closeContractorModal() {
+    router.get(route('contractors.index', {
         search: effectiveIndexSearchQuery(search.value),
         type: typeFilter.value,
         page: props.pagination.current_page,
@@ -1018,123 +1032,25 @@ function handleMobileNavSelect(key) {
             <div>
                 <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Единая карточка контрагента с реквизитами, контактами, историей коммуникаций и связанными заказами.
+                    Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы.
                 </p>
             </div>
-
-            <button
-                type="button"
-                class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                @click="openCreateForm"
-            >
-                <Plus class="h-4 w-4" />
-                Новый контрагент
-            </button>
         </div>
 
-        <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden xl:h-full xl:grid-cols-[320px_minmax(0,1fr)]">
-            <aside class="flex min-h-0 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                <div class="border-b border-zinc-200 p-3 dark:border-zinc-800">
-                    <div class="relative mb-2">
-                        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                        <input
-                            v-model="search"
-                            type="text"
-                            placeholder="Поиск по названию, ИНН, телефону"
-                            class="w-full border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                        />
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-xs font-medium text-zinc-700 dark:text-zinc-300">Тип контрагента</label>
-                        <select
-                            v-model="typeFilter"
-                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                        >
-                            <option value="">Все типы</option>
-                            <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
-                                {{ type.label }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
+        <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+            <div class="min-h-0 flex-1 overflow-hidden">
+                <ContractorsGrid
+                    :rows="contractors"
+                    :available-columns="availableColumns"
+                    :role-columns-config="roleColumnsConfig"
+                    :user-id="userId"
+                    @create="openCreateForm"
+                    @row-select="openContractor"
+                />
+            </div>
 
-                <div class="border-b border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            Всего контрагентов: {{ pagination.total }}
-                            <span v-if="pagination.total > pagination.per_page" class="ml-2">
-                                (показано {{ pagination.from }}-{{ pagination.to }})
-                            </span>
-                        </div>
-                        <div v-if="pagination.last_page > 1" class="flex items-center gap-1">
-                            <button
-                                type="button"
-                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-zinc-300 bg-white text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                                :disabled="pagination.current_page === 1"
-                                @click="goToPage(pagination.current_page - 1)"
-                            >
-                                ←
-                            </button>
-                            <span class="px-2 text-xs">
-                                {{ pagination.current_page }} / {{ pagination.last_page }}
-                            </span>
-                            <button
-                                type="button"
-                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-zinc-300 bg-white text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                                :disabled="pagination.current_page === pagination.last_page"
-                                @click="goToPage(pagination.current_page + 1)"
-                            >
-                                →
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain" scroll-region>
-                    <button
-                        v-for="contractor in contractors"
-                        :key="contractor.id"
-                        type="button"
-                        class="flex w-full flex-col gap-1 border-b border-zinc-100 px-3 py-3 text-left transition-colors dark:border-zinc-800"
-                        :class="selectedContractorId === contractor.id
-                            ? 'bg-zinc-100 dark:bg-zinc-800'
-                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'"
-                        @click="openContractor(contractor.id)"
-                    >
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="space-y-1">
-                                <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ contractor.name }}</div>
-                                <div v-if="contractor.is_own_company" class="text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
-                                    Своя компания
-                                </div>
-                            </div>
-                            <span
-                                class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                :class="contractor.is_active
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                    : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'"
-                            >
-                                {{ contractor.is_active ? 'Активен' : 'Архив' }}
-                            </span>
-                        </div>
-
-                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ contractorTypeLabel(contractor.type) }}<span v-if="contractor.inn"> · ИНН {{ contractor.inn }}</span>
-                        </div>
-
-                        <div class="flex flex-wrap gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                            <span>Контакты: {{ contractor.contacts_count }}</span>
-                            <span>Заказы: {{ contractor.orders_count }}</span>
-                        </div>
-                    </button>
-
-                    <div v-if="contractors.length === 0" class="px-4 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        Контрагенты не найдены.
-                    </div>
-                </div>
-            </aside>
-
-            <section class="flex min-h-0 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <Modal :show="isContractorModalOpen" max-width="6xl" @close="closeContractorModal">
+                <section class="flex max-h-[calc(100dvh-4rem)] min-h-[70dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <div class="space-y-1">
                         <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
@@ -2114,6 +2030,7 @@ function handleMobileNavSelect(key) {
                     </div>
                 </div>
             </section>
+            </Modal>
         </div>
     </div>
 </template>

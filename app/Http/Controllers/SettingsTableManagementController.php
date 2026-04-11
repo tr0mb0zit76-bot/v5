@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateRoleTablePresetRequest;
 use App\Models\Role;
+use App\Support\ContractorTableColumns;
+use App\Support\LeadTableColumns;
 use App\Support\OrderTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
@@ -31,18 +33,22 @@ class SettingsTableManagementController extends Controller
                         'display_name' => $role->display_name,
                         'columns_config' => [
                             'orders' => $columnsConfig['orders'] ?? OrderTableColumns::defaultState($role->name),
+                            'leads' => $columnsConfig['leads'] ?? LeadTableColumns::defaultState($role->name),
+                            'contractors' => $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($role->name),
                         ],
                     ];
                 })
                 ->values(),
             'orderColumns' => OrderTableColumns::options(),
+            'leadColumns' => LeadTableColumns::options(),
+            'contractorColumns' => ContractorTableColumns::options(),
         ]);
     }
 
     public function update(UpdateRoleTablePresetRequest $request, Role $role): RedirectResponse
     {
         $columnsConfig = is_array($role->columns_config) ? $role->columns_config : [];
-        $columnsConfig['orders'] = $request->validated('orders');
+        $columnsConfig[$request->validated('table')] = $request->validated('columns');
 
         $role->update([
             'columns_config' => $columnsConfig,

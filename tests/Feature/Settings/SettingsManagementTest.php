@@ -195,7 +195,11 @@ class SettingsManagementTest extends TestCase
             ->component('Settings/Tables')
             ->has('roles', 2)
             ->has('orderColumns')
+            ->has('leadColumns')
+            ->has('contractorColumns')
             ->where('orderColumns.0.field', 'id')
+            ->where('leadColumns.0.field', 'number')
+            ->where('contractorColumns.0.field', 'name')
         );
     }
 
@@ -206,7 +210,8 @@ class SettingsManagementTest extends TestCase
         $admin = User::factory()->create(['role_id' => $adminRoleId]);
 
         $response = $this->actingAs($admin)->patch(route('settings.tables.update', $managerRoleId), [
-            'orders' => [
+            'table' => 'orders',
+            'columns' => [
                 ['colId' => 'order_number', 'hide' => false, 'width' => 100, 'order' => 0],
                 ['colId' => 'manager_name', 'hide' => false, 'width' => 160, 'order' => 1],
                 ['colId' => 'salary_paid', 'hide' => true, 'width' => 120, 'order' => 2],
@@ -223,6 +228,60 @@ class SettingsManagementTest extends TestCase
             ['colId' => 'manager_name', 'hide' => false, 'width' => 160, 'order' => 1],
             ['colId' => 'salary_paid', 'hide' => true, 'width' => 120, 'order' => 2],
         ], $columnsConfig['orders']);
+    }
+
+    public function test_admin_can_update_role_lead_table_preset(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.tables.update', $managerRoleId), [
+            'table' => 'leads',
+            'columns' => [
+                ['colId' => 'number', 'hide' => false, 'width' => 110, 'order' => 0],
+                ['colId' => 'title', 'hide' => false, 'width' => 240, 'order' => 1],
+                ['colId' => 'responsible_name', 'hide' => true, 'width' => 180, 'order' => 2],
+            ],
+        ]);
+
+        $response->assertRedirect(route('settings.tables.index'));
+
+        $role = DB::table('roles')->where('id', $managerRoleId)->first();
+        $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame([
+            ['colId' => 'number', 'hide' => false, 'width' => 110, 'order' => 0],
+            ['colId' => 'title', 'hide' => false, 'width' => 240, 'order' => 1],
+            ['colId' => 'responsible_name', 'hide' => true, 'width' => 180, 'order' => 2],
+        ], $columnsConfig['leads']);
+    }
+
+    public function test_admin_can_update_role_contractor_table_preset(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.tables.update', $managerRoleId), [
+            'table' => 'contractors',
+            'columns' => [
+                ['colId' => 'name', 'hide' => false, 'width' => 220, 'order' => 0],
+                ['colId' => 'status_text', 'hide' => false, 'width' => 130, 'order' => 1],
+                ['colId' => 'primary_contact', 'hide' => true, 'width' => 180, 'order' => 2],
+            ],
+        ]);
+
+        $response->assertRedirect(route('settings.tables.index'));
+
+        $role = DB::table('roles')->where('id', $managerRoleId)->first();
+        $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame([
+            ['colId' => 'name', 'hide' => false, 'width' => 220, 'order' => 0],
+            ['colId' => 'status_text', 'hide' => false, 'width' => 130, 'order' => 1],
+            ['colId' => 'primary_contact', 'hide' => true, 'width' => 180, 'order' => 2],
+        ], $columnsConfig['contractors']);
     }
 
     public function test_admin_can_open_motivation_hub_page(): void

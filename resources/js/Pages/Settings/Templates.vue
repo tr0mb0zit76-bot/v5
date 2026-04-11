@@ -282,33 +282,54 @@
                                     class="border border-zinc-200 p-4 dark:border-zinc-800"
                                 >
                                     <div class="mb-3 text-sm font-medium">Тестовая генерация DOCX</div>
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                        «Предпросмотр» открывает тот же DOCX для просмотра в браузере (где поддерживается). Для гарантированного файла на диске — «Скачать DOCX».
+                                    </p>
                                     <div v-if="form.entity_type === 'order'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID заказа</label>
                                             <input v-model="previewOrderId" type="number" min="1" class="field" placeholder="Например, 125" />
                                         </div>
-                                        <button
-                                            type="button"
-                                            class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
-                                            @click="generateOrderDraft"
-                                        >
-                                            <FileText class="h-4 w-4" />
-                                            Сформировать черновик DOCX
-                                        </button>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+                                                @click="previewOrderDraft"
+                                            >
+                                                <FileText class="h-4 w-4" />
+                                                Предпросмотр в браузере
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                                @click="downloadOrderDraft"
+                                            >
+                                                Скачать DOCX
+                                            </button>
+                                        </div>
                                     </div>
                                     <div v-else-if="form.entity_type === 'lead'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID лида</label>
                                             <input v-model="previewLeadId" type="number" min="1" class="field" placeholder="Например, 18" />
                                         </div>
-                                        <button
-                                            type="button"
-                                            class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
-                                            @click="generateLeadDraft"
-                                        >
-                                            <FileText class="h-4 w-4" />
-                                            Сформировать черновик DOCX
-                                        </button>
+                                        <div class="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
+                                                @click="previewLeadDraft"
+                                            >
+                                                <FileText class="h-4 w-4" />
+                                                Предпросмотр в браузере
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                                @click="downloadLeadDraft"
+                                            >
+                                                Скачать DOCX
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -638,7 +659,7 @@ function removeTemplate(template) {
     });
 }
 
-function generateOrderDraft() {
+function previewOrderDraft() {
     if (editingTemplate.value === null) {
         return;
     }
@@ -654,12 +675,31 @@ function generateOrderDraft() {
         route('settings.templates.generate-order-draft', {
             printFormTemplate: editingTemplate.value.id,
             order_id: orderId,
+            preview: 1,
         }),
         '_blank'
     );
 }
 
-function generateLeadDraft() {
+function downloadOrderDraft() {
+    if (editingTemplate.value === null) {
+        return;
+    }
+
+    const orderId = String(previewOrderId.value || '').trim();
+
+    if (orderId === '') {
+        window.alert('Укажи ID заказа для тестовой генерации.');
+        return;
+    }
+
+    window.location.href = route('settings.templates.generate-order-draft', {
+        printFormTemplate: editingTemplate.value.id,
+        order_id: orderId,
+    });
+}
+
+function previewLeadDraft() {
     if (editingTemplate.value === null) {
         return;
     }
@@ -675,9 +715,28 @@ function generateLeadDraft() {
         route('settings.templates.generate-lead-draft', {
             printFormTemplate: editingTemplate.value.id,
             lead_id: leadId,
+            preview: 1,
         }),
         '_blank'
     );
+}
+
+function downloadLeadDraft() {
+    if (editingTemplate.value === null) {
+        return;
+    }
+
+    const leadId = String(previewLeadId.value || '').trim();
+
+    if (leadId === '') {
+        window.alert('Укажи ID лида для тестовой генерации.');
+        return;
+    }
+
+    window.location.href = route('settings.templates.generate-lead-draft', {
+        printFormTemplate: editingTemplate.value.id,
+        lead_id: leadId,
+    });
 }
 </script>
 

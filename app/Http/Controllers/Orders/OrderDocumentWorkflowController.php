@@ -8,12 +8,17 @@ use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Services\CabinetNotifier;
 use App\Services\OrderPrintDocumentWorkflowService;
+use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
+use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class OrderDocumentWorkflowController extends Controller
 {
@@ -21,6 +26,7 @@ class OrderDocumentWorkflowController extends Controller
         private readonly OrderPrintDocumentWorkflowService $workflowService,
         private readonly PrintFormTemplateOrderEligibility $templateEligibility,
         private readonly CabinetNotifier $cabinetNotifier,
+        private readonly PrintFormDraftResponseBuilder $draftResponseBuilder,
     ) {}
 
     public function storeFromTemplate(Request $request, Order $order): RedirectResponse
@@ -145,14 +151,44 @@ class OrderDocumentWorkflowController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Черновик пересоздан из данных заказа.']);
     }
 
-    public function downloadDraft(Request $request, Order $order, OrderDocument $orderDocument): BinaryFileResponse
+    public function previewDraft(Request $request, Order $order, OrderDocument $orderDocument): InertiaResponse
     {
         $this->ensureCanViewOrderDocuments($request, $order);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         abort_if(blank($orderDocument->file_path), 404);
 
-        return Storage::disk('local')->download(
+        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
+            ? $orderDocument->workflow_status
+            : null;
+
+        $canManage = $this->userCanManageOrderDocuments($request, $order);
+        $canRequestApproval = $canManage && in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::DRAFT,
+            OrderDocumentWorkflowStatus::REJECTED,
+        ], true);
+
+        return Inertia::render('Orders/PrintWorkflowDocumentPreview', [
+            'orderId' => $order->id,
+            'orderNumber' => $order->order_number,
+            'documentId' => $orderDocument->id,
+            'documentTitle' => $orderDocument->original_name ?: 'Черновик заявки',
+            'embedUrl' => route('orders.documents.download-draft', [$order, $orderDocument]).'?preview=1',
+            'workflowStatusLabel' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
+            'canRequestApproval' => $canRequestApproval,
+        ]);
+    }
+
+    public function downloadDraft(Request $request, Order $order, OrderDocument $orderDocument): Response|BinaryFileResponse
+    {
+        $this->ensureCanViewOrderDocuments($request, $order);
+        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+
+        abort_if(blank($orderDocument->file_path), 404);
+
+        return $this->draftResponseBuilder->fromStoredDocx(
+            $request,
+            'local',
             $orderDocument->file_path,
             $orderDocument->original_name ?: 'draft.docx'
         );
@@ -223,5 +259,20 @@ class OrderDocumentWorkflowController extends Controller
         }
 
         abort(403);
+    }
+
+    private function userCanManageOrderDocuments(Request $request, Order $order): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        return $user->isManager() && (int) $order->manager_id === (int) $user->id;
     }
 }

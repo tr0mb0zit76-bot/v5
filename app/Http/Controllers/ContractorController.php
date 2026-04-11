@@ -11,6 +11,7 @@ use App\Services\Checko\ContractorScoringService;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\ContractorTableColumns;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -276,26 +277,18 @@ class ContractorController extends Controller
 
         $contractorsQuery->withCount(['customerOrders', 'carrierOrders']);
 
-        // Add pagination - load 10 contractors per page
-        $perPage = 10;
-        $page = $request->input('page', 1);
-
         try {
-            $contractorsPaginator = $contractorsQuery
+            $contractorsCollection = $contractorsQuery
                 ->orderByDesc('is_active')
                 ->orderBy('name')
-                ->paginate($perPage, ['*'], 'page', $page);
-
-            $contractorsCollection = $contractorsPaginator->getCollection();
+                ->get();
         } catch (QueryException $exception) {
             if ($this->isMissingTableException($exception, 'contractor_contacts')) {
-                $contractorsPaginator = Contractor::query()
+                $contractorsCollection = Contractor::query()
                     ->withCount(['customerOrders', 'carrierOrders'])
                     ->orderByDesc('is_active')
                     ->orderBy('name')
-                    ->paginate($perPage, ['*'], 'page', $page);
-
-                $contractorsCollection = $contractorsPaginator->getCollection();
+                    ->get();
                 $hasContactsTable = false;
             } else {
                 throw $exception;
@@ -309,11 +302,16 @@ class ContractorController extends Controller
                 'id' => $contractor->id,
                 'name' => $contractor->name,
                 'type' => $contractor->type,
+                'type_label' => $this->contractorTypeLabel($contractor->type),
                 'inn' => $contractor->inn,
                 'phone' => $contractor->phone,
                 'email' => $contractor->email,
                 'is_active' => $contractor->is_active,
+                'is_verified' => (bool) $contractor->is_verified,
                 'is_own_company' => $contractor->is_own_company ?? false,
+                'status_text' => $contractor->is_active ? 'Активен' : 'Архив',
+                'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
+                'primary_contact' => $this->resolvePrimaryContact($contractor),
                 'debt_limit' => $contractor->debt_limit,
                 'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
                 'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
@@ -326,13 +324,13 @@ class ContractorController extends Controller
 
         // Add pagination metadata
         $pagination = [
-            'current_page' => $contractorsPaginator->currentPage(),
-            'last_page' => $contractorsPaginator->lastPage(),
-            'per_page' => $contractorsPaginator->perPage(),
-            'total' => $contractorsPaginator->total(),
-            'from' => $contractorsPaginator->firstItem(),
-            'to' => $contractorsPaginator->lastItem(),
-            'links' => $contractorsPaginator->linkCollection()->toArray(),
+            'current_page' => 1,
+            'last_page' => 1,
+            'per_page' => $contractors->count(),
+            'total' => $contractors->count(),
+            'from' => $contractors->isEmpty() ? 0 : 1,
+            'to' => $contractors->count(),
+            'links' => [],
         ];
 
         $contractorDetails = null;
@@ -513,6 +511,7 @@ class ContractorController extends Controller
                 ['value' => 'other', 'label' => 'Другое'],
             ],
             'users' => User::select('id', 'name')->orderBy('name')->get(),
+            'contractorColumns' => ContractorTableColumns::options(),
             'filters' => [
                 'search' => $search,
                 'type' => $type,
@@ -895,5 +894,49 @@ class ContractorController extends Controller
         }
 
         return $context;
+    }
+
+    private function contractorTypeLabel(?string $type): string
+    {
+        return match ($type) {
+            'customer' => 'Заказчик',
+            'carrier' => 'Перевозчик',
+            'both' => 'Заказчик и перевозчик',
+            default => 'Не указан',
+        };
+    }
+
+    private function implodeActivityTypes(mixed $activityTypes): string
+    {
+        if (! is_array($activityTypes) || $activityTypes === []) {
+            return '—';
+        }
+
+        $items = array_values(array_filter(array_map(
+            static fn (mixed $item): string => trim((string) $item),
+            $activityTypes,
+        )));
+
+        return $items === [] ? '—' : implode(', ', $items);
+    }
+
+    private function resolvePrimaryContact(Contractor $contractor): string
+    {
+        $name = trim((string) ($contractor->contact_person ?? ''));
+        $phone = trim((string) ($contractor->contact_person_phone ?? $contractor->phone ?? ''));
+
+        if ($name !== '' && $phone !== '') {
+            return $name.' · '.$phone;
+        }
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        if ($phone !== '') {
+            return $phone;
+        }
+
+        return '—';
     }
 }

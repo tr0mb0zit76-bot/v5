@@ -3,9 +3,12 @@
         <div v-if="featureUnavailable" class="border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
             Модуль лидов отключен для текущей схемы БД: таблицы лидов еще не развернуты.
         </div>
-        <div class="min-h-0 flex-1 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div class="min-h-0 flex-1 overflow-hidden">
             <LeadsGrid
                 :rows="rows"
+                :available-columns="availableColumns"
+                :role-columns-config="roleColumnsConfig"
+                :user-id="userId"
                 :allow-create="!featureUnavailable"
                 :can-filter-responsible="canFilterResponsible"
                 @create="openCreateLead"
@@ -26,7 +29,10 @@ defineOptions({
 });
 
 const page = usePage();
+const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const rows = computed(() => page.props.leads ?? []);
+const availableColumns = computed(() => page.props.leadColumns ?? []);
+const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
 const canFilterResponsible = computed(() => Boolean(page.props.canFilterResponsible));
 

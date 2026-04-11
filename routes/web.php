@@ -101,6 +101,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders/{order}/documents/{orderDocument}/finalize', 'finalize')->name('orders.documents.finalize');
         Route::post('/orders/{order}/documents/{orderDocument}/regenerate-draft', 'regenerateDraft')->name('orders.documents.regenerate-draft');
         Route::get('/orders/{order}/documents/{orderDocument}/download-draft', 'downloadDraft')->name('orders.documents.download-draft');
+        Route::get('/orders/{order}/documents/{orderDocument}/preview', 'previewDraft')->name('orders.documents.preview-draft');
         Route::get('/orders/{order}/documents/{orderDocument}/download-final', 'downloadFinal')->name('orders.documents.download-final');
     });
 

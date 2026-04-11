@@ -11,6 +11,7 @@ use App\Models\PrintFormTemplate;
 use App\Services\DocxPlaceholderExtractor;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\OrderPrintFormDraftService;
+use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormVariableCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SettingsTemplateController extends Controller
 {
@@ -29,6 +29,7 @@ class SettingsTemplateController extends Controller
         private readonly PrintFormVariableCatalog $variableCatalog,
         private readonly OrderPrintFormDraftService $orderDraftService,
         private readonly LeadPrintFormDraftService $leadDraftService,
+        private readonly PrintFormDraftResponseBuilder $draftResponseBuilder,
     ) {}
 
     public function index(Request $request): Response
@@ -160,7 +161,7 @@ class SettingsTemplateController extends Controller
         return to_route('settings.templates.index');
     }
 
-    public function generateOrderDraft(Request $request, PrintFormTemplate $printFormTemplate): BinaryFileResponse
+    public function generateOrderDraft(Request $request, PrintFormTemplate $printFormTemplate): \Symfony\Component\HttpFoundation\Response
     {
         abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
         abort_if($printFormTemplate->entity_type !== 'order', 422, 'Черновик можно сформировать только для шаблона заказа.');
@@ -173,13 +174,10 @@ class SettingsTemplateController extends Controller
         $order = Order::query()->findOrFail($validated['order_id']);
         $generatedFile = $this->orderDraftService->generate($printFormTemplate, $order);
 
-        return response()->download(
-            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
-            $generatedFile['download_name']
-        );
+        return $this->draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
 
-    public function generateLeadDraft(Request $request, PrintFormTemplate $printFormTemplate): BinaryFileResponse
+    public function generateLeadDraft(Request $request, PrintFormTemplate $printFormTemplate): \Symfony\Component\HttpFoundation\Response
     {
         abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
         abort_if($printFormTemplate->entity_type !== 'lead', 422, 'Черновик можно сформировать только для шаблона лида.');
@@ -192,10 +190,7 @@ class SettingsTemplateController extends Controller
         $lead = Lead::query()->findOrFail($validated['lead_id']);
         $generatedFile = $this->leadDraftService->generate($printFormTemplate, $lead);
 
-        return response()->download(
-            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
-            $generatedFile['download_name']
-        );
+        return $this->draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
 
     public function destroy(Request $request, PrintFormTemplate $printFormTemplate): RedirectResponse

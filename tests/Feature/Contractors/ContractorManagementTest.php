@@ -213,6 +213,10 @@ class ContractorManagementTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Contractors/Index')
             ->has('contractors', 1)
+            ->has('contractorColumns')
+            ->where('contractorColumns.0.field', 'name')
+            ->where('contractors.0.status_text', 'Активен')
+            ->where('contractors.0.primary_contact', '—')
             ->has('legalFormOptions')
             ->where('legalFormOptions.0.label', 'ООО')
         );
@@ -687,7 +691,7 @@ class ContractorManagementTest extends TestCase
         );
     }
 
-    public function test_contractors_show_preserves_list_page_from_query_string(): void
+    public function test_contractors_show_ignores_legacy_page_query_string_with_virtual_scroll(): void
     {
         $admin = $this->createAdminUser();
 
@@ -713,7 +717,8 @@ class ContractorManagementTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->where('pagination.current_page', 2)
+            ->where('pagination.current_page', 1)
+            ->where('pagination.total', 11)
             ->where('selectedContractor.id', $eleventhId)
         );
     }

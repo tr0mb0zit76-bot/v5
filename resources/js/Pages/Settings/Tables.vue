@@ -3,7 +3,7 @@
         <div class="shrink-0">
             <h1 class="text-2xl font-semibold">Управление таблицей</h1>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Здесь задаётся разрешённый набор колонок для роли в таблице заказов. Пользователь видит и настраивает в модалке «Колонки» только те поля, которые разрешены его роли.
+                Здесь задаётся разрешённый набор колонок для ролей в таблицах заказов, лидов и контрагентов. Пользователь видит и настраивает только те поля, которые разрешены его роли.
             </p>
         </div>
 
@@ -25,7 +25,7 @@
                     >
                         <div class="font-medium">{{ role.display_name || role.name }}</div>
                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ allowedCount(role.id) }}/{{ orderColumns.length }}
+                            {{ allowedCount(role.id) }}/{{ activeColumns.length }}
                         </div>
                     </button>
                 </div>
@@ -38,7 +38,7 @@
                             {{ selectedRole?.display_name || selectedRole?.name || 'Роль не выбрана' }}
                         </div>
                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Разрешённые колонки для роли и их порядок в ролевом наборе
+                            Разрешённые колонки и порядок для таблицы «{{ tableDefinitions.find((table) => table.key === selectedTableKey)?.label || 'Таблица' }}»
                         </div>
                     </div>
 
@@ -59,6 +59,21 @@
                             {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
                         </button>
                     </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                    <button
+                        v-for="table in tableDefinitions"
+                        :key="table.key"
+                        type="button"
+                        class="rounded-xl border px-3 py-2 text-sm transition-colors"
+                        :class="selectedTableKey === table.key
+                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                        @click="selectTable(table.key)"
+                    >
+                        {{ table.label }}
+                    </button>
                 </div>
 
                 <div v-if="selectedColumns.length" class="max-h-full overflow-y-auto p-4">
@@ -150,7 +165,21 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    leadColumns: {
+        type: Array,
+        default: () => [],
+    },
+    contractorColumns: {
+        type: Array,
+        default: () => [],
+    },
 });
+
+const tableDefinitions = [
+    { key: 'orders', label: 'Заказы' },
+    { key: 'leads', label: 'Лиды' },
+    { key: 'contractors', label: 'Контрагенты' },
+];
 
 const groupDefinitions = [
     { key: 'identity', label: 'Идентификация' },
@@ -236,22 +265,69 @@ const groupMap = {
     updated_at: 'system',
 };
 
+const leadGroupMap = {
+    number: 'identity',
+    title: 'identity',
+    source: 'identity',
+    status: 'status',
+    counterparty_name: 'participants',
+    responsible_name: 'participants',
+    planned_shipping_date: 'routing',
+    target_price: 'finance',
+    target_currency: 'finance',
+    has_offer: 'documents',
+    created_at: 'system',
+};
+
+const contractorGroupMap = {
+    name: 'identity',
+    status_text: 'status',
+    type_label: 'identity',
+    activity_types_label: 'participants',
+    inn: 'identity',
+    primary_contact: 'contacts',
+    phone: 'contacts',
+    email: 'contacts',
+    contacts_count: 'contacts',
+    orders_count: 'tracking',
+    current_debt: 'finance',
+    is_verified: 'status',
+    is_own_company: 'status',
+};
+
 const selectedRoleId = ref(props.roles[0]?.id ?? null);
+const selectedTableKey = ref('orders');
 const draftColumnsByRole = ref(Object.fromEntries(
     props.roles.map((role) => [
         role.id,
-        (role.columns_config?.orders ?? []).map((column) => ({ ...column })),
+        {
+            orders: (role.columns_config?.orders ?? []).map((column) => ({ ...column })),
+            leads: (role.columns_config?.leads ?? []).map((column) => ({ ...column })),
+            contractors: (role.columns_config?.contractors ?? []).map((column) => ({ ...column })),
+        },
     ]),
 ));
 
 const form = useForm({
-    orders: [],
+    table: 'orders',
+    columns: [],
 });
 
 const selectedRole = computed(() => props.roles.find((role) => role.id === selectedRoleId.value) ?? null);
-const selectedColumns = computed(() => draftColumnsByRole.value[selectedRoleId.value] ?? []);
+const selectedColumns = computed(() => draftColumnsByRole.value[selectedRoleId.value]?.[selectedTableKey.value] ?? []);
+const activeColumns = computed(() => ({
+    orders: props.orderColumns,
+    leads: props.leadColumns,
+    contractors: props.contractorColumns,
+}[selectedTableKey.value] ?? []));
 
 const groupedSelectedColumns = computed(() => {
+    const currentGroupMap = {
+        orders: groupMap,
+        leads: leadGroupMap,
+        contractors: contractorGroupMap,
+    }[selectedTableKey.value] ?? {};
+
     const grouped = new Map(groupDefinitions.map((group) => [group.key, {
         key: group.key,
         label: group.label,
@@ -259,7 +335,7 @@ const groupedSelectedColumns = computed(() => {
     }]));
 
     selectedColumns.value.forEach((column, index) => {
-        const groupKey = groupMap[column.colId] ?? 'system';
+        const groupKey = currentGroupMap[column.colId] ?? 'system';
         grouped.get(groupKey)?.columns.push({ column, index });
     });
 
@@ -272,12 +348,16 @@ function selectRole(roleId) {
     selectedRoleId.value = roleId;
 }
 
+function selectTable(tableKey) {
+    selectedTableKey.value = tableKey;
+}
+
 function allowedCount(roleId) {
-    return (draftColumnsByRole.value[roleId] ?? []).filter((column) => !column.hide).length;
+    return (draftColumnsByRole.value[roleId]?.[selectedTableKey.value] ?? []).filter((column) => !column.hide).length;
 }
 
 function findColumnLabel(field) {
-    return props.orderColumns.find((column) => column.field === field)?.label ?? field;
+    return activeColumns.value.find((column) => column.field === field)?.label ?? field;
 }
 
 function patchSelectedColumns(callback) {
@@ -285,14 +365,17 @@ function patchSelectedColumns(callback) {
         return;
     }
 
-    const nextColumns = [...(draftColumnsByRole.value[selectedRoleId.value] ?? [])];
+    const nextColumns = [...(draftColumnsByRole.value[selectedRoleId.value]?.[selectedTableKey.value] ?? [])];
     callback(nextColumns);
     draftColumnsByRole.value = {
         ...draftColumnsByRole.value,
-        [selectedRoleId.value]: nextColumns.map((column, index) => ({
-            ...column,
-            order: index,
-        })),
+        [selectedRoleId.value]: {
+            ...(draftColumnsByRole.value[selectedRoleId.value] ?? {}),
+            [selectedTableKey.value]: nextColumns.map((column, index) => ({
+                ...column,
+                order: index,
+            })),
+        },
     };
 }
 
@@ -336,7 +419,10 @@ function resetSelectedRole() {
 
     draftColumnsByRole.value = {
         ...draftColumnsByRole.value,
-        [selectedRole.value.id]: (selectedRole.value.columns_config?.orders ?? []).map((column) => ({ ...column })),
+        [selectedRole.value.id]: {
+            ...(draftColumnsByRole.value[selectedRole.value.id] ?? {}),
+            [selectedTableKey.value]: (selectedRole.value.columns_config?.[selectedTableKey.value] ?? []).map((column) => ({ ...column })),
+        },
     };
 }
 
@@ -345,7 +431,8 @@ function saveSelectedRole() {
         return;
     }
 
-    form.orders = selectedColumns.value.map((column, index) => ({
+    form.table = selectedTableKey.value;
+    form.columns = selectedColumns.value.map((column, index) => ({
         colId: column.colId,
         hide: Boolean(column.hide),
         width: column.width,

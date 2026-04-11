@@ -1316,6 +1316,16 @@ class OrderWizardTest extends TestCase
 
         $this->assertStringContainsString('ORD-TPL-001', $documentXml);
         $this->assertStringContainsString('ООО Заказчик', $documentXml);
+
+        $previewResponse = $this->actingAs($admin)->get(route('orders.templates.generate-draft', [
+            'order' => $orderId,
+            'printFormTemplate' => $templateId,
+            'preview' => 1,
+        ]));
+
+        $previewResponse->assertOk();
+        $this->assertStringContainsString('wordprocessingml', strtolower($previewResponse->headers->get('content-type') ?? ''));
+        $this->assertStringContainsString('inline', strtolower($previewResponse->headers->get('content-disposition') ?? ''));
     }
 
     public function test_print_form_workflow_persists_document_and_completes_approval_and_finalize(): void
@@ -1395,6 +1405,15 @@ class OrderWizardTest extends TestCase
 
         $documentId = DB::table('order_documents')->where('order_id', $orderId)->value('id');
         $this->assertNotNull($documentId);
+
+        $this->actingAs($admin)->get(route('orders.documents.preview-draft', [$orderId, $documentId]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Orders/PrintWorkflowDocumentPreview')
+                ->where('orderId', (int) $orderId)
+                ->where('documentId', (int) $documentId)
+                ->where('canRequestApproval', true)
+            );
 
         $this->assertDatabaseHas('order_documents', [
             'id' => $documentId,

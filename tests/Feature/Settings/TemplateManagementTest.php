@@ -439,6 +439,16 @@ class TemplateManagementTest extends TestCase
         $downloadedPath = $downloadResponse->baseResponse->getFile()->getPathname();
 
         $this->assertFileExists($downloadedPath);
+
+        $previewResponse = $this->actingAs($admin)->get(route('settings.templates.generate-order-draft', [
+            'printFormTemplate' => $templateId,
+            'order_id' => $orderId,
+            'preview' => 1,
+        ]));
+
+        $previewResponse->assertOk();
+        $this->assertStringContainsString('wordprocessingml', strtolower($previewResponse->headers->get('content-type') ?? ''));
+        $this->assertStringContainsString('inline', strtolower($previewResponse->headers->get('content-disposition') ?? ''));
     }
 
     public function test_admin_can_save_lead_variable_mapping_and_download_draft_docx(): void
@@ -556,6 +566,16 @@ class TemplateManagementTest extends TestCase
         $downloadResponse->assertOk();
         $downloadResponse->assertDownload('lead-offer-template-lead-'.$leadId.'-draft.docx');
         $this->assertFileExists($downloadResponse->baseResponse->getFile()->getPathname());
+
+        $previewResponse = $this->actingAs($admin)->get(route('settings.templates.generate-lead-draft', [
+            'printFormTemplate' => $templateId,
+            'lead_id' => $leadId,
+            'preview' => 1,
+        ]));
+
+        $previewResponse->assertOk();
+        $this->assertStringContainsString('wordprocessingml', strtolower($previewResponse->headers->get('content-type') ?? ''));
+        $this->assertStringContainsString('inline', strtolower($previewResponse->headers->get('content-disposition') ?? ''));
     }
 
     private function createRole(string $name, string $displayName): int

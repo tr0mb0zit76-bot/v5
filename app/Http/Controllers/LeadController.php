@@ -13,7 +13,9 @@ use App\Models\PrintFormTemplate;
 use App\Models\Task;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
+use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\LeadStatus;
+use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Http\JsonResponse;
@@ -22,10 +24,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LeadController extends Controller
 {
@@ -34,12 +34,14 @@ class LeadController extends Controller
         if (! $this->hasLeadsFeatureTables()) {
             return Inertia::render('Leads/Index', [
                 'leads' => collect(),
+                'leadColumns' => LeadTableColumns::options(),
                 'featureUnavailable' => true,
             ]);
         }
 
         return Inertia::render('Leads/Index', [
             'leads' => $this->leadRows($request),
+            'leadColumns' => LeadTableColumns::options(),
             'canFilterResponsible' => $this->canFilterResponsible($request),
         ]);
     }
@@ -264,7 +266,8 @@ class LeadController extends Controller
         Lead $lead,
         PrintFormTemplate $printFormTemplate,
         LeadPrintFormDraftService $draftService,
-    ): BinaryFileResponse {
+        PrintFormDraftResponseBuilder $draftResponseBuilder,
+    ): \Symfony\Component\HttpFoundation\Response {
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
         abort_if($printFormTemplate->entity_type !== 'lead', 422, 'Черновик можно сформировать только для шаблона лида.');
@@ -274,10 +277,7 @@ class LeadController extends Controller
 
         $generatedFile = $draftService->generate($printFormTemplate, $lead);
 
-        return response()->download(
-            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
-            $generatedFile['download_name']
-        );
+        return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
 
     private function renderWizardPage(Request $request, ?Lead $selectedLead = null, bool $isCreating = false): Response

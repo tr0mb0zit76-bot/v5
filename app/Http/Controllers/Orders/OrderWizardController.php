@@ -20,6 +20,7 @@ use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
+use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Http\JsonResponse;
@@ -29,11 +30,9 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use JsonException;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class OrderWizardController extends Controller
 {
@@ -265,7 +264,8 @@ class OrderWizardController extends Controller
         Order $order,
         PrintFormTemplate $printFormTemplate,
         OrderPrintFormDraftService $draftService,
-    ): BinaryFileResponse {
+        PrintFormDraftResponseBuilder $draftResponseBuilder,
+    ): \Symfony\Component\HttpFoundation\Response {
         abort_unless($this->canEditInlineField($request, $order), 403);
         abort_if($printFormTemplate->entity_type !== 'order', 422, 'Черновик можно сформировать только для шаблона заказа.');
         abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
@@ -273,10 +273,7 @@ class OrderWizardController extends Controller
 
         $generatedFile = $draftService->generate($printFormTemplate, $this->loadOrderForEditing($order));
 
-        return response()->download(
-            Storage::disk($generatedFile['disk'])->path($generatedFile['path']),
-            $generatedFile['download_name']
-        );
+        return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
 
     private function renderPage(Request $request, ?Order $order = null): Response
@@ -638,6 +635,10 @@ class OrderWizardController extends Controller
             ? route('orders.documents.download-draft', [$order, $document])
             : null;
 
+        $draftPreviewUrl = $draftUrl !== null
+            ? route('orders.documents.preview-draft', [$order, $document])
+            : null;
+
         $finalUrl = filled($document->generated_pdf_path)
             ? route('orders.documents.download-final', [$order, $document])
             : null;
@@ -660,6 +661,7 @@ class OrderWizardController extends Controller
                 ? $document->rejection_reason
                 : null,
             'draft_download_url' => $draftUrl,
+            'draft_preview_url' => $draftPreviewUrl,
             'final_pdf_download_url' => $finalUrl,
             'can_request_approval' => $canManageOrderDocuments && in_array($workflowStatus, [
                 OrderDocumentWorkflowStatus::DRAFT,

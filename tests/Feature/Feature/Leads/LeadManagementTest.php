@@ -710,6 +710,16 @@ class LeadManagementTest extends TestCase
         $response->assertOk();
         $response->assertDownload('lead-offer-template-lead-'.$lead->id.'-draft.docx');
         $this->assertFileExists($response->baseResponse->getFile()->getPathname());
+
+        $previewResponse = $this->actingAs($manager)->get(route('leads.templates.generate-draft', [
+            'lead' => $lead,
+            'printFormTemplate' => $templateId,
+            'preview' => 1,
+        ]));
+
+        $previewResponse->assertOk();
+        $this->assertStringContainsString('wordprocessingml', strtolower($previewResponse->headers->get('content-type') ?? ''));
+        $this->assertStringContainsString('inline', strtolower($previewResponse->headers->get('content-disposition') ?? ''));
     }
 
     public function test_manager_can_convert_lead_into_order(): void
