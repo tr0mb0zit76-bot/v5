@@ -690,7 +690,7 @@ function handleMenuSelect(key) {
         reports: '/reports',
         modules: '/modules',
         scripts: '/scripts',
-        'sales-book': '/sales-assistant?section=book',
+        'sales-book': '/sales-book',
         'sales-trainer': '/sales-assistant?section=trainer',
         settings: '/settings',
         users: '/settings/users',

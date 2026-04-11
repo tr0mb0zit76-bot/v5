@@ -14,6 +14,10 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SalesAssistantController;
+use App\Http\Controllers\SalesBookCategoryController;
+use App\Http\Controllers\SalesBookController;
+use App\Http\Controllers\SalesBookIndexController;
+use App\Http\Controllers\SalesBookPageController;
 use App\Http\Controllers\SalesScriptController;
 use App\Http\Controllers\SalesScriptEditorController;
 use App\Http\Controllers\SettingsController;
@@ -225,7 +229,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->middleware('visibility.area:reports')->name('reports.index');
 
     Route::get('/modules', function () {
-        return Inertia::render('Dashboard');
+        return Inertia::render('Modules/Index', [
+            'title' => 'Модули CRM',
+            'description' => 'Все доступные инструменты и разделы системы для эффективной работы',
+        ]);
     })->middleware('visibility.area:modules')->name('modules.index');
 
     Route::controller(SalesScriptController::class)->middleware('visibility.area:scripts')->prefix('scripts')->name('scripts.')->group(function () {
@@ -261,6 +268,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/sales-assistant', SalesAssistantController::class)
         ->middleware('visibility.area:sales_assistant')
         ->name('sales-assistant.index');
+
+    // Книга продаж
+    Route::prefix('sales-book')->name('sales-book.')->middleware('visibility.area:sales_book')->group(function () {
+        Route::get('/', SalesBookIndexController::class)->name('index');
+
+        // Книги
+        Route::resource('books', SalesBookController::class)->except(['show']);
+        Route::get('books/{salesBook}/show', [SalesBookController::class, 'show'])->name('books.show');
+
+        // Страницы
+        Route::resource('books.pages', SalesBookPageController::class)->shallow();
+
+        // Категории
+        Route::resource('categories', SalesBookCategoryController::class)->except(['show']);
+    });
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.settings:overview')->name('settings.index');
 

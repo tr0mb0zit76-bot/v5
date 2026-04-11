@@ -55,6 +55,7 @@ class RoleAccess
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
             ['key' => 'sales_assistant', 'label' => 'Помощник продавца', 'description' => 'Инструменты для подготовки и ведения продаж'],
+            ['key' => 'sales_book', 'label' => 'Книга продаж', 'description' => 'База знаний и материалов для продаж'],
             ['key' => 'scripts', 'label' => 'Скрипты продаж', 'description' => 'Сценарии диалогов и подсказки для менеджеров'],
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
@@ -96,11 +97,11 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'sales_assistant', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'sales_assistant', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'sales_assistant', 'sales_book', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'sales_assistant', 'sales_book', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
             'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'sales_assistant', 'drivers', 'activities', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports'],
-            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'sales_assistant', 'documents', 'contractors', 'tasks', 'kanban'],
+            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'sales_assistant', 'sales_book', 'documents', 'contractors', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
             default => ['dashboard'],
         };
