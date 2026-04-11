@@ -13,6 +13,7 @@ use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\RoleManagementController;
+use App\Http\Controllers\SalesAssistantController;
 use App\Http\Controllers\SalesScriptController;
 use App\Http\Controllers\SalesScriptEditorController;
 use App\Http\Controllers\SettingsController;
@@ -256,6 +257,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('/transitions/{transition}', 'updateTransition')->name('transitions.update');
             Route::delete('/transitions/{transition}', 'destroyTransition')->name('transitions.destroy');
         });
+
+    Route::get('/sales-assistant', SalesAssistantController::class)
+        ->middleware('visibility.area:sales_assistant')
+        ->name('sales-assistant.index');
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.settings:overview')->name('settings.index');
 
