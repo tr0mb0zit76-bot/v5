@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
+use App\Models\PrintFormTemplate;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CarrierRateFromFinancialTerms;
@@ -211,6 +212,7 @@ class OrderIndexController extends Controller
             'rows' => $rows,
             'roleKey' => $roleName ?? 'manager',
             'orderColumns' => OrderTableColumns::options(),
+            'orderPrintFormTemplates' => PrintFormTemplate::quickDraftMenuOptionsForEntity('order'),
         ]);
     }
 

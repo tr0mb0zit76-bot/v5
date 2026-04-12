@@ -36,6 +36,7 @@ class LeadController extends Controller
                 'leads' => collect(),
                 'leadColumns' => LeadTableColumns::options(),
                 'featureUnavailable' => true,
+                'leadPrintFormTemplates' => [],
             ]);
         }
 
@@ -43,6 +44,7 @@ class LeadController extends Controller
             'leads' => $this->leadRows($request),
             'leadColumns' => LeadTableColumns::options(),
             'canFilterResponsible' => $this->canFilterResponsible($request),
+            'leadPrintFormTemplates' => PrintFormTemplate::quickDraftMenuOptionsForEntity('lead'),
         ]);
     }
 

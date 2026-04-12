@@ -97,11 +97,28 @@
         </template>
 
         <div class="min-h-0 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5">
+            <div
+                v-if="wizardIncompleteItems.length"
+                class="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-50"
+            >
+                <div class="font-semibold">Не все необходимые данные внесены</div>
+                <p class="mt-1 text-xs text-amber-900/85 dark:text-amber-100/85">
+                    Ниже перечислено, чего не хватает для сохранения. Нажмите пункт — откроется нужная вкладка.
+                </p>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    <li v-for="item in wizardIncompleteItems" :key="item.key">
+                        <button type="button" class="text-left underline-offset-2 hover:underline" @click="activeTab = item.tab">
+                            {{ item.label }}
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
             <div v-if="activeTab === 'main'" class="grid gap-6 lg:grid-cols-2">
                 <div class="space-y-4">
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Своя компания</label>
-                        <select v-model="form.own_company_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <select v-model="form.own_company_id" :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950', highlightRequiredField('own_company_id', form.own_company_id)]">
                             <option :value="null">Не выбрано</option>
                             <option v-for="company in ownCompanyOptions" :key="company.id" :value="company.id">
                                 {{ company.name }}
@@ -152,8 +169,19 @@
                                 </button>
                             </div>
                         </div>
-                        <p v-if="selectedClient" class="text-xs text-zinc-500">
-                            Выбран: {{ selectedClient.name }}{{ selectedClient.inn ? `, ИНН ${selectedClient.inn}` : '' }}
+                        <div v-if="form.client_id" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                            <span v-if="selectedClient" class="text-zinc-500">
+                                Выбран: {{ selectedClient.name }}{{ selectedClient.inn ? `, ИНН ${selectedClient.inn}` : '' }}
+                            </span>
+                            <Link
+                                :href="contractorEditHref(form.client_id)"
+                                class="font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
+                            >
+                                Карточка клиента
+                            </Link>
+                        </div>
+                        <p v-if="form.client_id" class="text-xs text-zinc-400 dark:text-zinc-500">
+                            После правок в справочнике вернись в мастер кнопкой «×» или кликом вне карточки; реквизиты подтянутся при возврате на вкладку браузера.
                         </p>
                         <p v-if="customerDebtBlocked" class="text-xs text-rose-500">
                             Лимит задолженности контрагента достигнут: {{ selectedClient?.current_debt ?? 0 }} {{ selectedClient?.debt_limit_currency || 'RUB' }}. Новый заказ сохранить нельзя.
@@ -591,11 +619,18 @@
 
                     <div class="space-y-3">
                         <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                     <div class="text-sm font-semibold">{{ stageLabel(cost.stage) }}</div>
                                     <p class="text-xs text-zinc-500">Перевозчик и условия оплаты для этого плеча.</p>
                                 </div>
+                                <Link
+                                    v-if="cost.contractor_id"
+                                    :href="contractorEditHref(cost.contractor_id)"
+                                    class="shrink-0 text-xs font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
+                                >
+                                    Карточка перевозчика
+                                </Link>
                             </div>
                             <div class="grid gap-3 md:grid-cols-4">
                             <select v-model="cost.stage" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
@@ -606,7 +641,7 @@
                                     :value="carrierSearchValue('cost', index)"
                                     type="text"
                                     class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                    placeholder="Поиск перевозчика"
+                                    :placeholder="cost.contractor_id ? 'Поиск перевозчика' : 'Не указан'"
                                     @focus="setCarrierResultsVisible('cost', index, true)"
                                     @input="onCostCarrierInput(index, $event.target.value)"
                                     @blur="restoreCostCarrierSearch(index)"
@@ -1164,8 +1199,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import DocxPreviewModal from '@/Components/DocxPreviewModal.vue';
@@ -1205,6 +1240,64 @@ const tabs = [
 
 const activeTab = ref('main');
 
+const contractors = ref([...props.contractors]);
+
+function ensureClientSnapshotInContractors(order = props.order) {
+    if (!order?.client_snapshot) {
+        return;
+    }
+
+    const snap = order.client_snapshot;
+    const exists = contractors.value.some((c) => Number(c.id) === Number(snap.id));
+
+    if (!exists) {
+        contractors.value.unshift({
+            id: snap.id,
+            name: snap.name,
+            inn: snap.inn ?? null,
+            type: snap.type ?? 'customer',
+            phone: null,
+            email: null,
+            is_own_company: false,
+        });
+    }
+}
+
+ensureClientSnapshotInContractors();
+
+watch(
+    () => props.contractors,
+    (next) => {
+        if (!Array.isArray(next)) {
+            return;
+        }
+
+        contractors.value = next.map((c) => ({ ...c }));
+        ensureClientSnapshotInContractors();
+    },
+);
+
+function refreshContractorsFromServer() {
+    router.reload({
+        only: ['contractors', 'ownCompanies'],
+        preserveScroll: true,
+        preserveState: true,
+    });
+}
+
+let visibilityRefreshTimer = null;
+
+function onWizardVisibilityChange() {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
+        return;
+    }
+
+    clearTimeout(visibilityRefreshTimer);
+    visibilityRefreshTimer = setTimeout(() => {
+        refreshContractorsFromServer();
+    }, 400);
+}
+
 onMounted(() => {
     if (typeof window === 'undefined') {
         return;
@@ -1221,12 +1314,20 @@ onMounted(() => {
         const next = `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`;
         window.history.replaceState({}, '', next);
     }
+
+    document.addEventListener('visibilitychange', onWizardVisibilityChange);
+});
+
+onUnmounted(() => {
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onWizardVisibilityChange);
+    }
+    clearTimeout(visibilityRefreshTimer);
 });
 
 const workflowTemplateId = ref(null);
 const workflowRejectTargetId = ref(null);
 const workflowRejectReason = ref('');
-const contractors = ref([...props.contractors]);
 
 const printWorkflowDocuments = computed(() => {
     const docs = props.order?.documents;
@@ -1316,23 +1417,6 @@ function finalizeWorkflowPdf(doc, event) {
     });
 
     target.value = '';
-}
-
-if (props.order?.client_snapshot) {
-    const snap = props.order.client_snapshot;
-    const exists = contractors.value.some((c) => Number(c.id) === Number(snap.id));
-
-    if (!exists) {
-        contractors.value.unshift({
-            id: snap.id,
-            name: snap.name,
-            inn: snap.inn ?? null,
-            type: snap.type ?? 'customer',
-            phone: null,
-            email: null,
-            is_own_company: false,
-        });
-    }
 }
 
 const ownCompanyOptions = ref([...props.ownCompanies]);
@@ -1605,44 +1689,85 @@ function normalizeNullableNumber(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
-const form = useForm({
-    ...blankOrder(),
-    ...(props.order ?? {}),
-    own_company_id: normalizeNullableNumber(props.order?.own_company_id),
-    client_id: normalizeNullableNumber(props.order?.client_id),
-    additional_expenses: props.order?.additional_expenses ?? null,
-    insurance: props.order?.insurance ?? null,
-    bonus: props.order?.bonus ?? null,
-    performers: Array.isArray(props.order?.performers)
-        ? props.order.performers.map((performer) => ({
-            stage: stageLabel(performer.stage ?? 'leg_1'),
-            contractor_id: normalizeNullableNumber(performer.contractor_id),
-        }))
-        : blankOrder().performers,
-    route_points: Array.isArray(props.order?.route_points)
-        ? props.order.route_points.map((point, index) => ({
-            ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), stageLabel(point.stage ?? 'leg_1')),
-            ...point,
-            stage: stageLabel(point.stage ?? 'leg_1'),
-            sequence: Number(point.sequence ?? (index + 1)),
-        }))
-        : blankOrder().route_points,
-    financial_term: {
-        ...blankOrder().financial_term,
-        ...(props.order?.financial_term ?? {}),
-        client_payment_schedule: normalizePaymentSchedule(props.order?.financial_term?.client_payment_schedule),
-        client_payment_form: normalizePaymentFormCode(
-            props.order?.financial_term?.client_payment_form ?? blankOrder().financial_term.client_payment_form,
-            'vat',
-        ),
-        contractors_costs: Array.isArray(props.order?.financial_term?.contractors_costs)
-            ? props.order.financial_term.contractors_costs.map((cost) => normalizeContractorCost(cost))
+/**
+ * Снимок заказа с сервера в поля useForm (и при первом открытии, и после PATCH/редиректа).
+ *
+ * @param {object|null|undefined} order
+ */
+function buildFormFieldsFromOrder(order) {
+    if (!order?.id) {
+        return { ...blankOrder() };
+    }
+
+    return {
+        ...blankOrder(),
+        ...order,
+        own_company_id: normalizeNullableNumber(order.own_company_id),
+        client_id: normalizeNullableNumber(order.client_id),
+        additional_expenses: order.additional_expenses ?? null,
+        insurance: order.insurance ?? null,
+        bonus: order.bonus ?? null,
+        performers: Array.isArray(order.performers)
+            ? order.performers.map((performer) => ({
+                stage: stageLabel(performer.stage ?? 'leg_1'),
+                contractor_id: normalizeNullableNumber(performer.contractor_id),
+            }))
+            : blankOrder().performers,
+        route_points: Array.isArray(order.route_points)
+            ? order.route_points.map((point, index) => ({
+                ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), stageLabel(point.stage ?? 'leg_1')),
+                ...point,
+                stage: stageLabel(point.stage ?? 'leg_1'),
+                sequence: Number(point.sequence ?? (index + 1)),
+            }))
+            : blankOrder().route_points,
+        financial_term: {
+            ...blankOrder().financial_term,
+            ...(order.financial_term ?? {}),
+            client_payment_schedule: normalizePaymentSchedule(order.financial_term?.client_payment_schedule),
+            client_payment_form: normalizePaymentFormCode(
+                order.financial_term?.client_payment_form ?? blankOrder().financial_term.client_payment_form,
+                'vat',
+            ),
+            contractors_costs: Array.isArray(order.financial_term?.contractors_costs)
+                ? order.financial_term.contractors_costs.map((cost) => normalizeContractorCost(cost))
+                : [],
+        },
+        documents: Array.isArray(order.documents)
+            ? order.documents.map((document) => normalizeDocument(document))
             : [],
+    };
+}
+
+const form = useForm(buildFormFieldsFromOrder(props.order));
+
+/**
+ * Подставляет в useForm актуальный заказ с сервера.
+ * После PATCH Inertia обновляет страницу до вызова пользовательского onSuccess; аргумент может
+ * отличаться по форме, поэтому после nextTick читаем заказ из usePage().props.
+ */
+async function syncWizardFormFromInertiaPage() {
+    await nextTick();
+    const order = page.props.order;
+    if (!order?.id) {
+        return;
+    }
+
+    form.defaults(buildFormFieldsFromOrder(order));
+    form.reset();
+    ensureClientSnapshotInContractors(order);
+}
+
+watch(
+    () => (props.order?.id ? `${props.order.id}:${String(props.order.client_id ?? '')}:${props.order.order_number ?? ''}` : ''),
+    (fingerprint, previous) => {
+        if (!props.order?.id || fingerprint === previous) {
+            return;
+        }
+
+        syncWizardFormFromInertiaPage();
     },
-    documents: Array.isArray(props.order?.documents)
-        ? props.order.documents.map((document) => normalizeDocument(document))
-        : [],
-});
+);
 
 const calculatedCompensation = ref({
     kpi_percent: 0,
@@ -1734,12 +1859,78 @@ const isMobileStandalone = computed(() => {
         && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
 });
 const selectedClient = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.client_id)) ?? null);
+
+const orderWizardReturnTo = computed(() => {
+    if (props.order?.id) {
+        return `/orders/${props.order.id}/edit`;
+    }
+
+    return '/orders/create';
+});
+
+function contractorEditHref(contractorId) {
+    const id = Number(contractorId);
+    if (!id) {
+        return '#';
+    }
+
+    const base = route('contractors.edit', id);
+
+    return `${base}?return_to=${encodeURIComponent(orderWizardReturnTo.value)}`;
+}
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
+
+/** Список для плашки «не все данные» и навигации по вкладкам. */
+const wizardIncompleteItems = computed(() => {
+    const items = [];
+
+    if (!form.own_company_id) {
+        items.push({ key: 'own_company', label: 'Своя компания', tab: 'main' });
+    }
+
+    if (!form.client_id) {
+        items.push({ key: 'client', label: 'Контрагент (клиент)', tab: 'main' });
+    }
+
+    if (!form.order_date) {
+        items.push({ key: 'order_date', label: 'Дата заказа', tab: 'main' });
+    }
+
+    if (!form.status) {
+        items.push({ key: 'status', label: 'Статус заказа', tab: 'main' });
+    }
+
+    form.performers.forEach((performer, index) => {
+        if (!performer.stage) {
+            items.push({ key: `performer_stage_${index}`, label: `Плечо ${index + 1}: не задан этап`, tab: 'route' });
+        }
+    });
+
+    form.route_points.forEach((point, index) => {
+        if (!point.type || !String(point.address ?? '').trim()) {
+            const leg = point.type === 'unloading' ? 'выгрузки' : 'погрузки';
+            items.push({ key: `route_point_${index}`, label: `Маршрут: адрес ${leg} (точка ${index + 1})`, tab: 'route' });
+        }
+    });
+
+    form.cargo_items.forEach((item, index) => {
+        if (!String(item.name ?? '').trim() || item.dangerous_goods === undefined || !item.cargo_type) {
+            items.push({ key: `cargo_${index}`, label: `Груз ${index + 1}: наименование, тип или признак опасности`, tab: 'cargo' });
+        }
+    });
+
+    if (form.financial_term.client_price && !form.financial_term.client_currency) {
+        items.push({ key: 'client_currency', label: 'Финансы: валюта клиента', tab: 'finance' });
+    }
+
+    return items;
+});
 
 // Проверка обязательных полей
 const requiredFieldsValid = computed(() => {
     // Основные обязательные поля
+    const hasOwnCompany = !!form.own_company_id;
     const hasClient = !!form.client_id;
     const hasOrderDate = !!form.order_date;
     const hasStatus = !!form.status;
@@ -1760,7 +1951,7 @@ const requiredFieldsValid = computed(() => {
     // Обязательные поля в financial_term (если financial_term заполнен)
     const financialTermValid = !form.financial_term.client_price || !!form.financial_term.client_currency;
     
-    return hasClient && hasOrderDate && hasStatus && performersValid && routePointsValid && cargoItemsValid && financialTermValid;
+    return hasOwnCompany && hasClient && hasOrderDate && hasStatus && performersValid && routePointsValid && cargoItemsValid && financialTermValid;
 });
 
 // Подсветка для конкретных полей
@@ -3109,6 +3300,9 @@ function submit() {
     const submitOptions = {
         preserveScroll: true,
         forceFormData: hasNewDocumentFiles,
+        onSuccess: () => {
+            syncWizardFormFromInertiaPage();
+        },
     };
 
     if (isEditing.value) {

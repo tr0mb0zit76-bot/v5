@@ -98,6 +98,7 @@
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
           @cell-double-clicked="onCellDoubleClicked"
+          @cell-context-menu="onCellContextMenu"
           @column-visible="saveColumnState"
           @column-resized="saveColumnState"
           @column-moved="saveColumnState"
@@ -199,11 +200,49 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="rowContextMenu.visible && rowContextMenu.row"
+        class="leads-grid-context-menu fixed z-[100] min-w-[220px] overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+        :style="{ left: `${rowContextMenu.x}px`, top: `${rowContextMenu.y}px` }"
+        role="menu"
+        @click.stop
+      >
+        <button
+          type="button"
+          class="flex w-full px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          role="menuitem"
+          @click="openLeadFromContextMenu"
+        >
+          Открыть лид
+        </button>
+        <template v-if="printFormTemplates.length > 0">
+          <div class="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+          <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+            Печать (DOCX)
+          </div>
+          <a
+            v-for="tpl in printFormTemplates"
+            :key="tpl.id"
+            :href="leadDraftHref(tpl.id)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            role="menuitem"
+            @click="closeRowContextMenu"
+          >
+            {{ tpl.name }}
+          </a>
+        </template>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { Plus, RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -239,6 +278,10 @@ const props = defineProps({
   userId: {
     type: [String, Number],
     default: 'guest',
+  },
+  printFormTemplates: {
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -299,13 +342,18 @@ const bottomScrollbar = ref(null);
 const bottomScrollbarWidth = ref(0);
 const gridViewportHeight = ref(440);
 
+const rowContextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  row: null,
+});
+
+let rowContextMenuOutsideListener = null;
+
 let isSyncingHorizontalScroll = false;
 let saveTimeout = null;
 let removeCenterViewportListener = null;
-
-const gridOptions = {
-  theme: 'legacy',
-};
 
 const storageKey = computed(() => `leads_grid_state_v1_${props.userId}`);
 const densityStorageKey = computed(() => `leads_grid_density_${props.userId}`);
@@ -687,6 +735,72 @@ const onCellDoubleClicked = (event) => {
   }
 };
 
+function closeRowContextMenu() {
+  rowContextMenu.value = { visible: false, x: 0, y: 0, row: null };
+  if (rowContextMenuOutsideListener) {
+    document.removeEventListener('pointerdown', rowContextMenuOutsideListener, true);
+    rowContextMenuOutsideListener = null;
+  }
+}
+
+function leadDraftHref(templateId) {
+  const row = rowContextMenu.value.row;
+  if (!row?.id) {
+    return '#';
+  }
+
+  const path = route('leads.templates.generate-draft', [row.id, templateId]);
+  const joiner = path.includes('?') ? '&' : '?';
+
+  return `${path}${joiner}preview=1`;
+}
+
+function openLeadFromContextMenu() {
+  const id = rowContextMenu.value.row?.id;
+  closeRowContextMenu();
+  if (id) {
+    router.get(route('leads.show', id), {}, { preserveScroll: true });
+  }
+}
+
+const onCellContextMenu = (params) => {
+  if (params.event && typeof params.event.preventDefault === 'function') {
+    params.event.preventDefault();
+    params.event.stopPropagation?.();
+  }
+
+  if (!params.data?.id) {
+    closeRowContextMenu();
+
+    return;
+  }
+
+  closeRowContextMenu();
+
+  rowContextMenu.value = {
+    visible: true,
+    x: params.event.clientX,
+    y: params.event.clientY,
+    row: params.data,
+  };
+
+  nextTick(() => {
+    rowContextMenuOutsideListener = (ev) => {
+      const menu = document.querySelector('.leads-grid-context-menu');
+      if (menu && menu.contains(ev.target)) {
+        return;
+      }
+      closeRowContextMenu();
+    };
+    document.addEventListener('pointerdown', rowContextMenuOutsideListener, true);
+  });
+};
+
+const gridOptions = {
+  theme: 'legacy',
+  suppressContextMenu: true,
+};
+
 watch(quickSearch, (value) => {
   if (!gridApi.value) {
     return;
@@ -811,6 +925,9 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateGridViewportHeight);
   window.removeEventListener('resize', syncBottomScrollbar);
   removeCenterViewportListener?.();
+  closeRowContextMenu();
+
+  gridApi.value = null;
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);

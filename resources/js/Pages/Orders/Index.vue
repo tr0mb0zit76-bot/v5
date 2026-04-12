@@ -141,6 +141,7 @@
                     :role-columns-config="roleColumnsConfig"
                     :user-id="userId"
                     :editable="true"
+                    :print-form-templates="orderPrintFormTemplates"
                     @cell-save="handleCellSave"
                     @row-dblclick="handleRowDblClick"
                     @row-delete="handleRowDelete"
@@ -169,6 +170,7 @@ const roleKey = computed(() => page.props.roleKey ?? page.props.auth?.user?.role
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const availableColumns = computed(() => page.props.orderColumns ?? []);
 const rows = computed(() => page.props.rows ?? []);
+const orderPrintFormTemplates = computed(() => page.props.orderPrintFormTemplates ?? []);
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
         return false;
@@ -209,7 +211,13 @@ const handleCellSave = (event) => {
     }, {
         preserveScroll: true,
         preserveState: true,
-        only: ['rows'],
+        onSuccess: () => {
+            router.reload({ only: ['rows'] });
+        },
+        onError: (errors) => {
+            console.error('Ошибка сохранения:', errors);
+            alert('Ошибка сохранения: ' + (errors.message || 'Неизвестная ошибка'));
+        },
     });
 };
 

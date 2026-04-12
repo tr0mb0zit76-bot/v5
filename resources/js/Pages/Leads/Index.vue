@@ -11,6 +11,7 @@
                 :user-id="userId"
                 :allow-create="!featureUnavailable"
                 :can-filter-responsible="canFilterResponsible"
+                :print-form-templates="leadPrintFormTemplates"
                 @create="openCreateLead"
                 @row-dblclick="handleRowDblClick"
             />
@@ -35,6 +36,7 @@ const availableColumns = computed(() => page.props.leadColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
 const canFilterResponsible = computed(() => Boolean(page.props.canFilterResponsible));
+const leadPrintFormTemplates = computed(() => page.props.leadPrintFormTemplates ?? []);
 
 function openCreateLead() {
     if (featureUnavailable.value) {

@@ -23,16 +23,80 @@ class OrderWizardStateService
             return;
         }
 
+        $financialTerm = Arr::get($validated, 'financial_term', []);
+        if (! is_array($financialTerm)) {
+            $financialTerm = [];
+        }
+
+        $performers = Arr::get($validated, 'performers', []);
+        if (! is_array($performers)) {
+            $performers = [];
+        }
+
+        $contractorsCosts = Arr::get($financialTerm, 'contractors_costs', []);
+        if (! is_array($contractorsCosts)) {
+            $contractorsCosts = [];
+        }
+
+        $performers = $this->alignPerformersContractorIdsWithCosts($performers, $contractorsCosts);
+
         $payload = [
             'version' => 1,
-            'financial_term' => Arr::get($validated, 'financial_term', []),
-            'performers' => Arr::get($validated, 'performers', []),
+            'financial_term' => $financialTerm,
+            'performers' => $performers,
             'additional_expenses' => Arr::get($validated, 'additional_expenses'),
             'insurance' => Arr::get($validated, 'insurance'),
             'bonus' => Arr::get($validated, 'bonus'),
         ];
 
         $order->forceFill(['wizard_state' => $payload])->saveQuietly();
+    }
+
+    /**
+     * Фронт иногда шлёт `performers[].contractor_id: null`, хотя в `contractors_costs` уже выбран перевозчик — в JSON сохраняем согласованную пару.
+     *
+     * @param  list<array<string, mixed>>  $performers
+     * @param  list<array<string, mixed>>  $contractorsCosts
+     * @return list<array<string, mixed>>
+     */
+    private function alignPerformersContractorIdsWithCosts(array $performers, array $contractorsCosts): array
+    {
+        $costsByStage = collect($contractorsCosts)
+            ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifierForPersist((string) ($cost['stage'] ?? 'leg_1')));
+
+        return collect($performers)
+            ->map(function (array $performer) use ($costsByStage): array {
+                $key = $this->normalizeStageIdentifierForPersist((string) ($performer['stage'] ?? 'leg_1'));
+                $cost = $costsByStage->get($key);
+                $fromPerformer = $performer['contractor_id'] ?? null;
+                $fromCost = is_array($cost) ? ($cost['contractor_id'] ?? null) : null;
+
+                $resolved = is_numeric($fromPerformer) && (int) $fromPerformer > 0
+                    ? (int) $fromPerformer
+                    : (is_numeric($fromCost) && (int) $fromCost > 0 ? (int) $fromCost : null);
+
+                return array_replace($performer, ['contractor_id' => $resolved]);
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Согласовано с {@see OrderWizardService::normalizeStageIdentifier}.
+     */
+    private function normalizeStageIdentifierForPersist(?string $stage): string
+    {
+        $value = trim((string) $stage);
+
+        if ($value === '') {
+            return 'leg_1';
+        }
+
+        if (preg_match('/^Плечо\s+(\d+)$/u', $value, $matches) === 1) {
+            return 'leg_'.$matches[1];
+        }
+
+        return $value;
     }
 
     /**

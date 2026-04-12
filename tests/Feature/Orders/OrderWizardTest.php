@@ -27,6 +27,8 @@ class OrderWizardTest extends TestCase
         Schema::dropIfExists('payment_schedules');
         Schema::dropIfExists('cargo_leg');
         Schema::dropIfExists('cargos');
+        Schema::dropIfExists('addresses');
+        Schema::dropIfExists('cities');
         Schema::dropIfExists('route_points');
         Schema::dropIfExists('order_legs');
         Schema::dropIfExists('salary_coefficients');
@@ -55,6 +57,19 @@ class OrderWizardTest extends TestCase
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
+            $table->timestamps();
+        });
+
+        Schema::create('cities', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        Schema::create('addresses', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('city_id')->nullable();
+            $table->string('address_line')->nullable();
             $table->timestamps();
         });
 
@@ -1184,6 +1199,361 @@ class OrderWizardTest extends TestCase
             ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierId)
             ->where('order.financial_term.contractors_costs.0.amount', 88000)
         );
+    }
+
+    public function test_edit_page_resolves_route_point_address_from_city_when_address_column_empty(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Клиент',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cityId = DB::table('cities')->insertGetId([
+            'name' => 'Тверь',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $addressId = DB::table('addresses')->insertGetId([
+            'city_id' => $cityId,
+            'address_line' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-ADDR-BOOK-1',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legId = DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('route_points')->insert([
+            'order_leg_id' => $legId,
+            'address_id' => $addressId,
+            'type' => 'loading',
+            'sequence' => 1,
+            'address' => '',
+            'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $orderId))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Orders/Wizard')
+                ->where('order.route_points.0.address', 'Тверь')
+            );
+    }
+
+    public function test_edit_page_keeps_carrier_from_database_when_wizard_state_snapshot_has_null_contractor(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Клиент',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик из БД',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WZ-MERGE-1',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-02',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legId = DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('route_points')->insert([
+            'order_leg_id' => $legId,
+            'address_id' => null,
+            'type' => 'loading',
+            'sequence' => 1,
+            'address' => 'Тестовая погрузка',
+            'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $costsInDb = [
+            [
+                'stage' => 'leg_1',
+                'contractor_id' => $carrierId,
+                'amount' => 50000,
+                'currency' => 'RUB',
+                'payment_form' => 'no_vat',
+                'payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 5,
+                    'postpayment_mode' => 'ottn',
+                ],
+            ],
+        ];
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 100000,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode($costsInDb, JSON_THROW_ON_ERROR),
+            'total_cost' => 50000,
+            'margin' => 0,
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $staleWizardState = [
+            'version' => 1,
+            'financial_term' => [
+                'client_price' => 100000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_request_mode' => 'single_request',
+                'client_payment_schedule' => [],
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => null,
+                        'amount' => 50000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 5,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+                'kpi_percent' => 0,
+            ],
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => null],
+            ],
+            'additional_expenses' => null,
+            'insurance' => null,
+            'bonus' => null,
+        ];
+
+        DB::table('orders')->where('id', $orderId)->update([
+            'wizard_state' => json_encode($staleWizardState, JSON_THROW_ON_ERROR),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $orderId))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Orders/Wizard')
+                ->where('order.performers.0.contractor_id', $carrierId)
+                ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierId)
+            );
+    }
+
+    public function test_edit_page_preserves_all_legs_when_wizard_state_has_fewer_performer_rows(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Клиент',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierOneId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик 1',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierTwoId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Перевозчик 2',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-TWO-LEGS',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-03',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legOneId = DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $legTwoId = DB::table('order_legs')->insertGetId([
+            'order_id' => $orderId,
+            'sequence' => 2,
+            'type' => 'transport',
+            'description' => 'leg_2',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ([[$legOneId, 'loading', 1], [$legOneId, 'unloading', 2], [$legTwoId, 'loading', 1], [$legTwoId, 'unloading', 2]] as [$legId, $type, $seq]) {
+            DB::table('route_points')->insert([
+                'order_leg_id' => $legId,
+                'address_id' => null,
+                'type' => $type,
+                'sequence' => $seq,
+                'address' => 'Тест',
+                'normalized_data' => json_encode([], JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $costsInDb = [
+            [
+                'stage' => 'leg_1',
+                'contractor_id' => $carrierOneId,
+                'amount' => 10000,
+                'currency' => 'RUB',
+                'payment_form' => 'no_vat',
+                'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'ottn'],
+            ],
+            [
+                'stage' => 'leg_2',
+                'contractor_id' => $carrierTwoId,
+                'amount' => 20000,
+                'currency' => 'RUB',
+                'payment_form' => 'no_vat',
+                'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'ottn'],
+            ],
+        ];
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 50000,
+            'client_currency' => 'RUB',
+            'contractors_costs' => json_encode($costsInDb, JSON_THROW_ON_ERROR),
+            'total_cost' => 30000,
+            'margin' => 0,
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $staleWizardState = [
+            'version' => 1,
+            'financial_term' => [
+                'client_price' => 50000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_request_mode' => 'single_request',
+                'client_payment_schedule' => [],
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => null,
+                        'amount' => 10000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'ottn'],
+                    ],
+                    [
+                        'stage' => 'leg_2',
+                        'contractor_id' => null,
+                        'amount' => 20000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'ottn'],
+                    ],
+                ],
+                'additional_costs' => [],
+                'kpi_percent' => 0,
+            ],
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => null],
+            ],
+            'additional_expenses' => null,
+            'insurance' => null,
+            'bonus' => null,
+        ];
+
+        DB::table('orders')->where('id', $orderId)->update([
+            'wizard_state' => json_encode($staleWizardState, JSON_THROW_ON_ERROR),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $orderId))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Orders/Wizard')
+                ->where('order.performers.0.contractor_id', $carrierOneId)
+                ->where('order.performers.1.contractor_id', $carrierTwoId)
+                ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierOneId)
+                ->where('order.financial_term.contractors_costs.1.contractor_id', $carrierTwoId)
+            );
     }
 
     public function test_edit_page_exposes_available_print_form_templates_and_downloads_docx_draft(): void

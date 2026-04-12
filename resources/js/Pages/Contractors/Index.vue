@@ -13,6 +13,7 @@ import {
     Plus,
     Save,
     Search,
+    X,
     ShieldCheck,
     SquarePen,
     Trash2,
@@ -44,18 +45,6 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    pagination: {
-        type: Object,
-        default: () => ({
-            current_page: 1,
-            last_page: 1,
-            per_page: 50,
-            total: 0,
-            from: 0,
-            to: 0,
-            links: [],
-        }),
-    },
     users: {
         type: Array,
         default: () => [],
@@ -66,6 +55,11 @@ const props = defineProps({
             search: '',
             type: '',
         }),
+    },
+    /** Безопасный путь возврата (например из мастера заказа), передаётся query `return_to`. */
+    returnTo: {
+        type: String,
+        default: null,
     },
 });
 
@@ -378,7 +372,15 @@ function contractorToForm(contractor) {
     };
 }
 
-const form = useForm(contractorToForm(props.selectedContractor));
+const form = useForm({
+    ...contractorToForm(props.selectedContractor),
+    return_to: props.returnTo ?? null,
+});
+
+watch(() => props.returnTo, (value) => {
+    form.return_to = value ?? null;
+});
+
 const transportRequirementsText = ref('');
 const globalActivityTypeOptions = ref(
     [...new Set((props.activityTypeOptions ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru'))
@@ -417,13 +419,15 @@ const activityTypeDropdownSummary = computed(() => {
 
 function applyFormState(contractor) {
     const payload = contractorToForm(contractor);
-    form.defaults(payload);
+    form.defaults({ ...payload, return_to: props.returnTo ?? null });
     form.reset();
     lastAutoFilledInn.value = payload.inn;
 
     for (const [key, value] of Object.entries(payload)) {
         form[key] = value;
     }
+
+    form.return_to = props.returnTo ?? null;
 
     transportRequirementsText.value = payload.transport_requirements.join('\n');
     activeTab.value = 'general';
@@ -434,11 +438,22 @@ function applyFormState(contractor) {
     };
 }
 
-applyFormState(props.selectedContractor);
+/** Синхронизировать форму только при смене карточки / режима или после сохранения (updated_at), а не при каждом Inertia-обновлении props. */
+watch(
+    () => [
+        props.selectedContractor?.id ?? '',
+        props.selectedContractor?.updated_at != null ? String(props.selectedContractor.updated_at) : '',
+        page.url.endsWith('/contractors/create') ? '1' : '0',
+    ].join('|'),
+    (next, prev) => {
+        if (prev !== undefined && next === prev) {
+            return;
+        }
 
-watch(() => props.selectedContractor, (contractor) => {
-    applyFormState(contractor);
-});
+        applyFormState(props.selectedContractor);
+    },
+    { immediate: true },
+);
 
 watch(() => props.activityTypeOptions, (options) => {
     globalActivityTypeOptions.value = [...new Set((options ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))]
@@ -536,6 +551,38 @@ function effectiveIndexSearchQuery(raw) {
     return trimmed.length < 2 ? '' : trimmed;
 }
 
+function contractorsNavQuery(extra = {}) {
+    return {
+        search: effectiveIndexSearchQuery(search.value),
+        type: typeFilter.value,
+        ...(props.returnTo ? { return_to: props.returnTo } : {}),
+        ...extra,
+    };
+}
+
+/**
+ * Обновляет query списка (поиск / тип), оставаясь на текущем маршруте карточки или создания.
+ * Иначе router.get(contractors.index) снимает /contractors/{id} и сбрасывает форму через applyFormState(null).
+ */
+function visitContractorsWithListQuery(extra = {}, options = {}) {
+    const merged = { ...contractorsNavQuery(), ...extra };
+    const opts = { preserveScroll: true, preserveState: true, ...options };
+
+    if (page.url.endsWith('/contractors/create')) {
+        router.get(route('contractors.create', merged), {}, opts);
+
+        return;
+    }
+
+    if (props.selectedContractor?.id != null) {
+        router.get(route('contractors.show', { contractor: props.selectedContractor.id, ...merged }), {}, opts);
+
+        return;
+    }
+
+    router.get(route('contractors.index', merged), {}, opts);
+}
+
 // Watch for search input changes and trigger server request
 let searchTimer = null;
 watch(() => search.value, (newSearch) => {
@@ -547,13 +594,20 @@ watch(() => search.value, (newSearch) => {
     }
 
     searchTimer = setTimeout(() => {
-        router.get(route('contractors.index', {
+        visitContractorsWithListQuery({
             search: effectiveIndexSearchQuery(newSearch),
-            type: typeFilter.value,
-            page: 1, // Reset to first page when searching
-        }), {}, { preserveScroll: true });
+        });
     }, 700); // Длиннее дебаунс — меньше лишних запросов при медленном наборе
 });
+
+/** После ответа Inertia: список в URL (filters) — единый источник, чтобы поиск/тип не терялись при открытии и закрытии карточки. */
+watch(
+    () => [page.url, props.filters?.search ?? '', props.filters?.type ?? ''].join('\u{1e}'),
+    () => {
+        search.value = props.filters?.search ?? '';
+        typeFilter.value = props.filters?.type ?? '';
+    },
+);
 
 // Watch for type filter changes
 let typeFilterTimer = null;
@@ -562,11 +616,9 @@ watch(() => typeFilter.value, (newType) => {
     clearTimeout(searchTimer); // Also clear search timer to avoid conflicts
 
     typeFilterTimer = setTimeout(() => {
-        router.get(route('contractors.index', {
-            search: effectiveIndexSearchQuery(search.value),
+        visitContractorsWithListQuery({
             type: newType,
-            page: 1, // Reset to first page when filtering
-        }), {}, { preserveScroll: true });
+        });
     }, 300); // Debounce 300ms
 });
 
@@ -581,29 +633,31 @@ const isMobileStandalone = computed(() => {
 
 const totalOrdersCount = computed(() => props.selectedContractor?.orders?.length ?? 0);
 const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.order_documents?.length ?? 0);
+const contractorsTotal = computed(() => props.contractors?.length ?? 0);
 
 function openCreateForm() {
-    router.get(route('contractors.create', {
-        search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
-    }), {}, { preserveScroll: true });
+    router.get(route('contractors.create', contractorsNavQuery()), {}, { preserveScroll: true, preserveState: true });
 }
 
 function openContractor(contractorId) {
     router.get(route('contractors.show', {
         contractor: contractorId,
-        search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
-        page: props.pagination.current_page,
-    }), {}, { preserveScroll: true });
+        ...contractorsNavQuery(),
+    }), {}, { preserveScroll: true, preserveState: true });
 }
 
 function closeContractorModal() {
-    router.get(route('contractors.index', {
-        search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
-        page: props.pagination.current_page,
-    }), {}, { preserveScroll: true });
+    if (props.returnTo) {
+        router.visit(props.returnTo, { preserveScroll: true });
+
+        return;
+    }
+
+    router.get(route('contractors.index', contractorsNavQuery()), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['contractors', 'selectedContractor', 'filters'],
+    });
 }
 
 function resetToSelected() {
@@ -840,18 +894,6 @@ watch(() => form.inn, (inn) => {
     }, 500);
 });
 
-function goToPage(pageNumber) {
-    if (pageNumber < 1 || pageNumber > props.pagination.last_page) {
-        return;
-    }
-    
-    router.get(route('contractors.index', {
-        page: pageNumber,
-        search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
-    }), {}, { preserveScroll: true });
-}
-
 function handleMobileNavSelect(key) {
     const routes = {
         dashboard: '/dashboard',
@@ -946,9 +988,8 @@ function handleMobileNavSelect(key) {
                 />
             </div>
 
-            <div class="flex items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                <span>Найдено: {{ pagination.total }}</span>
-                <span>Всего: {{ contractors.length }}</span>
+            <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>Всего в выборке: {{ contractorsTotal }}</span>
             </div>
         </section>
 
@@ -1034,12 +1075,16 @@ function handleMobileNavSelect(key) {
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
                     Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы.
                 </p>
+                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Всего в выборке: {{ contractorsTotal }}
+                </p>
             </div>
         </div>
 
         <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
             <div class="min-h-0 flex-1 overflow-hidden">
                 <ContractorsGrid
+                    v-model:registry-search="search"
                     :rows="contractors"
                     :available-columns="availableColumns"
                     :role-columns-config="roleColumnsConfig"
@@ -1065,6 +1110,15 @@ function handleMobileNavSelect(key) {
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                            title="Закрыть"
+                            @click="closeContractorModal"
+                        >
+                            <X class="h-5 w-5" />
+                            <span class="sr-only">Закрыть</span>
+                        </button>
                         <button
                             type="button"
                             class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"

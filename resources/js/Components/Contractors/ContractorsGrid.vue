@@ -5,9 +5,10 @@
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
-            v-model="quickSearch"
+            :value="registrySearch"
             type="text"
-            placeholder="Поиск по реестру"
+            placeholder="Поиск по всей базе (название, ИНН, телефон…)"
+            @input="emit('update:registrySearch', $event.target.value)"
             class="w-80 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
           />
         </div>
@@ -217,9 +218,14 @@ const props = defineProps({
     type: [String, Number],
     default: 'guest',
   },
+  /** Синхронизируется с серверным поиском в родителе (по всем контрагентам, не только текущая страница). */
+  registrySearch: {
+    type: String,
+    default: '',
+  },
 });
 
-const emit = defineEmits(['create', 'row-select', 'columns-changed']);
+const emit = defineEmits(['create', 'row-select', 'columns-changed', 'update:registrySearch']);
 
 const fallbackColumns = [
   { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },
@@ -247,7 +253,6 @@ const showColumnModal = ref(false);
 const showDensityMenu = ref(false);
 const modalColumns = ref([]);
 const draggedColumnField = ref(null);
-const quickSearch = ref('');
 const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const bottomScrollbar = ref(null);
@@ -604,10 +609,6 @@ const onCellDoubleClicked = (params) => {
 const onGridReady = async (params) => {
   gridApi.value = params.api;
 
-  if (quickSearch.value.trim() !== '') {
-    gridApi.value.setGridOption('quickFilterText', quickSearch.value);
-  }
-
   if (!loadColumnState()) {
     resetToRoleDefaults();
   }
@@ -625,14 +626,6 @@ const onFirstDataRendered = () => {
     syncBottomScrollbar();
   });
 };
-
-watch(quickSearch, (value) => {
-  if (!gridApi.value) {
-    return;
-  }
-
-  gridApi.value.setGridOption('quickFilterText', value);
-});
 
 watch(() => props.rows, async () => {
   await nextTick();

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class PrintFormTemplate extends Model
 {
@@ -131,5 +132,38 @@ class PrintFormTemplate extends Model
             ['value' => 'system', 'label' => 'Системный шаблон'],
             ['value' => 'external_docx', 'label' => 'DOCX контрагента'],
         ];
+    }
+
+    /**
+     * Активные универсальные шаблоны (без привязки к контрагенту) для контекстного меню в реестрах.
+     *
+     * @return list<array{id:int,name:string,document_type:string}>
+     */
+    public static function quickDraftMenuOptionsForEntity(string $entityType): array
+    {
+        if (! Schema::hasTable('print_form_templates')) {
+            return [];
+        }
+
+        $query = static::query()
+            ->where('entity_type', $entityType)
+            ->where('is_active', true)
+            ->whereNotNull('file_path');
+
+        if (Schema::hasColumn('print_form_templates', 'contractor_id')) {
+            $query->whereNull('contractor_id');
+        }
+
+        return $query
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'document_type'])
+            ->map(static fn (self $row): array => [
+                'id' => (int) $row->id,
+                'name' => (string) $row->name,
+                'document_type' => (string) $row->document_type,
+            ])
+            ->values()
+            ->all();
     }
 }

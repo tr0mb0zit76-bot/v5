@@ -232,6 +232,7 @@ class OrderIndexTest extends TestCase
             ->where('roleKey', 'admin')
             ->has('rows', 2)
             ->has('orderColumns')
+            ->has('orderPrintFormTemplates')
         );
     }
 
@@ -516,7 +517,8 @@ class OrderIndexTest extends TestCase
             'value' => 'TRACK-001',
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
         $this->assertDatabaseHas('orders', [
             'id' => $orderId,
             'track_number_customer' => 'TRACK-001',
@@ -557,7 +559,8 @@ class OrderIndexTest extends TestCase
             'value' => 2500.50,
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('orders', [
             'id' => $orderId,
@@ -713,7 +716,8 @@ class OrderIndexTest extends TestCase
             'value' => 'vat',
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('orders', [
             'id' => $firstOrderId,
@@ -882,7 +886,8 @@ class OrderIndexTest extends TestCase
             'value' => '2026-04-20', // Second half of April
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
 
         // First order remains in first half, now only direct deal, so KPI should be 5
         $this->assertDatabaseHas('orders', [
@@ -933,7 +938,8 @@ class OrderIndexTest extends TestCase
             'value' => 3210.45,
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
 
         $this->assertDatabaseHas('orders', [
             'id' => $orderId,
@@ -1023,7 +1029,8 @@ class OrderIndexTest extends TestCase
             'value' => 'vat',
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
 
         $contractorsCosts = DB::table('financial_terms')
             ->where('order_id', $orderId)
@@ -1050,7 +1057,8 @@ class OrderIndexTest extends TestCase
             'value' => 1999.99,
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
         $this->assertDatabaseHas('orders', [
             'id' => $orderId,
             'customer_rate' => 1999.99,
@@ -1073,7 +1081,8 @@ class OrderIndexTest extends TestCase
             'value' => '2026-04-02',
         ]);
 
-        $response->assertRedirect(route('orders.index'));
+        $response->assertOk();
+        $response->assertJsonPath('success', true);
         $storedDate = DB::table('orders')->where('id', $orderId)->value('track_sent_date_customer');
 
         $this->assertNotNull($storedDate);

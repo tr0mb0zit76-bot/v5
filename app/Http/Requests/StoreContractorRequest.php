@@ -34,6 +34,86 @@ class StoreContractorRequest extends FormRequest
                 $this->merge([$key => (string) $value]);
             }
         }
+
+        if ($this->has('contacts') && is_array($this->input('contacts'))) {
+            $contacts = collect($this->input('contacts'))
+                ->filter(function (mixed $row): bool {
+                    if (! is_array($row)) {
+                        return false;
+                    }
+
+                    return filled(trim((string) ($row['full_name'] ?? '')));
+                })
+                ->values()
+                ->all();
+            $this->merge(['contacts' => $contacts]);
+        }
+
+        if ($this->has('documents') && is_array($this->input('documents'))) {
+            $documents = collect($this->input('documents'))
+                ->filter(function (mixed $row): bool {
+                    if (! is_array($row)) {
+                        return false;
+                    }
+
+                    return filled(trim((string) ($row['title'] ?? '')));
+                })
+                ->map(function (mixed $row): mixed {
+                    if (! is_array($row)) {
+                        return $row;
+                    }
+
+                    if (($row['document_date'] ?? '') === '') {
+                        $row['document_date'] = null;
+                    }
+
+                    return $row;
+                })
+                ->values()
+                ->all();
+            $this->merge(['documents' => $documents]);
+        }
+
+        if ($this->has('interactions') && is_array($this->input('interactions'))) {
+            $interactions = collect($this->input('interactions'))
+                ->map(function (mixed $row): mixed {
+                    if (! is_array($row)) {
+                        return $row;
+                    }
+
+                    if (($row['contacted_at'] ?? '') === '') {
+                        $row['contacted_at'] = null;
+                    }
+
+                    return $row;
+                })
+                ->values()
+                ->all();
+            $this->merge(['interactions' => $interactions]);
+        }
+
+        foreach (['default_customer_payment_schedule', 'default_carrier_payment_schedule'] as $scheduleKey) {
+            if (! $this->has($scheduleKey) || ! is_array($this->input($scheduleKey))) {
+                continue;
+            }
+
+            $schedule = $this->input($scheduleKey);
+            $hasPrepayment = filter_var($schedule['has_prepayment'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            foreach (['prepayment_ratio', 'prepayment_days', 'postpayment_days'] as $numericKey) {
+                if (($schedule[$numericKey] ?? null) === '') {
+                    $schedule[$numericKey] = null;
+                }
+            }
+
+            if (! $hasPrepayment) {
+                $schedule['prepayment_ratio'] = null;
+                $schedule['prepayment_days'] = null;
+                $schedule['prepayment_mode'] = null;
+            }
+
+            $this->merge([$scheduleKey => $schedule]);
+        }
     }
 
     /**
@@ -129,6 +209,7 @@ class StoreContractorRequest extends FormRequest
             'documents.*.document_date' => ['nullable', 'date'],
             'documents.*.status' => ['nullable', 'string', 'max:255'],
             'documents.*.notes' => ['nullable', 'string'],
+            'return_to' => ['nullable', 'string', 'max:2048'],
         ];
     }
 }

@@ -13,6 +13,7 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
+use App\Models\RoutePoint;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Services\OrderCompensationService;
@@ -59,6 +60,7 @@ class OrderWizardController extends Controller
             'order_id' => $order->id,
             'user_id' => $request->user()?->id,
             'client_id' => $request->input('client_id'),
+            'validated_client_id' => $request->validated()['client_id'] ?? null,
             'performers_count' => count((array) $request->input('performers', [])),
         ]);
 
@@ -66,6 +68,7 @@ class OrderWizardController extends Controller
 
         Log::info('orders.update completed', [
             'order_id' => $order->id,
+            'customer_id' => $order->customer_id,
             'carrier_id' => $order->carrier_id,
             'updated_at' => optional($order->updated_at)?->toDateTimeString(),
         ]);
@@ -78,7 +81,7 @@ class OrderWizardController extends Controller
         Order $order,
         OrderCompensationService $orderCompensationService,
         OrderWizardStateService $orderWizardStateService,
-    ): RedirectResponse {
+    ): JsonResponse {
         abort_unless($this->canEditInlineField($request, $order), 403);
 
         $payload = $request->validatedPayload();
@@ -134,7 +137,11 @@ class OrderWizardController extends Controller
             $orderWizardStateService->mergeInlineIntoOrder($order->fresh(), $payload['field'], $payload['value']);
         }
 
-        return to_route('orders.index');
+        return response()->json([
+            'success' => true,
+            'message' => 'Поле успешно обновлено',
+            'order' => $order->fresh(),
+        ]);
     }
 
     public function destroy(Request $request, Order $order): RedirectResponse
@@ -457,15 +464,16 @@ class OrderWizardController extends Controller
             ->flatMap(function ($leg) use ($routePointHasAddressColumn, $routePointHasMetadataColumn) {
                 return $leg->routePoints
                     ->sortBy('sequence')
-                    ->map(fn ($point): array => [
+                    ->map(fn (RoutePoint $point): array => [
                         'id' => $point->id,
                         'stage' => $leg->description,
                         'leg_sequence' => $leg->sequence,
                         'type' => $point->type,
                         'sequence' => $point->sequence,
-                        'address' => $routePointHasAddressColumn
-                            ? $point->address
-                            : data_get($point->metadata, 'address', $point->instructions),
+                        'address' => $this->resolveRoutePointAddressLineForWizard(
+                            $point,
+                            $routePointHasAddressColumn,
+                        ),
                         'normalized_data' => $routePointHasMetadataColumn
                             ? (data_get($point->metadata, 'normalized_data', []))
                             : ($point->normalized_data ?? []),
@@ -484,19 +492,26 @@ class OrderWizardController extends Controller
             ->values()
             ->all();
 
-        $performers = $this->serializePerformersPayload($order, $financialTerm);
+        $performersFromDatabase = $this->serializePerformersPayload($order, $financialTerm);
+        $performers = $performersFromDatabase;
         if ($useWizardState && is_array($wizardState) && filled($wizardState['performers'] ?? null)) {
             $normalizedPerformers = $this->normalizePerformersFromWizardState($wizardState['performers']);
             if ($normalizedPerformers !== []) {
-                $performers = $normalizedPerformers;
+                $performers = $this->mergePerformersWizardSnapshotWithDatabase($performersFromDatabase, $normalizedPerformers);
             }
         }
 
         $financialTermForNormalize = $financialTerm;
         if ($useWizardState) {
+            $mergedContractorsCosts = $this->mergeWizardContractorsCostsWithDatabase(
+                $financialTerm !== null && is_array($financialTerm->contractors_costs)
+                    ? $financialTerm->contractors_costs
+                    : [],
+                is_array($wizardFt['contractors_costs'] ?? null) ? $wizardFt['contractors_costs'] : [],
+            );
             $financialTermForNormalize = new FinancialTerm([
-                'contractors_costs' => $wizardFt['contractors_costs'] ?? [],
-                'client_currency' => $wizardFt['client_currency'] ?? 'RUB',
+                'contractors_costs' => $mergedContractorsCosts,
+                'client_currency' => $wizardFt['client_currency'] ?? $financialTerm?->client_currency ?? 'RUB',
             ]);
         }
 
@@ -511,6 +526,39 @@ class OrderWizardController extends Controller
             ])
             ->values()
             ->all();
+
+        $cargoPayload = $cargoItems->map(fn ($cargo): array => [
+            'id' => $cargo->id,
+            'name' => $cargo->title,
+            'description' => $cargo->description,
+            'weight_kg' => $cargo->weight,
+            'volume_m3' => $cargo->volume,
+            'package_type' => $cargo->packing_type,
+            'package_count' => $cargo->package_count ?? $cargo->pallet_count,
+            'dangerous_goods' => $cargo->is_hazardous,
+            'dangerous_class' => $cargo->hazard_class,
+            'hs_code' => $cargo->hs_code,
+            'cargo_type' => $cargo->cargo_type ?: 'general',
+        ])->values()->all();
+
+        if ($cargoPayload === []) {
+            $fallbackCargoLine = $this->firstOrderCargoDescriptionLine($order->id);
+            if (filled($fallbackCargoLine)) {
+                $cargoPayload = [[
+                    'id' => null,
+                    'name' => $fallbackCargoLine,
+                    'description' => '',
+                    'weight_kg' => null,
+                    'volume_m3' => null,
+                    'package_type' => null,
+                    'package_count' => null,
+                    'dangerous_goods' => false,
+                    'dangerous_class' => '',
+                    'hs_code' => '',
+                    'cargo_type' => 'general',
+                ]];
+            }
+        }
 
         return [
             'id' => $order->id,
@@ -535,19 +583,7 @@ class OrderWizardController extends Controller
             'bonus' => Schema::hasColumn('orders', 'bonus') ? $order->bonus : null,
             'performers' => $performers,
             'route_points' => $routePoints,
-            'cargo_items' => $cargoItems->map(fn ($cargo): array => [
-                'id' => $cargo->id,
-                'name' => $cargo->title,
-                'description' => $cargo->description,
-                'weight_kg' => $cargo->weight,
-                'volume_m3' => $cargo->volume,
-                'package_type' => $cargo->packing_type,
-                'package_count' => $cargo->package_count ?? $cargo->pallet_count,
-                'dangerous_goods' => $cargo->is_hazardous,
-                'dangerous_class' => $cargo->hazard_class,
-                'hs_code' => $cargo->hs_code,
-                'cargo_type' => $cargo->cargo_type ?: 'general',
-            ])->values()->all(),
+            'cargo_items' => $cargoPayload,
             'financial_term' => [
                 'client_price' => $useWizardState
                     ? ($wizardFt['client_price'] ?? $order->customer_rate)
@@ -817,6 +853,137 @@ class OrderWizardController extends Controller
     }
 
     /**
+     * Снимок `wizard_state.performers` может отставать (contractor_id = null), хотя заказ уже сохранён — не затираем перевозчика из БД.
+     *
+     * @param  list<array{stage: string|null, contractor_id: int|null}>  $fromDatabase
+     * @param  list<array{stage: string|null, contractor_id: int|null}>  $fromWizard
+     * @return list<array{stage: string|null, contractor_id: int|null}>
+     */
+    private function mergePerformersWizardSnapshotWithDatabase(array $fromDatabase, array $fromWizard): array
+    {
+        if ($fromDatabase === []) {
+            return $fromWizard;
+        }
+
+        $wizardByStage = collect($fromWizard)->keyBy(fn (array $p): string => $this->normalizeStageIdentifierForWizard((string) ($p['stage'] ?? 'leg_1')));
+
+        $processedStages = [];
+
+        $merged = collect($fromDatabase)
+            ->map(function (array $dbRow) use ($wizardByStage, &$processedStages): array {
+                $key = $this->normalizeStageIdentifierForWizard((string) ($dbRow['stage'] ?? 'leg_1'));
+                $processedStages[$key] = true;
+
+                $w = $wizardByStage->get($key);
+                $wizardId = is_array($w) ? ($w['contractor_id'] ?? null) : null;
+                $dbId = $dbRow['contractor_id'] ?? null;
+
+                return [
+                    'stage' => is_array($w) && filled($w['stage'] ?? null) ? $w['stage'] : $dbRow['stage'],
+                    'contractor_id' => $this->resolveContractorIdForWizardDisplay(
+                        is_int($wizardId) ? $wizardId : (is_numeric($wizardId) ? (int) $wizardId : null),
+                        is_int($dbId) ? $dbId : (is_numeric($dbId) ? (int) $dbId : null),
+                    ),
+                ];
+            })
+            ->values()
+            ->all();
+
+        foreach ($fromWizard as $wizardRow) {
+            if (! is_array($wizardRow)) {
+                continue;
+            }
+
+            $key = $this->normalizeStageIdentifierForWizard((string) ($wizardRow['stage'] ?? 'leg_1'));
+            if (isset($processedStages[$key])) {
+                continue;
+            }
+
+            $wizardId = $wizardRow['contractor_id'] ?? null;
+
+            $merged[] = [
+                'stage' => $wizardRow['stage'] ?? null,
+                'contractor_id' => is_int($wizardId) ? $wizardId : (is_numeric($wizardId) ? (int) $wizardId : null),
+            ];
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $databaseCosts
+     * @param  list<array<string, mixed>>  $wizardCosts
+     * @return list<array<string, mixed>>
+     */
+    private function mergeWizardContractorsCostsWithDatabase(array $databaseCosts, array $wizardCosts): array
+    {
+        if ($databaseCosts === []) {
+            return $wizardCosts;
+        }
+
+        $wizardByStage = collect($wizardCosts)->keyBy(fn (array $c): string => $this->normalizeStageIdentifierForWizard((string) ($c['stage'] ?? 'leg_1')));
+
+        $processedStages = [];
+
+        $merged = collect($databaseCosts)
+            ->map(function (array $dbRow) use ($wizardByStage, &$processedStages): array {
+                $key = $this->normalizeStageIdentifierForWizard((string) ($dbRow['stage'] ?? 'leg_1'));
+                $processedStages[$key] = true;
+                $w = $wizardByStage->get($key);
+                if (! is_array($w)) {
+                    return $dbRow;
+                }
+
+                $wizardContractor = $w['contractor_id'] ?? null;
+                $dbContractor = $dbRow['contractor_id'] ?? null;
+
+                return [
+                    ...$dbRow,
+                    'stage' => $w['stage'] ?? $dbRow['stage'] ?? null,
+                    'contractor_id' => $this->resolveContractorIdForWizardDisplay(
+                        is_int($wizardContractor) ? $wizardContractor : (is_numeric($wizardContractor) ? (int) $wizardContractor : null),
+                        is_int($dbContractor) ? $dbContractor : (is_numeric($dbContractor) ? (int) $dbContractor : null),
+                    ),
+                    'amount' => $w['amount'] ?? $dbRow['amount'] ?? null,
+                    'currency' => $w['currency'] ?? $dbRow['currency'] ?? 'RUB',
+                    'payment_form' => $w['payment_form'] ?? $dbRow['payment_form'] ?? null,
+                    'payment_schedule' => is_array($w['payment_schedule'] ?? null)
+                        ? $w['payment_schedule']
+                        : (is_array($dbRow['payment_schedule'] ?? null) ? $dbRow['payment_schedule'] : []),
+                ];
+            })
+            ->all();
+
+        foreach ($wizardCosts as $wRow) {
+            if (! is_array($wRow)) {
+                continue;
+            }
+
+            $key = $this->normalizeStageIdentifierForWizard((string) ($wRow['stage'] ?? 'leg_1'));
+            if (isset($processedStages[$key])) {
+                continue;
+            }
+
+            $merged[] = $wRow;
+        }
+
+        return $merged;
+    }
+
+    private function resolveContractorIdForWizardDisplay(?int $wizardContractorId, ?int $databaseContractorId): ?int
+    {
+        if ($wizardContractorId !== null && $wizardContractorId > 0) {
+            return $wizardContractorId;
+        }
+
+        if ($databaseContractorId !== null && $databaseContractorId > 0) {
+            return $databaseContractorId;
+        }
+
+        return null;
+    }
+
+    /**
      * Должен совпадать с {@see OrderWizardService} для сопоставления этапов.
      */
     private function normalizeStageIdentifierForWizard(?string $stage): string
@@ -909,7 +1076,79 @@ class OrderWizardController extends Controller
             ];
         }
 
-        return [];
+        // Реестр показывает ставку/груз/маршрут даже если плечи ещё не разложены в `order_legs` — в мастере нужна одна строка «Плечо 1».
+        return [
+            [
+                'stage' => 'Плечо 1',
+                'contractor_id' => null,
+            ],
+        ];
+    }
+
+    /**
+     * Та же логика подписи точки, что и в {@see OrderIndexController::routePointSubquery}: город/строка адреса из справочника, если колонка `address` пуста.
+     */
+    private function resolveRoutePointAddressLineForWizard(
+        RoutePoint $point,
+        bool $routePointHasAddressColumn,
+    ): string {
+        $fromColumnOrMeta = $routePointHasAddressColumn
+            ? (string) ($point->address ?? '')
+            : (string) data_get($point->metadata, 'address', $point->instructions);
+
+        if (filled(trim($fromColumnOrMeta))) {
+            return $fromColumnOrMeta;
+        }
+
+        $fromNormalized = trim((string) data_get($point->normalized_data, 'result', ''));
+        if (filled($fromNormalized)) {
+            return $fromNormalized;
+        }
+
+        $addressId = $point->getAttribute('address_id');
+        if ($addressId === null || ! Schema::hasTable('addresses')) {
+            return '';
+        }
+
+        $expression = $routePointHasAddressColumn
+            ? 'COALESCE(NULLIF(route_points.address, ""), NULLIF(cities.name, ""), addresses.address_line)'
+            : 'COALESCE(NULLIF(cities.name, ""), addresses.address_line)';
+
+        $line = (string) DB::table('route_points')
+            ->where('route_points.id', $point->id)
+            ->leftJoin('addresses', 'addresses.id', '=', 'route_points.address_id')
+            ->leftJoin('cities', 'cities.id', '=', 'addresses.city_id')
+            ->selectRaw("({$expression}) as resolved_address_line")
+            ->value('resolved_address_line');
+
+        return filled(trim($line)) ? trim($line) : '';
+    }
+
+    /**
+     * Первая строка описания груза по связям плечей (как колонка «Груз» в реестре).
+     */
+    private function firstOrderCargoDescriptionLine(int $orderId): ?string
+    {
+        if (! Schema::hasTable('cargo_leg') || ! Schema::hasTable('cargos') || ! Schema::hasTable('order_legs')) {
+            return null;
+        }
+
+        $line = DB::table('cargo_leg')
+            ->join('order_legs', 'order_legs.id', '=', 'cargo_leg.order_leg_id')
+            ->join('cargos', 'cargos.id', '=', 'cargo_leg.cargo_id')
+            ->where('order_legs.order_id', $orderId)
+            ->orderBy('order_legs.sequence')
+            ->orderBy('cargos.id')
+            ->selectRaw('COALESCE(NULLIF(cargos.title, ""), cargos.description) as cargo_line')
+            ->value('cargo_line');
+
+        if (! is_string($line)) {
+            return null;
+        }
+
+        $trimmed = trim($line);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `logist-crm-shell-${CACHE_VERSION}`;
 const ASSET_CACHE_NAME = `logist-crm-assets-${CACHE_VERSION}`;
 const SHELL_URLS = [
@@ -56,13 +56,15 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(event.request)
                 .then((response) => {
-                    if (!response || response.status >= 400) {
+                    if (!response || response.status < 200 || response.status >= 400 || response.status !== 200) {
                         return response;
                     }
 
                     const responseClone = response.clone();
 
-                    caches.open(CACHE_NAME).then((cache) => cache.put('/', responseClone));
+                    caches.open(CACHE_NAME).then((cache) =>
+                        cache.put('/', responseClone).catch(() => {})
+                    );
 
                     return response;
                 })
@@ -80,13 +82,15 @@ self.addEventListener('fetch', (event) => {
                 }
 
                 return fetch(event.request).then((response) => {
-                    if (!response || response.status >= 400) {
+                    if (!response || response.status < 200 || response.status >= 400 || response.status !== 200) {
                         return response;
                     }
 
                     const responseClone = response.clone();
 
-                    caches.open(ASSET_CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+                    caches.open(ASSET_CACHE_NAME).then((cache) =>
+                        cache.put(event.request, responseClone).catch(() => {})
+                    );
 
                     return response;
                 });

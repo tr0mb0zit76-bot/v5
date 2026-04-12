@@ -691,7 +691,77 @@ class ContractorManagementTest extends TestCase
         );
     }
 
-    public function test_contractors_show_ignores_legacy_page_query_string_with_virtual_scroll(): void
+    public function test_contractors_index_returns_full_contractor_list_without_pagination(): void
+    {
+        $admin = $this->createAdminUser();
+
+        for ($i = 1; $i <= 55; $i++) {
+            DB::table('contractors')->insert([
+                'type' => 'customer',
+                'name' => sprintf('ООО Пагинация %02d', $i),
+                'is_active' => true,
+                'is_own_company' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $response = $this->actingAs($admin)->get(route('contractors.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->has('contractors', 55)
+            ->missing('pagination')
+        );
+    }
+
+    public function test_contractors_index_search_filters_entire_list(): void
+    {
+        $admin = $this->createAdminUser();
+
+        for ($i = 1; $i <= 50; $i++) {
+            DB::table('contractors')->insert([
+                'type' => 'customer',
+                'name' => sprintf('Noise %03d', $i),
+                'is_active' => true,
+                'is_own_company' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $targetId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ZZZ UniqueSearchToken',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $unfiltered = $this->actingAs($admin)->get(route('contractors.index'));
+
+        $unfiltered->assertOk();
+        $unfiltered->assertInertia(fn (Assert $page) => $page
+            ->has('contractors', 51)
+            ->missing('pagination')
+        );
+
+        $filtered = $this->actingAs($admin)->get(route('contractors.index', [
+            'search' => 'UniqueSearchToken',
+        ]));
+
+        $filtered->assertOk();
+        $filtered->assertInertia(fn (Assert $page) => $page
+            ->has('contractors', 1)
+            ->missing('pagination')
+            ->where('contractors.0.id', $targetId)
+            ->where('contractors.0.name', 'ZZZ UniqueSearchToken')
+        );
+    }
+
+    public function test_contractors_show_ignores_legacy_page_query_string(): void
     {
         $admin = $this->createAdminUser();
 
@@ -717,9 +787,47 @@ class ContractorManagementTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->where('pagination.current_page', 1)
-            ->where('pagination.total', 11)
+            ->has('contractors', 11)
+            ->missing('pagination')
             ->where('selectedContractor.id', $eleventhId)
+        );
+    }
+
+    public function test_contractors_show_keeps_selected_contractor_when_registry_search_query_applied(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $targetId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Реестр Поиск',
+            'inn' => '7711111110',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        for ($i = 1; $i <= 3; $i++) {
+            DB::table('contractors')->insert([
+                'type' => 'customer',
+                'name' => sprintf('Другой Клиент %d', $i),
+                'is_active' => true,
+                'is_own_company' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $response = $this->actingAs($admin)->get(route('contractors.show', [
+            'contractor' => $targetId,
+            'search' => 'Реестр',
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('selectedContractor.id', $targetId)
+            ->where('selectedContractor.inn', '7711111110')
+            ->has('contractors', 1)
         );
     }
 
@@ -796,7 +904,7 @@ class ContractorManagementTest extends TestCase
         $queryString = (string) parse_url($location, PHP_URL_QUERY);
         parse_str($queryString, $queryParams);
 
-        $this->assertSame('2', (string) ($queryParams['page'] ?? null));
+        $this->assertArrayNotHasKey('page', $queryParams);
         $this->assertSame('Контекст', $queryParams['search'] ?? null);
         $this->assertSame('customer', $queryParams['type'] ?? null);
     }
@@ -884,6 +992,190 @@ class ContractorManagementTest extends TestCase
 
         $response->assertOk();
         $this->assertGreaterThan(0, count($response->json('contractors') ?? []));
+    }
+
+    public function test_contractor_edit_passes_sanitized_return_to_to_inertia(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'inn' => '7700000000',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get('/contractors/'.$contractorId.'/edit?return_to='.rawurlencode('/orders/55/edit'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->where('returnTo', '/orders/55/edit')
+        );
+    }
+
+    public function test_contractor_edit_ignores_unsafe_return_to_query(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент 2',
+            'inn' => '7700000001',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get('/contractors/'.$contractorId.'/edit?return_to='.rawurlencode('https://evil.example/phishing'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Contractors/Index')
+            ->where('returnTo', null)
+        );
+    }
+
+    public function test_update_contractor_succeeds_with_empty_placeholder_nested_rows(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик',
+            'inn' => '7700000022',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $schedule = [
+            'has_prepayment' => false,
+            'prepayment_ratio' => 50,
+            'prepayment_days' => 0,
+            'prepayment_mode' => 'fttn',
+            'postpayment_days' => 5,
+            'postpayment_mode' => 'ottn',
+        ];
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', $contractorId), [
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик обновлён',
+            'full_name' => '',
+            'inn' => '7700000022',
+            'kpp' => '',
+            'ogrn' => '',
+            'okpo' => '',
+            'legal_form' => 'ooo',
+            'legal_address' => '',
+            'actual_address' => '',
+            'postal_address' => '',
+            'phone' => '+7 900 000-00-01',
+            'email' => '',
+            'website' => '',
+            'contact_person' => '',
+            'contact_person_phone' => '',
+            'contact_person_email' => '',
+            'contact_person_position' => '',
+            'signer_name_nominative' => '',
+            'signer_name_prepositional' => '',
+            'signer_authority_basis' => '',
+            'bank_name' => '',
+            'bik' => '',
+            'account_number' => '',
+            'correspondent_account' => '',
+            'ati_id' => '',
+            'specializations' => [],
+            'activity_types' => [],
+            'transport_requirements' => [],
+            'short_description' => 'Описание после сохранения.',
+            'debt_limit' => null,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => false,
+            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_term' => '',
+            'default_customer_payment_schedule' => $schedule,
+            'default_carrier_payment_form' => 'no_vat',
+            'default_carrier_payment_term' => '',
+            'default_carrier_payment_schedule' => $schedule,
+            'cooperation_terms_notes' => '',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'contacts' => [
+                [
+                    'full_name' => '',
+                    'position' => '',
+                    'phone' => '',
+                    'email' => '',
+                    'is_primary' => false,
+                    'notes' => '',
+                ],
+                [
+                    'full_name' => 'Контакт для сделок',
+                    'position' => '',
+                    'phone' => '',
+                    'email' => '',
+                    'is_primary' => true,
+                    'notes' => '',
+                ],
+            ],
+            'documents' => [
+                [
+                    'type' => '',
+                    'title' => '',
+                    'number' => '',
+                    'document_date' => '',
+                    'status' => '',
+                    'notes' => '',
+                ],
+                [
+                    'type' => 'other',
+                    'title' => 'Доверенность',
+                    'number' => '',
+                    'document_date' => '',
+                    'status' => '',
+                    'notes' => '',
+                ],
+            ],
+            'interactions' => [
+                [
+                    'contacted_at' => '',
+                    'channel' => 'phone',
+                    'subject' => '',
+                    'summary' => '',
+                    'result' => '',
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('contractors.show', [
+            'contractor' => $contractorId,
+            'type' => 'carrier',
+        ]));
+
+        $this->assertDatabaseHas('contractors', [
+            'id' => $contractorId,
+            'name' => 'ООО Перевозчик обновлён',
+            'phone' => '+7 900 000-00-01',
+        ]);
+
+        $this->assertDatabaseHas('contractor_contacts', [
+            'contractor_id' => $contractorId,
+            'full_name' => 'Контакт для сделок',
+        ]);
+
+        $this->assertDatabaseHas('contractor_documents', [
+            'contractor_id' => $contractorId,
+            'title' => 'Доверенность',
+        ]);
     }
 
     private function createAdminUser(): User

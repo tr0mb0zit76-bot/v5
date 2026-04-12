@@ -84,6 +84,7 @@
           :maintainColumnOrder="true"
           :suppressDragLeaveHidesColumns="true"
           @cell-double-clicked="onCellDoubleClicked"
+          @cell-context-menu="onCellContextMenu"
           @cell-value-changed="onCellValueChanged"
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
@@ -188,11 +189,49 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div
+        v-if="rowContextMenu.visible && rowContextMenu.row"
+        class="orders-grid-context-menu fixed z-[100] min-w-[220px] overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 text-sm shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+        :style="{ left: `${rowContextMenu.x}px`, top: `${rowContextMenu.y}px` }"
+        role="menu"
+        @click.stop
+      >
+        <button
+          type="button"
+          class="flex w-full px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          role="menuitem"
+          @click="openOrderFromContextMenu"
+        >
+          Открыть заказ
+        </button>
+        <template v-if="printFormTemplates.length > 0">
+          <div class="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+          <div class="px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+            Печать (DOCX)
+          </div>
+          <a
+            v-for="tpl in printFormTemplates"
+            :key="tpl.id"
+            :href="orderDraftHref(tpl.id)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="block px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+            role="menuitem"
+            @click="closeRowContextMenu"
+          >
+            {{ tpl.name }}
+          </a>
+        </template>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -236,6 +275,10 @@ const props = defineProps({
   userId: {
     type: [String, Number],
     default: 'guest',
+  },
+  printFormTemplates: {
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -306,13 +349,18 @@ const bottomScrollbar = ref(null);
 const bottomScrollbarWidth = ref(0);
 const gridViewportHeight = ref(440);
 
+const rowContextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  row: null,
+});
+
+let rowContextMenuOutsideListener = null;
+
 let isSyncingHorizontalScroll = false;
 let saveTimeout = null;
 let removeCenterViewportListener = null;
-
-const gridOptions = {
-  theme: 'legacy',
-};
 
 const gridContainerStyle = computed(() => ({
   height: `${gridViewportHeight.value}px`,
@@ -1131,6 +1179,76 @@ const onCellDoubleClicked = (params) => {
   }
 };
 
+function closeRowContextMenu() {
+  rowContextMenu.value = { visible: false, x: 0, y: 0, row: null };
+  if (rowContextMenuOutsideListener) {
+    document.removeEventListener('pointerdown', rowContextMenuOutsideListener, true);
+    rowContextMenuOutsideListener = null;
+  }
+}
+
+function orderDraftHref(templateId) {
+  const row = rowContextMenu.value.row;
+  if (!row?.id) {
+    return '#';
+  }
+
+  const path = route('orders.templates.generate-draft', [row.id, templateId]);
+  const joiner = path.includes('?') ? '&' : '?';
+
+  return `${path}${joiner}preview=1`;
+}
+
+function openOrderFromContextMenu() {
+  const id = rowContextMenu.value.row?.id;
+  closeRowContextMenu();
+  if (id) {
+    router.get(route('orders.edit', id), {}, { preserveScroll: true });
+  }
+}
+
+const onCellContextMenu = (params) => {
+  if (!params.event || !params.data?.id) {
+    closeRowContextMenu();
+    return;
+  }
+
+  if (typeof params.event.preventDefault === 'function') {
+    params.event.preventDefault();
+    params.event.stopPropagation?.();
+  }
+
+  closeRowContextMenu();
+
+  // Получаем координаты события
+  const clientX = params.event.clientX || params.event.pageX || 0;
+  const clientY = params.event.clientY || params.event.pageY || 0;
+
+  rowContextMenu.value = {
+    visible: true,
+    x: clientX,
+    y: clientY,
+    row: params.data,
+  };
+
+  nextTick(() => {
+    rowContextMenuOutsideListener = (ev) => {
+      const menu = document.querySelector('.orders-grid-context-menu');
+      if (menu && menu.contains(ev.target)) {
+        return;
+      }
+      closeRowContextMenu();
+    };
+    document.addEventListener('pointerdown', rowContextMenuOutsideListener, true);
+  });
+};
+
+const gridOptions = {
+  theme: 'legacy',
+  /** Встроенное меню AG Grid скрываем — своё меню в Vue (Teleport). Событие — через @cell-context-menu. */
+  suppressContextMenu: true,
+};
+
 const onCellValueChanged = (params) => {
   if (params.newValue !== params.oldValue && props.editable) {
     emit('cell-save', {
@@ -1419,6 +1537,9 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateGridViewportHeight);
   window.removeEventListener('resize', syncBottomScrollbar);
   removeCenterViewportListener?.();
+  closeRowContextMenu();
+
+  gridApi.value = null;
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);

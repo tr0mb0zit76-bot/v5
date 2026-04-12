@@ -392,6 +392,7 @@ class LeadManagementTest extends TestCase
             ->component('Leads/Index')
             ->has('leads', 1)
             ->where('leads.0.title', 'Свой лид')
+            ->has('leadPrintFormTemplates')
         );
     }
 
@@ -813,6 +814,7 @@ class LeadManagementTest extends TestCase
             ->component('Leads/Index')
             ->where('featureUnavailable', true)
             ->has('leads', 0)
+            ->has('leadPrintFormTemplates', 0)
         );
     }
 

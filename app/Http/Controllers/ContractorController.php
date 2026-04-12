@@ -12,6 +12,7 @@ use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -36,9 +37,10 @@ class ContractorController extends Controller
 
     public function store(StoreContractorRequest $request): RedirectResponse
     {
-        $contractor = DB::transaction(function () use ($request): Contractor {
-            $validated = $request->validated();
+        $validated = $request->validated();
+        $returnTo = $this->sanitizeReturnTo(Arr::pull($validated, 'return_to'));
 
+        $contractor = DB::transaction(function () use ($request, $validated): Contractor {
             $contractor = Contractor::query()->create([
                 ...$this->extractContractorAttributes($validated),
                 'owner_id' => $request->user()?->id,
@@ -50,6 +52,10 @@ class ContractorController extends Controller
 
             return $contractor;
         });
+
+        if ($returnTo !== null) {
+            return redirect()->to($returnTo);
+        }
 
         return to_route('contractors.show', [
             'contractor' => $contractor,
@@ -69,9 +75,10 @@ class ContractorController extends Controller
 
     public function update(UpdateContractorRequest $request, Contractor $contractor): RedirectResponse
     {
-        DB::transaction(function () use ($request, $contractor): void {
-            $validated = $request->validated();
+        $validated = $request->validated();
+        $returnTo = $this->sanitizeReturnTo(Arr::pull($validated, 'return_to'));
 
+        DB::transaction(function () use ($request, $contractor, $validated): void {
             $contractor->update([
                 ...$this->extractContractorAttributes($validated),
                 'updated_by' => $request->user()?->id,
@@ -79,6 +86,10 @@ class ContractorController extends Controller
 
             $this->syncNestedData($contractor, $validated, $request->user()?->id);
         });
+
+        if ($returnTo !== null) {
+            return redirect()->to($returnTo);
+        }
 
         return to_route('contractors.show', [
             'contractor' => $contractor,
@@ -257,16 +268,8 @@ class ContractorController extends Controller
         // The scope will handle type-specific visibility rules
         $contractorsQuery = Contractor::query()->visibleTo($request->user(), $type);
 
-        // Add search functionality
-        $search = $request->input('search', '');
-        if ($search) {
-            $contractorsQuery->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('inn', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
+        $search = (string) $request->input('search', '');
+        $this->applyContractorsIndexSearch($contractorsQuery, $search, $hasContactsTable);
 
         // Note: Type filtering is handled within the visibleTo scope
         // based on the $type parameter passed above
@@ -277,22 +280,29 @@ class ContractorController extends Controller
 
         $contractorsQuery->withCount(['customerOrders', 'carrierOrders']);
 
+        $listQuery = $contractorsQuery->clone()
+            ->orderByDesc('is_active')
+            ->orderBy('name');
+
         try {
-            $contractorsCollection = $contractorsQuery
+            $contractorsCollection = $listQuery->get();
+        } catch (QueryException $exception) {
+            if (! $this->isMissingTableException($exception, 'contractor_contacts')) {
+                throw $exception;
+            }
+
+            $hasContactsTable = false;
+
+            $fallbackQuery = Contractor::query()
+                ->visibleTo($request->user(), $type);
+
+            $this->applyContractorsIndexSearch($fallbackQuery, $search, false);
+
+            $contractorsCollection = $fallbackQuery
+                ->withCount(['customerOrders', 'carrierOrders'])
                 ->orderByDesc('is_active')
                 ->orderBy('name')
                 ->get();
-        } catch (QueryException $exception) {
-            if ($this->isMissingTableException($exception, 'contractor_contacts')) {
-                $contractorsCollection = Contractor::query()
-                    ->withCount(['customerOrders', 'carrierOrders'])
-                    ->orderByDesc('is_active')
-                    ->orderBy('name')
-                    ->get();
-                $hasContactsTable = false;
-            } else {
-                throw $exception;
-            }
         }
 
         $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
@@ -321,17 +331,6 @@ class ContractorController extends Controller
                 'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
             ])
             ->values();
-
-        // Add pagination metadata
-        $pagination = [
-            'current_page' => 1,
-            'last_page' => 1,
-            'per_page' => $contractors->count(),
-            'total' => $contractors->count(),
-            'from' => $contractors->isEmpty() ? 0 : 1,
-            'to' => $contractors->count(),
-            'links' => [],
-        ];
 
         $contractorDetails = null;
 
@@ -500,7 +499,7 @@ class ContractorController extends Controller
         return Inertia::render('Contractors/Index', [
             'contractors' => $contractors,
             'selectedContractor' => $contractorDetails,
-            'pagination' => $pagination,
+            'returnTo' => $this->sanitizeReturnTo($request->query('return_to')),
             'activityTypeOptions' => $this->activityTypeOptions(),
             'legalFormOptions' => [
                 ['value' => 'ooo', 'label' => 'ООО'],
@@ -520,12 +519,50 @@ class ContractorController extends Controller
     }
 
     /**
+     * Поиск по полям контрагента (и при необходимости по связанным контактам) до пагинации.
+     *
+     * @param  Builder<Contractor>  $query
+     */
+    private function applyContractorsIndexSearch(Builder $query, string $search, bool $hasContactsTable): void
+    {
+        $trimmed = trim($search);
+
+        if ($trimmed === '') {
+            return;
+        }
+
+        $like = '%'.$trimmed.'%';
+
+        $query->where(function (Builder $inner) use ($like, $hasContactsTable): void {
+            $inner->where('name', 'like', $like)
+                ->orWhere('full_name', 'like', $like)
+                ->orWhere('inn', 'like', $like)
+                ->orWhere('phone', 'like', $like)
+                ->orWhere('email', 'like', $like)
+                ->orWhere('contact_person', 'like', $like)
+                ->orWhere('contact_person_phone', 'like', $like)
+                ->orWhere('contact_person_email', 'like', $like)
+                ->orWhere('kpp', 'like', $like)
+                ->orWhere('ogrn', 'like', $like)
+                ->orWhere('ati_id', 'like', $like);
+
+            if ($hasContactsTable) {
+                $inner->orWhereHas('contacts', function (Builder $contacts) use ($like): void {
+                    $contacts->where('full_name', 'like', $like)
+                        ->orWhere('phone', 'like', $like)
+                        ->orWhere('email', 'like', $like);
+                });
+            }
+        });
+    }
+
+    /**
      * @param  array<string, mixed>  $validated
      * @return array<string, mixed>
      */
     private function extractContractorAttributes(array $validated): array
     {
-        unset($validated['contacts'], $validated['interactions'], $validated['documents']);
+        unset($validated['contacts'], $validated['interactions'], $validated['documents'], $validated['return_to']);
 
         foreach ([
             'debt_limit',
@@ -871,8 +908,41 @@ class ContractorController extends Controller
         return str_contains($message, 'table') && str_contains($message, $needle);
     }
 
+    private function sanitizeReturnTo(mixed $raw): ?string
+    {
+        if (! is_string($raw)) {
+            return null;
+        }
+
+        $trimmed = trim($raw);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://')) {
+            $path = parse_url($trimmed, PHP_URL_PATH);
+            $query = parse_url($trimmed, PHP_URL_QUERY);
+
+            if (! is_string($path) || $path === '') {
+                return null;
+            }
+
+            $trimmed = $path.($query !== null && $query !== '' ? '?'.$query : '');
+        }
+
+        if ($trimmed[0] !== '/') {
+            return null;
+        }
+
+        if (! preg_match('#^/(orders|leads)(/|$)#', $trimmed)) {
+            return null;
+        }
+
+        return $trimmed;
+    }
+
     /**
-     * @return array{search?: string, type?: string, page?: int}
+     * @return array{search?: string, type?: string}
      */
     private function listContext(Request $request): array
     {
@@ -886,11 +956,6 @@ class ContractorController extends Controller
         $type = trim((string) $request->input('type', ''));
         if ($type !== '') {
             $context['type'] = $type;
-        }
-
-        $page = $request->integer('page');
-        if ($page > 0) {
-            $context['page'] = $page;
         }
 
         return $context;
