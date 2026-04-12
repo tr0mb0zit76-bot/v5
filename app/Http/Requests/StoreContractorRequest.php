@@ -35,6 +35,18 @@ class StoreContractorRequest extends FormRequest
             }
         }
 
+        $this->truncateStringFields([
+            'name' => 255,
+            'full_name' => 255,
+            'inn' => 20,
+            'kpp' => 20,
+            'ogrn' => 20,
+            'okpo' => 20,
+            'legal_address' => 255,
+            'actual_address' => 255,
+            'postal_address' => 255,
+        ]);
+
         if ($this->has('contacts') && is_array($this->input('contacts'))) {
             $contacts = collect($this->input('contacts'))
                 ->filter(function (mixed $row): bool {
@@ -98,12 +110,19 @@ class StoreContractorRequest extends FormRequest
             }
 
             $schedule = $this->input($scheduleKey);
-            $hasPrepayment = filter_var($schedule['has_prepayment'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $postpaymentMode = mb_strtolower((string) ($schedule['postpayment_mode'] ?? ''));
+            $isEventPaymentMode = in_array($postpaymentMode, ['loading', 'unloading'], true);
+            $hasPrepayment = ! $isEventPaymentMode
+                && filter_var($schedule['has_prepayment'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
             foreach (['prepayment_ratio', 'prepayment_days', 'postpayment_days'] as $numericKey) {
                 if (($schedule[$numericKey] ?? null) === '') {
                     $schedule[$numericKey] = null;
                 }
+            }
+
+            if ($isEventPaymentMode) {
+                $schedule['postpayment_days'] = 0;
             }
 
             if (! $hasPrepayment) {
@@ -113,6 +132,34 @@ class StoreContractorRequest extends FormRequest
             }
 
             $this->merge([$scheduleKey => $schedule]);
+        }
+    }
+
+    /**
+     * @param  array<string, int>  $fields
+     */
+    private function truncateStringFields(array $fields): void
+    {
+        foreach ($fields as $field => $maxLength) {
+            if (! $this->has($field)) {
+                continue;
+            }
+
+            $value = $this->input($field);
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $stringValue = trim((string) $value);
+
+            if (mb_strlen($stringValue) <= $maxLength) {
+                $this->merge([$field => $stringValue]);
+
+                continue;
+            }
+
+            $this->merge([$field => mb_substr($stringValue, 0, $maxLength)]);
         }
     }
 
@@ -143,11 +190,11 @@ class StoreContractorRequest extends FormRequest
             'actual_address' => ['nullable', 'string', 'max:255'],
             'postal_address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'email' => ['nullable', 'email', 'max:255'],
+            'email' => ['nullable', 'string', 'max:255'],
             'website' => ['nullable', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
             'contact_person_phone' => ['nullable', 'string', 'max:50'],
-            'contact_person_email' => ['nullable', 'email', 'max:255'],
+            'contact_person_email' => ['nullable', 'string', 'max:255'],
             'contact_person_position' => ['nullable', 'string', 'max:255'],
             'signer_name_nominative' => ['nullable', 'string', 'max:255'],
             'signer_name_prepositional' => ['nullable', 'string', 'max:255'],
@@ -172,18 +219,18 @@ class StoreContractorRequest extends FormRequest
             'default_customer_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'default_customer_payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
             'default_customer_payment_schedule.prepayment_days' => ['nullable', 'integer', 'min:0'],
-            'default_customer_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'default_customer_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
             'default_customer_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
-            'default_customer_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'default_customer_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
             'default_carrier_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
             'default_carrier_payment_term' => ['nullable', 'string', 'max:255'],
             'default_carrier_payment_schedule' => ['nullable', 'array'],
             'default_carrier_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'default_carrier_payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
             'default_carrier_payment_schedule.prepayment_days' => ['nullable', 'integer', 'min:0'],
-            'default_carrier_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'default_carrier_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
             'default_carrier_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
-            'default_carrier_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn'])],
+            'default_carrier_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
             'cooperation_terms_notes' => ['nullable', 'string'],
             'is_active' => ['required', 'boolean'],
             'is_verified' => ['required', 'boolean'],
@@ -193,7 +240,7 @@ class StoreContractorRequest extends FormRequest
             'contacts.*.full_name' => ['required', 'string', 'max:255'],
             'contacts.*.position' => ['nullable', 'string', 'max:255'],
             'contacts.*.phone' => ['nullable', 'string', 'max:50'],
-            'contacts.*.email' => ['nullable', 'email', 'max:255'],
+            'contacts.*.email' => ['nullable', 'string', 'max:255'],
             'contacts.*.is_primary' => ['nullable', 'boolean'],
             'contacts.*.notes' => ['nullable', 'string'],
             'interactions' => ['nullable', 'array'],

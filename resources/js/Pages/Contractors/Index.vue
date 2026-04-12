@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
@@ -126,6 +126,7 @@ const paymentBasisOptions = [
     { value: 'unloading', label: 'На выгрузке' },
 ];
 
+const eventPaymentModes = ['loading', 'unloading'];
 const currencyOptions = ['RUB', 'USD', 'CNY', 'EUR'];
 
 const mobileNavItems = [
@@ -152,12 +153,18 @@ function blankPaymentSchedule() {
 
 function normalizePaymentSchedule(schedule = {}) {
     const raw = schedule?.has_prepayment;
-
-    return {
+    const normalized = {
         ...blankPaymentSchedule(),
         ...schedule,
         has_prepayment: raw === true || raw === 1 || raw === '1',
     };
+
+    if (eventPaymentModes.includes(String(normalized.postpayment_mode || '').toLowerCase())) {
+        normalized.has_prepayment = false;
+        normalized.postpayment_days = 0;
+    }
+
+    return normalized;
 }
 
 function hasMeaningfulPaymentSchedule(schedule) {
@@ -166,6 +173,10 @@ function hasMeaningfulPaymentSchedule(schedule) {
     }
 
     if (schedule.has_prepayment) {
+        return true;
+    }
+
+    if (eventPaymentModes.includes(String(schedule.postpayment_mode || '').toLowerCase())) {
         return true;
     }
 
@@ -179,14 +190,19 @@ function paymentScheduleSummary(schedule) {
         return '';
     }
 
+    const postpaymentMode = String(normalized.postpayment_mode || 'ottn').toLowerCase();
+    if (eventPaymentModes.includes(postpaymentMode)) {
+        return postpaymentMode.toUpperCase();
+    }
+
     if (normalized.has_prepayment) {
         const prepaymentRatio = Number(normalized.prepayment_ratio || 0);
         const postpaymentRatio = Math.max(0, 100 - prepaymentRatio);
 
-        return `${prepaymentRatio}/${postpaymentRatio}, ${Number(normalized.prepayment_days || 0)} дн ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+        return `${prepaymentRatio}/${postpaymentRatio}, ${Number(normalized.prepayment_days || 0)} ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${Number(normalized.postpayment_days || 0)} ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
     }
 
-    return `${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+    return `${Number(normalized.postpayment_days || 0)} ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
 }
 
 /** Как в OrdersGrid: в БД латиница (FTTN/OTTN), в подписи — кириллица. */
@@ -417,10 +433,97 @@ const activityTypeDropdownSummary = computed(() => {
     return `${form.activity_types.slice(0, 2).join(', ')} +${form.activity_types.length - 2}`;
 });
 
+const fieldLabelMap = {
+    name: 'name',
+    type: 'type',
+    'default_customer_payment_schedule.postpayment_mode': 'customer payment mode',
+    'default_carrier_payment_schedule.postpayment_mode': 'carrier payment mode',
+};
+
+const formErrorMessages = computed(() => {
+    return Object.entries(form.errors ?? {}).flatMap(([field, rawMessage]) => {
+        const messages = Array.isArray(rawMessage) ? rawMessage : [rawMessage];
+        const normalizedField = String(field).replace(/\.\d+\./g, '.*.');
+        const label = fieldLabelMap[normalizedField] ?? fieldLabelMap[field] ?? field;
+
+        return messages.map((message) => {
+            const text = String(message ?? '').trim();
+            if (text === 'validation.in') {
+                return `${label}: invalid value`;
+            }
+            if (text === 'validation.required') {
+                return `${label}: required`;
+            }
+
+            return `${label}: ${text}`;
+        });
+    }).filter(Boolean);
+});
+
+const highlightedErrorElement = ref(null);
+
+function clearHighlightedErrorField() {
+    if (!highlightedErrorElement.value) {
+        return;
+    }
+
+    highlightedErrorElement.value.classList.remove('border-rose-500', 'ring-1', 'ring-rose-500');
+    highlightedErrorElement.value = null;
+}
+
+function resolveErrorTab(field) {
+    const normalized = String(field).replace(/\.\d+\./g, '.*.');
+
+    if (normalized.startsWith('contacts.')) {
+        return 'contacts';
+    }
+    if (normalized.startsWith('interactions.')) {
+        return 'history';
+    }
+    if (normalized.startsWith('documents.')) {
+        return 'documents';
+    }
+    if (normalized.startsWith('default_') || normalized === 'debt_limit' || normalized === 'debt_limit_currency') {
+        return 'cooperation';
+    }
+    if (['legal_form', 'kpp', 'ogrn', 'okpo', 'bank_name', 'bik', 'account_number', 'correspondent_account', 'legal_address', 'actual_address', 'postal_address'].includes(normalized)) {
+        return 'requisites';
+    }
+
+    return 'general';
+}
+
+async function focusFirstInvalidField(errors) {
+    const [firstField] = Object.keys(errors ?? {});
+    if (!firstField) {
+        return;
+    }
+
+    activeTab.value = resolveErrorTab(firstField);
+    await nextTick();
+
+    clearHighlightedErrorField();
+    const normalized = String(firstField).replace(/\.\d+\./g, '.*.');
+    const candidates = [firstField, normalized];
+    for (const field of candidates) {
+        const element = document.querySelector(`[data-field="${field}"]`);
+        if (!element) {
+            continue;
+        }
+
+        element.classList.add('border-rose-500', 'ring-1', 'ring-rose-500');
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus?.({ preventScroll: true });
+        highlightedErrorElement.value = element;
+        break;
+    }
+}
+
 function applyFormState(contractor) {
     const payload = contractorToForm(contractor);
     form.defaults({ ...payload, return_to: props.returnTo ?? null });
     form.reset();
+    clearHighlightedErrorField();
     lastAutoFilledInn.value = payload.inn;
 
     for (const [key, value] of Object.entries(payload)) {
@@ -672,6 +775,11 @@ function parseMultilineList(value) {
 }
 
 function submit() {
+    if (form.processing) {
+        return;
+    }
+
+    clearHighlightedErrorField();
     form.transport_requirements = parseMultilineList(transportRequirementsText.value);
     form.activity_types = [...new Set((form.activity_types ?? []).map((item) => String(item).trim()).filter(Boolean))];
     form.default_customer_payment_schedule = normalizePaymentSchedule(form.default_customer_payment_schedule);
@@ -686,6 +794,7 @@ function submit() {
     if (selectedContractorId.value === null) {
         form.post(route('contractors.store'), {
             preserveScroll: true,
+            onError: focusFirstInvalidField,
         });
 
         return;
@@ -693,6 +802,7 @@ function submit() {
 
     form.patch(route('contractors.update', selectedContractorId.value), {
         preserveScroll: true,
+        onError: focusFirstInvalidField,
     });
 }
 
@@ -875,6 +985,16 @@ function paymentFormLabel(value) {
     return paymentFormOptions.find((item) => item.value === value)?.label ?? 'Не задано';
 }
 
+function enforceEventPaymentMode(schedule) {
+    const mode = String(schedule?.postpayment_mode || '').toLowerCase();
+    if (!eventPaymentModes.includes(mode)) {
+        return;
+    }
+
+    schedule.has_prepayment = false;
+    schedule.postpayment_days = 0;
+}
+
 watch(() => form.inn, (inn) => {
     clearTimeout(innLookupTimer);
 
@@ -892,6 +1012,14 @@ watch(() => form.inn, (inn) => {
         form.inn = normalizedInn;
         fetchPartySuggestions();
     }, 500);
+});
+
+watch(() => form.default_customer_payment_schedule?.postpayment_mode, () => {
+    enforceEventPaymentMode(form.default_customer_payment_schedule);
+});
+
+watch(() => form.default_carrier_payment_schedule?.postpayment_mode, () => {
+    enforceEventPaymentMode(form.default_carrier_payment_schedule);
 });
 
 function handleMobileNavSelect(key) {
@@ -1148,6 +1276,12 @@ function handleMobileNavSelect(key) {
                 </div>
 
                 <div class="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                    <div v-if="formErrorMessages.length > 0" class="mb-3 border border-rose-200 bg-rose-50/80 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                        <div class="font-medium">Не удалось сохранить карточку.</div>
+                        <ul class="mt-1 list-disc space-y-1 pl-5">
+                            <li v-for="(message, index) in formErrorMessages" :key="`${message}-${index}`">{{ message }}</li>
+                        </ul>
+                    </div>
                     <div class="flex flex-wrap gap-2">
                         <button
                             v-for="tab in tabs"
@@ -1174,6 +1308,7 @@ function handleMobileNavSelect(key) {
                                         <label class="text-sm font-medium">Краткое название</label>
                                         <input
                                             v-model="form.name"
+                                            data-field="name"
                                             type="text"
                                             class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                         />
@@ -1203,6 +1338,7 @@ function handleMobileNavSelect(key) {
                                             <label class="text-sm font-medium">Тип контрагента</label>
                                             <select
                                                 v-model="form.type"
+                                                data-field="type"
                                                 class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
                                             >
                                                 <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
@@ -1561,16 +1697,16 @@ function handleMobileNavSelect(key) {
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium">Срок, дней</label>
-                                                <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" :disabled="eventPaymentModes.includes(String(form.default_customer_payment_schedule.postpayment_mode || '').toLowerCase())" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-400 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium">Оплата по</label>
-                                                <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                <select v-model="form.default_customer_payment_schedule.postpayment_mode" data-field="default_customer_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                                <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
+                                                <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" :disabled="eventPaymentModes.includes(String(form.default_customer_payment_schedule.postpayment_mode || '').toLowerCase())" class="rounded border-zinc-300 disabled:opacity-50" />
                                                 Предоплата
                                             </label>
                                         </div>
@@ -1613,16 +1749,16 @@ function handleMobileNavSelect(key) {
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium">Срок, дней</label>
-                                                <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" :disabled="eventPaymentModes.includes(String(form.default_carrier_payment_schedule.postpayment_mode || '').toLowerCase())" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-400 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium">Оплата по</label>
-                                                <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                <select v-model="form.default_carrier_payment_schedule.postpayment_mode" data-field="default_carrier_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                                <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
+                                                <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" :disabled="eventPaymentModes.includes(String(form.default_carrier_payment_schedule.postpayment_mode || '').toLowerCase())" class="rounded border-zinc-300 disabled:opacity-50" />
                                                 Предоплата
                                             </label>
                                         </div>

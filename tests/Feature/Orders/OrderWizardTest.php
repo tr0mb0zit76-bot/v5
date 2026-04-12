@@ -2068,6 +2068,63 @@ class OrderWizardTest extends TestCase
             ->assertJson(['deal_type' => 'indirect']);
     }
 
+    public function test_inline_contractor_creation_accepts_legacy_email_like_value(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $response = $this->actingAs($admin)->postJson(route('orders.contractors.store'), [
+            'type' => 'customer',
+            'name' => 'ООО Новый клиент',
+            'inn' => '7700000202',
+            'kpp' => '770001001',
+            'address' => 'г. Самара, ул. Тестовая, д. 7',
+            'phone' => '+7 900 111-22-33',
+            'email' => 'manager@company.test / +7 900 111-22-33',
+            'contact_person' => 'Логист',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('contractor.name', 'ООО Новый клиент')
+            ->assertJsonPath('contractor.email', 'manager@company.test / +7 900 111-22-33');
+
+        $this->assertDatabaseHas('contractors', [
+            'name' => 'ООО Новый клиент',
+            'email' => 'manager@company.test / +7 900 111-22-33',
+        ]);
+    }
+
+    public function test_inline_contractor_creation_truncates_overlong_dadata_like_fields(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $longName = str_repeat('Н', 320);
+        $longAddress = str_repeat('А', 420);
+
+        $response = $this->actingAs($admin)->postJson(route('orders.contractors.store'), [
+            'type' => 'customer',
+            'name' => $longName,
+            'inn' => '7700000404',
+            'kpp' => '770001001',
+            'address' => $longAddress,
+            'phone' => str_repeat('9', 80),
+            'email' => str_repeat('e', 270),
+            'contact_person' => str_repeat('P', 280),
+        ]);
+
+        $response->assertCreated();
+
+        $stored = DB::table('contractors')
+            ->where('inn', '7700000404')
+            ->first(['name', 'legal_address', 'phone', 'email', 'contact_person']);
+
+        $this->assertNotNull($stored);
+        $this->assertSame(255, mb_strlen((string) $stored->name));
+        $this->assertSame(255, mb_strlen((string) $stored->legal_address));
+        $this->assertSame(50, mb_strlen((string) $stored->phone));
+        $this->assertSame(255, mb_strlen((string) $stored->email));
+        $this->assertSame(255, mb_strlen((string) $stored->contact_person));
+    }
+
     private function makeDocxPath(array $entries): string
     {
         $directory = storage_path('framework/testing/disks/local');

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Context Menu</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .test-area {
+            width: 300px;
+            height: 200px;
+            border: 2px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 10px;
+            z-index: 1000;
+            display: none;
+        }
+        .context-menu.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Context Menu</h1>
+    <p>Right-click in the box below to test context menu functionality:</p>
+    
+    <div class="test-area" id="testBox">
+        Right-click here to test context menu
+    </div>
+    
+    <div class="context-menu" id="contextMenu">
+        <div>Menu Item 1</div>
+        <div>Menu Item 2</div>
+        <div>Menu Item 3</div>
+    </div>
+    
+    <script>
+        const testBox = document.getElementById('testBox');
+        const contextMenu = document.getElementById('contextMenu');
+        
+        testBox.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('Context menu triggered at:', e.clientX, e.clientY);
+            
+            contextMenu.style.left = e.clientX + 'px';
+            contextMenu.style.top = e.clientY + 'px';
+            contextMenu.classList.add('visible');
+            
+            // Close menu when clicking outside
+            const closeMenu = function(ev) {
+                if (!contextMenu.contains(ev.target)) {
+                    contextMenu.classList.remove('visible');
+                    document.removeEventListener('click', closeMenu);
+                }
+            };
+            
+            setTimeout(() => {
+                document.addEventListener('click', closeMenu);
+            }, 100);
+        });
+    </script>
+</body>
+</html>

@@ -228,6 +228,10 @@ class OrderWizardController extends Controller
             $attributes['is_own_company'] = false;
         }
 
+        if (Schema::hasColumn('contractors', 'owner_id')) {
+            $attributes['owner_id'] = $request->user()?->id;
+        }
+
         $contractor = Contractor::query()->create($attributes);
 
         return response()->json([

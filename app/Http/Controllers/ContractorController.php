@@ -740,6 +740,9 @@ class ContractorController extends Controller
      */
     private function normalizePaymentSchedule(array $schedule): array
     {
+        $eventModes = ['loading', 'unloading'];
+        $allowedModes = ['fttn', 'ottn', ...$eventModes];
+
         $normalized = [
             'has_prepayment' => false,
             'prepayment_ratio' => 50,
@@ -754,12 +757,17 @@ class ContractorController extends Controller
         $normalized['prepayment_ratio'] = max(1, min(99, (int) ($normalized['prepayment_ratio'] ?? 50)));
         $normalized['prepayment_days'] = max(0, (int) ($normalized['prepayment_days'] ?? 0));
         $normalized['postpayment_days'] = max(0, (int) ($normalized['postpayment_days'] ?? 0));
-        $normalized['prepayment_mode'] = in_array($normalized['prepayment_mode'], ['fttn', 'ottn'], true)
+        $normalized['prepayment_mode'] = in_array($normalized['prepayment_mode'], $allowedModes, true)
             ? $normalized['prepayment_mode']
             : 'fttn';
-        $normalized['postpayment_mode'] = in_array($normalized['postpayment_mode'], ['fttn', 'ottn'], true)
+        $normalized['postpayment_mode'] = in_array($normalized['postpayment_mode'], $allowedModes, true)
             ? $normalized['postpayment_mode']
             : 'ottn';
+
+        if (in_array((string) $normalized['postpayment_mode'], $eventModes, true)) {
+            $normalized['has_prepayment'] = false;
+            $normalized['postpayment_days'] = 0;
+        }
 
         return $normalized;
     }
@@ -793,6 +801,12 @@ class ContractorController extends Controller
             ]);
         }
 
+        if (in_array($normalized, ['LOADING', 'UNLOADING'], true)) {
+            return $this->normalizePaymentSchedule([
+                'postpayment_mode' => mb_strtolower($normalized),
+            ]);
+        }
+
         return null;
     }
 
@@ -806,6 +820,10 @@ class ContractorController extends Controller
         }
 
         if (($schedule['has_prepayment'] ?? false) === true) {
+            return true;
+        }
+
+        if (in_array((string) ($schedule['postpayment_mode'] ?? ''), ['loading', 'unloading'], true)) {
             return true;
         }
 
@@ -836,10 +854,15 @@ class ContractorController extends Controller
             );
         }
 
+        $postpaymentMode = (string) ($schedule['postpayment_mode'] ?? 'ottn');
+        if (in_array($postpaymentMode, ['loading', 'unloading'], true)) {
+            return strtoupper($postpaymentMode);
+        }
+
         return sprintf(
-            '%d дн %s',
+            '%d d %s',
             (int) ($schedule['postpayment_days'] ?? 0),
-            strtoupper((string) ($schedule['postpayment_mode'] ?? 'ottn')),
+            strtoupper($postpaymentMode),
         );
     }
 

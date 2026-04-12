@@ -1178,6 +1178,250 @@ class ContractorManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_update_contractor_with_legacy_contact_email_values(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Исторический контрагент',
+            'inn' => '7700000101',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', $contractorId), [
+            'type' => 'customer',
+            'name' => 'ООО Исторический контрагент обновлен',
+            'full_name' => '',
+            'inn' => '7700000101',
+            'kpp' => '',
+            'ogrn' => '',
+            'okpo' => '',
+            'legal_form' => 'ooo',
+            'legal_address' => '',
+            'actual_address' => '',
+            'postal_address' => '',
+            'phone' => '+7 900 000-00-99',
+            'email' => 'manager@company.test / +7 900 111-11-11',
+            'website' => '',
+            'contact_person' => 'Анна',
+            'contact_person_phone' => '',
+            'contact_person_email' => 'anna@company.test / доб.101',
+            'contact_person_position' => '',
+            'signer_name_nominative' => '',
+            'signer_name_prepositional' => '',
+            'signer_authority_basis' => '',
+            'bank_name' => '',
+            'bik' => '',
+            'account_number' => '',
+            'correspondent_account' => '',
+            'ati_id' => '',
+            'specializations' => [],
+            'activity_types' => [],
+            'transport_requirements' => [],
+            'short_description' => '',
+            'debt_limit' => null,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => false,
+            'default_customer_payment_form' => '',
+            'default_customer_payment_term' => '',
+            'default_carrier_payment_form' => '',
+            'default_carrier_payment_term' => '',
+            'cooperation_terms_notes' => '',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'contacts' => [
+                [
+                    'full_name' => 'Контакт 1',
+                    'position' => '',
+                    'phone' => '',
+                    'email' => 'sales@company.test / Telegram @sales',
+                    'is_primary' => true,
+                    'notes' => '',
+                ],
+            ],
+            'interactions' => [],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect(route('contractors.show', [
+            'contractor' => $contractorId,
+            'type' => 'customer',
+        ]));
+
+        $this->assertDatabaseHas('contractors', [
+            'id' => $contractorId,
+            'name' => 'ООО Исторический контрагент обновлен',
+            'email' => 'manager@company.test / +7 900 111-11-11',
+            'contact_person_email' => 'anna@company.test / доб.101',
+        ]);
+
+        $this->assertDatabaseHas('contractor_contacts', [
+            'contractor_id' => $contractorId,
+            'full_name' => 'Контакт 1',
+            'email' => 'sales@company.test / Telegram @sales',
+        ]);
+    }
+
+    public function test_admin_can_store_contractor_with_overlong_dadata_like_name_and_address(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $longName = str_repeat('Н', 320);
+        $longAddress = str_repeat('А', 400);
+
+        $response = $this->actingAs($admin)->post(route('contractors.store'), [
+            'type' => 'customer',
+            'name' => $longName,
+            'full_name' => $longName,
+            'inn' => '7700000303',
+            'kpp' => '770001001',
+            'ogrn' => '1234567890123',
+            'okpo' => '12345678',
+            'legal_form' => 'ooo',
+            'legal_address' => $longAddress,
+            'actual_address' => $longAddress,
+            'postal_address' => $longAddress,
+            'phone' => '',
+            'email' => '',
+            'website' => '',
+            'contact_person' => '',
+            'contact_person_phone' => '',
+            'contact_person_email' => '',
+            'contact_person_position' => '',
+            'signer_name_nominative' => '',
+            'signer_name_prepositional' => '',
+            'signer_authority_basis' => '',
+            'bank_name' => '',
+            'bik' => '',
+            'account_number' => '',
+            'correspondent_account' => '',
+            'ati_id' => '',
+            'specializations' => [],
+            'activity_types' => [],
+            'transport_requirements' => [],
+            'short_description' => '',
+            'debt_limit' => null,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => false,
+            'default_customer_payment_form' => '',
+            'default_customer_payment_term' => '',
+            'default_carrier_payment_form' => '',
+            'default_carrier_payment_term' => '',
+            'cooperation_terms_notes' => '',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'contacts' => [],
+            'interactions' => [],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect();
+
+        $stored = DB::table('contractors')
+            ->where('inn', '7700000303')
+            ->first(['name', 'full_name', 'legal_address', 'actual_address', 'postal_address']);
+
+        $this->assertNotNull($stored);
+        $this->assertSame(255, mb_strlen((string) $stored->name));
+        $this->assertSame(255, mb_strlen((string) $stored->full_name));
+        $this->assertSame(255, mb_strlen((string) $stored->legal_address));
+        $this->assertSame(255, mb_strlen((string) $stored->actual_address));
+        $this->assertSame(255, mb_strlen((string) $stored->postal_address));
+    }
+
+    public function test_update_contractor_accepts_loading_payment_mode_without_prepayment_split(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик Режимы',
+            'inn' => '7700000505',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', $contractorId), [
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик Режимы',
+            'full_name' => '',
+            'inn' => '7700000505',
+            'kpp' => '',
+            'ogrn' => '',
+            'okpo' => '',
+            'legal_form' => 'ooo',
+            'legal_address' => '',
+            'actual_address' => '',
+            'postal_address' => '',
+            'phone' => '',
+            'email' => '',
+            'website' => '',
+            'contact_person' => '',
+            'contact_person_phone' => '',
+            'contact_person_email' => '',
+            'contact_person_position' => '',
+            'signer_name_nominative' => '',
+            'signer_name_prepositional' => '',
+            'signer_authority_basis' => '',
+            'bank_name' => '',
+            'bik' => '',
+            'account_number' => '',
+            'correspondent_account' => '',
+            'ati_id' => '',
+            'specializations' => [],
+            'activity_types' => [],
+            'transport_requirements' => [],
+            'short_description' => '',
+            'debt_limit' => null,
+            'debt_limit_currency' => 'RUB',
+            'stop_on_limit' => false,
+            'default_customer_payment_form' => '',
+            'default_customer_payment_term' => '',
+            'default_carrier_payment_form' => 'vat',
+            'default_carrier_payment_term' => '',
+            'default_carrier_payment_schedule' => [
+                'has_prepayment' => true,
+                'prepayment_ratio' => 40,
+                'prepayment_days' => 2,
+                'prepayment_mode' => 'fttn',
+                'postpayment_days' => 5,
+                'postpayment_mode' => 'loading',
+            ],
+            'cooperation_terms_notes' => '',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'contacts' => [],
+            'interactions' => [],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect();
+
+        $this->assertDatabaseHas('contractors', [
+            'id' => $contractorId,
+            'default_carrier_payment_term' => 'LOADING',
+        ]);
+
+        $schedule = json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('default_carrier_payment_schedule'), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame('loading', $schedule['postpayment_mode'] ?? null);
+        $this->assertFalse((bool) ($schedule['has_prepayment'] ?? true));
+        $this->assertSame(0, (int) ($schedule['postpayment_days'] ?? -1));
+    }
+
     private function createAdminUser(): User
     {
         $adminRoleId = (int) DB::table('roles')->insertGetId([
