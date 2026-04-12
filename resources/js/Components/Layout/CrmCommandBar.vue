@@ -123,6 +123,19 @@
                                 Выберите диалог слева или создайте новый.
                             </div>
                             <div v-else-if="threadLoading" class="py-8 text-center text-xs text-zinc-500">Загрузка сообщений…</div>
+                            <div
+                                v-else-if="messengerThreadError"
+                                class="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center"
+                            >
+                                <p class="text-xs text-rose-600 dark:text-rose-400">{{ messengerThreadError }}</p>
+                                <button
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                    @click="loadThread(Number(activeConversationId))"
+                                >
+                                    Повторить
+                                </button>
+                            </div>
                             <div v-else class="space-y-3">
                                 <div
                                     v-if="activeConversation?.type === 'group'"
@@ -465,6 +478,7 @@ const threadMessages = ref([]);
 const threadLoading = ref(false);
 const messengerUnread = ref(0);
 const messengerSendError = ref('');
+const messengerThreadError = ref('');
 const groupRecipientId = ref('');
 const showDocumentChips = ref(false);
 const documentChips = ref([]);
@@ -626,6 +640,7 @@ async function loadColleagues() {
 
 async function selectConversation(c) {
     messengerSendError.value = '';
+    messengerThreadError.value = '';
     activeConversation.value = c;
     activeConversationId.value = Number(c.id);
     showColleaguePicker.value = false;
@@ -635,6 +650,7 @@ async function selectConversation(c) {
 
 async function openWithUser(u) {
     messengerSendError.value = '';
+    messengerThreadError.value = '';
     try {
         const { data } = await axios.post(
             route('messenger.conversations.open'),
@@ -657,6 +673,7 @@ async function openWithUser(u) {
 
 async function loadThread(conversationId) {
     threadLoading.value = true;
+    messengerThreadError.value = '';
     threadMessages.value = [];
     try {
         const { data } = await axios.get(
@@ -667,6 +684,15 @@ async function loadThread(conversationId) {
         await nextTick();
         scrollThreadToEnd();
         await loadConversations();
+    } catch (error) {
+        threadMessages.value = [];
+        const payload = error.response?.data;
+        const msg = typeof payload?.message === 'string'
+            ? payload.message
+            : (typeof payload === 'string' ? payload : null);
+        messengerThreadError.value = msg && msg.trim() !== ''
+            ? msg
+            : 'Не удалось загрузить сообщения. Проверьте соединение и попробуйте снова.';
     } finally {
         threadLoading.value = false;
     }
@@ -826,6 +852,7 @@ async function createGroup() {
         return;
     }
     messengerSendError.value = '';
+    messengerThreadError.value = '';
     groupCreating.value = true;
     try {
         const { data } = await axios.post(
@@ -853,6 +880,7 @@ async function createGroup() {
 
 function toggleChatPanel() {
     messengerSendError.value = '';
+    messengerThreadError.value = '';
     chatPanelOpen.value = !chatPanelOpen.value;
     if (chatPanelOpen.value) {
         loadConversations();

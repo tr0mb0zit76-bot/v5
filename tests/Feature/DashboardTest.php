@@ -117,6 +117,7 @@ class DashboardTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Dashboard')
+            ->has('csrf_token')
             ->where('filters.date_from', '2026-04-01')
             ->where('filters.date_to', '2026-04-30')
             ->where('metrics.total_orders', 2)

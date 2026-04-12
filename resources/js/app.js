@@ -15,6 +15,25 @@ const shouldUseDarkTheme = savedTheme === 'dark' || (savedTheme === null && pref
 document.documentElement.classList.toggle('dark', shouldUseDarkTheme);
 document.documentElement.classList.remove('light');
 
+/**
+ * После каждой успешной навигации Inertia в props приходит актуальный csrf_token —
+ * обновляем meta и axios, иначе XHR (мессенджер и т.д.) получает 419 в Firefox/Edge.
+ */
+function syncCsrfFromInertiaPage(page) {
+    const token = page?.props?.csrf_token;
+    if (typeof token !== 'string' || token === '') {
+        return;
+    }
+    document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', token);
+    if (window.axios?.defaults?.headers?.common) {
+        window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+    }
+}
+
+document.addEventListener('inertia:success', (event) => {
+    syncCsrfFromInertiaPage(event.detail?.page);
+});
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
     window.addEventListener('load', () => {
         let hasReloadedForServiceWorkerUpdate = false;

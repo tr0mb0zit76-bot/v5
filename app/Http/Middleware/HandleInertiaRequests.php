@@ -40,6 +40,8 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            // Актуальный токен для axios после Inertia-навигации (resources/js/app.js).
+            'csrf_token' => fn () => csrf_token(),
             'can_manage_sales_scripts' => fn () => $user !== null && RoleAccess::canManageSalesScripts($user),
             'flash' => fn () => $request->session()->get('flash'),
             'cabinet_notification_badges' => $user === null
