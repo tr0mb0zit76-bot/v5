@@ -39,6 +39,7 @@
         "@tiptap/vue-3": "^3.22.3",
         "ag-grid-community": "^35.2.0",
         "ag-grid-vue3": "^35.2.0",
-        "lucide-vue-next": "^1.0.0"
+        "lucide-vue-next": "^1.0.0",
+        "mammoth": "^1.12.0"
     }
 }

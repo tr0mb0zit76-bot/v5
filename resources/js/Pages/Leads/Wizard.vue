@@ -252,6 +252,13 @@
             <button type="button" class="danger-button" @click="destroyLead"><Trash2 class="h-4 w-4" />Удалить</button>
         </div>
     </div>
+
+    <DocxPreviewModal
+        :open="showDocxPreviewModal"
+        :embed-url="docxPreviewEmbedUrl"
+        :title="docxPreviewTitle"
+        @close="closeDocxPreviewModal"
+    />
 </template>
 
 <script setup>
@@ -259,6 +266,7 @@ import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import DocxPreviewModal from '@/Components/DocxPreviewModal.vue';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });
 
@@ -279,6 +287,9 @@ const props = defineProps({
 
 const activeTab = ref('main');
 const selectedTemplateId = ref('');
+const showDocxPreviewModal = ref(false);
+const docxPreviewEmbedUrl = ref('');
+const docxPreviewTitle = ref('Предпросмотр');
 const tabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
@@ -421,17 +432,21 @@ function templateOptionLabel(template) {
 
     return template.name;
 }
+function closeDocxPreviewModal() {
+    showDocxPreviewModal.value = false;
+    docxPreviewEmbedUrl.value = '';
+}
+
 function previewCommercialDraft() {
     if (!selectedLeadId.value || !selectedTemplateId.value) { return; }
 
-    window.open(
-        route('leads.templates.generate-draft', {
-            lead: selectedLeadId.value,
-            printFormTemplate: selectedTemplateId.value,
-            preview: 1,
-        }),
-        '_blank'
-    );
+    docxPreviewEmbedUrl.value = route('leads.templates.generate-draft', {
+        lead: selectedLeadId.value,
+        printFormTemplate: selectedTemplateId.value,
+        preview: 1,
+    });
+    docxPreviewTitle.value = 'Предпросмотр коммерческого предложения';
+    showDocxPreviewModal.value = true;
 }
 
 function downloadCommercialDraft() {

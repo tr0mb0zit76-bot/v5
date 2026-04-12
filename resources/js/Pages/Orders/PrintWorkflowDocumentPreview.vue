@@ -21,21 +21,32 @@
 
         <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col p-3">
             <p class="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-                Ниже — тот же DOCX, что уйдёт в согласование. В Chrome файл может скачаться; в Edge часто открывается во вкладке. Для печати используйте «Печать» в программе просмотра.
+                Ниже — текст того же DOCX, что уйдёт в согласование (показ в браузере может отличаться от Word). Для точного вида и печати скачайте файл и откройте в Word.
             </p>
-            <div class="min-h-0 flex-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <iframe :src="embedUrl" class="h-[min(78dvh,900px)] w-full border-0 sm:h-[calc(100dvh-12rem)]" title="Предпросмотр черновика" />
+            <div
+                class="flex min-h-[min(78dvh,900px)] flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:min-h-[calc(100dvh-12rem)]"
+            >
+                <DocxHtmlPreview :source-url="embedUrl" />
             </div>
         </main>
 
         <footer class="shrink-0 border-t border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
             <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-                <Link
-                    :href="route('orders.edit', orderId)"
-                    class="text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-200"
-                >
-                    Вернуться и исправить данные
-                </Link>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <Link
+                        :href="route('orders.edit', orderId)"
+                        class="text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-200"
+                    >
+                        Вернуться и исправить данные
+                    </Link>
+                    <a
+                        v-if="downloadUrl"
+                        :href="downloadUrl"
+                        class="text-sm font-medium text-sky-700 underline-offset-4 hover:underline dark:text-sky-400"
+                    >
+                        Скачать DOCX
+                    </a>
+                </div>
                 <button
                     v-if="canRequestApproval"
                     type="button"
@@ -54,8 +65,10 @@
 </template>
 
 <script setup>
+import DocxHtmlPreview from '@/Components/DocxHtmlPreview.vue';
+import { docxDownloadUrlFromEmbed } from '@/utils/docxPreviewUrls';
 import { Link, router } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -73,6 +86,8 @@ const props = defineProps({
 });
 
 const submitting = ref(false);
+
+const downloadUrl = computed(() => docxDownloadUrlFromEmbed(props.embedUrl));
 
 function sendForApproval() {
     submitting.value = true;

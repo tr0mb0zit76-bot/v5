@@ -832,13 +832,14 @@
                                 </span>
                             </div>
                             <div class="flex flex-wrap gap-2">
-                                <Link
-                                    v-if="doc.draft_preview_url"
+                                <button
+                                    v-if="doc.draft_preview_url && order?.id"
+                                    type="button"
                                     class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                    :href="doc.draft_preview_url"
+                                    @click="openPrintWorkflowDocxPreview(doc)"
                                 >
                                     Предпросмотр
-                                </Link>
+                                </button>
                                 <a
                                     v-if="doc.draft_download_url"
                                     class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
@@ -1151,13 +1152,23 @@
             </div>
         </div>
     </Teleport>
+
+    <DocxPreviewModal
+        :open="showDocxPreviewModal"
+        :embed-url="docxPreviewEmbedUrl"
+        :title="docxPreviewTitle"
+        :full-page-url="docxPreviewFullPageUrl"
+        :full-page-label="docxPreviewFullPageLabel"
+        @close="closeDocxPreviewModal"
+    />
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
-import { Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import DocxPreviewModal from '@/Components/DocxPreviewModal.vue';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -1330,6 +1341,11 @@ const showClientResults = ref(false);
 const carrierSearch = ref({});
 const showCarrierResults = ref({});
 const showCounterpartyModal = ref(false);
+const showDocxPreviewModal = ref(false);
+const docxPreviewEmbedUrl = ref('');
+const docxPreviewTitle = ref('Предпросмотр');
+const docxPreviewFullPageUrl = ref('');
+const docxPreviewFullPageLabel = ref('');
 const inlineContractorSaving = ref(false);
 const addressSuggestions = ref({});
 const addressTimers = {};
@@ -1416,19 +1432,55 @@ function normalizeDocument(document = {}) {
     };
 }
 
+function closeDocxPreviewModal() {
+    showDocxPreviewModal.value = false;
+    docxPreviewEmbedUrl.value = '';
+    docxPreviewFullPageUrl.value = '';
+    docxPreviewFullPageLabel.value = '';
+}
+
+function openDocxPreviewModal({ embedUrl, title, fullPageUrl = '', fullPageLabel = '' }) {
+    docxPreviewEmbedUrl.value = embedUrl;
+    docxPreviewTitle.value = title;
+    docxPreviewFullPageUrl.value = fullPageUrl;
+    docxPreviewFullPageLabel.value = fullPageLabel;
+    showDocxPreviewModal.value = true;
+}
+
+function openPrintWorkflowDocxPreview(doc) {
+    if (!props.order?.id || !doc?.id) {
+        return;
+    }
+
+    const embed = `${route('orders.documents.download-draft', [props.order.id, doc.id])}?preview=1`;
+
+    openDocxPreviewModal({
+        embedUrl: embed,
+        title: doc.original_name || 'Черновик заявки',
+        fullPageUrl: doc.draft_preview_url || '',
+        fullPageLabel: doc.can_request_approval
+            ? 'Страница с отправкой на согласование'
+            : 'Полная страница предпросмотра',
+    });
+}
+
 function previewDocumentDraft(document) {
     if (!props.order?.id || !document?.template_id) {
         return;
     }
 
-    window.open(
-        route('orders.templates.generate-draft', {
-            order: props.order.id,
-            printFormTemplate: document.template_id,
-            preview: 1,
-        }),
-        '_blank'
-    );
+    const embed = route('orders.templates.generate-draft', {
+        order: props.order.id,
+        printFormTemplate: document.template_id,
+        preview: 1,
+    });
+
+    openDocxPreviewModal({
+        embedUrl: embed,
+        title: 'Предпросмотр по шаблону',
+        fullPageUrl: '',
+        fullPageLabel: '',
+    });
 }
 
 function downloadDocumentDraft(document) {

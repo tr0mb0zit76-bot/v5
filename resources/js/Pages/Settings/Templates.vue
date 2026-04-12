@@ -283,7 +283,7 @@
                                 >
                                     <div class="mb-3 text-sm font-medium">Тестовая генерация DOCX</div>
                                     <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                                        «Предпросмотр» открывает тот же DOCX для просмотра в браузере (где поддерживается). Для гарантированного файла на диске — «Скачать DOCX».
+                                        «Предпросмотр в браузере» открывает модальное окно с DOCX (без принудительного скачивания). При необходимости сохраните файл через «Скачать DOCX».
                                     </p>
                                     <div v-if="form.entity_type === 'order'" class="space-y-3">
                                         <div class="space-y-2">
@@ -429,6 +429,13 @@
                 </div>
             </div>
         </Teleport>
+
+        <DocxPreviewModal
+            :open="showDocxPreviewModal"
+            :embed-url="docxPreviewEmbedUrl"
+            :title="docxPreviewTitle"
+            @close="closeDocxPreviewModal"
+        />
     </div>
 </template>
 
@@ -437,6 +444,7 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { FileText, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import DocxPreviewModal from '@/Components/DocxPreviewModal.vue';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'templates' }, () => page),
@@ -485,6 +493,9 @@ const showModal = ref(false);
 const editingTemplate = ref(null);
 const previewOrderId = ref('');
 const previewLeadId = ref('');
+const showDocxPreviewModal = ref(false);
+const docxPreviewEmbedUrl = ref('');
+const docxPreviewTitle = ref('Предпросмотр');
 
 const form = useForm({
     code: '',
@@ -564,6 +575,7 @@ function closeModal() {
     showModal.value = false;
     editingTemplate.value = null;
     resetForm();
+    closeDocxPreviewModal();
 }
 
 function onFileChange(event) {
@@ -659,6 +671,11 @@ function removeTemplate(template) {
     });
 }
 
+function closeDocxPreviewModal() {
+    showDocxPreviewModal.value = false;
+    docxPreviewEmbedUrl.value = '';
+}
+
 function previewOrderDraft() {
     if (editingTemplate.value === null) {
         return;
@@ -671,14 +688,13 @@ function previewOrderDraft() {
         return;
     }
 
-    window.open(
-        route('settings.templates.generate-order-draft', {
-            printFormTemplate: editingTemplate.value.id,
-            order_id: orderId,
-            preview: 1,
-        }),
-        '_blank'
-    );
+    docxPreviewEmbedUrl.value = route('settings.templates.generate-order-draft', {
+        printFormTemplate: editingTemplate.value.id,
+        order_id: orderId,
+        preview: 1,
+    });
+    docxPreviewTitle.value = 'Предпросмотр по заказу';
+    showDocxPreviewModal.value = true;
 }
 
 function downloadOrderDraft() {
@@ -711,14 +727,13 @@ function previewLeadDraft() {
         return;
     }
 
-    window.open(
-        route('settings.templates.generate-lead-draft', {
-            printFormTemplate: editingTemplate.value.id,
-            lead_id: leadId,
-            preview: 1,
-        }),
-        '_blank'
-    );
+    docxPreviewEmbedUrl.value = route('settings.templates.generate-lead-draft', {
+        printFormTemplate: editingTemplate.value.id,
+        lead_id: leadId,
+        preview: 1,
+    });
+    docxPreviewTitle.value = 'Предпросмотр по лиду';
+    showDocxPreviewModal.value = true;
 }
 
 function downloadLeadDraft() {
