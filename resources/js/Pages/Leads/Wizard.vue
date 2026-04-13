@@ -79,10 +79,42 @@
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="space-y-2">
                         <label class="label">Контрагент</label>
-                        <select v-model="form.counterparty_id" class="field">
-                            <option :value="null">Не выбран</option>
-                            <option v-for="contractor in contractors" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                        </select>
+                        <div class="relative">
+                            <input
+                                v-model="counterpartySearch"
+                                type="text"
+                                class="field"
+                                placeholder="Поиск по названию, ИНН, телефону, email"
+                                @focus="showCounterpartyResults = true"
+                                @blur="hideCounterpartyResultsWithDelay"
+                            />
+                            <button
+                                v-if="form.counterparty_id"
+                                type="button"
+                                class="absolute right-2 top-2 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+                                @click="clearCounterparty"
+                            >
+                                <X class="h-4 w-4" />
+                            </button>
+                            <div
+                                v-if="showCounterpartyResults && combinedCounterpartyResults.length > 0"
+                                class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <button
+                                    v-for="contractor in combinedCounterpartyResults"
+                                    :key="contractor.id"
+                                    type="button"
+                                    class="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                    @click="selectCounterparty(contractor)"
+                                >
+                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                    <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="selectedCounterparty" class="text-xs text-zinc-500">
+                            Выбран: {{ selectedCounterparty.name }}{{ selectedCounterparty.inn ? `, ИНН ${selectedCounterparty.inn}` : '' }}
+                        </p>
                     </div>
                     <div class="space-y-2">
                         <label class="label">Тип перевозки</label>
@@ -279,6 +311,7 @@ const props = defineProps({
 
 const activeTab = ref('main');
 const selectedTemplateId = ref('');
+const contractors = ref([...props.contractors]);
 const tabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
@@ -361,12 +394,146 @@ watch(() => props.selectedLead, (lead) => {
 }, { immediate: true });
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
-const selectedCounterpartyName = computed(() => props.contractors?.find((contractor) => contractor.id === form.counterparty_id)?.name ?? 'Не выбран');
+const selectedCounterparty = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.counterparty_id)) ?? null);
+const selectedCounterpartyName = computed(() => selectedCounterparty.value?.name ?? 'Не выбран');
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
 const openTasks = computed(() => (form.tasks ?? []).filter((task) => task.status !== 'done'));
 
-function goBack() { router.get(route('leads.index')); }
+const MIN_CONTRACTOR_QUERY_LENGTH = 2;
+const counterpartySearch = ref('');
+const showCounterpartyResults = ref(false);
+const isSearchingCounterparties = ref(false);
+const serverCounterpartyResults = ref([]);
+const counterpartySearchTimer = ref(null);
+const counterpartyAbortController = ref(null);
+const counterpartyFetchSeq = ref(0);
+
+const filteredCounterparties = computed(() => {
+    const query = counterpartySearch.value.trim().toLowerCase();
+    const source = contractors.value.filter((contractor) => contractor.type === 'customer' || contractor.type === 'both');
+
+    if (query === '' || query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        return source.slice(0, 50);
+    }
+
+    return source
+        .filter((contractor) => [contractor.name, contractor.full_name, contractor.inn, contractor.phone, contractor.email]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query)))
+        .slice(0, 50);
+});
+
+const combinedCounterpartyResults = computed(() => {
+    return [...serverCounterpartyResults.value, ...filteredCounterparties.value]
+        .filter((contractor, index, array) => array.findIndex((item) => Number(item.id) === Number(contractor.id)) === index)
+        .slice(0, 50);
+});
+
+watch(() => form.counterparty_id, (counterpartyId) => {
+    const selected = contractors.value.find((contractor) => Number(contractor.id) === Number(counterpartyId));
+    counterpartySearch.value = selected?.name ?? '';
+}, { immediate: true });
+
+watch(counterpartySearch, (newQuery) => {
+    clearTimeout(counterpartySearchTimer.value);
+
+    const trimmed = newQuery.trim();
+    if (trimmed.length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        counterpartyAbortController.value?.abort();
+        counterpartyFetchSeq.value += 1;
+        serverCounterpartyResults.value = [];
+        isSearchingCounterparties.value = false;
+        return;
+    }
+
+    counterpartySearchTimer.value = setTimeout(async () => {
+        await searchCounterparties(trimmed);
+    }, 550);
+});
+
+function goBack() {
+    if (window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+    router.get(route('leads.index'));
+}
+
+function ensureCounterpartyInLocalList(contractor) {
+    if (!contractor?.id) {
+        return;
+    }
+
+    if (contractors.value.some((row) => Number(row.id) === Number(contractor.id))) {
+        return;
+    }
+
+    contractors.value.unshift({ ...contractor });
+}
+
+async function searchCounterparties(query) {
+    if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        serverCounterpartyResults.value = [];
+        return;
+    }
+
+    counterpartyAbortController.value?.abort();
+    const ac = new AbortController();
+    counterpartyAbortController.value = ac;
+    const seq = (counterpartyFetchSeq.value += 1);
+    isSearchingCounterparties.value = true;
+
+    try {
+        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=customer&limit=100`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
+            signal: ac.signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Search failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (seq !== counterpartyFetchSeq.value) {
+            return;
+        }
+
+        serverCounterpartyResults.value = data.contractors || [];
+    } catch (error) {
+        if (error?.name !== 'AbortError' && seq === counterpartyFetchSeq.value) {
+            serverCounterpartyResults.value = [];
+        }
+    } finally {
+        if (seq === counterpartyFetchSeq.value) {
+            isSearchingCounterparties.value = false;
+        }
+    }
+}
+
+function selectCounterparty(contractor) {
+    ensureCounterpartyInLocalList(contractor);
+    form.counterparty_id = Number(contractor.id);
+    counterpartySearch.value = contractor.name;
+    showCounterpartyResults.value = false;
+}
+
+function clearCounterparty() {
+    form.counterparty_id = null;
+    counterpartySearch.value = '';
+    showCounterpartyResults.value = false;
+}
+
+function hideCounterpartyResultsWithDelay() {
+    setTimeout(() => {
+        showCounterpartyResults.value = false;
+    }, 150);
+}
+
 function addRoutePoint(type = 'loading') { form.route_points.push({ type, sequence: form.route_points.length + 1, address: '', normalized_data: {}, planned_date: '', contact_person: '', contact_phone: '' }); }
 function removeRoutePoint(index) { form.route_points.splice(index, 1); form.route_points = form.route_points.map((point, pointIndex) => ({ ...point, sequence: pointIndex + 1 })); }
 function addCargoItem() { form.cargo_items.push({ name: '', description: '', weight_kg: null, volume_m3: null, package_type: '', package_count: null, dangerous_goods: false, dangerous_class: '', hs_code: '', cargo_type: 'general' }); }

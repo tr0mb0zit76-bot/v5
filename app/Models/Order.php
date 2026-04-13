@@ -82,9 +82,9 @@ class Order extends Model
         'updated_by',
         'metadata',
         'payment_statuses',
+        'payment_status',
         'special_notes',
         'performers',
-        'wizard_state',
     ];
 
     protected static function booted(): void
@@ -119,6 +119,7 @@ class Order extends Model
             'ati_response' => 'array',
             'metadata' => 'array',
             'payment_statuses' => 'array',
+            'payment_status' => 'string',
             'customer_rate' => 'decimal:2',
             'additional_expenses' => 'decimal:2',
             'insurance' => 'decimal:2',
@@ -135,10 +136,6 @@ class Order extends Model
 
         if (Schema::hasColumn($this->getTable(), 'performers')) {
             $casts['performers'] = 'array';
-        }
-
-        if (Schema::hasColumn($this->getTable(), 'wizard_state')) {
-            $casts['wizard_state'] = 'array';
         }
 
         return $casts;

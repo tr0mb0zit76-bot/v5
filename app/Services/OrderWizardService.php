@@ -72,7 +72,7 @@ class OrderWizardService
                 ? $this->orderNumberGenerator->generate($ownCompany)
                 : ['company_code' => $this->orderNumberGenerator->generate($ownCompany)['company_code'], 'order_number' => $validated['order_number']];
 
-            $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false));
+            $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order->manager_id));
 
             $this->syncNestedData($order, $validated, $user);
 
@@ -94,8 +94,13 @@ class OrderWizardService
      * @param  array{company_code: string, order_number: string}  $numberData
      * @return array<string, mixed>
      */
-    private function extractOrderAttributes(array $validated, User $user, array $numberData, bool $isCreating): array
-    {
+    private function extractOrderAttributes(
+        array $validated,
+        User $user,
+        array $numberData,
+        bool $isCreating,
+        ?int $existingManagerId = null,
+    ): array {
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
         $performers = $this->performersForLegSync($validated);
@@ -128,7 +133,7 @@ class OrderWizardService
         $attributes = [
             'order_number' => $numberData['order_number'],
             'company_code' => $numberData['company_code'],
-            'manager_id' => $user->id,
+            'manager_id' => $isCreating ? $user->id : $existingManagerId,
             'order_date' => $validated['order_date'],
             'loading_date' => $firstLoadingDate,
             'unloading_date' => $lastUnloadingDate,

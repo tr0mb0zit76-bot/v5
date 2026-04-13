@@ -183,7 +183,7 @@
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Ответственный</label>
-                            <input :value="currentUser.name" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
+                            <input :value="responsibleDisplayName" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
                         </div>
                     </div>
 
@@ -1673,6 +1673,7 @@ watch(
 );
 
 const isEditing = computed(() => props.order !== null);
+const responsibleDisplayName = computed(() => props.order?.responsible_name ?? props.currentUser?.name ?? '—');
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
         return false;
@@ -3069,6 +3070,11 @@ function submit() {
 }
 
 function goBack() {
+    if (window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+
     router.get(route('orders.index'));
 }
 

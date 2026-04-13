@@ -463,7 +463,7 @@ class OrderWizardController extends Controller
                         'leg_sequence' => $leg->sequence,
                         'type' => $point->type,
                         'sequence' => $point->sequence,
-                        'address' => $routePointHasAddressColumn
+                        'address' => $routePointHasAddressColumn && filled($point->address)
                             ? $point->address
                             : data_get($point->metadata, 'address', $point->instructions),
                         'normalized_data' => $routePointHasMetadataColumn
@@ -487,7 +487,9 @@ class OrderWizardController extends Controller
         $performers = $this->serializePerformersPayload($order, $financialTerm);
         if ($useWizardState && is_array($wizardState) && filled($wizardState['performers'] ?? null)) {
             $normalizedPerformers = $this->normalizePerformersFromWizardState($wizardState['performers']);
-            if ($normalizedPerformers !== []) {
+            $wizardHasAssignedContractor = collect($normalizedPerformers)
+                ->contains(fn (array $performer): bool => filled($performer['contractor_id'] ?? null));
+            if ($normalizedPerformers !== [] && ($performers === [] || $wizardHasAssignedContractor)) {
                 $performers = $normalizedPerformers;
             }
         }
@@ -528,6 +530,7 @@ class OrderWizardController extends Controller
                 : null,
             'own_company_id' => $order->own_company_id,
             'responsible_id' => $order->manager_id,
+            'responsible_name' => $order->relationLoaded('manager') ? $order->manager?->name : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
             'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
@@ -957,7 +960,7 @@ class OrderWizardController extends Controller
 
     private function loadOrderForEditing(Order $order): Order
     {
-        $relations = ['client', 'ownCompany', 'legs.routePoints'];
+        $relations = ['client', 'ownCompany', 'manager', 'legs.routePoints'];
 
         if (Schema::hasTable('leg_contractor_assignments')) {
             $relations[] = 'legs.contractorAssignment';

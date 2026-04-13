@@ -126,7 +126,7 @@ class LeadController extends Controller
         abort_unless($this->canAccessLead($request, $lead), 403);
 
         DB::transaction(function () use ($request, $lead): void {
-            $responsibleId = $this->sanitizeResponsibleId($request);
+            $responsibleId = $this->sanitizeResponsibleId($request, $lead->responsible_id);
 
             $lead->update([
                 'status' => $request->string('status')->toString(),
@@ -438,20 +438,42 @@ class LeadController extends Controller
             ]]);
         }
 
-        return DB::table('users')
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
-            ->values();
-    }
+        $usersQuery = DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('roles.name', 'manager')
+            ->orderBy('users.name');
 
-    private function sanitizeResponsibleId(Request $request): int
-    {
-        if (! $this->canAssignResponsible($request)) {
-            return (int) $request->user()->id;
+        if (Schema::hasColumn('users', 'is_active')) {
+            $usersQuery->where('users.is_active', true);
         }
 
-        return (int) $request->integer('responsible_id');
+        $users = $usersQuery
+            ->get(['users.id', 'users.name'])
+            ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
+            ->values();
+
+        if ($users->isNotEmpty()) {
+            return $users;
+        }
+
+        return collect([[
+            'id' => $user->id,
+            'name' => $user->name,
+        ]]);
+    }
+
+    private function sanitizeResponsibleId(Request $request, ?int $fallbackResponsibleId = null): int
+    {
+        if (! $this->canAssignResponsible($request)) {
+            return $fallbackResponsibleId ?? (int) $request->user()->id;
+        }
+
+        $responsibleId = (int) $request->integer('responsible_id');
+        if ($responsibleId > 0) {
+            return $responsibleId;
+        }
+
+        return $fallbackResponsibleId ?? (int) $request->user()->id;
     }
 
     private function syncNestedData(Lead $lead, Request $request): void

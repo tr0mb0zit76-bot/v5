@@ -309,6 +309,7 @@ const gridOptions = {
 
 const storageKey = computed(() => `leads_grid_state_v1_${props.userId}`);
 const densityStorageKey = computed(() => `leads_grid_density_${props.userId}`);
+const filtersStorageKey = computed(() => `leads_grid_filters_v1_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const gridContainerStyle = computed(() => ({
@@ -522,6 +523,23 @@ const loadDensity = () => {
   currentDensity.value = savedDensity ? resolveGridDensity(savedDensity).key : defaultGridDensity;
 };
 
+const loadFilters = () => {
+  try {
+    const savedFilters = localStorage.getItem(filtersStorageKey.value);
+
+    if (!savedFilters) {
+      return;
+    }
+
+    const parsedFilters = JSON.parse(savedFilters);
+    quickSearch.value = typeof parsedFilters.quickSearch === 'string' ? parsedFilters.quickSearch : '';
+    statusFilter.value = typeof parsedFilters.statusFilter === 'string' ? parsedFilters.statusFilter : '';
+    responsibleFilter.value = typeof parsedFilters.responsibleFilter === 'string' ? parsedFilters.responsibleFilter : '';
+  } catch (error) {
+    console.error('Error loading leads grid filters', error);
+  }
+};
+
 const applyDensity = (densityKey) => {
   currentDensity.value = resolveGridDensity(densityKey).key;
   localStorage.setItem(densityStorageKey.value, currentDensity.value);
@@ -695,6 +713,17 @@ watch(quickSearch, (value) => {
   gridApi.value.setGridOption('quickFilterText', value);
 });
 
+watch(
+  [quickSearch, statusFilter, responsibleFilter],
+  ([quickSearchValue, statusFilterValue, responsibleFilterValue]) => {
+    localStorage.setItem(filtersStorageKey.value, JSON.stringify({
+      quickSearch: quickSearchValue,
+      statusFilter: statusFilterValue,
+      responsibleFilter: responsibleFilterValue,
+    }));
+  },
+);
+
 watch(filteredRows, async () => {
   await nextTick();
   updateGridViewportHeight();
@@ -801,6 +830,7 @@ const refreshGrid = () => {
 };
 
 onMounted(() => {
+  loadFilters();
   loadDensity();
   updateGridViewportHeight();
   window.addEventListener('resize', updateGridViewportHeight);

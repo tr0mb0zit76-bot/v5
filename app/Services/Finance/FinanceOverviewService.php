@@ -52,6 +52,11 @@ class FinanceOverviewService
                 'managers.name as manager_name',
                 DB::raw($this->sqlContractorDisplayName('customers').' as customer_name'),
                 DB::raw($this->sqlContractorDisplayName('carriers').' as carrier_name'),
+                // Поля для частичных платежей
+                DB::raw('COALESCE(payment_schedules.paid_amount, 0) as paid_amount'),
+                DB::raw('COALESCE(payment_schedules.remaining_amount, payment_schedules.amount) as remaining_amount'),
+                DB::raw('COALESCE(payment_schedules.is_partial, 0) as is_partial'),
+                'payment_schedules.parent_payment_id',
             ])
             ->orderByDesc('payment_schedules.planned_date')
             ->orderByDesc('payment_schedules.id')
@@ -73,6 +78,18 @@ class FinanceOverviewService
         $party = strtolower(trim((string) ($row->party ?? '')));
         $isCustomerParty = ($party === 'customer');
 
+        // Получаем данные о частичных платежах
+        $paidAmount = (float) ($row->paid_amount ?? 0);
+        $remainingAmount = (float) ($row->remaining_amount ?? 0);
+        $isPartial = (bool) ($row->is_partial ?? false);
+        $parentPaymentId = $row->parent_payment_id ?? null;
+        
+        // Рассчитываем прогресс оплаты
+        $paymentProgress = 0;
+        if ($paidAmount > 0 && $row->amount > 0) {
+            $paymentProgress = min(100, ($paidAmount / (float) $row->amount) * 100);
+        }
+
         return [
             'id' => $row->id,
             'order_id' => $row->order_id,
@@ -87,6 +104,13 @@ class FinanceOverviewService
             'planned_date' => $row->planned_date,
             'actual_date' => $row->actual_date,
             'status' => $row->status,
+            // Поля для частичных платежей
+            'paid_amount' => $paidAmount,
+            'remaining_amount' => $remainingAmount,
+            'is_partial' => $isPartial,
+            'parent_payment_id' => $parentPaymentId,
+            'payment_progress' => $paymentProgress,
+            'has_partial_payments' => $parentPaymentId === null && $paidAmount > 0 && $remainingAmount > 0,
         ];
     }
 

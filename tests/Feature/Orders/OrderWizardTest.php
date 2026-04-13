@@ -738,6 +738,101 @@ class OrderWizardTest extends TestCase
         $this->assertStringContainsString('"stage":"leg_custom"', $contractorsCosts);
     }
 
+    public function test_updating_order_does_not_reassign_manager_to_current_user(): void
+    {
+        $admin = $this->createAdminUser();
+        $manager = User::factory()->create();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'inn' => '1234500000',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик',
+            'inn' => '5555500000',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-2026-010',
+            'company_code' => 'TST',
+            'manager_id' => $manager->id,
+            'order_date' => '2026-04-10',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('orders.update', $orderId), [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-11',
+            'order_number' => 'ORD-2026-010',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                ['type' => 'loading', 'sequence' => 1, 'address' => 'Самара', 'normalized_data' => []],
+                ['type' => 'unloading', 'sequence' => 2, 'address' => 'Уфа', 'normalized_data' => []],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 110000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 90000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ]);
+
+        $response->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'manager_id' => $manager->id,
+            'updated_by' => $admin->id,
+        ]);
+    }
+
     public function test_order_with_two_legs_persists_route_points_per_leg_and_restores_client_request_mode(): void
     {
         $admin = $this->createAdminUser();

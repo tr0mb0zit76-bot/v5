@@ -293,7 +293,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     Activity,
@@ -338,15 +338,75 @@ const props = defineProps({
 });
 
 const page = usePage();
-const collapsed = ref(false);
-const expandedGroups = ref([]);
+const menuStateStorageKey = 'crm-sidebar-expanded-groups';
+const sidebarCollapsedStorageKey = 'crm-sidebar-collapsed';
+const companyLogoSrc = '/assets/favicon/favicon-96x96.png';
+
+function readSidebarCollapsedFromStorage() {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    try {
+        return window.localStorage.getItem(sidebarCollapsedStorageKey) === '1';
+    } catch {
+        return false;
+    }
+}
+
+function readExpandedGroupsFromStorage() {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+    try {
+        const raw = window.localStorage.getItem(menuStateStorageKey);
+        if (! raw) {
+            return [];
+        }
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Какие группы меню должны быть раскрыты, чтобы был виден текущий раздел (без удаления пользовательских раскрытий).
+ */
+function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
+    const keys = [];
+    if (activeKey === 'finance') {
+        keys.push('finance');
+    }
+    if (activeKey === 'settings') {
+        keys.push('settings');
+        const leaf = activeLeafKey ?? activeSubKey ?? '';
+        if (['users', 'roles'].includes(leaf)) {
+            keys.push('administration');
+        }
+        if (['table-presets', 'dictionaries', 'templates'].includes(leaf)) {
+            keys.push('configuration');
+        }
+        if (activeSubKey === 'motivation' || ['kpi-settings', 'salary-settings'].includes(leaf)) {
+            keys.push('motivation');
+        }
+    }
+    return keys;
+}
+
+function applyRouteToExpandedGroups() {
+    const required = requiredExpandedGroupKeys(props.activeKey, props.activeSubKey, props.activeLeafKey);
+    if (required.length === 0) {
+        return;
+    }
+    expandedGroups.value = [...new Set([...expandedGroups.value, ...required])];
+}
+
+const collapsed = ref(readSidebarCollapsedFromStorage());
+const expandedGroups = ref(readExpandedGroupsFromStorage());
 const mobileMenuOpen = ref(false);
 const deferredInstallPrompt = ref(null);
 const isStandaloneApp = ref(false);
 const isMobileViewport = ref(false);
-const menuStateStorageKey = 'crm-sidebar-expanded-groups';
-const sidebarCollapsedStorageKey = 'crm-sidebar-collapsed';
-const companyLogoSrc = '/assets/favicon/favicon-96x96.png';
 
 const authUser = computed(() => page.props.auth?.user ?? null);
 const dynamicCabinetBadges = ref(null);
@@ -512,26 +572,10 @@ const menuItems = computed(() => {
 });
 
 watch(
-    () => props.activeKey,
-    (value) => {
-        if (value === 'settings' && !expandedGroups.value.includes('settings')) {
-            expandedGroups.value = [...expandedGroups.value, 'settings'];
-        }
-        if (value === 'finance' && !expandedGroups.value.includes('finance')) {
-            expandedGroups.value = [...expandedGroups.value, 'finance'];
-        }
+    () => [props.activeKey, props.activeSubKey, props.activeLeafKey],
+    () => {
+        applyRouteToExpandedGroups();
     },
-    { immediate: true },
-);
-
-watch(
-    () => props.activeSubKey,
-    (value) => {
-        if (value && !expandedGroups.value.includes(value)) {
-            expandedGroups.value = [...expandedGroups.value, value];
-        }
-    },
-    { immediate: true },
 );
 
 watch(
@@ -567,44 +611,12 @@ watch(
     { immediate: true },
 );
 
+onBeforeMount(() => {
+    applyRouteToExpandedGroups();
+});
+
 onMounted(() => {
     updateMobileEnvironment();
-
-    try {
-        const savedCollapsed = localStorage.getItem(sidebarCollapsedStorageKey);
-        if (savedCollapsed === '1') {
-            collapsed.value = true;
-        }
-        if (savedCollapsed === '0') {
-            collapsed.value = false;
-        }
-    } catch {
-        /* ignore */
-    }
-
-    try {
-        const savedState = localStorage.getItem(menuStateStorageKey);
-
-        if (!savedState) {
-            return;
-        }
-
-        const parsedState = JSON.parse(savedState);
-
-        if (Array.isArray(parsedState)) {
-            expandedGroups.value = parsedState.filter((item) => typeof item === 'string');
-        }
-    } catch (error) {
-        console.error('Failed to restore CRM sidebar state', error);
-    }
-
-    if (props.activeKey === 'settings' && !expandedGroups.value.includes('settings')) {
-        expandedGroups.value = [...expandedGroups.value, 'settings'];
-    }
-
-    if (props.activeSubKey && !expandedGroups.value.includes(props.activeSubKey)) {
-        expandedGroups.value = [...expandedGroups.value, props.activeSubKey];
-    }
 
     window.addEventListener('resize', updateMobileEnvironment);
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

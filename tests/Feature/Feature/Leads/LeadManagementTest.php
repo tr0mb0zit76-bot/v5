@@ -540,6 +540,47 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
+    public function test_manager_cannot_reassign_responsible_when_updating_lead(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $otherManager = $this->createUserWithRole('manager');
+
+        $lead = Lead::factory()->create([
+            'responsible_id' => $manager->id,
+            'title' => 'Лид без смены ответственного',
+            'target_currency' => 'RUB',
+        ]);
+
+        $response = $this->actingAs($manager)->patch(route('leads.update', $lead), [
+            'status' => $lead->status,
+            'source' => $lead->source,
+            'counterparty_id' => $lead->counterparty_id,
+            'responsible_id' => $otherManager->id,
+            'title' => 'Лид без смены ответственного',
+            'description' => $lead->description,
+            'transport_type' => $lead->transport_type,
+            'loading_location' => $lead->loading_location,
+            'unloading_location' => $lead->unloading_location,
+            'planned_shipping_date' => optional($lead->planned_shipping_date)->toDateString(),
+            'target_price' => $lead->target_price,
+            'target_currency' => $lead->target_currency,
+            'calculated_cost' => $lead->calculated_cost,
+            'expected_margin' => $lead->expected_margin,
+            'next_contact_at' => optional($lead->next_contact_at)->toDateString(),
+            'lost_reason' => $lead->lost_reason,
+            'qualification' => [],
+            'route_points' => [],
+            'cargo_items' => [],
+            'activities' => [],
+        ]);
+
+        $response->assertRedirect(route('leads.show', $lead));
+        $this->assertDatabaseHas('leads', [
+            'id' => $lead->id,
+            'responsible_id' => $manager->id,
+        ]);
+    }
+
     public function test_manager_opens_lead_card_on_separate_page(): void
     {
         $manager = $this->createUserWithRole('manager');

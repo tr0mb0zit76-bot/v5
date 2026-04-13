@@ -322,6 +322,7 @@ const gridContainerStyle = computed(() => ({
 
 const storageKey = computed(() => `orders_grid_state_v4_${props.userId}`);
 const densityStorageKey = computed(() => `orders_grid_density_${props.userId}`);
+const quickSearchStorageKey = computed(() => `orders_grid_quick_search_v1_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 
@@ -565,6 +566,11 @@ const resetToRoleDefaults = () => {
 const loadDensity = () => {
   const savedDensity = localStorage.getItem(densityStorageKey.value);
   currentDensity.value = savedDensity ? resolveGridDensity(savedDensity).key : defaultGridDensity;
+};
+
+const loadQuickSearch = () => {
+  const savedQuickSearch = localStorage.getItem(quickSearchStorageKey.value);
+  quickSearch.value = typeof savedQuickSearch === 'string' ? savedQuickSearch : '';
 };
 
 const applyDensity = (densityKey) => {
@@ -1402,13 +1408,16 @@ watch(
 
 watch(quickSearch, (value) => {
   if (!gridApi.value) {
+    localStorage.setItem(quickSearchStorageKey.value, value ?? '');
     return;
   }
 
+  localStorage.setItem(quickSearchStorageKey.value, value ?? '');
   gridApi.value.setGridOption('quickFilterText', value);
 });
 
 onMounted(() => {
+  loadQuickSearch();
   loadDensity();
   updateGridViewportHeight();
   window.addEventListener('resize', updateGridViewportHeight);
