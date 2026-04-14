@@ -297,6 +297,10 @@ defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => 
 const props = defineProps({
     selectedLead: Object,
     isCreating: Boolean,
+    embedded: {
+        type: Boolean,
+        default: false,
+    },
     contractors: Array,
     responsibleUsers: Array,
     statusOptions: Array,
@@ -308,6 +312,8 @@ const props = defineProps({
     canAssignResponsible: Boolean,
     canUseLeadTasks: Boolean,
 });
+
+const emit = defineEmits(['close']);
 
 const activeTab = ref('main');
 const selectedTemplateId = ref('');
@@ -453,6 +459,12 @@ watch(counterpartySearch, (newQuery) => {
 });
 
 function goBack() {
+    if (props.embedded) {
+        emit('close');
+
+        return;
+    }
+
     if (window.history.length > 1) {
         window.history.back();
         return;

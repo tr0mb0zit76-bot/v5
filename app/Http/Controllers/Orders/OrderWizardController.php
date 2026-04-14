@@ -16,6 +16,7 @@ use App\Models\PaymentSchedule;
 use App\Models\PrintFormTemplate;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
+use App\Services\KpiConfigurationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
@@ -120,6 +121,8 @@ class OrderWizardController extends Controller
             'customer_payment_form',
             'carrier_payment_form',
             'order_date',
+            'track_received_date_customer',
+            'track_received_date_carrier',
         ], true)) {
             $dealTypeChanged = in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true);
             $orderCompensationService->recalculateImpactedPeriods($syncOrder, null, $previousOrderDate, $dealTypeChanged);
@@ -283,6 +286,7 @@ class OrderWizardController extends Controller
     {
         /** @var ContractorCreditService $creditService */
         $creditService = app(ContractorCreditService::class);
+        $kpiConfigurationService = app(KpiConfigurationService::class);
         $documentRequirementService = app(OrderDocumentRequirementService::class);
 
         // Оптимизация: загружаем только нужных контрагентов
@@ -343,6 +347,7 @@ class OrderWizardController extends Controller
             'documentPartyOptions' => $documentRequirementService->partyOptions(),
             'requiredDocumentRules' => $documentRequirementService->requirementRules(),
             'requiredDocumentChecklist' => $documentRequirementService->checklistForOrder($order),
+            'bonusMultiplier' => $kpiConfigurationService->getBonusMultiplier(),
             'orderStatusOptions' => [
                 ['value' => 'new', 'label' => 'Новый заказ'],
                 ['value' => 'in_progress', 'label' => 'Выполняется'],

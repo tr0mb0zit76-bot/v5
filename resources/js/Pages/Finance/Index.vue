@@ -255,7 +255,7 @@ const submoduleTiles = computed(() => {
             icon: 'Wallet',
             accent: 'emerald',
             group: 'Зарплата',
-            href: '/finance?section=salary',
+            href: '/finance/salary',
         });
     }
 

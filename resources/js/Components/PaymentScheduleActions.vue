@@ -56,8 +56,15 @@
         </div>
 
         <!-- Модальное окно для фиксации платежа -->
-        <div v-if="showRecordPaymentModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div class="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-zinc-900">
+        <Teleport to="body">
+            <div
+                v-if="showRecordPaymentModal"
+                class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+                role="dialog"
+                aria-modal="true"
+                @click.self="showRecordPaymentModal = false"
+            >
+                <div class="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-zinc-900">
                 <div class="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
                     <h3 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                         Зафиксировать платеж
@@ -158,8 +165,9 @@
                         </button>
                     </div>
                 </form>
+                </div>
             </div>
-        </div>
+        </Teleport>
 
         <!-- Список частичных платежей -->
         <div v-if="showPartialPayments && partialPayments.length > 0" class="mt-3 w-full">

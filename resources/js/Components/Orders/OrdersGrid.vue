@@ -605,6 +605,7 @@ const formatPaymentTermsDisplay = (value) => {
   }
 
   return String(base)
+    .replace(/\bFTTN_RECEIPT\b/gi, 'ФТТН + квиток')
     .replace(/\bFTTN\b/gi, 'ФТТН')
     .replace(/\bOTTN\b/gi, 'ОТТН')
     .replace(/\bLOADING\b/gi, 'погрузка')

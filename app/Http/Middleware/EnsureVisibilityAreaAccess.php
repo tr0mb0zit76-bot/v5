@@ -29,7 +29,7 @@ class EnsureVisibilityAreaAccess
             ? $role->visibility_areas
             : RoleAccess::defaultVisibilityAreas($role?->name);
 
-        abort_unless(in_array($area, $visibilityAreas, true), 403);
+        abort_unless(RoleAccess::hasVisibilityArea($visibilityAreas, $area), 403);
 
         return $next($request);
     }

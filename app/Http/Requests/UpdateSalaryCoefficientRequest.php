@@ -9,6 +9,10 @@ class UpdateSalaryCoefficientRequest extends FormRequest
 {
     public function authorize(): bool
     {
+        if ($this->routeIs('finance.salary.*')) {
+            return RoleAccess::canAccessFinanceSalary($this->user());
+        }
+
         return RoleAccess::canAccessSettingsMotivation($this->user());
     }
 

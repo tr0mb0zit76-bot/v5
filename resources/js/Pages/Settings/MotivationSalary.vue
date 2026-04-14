@@ -135,40 +135,106 @@
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Начислено</th>
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">К выплате</th>
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Выплачено</th>
+                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Авансы</th>
+                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Аванс к зачёту</th>
                             <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Остаток</th>
                             <th class="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-300">Выплата</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        <tr v-for="row in salaryPeriodUsers" :key="row.user_id">
-                            <td class="px-3 py-2">{{ row.user_name }}</td>
-                            <td class="px-3 py-2">{{ money(row.accrued_total) }}</td>
-                            <td class="px-3 py-2">{{ money(row.payable_total) }}</td>
-                            <td class="px-3 py-2">{{ money(row.paid_total) }}</td>
-                            <td class="px-3 py-2">{{ money(row.payable_left) }}</td>
-                            <td class="px-3 py-2">
-                                <div class="flex justify-end gap-2">
-                                    <input
-                                        v-model.number="payoutDrafts[row.user_id]"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        class="w-28 border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
-                                        :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft'"
-                                    >
-                                    <button
-                                        type="button"
-                                        class="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                        :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft'"
-                                        @click="storeSalaryPayout(row.user_id)"
-                                    >
-                                        Провести
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                        <template v-for="row in salaryPeriodUsers" :key="row.user_id">
+                            <tr
+                                class="cursor-pointer bg-white transition hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/70"
+                                @click="toggleEmployeeDetails(row.user_id)"
+                            >
+                                <td class="px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex h-5 w-5 items-center justify-center border border-zinc-200 text-[10px] dark:border-zinc-700">
+                                            {{ isEmployeeExpanded(row.user_id) ? '−' : '+' }}
+                                        </span>
+                                        <span>{{ row.user_name }}</span>
+                                        <span class="text-xs text-zinc-400 dark:text-zinc-500">
+                                            {{ employeeOrderRows(row.user_id).length }}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">{{ money(row.accrued_total) }}</td>
+                                <td class="px-3 py-2">{{ money(row.payable_total) }}</td>
+                                <td class="px-3 py-2">{{ money(row.paid_total) }}</td>
+                                <td class="px-3 py-2">{{ money(row.advance_total) }}</td>
+                                <td class="px-3 py-2">{{ money(row.advance_balance) }}</td>
+                                <td class="px-3 py-2">{{ money(row.payable_left) }}</td>
+                                <td class="px-3 py-2" @click.stop>
+                                    <div class="flex justify-end gap-2">
+                                        <input
+                                            v-model.number="payoutDrafts[row.user_id]"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            class="w-28 border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                                            :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft'"
+                                        >
+                                        <button
+                                            type="button"
+                                            class="rounded border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                            :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed' || selectedPeriod?.status === 'draft'"
+                                            @click="storeSalaryPayout(row.user_id, 'salary')"
+                                        >
+                                            Провести
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded border border-amber-200 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-900 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                                            :disabled="!selectedSalaryPeriodId || selectedPeriod?.status === 'closed'"
+                                            @click="storeSalaryPayout(row.user_id, 'advance')"
+                                        >
+                                            Аванс
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="isEmployeeExpanded(row.user_id)">
+                                <td colspan="8" class="bg-zinc-50 px-3 py-3 dark:bg-zinc-950/50">
+                                    <div v-if="employeeOrderRows(row.user_id).length > 0" class="overflow-auto border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                                        <table class="min-w-full divide-y divide-zinc-200 text-xs dark:divide-zinc-800">
+                                            <thead class="bg-zinc-50 dark:bg-zinc-950/60">
+                                                <tr>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Заказ</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Начислено</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">К выплате в периоде</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Выплачено в периоде</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Выплачено всего</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Остаток всего</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Оплата заказчика</th>
+                                                    <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Расчёт</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
+                                                <tr v-for="detailRow in employeeOrderRows(row.user_id)" :key="detailRow.accrual_id">
+                                                    <td class="px-3 py-2">{{ detailRow.order_number || `#${detailRow.order_id}` }}</td>
+                                                    <td class="px-3 py-2">{{ money(detailRow.accrued_salary) }}</td>
+                                                    <td class="px-3 py-2">{{ money(detailRow.payable_in_period) }}</td>
+                                                    <td class="px-3 py-2">{{ money(detailRow.paid_in_period) }}</td>
+                                                    <td class="px-3 py-2">{{ money(detailRow.paid_total) }}</td>
+                                                    <td class="px-3 py-2">{{ money(detailRow.unpaid_total) }}</td>
+                                                    <td class="px-3 py-2">
+                                                        <span :class="detailRow.customer_fully_paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'">
+                                                            {{ money(detailRow.customer_paid_amount) }} / {{ money(detailRow.customer_rate) }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-3 py-2">{{ calculationModeLabel(detailRow.calculation_mode) }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div v-else class="border border-dashed border-zinc-300 bg-white px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+                                        По сотруднику нет заказных начислений в выбранном периоде.
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
                         <tr v-if="salaryPeriodUsers.length === 0">
-                            <td colspan="6" class="px-3 py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                            <td colspan="8" class="px-3 py-4 text-center text-xs text-zinc-500 dark:text-zinc-400">
                                 <span v-if="!selectedSalaryPeriodId">Выберите период или создайте новый.</span>
                                 <span v-else>Нет строк начислений за этот период — проверьте заказы в гриде и нажмите «Пересчитать».</span>
                             </td>
@@ -177,32 +243,6 @@
                 </table>
             </div>
 
-            <div v-if="salaryPeriodOrderRows.length > 0" class="mt-4 overflow-auto border border-zinc-200 dark:border-zinc-800">
-                <table class="min-w-full divide-y divide-zinc-200 text-xs dark:divide-zinc-800">
-                    <thead class="bg-zinc-50 dark:bg-zinc-950/60">
-                        <tr>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Сотрудник</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Заказ</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Начислено</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">К выплате в периоде</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Выплачено в периоде</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Выплачено всего</th>
-                            <th class="px-3 py-2 text-left font-medium text-zinc-600 dark:text-zinc-300">Остаток всего</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        <tr v-for="row in salaryPeriodOrderRows" :key="row.accrual_id">
-                            <td class="px-3 py-2">{{ row.user_name }}</td>
-                            <td class="px-3 py-2">{{ row.order_number || `#${row.order_id}` }}</td>
-                            <td class="px-3 py-2">{{ money(row.accrued_salary) }}</td>
-                            <td class="px-3 py-2">{{ money(row.payable_in_period) }}</td>
-                            <td class="px-3 py-2">{{ money(row.paid_in_period) }}</td>
-                            <td class="px-3 py-2">{{ money(row.paid_total) }}</td>
-                            <td class="px-3 py-2">{{ money(row.unpaid_total) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
         </section>
 
         <div v-if="!isFinanceModule" class="grid min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(360px,0.42fr)_minmax(0,0.58fr)]">
@@ -441,6 +481,7 @@ const props = defineProps({
 
 const selectedSalaryPeriodId = ref(props.activeSalaryPeriodId ?? null);
 const selectedSalaryUserId = ref(props.activeSalaryUserId ?? null);
+const expandedEmployeeIds = ref([]);
 const payoutDrafts = reactive({});
 
 const createSalaryForm = useForm({
@@ -474,6 +515,16 @@ const selectedPeriod = computed(() => {
     }
 
     return props.salaryPeriods.find((p) => p.id === selectedSalaryPeriodId.value) ?? null;
+});
+
+const salaryPeriodOrderRowsByUser = computed(() => {
+    return props.salaryPeriodOrderRows.reduce((groups, row) => {
+        const key = Number(row.user_id);
+        groups[key] = groups[key] || [];
+        groups[key].push(row);
+
+        return groups;
+    }, {});
 });
 
 function periodStatusLabel(status) {
@@ -572,7 +623,26 @@ function closeSalaryPeriod() {
     router.post(route(routes.periodsClose, selectedSalaryPeriodId.value), {}, { preserveScroll: true });
 }
 
-function storeSalaryPayout(userId) {
+function isEmployeeExpanded(userId) {
+    return expandedEmployeeIds.value.includes(Number(userId));
+}
+
+function toggleEmployeeDetails(userId) {
+    const normalizedUserId = Number(userId);
+
+    if (isEmployeeExpanded(normalizedUserId)) {
+        expandedEmployeeIds.value = expandedEmployeeIds.value.filter((id) => id !== normalizedUserId);
+        return;
+    }
+
+    expandedEmployeeIds.value = [...expandedEmployeeIds.value, normalizedUserId];
+}
+
+function employeeOrderRows(userId) {
+    return salaryPeriodOrderRowsByUser.value[Number(userId)] || [];
+}
+
+function storeSalaryPayout(userId, type = 'salary') {
     if (!selectedSalaryPeriodId.value) return;
     const amount = Number(payoutDrafts[userId] || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -584,14 +654,26 @@ function storeSalaryPayout(userId) {
         user_id: userId,
         amount,
         payout_date: new Date().toISOString().slice(0, 10),
-        type: 'salary',
+        type,
         comment: null,
     }, {
         preserveScroll: true,
+        onSuccess: () => {
+            payoutDrafts[userId] = null;
+        },
     });
 }
 
 function money(value) {
     return Number(value || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function calculationModeLabel(value) {
+    const labels = {
+        kpi: 'KPI',
+        base_plus_margin_percent: 'Оклад + %',
+    };
+
+    return labels[value] ?? value ?? 'KPI';
 }
 </script>

@@ -31,32 +31,12 @@ class LeadController extends Controller
 {
     public function index(Request $request): Response
     {
-        if (! $this->hasLeadsFeatureTables()) {
-            return Inertia::render('Leads/Index', [
-                'leads' => collect(),
-                'leadColumns' => LeadTableColumns::options(),
-                'featureUnavailable' => true,
-            ]);
-        }
-
-        return Inertia::render('Leads/Index', [
-            'leads' => $this->leadRows($request),
-            'leadColumns' => LeadTableColumns::options(),
-        ]);
+        return $this->renderIndexPage($request);
     }
 
     public function create(Request $request): Response
     {
-        if (! $this->hasLeadsFeatureTables()) {
-            return Inertia::render('Leads/Wizard', [
-                'selectedLead' => null,
-                'isCreating' => true,
-                'featureUnavailable' => true,
-                ...$this->sharedWizardProps(),
-            ]);
-        }
-
-        return $this->renderWizardPage($request, null, true);
+        return $this->renderIndexPage($request, null, true);
     }
 
     public function show(Request $request, Lead $lead): Response
@@ -78,7 +58,7 @@ class LeadController extends Controller
             $relations[] = 'tasks.responsible';
         }
 
-        return $this->renderWizardPage($request, $lead->load($relations));
+        return $this->renderIndexPage($request, $lead->load($relations));
     }
 
     public function store(StoreLeadRequest $request): RedirectResponse
@@ -282,6 +262,28 @@ class LeadController extends Controller
     private function renderWizardPage(Request $request, ?Lead $selectedLead = null, bool $isCreating = false): Response
     {
         return Inertia::render('Leads/Wizard', [
+            'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
+            'isCreating' => $isCreating,
+            ...$this->sharedWizardProps($selectedLead),
+        ]);
+    }
+
+    private function renderIndexPage(Request $request, ?Lead $selectedLead = null, bool $isCreating = false): Response
+    {
+        if (! $this->hasLeadsFeatureTables()) {
+            return Inertia::render('Leads/Index', [
+                'leads' => collect(),
+                'leadColumns' => LeadTableColumns::options(),
+                'featureUnavailable' => true,
+                'selectedLead' => null,
+                'isCreating' => false,
+                ...$this->sharedWizardProps(),
+            ]);
+        }
+
+        return Inertia::render('Leads/Index', [
+            'leads' => fn () => $this->leadRows($request),
+            'leadColumns' => LeadTableColumns::options(),
             'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
             'isCreating' => $isCreating,
             ...$this->sharedWizardProps($selectedLead),

@@ -508,7 +508,9 @@ class LeadManagementTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('Leads/Wizard')
+            ->component('Leads/Index')
+            ->where('isCreating', true)
+            ->where('selectedLead', null)
             ->where('currentUserId', $manager->id)
             ->where('canAssignResponsible', false)
             ->where('responsibleUsers.0.id', $manager->id)
@@ -581,7 +583,7 @@ class LeadManagementTest extends TestCase
         ]);
     }
 
-    public function test_manager_opens_lead_card_on_separate_page(): void
+    public function test_manager_opens_lead_card_over_index_grid(): void
     {
         $manager = $this->createUserWithRole('manager');
         $contractorId = $this->createContractor();
@@ -661,7 +663,8 @@ class LeadManagementTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('Leads/Wizard')
+            ->component('Leads/Index')
+            ->where('isCreating', false)
             ->where('selectedLead.id', $lead->id)
             ->where('selectedLead.title', 'Отдельная карточка лида')
             ->has('printFormTemplateOptions', 2)

@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Services\CabinetNotifier;
+use App\Services\OrderCompensationService;
 use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
@@ -27,6 +28,7 @@ class OrderDocumentWorkflowController extends Controller
         private readonly PrintFormTemplateOrderEligibility $templateEligibility,
         private readonly CabinetNotifier $cabinetNotifier,
         private readonly PrintFormDraftResponseBuilder $draftResponseBuilder,
+        private readonly OrderCompensationService $orderCompensationService,
     ) {}
 
     public function storeFromTemplate(Request $request, Order $order): RedirectResponse
@@ -54,6 +56,8 @@ class OrderDocumentWorkflowController extends Controller
         } catch (\InvalidArgumentException $e) {
             abort(422, $e->getMessage());
         }
+
+        $this->orderCompensationService->recalculateImpactedPeriods($order);
 
         return redirect()
             ->route('orders.edit', $order)
@@ -129,6 +133,8 @@ class OrderDocumentWorkflowController extends Controller
         } catch (\InvalidArgumentException $e) {
             abort(422, $e->getMessage());
         }
+
+        $this->orderCompensationService->recalculateImpactedPeriods($order);
 
         return redirect()
             ->route('orders.edit', $order)

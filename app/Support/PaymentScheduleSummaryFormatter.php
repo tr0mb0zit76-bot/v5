@@ -12,6 +12,7 @@ final class PaymentScheduleSummaryFormatter
     /** @var array<string, string> */
     private const MODE_LABELS = [
         'fttn' => 'ФТТН',
+        'fttn_receipt' => 'ФТТН + квиток',
         'ottn' => 'ОТТН',
         'loading' => 'На загрузке',
         'unloading' => 'На выгрузке',

@@ -58,11 +58,15 @@ class MessengerService
         }
 
         return DB::transaction(function () use ($creator, $title, $ids): Conversation {
-            $conversation = Conversation::query()->create([
-                'type' => 'group',
-                'title' => $title,
-                'created_by' => $creator->id,
-            ]);
+            $conversationData = ['type' => 'group'];
+            if (Schema::hasColumn('conversations', 'title')) {
+                $conversationData['title'] = $title;
+            }
+            if (Schema::hasColumn('conversations', 'created_by')) {
+                $conversationData['created_by'] = $creator->id;
+            }
+
+            $conversation = Conversation::query()->create($conversationData);
 
             $attach = [$creator->id => []];
             foreach ($ids as $userId) {

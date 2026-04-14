@@ -6,6 +6,7 @@ use Database\Factories\OrderDocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class OrderDocument extends Model
 {
@@ -17,6 +18,8 @@ class OrderDocument extends Model
      */
     protected $fillable = [
         'order_id',
+        'entity_type',
+        'entity_id',
         'type',
         'document_group',
         'source',
@@ -50,6 +53,22 @@ class OrderDocument extends Model
         'counterparty_signed_file_path',
         'snapshot_payload',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $document): void {
+            if (Schema::hasColumn('order_documents', 'entity_type')
+                && ($document->entity_type === null || $document->entity_type === '')) {
+                $document->entity_type = 'order';
+            }
+
+            if (Schema::hasColumn('order_documents', 'entity_id')
+                && $document->entity_id === null
+                && $document->order_id !== null) {
+                $document->entity_id = (int) $document->order_id;
+            }
+        });
+    }
 
     /**
      * @return array<string, string>

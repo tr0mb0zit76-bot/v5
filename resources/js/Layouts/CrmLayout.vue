@@ -298,12 +298,12 @@
 import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
-    Activity,
     BarChart3,
     BookOpen,
     ChevronDown,
     ClipboardList,
     Download,
+    FileText,
     House,
     Kanban,
     LayoutDashboard,
@@ -439,7 +439,7 @@ const hasSettingsMotivationAccess = computed(() => {
     const areas = visibleAreas.value;
     return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
 });
-const hasFinanceSalaryAccess = computed(() => visibleAreas.value.includes('finance_salary'));
+const hasFinanceSalaryAccess = computed(() => authUser.value?.role?.name === 'admin' || visibleAreas.value.includes('finance_salary'));
 const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value);
 const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
 const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
@@ -449,6 +449,7 @@ const mobileNavItems = computed(() => {
     { key: 'orders', label: 'Заказы', icon: Package },
     { key: 'tasks', label: 'Задачи', icon: ClipboardList },
     { key: 'kanban', label: 'Канбан', icon: Kanban },
+    { key: 'documents', label: 'Документы', icon: FileText },
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'orders-create', label: 'Новый', icon: SquarePen },
     { key: 'contractors', label: 'База', icon: Users },
@@ -456,7 +457,7 @@ const mobileNavItems = computed(() => {
     ];
 
     return items
-        .filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'reports'].includes(item.key))
+        .filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports'].includes(item.key))
         .filter((item) => {
             if (authUser.value?.role?.name === 'admin' || item.key === 'dashboard') {
                 return true;
@@ -478,6 +479,7 @@ const menuItems = computed(() => {
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         { key: 'drivers', label: 'Водители', icon: Truck, visibilityArea: 'drivers' },
+        { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
         {
             key: 'finance',
             label: 'Финансы',
@@ -497,7 +499,6 @@ const menuItems = computed(() => {
                 return children;
             })(),
         },
-        { key: 'activities', label: 'Активности', icon: Activity, visibilityArea: 'activities' },
         { key: 'tasks', label: 'Задачи', icon: ClipboardList, visibilityArea: 'tasks' },
         { key: 'kanban', label: 'Канбан', icon: Kanban, visibilityArea: 'kanban' },
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
@@ -676,19 +677,19 @@ function isSettingsChildActive(child) {
 }
 
 function handleMenuSelect(key) {
-        const routes = {
-            dashboard: '/dashboard',
-            leads: '/leads',
-            orders: '/orders',
-            tasks: '/tasks',
-            kanban: '/kanban',
-            'orders-create': '/orders/create',
-            contractors: '/contractors',
-            drivers: '/drivers',
-            finance: '/finance',
-            'finance-cashflow': '/finance?section=cashflow',
-            'finance-salary': '/finance/salary',
-        activities: '/activities',
+    const routes = {
+        dashboard: '/dashboard',
+        leads: '/leads',
+        orders: '/orders',
+        tasks: '/tasks',
+        kanban: '/kanban',
+        'orders-create': '/orders/create',
+        contractors: '/contractors',
+        drivers: '/drivers',
+        documents: '/documents',
+        finance: '/finance',
+        'finance-cashflow': '/finance?section=cashflow',
+        'finance-salary': '/finance/salary',
         reports: '/reports',
         modules: '/modules',
         scripts: '/scripts',

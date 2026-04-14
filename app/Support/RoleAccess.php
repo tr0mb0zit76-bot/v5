@@ -49,7 +49,6 @@ class RoleAccess
             ['key' => 'drivers', 'label' => 'Водители', 'description' => 'Реестр водителей и перевозчиков'],
             ['key' => 'documents', 'label' => 'Документы', 'description' => 'Реестр документов'],
             ['key' => 'finance_salary', 'label' => 'Финансы: зарплата', 'description' => 'Зарплатные периоды, начисления и выплаты'],
-            ['key' => 'activities', 'label' => 'Активности', 'description' => 'История действий и событий'],
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
@@ -95,9 +94,9 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'activities', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'activities', 'tasks', 'kanban'],
-            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'activities', 'tasks', 'kanban'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'tasks', 'kanban'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports'],
             'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'documents', 'contractors', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
@@ -118,7 +117,6 @@ class RoleAccess
                 'kanban' => 'all',
                 'contractors' => 'all',
                 'documents' => 'all',
-                'activities' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -130,7 +128,6 @@ class RoleAccess
                 'kanban' => 'all',
                 'contractors' => 'all',
                 'documents' => 'all',
-                'activities' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -142,7 +139,6 @@ class RoleAccess
                 'kanban' => 'own',
                 'contractors' => 'own',
                 'documents' => 'own',
-                'activities' => 'own',
                 'dashboard_tiles' => 'own',
                 'dashboard_widgets' => 'own',
                 'dashboard_reports' => 'own',
@@ -151,7 +147,6 @@ class RoleAccess
                 'orders' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
-                'activities' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -218,6 +213,11 @@ class RoleAccess
     {
         if (in_array($required, $areas, true)) {
             return true;
+        }
+
+        if ($required === 'settings') {
+            return in_array('settings_system', $areas, true)
+                || in_array('settings_motivation', $areas, true);
         }
 
         if ($required === 'settings_system' || $required === 'settings_motivation') {

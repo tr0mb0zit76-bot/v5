@@ -6,11 +6,14 @@ use App\Models\Contractor;
 use App\Services\ContractorCreditService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreOrderRequest extends FormRequest
 {
+    private const CONTRACT_TYPES = ['contract', 'contract_request'];
+
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -62,6 +65,30 @@ class StoreOrderRequest extends FormRequest
                     'client_id',
                     "Лимит задолженности контрагента достигнут ({$debt} {$currency} из {$limit} {$currency}). Новые заказы заблокированы."
                 );
+            },
+            function (Validator $validator): void {
+                $documents = $this->input('documents', []);
+                if (! is_array($documents)) {
+                    return;
+                }
+
+                foreach ($documents as $index => $document) {
+                    $file = $this->file("documents.$index.file");
+                    if (! $file instanceof UploadedFile) {
+                        continue;
+                    }
+
+                    $type = is_array($document) ? (string) ($document['type'] ?? '') : '';
+                    $maxKb = in_array($type, self::CONTRACT_TYPES, true) ? 3072 : 1024;
+                    if ((int) $file->getSize() > ($maxKb * 1024)) {
+                        $validator->errors()->add(
+                            "documents.$index.file",
+                            $maxKb === 3072
+                                ? 'Для договоров допустим размер файла до 3 МБ.'
+                                : 'Для этого типа документа допустим размер файла до 1 МБ.'
+                        );
+                    }
+                }
             },
         ];
     }
@@ -125,9 +152,9 @@ class StoreOrderRequest extends FormRequest
             'financial_term.client_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'financial_term.client_payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
             'financial_term.client_payment_schedule.prepayment_days' => ['nullable', 'integer', 'min:0'],
-            'financial_term.client_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
+            'financial_term.client_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.client_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
-            'financial_term.client_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
+            'financial_term.client_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.kpi_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'financial_term.contractors_costs' => ['nullable', 'array'],
             'financial_term.contractors_costs.*.stage' => ['required_with:financial_term.contractors_costs', 'string', 'max:50'],
@@ -139,9 +166,9 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'financial_term.contractors_costs.*.payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
             'financial_term.contractors_costs.*.payment_schedule.prepayment_days' => ['nullable', 'integer', 'min:0'],
-            'financial_term.contractors_costs.*.payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
+            'financial_term.contractors_costs.*.payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.contractors_costs.*.payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
-            'financial_term.contractors_costs.*.payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'ottn', 'loading', 'unloading'])],
+            'financial_term.contractors_costs.*.payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.additional_costs' => ['nullable', 'array'],
             'financial_term.additional_costs.*.label' => ['required_with:financial_term.additional_costs', 'string', 'max:100'],
             'financial_term.additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
@@ -157,7 +184,7 @@ class StoreOrderRequest extends FormRequest
             'documents.*.document_date' => ['nullable', 'date'],
             'documents.*.status' => ['required', Rule::in(['draft', 'pending', 'signed', 'sent'])],
             'documents.*.template_id' => ['nullable', 'integer'],
-            'documents.*.file' => ['nullable', 'file', 'max:20480'],
+            'documents.*.file' => ['nullable', 'file', 'max:3072'],
         ];
     }
 }

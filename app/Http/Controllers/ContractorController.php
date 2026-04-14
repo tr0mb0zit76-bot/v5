@@ -717,10 +717,10 @@ class ContractorController extends Controller
         $normalized['prepayment_ratio'] = max(1, min(99, (int) ($normalized['prepayment_ratio'] ?? 50)));
         $normalized['prepayment_days'] = max(0, (int) ($normalized['prepayment_days'] ?? 0));
         $normalized['postpayment_days'] = max(0, (int) ($normalized['postpayment_days'] ?? 0));
-        $normalized['prepayment_mode'] = in_array($normalized['prepayment_mode'], ['fttn', 'ottn'], true)
+        $normalized['prepayment_mode'] = in_array($normalized['prepayment_mode'], ['fttn', 'fttn_receipt', 'ottn'], true)
             ? $normalized['prepayment_mode']
             : 'fttn';
-        $normalized['postpayment_mode'] = in_array($normalized['postpayment_mode'], ['fttn', 'ottn'], true)
+        $normalized['postpayment_mode'] = in_array($normalized['postpayment_mode'], ['fttn', 'fttn_receipt', 'ottn'], true)
             ? $normalized['postpayment_mode']
             : 'ottn';
 
@@ -738,7 +738,7 @@ class ContractorController extends Controller
 
         $normalized = mb_strtoupper(trim($term));
 
-        if (preg_match('/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN)$/u', $normalized, $matches) === 1) {
+        if (preg_match('/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)$/u', $normalized, $matches) === 1) {
             return $this->normalizePaymentSchedule([
                 'has_prepayment' => true,
                 'prepayment_ratio' => (int) $matches[1],
@@ -749,7 +749,7 @@ class ContractorController extends Controller
             ]);
         }
 
-        if (preg_match('/^(\d+)\s+ДН\s+(FTTN|OTTN)$/u', $normalized, $matches) === 1) {
+        if (preg_match('/^(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)$/u', $normalized, $matches) === 1) {
             return $this->normalizePaymentSchedule([
                 'postpayment_days' => (int) $matches[1],
                 'postpayment_mode' => mb_strtolower($matches[2]),
@@ -793,17 +793,25 @@ class ContractorController extends Controller
                 $prepaymentRatio,
                 $postpaymentRatio,
                 (int) ($schedule['prepayment_days'] ?? 0),
-                strtoupper((string) ($schedule['prepayment_mode'] ?? 'fttn')),
+                $this->paymentModeSummaryToken((string) ($schedule['prepayment_mode'] ?? 'fttn')),
                 (int) ($schedule['postpayment_days'] ?? 0),
-                strtoupper((string) ($schedule['postpayment_mode'] ?? 'ottn')),
+                $this->paymentModeSummaryToken((string) ($schedule['postpayment_mode'] ?? 'ottn')),
             );
         }
 
         return sprintf(
             '%d дн %s',
             (int) ($schedule['postpayment_days'] ?? 0),
-            strtoupper((string) ($schedule['postpayment_mode'] ?? 'ottn')),
+            $this->paymentModeSummaryToken((string) ($schedule['postpayment_mode'] ?? 'ottn')),
         );
+    }
+
+    private function paymentModeSummaryToken(string $mode): string
+    {
+        return match (mb_strtolower(trim($mode))) {
+            'fttn_receipt' => 'FTTN_RECEIPT',
+            default => strtoupper(trim($mode)),
+        };
     }
 
     /**

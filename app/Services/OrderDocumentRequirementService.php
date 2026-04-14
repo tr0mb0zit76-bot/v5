@@ -6,6 +6,8 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Support\OrderDocumentWorkflowStatus;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 class OrderDocumentRequirementService
@@ -106,6 +108,55 @@ class OrderDocumentRequirementService
     public function checklistForOrder(?Order $order): array
     {
         return $this->checklistForDocuments($order?->documents ?? collect());
+    }
+
+    public function paymentPackageAttachedAt(Order $order, string $party): ?CarbonInterface
+    {
+        if (! in_array($party, ['customer', 'carrier'], true)) {
+            return null;
+        }
+
+        $documents = $order->relationLoaded('documents')
+            ? $order->documents
+            : $order->documents()->get();
+
+        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['waybill', 'cmr']));
+        if ($transportDocuments->isEmpty()) {
+            return null;
+        }
+
+        $requestDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['request', 'contract_request']) && $this->resolvePartyForMatching($document) === $party);
+        $updDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['upd']) && $this->resolvePartyForMatching($document) === $party);
+        $actDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['act']) && $this->resolvePartyForMatching($document) === $party);
+        $invoiceFacturaDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['invoice_factura']) && $this->resolvePartyForMatching($document) === $party);
+
+        $candidateDates = collect();
+        $transportAt = $this->latestDocumentDate($transportDocuments);
+
+        if ($transportAt === null) {
+            return null;
+        }
+
+        $requestAt = $this->latestDocumentDate($requestDocuments);
+        if ($requestAt !== null) {
+            $candidateDates->push($transportAt->greaterThan($requestAt) ? $transportAt : $requestAt);
+        }
+
+        $updAt = $this->latestDocumentDate($updDocuments);
+        if ($updAt !== null) {
+            $candidateDates->push($transportAt->greaterThan($updAt) ? $transportAt : $updAt);
+        }
+
+        $actAt = $this->latestDocumentDate($actDocuments);
+        $invoiceFacturaAt = $this->latestDocumentDate($invoiceFacturaDocuments);
+        if ($actAt !== null && $invoiceFacturaAt !== null) {
+            $closingAt = $actAt->greaterThan($invoiceFacturaAt) ? $actAt : $invoiceFacturaAt;
+            $candidateDates->push($transportAt->greaterThan($closingAt) ? $transportAt : $closingAt);
+        }
+
+        return $candidateDates
+            ->sortBy(fn (CarbonInterface $date): int => $date->getTimestamp())
+            ->first();
     }
 
     /**
@@ -221,5 +272,39 @@ class OrderDocumentRequirementService
         }
 
         return 'internal';
+    }
+
+    /**
+     * @param  Collection<int, OrderDocument>  $documents
+     */
+    private function latestDocumentDate($documents): ?CarbonInterface
+    {
+        $timestamps = $documents
+            ->map(function (OrderDocument $document): ?CarbonInterface {
+                if ($document->created_at instanceof CarbonInterface) {
+                    return $document->created_at;
+                }
+
+                if ($document->updated_at instanceof CarbonInterface) {
+                    return $document->updated_at;
+                }
+
+                return null;
+            })
+            ->filter();
+
+        if ($timestamps->isEmpty()) {
+            return null;
+        }
+
+        return $timestamps->sortByDesc(fn (CarbonInterface $date): int => $date->getTimestamp())->first();
+    }
+
+    /**
+     * @param  list<string>  $acceptedTypes
+     */
+    private function matchesType(OrderDocument $document, array $acceptedTypes): bool
+    {
+        return in_array((string) $document->type, $acceptedTypes, true);
     }
 }

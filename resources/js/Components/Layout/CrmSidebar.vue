@@ -84,7 +84,6 @@ import {
     Building2,
     Truck,
     FileText,
-    Activity,
     BarChart3,
     Blocks,
     Settings,
@@ -125,7 +124,6 @@ defineProps({
                 label: 'Работа',
                 children: [
                     { key: 'documents', title: 'Документы', icon: FileText },
-                    { key: 'activities', title: 'Активности', icon: Activity },
                     { key: 'reports', title: 'Отчёты', icon: BarChart3 },
                 ],
             },

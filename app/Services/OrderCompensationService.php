@@ -19,6 +19,7 @@ class OrderCompensationService
         private readonly DealTypeClassifier $dealTypeClassifier,
         private readonly PeriodCalculator $periodCalculator,
         private readonly KpiConfigurationService $kpiConfigurationService,
+        private readonly OrderDocumentRequirementService $orderDocumentRequirementService,
     ) {}
 
     public function recalculateImpactedPeriods(
@@ -92,6 +93,10 @@ class OrderCompensationService
             ->when(
                 Schema::hasTable('financial_terms'),
                 fn ($query) => $query->with('financialTerms'),
+            )
+            ->when(
+                Schema::hasTable('order_documents'),
+                fn ($query) => $query->with('documents'),
             )
             ->orderBy('id')
             ->get();
@@ -461,6 +466,12 @@ class OrderCompensationService
             'ottn' => $party === 'customer'
                 ? $order->track_received_date_customer
                 : $order->track_received_date_carrier,
+            'fttn_receipt' => $isPrepayment
+                ? $order->loading_date
+                : $this->resolveFttnWithReceiptDate($order, $party),
+            'fttn' => $isPrepayment
+                ? $order->loading_date
+                : $this->resolveFttnDate($order, $party),
             'loading' => $order->loading_date,
             'unloading' => $order->unloading_date,
             default => $isPrepayment ? $order->loading_date : $order->unloading_date,
@@ -471,6 +482,33 @@ class OrderCompensationService
         }
 
         return $this->addWorkingDays(Carbon::parse($baseDate), max(0, $days))->toDateString();
+    }
+
+    private function resolveFttnDate(Order $order, string $party): ?string
+    {
+        $attachedAt = $this->orderDocumentRequirementService->paymentPackageAttachedAt($order, $party);
+
+        return $attachedAt?->toDateString();
+    }
+
+    private function resolveFttnWithReceiptDate(Order $order, string $party): ?string
+    {
+        $attachedAt = $this->orderDocumentRequirementService->paymentPackageAttachedAt($order, $party);
+        if ($attachedAt === null) {
+            return null;
+        }
+
+        $receivedDate = $party === 'customer'
+            ? $order->track_received_date_customer
+            : $order->track_received_date_carrier;
+
+        if ($receivedDate === null) {
+            return null;
+        }
+
+        $receivedAt = Carbon::parse($receivedDate);
+
+        return ($receivedAt->greaterThan($attachedAt) ? $receivedAt : $attachedAt)->toDateString();
     }
 
     private function addWorkingDays(Carbon $date, int $days): Carbon

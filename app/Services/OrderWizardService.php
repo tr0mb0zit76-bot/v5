@@ -379,6 +379,14 @@ class OrderWizardService
                     ],
                 ];
 
+                if (Schema::hasColumn('order_documents', 'entity_type')) {
+                    $documentAttributes['entity_type'] = 'order';
+                }
+
+                if (Schema::hasColumn('order_documents', 'entity_id')) {
+                    $documentAttributes['entity_id'] = $order->id;
+                }
+
                 if (Schema::hasColumn('order_documents', 'number')) {
                     $documentAttributes['number'] = $document['number'] ?? null;
                 }
@@ -471,7 +479,7 @@ class OrderWizardService
             }
 
             // Только после этого удаляем сами плечи
-            DB::statement('DELETE FROM order_legs WHERE order_id = ?', [$order->id]);
+            $this->deleteOrderLegRows($order);
         }
 
         $legs = collect($performers)
@@ -501,6 +509,20 @@ class OrderWizardService
         }
 
         return $legs;
+    }
+
+    private function deleteOrderLegRows(Order $order): void
+    {
+        $orderId = (int) $order->id;
+
+        DB::unprepared("DELETE FROM order_legs WHERE order_id = {$orderId}");
+    }
+
+    private function deleteCargoRowsForOrder(Order $order): void
+    {
+        $orderId = (int) $order->id;
+
+        DB::unprepared("DELETE FROM cargos WHERE order_id = {$orderId}");
     }
 
     /**
@@ -733,7 +755,7 @@ class OrderWizardService
                 DB::table('cargo_leg')->where('cargo_id', $cargo->id)->delete();
             });
 
-            $order->cargoItems()->delete();
+            $this->deleteCargoRowsForOrder($order);
 
             return;
         }

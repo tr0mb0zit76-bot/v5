@@ -18,6 +18,7 @@ import {
     Trash2,
     Users,
     Wallet,
+    X,
 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
@@ -75,6 +76,9 @@ const availableColumns = computed(() => page.props.contractorColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const search = ref(props.filters.search || '');
 const activeTab = ref('general');
+const isCreateModalOpen = ref(false);
+const isCreateRouteDismissed = ref(false);
+const isDetailsModalDismissed = ref(false);
 const isInnLookupPending = ref(false);
 const addressSuggestions = ref({
     legal_address: [],
@@ -444,9 +448,22 @@ watch(() => props.activityTypeOptions, (options) => {
         .sort((left, right) => left.localeCompare(right, 'ru'));
 });
 
-const isCreating = computed(() => page.url.endsWith('/contractors/create'));
+function currentPagePath(url) {
+    const rawUrl = String(url ?? '');
+
+    try {
+        const baseUrl = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+
+        return new URL(rawUrl, baseUrl).pathname;
+    } catch {
+        return rawUrl.split('?')[0].split('#')[0];
+    }
+}
+
+const isCreateRoute = computed(() => currentPagePath(page.url) === '/contractors/create');
+const isCreating = computed(() => isCreateModalOpen.value || (isCreateRoute.value && !isCreateRouteDismissed.value));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
-const isContractorModalOpen = computed(() => isCreating.value || selectedContractorId.value !== null);
+const isContractorModalOpen = computed(() => isCreating.value || (selectedContractorId.value !== null && !isDetailsModalDismissed.value));
 
 const contractorScoring = ref(null);
 const contractorScoringLoading = ref(false);
@@ -567,13 +584,18 @@ const totalOrdersCount = computed(() => props.selectedContractor?.orders?.length
 const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.order_documents?.length ?? 0);
 
 function openCreateForm() {
-    router.get(route('contractors.create', {
-        search: effectiveIndexSearchQuery(search.value),
-        type: '',
-    }), {}, { preserveScroll: true });
+    isCreateRouteDismissed.value = false;
+    isDetailsModalDismissed.value = false;
+    applyFormState(null);
+    activeTab.value = 'general';
+    isCreateModalOpen.value = true;
 }
 
 function openContractor(contractorId) {
+    isCreateModalOpen.value = false;
+    isCreateRouteDismissed.value = false;
+    isDetailsModalDismissed.value = false;
+
     router.get(route('contractors.show', {
         contractor: contractorId,
         search: effectiveIndexSearchQuery(search.value),
@@ -583,11 +605,21 @@ function openContractor(contractorId) {
 }
 
 function closeContractorModal() {
-    router.get(route('contractors.index', {
+    if (isCreateModalOpen.value && !isCreateRoute.value && selectedContractorId.value === null) {
+        isCreateModalOpen.value = false;
+
+        return;
+    }
+
+    isCreateModalOpen.value = false;
+    isCreateRouteDismissed.value = true;
+    isDetailsModalDismissed.value = true;
+
+    window.history.replaceState(window.history.state, '', route('contractors.index', {
         search: effectiveIndexSearchQuery(search.value),
         type: '',
         page: props.pagination.current_page,
-    }), {}, { preserveScroll: true });
+    }));
 }
 
 function resetToSelected() {
@@ -616,6 +648,9 @@ function submit() {
     if (selectedContractorId.value === null) {
         form.post(route('contractors.store'), {
             preserveScroll: true,
+            onSuccess: () => {
+                isCreateModalOpen.value = false;
+            },
         });
 
         return;
@@ -1032,25 +1067,37 @@ function handleMobileNavSelect(key) {
             />
         </div>
 
-            <Modal :show="isContractorModalOpen" max-width="6xl" @close="closeContractorModal">
-                <section class="flex max-h-[calc(100dvh-4rem)] min-h-[70dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
-                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                    <div class="space-y-1">
-                        <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                            {{ isCreating ? 'Новый контрагент' : (selectedContractor?.name || 'Карточка контрагента') }}
-                        </div>
-                        <div class="flex flex-wrap gap-3 text-sm text-zinc-500 dark:text-zinc-400">
-                            <span v-if="selectedContractor?.inn">ИНН {{ selectedContractor.inn }}</span>
-                            <span v-if="selectedContractor?.phone">{{ selectedContractor.phone }}</span>
-                            <span v-if="selectedContractor?.email">{{ selectedContractor.email }}</span>
-                            <span v-if="selectedContractorId !== null">Заказы: {{ totalOrdersCount }}</span>
+            <Modal :show="isContractorModalOpen" max-width="7xl" @close="closeContractorModal">
+                <section class="flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col gap-3 overflow-hidden bg-transparent">
+                <div class="flex items-center justify-between gap-4 border border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <button
+                            type="button"
+                            class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                            title="К реестру"
+                            @click="closeContractorModal"
+                        >
+                            <X class="h-5 w-5" />
+                            <span class="sr-only">К реестру</span>
+                        </button>
+
+                        <div class="min-w-0">
+                            <h1 class="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                                {{ isCreating ? 'Новый контрагент' : (selectedContractor?.name || 'Карточка контрагента') }}
+                            </h1>
+                            <div class="mt-1 flex flex-wrap gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                                <span v-if="selectedContractor?.inn">ИНН {{ selectedContractor.inn }}</span>
+                                <span v-if="selectedContractor?.phone">{{ selectedContractor.phone }}</span>
+                                <span v-if="selectedContractor?.email">{{ selectedContractor.email }}</span>
+                                <span v-if="selectedContractorId !== null">Заказы: {{ totalOrdersCount }}</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-2">
+                    <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
                         <button
                             type="button"
-                            class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                            class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                             @click="resetToSelected"
                         >
                             Сбросить
@@ -1058,7 +1105,7 @@ function handleMobileNavSelect(key) {
                         <button
                             v-if="selectedContractorId !== null"
                             type="button"
-                            class="inline-flex items-center gap-2 border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                            class="inline-flex items-center gap-2 border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
                             @click="removeContractor"
                         >
                             <Trash2 class="h-4 w-4" />
@@ -1066,7 +1113,7 @@ function handleMobileNavSelect(key) {
                         </button>
                         <button
                             type="button"
-                            class="inline-flex items-center gap-2 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            class="inline-flex items-center gap-2 border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                             :disabled="form.processing"
                             @click="submit"
                         >
@@ -1076,7 +1123,7 @@ function handleMobileNavSelect(key) {
                     </div>
                 </div>
 
-                <div class="border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                <div class="flex flex-wrap gap-2 border border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="flex flex-wrap gap-2">
                         <button
                             v-for="tab in tabs"
@@ -1094,7 +1141,7 @@ function handleMobileNavSelect(key) {
                     </div>
                 </div>
 
-                <div class="min-h-0 flex-1 overflow-auto px-4 py-3">
+                <div class="min-h-0 flex-1 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5">
                     <div v-if="false" class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
                             <div class="space-y-4">

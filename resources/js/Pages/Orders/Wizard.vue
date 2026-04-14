@@ -101,12 +101,16 @@
                 <div class="space-y-4">
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Своя компания</label>
-                        <select v-model="form.own_company_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <select
+                            v-model="form.own_company_id"
+                            :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('own_company_id', form.own_company_id)]"
+                        >
                             <option :value="null">Не выбрано</option>
                             <option v-for="company in ownCompanyOptions" :key="company.id" :value="company.id">
                                 {{ company.name }}
                             </option>
                         </select>
+                        <p v-if="form.errors.own_company_id" class="text-xs text-rose-500">{{ form.errors.own_company_id }}</p>
                     </div>
 
                     <div class="space-y-2">
@@ -115,7 +119,7 @@
                             <button
                                 type="button"
                                 class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                @click="showCounterpartyModal = true"
+                                @click.stop="openCounterpartyModal"
                             >
                                 Новый контрагент
                             </button>
@@ -736,6 +740,9 @@
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Бонус</label>
                         <input v-model="form.bonus" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                        <p class="text-xs text-zinc-500">
+                            В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -1137,18 +1144,23 @@
     </div>
 
     <Teleport to="body">
-        <div v-if="showCounterpartyModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="showCounterpartyModal = false">
-            <div class="w-full max-w-xl rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+        <div
+            v-show="showCounterpartyModal"
+            class="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
+            style="z-index: 2147483647;"
+            @click.self="closeCounterpartyModal"
+        >
+            <div class="w-full max-w-xl rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900" @click.stop>
                 <div class="mb-4 flex items-center justify-between">
                     <div>
                         <div class="text-lg font-semibold">Новый контрагент</div>
                         <div class="text-sm text-zinc-500">Создаётся в справочнике и сразу подставляется в заказ</div>
                     </div>
-                    <button type="button" class="rounded-xl p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" @click="showCounterpartyModal = false">×</button>
+                    <button type="button" class="rounded-xl p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" @click="closeCounterpartyModal">×</button>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2">
-                    <input v-model="counterpartyForm.name" type="text" placeholder="Название" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
+                    <input ref="counterpartyNameInput" v-model="counterpartyForm.name" type="text" placeholder="Название" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
                     <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
@@ -1158,7 +1170,7 @@
                 </div>
 
                 <div class="mt-5 flex justify-end gap-3">
-                    <button type="button" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="showCounterpartyModal = false">
+                    <button type="button" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="closeCounterpartyModal">
                         Отмена
                     </button>
                     <button type="button" class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200" :disabled="inlineContractorSaving" @click="createInlineCounterparty">
@@ -1198,6 +1210,7 @@ const props = defineProps({
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     currentUser: { type: Object, default: () => ({}) },
+    bonusMultiplier: { type: Number, default: 0 },
     cargoTitleSuggestions: { type: Array, default: () => [] },
 });
 
@@ -1347,6 +1360,7 @@ const showClientResults = ref(false);
 const carrierSearch = ref({});
 const showCarrierResults = ref({});
 const showCounterpartyModal = ref(false);
+const counterpartyNameInput = ref(null);
 const inlineContractorSaving = ref(false);
 const addressSuggestions = ref({});
 const addressTimers = {};
@@ -1385,6 +1399,7 @@ const clientRequestModeOptions = [
 ];
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
+    { value: 'fttn_receipt', label: 'ФТТН + квиток' },
     { value: 'ottn', label: 'ОТТН' },
     { value: 'loading', label: 'На загрузке' },
     { value: 'unloading', label: 'На выгрузке' },
@@ -1400,6 +1415,17 @@ const counterpartyForm = useForm({
     contact_person: '',
     type: 'customer',
 });
+
+async function openCounterpartyModal() {
+    showCounterpartyModal.value = true;
+
+    await nextTick();
+    counterpartyNameInput.value?.focus?.();
+}
+
+function closeCounterpartyModal() {
+    showCounterpartyModal.value = false;
+}
 
 function templateOptionLabel(template) {
     const suffix = [];
@@ -1706,6 +1732,7 @@ const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedC
 // Проверка обязательных полей
 const requiredFieldsValid = computed(() => {
     // Основные обязательные поля
+    const hasOwnCompany = !!form.own_company_id;
     const hasClient = !!form.client_id;
     const hasOrderDate = !!form.order_date;
     const hasStatus = !!form.status;
@@ -1726,7 +1753,7 @@ const requiredFieldsValid = computed(() => {
     // Обязательные поля в financial_term (если financial_term заполнен)
     const financialTermValid = !form.financial_term.client_price || !!form.financial_term.client_currency;
     
-    return hasClient && hasOrderDate && hasStatus && performersValid && routePointsValid && cargoItemsValid && financialTermValid;
+    return hasOwnCompany && hasClient && hasOrderDate && hasStatus && performersValid && routePointsValid && cargoItemsValid && financialTermValid;
 });
 
 // Подсветка для конкретных полей
@@ -2282,7 +2309,7 @@ function parsePaymentTermPreset(term) {
     }
 
     const normalized = String(term).trim().toUpperCase();
-    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
+    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)\s*\/\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)$/u);
 
     if (prepaymentMatch) {
         return normalizePaymentSchedule({
@@ -2295,7 +2322,7 @@ function parsePaymentTermPreset(term) {
         });
     }
 
-    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
+    const postpaymentMatch = normalized.match(/^(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)$/u);
 
     if (postpaymentMatch) {
         return normalizePaymentSchedule({
@@ -2486,12 +2513,27 @@ const cargoSummary = computed(() => {
 const financialSummary = computed(() => {
     const clientPrice = Number(form.financial_term.client_price || 0);
     const contractorCosts = form.financial_term.contractors_costs.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const additionalCosts =
-        Number(form.additional_expenses || 0)
-        + Number(form.insurance || 0)
-        + Number(form.bonus || 0);
+    const additionalExpenses = Number(form.additional_expenses || 0);
+    const insurance = Number(form.insurance || 0);
+    const rawBonus = Number(form.bonus || 0);
+    const kpiPercent = Number(form.financial_term.kpi_percent || 0);
+    const serverDelta = Number(calculatedCompensation.value?.delta ?? NaN);
+    const hasReliableServerDelta = Number.isFinite(serverDelta) && calculatedCompensation.value?.deal_type !== 'unknown';
+
+    let effectiveBonusCost = rawBonus;
+    let margin;
+
+    if (hasReliableServerDelta) {
+        const baseAfterKpi = clientPrice * (1 - (kpiPercent / 100));
+        const computedBonusCost = baseAfterKpi - contractorCosts - additionalExpenses - insurance - serverDelta;
+        effectiveBonusCost = Math.max(0, computedBonusCost);
+        margin = serverDelta;
+    } else {
+        margin = clientPrice * (1 - (kpiPercent / 100)) - (contractorCosts + additionalExpenses + insurance + rawBonus);
+    }
+
+    const additionalCosts = additionalExpenses + insurance + effectiveBonusCost;
     const totalCost = contractorCosts + additionalCosts;
-    const margin = clientPrice * (1 - (Number(form.financial_term.kpi_percent || 0) / 100)) - totalCost;
 
     return {
         clientPrice,

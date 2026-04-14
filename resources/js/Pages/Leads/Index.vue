@@ -31,15 +31,38 @@
                 @row-dblclick="handleRowDblClick"
             />
         </div>
+
+        <Modal :show="isLeadModalOpen" max-width="7xl" @close="closeLeadModal">
+            <section class="flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
+                <LeadWizard
+                    embedded
+                    :selected-lead="selectedLead"
+                    :is-creating="isCreateModalOpen || isCreateRoute"
+                    :contractors="page.props.contractors ?? []"
+                    :responsible-users="page.props.responsibleUsers ?? []"
+                    :status-options="page.props.statusOptions ?? []"
+                    :source-options="page.props.sourceOptions ?? []"
+                    :transport-type-options="page.props.transportTypeOptions ?? []"
+                    :currency-options="page.props.currencyOptions ?? []"
+                    :print-form-template-options="page.props.printFormTemplateOptions ?? []"
+                    :current-user-id="page.props.currentUserId ?? null"
+                    :can-assign-responsible="Boolean(page.props.canAssignResponsible)"
+                    :can-use-lead-tasks="Boolean(page.props.canUseLeadTasks)"
+                    @close="closeLeadModal"
+                />
+            </section>
+        </Modal>
     </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import Modal from '@/Components/Modal.vue';
+import LeadWizard from '@/Pages/Leads/Wizard.vue';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page),
@@ -51,18 +74,61 @@ const rows = computed(() => page.props.leads ?? []);
 const availableColumns = computed(() => page.props.leadColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
+const selectedLead = computed(() => page.props.selectedLead ?? null);
+const isCreateRoute = computed(() => Boolean(page.props.isCreating));
+const isCreateModalOpen = ref(false);
+const isLeadModalDismissed = ref(false);
+const isLeadModalOpen = computed(() => !featureUnavailable.value
+    && (isCreateModalOpen.value || (isCreateRoute.value && !isLeadModalDismissed.value) || (selectedLead.value !== null && !isLeadModalDismissed.value)));
+
+const modalPropKeys = [
+    'selectedLead',
+    'isCreating',
+    'contractors',
+    'responsibleUsers',
+    'statusOptions',
+    'sourceOptions',
+    'transportTypeOptions',
+    'currencyOptions',
+    'printFormTemplateOptions',
+    'currentUserId',
+    'canAssignResponsible',
+    'canUseLeadTasks',
+];
+
+watch(selectedLead, (lead) => {
+    if (lead !== null) {
+        isCreateModalOpen.value = false;
+        isLeadModalDismissed.value = false;
+    }
+});
 
 function openCreateLead() {
     if (featureUnavailable.value) {
         return;
     }
 
-    router.get(route('leads.create'));
+    isLeadModalDismissed.value = false;
+    isCreateModalOpen.value = true;
+    window.history.pushState(window.history.state, '', route('leads.create'));
 }
 
 function handleRowDblClick(row) {
     if (! featureUnavailable.value && row?.id) {
-        router.get(route('leads.show', row.id));
+        isCreateModalOpen.value = false;
+        isLeadModalDismissed.value = false;
+
+        router.get(route('leads.show', row.id), {}, {
+            preserveScroll: true,
+            preserveState: true,
+            only: modalPropKeys,
+        });
     }
+}
+
+function closeLeadModal() {
+    isCreateModalOpen.value = false;
+    isLeadModalDismissed.value = true;
+    window.history.replaceState(window.history.state, '', route('leads.index'));
 }
 </script>

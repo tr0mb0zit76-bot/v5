@@ -190,12 +190,16 @@ class MessengerController extends Controller
             }
         }
 
-        $message = ChatMessage::query()->create([
+        $payload = [
             'conversation_id' => $conversation->id,
             'user_id' => $user->id,
-            'recipient_user_id' => $recipientId,
             'body' => $validated['body'],
-        ]);
+        ];
+        if (Schema::hasColumn('chat_messages', 'recipient_user_id')) {
+            $payload['recipient_user_id'] = $recipientId;
+        }
+
+        $message = ChatMessage::query()->create($payload);
 
         $conversation->touch();
 
