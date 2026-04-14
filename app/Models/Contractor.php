@@ -41,6 +41,7 @@ class Contractor extends Model
         'bik',
         'account_number',
         'correspondent_account',
+        'bank_accounts',
         'ati_profiles',
         'ati_id',
         'transport_requirements',
@@ -62,6 +63,7 @@ class Contractor extends Model
         'is_active',
         'is_verified',
         'is_own_company',
+        'is_non_resident',
         'owner_id',
         'created_by',
         'updated_by',
@@ -78,12 +80,14 @@ class Contractor extends Model
             'specializations' => 'array',
             'activity_types' => 'array',
             'metadata' => 'array',
+            'bank_accounts' => 'json:unicode',
             'debt_limit' => 'decimal:2',
             'default_customer_payment_schedule' => 'json:unicode',
             'default_carrier_payment_schedule' => 'json:unicode',
             'is_active' => 'boolean',
             'is_verified' => 'boolean',
             'is_own_company' => 'boolean',
+            'is_non_resident' => 'boolean',
             'stop_on_limit' => 'boolean',
             'rating' => 'decimal:2',
         ];
@@ -169,7 +173,6 @@ class Contractor extends Model
      * Scope a query to apply visibility rules based on user role.
      *
      * @param  Builder  $query
-     * @param  User|null  $user
      * @param  string|null  $typeFilter  Optional type filter ('customer', 'carrier', 'both')
      * @return Builder
      */
@@ -187,6 +190,7 @@ class Contractor extends Model
             if (in_array($typeFilter, ['customer', 'carrier', 'both'])) {
                 $query->where('type', $typeFilter);
             }
+
             return $query;
         }
 

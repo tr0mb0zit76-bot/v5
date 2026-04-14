@@ -20,6 +20,7 @@ use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
 use App\Http\Controllers\SettingsTableManagementController;
 use App\Http\Controllers\SettingsTemplateController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -139,11 +140,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
         Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
         Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
+        Route::get('/contractors-suggest/bank', 'suggestBank')->name('contractors.suggest-bank');
         Route::get('/contractors-search', 'search')->name('contractors.search');
     });
 
+    Route::get('/fleet/vehicles', function () {
+        return Inertia::render('Fleet/Vehicles');
+    })->middleware('visibility.area:drivers')->name('fleet.vehicles.index');
+
+    Route::get('/fleet/containers', function () {
+        return Inertia::render('Fleet/Containers');
+    })->middleware('visibility.area:drivers')->name('fleet.containers.index');
+
     Route::get('/drivers', function () {
-        return Inertia::render('Dashboard');
+        return Inertia::render('Fleet/Drivers');
     })->middleware('visibility.area:drivers')->name('drivers.index');
 
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area:documents')->name('finance.index');
@@ -164,13 +174,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/finance/salary/coefficients/{salaryCoefficient}', 'destroySalaryCoefficient')->name('finance.salary.coefficients.destroy');
     });
 
-    Route::get('/tasks', function () {
-        return Inertia::render('Tasks/Index');
-    })->middleware('visibility.area:tasks')->name('tasks.index');
+    Route::controller(TaskController::class)->group(function () {
+        Route::middleware('visibility.area:tasks')->group(function () {
+            Route::get('/tasks', 'index')->name('tasks.index');
+            Route::post('/tasks', 'store')->name('tasks.store');
+            Route::get('/tasks/{task}', 'show')->name('tasks.show');
+            Route::patch('/tasks/{task}', 'update')->name('tasks.update');
+            Route::post('/tasks/{task}/checklist-items', 'storeChecklistItem')->name('tasks.checklist-items.store');
+            Route::patch('/tasks/{task}/checklist-items/{taskChecklistItem}', 'toggleChecklistItem')->name('tasks.checklist-items.toggle');
+            Route::post('/tasks/{task}/comments', 'storeComment')->name('tasks.comments.store');
+            Route::post('/tasks/{task}/attachments', 'storeAttachment')->name('tasks.attachments.store');
+            Route::delete('/tasks/{task}/attachments/{taskAttachment}', 'destroyAttachment')->name('tasks.attachments.destroy');
+        });
 
-    Route::get('/kanban', [LeadController::class, 'kanban'])
-        ->middleware('visibility.area:kanban')
-        ->name('kanban.index');
+        Route::middleware('visibility.area.any:tasks|kanban')->group(function () {
+            Route::get('/tasks/{task}/attachments/{taskAttachment}/download', 'downloadAttachment')->name('tasks.attachments.download');
+            Route::patch('/tasks/{task}/status', 'updateStatus')->name('tasks.status.update');
+        });
+
+        Route::get('/kanban', 'kanban')
+            ->middleware('visibility.area:kanban')
+            ->name('kanban.index');
+    });
 
     Route::patch('/leads/{lead}/status', [LeadController::class, 'updateStatus'])
         ->middleware('visibility.area:leads')

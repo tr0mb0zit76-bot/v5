@@ -25,6 +25,8 @@ class OrderIndexController extends Controller
         $roleName = $role['name'];
         $ordersScope = RoleAccess::resolveVisibilityScope($roleName, $role['visibility_scopes'], 'orders');
 
+        // Крупный JSON (ai_metadata, ati_response, metadata, payment_statuses) не выбираем — только карточка заказа.
+
         $orderSelectColumns = [
             'orders.id',
             'orders.order_number',
@@ -57,8 +59,6 @@ class OrderIndexController extends Controller
             'orders.is_active',
             'orders.ai_draft_id',
             'orders.ai_confidence',
-            'orders.ai_metadata',
-            'orders.ati_response',
             'orders.ati_load_id',
             'orders.ati_published_at',
             DB::raw('COALESCE(orders.manual_status, orders.status) as status_text'),
@@ -85,8 +85,6 @@ class OrderIndexController extends Controller
             'orders.carrier_contact_email',
             'orders.created_by',
             'orders.updated_by',
-            'orders.metadata',
-            'orders.payment_statuses',
             'orders.created_at',
             'orders.updated_at',
         ];

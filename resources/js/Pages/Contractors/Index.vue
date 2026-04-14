@@ -88,6 +88,9 @@ const addressSuggestions = ref({
 const addressTimers = {};
 let innLookupTimer = null;
 const lastAutoFilledInn = ref('');
+const bankLookupTimers = {};
+const bankLookupLoading = ref({});
+const bankLookupErrors = ref({});
 
 /** Подписи на фронте (UTF-8), чтобы не зависеть от кодировки ответа сервера в списке опций */
 const legalFormLabelByValue = {
@@ -275,6 +278,7 @@ function blankForm() {
         bik: '',
         account_number: '',
         correspondent_account: '',
+        bank_accounts: [blankBankAccount({ is_primary: true })],
         ati_id: '',
         specializations: [],
         activity_types: [],
@@ -292,6 +296,7 @@ function blankForm() {
         is_active: true,
         is_verified: false,
         is_own_company: false,
+        is_non_resident: false,
         owner_id: null,
         contacts: [],
         interactions: [],
@@ -299,10 +304,94 @@ function blankForm() {
     };
 }
 
+function blankBankAccount(overrides = {}) {
+    return {
+        id: `bank-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        label: '',
+        country_code: 'RU',
+        currency: 'RUB',
+        bank_name: '',
+        bik: '',
+        account_number: '',
+        correspondent_account: '',
+        swift: '',
+        iban: '',
+        is_primary: false,
+        ...overrides,
+    };
+}
+
+function normalizeBankAccount(row, index = 0) {
+    const normalized = blankBankAccount({
+        id: row?.id ?? `bank-${Date.now()}-${index}`,
+        label: row?.label ?? '',
+        country_code: String(row?.country_code ?? 'RU').toUpperCase().slice(0, 2) || 'RU',
+        currency: String(row?.currency ?? 'RUB').toUpperCase().slice(0, 3) || 'RUB',
+        bank_name: row?.bank_name ?? '',
+        bik: String(row?.bik ?? '').replace(/\D/g, ''),
+        account_number: String(row?.account_number ?? '').replace(/\D/g, ''),
+        correspondent_account: String(row?.correspondent_account ?? '').replace(/\D/g, ''),
+        swift: String(row?.swift ?? '').toUpperCase().trim(),
+        iban: String(row?.iban ?? '').toUpperCase().replace(/\s+/g, ''),
+        is_primary: Boolean(row?.is_primary),
+    });
+
+    if (normalized.country_code !== 'RU') {
+        normalized.bik = '';
+        normalized.correspondent_account = '';
+    }
+
+    return normalized;
+}
+
+function bankAccountHasMeaningfulData(row) {
+    return Boolean(
+        String(row?.bank_name ?? '').trim()
+        || String(row?.bik ?? '').trim()
+        || String(row?.account_number ?? '').trim()
+        || String(row?.correspondent_account ?? '').trim()
+        || String(row?.swift ?? '').trim()
+        || String(row?.iban ?? '').trim()
+    );
+}
+
+function normalizeBankAccounts(rows) {
+    const normalized = (Array.isArray(rows) ? rows : [])
+        .map((row, index) => normalizeBankAccount(row, index))
+        .filter((row) => bankAccountHasMeaningfulData(row));
+
+    if (normalized.length === 0) {
+        return [blankBankAccount({ is_primary: true })];
+    }
+
+    const hasPrimary = normalized.some((row) => row.is_primary);
+    if (!hasPrimary) {
+        normalized[0].is_primary = true;
+    }
+
+    return normalized.map((row, index) => ({
+        ...row,
+        is_primary: normalized.findIndex((entry) => entry.is_primary) === index,
+    }));
+}
+
 function contractorToForm(contractor) {
     if (!contractor) {
         return blankForm();
     }
+
+    const legacyBankAccount = {
+        bank_name: contractor.bank_name ?? '',
+        bik: contractor.bik ?? '',
+        account_number: contractor.account_number ?? '',
+        correspondent_account: contractor.correspondent_account ?? '',
+        country_code: 'RU',
+        currency: 'RUB',
+        is_primary: true,
+    };
+    const bankAccountsSource = Array.isArray(contractor.bank_accounts) && contractor.bank_accounts.length > 0
+        ? contractor.bank_accounts
+        : (bankAccountHasMeaningfulData(legacyBankAccount) ? [legacyBankAccount] : []);
 
     return {
         type: contractor.type ?? 'customer',
@@ -331,6 +420,7 @@ function contractorToForm(contractor) {
         bik: contractor.bik ?? '',
         account_number: contractor.account_number ?? '',
         correspondent_account: contractor.correspondent_account ?? '',
+        bank_accounts: normalizeBankAccounts(bankAccountsSource),
         ati_id: contractor.ati_id ?? '',
         specializations: Array.isArray(contractor.specializations) ? contractor.specializations : [],
         activity_types: Array.isArray(contractor.activity_types) ? contractor.activity_types : [],
@@ -348,6 +438,7 @@ function contractorToForm(contractor) {
         is_active: Boolean(contractor.is_active),
         is_verified: Boolean(contractor.is_verified),
         is_own_company: Boolean(contractor.is_own_company),
+        is_non_resident: Boolean(contractor.is_non_resident),
         owner_id: contractor.owner_id ?? null,
         contacts: Array.isArray(contractor.contacts)
             ? contractor.contacts.map((contact) => ({
@@ -640,6 +731,27 @@ function submit() {
     form.default_carrier_payment_schedule = normalizePaymentSchedule(form.default_carrier_payment_schedule);
     form.default_customer_payment_term = paymentScheduleSummary(form.default_customer_payment_schedule) || '';
     form.default_carrier_payment_term = paymentScheduleSummary(form.default_carrier_payment_schedule) || '';
+    form.bank_accounts = normalizeBankAccounts(form.bank_accounts);
+    form.is_non_resident = Boolean(form.is_non_resident);
+
+    const primaryBankAccount = form.bank_accounts.find((account) => account.is_primary) ?? form.bank_accounts[0] ?? null;
+    const existingHadLegacy = Boolean(
+        props.selectedContractor?.bank_name
+        || props.selectedContractor?.bik
+        || props.selectedContractor?.account_number
+        || props.selectedContractor?.correspondent_account
+    );
+    if (existingHadLegacy && primaryBankAccount) {
+        form.bank_name = primaryBankAccount.bank_name ?? '';
+        form.bik = primaryBankAccount.bik ?? '';
+        form.account_number = primaryBankAccount.account_number ?? '';
+        form.correspondent_account = primaryBankAccount.correspondent_account ?? '';
+    } else {
+        form.bank_name = '';
+        form.bik = '';
+        form.account_number = '';
+        form.correspondent_account = '';
+    }
 
     if (form.inn != null && form.inn !== '') {
         form.inn = String(form.inn).replace(/\D/g, '');
@@ -713,6 +825,88 @@ function addDocument() {
 
 function removeItem(collection, index) {
     collection.splice(index, 1);
+}
+
+function addBankAccount() {
+    const hasPrimary = Array.isArray(form.bank_accounts) && form.bank_accounts.some((row) => row.is_primary);
+    form.bank_accounts = [
+        ...(Array.isArray(form.bank_accounts) ? form.bank_accounts : []),
+        blankBankAccount({ is_primary: !hasPrimary }),
+    ];
+}
+
+function removeBankAccount(index) {
+    if (!Array.isArray(form.bank_accounts) || form.bank_accounts.length <= 1) {
+        return;
+    }
+
+    const wasPrimary = Boolean(form.bank_accounts[index]?.is_primary);
+    form.bank_accounts.splice(index, 1);
+
+    if (wasPrimary && form.bank_accounts.length > 0) {
+        form.bank_accounts[0].is_primary = true;
+    }
+}
+
+function setPrimaryBankAccount(index) {
+    if (!Array.isArray(form.bank_accounts)) {
+        return;
+    }
+
+    form.bank_accounts = form.bank_accounts.map((row, rowIndex) => ({
+        ...row,
+        is_primary: rowIndex === index,
+    }));
+}
+
+function scheduleBankLookup(index) {
+    clearTimeout(bankLookupTimers[index]);
+    bankLookupTimers[index] = window.setTimeout(() => {
+        fetchBankSuggestionByBik(index);
+    }, 350);
+}
+
+async function fetchBankSuggestionByBik(index) {
+    const account = form.bank_accounts?.[index];
+    if (!account) {
+        return;
+    }
+
+    const bik = String(account.bik ?? '').replace(/\D/g, '');
+    form.bank_accounts[index].bik = bik;
+
+    if (account.country_code !== 'RU' || bik.length !== 9) {
+        return;
+    }
+
+    bankLookupLoading.value[index] = true;
+    bankLookupErrors.value[index] = '';
+
+    try {
+        const response = await fetch(`${route('contractors.suggest-bank')}?bik=${encodeURIComponent(bik)}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        const data = await response.json();
+        const suggestion = Array.isArray(data.suggestions) ? data.suggestions[0] : null;
+        const payload = suggestion?.data ?? {};
+
+        form.bank_accounts[index].bank_name = suggestion?.value ?? form.bank_accounts[index].bank_name ?? '';
+        if (!form.bank_accounts[index].correspondent_account && payload.correspondent_account) {
+            form.bank_accounts[index].correspondent_account = String(payload.correspondent_account).replace(/\D/g, '');
+        }
+        if (!form.bank_accounts[index].swift && payload.swift) {
+            form.bank_accounts[index].swift = String(payload.swift).toUpperCase();
+        }
+    } catch (error) {
+        console.error('DaData bank suggestion error', error);
+        bankLookupErrors.value[index] = 'Не удалось получить данные банка';
+    } finally {
+        bankLookupLoading.value[index] = false;
+    }
 }
 
 function toggleActivityType(activityType) {
@@ -1046,7 +1240,7 @@ function handleMobileNavSelect(key) {
         </nav>
     </div>
 
-    <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
+    <div v-else class="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
@@ -1056,7 +1250,7 @@ function handleMobileNavSelect(key) {
             </div>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-hidden">
+        <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
             <ContractorsGrid
                 :rows="contractors"
                 :available-columns="availableColumns"
@@ -1420,6 +1614,15 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
+                                        <label class="text-sm font-medium">ATI ID</label>
+                                        <input
+                                            v-model="form.ati_id"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
+
+                                    <div class="space-y-2">
                                         <label class="text-sm font-medium">Владелец</label>
                                         <select
                                             v-model="form.owner_id"
@@ -1520,16 +1723,16 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+                                    <div v-if="form.type === 'customer' || form.type === 'both'" class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Форма оплаты</label>
+                                            <label class="text-sm font-medium">Форма оплаты заказчика</label>
                                             <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                 <option value="">Не задана</option>
                                                 <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                             </select>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Условия оплаты заказчика</label>
+                                            <label class="text-sm font-medium">Условия оплаты</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
                                                 {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_customer_payment_schedule)) || 'Не заданы' }}
                                             </p>
@@ -1572,16 +1775,16 @@ function handleMobileNavSelect(key) {
                                         </div>
                                     </div>
 
-                                    <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+                                    <div v-if="form.type === 'carrier' || form.type === 'both'" class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Форма оплаты</label>
+                                            <label class="text-sm font-medium">Форма оплаты перевозчика</label>
                                             <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                 <option value="">Не задана</option>
                                                 <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                             </select>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Условия оплаты перевозчика</label>
+                                            <label class="text-sm font-medium">Условия оплаты</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
                                                 {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_carrier_payment_schedule)) || 'Не заданы' }}
                                             </p>
@@ -1652,11 +1855,11 @@ function handleMobileNavSelect(key) {
                                         <span class="text-zinc-500 dark:text-zinc-400">Лимит</span>
                                         <span class="font-medium">{{ formatMoney(form.debt_limit, form.debt_limit_currency) }}</span>
                                     </div>
-                                    <div class="flex items-center justify-between gap-3">
+                                    <div v-if="form.type === 'customer' || form.type === 'both'" class="flex items-center justify-between gap-3">
                                         <span class="text-zinc-500 dark:text-zinc-400">Форма оплаты заказчика</span>
                                         <span class="font-medium">{{ paymentFormLabel(form.default_customer_payment_form) }}</span>
                                     </div>
-                                    <div class="flex items-center justify-between gap-3">
+                                    <div v-if="form.type === 'carrier' || form.type === 'both'" class="flex items-center justify-between gap-3">
                                         <span class="text-zinc-500 dark:text-zinc-400">Форма оплаты перевозчика</span>
                                         <span class="font-medium">{{ paymentFormLabel(form.default_carrier_payment_form) }}</span>
                                     </div>
@@ -1746,114 +1949,161 @@ function handleMobileNavSelect(key) {
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">ОГРН</label>
-                                        <input
-                                            v-model="form.ogrn"
-                                            type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
+                                <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                                    <div class="min-w-0 space-y-4">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">ОГРН</label>
+                                            <input
+                                                v-model="form.ogrn"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">ОКПО</label>
+                                            <input
+                                                v-model="form.okpo"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
                                     </div>
+                                    <div class="min-w-0 space-y-3">
+                                        <div class="relative space-y-2">
+                                            <label class="text-sm font-medium">Юридический адрес</label>
+                                            <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
+                                            <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                                <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
+                                                    {{ suggestion.value }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="relative space-y-2">
+                                            <label class="text-sm font-medium">Фактический адрес</label>
+                                            <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
+                                            <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                                <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
+                                                    {{ suggestion.value }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="relative space-y-2">
+                                            <label class="text-sm font-medium">Почтовый адрес</label>
+                                            <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
+                                            <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                                <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
+                                                    {{ suggestion.value }}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">ОКПО</label>
-                                        <input
-                                            v-model="form.okpo"
-                                            type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium">Подписант</div>
+                                    <div class="max-w-xl space-y-4">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">ФИО, именительный падеж</label>
+                                            <input
+                                                v-model="form.signer_name_nominative"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">ФИО, родительный падеж</label>
+                                            <input
+                                                v-model="form.signer_name_prepositional"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">Основание права подписи</label>
+                                            <input
+                                                v-model="form.signer_authority_basis"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 text-sm font-medium">Банковские реквизиты</div>
-                                <div class="space-y-3">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Банк</label>
-                                        <input v-model="form.bank_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        <div class="space-y-2">
-                                            <label class="text-sm font-medium">БИК</label>
-                                            <input v-model="form.bik" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                <div class="mb-3 flex flex-wrap items-center gap-3">
+                                    <label class="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                                        <input v-model="form.is_non_resident" type="checkbox" class="rounded border-zinc-300" />
+                                        Нерезидент
+                                    </label>
+                                    <button type="button" class="inline-flex items-center gap-1 border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addBankAccount">
+                                        <Plus class="h-3.5 w-3.5" />
+                                        Добавить счёт
+                                    </button>
+                                </div>
+                                <div class="space-y-4">
+                                    <div
+                                        v-for="(account, bankIndex) in form.bank_accounts"
+                                        :key="account.id || bankIndex"
+                                        class="space-y-3 border border-zinc-200 p-3 dark:border-zinc-700"
+                                    >
+                                        <div class="flex flex-wrap items-center gap-3">
+                                            <label class="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                                                <input :checked="account.is_primary" type="radio" name="primary_bank_account" class="border-zinc-300" @change="setPrimaryBankAccount(bankIndex)" />
+                                                Основной
+                                            </label>
+                                            <button type="button" class="text-xs text-rose-600 disabled:text-zinc-400" :disabled="form.bank_accounts.length <= 1" @click="removeBankAccount(bankIndex)">
+                                                Удалить
+                                            </button>
+                                        </div>
+                                        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">Метка счёта</label>
+                                                <input v-model="account.label" type="text" placeholder="Основной / EUR" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">Страна банка</label>
+                                                <input v-model="account.country_code" type="text" maxlength="2" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.country_code = String(account.country_code || '').toUpperCase().slice(0, 2)" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">Валюта</label>
+                                                <select v-model="account.currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                    <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
+                                                </select>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">SWIFT</label>
+                                                <input v-model="account.swift" type="text" maxlength="11" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                            </div>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Расчётный счёт</label>
-                                            <input v-model="form.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                            <label class="text-sm font-medium">Банк</label>
+                                            <input v-model="account.bank_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        </div>
+                                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">БИК</label>
+                                                <input v-model="account.bik" type="text" maxlength="9" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.bik = String(account.bik || '').replace(/\\D/g, ''); scheduleBankLookup(bankIndex)" />
+                                                <div v-if="bankLookupLoading[bankIndex]" class="text-xs text-zinc-500">Поиск банка по БИК...</div>
+                                                <div v-if="bankLookupErrors[bankIndex]" class="text-xs text-rose-600">{{ bankLookupErrors[bankIndex] }}</div>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">Расчётный счёт / Account</label>
+                                                <input v-model="account.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.account_number = String(account.account_number || '').replace(/\\s+/g, '')" />
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">Корр. счёт</label>
+                                                <input v-model="account.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="text-sm font-medium">IBAN</label>
+                                                <input v-model="account.iban" type="text" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.iban = String(account.iban || '').toUpperCase().replace(/\\s+/g, '')" />
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Корреспондентский счёт</label>
-                                        <input v-model="form.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">ATI ID</label>
-                                        <input v-model="form.ati_id" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="mb-3 text-sm font-medium">Подписант</div>
-                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">ФИО, именительный падеж</label>
-                                    <input
-                                        v-model="form.signer_name_nominative"
-                                        type="text"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">ФИО, родительный падеж</label>
-                                    <input
-                                        v-model="form.signer_name_prepositional"
-                                        type="text"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Основание права подписи</label>
-                                    <input
-                                        v-model="form.signer_authority_basis"
-                                        type="text"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="space-y-4">
-                            <div class="relative space-y-2">
-                                <label class="text-sm font-medium">Юридический адрес</label>
-                                <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
-                                <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                    <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
-                                        {{ suggestion.value }}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="relative space-y-2">
-                                <label class="text-sm font-medium">Фактический адрес</label>
-                                <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
-                                <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                    <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
-                                        {{ suggestion.value }}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="relative space-y-2">
-                                <label class="text-sm font-medium">Почтовый адрес</label>
-                                <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
-                                <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                    <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
-                                        {{ suggestion.value }}
-                                    </button>
                                 </div>
                             </div>
                         </div>

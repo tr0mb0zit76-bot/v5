@@ -73,7 +73,7 @@ class ContractorController extends Controller
             $validated = $request->validated();
 
             $contractor->update([
-                ...$this->extractContractorAttributes($validated),
+                ...$this->extractContractorAttributes($validated, $contractor),
                 'updated_by' => $request->user()?->id,
             ]);
 
@@ -118,6 +118,17 @@ class ContractorController extends Controller
 
         return response()->json([
             'suggestions' => $daDataService->suggestAddress($request->string('query')->toString()),
+        ]);
+    }
+
+    public function suggestBank(Request $request, DaDataService $daDataService): JsonResponse
+    {
+        $request->validate([
+            'bik' => ['required', 'string', 'size:9'],
+        ]);
+
+        return response()->json([
+            'suggestions' => $daDataService->suggestBank($request->string('bik')->toString()),
         ]);
     }
 
@@ -523,7 +534,7 @@ class ContractorController extends Controller
      * @param  array<string, mixed>  $validated
      * @return array<string, mixed>
      */
-    private function extractContractorAttributes(array $validated): array
+    private function extractContractorAttributes(array $validated, ?Contractor $existingContractor = null): array
     {
         unset($validated['contacts'], $validated['interactions'], $validated['documents']);
 
@@ -601,6 +612,11 @@ class ContractorController extends Controller
                 ->all();
         }
 
+        if (array_key_exists('bank_accounts', $validated)) {
+            $validated['bank_accounts'] = $this->normalizeBankAccounts($validated['bank_accounts']);
+            $validated = $this->applyLegacyBankFields($validated, $existingContractor);
+        }
+
         if (! Schema::hasColumn('contractors', 'is_own_company')) {
             unset($validated['is_own_company']);
         }
@@ -621,6 +637,8 @@ class ContractorController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'bank_accounts',
+            'is_non_resident',
         ] as $column) {
             if (! Schema::hasColumn('contractors', $column)) {
                 unset($validated[$column]);
@@ -638,6 +656,113 @@ class ContractorController extends Controller
         return array_key_exists("{$prefix}_payment_schedule", $validated)
             || array_key_exists("{$prefix}_payment_term", $validated)
             || array_key_exists("{$prefix}_payment_form", $validated);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeBankAccounts(mixed $bankAccounts): array
+    {
+        if (! is_array($bankAccounts)) {
+            return [];
+        }
+
+        $normalized = collect($bankAccounts)
+            ->map(fn (mixed $row): array => $this->sanitizeBankAccountRow($row))
+            ->filter(fn (array $row): bool => $this->bankAccountHasMeaningfulData($row))
+            ->values();
+
+        $primaryIndex = $normalized->search(fn (array $row): bool => (bool) ($row['is_primary'] ?? false));
+        if ($primaryIndex === false && $normalized->isNotEmpty()) {
+            $first = $normalized->first();
+            $first['is_primary'] = true;
+            $normalized[0] = $first;
+        }
+
+        return $normalized
+            ->map(function (array $row): array {
+                if (! isset($row['id']) || blank($row['id'])) {
+                    $row['id'] = uniqid('bank_', true);
+                }
+
+                return $row;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sanitizeBankAccountRow(mixed $row): array
+    {
+        if (! is_array($row)) {
+            return [];
+        }
+
+        return [
+            'id' => blank($row['id'] ?? null) ? null : (string) $row['id'],
+            'label' => blank($row['label'] ?? null) ? null : trim((string) $row['label']),
+            'country_code' => blank($row['country_code'] ?? null) ? null : strtoupper(trim((string) $row['country_code'])),
+            'currency' => blank($row['currency'] ?? null) ? null : strtoupper(trim((string) $row['currency'])),
+            'bank_name' => blank($row['bank_name'] ?? null) ? null : trim((string) $row['bank_name']),
+            'bik' => blank($row['bik'] ?? null) ? null : preg_replace('/\D/u', '', (string) $row['bik']),
+            'account_number' => blank($row['account_number'] ?? null) ? null : preg_replace('/\D/u', '', (string) $row['account_number']),
+            'correspondent_account' => blank($row['correspondent_account'] ?? null) ? null : preg_replace('/\D/u', '', (string) $row['correspondent_account']),
+            'swift' => blank($row['swift'] ?? null) ? null : strtoupper(trim((string) $row['swift'])),
+            'iban' => blank($row['iban'] ?? null) ? null : strtoupper(str_replace(' ', '', trim((string) $row['iban']))),
+            'is_primary' => (bool) ($row['is_primary'] ?? false),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function bankAccountHasMeaningfulData(array $row): bool
+    {
+        return filled($row['bank_name'] ?? null)
+            || filled($row['bik'] ?? null)
+            || filled($row['account_number'] ?? null)
+            || filled($row['correspondent_account'] ?? null)
+            || filled($row['swift'] ?? null)
+            || filled($row['iban'] ?? null);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function applyLegacyBankFields(array $validated, ?Contractor $existingContractor = null): array
+    {
+        $bankAccounts = is_array($validated['bank_accounts'] ?? null) ? $validated['bank_accounts'] : [];
+        if ($bankAccounts === []) {
+            return $validated;
+        }
+
+        $primary = collect($bankAccounts)->first(fn (array $row): bool => (bool) ($row['is_primary'] ?? false))
+            ?? $bankAccounts[0];
+
+        $legacyFields = ['bank_name', 'bik', 'account_number', 'correspondent_account'];
+        $incomingHasLegacy = collect($legacyFields)
+            ->contains(fn (string $field): bool => filled($validated[$field] ?? null));
+        $existingHasLegacy = $existingContractor !== null && collect($legacyFields)
+            ->contains(fn (string $field): bool => filled($existingContractor->getAttribute($field)));
+
+        // Старые поля поддерживаем только там, где они уже реально использовались.
+        if (! $incomingHasLegacy && ! $existingHasLegacy) {
+            foreach ($legacyFields as $field) {
+                unset($validated[$field]);
+            }
+
+            return $validated;
+        }
+
+        $validated['bank_name'] = $primary['bank_name'] ?? ($validated['bank_name'] ?? null);
+        $validated['bik'] = $primary['bik'] ?? ($validated['bik'] ?? null);
+        $validated['account_number'] = $primary['account_number'] ?? ($validated['account_number'] ?? null);
+        $validated['correspondent_account'] = $primary['correspondent_account'] ?? ($validated['correspondent_account'] ?? null);
+
+        return $validated;
     }
 
     /**

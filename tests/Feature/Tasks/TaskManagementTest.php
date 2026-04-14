@@ -161,7 +161,43 @@ class TaskManagementTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Tasks/Index')
-                ->has('tasks', 1));
+                ->has('tasks', 1)
+                ->where('selectedTask', null));
+    }
+
+    public function test_tasks_show_includes_selected_task(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-TEST-SHOW',
+            'title' => 'Детальный просмотр',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('tasks.show', $task))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Tasks/Index')
+                ->where('selectedTask.id', $task->id)
+                ->where('selectedTask.title', 'Детальный просмотр'));
     }
 
     public function test_store_task_creates_row(): void

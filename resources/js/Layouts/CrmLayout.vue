@@ -392,6 +392,9 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
             keys.push('motivation');
         }
     }
+    if (activeKey === 'fleet') {
+        keys.push('fleet');
+    }
     return keys;
 }
 
@@ -478,7 +481,17 @@ const menuItems = computed(() => {
         { key: 'scripts', label: 'Скрипты', icon: BookOpen, visibilityArea: 'scripts' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
-        { key: 'drivers', label: 'Водители', icon: Truck, visibilityArea: 'drivers' },
+        {
+            key: 'fleet',
+            label: 'ТС',
+            icon: Truck,
+            visibilityArea: 'drivers',
+            children: [
+                { key: 'fleet-vehicles', label: 'Авто' },
+                { key: 'fleet-containers', label: 'Контейнера' },
+                { key: 'fleet-drivers', label: 'Водители' },
+            ],
+        },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
         {
             key: 'finance',
@@ -560,6 +573,10 @@ const menuItems = computed(() => {
 
         if (item.key === 'finance') {
             return (item.children?.length ?? 0) > 0;
+        }
+
+        if (item.key === 'fleet') {
+            return visibleAreas.value.includes('drivers');
         }
 
         if (item.key === 'kanban') {
@@ -685,7 +702,9 @@ function handleMenuSelect(key) {
         kanban: '/kanban',
         'orders-create': '/orders/create',
         contractors: '/contractors',
-        drivers: '/drivers',
+        'fleet-vehicles': '/fleet/vehicles',
+        'fleet-containers': '/fleet/containers',
+        'fleet-drivers': '/drivers',
         documents: '/documents',
         finance: '/finance',
         'finance-cashflow': '/finance?section=cashflow',
@@ -704,7 +723,7 @@ function handleMenuSelect(key) {
         'salary-settings': '/settings/motivation/salary',
     };
 
-    if (['settings', 'administration', 'configuration', 'motivation', 'finance'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet'].includes(key)) {
         toggleMenuGroup(key);
     }
 

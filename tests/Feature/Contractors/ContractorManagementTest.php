@@ -73,6 +73,7 @@ class ContractorManagementTest extends TestCase
             $table->string('bik', 9)->nullable();
             $table->string('account_number', 20)->nullable();
             $table->string('correspondent_account', 20)->nullable();
+            $table->json('bank_accounts')->nullable();
             $table->json('ati_profiles')->nullable();
             $table->string('ati_id')->nullable();
             $table->json('transport_requirements')->nullable();
@@ -94,6 +95,7 @@ class ContractorManagementTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
+            $table->boolean('is_non_resident')->default(false);
             $table->unsignedBigInteger('owner_id')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
@@ -245,6 +247,30 @@ class ContractorManagementTest extends TestCase
             'is_active' => true,
             'is_verified' => true,
             'is_own_company' => true,
+            'is_non_resident' => true,
+            'bank_accounts' => [
+                [
+                    'label' => 'Основной RUB',
+                    'country_code' => 'RU',
+                    'currency' => 'RUB',
+                    'bank_name' => 'ПАО Сбербанк',
+                    'bik' => '044525225',
+                    'account_number' => '40702810900000000001',
+                    'correspondent_account' => '30101810400000000225',
+                    'swift' => 'SABRRUMM',
+                    'is_primary' => true,
+                ],
+                [
+                    'label' => 'Нерезидент USD',
+                    'country_code' => 'KZ',
+                    'currency' => 'USD',
+                    'bank_name' => 'Halyk Bank',
+                    'account_number' => '12345678901234567890',
+                    'swift' => 'HSBKKZKX',
+                    'iban' => 'KZ86125KZT5004100100',
+                    'is_primary' => false,
+                ],
+            ],
             'debt_limit' => 250000,
             'debt_limit_currency' => 'RUB',
             'stop_on_limit' => true,
@@ -295,11 +321,16 @@ class ContractorManagementTest extends TestCase
             'name' => 'ООО Логистика Плюс',
             'created_by' => $admin->id,
             'is_own_company' => true,
+            'is_non_resident' => true,
             'debt_limit' => '250000.00',
             'stop_on_limit' => true,
             'default_customer_payment_form' => 'vat',
             'short_description' => 'Международная логистика и проектные перевозки.',
         ]);
+        $storedBankAccounts = json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('bank_accounts'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertCount(2, $storedBankAccounts);
+        $this->assertSame('ПАО Сбербанк', $storedBankAccounts[0]['bank_name']);
+        $this->assertTrue((bool) ($storedBankAccounts[0]['is_primary'] ?? false));
         $this->assertSame(
             ['Экспедирование', 'Международные перевозки'],
             json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('activity_types'), true, 512, JSON_THROW_ON_ERROR)
@@ -584,6 +615,36 @@ class ContractorManagementTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('suggestions.0.value', 'ООО Логистика Плюс');
+    }
+
+    public function test_bank_suggestions_proxy_returns_dadata_payload(): void
+    {
+        $admin = $this->createAdminUser();
+
+        Config::set('services.dadata.token', 'test-token');
+        Config::set('services.dadata.secret', 'test-secret');
+
+        Http::fake([
+            'https://suggestions.dadata.ru/*' => Http::response([
+                'suggestions' => [
+                    [
+                        'value' => 'ПАО Сбербанк',
+                        'data' => [
+                            'bic' => '044525225',
+                            'correspondent_account' => '30101810400000000225',
+                            'swift' => 'SABRRUMM',
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($admin)->getJson(route('contractors.suggest-bank', [
+            'bik' => '044525225',
+        ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('suggestions.0.value', 'ПАО Сбербанк');
     }
 
     public function test_admin_can_open_contractors_page_without_nested_tables(): void

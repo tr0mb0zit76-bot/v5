@@ -264,6 +264,13 @@ const defaultVisibleFields = [
   'created_at',
 ];
 
+/** Плавающая строка фильтра отключена (меньше DOM), как в реестрах заказов/контрагентов. */
+const LEADS_NO_FLOATING_FILTER = new Set([
+  'title',
+  'planned_shipping_date',
+  'target_price',
+]);
+
 const agGrid = ref(null);
 const gridApi = ref(null);
 const showColumnModal = ref(false);
@@ -286,6 +293,7 @@ let removeCenterViewportListener = null;
 
 const gridOptions = {
   theme: 'legacy',
+  getRowId: (params) => String(params.data?.id ?? ''),
 };
 
 const storageKey = computed(() => `leads_grid_state_v1_${props.userId}`);
@@ -304,7 +312,7 @@ const defaultColDef = {
   sortable: true,
   filter: true,
   resizable: true,
-  floatingFilter: true,
+  floatingFilter: false,
   minWidth: 80,
   suppressSizeToFit: true,
 };
@@ -388,8 +396,15 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
+      floatingFilter: !LEADS_NO_FLOATING_FILTER.has(column.field),
       valueFormatter: (params) => formatValue(params.value, column.type, column.field, params.data),
     };
+
+    if (column.type === 'numeric') {
+      columnDefinition.filter = 'agNumberColumnFilter';
+    } else if (column.type === 'date') {
+      columnDefinition.filter = 'agDateColumnFilter';
+    }
 
     if (column.field === 'number') {
       columnDefinition.pinned = 'left';
@@ -754,12 +769,15 @@ watch(quickSearch, (value) => {
   }));
 });
 
-watch(() => props.rows, async () => {
-  await nextTick();
-  updateGridViewportHeight();
-  attachCenterViewportListener();
-  syncBottomScrollbar();
-}, { deep: true });
+watch(
+  () => props.rows,
+  async () => {
+    await nextTick();
+    updateGridViewportHeight();
+    attachCenterViewportListener();
+    syncBottomScrollbar();
+  },
+);
 
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 

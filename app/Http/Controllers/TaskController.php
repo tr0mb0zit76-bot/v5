@@ -38,14 +38,22 @@ class TaskController extends Controller
     {
         abort_unless($this->canAccessTasks($request), 403);
 
-        return Inertia::render('Tasks/Index', [
-            'tasks' => $this->taskRows($request),
-            'statusOptions' => TaskStatus::options(),
-            'quickFilters' => $this->quickFilters($request),
-            'users' => $this->activeUsers(),
-            'leadOptions' => $this->leadOptions($request),
-            'attachmentBaseUrl' => route('tasks.index'),
-        ]);
+        return Inertia::render('Tasks/Index', $this->tasksPageSharedData($request));
+    }
+
+    public function show(Request $request, Task $task): Response
+    {
+        abort_unless($this->canAccessTasks($request), 403);
+
+        $taskModel = Task::query()
+            ->with($this->taskEagerLoads())
+            ->findOrFail($task->id);
+
+        abort_unless($this->canAccessTaskRow($request, $taskModel), 403);
+
+        return Inertia::render('Tasks/Index', array_merge($this->tasksPageSharedData($request), [
+            'selectedTask' => $this->formatTaskRow($taskModel),
+        ]));
     }
 
     public function kanban(Request $request): Response
@@ -288,6 +296,106 @@ class TaskController extends Controller
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function tasksPageSharedData(Request $request): array
+    {
+        return [
+            'tasks' => $this->taskRows($request),
+            'selectedTask' => null,
+            'statusOptions' => TaskStatus::options(),
+            'quickFilters' => $this->quickFilters($request),
+            'users' => $this->activeUsers(),
+            'leadOptions' => $this->leadOptions($request),
+            'attachmentBaseUrl' => route('tasks.index'),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function taskEagerLoads(): array
+    {
+        $loads = [
+            'responsible:id,name',
+            'lead:id,number,title',
+        ];
+
+        if (Schema::hasTable('task_checklist_items')) {
+            $loads[] = 'checklistItems:id,task_id,title,is_done,completed_at';
+        }
+
+        if (Schema::hasTable('task_comments')) {
+            array_push($loads, 'comments:id,task_id,user_id,body,created_at', 'comments.user:id,name');
+        }
+
+        if (Schema::hasTable('task_attachments')) {
+            array_push($loads, 'attachments:id,task_id,user_id,disk,path,original_name,mime_type,size_bytes,created_at', 'attachments.user:id,name');
+        }
+
+        if (Schema::hasTable('task_events')) {
+            array_push($loads, 'events:id,task_id,user_id,type,title,description,created_at', 'events.user:id,name');
+        }
+
+        return $loads;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatTaskRow(Task $task): array
+    {
+        return [
+            'id' => $task->id,
+            'number' => $task->number,
+            'title' => $task->title,
+            'description' => $task->description,
+            'status' => $task->status,
+            'status_label' => TaskStatus::label($task->status),
+            'priority' => $task->priority,
+            'due_at' => optional($task->due_at)?->format('Y-m-d\TH:i'),
+            'completed_at' => optional($task->completed_at)?->toIso8601String(),
+            'responsible_id' => $task->responsible_id,
+            'responsible_name' => $task->responsible?->name,
+            'lead_id' => $task->lead_id,
+            'lead_number' => $task->lead?->number,
+            'lead_title' => $task->lead?->title,
+            'order_id' => $task->order_id,
+            'contractor_id' => $task->contractor_id,
+            'checklist_items' => $task->relationLoaded('checklistItems') ? $task->checklistItems->map(fn ($item): array => [
+                'id' => $item->id,
+                'title' => $item->title,
+                'is_done' => (bool) $item->is_done,
+                'completed_at' => optional($item->completed_at)?->toIso8601String(),
+            ])->values()->all() : [],
+            'comments' => $task->relationLoaded('comments') ? $task->comments->map(fn ($comment): array => [
+                'id' => $comment->id,
+                'body' => $comment->body,
+                'author_name' => $comment->user?->name,
+                'created_at' => optional($comment->created_at)?->toIso8601String(),
+            ])->values()->all() : [],
+            'attachments' => $task->relationLoaded('attachments') ? $task->attachments->map(fn ($attachment): array => [
+                'id' => $attachment->id,
+                'original_name' => $attachment->original_name,
+                'mime_type' => $attachment->mime_type,
+                'size_bytes' => $attachment->size_bytes,
+                'author_name' => $attachment->user?->name,
+                'created_at' => optional($attachment->created_at)?->toIso8601String(),
+                'download_url' => route('tasks.attachments.download', [$task, $attachment]),
+                'delete_url' => route('tasks.attachments.destroy', [$task, $attachment]),
+            ])->values()->all() : [],
+            'events' => $task->relationLoaded('events') ? $task->events->map(fn ($event): array => [
+                'id' => $event->id,
+                'type' => $event->type,
+                'title' => $event->title,
+                'description' => $event->description,
+                'author_name' => $event->user?->name,
+                'created_at' => optional($event->created_at)?->toIso8601String(),
+            ])->values()->all() : [],
+        ];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function taskRows(Request $request): array
@@ -300,10 +408,7 @@ class TaskController extends Controller
         $scope = RoleAccess::resolveVisibilityScope($user?->role?->name, $user?->role?->visibility_scopes, 'tasks');
 
         $taskQuery = Task::query()
-            ->with([
-                'responsible:id,name',
-                'lead:id,number,title',
-            ])
+            ->with($this->taskEagerLoads())
             ->when(
                 $user !== null && ! $user->isAdmin() && $scope !== 'all',
                 fn ($query) => $query->where('responsible_id', $user->id)
@@ -312,72 +417,9 @@ class TaskController extends Controller
             ->orderBy('due_at')
             ->orderByDesc('id');
 
-        if (Schema::hasTable('task_checklist_items')) {
-            $taskQuery->with('checklistItems:id,task_id,title,is_done,completed_at');
-        }
-
-        if (Schema::hasTable('task_comments')) {
-            $taskQuery->with(['comments:id,task_id,user_id,body,created_at', 'comments.user:id,name']);
-        }
-
-        if (Schema::hasTable('task_attachments')) {
-            $taskQuery->with(['attachments:id,task_id,user_id,disk,path,original_name,mime_type,size_bytes,created_at', 'attachments.user:id,name']);
-        }
-
-        if (Schema::hasTable('task_events')) {
-            $taskQuery->with(['events:id,task_id,user_id,type,title,description,created_at', 'events.user:id,name']);
-        }
-
         return $taskQuery
             ->get()
-            ->map(fn (Task $task): array => [
-                'id' => $task->id,
-                'number' => $task->number,
-                'title' => $task->title,
-                'description' => $task->description,
-                'status' => $task->status,
-                'status_label' => TaskStatus::label($task->status),
-                'priority' => $task->priority,
-                'due_at' => optional($task->due_at)?->format('Y-m-d\TH:i'),
-                'completed_at' => optional($task->completed_at)?->toIso8601String(),
-                'responsible_id' => $task->responsible_id,
-                'responsible_name' => $task->responsible?->name,
-                'lead_id' => $task->lead_id,
-                'lead_number' => $task->lead?->number,
-                'lead_title' => $task->lead?->title,
-                'order_id' => $task->order_id,
-                'contractor_id' => $task->contractor_id,
-                'checklist_items' => $task->relationLoaded('checklistItems') ? $task->checklistItems->map(fn ($item): array => [
-                    'id' => $item->id,
-                    'title' => $item->title,
-                    'is_done' => (bool) $item->is_done,
-                    'completed_at' => optional($item->completed_at)?->toIso8601String(),
-                ])->values()->all() : [],
-                'comments' => $task->relationLoaded('comments') ? $task->comments->map(fn ($comment): array => [
-                    'id' => $comment->id,
-                    'body' => $comment->body,
-                    'author_name' => $comment->user?->name,
-                    'created_at' => optional($comment->created_at)?->toIso8601String(),
-                ])->values()->all() : [],
-                'attachments' => $task->relationLoaded('attachments') ? $task->attachments->map(fn ($attachment): array => [
-                    'id' => $attachment->id,
-                    'original_name' => $attachment->original_name,
-                    'mime_type' => $attachment->mime_type,
-                    'size_bytes' => $attachment->size_bytes,
-                    'author_name' => $attachment->user?->name,
-                    'created_at' => optional($attachment->created_at)?->toIso8601String(),
-                    'download_url' => route('tasks.attachments.download', [$task, $attachment]),
-                    'delete_url' => route('tasks.attachments.destroy', [$task, $attachment]),
-                ])->values()->all() : [],
-                'events' => $task->relationLoaded('events') ? $task->events->map(fn ($event): array => [
-                    'id' => $event->id,
-                    'type' => $event->type,
-                    'title' => $event->title,
-                    'description' => $event->description,
-                    'author_name' => $event->user?->name,
-                    'created_at' => optional($event->created_at)?->toIso8601String(),
-                ])->values()->all() : [],
-            ])
+            ->map(fn (Task $task): array => $this->formatTaskRow($task))
             ->values()
             ->all();
     }

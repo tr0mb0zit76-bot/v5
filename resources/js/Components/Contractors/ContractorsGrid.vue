@@ -1,5 +1,5 @@
 <template>
-  <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
+  <div ref="gridSection" class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
     <div class="flex shrink-0 items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <div class="relative">
@@ -64,8 +64,8 @@
       </button>
     </div>
 
-    <div ref="gridPanel" class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
+    <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
@@ -243,6 +243,14 @@ const defaultVisibleFields = [
   'current_debt',
 ];
 
+/** Без плавающей строки фильтра (как в реестре заказов — меньше DOM). */
+const CONTRACTORS_NO_FLOATING_FILTER = new Set([
+  'primary_contact',
+  'phone',
+  'email',
+  'orders_count',
+]);
+
 const agGrid = ref(null);
 const gridApi = ref(null);
 const showColumnModal = ref(false);
@@ -262,9 +270,12 @@ let isSyncingHorizontalScroll = false;
 let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
+/** Снять подписки AG Grid на пересчёт нижнего скролла (gridSizeChanged и т.д.) */
+let removeGridScrollbarSyncListeners = null;
 
 const gridOptions = {
   theme: 'legacy',
+  getRowId: (params) => String(params.data?.id ?? ''),
 };
 
 const storageKey = computed(() => `contractors_grid_state_v1_${props.userId}`);
@@ -282,7 +293,7 @@ const defaultColDef = {
   sortable: true,
   filter: true,
   resizable: true,
-  floatingFilter: true,
+  floatingFilter: false,
   minWidth: 90,
   suppressSizeToFit: true,
 };
@@ -366,6 +377,7 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
+      floatingFilter: !CONTRACTORS_NO_FLOATING_FILTER.has(column.field),
       valueFormatter: (params) => formatValue(params.value, column.type),
     };
 
@@ -374,6 +386,10 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.lockPinned = true;
       columnDefinition.cellClass = 'orders-grid-order-number-cell';
       columnDefinition.headerClass = 'orders-grid-order-number-header';
+    }
+
+    if (column.type === 'numeric') {
+      columnDefinition.filter = 'agNumberColumnFilter';
     }
 
     return columnDefinition;
@@ -402,6 +418,9 @@ const saveColumnState = () => {
     localStorage.setItem(storageKey.value, JSON.stringify(columnState));
     syncModalColumnsWithGrid();
     syncBottomScrollbar();
+    requestAnimationFrame(() => {
+      syncBottomScrollbar();
+    });
   }, 250);
 };
 
@@ -684,8 +703,29 @@ const onFilterChanged = () => {
   persistFilterModel();
 };
 
+const registerGridScrollbarWidthSync = (api) => {
+  removeGridScrollbarSyncListeners?.();
+
+  const scheduleSync = () => {
+    nextTick(() => {
+      syncBottomScrollbar();
+    });
+  };
+
+  api.addEventListener('gridSizeChanged', scheduleSync);
+  api.addEventListener('displayedColumnsChanged', scheduleSync);
+
+  removeGridScrollbarSyncListeners = () => {
+    api.removeEventListener('gridSizeChanged', scheduleSync);
+    api.removeEventListener('displayedColumnsChanged', scheduleSync);
+    removeGridScrollbarSyncListeners = null;
+  };
+};
+
 const onGridReady = async (params) => {
   gridApi.value = params.api;
+
+  registerGridScrollbarWidthSync(params.api);
 
   if (quickSearch.value.trim() !== '') {
     gridApi.value.setGridOption('quickFilterText', quickSearch.value);
@@ -701,6 +741,9 @@ const onGridReady = async (params) => {
   updateGridViewportHeight();
   attachCenterViewportListener();
   syncBottomScrollbar();
+  requestAnimationFrame(() => {
+    syncBottomScrollbar();
+  });
 };
 
 const onFirstDataRendered = () => {
@@ -708,6 +751,9 @@ const onFirstDataRendered = () => {
     updateGridViewportHeight();
     attachCenterViewportListener();
     syncBottomScrollbar();
+    requestAnimationFrame(() => {
+      syncBottomScrollbar();
+    });
   });
 };
 
@@ -719,12 +765,15 @@ watch(quickSearch, (value) => {
   gridApi.value.setGridOption('quickFilterText', value);
 });
 
-watch(() => props.rows, async () => {
-  await nextTick();
-  updateGridViewportHeight();
-  attachCenterViewportListener();
-  syncBottomScrollbar();
-}, { deep: true });
+watch(
+  () => props.rows,
+  async () => {
+    await nextTick();
+    updateGridViewportHeight();
+    attachCenterViewportListener();
+    syncBottomScrollbar();
+  },
+);
 
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 
@@ -835,6 +884,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateGridViewportHeight);
   window.removeEventListener('resize', syncBottomScrollbar);
   removeCenterViewportListener?.();
+  removeGridScrollbarSyncListeners?.();
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);

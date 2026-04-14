@@ -34,6 +34,19 @@ class DaDataService
         ]);
     }
 
+    public function suggestBank(string $bik): array
+    {
+        $normalizedBik = preg_replace('/\D/u', '', $bik) ?? '';
+        if (strlen($normalizedBik) !== 9 || ! $this->isConfigured()) {
+            return [];
+        }
+
+        return $this->request('/findById/bank', [
+            'query' => $normalizedBik,
+            'count' => 1,
+        ]);
+    }
+
     /**
      * @param  array<string, mixed>  $response
      * @return array<string, mixed>

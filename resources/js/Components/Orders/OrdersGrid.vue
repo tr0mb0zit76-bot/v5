@@ -75,7 +75,6 @@
           style="height: 100%; width: 100%;"
           :stopEditingWhenCellsLoseFocus="true"
           :enableCellTextSelection="true"
-          :ensureDomOrder="true"
           :suppressScrollOnNewData="false"
           :suppressHorizontalScroll="false"
           :domLayout="'normal'"
@@ -294,6 +293,34 @@ const baseVisibleFields = [
   'waybill_number',
 ];
 
+/** В реестре заказов не показываем колонки AI / ATI / metadata. */
+const ORDERS_GRID_EXCLUDED_FIELDS = new Set([
+  'ai_draft_id',
+  'ai_confidence',
+  'ai_metadata',
+  'ati_response',
+  'ati_load_id',
+  'ati_published_at',
+  'metadata',
+]);
+
+/** Плавающая строка фильтров только у «поисковых» полей; у ставок и дальше — выкл. */
+const FLOATING_FILTER_FIELDS = new Set([
+  'id',
+  'order_number',
+  'company_code',
+  'manager_name',
+  'order_date',
+  'loading_point',
+  'unloading_point',
+  'loading_date',
+  'unloading_date',
+  'cargo_description',
+  'customer_name',
+  'carrier_name',
+  'status_text',
+]);
+
 const agGrid = ref(null);
 const gridApi = ref(null);
 const showColumnModal = ref(false);
@@ -316,6 +343,8 @@ let removeCenterViewportListener = null;
 
 const gridOptions = {
   theme: 'legacy',
+  /** Стабильные id строк — быстрее обновление rowData и меньше лишних перерисовок. */
+  getRowId: (params) => String(params.data?.id ?? ''),
 };
 
 const gridContainerStyle = computed(() => ({
@@ -338,7 +367,7 @@ const defaultColDef = {
   filter: true,
   resizable: true,
   editable: false,
-  floatingFilter: true,
+  floatingFilter: false,
   minWidth: 50,
   suppressSizeToFit: true,
   singleClickEdit: true,
@@ -347,13 +376,15 @@ const defaultColDef = {
 const getAllColumns = () => {
   const sourceColumns = props.availableColumns?.length ? props.availableColumns : fallbackColumns;
 
-  return sourceColumns.map((column) => ({
-    field: column.field,
-    headerName: column.headerName ?? column.label ?? column.field,
-    width: column.width ?? 140,
-    minWidth: column.minWidth ?? 80,
-    type: column.type ?? null,
-  }));
+  return sourceColumns
+    .filter((column) => !ORDERS_GRID_EXCLUDED_FIELDS.has(column.field))
+    .map((column) => ({
+      field: column.field,
+      headerName: column.headerName ?? column.label ?? column.field,
+      width: column.width ?? 140,
+      minWidth: column.minWidth ?? 80,
+      type: column.type ?? null,
+    }));
 };
 
 const getAllowedColumns = () => {
@@ -949,6 +980,7 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
+      floatingFilter: FLOATING_FILTER_FIELDS.has(column.field),
       editable: isEditable,
       cellClass: (params) => {
         const classes = [];
@@ -1105,6 +1137,7 @@ const dynamicColumnDefs = computed(() => {
       pinned: 'right',
       sortable: false,
       filter: false,
+      floatingFilter: false,
       resizable: false,
       editable: false,
       suppressSizeToFit: true,
@@ -1482,14 +1515,13 @@ const onFirstDataRendered = () => {
 };
 
 watch(
-  displayData,
+  [() => props.rows, () => props.data],
   async () => {
     await nextTick();
     updateGridViewportHeight();
     attachCenterViewportListener();
     syncBottomScrollbar();
   },
-  { deep: true },
 );
 
 watch(quickSearch, (value) => {
