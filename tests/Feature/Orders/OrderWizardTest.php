@@ -1793,6 +1793,168 @@ class OrderWizardTest extends TestCase
             ->assertJson(['deal_type' => 'indirect']);
     }
 
+    public function test_edit_page_uses_financial_terms_costs_when_wizard_state_contractors_costs_empty(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier WS',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WS-EMPTY-CC',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'customer_rate' => 100000,
+            'carrier_rate' => 45000,
+            'performers' => json_encode([
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ], JSON_THROW_ON_ERROR),
+            'wizard_state' => json_encode([
+                'version' => 1,
+                'financial_term' => [
+                    'client_price' => 100000,
+                    'contractors_costs' => [],
+                    'client_currency' => 'RUB',
+                ],
+                'performers' => [],
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 100000,
+            'client_currency' => 'RUB',
+            'client_payment_terms' => null,
+            'contractors_costs' => json_encode([
+                [
+                    'stage' => 'leg_1',
+                    'contractor_id' => $carrierId,
+                    'amount' => 45000,
+                    'currency' => 'RUB',
+                    'payment_form' => 'no_vat',
+                    'payment_schedule' => [],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'total_cost' => 45000,
+            'margin' => 0,
+            'additional_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierId)
+            ->where('order.financial_term.contractors_costs.0.amount', 45000)
+        );
+    }
+
+    public function test_edit_page_includes_payment_settlement_payload(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Carrier',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-PS',
+            'manager_id' => $admin->id,
+            'customer_id' => $clientId,
+            'carrier_id' => $carrierId,
+            'customer_rate' => 100000,
+            'customer_payment_form' => 'vat',
+            'carrier_rate' => 50000,
+            'carrier_payment_form' => 'no_vat',
+            'status' => 'new',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 100000,
+            'planned_date' => '2026-04-01',
+            'actual_date' => '2026-04-05',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'counterparty_id' => $carrierId,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 50000,
+            'planned_date' => '2026-04-10',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('order.payment_settlement.customer.has_rows', true)
+            ->where('order.payment_settlement.customer.complete', true)
+            ->where('order.payment_settlement.customer.settled_at', '2026-04-05')
+            ->where('order.payment_settlement.carrier.has_rows', true)
+            ->where('order.payment_settlement.carrier.complete', false)
+            ->where('order.payment_settlement.carrier.settled_at', null)
+        );
+    }
+
     private function makeDocxPath(array $entries): string
     {
         $directory = storage_path('framework/testing/disks/local');

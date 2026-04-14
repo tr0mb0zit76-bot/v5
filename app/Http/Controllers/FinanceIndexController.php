@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Finance\FinanceOverviewService;
+use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,8 @@ class FinanceIndexController extends Controller
             'dds', 'cashflow' => 'cashflow',
             default => 'overview',
         };
+
+        PaymentScheduleAutomaticStatus::refreshForOrdersScope($user?->id, $role['name'], $ordersScope);
 
         $cashFlow = $financeOverview->cashFlowJournal($user?->id, $role['name'], $ordersScope);
         $cashFlowStats = $financeOverview->cashFlowStats($user?->id, $role['name'], $ordersScope);

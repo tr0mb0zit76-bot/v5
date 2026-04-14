@@ -1,5 +1,5 @@
 <template>
-    <div class="flex h-full min-h-0 flex-col border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto border border-zinc-200 bg-white lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900">
         <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
             <div class="flex items-center gap-3">
                 <button

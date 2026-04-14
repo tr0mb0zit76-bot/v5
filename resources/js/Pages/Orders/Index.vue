@@ -1,5 +1,5 @@
 <template>
-    <div class="flex h-full min-h-0 flex-col gap-2">
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
         <div v-if="isMobileStandalone" class="space-y-4 pb-24">
             <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
                 <div class="flex items-start justify-between gap-4">

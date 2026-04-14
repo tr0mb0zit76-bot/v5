@@ -3,6 +3,7 @@
 namespace Tests\Feature\Finance;
 
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -404,6 +405,137 @@ class FinanceIndexTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->where('cashFlowJournal.0.counterparty_name', 'Второй по строке графика ТК')
         );
+    }
+
+    public function test_cash_flow_journal_excludes_paid_payment_schedules(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $manager->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'ORD-PAID',
+            'order_date' => '2026-04-05',
+            'customer_rate' => 120000,
+            'carrier_rate' => 80000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'planned_date' => '2026-04-20',
+            'actual_date' => '2026-04-18',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('cashFlowJournal', 0)
+            ->where('summary.cash_flow_total', 0)
+        );
+    }
+
+    public function test_cash_flow_journal_marks_overdue_after_planned_date_passes(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $manager->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'ORD-OVD',
+            'order_date' => '2026-04-05',
+            'customer_rate' => 120000,
+            'carrier_rate' => 80000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'planned_date' => '2026-04-20',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Carbon::setTestNow('2026-04-21 12:00:00');
+
+        try {
+            $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']));
+
+            $response->assertOk();
+            $response->assertInertia(fn (Assert $page) => $page
+                ->has('cashFlowJournal', 1)
+                ->where('cashFlowJournal.0.status', 'overdue')
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_legacy_documents_section_redirects_to_finance_overview(): void

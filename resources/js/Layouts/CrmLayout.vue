@@ -74,7 +74,7 @@
                 </div>
             </header>
 
-            <main class="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 py-4 pb-28 dark:bg-zinc-950" scroll-region>
+            <main class="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 pt-1.5 pb-28 dark:bg-zinc-950" scroll-region>
                 <slot />
             </main>
 
@@ -276,7 +276,9 @@
                 <ThemeToggle />
             </header>
 
-            <main class="min-h-0 flex-1 overflow-y-auto p-3 pb-[120px] md:p-4 md:pb-[140px]">
+            <main
+                class="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-[110px] md:px-4 md:pt-1.5 md:pb-[130px] lg:flex lg:flex-col lg:overflow-hidden"
+            >
                 <slot />
             </main>
 

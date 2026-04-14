@@ -1,5 +1,5 @@
 <template>
-    <div class="space-y-6">
+    <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
         <div v-if="isMobileStandalone" class="space-y-5">
             <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
                 <div class="text-xs uppercase tracking-[0.22em] text-white/60 dark:text-zinc-500">Мобильное приложение</div>

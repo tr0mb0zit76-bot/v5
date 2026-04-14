@@ -1,6 +1,6 @@
 <template>
-  <div ref="gridSection" class="space-y-2">
-    <div class="flex items-center justify-between gap-2">
+  <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
+    <div class="flex shrink-0 items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -63,7 +63,7 @@
       </div>
     </div>
 
-    <div class="overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div ref="gridPanel" class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
@@ -92,6 +92,7 @@
           @column-moved="saveColumnState"
           @column-pinned="saveColumnState"
           @sort-changed="saveColumnState"
+          @filter-changed="onFilterChanged"
         />
       </div>
 
@@ -296,18 +297,21 @@ const baseVisibleFields = [
 const agGrid = ref(null);
 const gridApi = ref(null);
 const showColumnModal = ref(false);
+const columnModalFilterSnapshot = ref(null);
 const showDensityMenu = ref(false);
 const modalColumns = ref([]);
 const draggedColumnField = ref(null);
 const quickSearch = ref('');
 const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
+const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 const bottomScrollbarWidth = ref(0);
-const gridViewportHeight = ref(440);
+const gridViewportHeight = ref(280);
 
 let isSyncingHorizontalScroll = false;
 let saveTimeout = null;
+let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
 const gridOptions = {
@@ -323,6 +327,7 @@ const gridContainerStyle = computed(() => ({
 const storageKey = computed(() => `orders_grid_state_v4_${props.userId}`);
 const densityStorageKey = computed(() => `orders_grid_density_${props.userId}`);
 const quickSearchStorageKey = computed(() => `orders_grid_quick_search_v1_${props.userId}`);
+const filterModelStorageKey = computed(() => `orders_grid_filter_model_v1_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 
@@ -1150,20 +1155,20 @@ const onCellValueChanged = (params) => {
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 
 const updateGridViewportHeight = () => {
-  const sectionElement = gridSection.value;
+  const panelElement = gridPanel.value;
 
-  if (!sectionElement) {
+  if (!panelElement) {
     return;
   }
 
-  const sectionTop = sectionElement.getBoundingClientRect().top;
+  const sectionTop = panelElement.getBoundingClientRect().top;
   const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
   const commandBarFooter = document.querySelector('footer');
   const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
   const footerReserve = 60;
 
   gridViewportHeight.value = Math.max(
-    440,
+    280,
     Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
   );
 };
@@ -1264,16 +1269,40 @@ const syncModalColumnsWithGrid = () => {
     .filter(Boolean);
 };
 
+function cloneAgFilterModel(model) {
+  try {
+    return model ? JSON.parse(JSON.stringify(model)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreColumnModalFilters() {
+  if (!gridApi.value || columnModalFilterSnapshot.value === null) {
+    return;
+  }
+
+  gridApi.value.setFilterModel(columnModalFilterSnapshot.value);
+}
+
 const openColumnModal = () => {
   showDensityMenu.value = false;
+  columnModalFilterSnapshot.value = gridApi.value ? cloneAgFilterModel(gridApi.value.getFilterModel()) : null;
   syncModalColumnsWithGrid();
   showColumnModal.value = true;
+  nextTick(() => {
+    restoreColumnModalFilters();
+  });
 };
 
 const closeColumnModal = () => {
   showColumnModal.value = false;
   draggedColumnField.value = null;
   syncModalColumnsWithGrid();
+  nextTick(() => {
+    restoreColumnModalFilters();
+    columnModalFilterSnapshot.value = null;
+  });
 };
 
 const toggleColumnVisibility = (field) => {
@@ -1332,8 +1361,12 @@ const stageRoleDefaults = () => {
 const applyColumnModalChanges = () => {
   if (!gridApi.value) {
     showColumnModal.value = false;
+    columnModalFilterSnapshot.value = null;
+
     return;
   }
+
+  const snapshot = columnModalFilterSnapshot.value;
 
   gridApi.value.applyColumnState({
     state: modalColumns.value.map((column) => ({
@@ -1347,6 +1380,13 @@ const applyColumnModalChanges = () => {
   saveColumnState();
   emit('columns-changed', modalColumns.value);
   showColumnModal.value = false;
+  columnModalFilterSnapshot.value = null;
+
+  nextTick(() => {
+    if (snapshot !== null && gridApi.value) {
+      gridApi.value.setFilterModel(snapshot);
+    }
+  });
 };
 
 const exportData = () => {
@@ -1370,6 +1410,49 @@ const refreshGrid = () => {
   });
 };
 
+const persistFilterModel = () => {
+  if (!gridApi.value) {
+    return;
+  }
+
+  if (filterModelSaveTimeout) {
+    clearTimeout(filterModelSaveTimeout);
+  }
+
+  filterModelSaveTimeout = setTimeout(() => {
+    try {
+      const model = gridApi.value.getFilterModel();
+      localStorage.setItem(filterModelStorageKey.value, JSON.stringify(model ?? {}));
+    } catch (error) {
+      console.error('Error saving orders grid filter model', error);
+    }
+  }, 250);
+};
+
+const loadPersistedFilterModel = () => {
+  if (!gridApi.value) {
+    return;
+  }
+
+  const raw = localStorage.getItem(filterModelStorageKey.value);
+  if (!raw) {
+    return;
+  }
+
+  try {
+    const model = JSON.parse(raw);
+    if (model && typeof model === 'object') {
+      gridApi.value.setFilterModel(model);
+    }
+  } catch (error) {
+    console.error('Error loading orders grid filter model', error);
+  }
+};
+
+const onFilterChanged = () => {
+  persistFilterModel();
+};
+
 const onGridReady = async (params) => {
   gridApi.value = params.api;
 
@@ -1380,6 +1463,8 @@ const onGridReady = async (params) => {
   if (!loadColumnState()) {
     resetToRoleDefaults();
   }
+
+  loadPersistedFilterModel();
 
   await nextTick();
   updateGridViewportHeight();
@@ -1431,6 +1516,10 @@ onUnmounted(() => {
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);
+  }
+
+  if (filterModelSaveTimeout) {
+    clearTimeout(filterModelSaveTimeout);
   }
 });
 

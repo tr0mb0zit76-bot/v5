@@ -1,5 +1,5 @@
 ﻿<template>
-    <div class="flex h-full min-h-0 flex-col gap-3">
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <div
             v-if="isMobileStandalone"
             class="space-y-3 rounded-[28px] border border-zinc-200 bg-white px-4 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
@@ -233,6 +233,23 @@
                             <div>Дельта: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
                             <div>Маржинальность: <span class="font-medium">{{ financialMarginPercent.toFixed(2) }}%</span></div>
                             <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
+                        </div>
+                        <div
+                            v-if="showPaymentSettlementBlock"
+                            class="mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-700"
+                        >
+                            <div class="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Расчёты по графику оплат</div>
+                            <p class="text-xs text-zinc-500">Оплаченные строки не показываются в журнале «Финансы → График оплат»; здесь — итог по клиенту и перевозчикам.</p>
+                            <div class="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200">
+                                <div>
+                                    Клиент рассчитался с нами:
+                                    <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.customer) }}</span>
+                                </div>
+                                <div>
+                                    Мы рассчитались с перевозчиками:
+                                    <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.carrier) }}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2495,6 +2512,40 @@ const financialMarginPercent = computed(() => {
     return (financialSummary.value.margin / clientPrice) * 100;
 });
 
+const orderPaymentSettlement = computed(() => props.order?.payment_settlement ?? null);
+
+const showPaymentSettlementBlock = computed(() => {
+    const settlement = orderPaymentSettlement.value;
+    if (!settlement) {
+        return false;
+    }
+
+    return Boolean(settlement.customer?.has_rows || settlement.carrier?.has_rows);
+});
+
+function formatRuDate(isoDate) {
+    if (!isoDate) {
+        return '';
+    }
+    const parsed = new Date(`${isoDate}T12:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+        return String(isoDate);
+    }
+
+    return parsed.toLocaleDateString('ru-RU');
+}
+
+function paymentSettlementLineLabel(party) {
+    if (!party?.has_rows) {
+        return '—';
+    }
+    if (party.complete && party.settled_at) {
+        return formatRuDate(party.settled_at);
+    }
+
+    return 'не завершено';
+}
+
 const documentChecklist = computed(() => {
     if (props.order?.id && Array.isArray(props.requiredDocumentChecklist) && props.requiredDocumentChecklist.length > 0) {
         return props.requiredDocumentChecklist;
@@ -3070,12 +3121,8 @@ function submit() {
 }
 
 function goBack() {
-    if (window.history.length > 1) {
-        window.history.back();
-        return;
-    }
-
-    router.get(route('orders.index'));
+    // Всегда запрашиваем реестр с сервера: history.back() отдаёт старый снимок Inertia без свежих строк.
+    router.get(route('orders.index'), {}, { preserveScroll: true });
 }
 
 </script>

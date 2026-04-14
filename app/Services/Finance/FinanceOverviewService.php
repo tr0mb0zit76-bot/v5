@@ -20,7 +20,7 @@ class FinanceOverviewService
             return collect();
         }
 
-        $rows = DB::table('payment_schedules')
+        $journalQuery = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
             ->leftJoin('contractors as customers', 'customers.id', '=', 'orders.customer_id')
             ->when(
@@ -39,25 +39,58 @@ class FinanceOverviewService
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('orders.deleted_at')
             )
-            ->select([
-                'payment_schedules.id',
-                'payment_schedules.party',
-                'payment_schedules.type',
-                'payment_schedules.amount',
-                'payment_schedules.planned_date',
-                'payment_schedules.actual_date',
-                'payment_schedules.status',
-                'orders.id as order_id',
-                'orders.order_number',
-                'managers.name as manager_name',
-                DB::raw($this->sqlContractorDisplayName('customers').' as customer_name'),
-                DB::raw($this->sqlContractorDisplayName('carriers').' as carrier_name'),
-                // Поля для частичных платежей
-                DB::raw('COALESCE(payment_schedules.paid_amount, 0) as paid_amount'),
-                DB::raw('COALESCE(payment_schedules.remaining_amount, payment_schedules.amount) as remaining_amount'),
-                DB::raw('COALESCE(payment_schedules.is_partial, 0) as is_partial'),
-                'payment_schedules.parent_payment_id',
-            ])
+            ->whereNotIn('payment_schedules.status', ['paid', 'cancelled'])
+            ->when(
+                Schema::hasColumn('payment_schedules', 'parent_payment_id'),
+                fn ($query) => $query->whereNull('payment_schedules.parent_payment_id'),
+            )
+            ->when(
+                Schema::hasColumn('payment_schedules', 'is_partial'),
+                fn ($query) => $query->where(function ($q): void {
+                    $q->whereNull('payment_schedules.is_partial')
+                        ->orWhere('payment_schedules.is_partial', false);
+                }),
+            );
+
+        $select = [
+            'payment_schedules.id',
+            'payment_schedules.party',
+            'payment_schedules.type',
+            'payment_schedules.amount',
+            'payment_schedules.planned_date',
+            'payment_schedules.actual_date',
+            'payment_schedules.status',
+            'orders.id as order_id',
+            'orders.order_number',
+            'managers.name as manager_name',
+            DB::raw($this->sqlContractorDisplayName('customers').' as customer_name'),
+            DB::raw($this->sqlContractorDisplayName('carriers').' as carrier_name'),
+        ];
+
+        if (Schema::hasColumn('payment_schedules', 'paid_amount')) {
+            $select[] = DB::raw('COALESCE(payment_schedules.paid_amount, 0) as paid_amount');
+        } else {
+            $select[] = DB::raw('0 as paid_amount');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+            $select[] = DB::raw('COALESCE(payment_schedules.remaining_amount, payment_schedules.amount) as remaining_amount');
+        } else {
+            $select[] = DB::raw('payment_schedules.amount as remaining_amount');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $select[] = DB::raw('COALESCE(payment_schedules.is_partial, 0) as is_partial');
+        } else {
+            $select[] = DB::raw('0 as is_partial');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $select[] = 'payment_schedules.parent_payment_id';
+        }
+
+        $rows = $journalQuery
+            ->select($select)
             ->orderByDesc('payment_schedules.planned_date')
             ->orderByDesc('payment_schedules.id')
             ->get();
@@ -83,7 +116,7 @@ class FinanceOverviewService
         $remainingAmount = (float) ($row->remaining_amount ?? 0);
         $isPartial = (bool) ($row->is_partial ?? false);
         $parentPaymentId = $row->parent_payment_id ?? null;
-        
+
         // Рассчитываем прогресс оплаты
         $paymentProgress = 0;
         if ($paidAmount > 0 && $row->amount > 0) {

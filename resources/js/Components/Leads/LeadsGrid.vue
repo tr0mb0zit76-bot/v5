@@ -1,6 +1,6 @@
 <template>
-  <div ref="gridSection" class="space-y-2">
-    <div class="flex items-center justify-between gap-2">
+  <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
+    <div class="flex shrink-0 items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -58,34 +58,17 @@
         </button>
       </div>
 
-      <button type="button" class="toolbar-button" :disabled="!allowCreate" @click="$emit('create')">
-        <Plus class="h-4 w-4" />
-        Добавить
-      </button>
+      <div class="text-xs text-zinc-500 dark:text-zinc-400">
+        Перетаскивай элементы в модалке, чтобы менять порядок колонок
+      </div>
     </div>
 
-    <div class="grid gap-3" :class="props.canFilterResponsible ? 'md:grid-cols-[minmax(0,1fr),180px,180px]' : 'md:grid-cols-[minmax(0,1fr),180px]'">
-      <select v-model="statusFilter" class="field">
-        <option value="">Все статусы</option>
-        <option v-for="option in statusFilterOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
-
-      <select v-if="props.canFilterResponsible" v-model="responsibleFilter" class="field">
-        <option value="">Все ответственные</option>
-        <option v-for="option in responsibleFilterOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
-    </div>
-
-    <div class="min-h-0 flex-1 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+    <div ref="gridPanel" class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
-          :rowData="filteredRows"
+          :rowData="rows"
           :columnDefs="dynamicColumnDefs"
           :defaultColDef="defaultColDef"
           :domLayout="'normal'"
@@ -103,6 +86,7 @@
           @column-moved="saveColumnState"
           @column-pinned="saveColumnState"
           @sort-changed="saveColumnState"
+          @filter-changed="onFilterChanged"
         />
       </div>
 
@@ -206,7 +190,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Plus, RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
+import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -231,10 +215,6 @@ const props = defineProps({
   allowCreate: {
     type: Boolean,
     default: true,
-  },
-  canFilterResponsible: {
-    type: Boolean,
-    default: false,
   },
   userId: {
     type: [String, Number],
@@ -287,20 +267,21 @@ const defaultVisibleFields = [
 const agGrid = ref(null);
 const gridApi = ref(null);
 const showColumnModal = ref(false);
+const columnModalFilterSnapshot = ref(null);
 const showDensityMenu = ref(false);
 const modalColumns = ref([]);
 const draggedColumnField = ref(null);
 const quickSearch = ref('');
-const statusFilter = ref('');
-const responsibleFilter = ref('');
 const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
+const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 const bottomScrollbarWidth = ref(0);
-const gridViewportHeight = ref(440);
+const gridViewportHeight = ref(280);
 
 let isSyncingHorizontalScroll = false;
 let saveTimeout = null;
+let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
 const gridOptions = {
@@ -310,6 +291,7 @@ const gridOptions = {
 const storageKey = computed(() => `leads_grid_state_v1_${props.userId}`);
 const densityStorageKey = computed(() => `leads_grid_density_${props.userId}`);
 const filtersStorageKey = computed(() => `leads_grid_filters_v1_${props.userId}`);
+const filterModelStorageKey = computed(() => `leads_grid_filter_model_v1_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const gridContainerStyle = computed(() => ({
@@ -394,26 +376,6 @@ const buildRoleDefaultState = () => {
     width: column.width,
   }));
 };
-
-const statusFilterOptions = computed(() => {
-  return Object.entries(statusLabels)
-    .filter(([value]) => props.rows.some((row) => row.status === value))
-    .map(([value, label]) => ({ value, label }));
-});
-
-const responsibleFilterOptions = computed(() => {
-  return [...new Set(props.rows.map((row) => row.responsible_name).filter(Boolean))]
-    .map((name) => ({ value: name, label: name }));
-});
-
-const filteredRows = computed(() => {
-  return props.rows.filter((row) => {
-    const matchesStatus = statusFilter.value === '' || row.status === statusFilter.value;
-    const matchesResponsible = responsibleFilter.value === '' || row.responsible_name === responsibleFilter.value;
-
-    return matchesStatus && matchesResponsible;
-  });
-});
 
 const dynamicColumnDefs = computed(() => {
   return getAllowedColumns().map((column) => {
@@ -533,8 +495,6 @@ const loadFilters = () => {
 
     const parsedFilters = JSON.parse(savedFilters);
     quickSearch.value = typeof parsedFilters.quickSearch === 'string' ? parsedFilters.quickSearch : '';
-    statusFilter.value = typeof parsedFilters.statusFilter === 'string' ? parsedFilters.statusFilter : '';
-    responsibleFilter.value = typeof parsedFilters.responsibleFilter === 'string' ? parsedFilters.responsibleFilter : '';
   } catch (error) {
     console.error('Error loading leads grid filters', error);
   }
@@ -586,16 +546,40 @@ const syncModalColumnsWithGrid = () => {
     .filter(Boolean);
 };
 
+function cloneAgFilterModel(model) {
+  try {
+    return model ? JSON.parse(JSON.stringify(model)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreColumnModalFilters() {
+  if (!gridApi.value || columnModalFilterSnapshot.value === null) {
+    return;
+  }
+
+  gridApi.value.setFilterModel(columnModalFilterSnapshot.value);
+}
+
 const openColumnModal = () => {
   showDensityMenu.value = false;
+  columnModalFilterSnapshot.value = gridApi.value ? cloneAgFilterModel(gridApi.value.getFilterModel()) : null;
   syncModalColumnsWithGrid();
   showColumnModal.value = true;
+  nextTick(() => {
+    restoreColumnModalFilters();
+  });
 };
 
 const closeColumnModal = () => {
   showColumnModal.value = false;
   draggedColumnField.value = null;
   syncModalColumnsWithGrid();
+  nextTick(() => {
+    restoreColumnModalFilters();
+    columnModalFilterSnapshot.value = null;
+  });
 };
 
 const toggleColumnVisibility = (field) => {
@@ -656,9 +640,12 @@ const stageRoleDefaults = () => {
 const applyColumnModalChanges = () => {
   if (!gridApi.value) {
     showColumnModal.value = false;
+    columnModalFilterSnapshot.value = null;
 
     return;
   }
+
+  const snapshot = columnModalFilterSnapshot.value;
 
   gridApi.value.applyColumnState({
     state: modalColumns.value.map((column) => ({
@@ -672,6 +659,56 @@ const applyColumnModalChanges = () => {
   saveColumnState();
   emit('columns-changed', modalColumns.value);
   showColumnModal.value = false;
+  columnModalFilterSnapshot.value = null;
+
+  nextTick(() => {
+    if (snapshot !== null && gridApi.value) {
+      gridApi.value.setFilterModel(snapshot);
+    }
+  });
+};
+
+const persistFilterModel = () => {
+  if (!gridApi.value) {
+    return;
+  }
+
+  if (filterModelSaveTimeout) {
+    clearTimeout(filterModelSaveTimeout);
+  }
+
+  filterModelSaveTimeout = setTimeout(() => {
+    try {
+      const model = gridApi.value.getFilterModel();
+      localStorage.setItem(filterModelStorageKey.value, JSON.stringify(model ?? {}));
+    } catch (error) {
+      console.error('Error saving leads grid filter model', error);
+    }
+  }, 250);
+};
+
+const loadPersistedFilterModel = () => {
+  if (!gridApi.value) {
+    return;
+  }
+
+  const raw = localStorage.getItem(filterModelStorageKey.value);
+  if (!raw) {
+    return;
+  }
+
+  try {
+    const model = JSON.parse(raw);
+    if (model && typeof model === 'object') {
+      gridApi.value.setFilterModel(model);
+    }
+  } catch (error) {
+    console.error('Error loading leads grid filter model', error);
+  }
+};
+
+const onFilterChanged = () => {
+  persistFilterModel();
 };
 
 const onGridReady = async (params) => {
@@ -684,6 +721,8 @@ const onGridReady = async (params) => {
   if (!loadColumnState()) {
     resetToRoleDefaults();
   }
+
+  loadPersistedFilterModel();
 
   await nextTick();
   updateGridViewportHeight();
@@ -706,25 +745,16 @@ const onCellDoubleClicked = (event) => {
 };
 
 watch(quickSearch, (value) => {
-  if (!gridApi.value) {
-    return;
+  if (gridApi.value) {
+    gridApi.value.setGridOption('quickFilterText', value);
   }
 
-  gridApi.value.setGridOption('quickFilterText', value);
+  localStorage.setItem(filtersStorageKey.value, JSON.stringify({
+    quickSearch: value,
+  }));
 });
 
-watch(
-  [quickSearch, statusFilter, responsibleFilter],
-  ([quickSearchValue, statusFilterValue, responsibleFilterValue]) => {
-    localStorage.setItem(filtersStorageKey.value, JSON.stringify({
-      quickSearch: quickSearchValue,
-      statusFilter: statusFilterValue,
-      responsibleFilter: responsibleFilterValue,
-    }));
-  },
-);
-
-watch(filteredRows, async () => {
+watch(() => props.rows, async () => {
   await nextTick();
   updateGridViewportHeight();
   attachCenterViewportListener();
@@ -734,20 +764,20 @@ watch(filteredRows, async () => {
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 
 const updateGridViewportHeight = () => {
-  const sectionElement = gridSection.value;
+  const panelElement = gridPanel.value;
 
-  if (!sectionElement) {
+  if (!panelElement) {
     return;
   }
 
-  const sectionTop = sectionElement.getBoundingClientRect().top;
+  const sectionTop = panelElement.getBoundingClientRect().top;
   const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
   const commandBarFooter = document.querySelector('footer');
   const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
   const footerReserve = 60;
 
   gridViewportHeight.value = Math.max(
-    440,
+    280,
     Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
   );
 };
@@ -844,6 +874,10 @@ onUnmounted(() => {
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);
+  }
+
+  if (filterModelSaveTimeout) {
+    clearTimeout(filterModelSaveTimeout);
   }
 });
 

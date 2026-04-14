@@ -74,7 +74,6 @@ const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const availableColumns = computed(() => page.props.contractorColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const search = ref(props.filters.search || '');
-const typeFilter = ref(props.filters.type || '');
 const activeTab = ref('general');
 const isInnLookupPending = ref(false);
 const addressSuggestions = ref({
@@ -549,25 +548,10 @@ watch(() => search.value, (newSearch) => {
     searchTimer = setTimeout(() => {
         router.get(route('contractors.index', {
             search: effectiveIndexSearchQuery(newSearch),
-            type: typeFilter.value,
+            type: '',
             page: 1, // Reset to first page when searching
         }), {}, { preserveScroll: true });
     }, 700); // Длиннее дебаунс — меньше лишних запросов при медленном наборе
-});
-
-// Watch for type filter changes
-let typeFilterTimer = null;
-watch(() => typeFilter.value, (newType) => {
-    clearTimeout(typeFilterTimer);
-    clearTimeout(searchTimer); // Also clear search timer to avoid conflicts
-
-    typeFilterTimer = setTimeout(() => {
-        router.get(route('contractors.index', {
-            search: effectiveIndexSearchQuery(search.value),
-            type: newType,
-            page: 1, // Reset to first page when filtering
-        }), {}, { preserveScroll: true });
-    }, 300); // Debounce 300ms
 });
 
 const isMobileStandalone = computed(() => {
@@ -585,7 +569,7 @@ const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.orde
 function openCreateForm() {
     router.get(route('contractors.create', {
         search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
+        type: '',
     }), {}, { preserveScroll: true });
 }
 
@@ -593,7 +577,7 @@ function openContractor(contractorId) {
     router.get(route('contractors.show', {
         contractor: contractorId,
         search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
+        type: '',
         page: props.pagination.current_page,
     }), {}, { preserveScroll: true });
 }
@@ -601,7 +585,7 @@ function openContractor(contractorId) {
 function closeContractorModal() {
     router.get(route('contractors.index', {
         search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
+        type: '',
         page: props.pagination.current_page,
     }), {}, { preserveScroll: true });
 }
@@ -848,7 +832,7 @@ function goToPage(pageNumber) {
     router.get(route('contractors.index', {
         page: pageNumber,
         search: effectiveIndexSearchQuery(search.value),
-        type: typeFilter.value,
+        type: '',
     }), {}, { preserveScroll: true });
 }
 
@@ -1027,7 +1011,7 @@ function handleMobileNavSelect(key) {
         </nav>
     </div>
 
-    <div v-else class="flex h-full min-h-0 flex-col gap-3 xl:h-[calc(100dvh-9.5rem)] xl:overflow-hidden">
+    <div v-else class="flex min-h-0 flex-1 flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
@@ -1037,17 +1021,16 @@ function handleMobileNavSelect(key) {
             </div>
         </div>
 
-        <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            <div class="min-h-0 flex-1 overflow-hidden">
-                <ContractorsGrid
-                    :rows="contractors"
-                    :available-columns="availableColumns"
-                    :role-columns-config="roleColumnsConfig"
-                    :user-id="userId"
-                    @create="openCreateForm"
-                    @row-select="openContractor"
-                />
-            </div>
+        <div class="min-h-0 flex-1 overflow-hidden">
+            <ContractorsGrid
+                :rows="contractors"
+                :available-columns="availableColumns"
+                :role-columns-config="roleColumnsConfig"
+                :user-id="userId"
+                @create="openCreateForm"
+                @row-select="openContractor"
+            />
+        </div>
 
             <Modal :show="isContractorModalOpen" max-width="6xl" @close="closeContractorModal">
                 <section class="flex max-h-[calc(100dvh-4rem)] min-h-[70dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
@@ -2030,7 +2013,6 @@ function handleMobileNavSelect(key) {
                     </div>
                 </div>
             </section>
-            </Modal>
-        </div>
+        </Modal>
     </div>
 </template>

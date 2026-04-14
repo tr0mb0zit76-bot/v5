@@ -12,6 +12,7 @@ use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Models\PaymentSchedule;
 use App\Models\PrintFormTemplate;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
@@ -23,6 +24,8 @@ use App\Services\OrderWizardStateService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\PaymentScheduleAutomaticStatus;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -421,6 +424,10 @@ class OrderWizardController extends Controller
      */
     private function serializeOrder(Order $order, bool $canManageOrderDocuments, bool $canApproveOrderDocuments): array
     {
+        if (Schema::hasTable('payment_schedules')) {
+            PaymentScheduleAutomaticStatus::refreshForOrder((int) $order->id);
+        }
+
         $financialTerm = Schema::hasTable('financial_terms') ? $order->financialTerms->first() : null;
         $wizardState = $this->resolveWizardState($order);
         $useWizardState = is_array($wizardState) && filled($wizardState['financial_term'] ?? null);
@@ -496,10 +503,20 @@ class OrderWizardController extends Controller
 
         $financialTermForNormalize = $financialTerm;
         if ($useWizardState) {
-            $financialTermForNormalize = new FinancialTerm([
-                'contractors_costs' => $wizardFt['contractors_costs'] ?? [],
-                'client_currency' => $wizardFt['client_currency'] ?? 'RUB',
-            ]);
+            $wizardCosts = $wizardFt['contractors_costs'] ?? [];
+            if (! is_array($wizardCosts)) {
+                $wizardCosts = [];
+            }
+
+            if ($wizardCosts === [] && $financialTerm !== null) {
+                // Пустой снимок в wizard_state не должен затирать детализацию из financial_terms.
+                $financialTermForNormalize = $financialTerm;
+            } else {
+                $financialTermForNormalize = new FinancialTerm([
+                    'contractors_costs' => $wizardCosts,
+                    'client_currency' => $wizardFt['client_currency'] ?? $financialTerm?->client_currency ?? 'RUB',
+                ]);
+            }
         }
 
         $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTermForNormalize, $performers))
@@ -575,6 +592,7 @@ class OrderWizardController extends Controller
                 // Источник истины — пересчёт в orders.kpi_percent; снимок wizard_state отстаёт после inline/grid.
                 'kpi_percent' => $order->kpi_percent ?? ($useWizardState ? ($wizardFt['kpi_percent'] ?? 0) : 0),
             ],
+            'payment_settlement' => $this->buildPaymentSettlementSummary((int) $order->id),
             'documents' => $documents->map(fn (OrderDocument $document): array => $this->serializeOrderDocument(
                 $document,
                 $order,
@@ -1416,6 +1434,141 @@ class OrderWizardController extends Controller
             }
         }
 
+        if (Schema::hasColumn('orders', 'wizard_state')) {
+            $wizardPayload = $order->wizard_state;
+            if (is_array($wizardPayload)) {
+                $wizardCosts = data_get($wizardPayload, 'financial_term.contractors_costs', []);
+                if (is_array($wizardCosts)) {
+                    foreach ($wizardCosts as $cost) {
+                        if (is_array($cost) && ! empty($cost['contractor_id'])) {
+                            $ids[] = (int) $cost['contractor_id'];
+                        }
+                    }
+                }
+                $wizardPerformers = $wizardPayload['performers'] ?? [];
+                if (is_array($wizardPerformers)) {
+                    foreach ($wizardPerformers as $performer) {
+                        if (is_array($performer) && ! empty($performer['contractor_id'])) {
+                            $ids[] = (int) $performer['contractor_id'];
+                        }
+                    }
+                }
+            }
+        }
+
         return array_unique(array_filter($ids));
+    }
+
+    /**
+     * Сводка по фактическим расчётам: клиент (входящие) и перевозчики (исходящие) по строкам графика оплат.
+     *
+     * @return array{
+     *     customer: array{has_rows: bool, complete: bool, settled_at: ?string},
+     *     carrier: array{has_rows: bool, complete: bool, settled_at: ?string}
+     * }
+     */
+    private function buildPaymentSettlementSummary(int $orderId): array
+    {
+        if (! Schema::hasTable('payment_schedules')) {
+            return [
+                'customer' => ['has_rows' => false, 'complete' => false, 'settled_at' => null],
+                'carrier' => ['has_rows' => false, 'complete' => false, 'settled_at' => null],
+            ];
+        }
+
+        return [
+            'customer' => $this->summarizePartyPaymentSettlement($orderId, 'customer'),
+            'carrier' => $this->summarizePartyPaymentSettlement($orderId, 'carrier'),
+        ];
+    }
+
+    /**
+     * @return array{has_rows: bool, complete: bool, settled_at: ?string}
+     */
+    private function summarizePartyPaymentSettlement(int $orderId, string $party): array
+    {
+        $query = PaymentSchedule::query()
+            ->where('order_id', $orderId)
+            ->where('party', $party)
+            ->where('status', '!=', 'cancelled');
+
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $query->whereNull('parent_payment_id');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $query->where(function ($q): void {
+                $q->whereNull('is_partial')->orWhere('is_partial', false);
+            });
+        }
+
+        $roots = $query->get();
+
+        if ($roots->isEmpty()) {
+            return ['has_rows' => false, 'complete' => false, 'settled_at' => null];
+        }
+
+        $allPaid = true;
+        $maxDate = null;
+
+        foreach ($roots as $row) {
+            if (! $this->paymentScheduleRootRowIsFullySettled($row)) {
+                $allPaid = false;
+            }
+
+            $rowLatest = $this->latestPaymentScheduleActualDate($row);
+            if ($rowLatest !== null && ($maxDate === null || $rowLatest->gt($maxDate))) {
+                $maxDate = $rowLatest;
+            }
+        }
+
+        return [
+            'has_rows' => true,
+            'complete' => $allPaid,
+            'settled_at' => $allPaid && $maxDate !== null ? $maxDate->toDateString() : null,
+        ];
+    }
+
+    private function paymentScheduleRootRowIsFullySettled(PaymentSchedule $row): bool
+    {
+        if ($row->status === 'paid') {
+            return true;
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'remaining_amount') && $row->remaining_amount !== null) {
+            return (float) $row->remaining_amount <= 0;
+        }
+
+        return false;
+    }
+
+    private function latestPaymentScheduleActualDate(PaymentSchedule $row): ?Carbon
+    {
+        $dates = collect();
+
+        if ($row->actual_date !== null) {
+            $dates->push(Carbon::parse($row->actual_date));
+        }
+
+        if (! Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            return $dates->max();
+        }
+
+        $partialQuery = PaymentSchedule::query()->where('parent_payment_id', $row->id);
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $partialQuery->where('is_partial', true);
+        }
+
+        foreach ($partialQuery->get(['actual_date']) as $child) {
+            if ($child->actual_date !== null) {
+                $dates->push(Carbon::parse($child->actual_date));
+            }
+        }
+
+        /** @var Carbon|null $max */
+        $max = $dates->max();
+
+        return $max;
     }
 }

@@ -1,7 +1,12 @@
-        <section
-            v-if="activeSubmodule === 'overview'"
-            class="space-y-3 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-        >
+<template>
+    <div
+        class="min-h-0 flex-1"
+        :class="activeSubmodule === 'cashflow' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'"
+    >
+    <section
+        v-if="activeSubmodule === 'overview'"
+        class="space-y-3 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+    >
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Финансы</h1>
@@ -57,8 +62,8 @@
             </div>
         </section>
 
-        <div v-else-if="activeSubmodule === 'cashflow'" class="space-y-6">
-            <div class="flex flex-wrap items-center gap-3">
+        <div v-else-if="activeSubmodule === 'cashflow'" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
+            <div class="flex shrink-0 flex-wrap items-center gap-3">
                 <Link
                     href="/finance"
                     class="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
@@ -68,204 +73,98 @@
                 </Link>
             </div>
 
-            <section class="border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-                    <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">График оплат</h2>
-                    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                        План и факт по строкам графика заказов. Источник данных — расписание платежей в заказе.
-                    </p>
-                </div>
-                <div v-if="cashFlowJournal.length === 0" class="px-5 py-10 text-sm text-zinc-500 dark:text-zinc-400">
-                    График оплат пока не заполнен — задайте платежи в финансовом блоке заказа.
-                </div>
-                <div v-else class="overflow-x-auto">
-                    <div class="max-h-[60vh] overflow-y-auto">
-                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                            <thead class="bg-zinc-50 dark:bg-zinc-950/40">
-                                <tr class="text-left text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                                    <th class="px-3 py-3">Заказ</th>
-                                    <th class="px-3 py-3">Направление</th>
-                                    <th class="px-3 py-3">Контрагент</th>
-                                    <th class="px-3 py-3">Тип</th>
-                                    <th class="px-3 py-3">План</th>
-                                    <th class="px-3 py-3">Факт</th>
-                                    <th class="px-3 py-3">Сумма</th>
-                                    <th class="px-3 py-3">Статус</th>
-                                    <th class="px-3 py-3">Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
-                                <tr v-for="row in cashFlowJournal" :key="`cash-${row.id}`">
-                                    <td class="px-3 py-3 font-medium text-zinc-900 dark:text-zinc-50">
-                                        <Link
-                                            :href="route('orders.edit', row.order_id)"
-                                            class="text-zinc-900 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-900 dark:text-zinc-50 dark:decoration-zinc-600 dark:hover:decoration-zinc-200"
-                                        >
-                                            {{ row.order_number || `#${row.order_id}` }}
-                                        </Link>
-                                    </td>
-                                    <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.direction }}</td>
-                                    <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.counterparty_name || '—' }}</td>
-                                    <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.payment_type }}</td>
-                                    <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.planned_date || '—' }}</td>
-                                    <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ row.actual_date || '—' }}</td>
-                                    <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ formatMoney(row.amount) }}</td>
-                                    <td class="px-3 py-3">
-                                        <span class="px-2.5 py-1 text-xs font-medium" :class="statusClass(row.status)">
-                                            {{ statusLabel(row.status) }}
-                                        </span>
-                                    </td>
-                                    <td class="px-3 py-3">
-                                        <PaymentScheduleActions :payment="row" />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+            <!-- Блоки статистики ПЕРЕД таблицей - ФИНАЛЬНАЯ ОПТИМИЗАЦИЯ -->
+            <div class="grid shrink-0 gap-4 lg:grid-cols-3">
+                <!-- Блок "Ожидаемые движения" с заголовком внутри -->
+                <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                    <div class="border-b border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950/30">
+                        <div class="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                            <BarChart3 class="h-3 w-3 shrink-0" />
+                            Ожидаемые движения
+                        </div>
                     </div>
-                </div>
-            </section>
-
-            <div class="grid gap-4 lg:grid-cols-2">
-                <div class="space-y-4">
-                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Ожидаемые движения</h3>
-                    
-                    <!-- Объединенная компактная таблица для "К нам" и "Мы платим" -->
-                    <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                        <div class="grid grid-cols-2 divide-x divide-zinc-200 dark:divide-zinc-800">
-                            <!-- Колонка "К нам" -->
-                            <div class="p-3">
-                                <div class="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-                                    <TrendingUp class="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-                                    <span class="truncate">К нам</span>
-                                </div>
-                                <div class="grid grid-cols-3 gap-1">
-                                    <div class="text-center">
-                                        <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Сегодня</div>
-                                        <div class="mt-0.5 text-sm font-semibold tabular-nums text-sky-700 dark:text-sky-300">{{ formatMoney(cashFlowStats.periods.today.incoming) }}</div>
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Неделя</div>
-                                        <div class="mt-0.5 text-sm font-semibold tabular-nums text-violet-700 dark:text-violet-300">{{ formatMoney(cashFlowStats.periods.week.incoming) }}</div>
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Месяц</div>
-                                        <div class="mt-0.5 text-sm font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">{{ formatMoney(cashFlowStats.periods.month.incoming) }}</div>
-                                    </div>
-                                </div>
-                            </div>
+                    <div class="p-3">
+                        <!-- Таблица с правильной структурой -->
+                        <div class="grid grid-cols-3 gap-1">
+                            <!-- Заголовки -->
+                            <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Период</div>
+                            <div class="text-[10px] font-medium text-sky-600 dark:text-sky-400 text-center">К нам</div>
+                            <div class="text-[10px] font-medium text-amber-600 dark:text-amber-400 text-center">Мы платим</div>
                             
-                            <!-- Колонка "Мы платим" -->
-                            <div class="p-3">
-                                <div class="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-                                    <TrendingDown class="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                                    <span class="truncate">Мы платим</span>
-                                </div>
-                                <div class="grid grid-cols-3 gap-1">
-                                    <div class="text-center">
-                                        <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Сегодня</div>
-                                        <div class="mt-0.5 text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-300">{{ formatMoney(cashFlowStats.periods.today.outgoing) }}</div>
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Неделя</div>
-                                        <div class="mt-0.5 text-sm font-semibold tabular-nums text-orange-700 dark:text-orange-300">{{ formatMoney(cashFlowStats.periods.week.outgoing) }}</div>
-                                    </div>
-                                    <div class="text-center">
-                                        <div class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Месяц</div>
-                                        <div class="mt-0.5 text-sm font-semibold tabular-nums text-rose-700 dark:text-rose-300">{{ formatMoney(cashFlowStats.periods.month.outgoing) }}</div>
-                                    </div>
-                                </div>
+                            <!-- Строки -->
+                            <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Сегодня</div>
+                            <div class="text-xs font-semibold tabular-nums text-sky-700 dark:text-sky-300 text-center">{{ formatMoney(cashFlowStats.periods.today.incoming) }}</div>
+                            <div class="text-xs font-semibold tabular-nums text-amber-700 dark:text-amber-300 text-center">{{ formatMoney(cashFlowStats.periods.today.outgoing) }}</div>
+                            
+                            <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Неделя</div>
+                            <div class="text-xs font-semibold tabular-nums text-violet-700 dark:text-violet-300 text-center">{{ formatMoney(cashFlowStats.periods.week.incoming) }}</div>
+                            <div class="text-xs font-semibold tabular-nums text-orange-700 dark:text-orange-300 text-center">{{ formatMoney(cashFlowStats.periods.week.outgoing) }}</div>
+                            
+                            <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Месяц</div>
+                            <div class="text-xs font-semibold tabular-nums text-indigo-700 dark:text-indigo-300 text-center">{{ formatMoney(cashFlowStats.periods.month.incoming) }}</div>
+                            <div class="text-xs font-semibold tabular-nums text-rose-700 dark:text-rose-300 text-center">{{ formatMoney(cashFlowStats.periods.month.outgoing) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Блок "Дебиторка" -->
+                <div class="overflow-hidden rounded-lg border border-emerald-200 bg-white dark:border-emerald-800 dark:bg-zinc-900">
+                    <div class="border-b border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/30">
+                        <div class="flex items-center gap-1.5 text-xs font-semibold text-emerald-900 dark:text-emerald-100">
+                            <TrendingUp class="h-3 w-3 shrink-0" />
+                            Дебиторка
+                        </div>
+                    </div>
+                    <div class="p-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Всего</div>
+                                <div class="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.receivables.total) }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-[10px] font-medium text-rose-800 dark:text-rose-200">Просрочено</div>
+                                <div class="text-lg font-bold tabular-nums text-rose-900 dark:text-rose-100">{{ formatMoney(cashFlowStats.receivables.overdue) }}</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="space-y-4">
-                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Задолженности по графику</h3>
-                    <div
-                        class="overflow-hidden rounded-xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 via-white to-white shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-zinc-900 dark:to-zinc-900"
-                    >
-                        <div class="border-b border-emerald-200/60 bg-emerald-600/5 px-3 py-2 dark:border-emerald-900/50">
-                            <div class="flex items-center gap-2 text-xs font-semibold text-emerald-900 dark:text-emerald-100">
-                                <TrendingUp class="h-3.5 w-3.5 shrink-0" />
-                                Дебиторка (должны нам клиенты)
-                            </div>
-                        </div>
-                        <div class="space-y-3 p-3">
-                            <div>
-                                <div class="text-[11px] text-zinc-500 dark:text-zinc-400">Всего неоплачено по графику</div>
-                                <div class="mt-0.5 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.receivables.total) }}</div>
-                            </div>
-                            <div class="grid gap-2 border-t border-emerald-200/50 pt-3 dark:border-emerald-900/40 sm:grid-cols-2">
-                                <div class="flex gap-2 rounded-lg bg-white/80 p-2 dark:bg-zinc-950/50">
-                                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
-                                        <Clock class="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div class="text-[11px] text-zinc-500 dark:text-zinc-400">В срок по плану</div>
-                                        <div class="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{{ formatMoney(cashFlowStats.receivables.pending) }}</div>
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 rounded-lg border border-rose-200 bg-rose-50/80 p-2 dark:border-rose-900/50 dark:bg-rose-950/30">
-                                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
-                                        <AlertTriangle class="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div class="text-[11px] font-medium text-rose-800 dark:text-rose-200">Просрочено — срочно напомнить</div>
-                                        <div class="text-base font-semibold tabular-nums text-rose-900 dark:text-rose-100">{{ formatMoney(cashFlowStats.receivables.overdue) }}</div>
-                                    </div>
-                                </div>
-                            </div>
+                <!-- Блок "Кредиторка" -->
+                <div class="overflow-hidden rounded-lg border border-violet-200 bg-white dark:border-violet-800 dark:bg-zinc-900">
+                    <div class="border-b border-violet-200 bg-violet-50 px-3 py-2 dark:border-violet-800 dark:bg-violet-950/30">
+                        <div class="flex items-center gap-1.5 text-xs font-semibold text-violet-900 dark:text-violet-100">
+                            <TrendingDown class="h-3 w-3 shrink-0" />
+                            Кредиторка
                         </div>
                     </div>
-
-                    <div
-                        class="overflow-hidden rounded-xl border border-violet-200/90 bg-gradient-to-br from-violet-50/90 via-white to-white shadow-sm dark:border-violet-900/40 dark:from-violet-950/30 dark:via-zinc-900 dark:to-zinc-900"
-                    >
-                        <div class="border-b border-violet-200/60 bg-violet-600/5 px-3 py-2 dark:border-violet-900/50">
-                            <div class="flex items-center gap-2 text-xs font-semibold text-violet-900 dark:text-violet-100">
-                                <TrendingDown class="h-3.5 w-3.5 shrink-0" />
-                                Кредиторка (мы должны перевозчикам)
-                            </div>
-                        </div>
-                        <div class="space-y-3 p-3">
+                    <div class="p-3">
+                        <div class="flex items-center justify-between">
                             <div>
-                                <div class="text-[11px] text-zinc-500 dark:text-zinc-400">Всего неоплачено по графику</div>
-                                <div class="mt-0.5 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.payables.total) }}</div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Всего</div>
+                                <div class="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.payables.total) }}</div>
                             </div>
-                            <div class="grid gap-2 border-t border-violet-200/50 pt-3 dark:border-violet-900/40 sm:grid-cols-2">
-                                <div class="flex gap-2 rounded-lg bg-white/80 p-2 dark:bg-zinc-950/50">
-                                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
-                                        <Clock class="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div class="text-[11px] text-zinc-500 dark:text-zinc-400">В срок по плану</div>
-                                        <div class="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{{ formatMoney(cashFlowStats.payables.pending) }}</div>
-                                    </div>
-                                </div>
-                                <div class="flex gap-2 rounded-lg border border-orange-200 bg-orange-50/80 p-2 dark:border-orange-900/50 dark:bg-orange-950/30">
-                                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
-                                        <AlertTriangle class="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div class="text-[11px] font-medium text-orange-800 dark:text-orange-200">Просрочено — срочно закрыть</div>
-                                        <div class="text-base font-semibold tabular-nums text-orange-900 dark:text-orange-100">{{ formatMoney(cashFlowStats.payables.overdue) }}</div>
-                                    </div>
-                                </div>
+                            <div class="text-right">
+                                <div class="text-[10px] font-medium text-orange-800 dark:text-orange-200">Просрочено</div>
+                                <div class="text-lg font-bold tabular-nums text-orange-900 dark:text-orange-100">{{ formatMoney(cashFlowStats.payables.overdue) }}</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <section class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <CashFlowGrid :rows="cashFlowJournal" :user-id="cashFlowGridUserId" />
+            </section>
         </div>
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, ArrowLeft, BarChart3, Clock, TrendingDown, TrendingUp, Wallet } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
+import CashFlowGrid from '@/Components/Finance/CashFlowGrid.vue';
 
 function defaultCashFlowStats() {
     return {
@@ -294,6 +193,9 @@ defineOptions({
         ),
 });
 
+const page = usePage();
+const cashFlowGridUserId = computed(() => page.props.auth?.user?.id ?? 'guest');
+
 const props = defineProps({
     summary: {
         type: Object,
@@ -321,86 +223,71 @@ const props = defineProps({
     },
 });
 
+const activeSubmodule = computed(() => props.active_submodule);
+
+const cashFlowStats = computed(() => {
+    if (Object.keys(props.cash_flow_stats).length === 0) {
+        return defaultCashFlowStats();
+    }
+    return props.cash_flow_stats;
+});
+
+const todaysCashFlow = computed(() => props.todays_cash_flow);
+
 const submoduleTiles = computed(() => {
     const tiles = [
         {
             key: 'cashflow',
             title: 'График оплат',
-            description: 'План, факт, суммы и статусы оплат по заказам.',
-            href: route('finance.index', { section: 'cashflow' }),
-            group: 'Оплаты',
-            accent: 'emerald',
-            icon: 'bar-chart-3',
+            description: 'План и факт по строкам графика заказов',
+            icon: 'Wallet',
+            accent: 'sky',
+            group: 'Платежи',
+            href: '/finance?section=cashflow',
         },
     ];
 
-    // TODO: Добавить маршрут для зарплатного модуля
-    // if (props.can_access_salary_module) {
-    //     tiles.push({
-    //         key: 'salary',
-    //         title: 'Зарплата',
-    //         description: 'Периоды начислений, суммы к выплате по оплатам заказов и учёт фактических выплат.',
-    //         href: route('finance.salary.index'),
-    //         group: 'Зарплата',
-    //         accent: 'indigo',
-    //         icon: 'wallet',
-    //     });
-    // }
+    if (props.can_access_salary_module) {
+        tiles.push({
+            key: 'salary',
+            title: 'Зарплатный модуль',
+            description: 'Расчёт зарплаты водителей и экспедиторов',
+            icon: 'Wallet',
+            accent: 'emerald',
+            group: 'Зарплата',
+            href: '/finance?section=salary',
+        });
+    }
 
     return tiles;
 });
 
-const cashFlowStats = computed(() => props.cash_flow_stats ?? defaultCashFlowStats());
-const todaysCashFlow = computed(() => props.todays_cash_flow ?? cashFlowStats.value.periods.today);
-
-const activeSubmodule = computed(() => {
-    if (props.active_submodule === 'cashflow') {
-        return 'cashflow';
-    }
-
-    return 'overview';
-});
-
-function formatMoney(value) {
-    return new Intl.NumberFormat('ru-RU', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(Number(value || 0));
-}
-
-function statusLabel(status) {
-    const labels = {
-        pending: 'Ожидает',
-        paid: 'Оплачено',
-        overdue: 'Просрочено',
-        cancelled: 'Отменено',
+function iconFor(name) {
+    const icons = {
+        Wallet,
+        Clock,
+        AlertTriangle,
     };
-
-    return labels[status] ?? status ?? '—';
-}
-
-function statusClass(status) {
-    const classes = {
-        pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
-        paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
-        overdue: 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
-        cancelled: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
-    };
-
-    return classes[status] ?? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
-}
-
-function iconFor(icon) {
-    return {
-        'bar-chart-3': BarChart3,
-        wallet: Wallet,
-    }[icon] ?? BarChart3;
+    return icons[name] || Wallet;
 }
 
 function iconTone(accent) {
-    return {
-        emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300',
-        indigo: 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300',
-    }[accent] ?? 'border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100';
+    const tones = {
+        sky: 'border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-400',
+        emerald: 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400',
+        amber: 'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
+    };
+    return tones[accent] || tones.sky;
 }
+
+function formatMoney(value) {
+    if (typeof value !== 'number') return '0 ₽';
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(value);
+}
+
 </script>

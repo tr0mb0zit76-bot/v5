@@ -1,5 +1,5 @@
 <template>
-    <div class="flex h-full min-h-0 flex-col gap-3">
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <div class="shrink-0">
             <h1 class="text-2xl font-semibold">Управление таблицей</h1>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">

@@ -1,5 +1,5 @@
 <template>
-    <div class="space-y-6">
+    <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
         <div
             v-if="featureUnavailable"
             class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200"

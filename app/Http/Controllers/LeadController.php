@@ -42,7 +42,6 @@ class LeadController extends Controller
         return Inertia::render('Leads/Index', [
             'leads' => $this->leadRows($request),
             'leadColumns' => LeadTableColumns::options(),
-            'canFilterResponsible' => $this->canFilterResponsible($request),
         ]);
     }
 
@@ -404,11 +403,6 @@ class LeadController extends Controller
         }
 
         return RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads') === 'all';
-    }
-
-    private function canFilterResponsible(Request $request): bool
-    {
-        return $this->canAssignResponsible($request);
     }
 
     private function canUseLeadTasks(Request $request): bool

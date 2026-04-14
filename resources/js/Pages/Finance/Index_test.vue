@@ -1,7 +1,8 @@
-        <section
-            v-if="activeSubmodule === 'overview'"
-            class="space-y-3 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-        >
+<template>
+    <section
+        v-if="activeSubmodule === 'overview'"
+        class="space-y-3 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+    >
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Финансы</h1>
@@ -257,7 +258,6 @@
                 </div>
             </div>
         </div>
-    </div>
 </template>
 
 <script setup>

@@ -6,6 +6,7 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSummaryFormatter;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -354,6 +355,8 @@ class OrderCompensationService
         }
 
         DB::table('payment_schedules')->insert($rows);
+
+        PaymentScheduleAutomaticStatus::refreshForOrder($order->id);
     }
 
     /**
@@ -452,10 +455,14 @@ class OrderCompensationService
         int $days,
         bool $isPrepayment,
     ): ?string {
-        $baseDate = match (strtolower($mode)) {
+        $modeLower = strtolower((string) $mode);
+
+        $baseDate = match ($modeLower) {
             'ottn' => $party === 'customer'
                 ? $order->track_received_date_customer
                 : $order->track_received_date_carrier,
+            'loading' => $order->loading_date,
+            'unloading' => $order->unloading_date,
             default => $isPrepayment ? $order->loading_date : $order->unloading_date,
         };
 
