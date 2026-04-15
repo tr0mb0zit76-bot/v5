@@ -700,6 +700,12 @@ class OrderWizardController extends Controller
             'can_approve' => $canApproveOrderDocuments && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL,
             'can_reject' => $canApproveOrderDocuments && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL,
             'can_finalize' => $canManageOrderDocuments && $workflowStatus === OrderDocumentWorkflowStatus::APPROVED,
+            'can_discard_print_draft' => $this->canDiscardPrintWorkflowDocument(
+                $document,
+                $workflowStatus,
+                $canManageOrderDocuments,
+                $canApproveOrderDocuments
+            ),
             'requires_counterparty_signature' => $requiresCounterpartySignature,
             'signature_status' => $signatureStatus,
             'signature_status_label' => $this->orderDocumentSignatureStatusLabel($signatureStatus),
@@ -724,6 +730,31 @@ class OrderWizardController extends Controller
         $template = PrintFormTemplate::query()->find($document->template_id);
 
         return (bool) ($template?->requires_counterparty_signature ?? false);
+    }
+
+    private function canDiscardPrintWorkflowDocument(
+        OrderDocument $document,
+        ?string $workflowStatus,
+        bool $canManageOrderDocuments,
+        bool $canApproveOrderDocuments,
+    ): bool {
+        if (filled($document->generated_pdf_path)) {
+            return false;
+        }
+
+        if ($workflowStatus === OrderDocumentWorkflowStatus::FINALIZED) {
+            return false;
+        }
+
+        if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
+            return $canApproveOrderDocuments;
+        }
+
+        return $canManageOrderDocuments && in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::DRAFT,
+            OrderDocumentWorkflowStatus::REJECTED,
+            OrderDocumentWorkflowStatus::APPROVED,
+        ], true);
     }
 
     /**
@@ -863,7 +894,7 @@ class OrderWizardController extends Controller
     /**
      * Исполнители для мастера: плечи заказа; перевозчик — из назначения на плече, при отсутствии — из snapshot `financial_terms.contractors_costs`.
      *
-     * @return list<array{stage: string|null, contractor_id: int|null}>
+     * @return list<array{stage: string|null, contractor_id: int|null, contractor_name: string|null}>
      */
     private function serializePerformersPayload(Order $order, ?FinancialTerm $financialTerm): array
     {
@@ -913,29 +944,73 @@ class OrderWizardController extends Controller
             : [];
 
         if ($fromLegs !== []) {
-            return $fromLegs;
+            return $this->performersPayloadWithContractorLabels($fromLegs);
         }
 
         if ($costRows !== []) {
-            return collect($costRows)
+            $fromCosts = collect($costRows)
                 ->map(fn (array $cost): array => [
                     'stage' => $cost['stage'] ?? 'leg_1',
                     'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
                 ])
                 ->values()
                 ->all();
+
+            return $this->performersPayloadWithContractorLabels($fromCosts);
         }
 
         if ($order->carrier_id !== null) {
-            return [
+            return $this->performersPayloadWithContractorLabels([
                 [
                     'stage' => 'leg_1',
                     'contractor_id' => (int) $order->carrier_id,
                 ],
-            ];
+            ]);
         }
 
         return [];
+    }
+
+    /**
+     * Подпись перевозчика в мастере: поле поиска не должно пустеть, если id есть, а контрагент не попал в укороченный список props.
+     *
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array<string, mixed>>
+     */
+    private function performersPayloadWithContractorLabels(array $performers): array
+    {
+        if ($performers === []) {
+            return [];
+        }
+
+        $ids = collect($performers)
+            ->pluck('contractor_id')
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($ids === []) {
+            return collect($performers)
+                ->map(fn (array $p): array => [...$p, 'contractor_name' => null])
+                ->all();
+        }
+
+        $names = Contractor::query()->whereIn('id', $ids)->pluck('name', 'id');
+
+        return collect($performers)
+            ->map(function (array $p) use ($names): array {
+                $id = $p['contractor_id'] ?? null;
+                $idInt = $id !== null && $id !== '' ? (int) $id : null;
+                $label = $idInt !== null ? $names->get($idInt) : null;
+
+                return [
+                    ...$p,
+                    'contractor_name' => $label !== null && $label !== '' ? (string) $label : null,
+                ];
+            })
+            ->all();
     }
 
     /**

@@ -92,7 +92,10 @@ class FleetVehicleController extends Controller
 
     public function optionsForOrder(Request $request): JsonResponse
     {
-        abort_unless(Schema::hasTable('fleet_vehicles'), 404);
+        if (! Schema::hasTable('fleet_vehicles')) {
+            return response()->json(['vehicles' => []]);
+        }
+
         $ownerId = $request->integer('owner_contractor_id');
         $query = FleetVehicle::query()
             ->with('owner:id,name')

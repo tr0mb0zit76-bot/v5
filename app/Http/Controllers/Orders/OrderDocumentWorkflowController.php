@@ -157,6 +157,33 @@ class OrderDocumentWorkflowController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Черновик пересоздан из данных заказа.']);
     }
 
+    public function discardPrintWorkflow(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
+    {
+        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+
+        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
+            ? $orderDocument->workflow_status
+            : null;
+
+        if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
+            $this->ensureCanApproveDocuments($request);
+        } else {
+            $this->ensureCanEditOrder($request, $order);
+        }
+
+        try {
+            $this->workflowService->discardPrintWorkflowDocument($orderDocument);
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        $this->orderCompensationService->recalculateImpactedPeriods($order);
+
+        return redirect()
+            ->route('orders.edit', $order)
+            ->with('flash', ['type' => 'success', 'message' => 'Черновик по шаблону удалён из заказа.']);
+    }
+
     public function previewDraft(Request $request, Order $order, OrderDocument $orderDocument): InertiaResponse
     {
         $this->ensureCanViewOrderDocuments($request, $order);

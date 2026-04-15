@@ -9,6 +9,7 @@ use App\Services\ContractorCreditService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -107,6 +108,30 @@ class StoreOrderRequest extends FormRequest
                 );
             },
             function (Validator $validator): void {
+                $performers = $this->input('performers', []);
+                $performerCarrierIds = collect(is_array($performers) ? $performers : [])
+                    ->filter(fn (mixed $item): bool => is_array($item))
+                    ->map(fn (array $item): int => (int) ($item['contractor_id'] ?? 0));
+
+                $contractorCosts = Arr::get($this->input('financial_term', []), 'contractors_costs', []);
+                $costCarrierIds = collect(is_array($contractorCosts) ? $contractorCosts : [])
+                    ->filter(fn (mixed $item): bool => is_array($item))
+                    ->map(fn (array $item): int => (int) ($item['contractor_id'] ?? 0));
+
+                $hasCarrier = $performerCarrierIds
+                    ->merge($costCarrierIds)
+                    ->contains(fn (int $id): bool => $id > 0);
+
+                if (! $hasCarrier) {
+                    $validator->errors()->add('performers', 'Укажите хотя бы одного перевозчика.');
+                }
+
+                $clientPrice = Arr::get($this->input('financial_term', []), 'client_price');
+                if ($clientPrice === null || $clientPrice === '' || (float) $clientPrice <= 0) {
+                    $validator->errors()->add('financial_term.client_price', 'Укажите цену клиента больше 0.');
+                }
+            },
+            function (Validator $validator): void {
                 $documents = $this->input('documents', []);
                 if (! is_array($documents)) {
                     return;
@@ -189,16 +214,16 @@ class StoreOrderRequest extends FormRequest
             'bonus' => ['nullable', 'numeric', 'min:0'],
 
             'performers' => ['nullable', 'array'],
-            'performers.*.stage' => ['required', 'string', 'max:50'],
+            'performers.*.stage' => ['nullable', 'string', 'max:50'],
             'performers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'performers.*.fleet_vehicle_id' => ['nullable', 'integer'],
             'performers.*.fleet_driver_id' => ['nullable', 'integer'],
 
             'route_points' => ['nullable', 'array'],
-            'route_points.*.type' => ['required', Rule::in(['loading', 'unloading'])],
+            'route_points.*.type' => ['nullable', Rule::in(['loading', 'unloading'])],
             'route_points.*.stage' => ['nullable', 'string', 'max:50'],
             'route_points.*.sequence' => ['nullable', 'integer', 'min:1'],
-            'route_points.*.address' => ['required', 'string', 'max:500'],
+            'route_points.*.address' => ['nullable', 'string', 'max:500'],
             'route_points.*.normalized_data' => ['nullable', 'array'],
             'route_points.*.planned_date' => ['nullable', 'date'],
             'route_points.*.actual_date' => ['nullable', 'date'],
@@ -212,16 +237,16 @@ class StoreOrderRequest extends FormRequest
             'route_points.*.recipient_phone' => ['nullable', 'string', 'max:50'],
 
             'cargo_items' => ['nullable', 'array'],
-            'cargo_items.*.name' => ['required', 'string', 'max:500'],
+            'cargo_items.*.name' => ['nullable', 'string', 'max:500'],
             'cargo_items.*.description' => ['nullable', 'string'],
             'cargo_items.*.weight_kg' => ['nullable', 'numeric', 'min:0'],
             'cargo_items.*.volume_m3' => ['nullable', 'numeric', 'min:0'],
             'cargo_items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag'])],
             'cargo_items.*.package_count' => ['nullable', 'integer', 'min:0'],
-            'cargo_items.*.dangerous_goods' => ['required', 'boolean'],
+            'cargo_items.*.dangerous_goods' => ['nullable', 'boolean'],
             'cargo_items.*.dangerous_class' => ['nullable', 'string', 'max:10'],
             'cargo_items.*.hs_code' => ['nullable', 'string', 'max:50'],
-            'cargo_items.*.cargo_type' => ['required', Rule::in(['general', 'dangerous', 'temperature_controlled', 'oversized', 'fragile'])],
+            'cargo_items.*.cargo_type' => ['nullable', Rule::in(['general', 'dangerous', 'temperature_controlled', 'oversized', 'fragile'])],
 
             'financial_term' => ['nullable', 'array'],
             'financial_term.client_price' => ['nullable', 'numeric', 'min:0'],
@@ -237,10 +262,10 @@ class StoreOrderRequest extends FormRequest
             'financial_term.client_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.kpi_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'financial_term.contractors_costs' => ['nullable', 'array'],
-            'financial_term.contractors_costs.*.stage' => ['required_with:financial_term.contractors_costs', 'string', 'max:50'],
+            'financial_term.contractors_costs.*.stage' => ['nullable', 'string', 'max:50'],
             'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
-            'financial_term.contractors_costs.*.currency' => ['required_with:financial_term.contractors_costs', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
             'financial_term.contractors_costs.*.payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
             'financial_term.contractors_costs.*.payment_schedule' => ['nullable', 'array'],
             'financial_term.contractors_costs.*.payment_schedule.has_prepayment' => ['nullable', 'boolean'],
@@ -250,13 +275,13 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
             'financial_term.contractors_costs.*.payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.additional_costs' => ['nullable', 'array'],
-            'financial_term.additional_costs.*.label' => ['required_with:financial_term.additional_costs', 'string', 'max:100'],
+            'financial_term.additional_costs.*.label' => ['nullable', 'string', 'max:100'],
             'financial_term.additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
-            'financial_term.additional_costs.*.currency' => ['required_with:financial_term.additional_costs', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.additional_costs.*.currency' => ['nullable', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
 
             'documents' => ['nullable', 'array'],
-            'documents.*.type' => ['required', Rule::in(['request', 'contract_request', 'waybill', 'cmr', 'upd', 'invoice', 'invoice_factura', 'act', 'packing_list', 'customs_declaration', 'other'])],
-            'documents.*.flow' => ['nullable', Rule::in(['uploaded', 'generated'])],
+            'documents.*.type' => ['required', Rule::in(['request', 'contract', 'contract_request', 'waybill', 'cmr', 'upd', 'invoice', 'invoice_factura', 'act', 'packing_list', 'customs_declaration', 'other'])],
+            'documents.*.flow' => ['nullable', Rule::in(['uploaded', 'generated', 'print_template_workflow'])],
             'documents.*.party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],
             'documents.*.stage' => ['nullable', 'string', 'max:50'],
             'documents.*.requirement_key' => ['nullable', 'string', 'max:100'],

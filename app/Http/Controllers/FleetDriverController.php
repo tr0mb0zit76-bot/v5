@@ -91,7 +91,10 @@ class FleetDriverController extends Controller
 
     public function optionsForOrder(Request $request): JsonResponse
     {
-        abort_unless(Schema::hasTable('fleet_drivers'), 404);
+        if (! Schema::hasTable('fleet_drivers')) {
+            return response()->json(['drivers' => []]);
+        }
+
         $carrierId = $request->integer('carrier_contractor_id');
         $query = FleetDriver::query()
             ->with('carrier:id,name')

@@ -317,6 +317,12 @@ class OrderWizardService
         }
 
         foreach ($routePoints as $index => $routePoint) {
+            $routePointType = trim((string) ($routePoint['type'] ?? ''));
+            $routePointAddress = trim((string) ($routePoint['address'] ?? ''));
+            if ($routePointType === '' || $routePointAddress === '') {
+                continue;
+            }
+
             if ($primaryLeg === null) {
                 break;
             }
@@ -329,7 +335,7 @@ class OrderWizardService
 
             $routePointAttributes = [
                 'order_leg_id' => $targetLeg->id,
-                'type' => $routePoint['type'],
+                'type' => $routePointType,
                 'sequence' => $legSequence,
                 'kladr_id' => Arr::get($normalizedData, 'kladr_id'),
                 'latitude' => Arr::get($normalizedData, 'coordinates.lat'),
@@ -347,35 +353,41 @@ class OrderWizardService
             ];
 
             if (Schema::hasColumn('route_points', 'address')) {
-                $routePointAttributes['address'] = $routePoint['address'];
+                $routePointAttributes['address'] = $routePointAddress;
             }
 
             if (Schema::hasColumn('route_points', 'normalized_data')) {
                 $routePointAttributes['normalized_data'] = $normalizedData;
             } elseif (Schema::hasColumn('route_points', 'metadata')) {
                 $routePointAttributes['metadata'] = [
-                    'address' => $routePoint['address'],
+                    'address' => $routePointAddress,
                     'normalized_data' => $normalizedData,
                 ];
             } elseif (Schema::hasColumn('route_points', 'instructions')) {
-                $routePointAttributes['instructions'] = $routePoint['address'];
+                $routePointAttributes['instructions'] = $routePointAddress;
             }
 
             RoutePoint::query()->create($routePointAttributes);
         }
 
         foreach ($validated['cargo_items'] ?? [] as $cargoItem) {
+            $cargoTitle = trim((string) ($cargoItem['name'] ?? ''));
+            $cargoType = $cargoItem['cargo_type'] ?? null;
+            if ($cargoTitle === '' || $cargoType === null || $cargoType === '') {
+                continue;
+            }
+
             $cargoAttributes = [
-                'title' => $cargoItem['name'],
+                'title' => $cargoTitle,
                 'description' => $cargoItem['description'] ?? null,
                 'weight' => $cargoItem['weight_kg'] ?? null,
                 'volume' => $cargoItem['volume_m3'] ?? null,
-                'cargo_type' => $cargoItem['cargo_type'],
+                'cargo_type' => $cargoType,
                 'packing_type' => $cargoItem['package_type'] ?? null,
                 'is_hazardous' => (bool) ($cargoItem['dangerous_goods'] ?? false),
                 'hazard_class' => $cargoItem['dangerous_class'] ?? null,
                 'hs_code' => $cargoItem['hs_code'] ?? null,
-                'needs_temperature' => $cargoItem['cargo_type'] === 'temperature_controlled',
+                'needs_temperature' => $cargoType === 'temperature_controlled',
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ];

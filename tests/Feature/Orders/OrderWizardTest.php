@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Orders;
 
+use App\Http\Requests\StoreOrderRequest;
 use App\Models\User;
 use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Database\Schema\Blueprint;
@@ -9,6 +10,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 use ZipArchive;
@@ -364,6 +366,31 @@ class OrderWizardTest extends TestCase
             ->has('requiredDocumentChecklist', 5)
             ->has('currentUser')
         );
+    }
+
+    public function test_order_document_rules_allow_contract_type_and_print_template_workflow_flow(): void
+    {
+        $rules = (new StoreOrderRequest)->rules();
+        $subset = collect($rules)->only([
+            'documents',
+            'documents.*.type',
+            'documents.*.flow',
+            'documents.*.party',
+            'documents.*.status',
+        ])->all();
+
+        $validator = Validator::make([
+            'documents' => [
+                [
+                    'type' => 'contract',
+                    'flow' => 'print_template_workflow',
+                    'party' => 'customer',
+                    'status' => 'draft',
+                ],
+            ],
+        ], $subset);
+
+        $this->assertFalse($validator->fails(), (string) $validator->errors());
     }
 
     public function test_admin_can_create_order_with_nested_data(): void
@@ -1374,6 +1401,8 @@ class OrderWizardTest extends TestCase
             ->where('order.financial_term.client_price', '150000.00')
             ->where('order.financial_term.contractors_costs.0.contractor_id', $carrierId)
             ->where('order.financial_term.contractors_costs.0.amount', 88000)
+            ->where('order.performers.0.contractor_id', $carrierId)
+            ->where('order.performers.0.contractor_name', 'Carrier')
         );
     }
 
@@ -1727,6 +1756,144 @@ class OrderWizardTest extends TestCase
             'id' => $documentId,
             'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
         ]);
+    }
+
+    public function test_print_workflow_discard_removes_draft_and_deletes_file(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client Discard',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WF-DISC',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/99/wf-discard.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'wf_discard',
+            'name' => 'Discard test',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/99/wf-discard.docx',
+            'original_filename' => 'wf-discard.docx',
+            'settings' => json_encode([
+                'variables' => ['order.number'],
+                'variable_mapping' => [
+                    'order.number' => 'order.order_number',
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.documents.from-template', $orderId), [
+            'print_form_template_id' => $templateId,
+        ])->assertRedirect(route('orders.edit', $orderId));
+
+        $documentId = (int) DB::table('order_documents')->where('order_id', $orderId)->value('id');
+        $filePath = (string) DB::table('order_documents')->where('id', $documentId)->value('file_path');
+        $this->assertNotSame('', $filePath);
+        Storage::disk('local')->assertExists($filePath);
+
+        $this->actingAs($admin)->delete(route('orders.documents.discard-print-workflow', [$orderId, $documentId]))
+            ->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseMissing('order_documents', ['id' => $documentId]);
+        Storage::disk('local')->assertMissing($filePath);
+    }
+
+    public function test_print_workflow_discard_rejects_finalized_document(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WF-NO-DISC',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put('order_documents/'.$orderId.'/keep.docx', 'x');
+        Storage::disk('local')->put('order_documents/'.$orderId.'/final.pdf', 'pdf');
+
+        $documentId = DB::table('order_documents')->insertGetId([
+            'order_id' => $orderId,
+            'type' => 'request',
+            'document_group' => null,
+            'source' => 'print_template',
+            'number' => null,
+            'document_date' => null,
+            'original_name' => 'x.docx',
+            'file_path' => 'order_documents/'.$orderId.'/keep.docx',
+            'generated_pdf_path' => 'order_documents/'.$orderId.'/final.pdf',
+            'template_id' => null,
+            'status' => 'signed',
+            'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
+            'signature_status' => 'signed_internal',
+            'metadata' => json_encode(['flow' => 'print_template_workflow'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->delete(route('orders.documents.discard-print-workflow', [$orderId, $documentId]))
+            ->assertStatus(422);
+
+        $this->assertDatabaseHas('order_documents', ['id' => $documentId]);
     }
 
     public function test_order_create_page_exposes_contractor_credit_policy_and_default_terms(): void
@@ -2137,6 +2304,143 @@ class OrderWizardTest extends TestCase
             ->where('order.payment_settlement.carrier.complete', false)
             ->where('order.payment_settlement.carrier.settled_at', null)
         );
+    }
+
+    public function test_admin_can_save_order_with_actual_route_date_without_planned_date(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент ФактДата',
+            'inn' => '1112223334',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $ownCompanyId = DB::table('contractors')->insertGetId([
+            'type' => 'both',
+            'name' => 'ООО Своя компания ФактДата',
+            'inn' => '4445556667',
+            'is_active' => true,
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик ФактДата',
+            'inn' => '7778889990',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('orders.store'), [
+            'status' => 'new',
+            'client_id' => $clientId,
+            'own_company_id' => $ownCompanyId,
+            'order_date' => '2026-04-10',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'financial_term' => [
+                'client_price' => 95000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 5,
+                    'postpayment_mode' => 'fttn',
+                ],
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 70000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 5,
+                            'postpayment_mode' => 'fttn',
+                        ],
+                    ],
+                ],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Москва, Тестовая, 10',
+                    'planned_date' => null,
+                    'actual_date' => '2026-04-11',
+                ],
+                [
+                    'type' => null,
+                    'sequence' => 2,
+                    'address' => '',
+                    'actual_date' => '2026-04-12',
+                ],
+            ],
+            'cargo_items' => [
+                [
+                    'name' => '',
+                    'cargo_type' => null,
+                ],
+            ],
+        ]);
+
+        $orderId = DB::table('orders')->value('id');
+
+        $response->assertRedirect(route('orders.edit', $orderId));
+        $this->assertDatabaseHas('route_points', [
+            'address' => 'Москва, Тестовая, 10',
+            'planned_date' => null,
+            'actual_date' => '2026-04-11 00:00:00',
+        ]);
+        $this->assertDatabaseMissing('route_points', [
+            'actual_date' => '2026-04-12 00:00:00',
+        ]);
+    }
+
+    public function test_order_creation_requires_carrier_and_client_price(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент обязательные поля',
+            'inn' => '1231231231',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->from(route('orders.create'))
+            ->post(route('orders.store'), [
+                'status' => 'new',
+                'client_id' => $clientId,
+                'order_date' => '2026-04-10',
+                'performers' => [
+                    ['stage' => 'leg_1', 'contractor_id' => null],
+                ],
+                'financial_term' => [
+                    'client_price' => 0,
+                    'client_currency' => 'RUB',
+                    'contractors_costs' => [],
+                ],
+            ]);
+
+        $response->assertRedirect(route('orders.create'));
+        $response->assertSessionHasErrors([
+            'performers',
+            'financial_term.client_price',
+        ]);
+        $this->assertDatabaseCount('orders', 0);
     }
 
     private function makeDocxPath(array $entries): string

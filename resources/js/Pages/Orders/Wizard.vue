@@ -38,6 +38,9 @@
             <p v-if="hasUnsavedDocumentFiles" class="text-xs text-amber-800 dark:text-amber-200">
                 В документах выбран новый файл — нажмите «Сохранить» выше, иначе вложение не попадёт в заказ.
             </p>
+            <p v-if="coreValidationIssues.length > 0" class="text-xs text-rose-700 dark:text-rose-300">
+                Для сохранения заполните: {{ coreValidationIssues.join(', ') }}.
+            </p>
 
             <div class="space-y-2">
                 <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Шаг</label>
@@ -107,6 +110,12 @@
         </template>
 
         <div class="min-h-0 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5">
+            <p class="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
+                Обязательные поля для сохранения: заказчик, дата заказа, перевозчик и цена клиента. Остальные данные можно заполнять постепенно.
+            </p>
+            <p v-if="saveAttempted && coreValidationIssues.length > 0" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+                Не удалось сохранить: заполните {{ coreValidationIssues.join(', ') }}.
+            </p>
             <div v-if="activeTab === 'main'" class="grid gap-6 lg:grid-cols-2">
                 <div class="space-y-4">
                     <div class="space-y-2">
@@ -179,6 +188,7 @@
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Дата заказа</label>
                         <input v-model="form.order_date" type="date" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('order_date', form.order_date)]" />
+                        <p v-if="form.errors.order_date" class="text-xs text-rose-500">{{ form.errors.order_date }}</p>
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Номер</label>
@@ -274,6 +284,7 @@
                     <div>
                         <h2 class="text-base font-semibold">Маршрут</h2>
                         <p class="text-sm text-zinc-500">Этапы маршрута, точки погрузки и выгрузки</p>
+                        <p v-if="form.errors.performers" class="mt-1 text-xs text-rose-500">{{ form.errors.performers }}</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addPerformer">
@@ -297,8 +308,20 @@
                                 <div class="text-xs uppercase tracking-wide text-zinc-500">Плечо</div>
                                 <div class="text-base font-semibold">{{ stageLabel(performer.stage) }}</div>
                             </div>
-                            <div class="flex min-w-0 flex-1 flex-col gap-3 lg:max-w-3xl">
-                                <div class="relative">
+                            <div class="flex min-w-0 flex-1 flex-col gap-3 lg:max-w-5xl">
+                                <div class="grid gap-3 lg:grid-cols-12 lg:items-end">
+                                    <div class="space-y-1 lg:col-span-6">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
+                                            <button
+                                                type="button"
+                                                class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
+                                            >
+                                                + Новый
+                                            </button>
+                                        </div>
+                                        <div class="relative">
                                     <input
                                         :value="carrierSearchValue('performer', legIndex)"
                                         type="text"
@@ -309,7 +332,7 @@
                                         @blur="restorePerformerCarrierSearch(legIndex)"
                                     />
                                     <button
-                                        v-if="form.performers[legIndex]?.contractor_id !== null"
+                                        v-if="normalizeNullableNumber(form.performers[legIndex]?.contractor_id) !== null"
                                         type="button"
                                         class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                                         title="Очистить перевозчика"
@@ -326,32 +349,33 @@
                                             :key="contractor.id"
                                             type="button"
                                             class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                            @mousedown.prevent
                                             @click="selectPerformerContractor(legIndex, contractor)"
                                         >
                                             <span class="text-sm font-medium">{{ contractor.name }}</span>
                                             <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
                                         </button>
                                     </div>
-                                </div>
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <div class="space-y-1">
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1 lg:col-span-3">
                                         <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
                                         <select
                                             v-model="performer.fleet_vehicle_id"
                                             class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                            :disabled="!performer.contractor_id"
+                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
                                             @focus="loadFleetOptionsForLeg(legIndex)"
                                         >
                                             <option :value="null">—</option>
                                             <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
                                         </select>
                                     </div>
-                                    <div class="space-y-1">
+                                    <div class="space-y-1 lg:col-span-3">
                                         <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
                                         <select
                                             v-model="performer.fleet_driver_id"
                                             class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                            :disabled="!performer.contractor_id"
+                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
                                             @focus="loadFleetOptionsForLeg(legIndex)"
                                         >
                                             <option :value="null">—</option>
@@ -407,8 +431,8 @@
                                 </div>
                             </div>
 
-                            <div class="grid gap-3 md:grid-cols-2">
-                                <div class="space-y-2 md:col-span-2">
+                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10.5rem_10.5rem] lg:items-end">
+                                <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
                                     <div class="relative">
                                         <input
@@ -439,19 +463,11 @@
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Плановая дата</label>
-                                    <input v-model="item.point.planned_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input v-model="item.point.planned_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Фактическая дата</label>
-                                    <input v-model="item.point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контактное лицо</label>
-                                    <input v-model="item.point.contact_person" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Телефон</label>
-                                    <input v-model="item.point.contact_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input v-model="item.point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
                             </div>
 
@@ -461,12 +477,14 @@
                                     <input v-model="item.point.sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контакт отправителя</label>
-                                    <input v-model="item.point.sender_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2 md:col-span-2">
-                                    <label class="text-sm font-medium">Телефон отправителя</label>
-                                    <input v-model="item.point.sender_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <label class="text-sm font-medium">Контакт на загрузке</label>
+                                    <input
+                                        :value="routePointCombinedContact(item.point)"
+                                        type="text"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Имя и телефон"
+                                        @input="setRoutePointCombinedContact(item.point, $event.target.value)"
+                                    />
                                 </div>
                             </div>
 
@@ -476,12 +494,14 @@
                                     <input v-model="item.point.recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контакт получателя</label>
-                                    <input v-model="item.point.recipient_contact" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2 md:col-span-2">
-                                    <label class="text-sm font-medium">Телефон получателя</label>
-                                    <input v-model="item.point.recipient_phone" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <label class="text-sm font-medium">Контакт на выгрузке</label>
+                                    <input
+                                        :value="routePointCombinedContact(item.point)"
+                                        type="text"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Имя и телефон"
+                                        @input="setRoutePointCombinedContact(item.point, $event.target.value)"
+                                    />
                                 </div>
                             </div>
 
@@ -520,7 +540,7 @@
                             </button>
                         </div>
 
-                        <div class="grid gap-3 md:grid-cols-2">
+                        <div class="grid gap-3 md:grid-cols-4">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Наименование</label>
                                 <input v-model="item.name" list="cargo-title-suggestions" type="text" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]" />
@@ -531,14 +551,6 @@
                                     <option v-for="option in cargoTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Описание</label>
-                            <textarea v-model="item.description" rows="3" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                        </div>
-
-                        <div class="grid gap-3 md:grid-cols-3">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Вес, кг</label>
                                 <input v-model="item.weight_kg" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
@@ -551,9 +563,6 @@
                                 <label class="text-sm font-medium">Количество мест</label>
                                 <input v-model="item.package_count" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                             </div>
-                        </div>
-
-                        <div class="grid gap-3 md:grid-cols-3">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Упаковка</label>
                                 <select v-model="item.package_type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
@@ -568,6 +577,19 @@
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Класс опасности</label>
                                 <input v-model="item.dangerous_class" :disabled="!item.dangerous_goods" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:disabled:bg-zinc-800" />
+                            </div>
+                        </div>
+
+                        <div class="grid gap-3 md:grid-cols-12">
+                            <div class="space-y-2 md:col-span-8">
+                                <label class="text-sm font-medium">Описание</label>
+                                <textarea v-model="item.description" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900/40 md:col-span-4">
+                                <div class="font-medium text-zinc-700 dark:text-zinc-200">Сводка позиции</div>
+                                <div class="mt-1">Вес: {{ Number(item.weight_kg || 0).toFixed(2) }} кг</div>
+                                <div>Объём: {{ Number(item.volume_m3 || 0).toFixed(2) }} м³</div>
+                                <div>Мест: {{ Number(item.package_count || 0) }}</div>
                             </div>
                         </div>
 
@@ -601,10 +623,11 @@
                                 {{ form.financial_term.client_request_mode === 'split_by_leg' ? 'Маршрут разбивается на несколько клиентских заявок' : 'Маршрут оформляется одной клиентской заявкой' }}
                             </div>
                         </div>
-                        <div class="grid gap-3 md:grid-cols-3">
-                            <div class="space-y-2 md:col-span-2">
+                        <div class="grid gap-3 lg:grid-cols-5">
+                            <div class="space-y-2">
                                 <label class="text-sm font-medium">Цена клиента</label>
                                 <input v-model="form.financial_term.client_price" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <p v-if="form.errors['financial_term.client_price']" class="text-xs text-rose-500">{{ form.errors['financial_term.client_price'] }}</p>
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Валюта</label>
@@ -612,8 +635,6 @@
                                     <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="grid gap-3 md:grid-cols-2">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Форма оплаты</label>
                                 <select v-model="form.financial_term.client_payment_form" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
@@ -621,28 +642,25 @@
                                 </select>
                             </div>
                             <div class="space-y-2">
-                                <label class="text-sm font-medium">Условия оплаты клиента</label>
-                                <p class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-300">
-                                    {{ paymentScheduleSummary(form.financial_term.client_payment_schedule) }}
-                                </p>
+                                <label class="text-sm font-medium">Срок, дней</label>
+                                <input v-model="form.financial_term.client_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium">Оплата по</label>
+                                <select v-model="form.financial_term.client_payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                </select>
                             </div>
                         </div>
                         <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-                            <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Срок, дней</label>
-                                    <input v-model="form.financial_term.client_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Оплата по</label>
-                                    <select v-model="form.financial_term.client_payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
+                            <div class="grid gap-3 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
                                 <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                                     <input v-model="form.financial_term.client_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
                                     Предоплата
                                 </label>
+                                <p class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                                    Текущие условия: {{ paymentScheduleSummary(form.financial_term.client_payment_schedule) }}
+                                </p>
                             </div>
                             <div v-if="form.financial_term.client_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
                                 <div class="space-y-2">
@@ -665,11 +683,6 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">KPI %</label>
-                            <input :value="Number(form.financial_term.kpi_percent || 0).toFixed(2)" disabled type="number" min="0" max="100" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
-                            <p class="text-xs text-zinc-500">KPI рассчитывается автоматически по периоду и типу сделки после сохранения заказа.</p>
-                        </div>
                     </div>
 
                     <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
@@ -691,24 +704,25 @@
                                     <p class="text-xs text-zinc-500">Перевозчик и условия оплаты для этого плеча.</p>
                                 </div>
                             </div>
-                            <div class="flex flex-wrap items-end gap-3">
-                            <select v-model="cost.stage" class="w-full min-w-[10rem] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm sm:w-auto dark:border-zinc-700 dark:bg-zinc-950">
-                                <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
-                            </select>
-                            <div class="min-w-[12rem] flex-1 rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900/40">
-                                <div class="font-medium text-zinc-900 dark:text-zinc-50">
-                                    {{ getContractorById(cost.contractor_id)?.name ?? 'Перевозчик не выбран' }}
+                            <div class="grid gap-3 lg:grid-cols-6">
+                                <div class="space-y-2 lg:col-span-1">
+                                    <label class="text-sm font-medium">Плечо</label>
+                                    <select v-model="cost.stage" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
+                                    </select>
                                 </div>
-                                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                    Назначается на вкладке «Маршрут» для этого плеча.
-                                </p>
                             </div>
-                            <input v-model="cost.amount" type="number" min="0" step="0.01" class="w-full min-w-[8rem] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm sm:w-36 dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сумма" />
-                            <select v-model="cost.currency" class="w-full min-w-[5rem] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm sm:w-32 dark:border-zinc-700 dark:bg-zinc-950">
-                                <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                            </select>
-                            </div>
-                            <div class="grid gap-3 md:grid-cols-2">
+                            <div class="grid gap-3 lg:grid-cols-5">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Сумма</label>
+                                    <input v-model="cost.amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сумма" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Валюта</label>
+                                    <select v-model="cost.currency" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                    </select>
+                                </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Форма оплаты</label>
                                     <select v-model="cost.payment_form" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
@@ -716,28 +730,25 @@
                                     </select>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Условия оплаты</label>
-                                    <p class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-zinc-300">
-                                        {{ paymentScheduleSummary(cost.payment_schedule) }}
-                                    </p>
+                                    <label class="text-sm font-medium">Срок, дней</label>
+                                    <input v-model="cost.payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Оплата по</label>
+                                    <select v-model="cost.payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-                                <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Срок, дней</label>
-                                        <input v-model="cost.payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Оплата по</label>
-                                        <select v-model="cost.payment_schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
+                                <div class="grid gap-3 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
                                     <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                                         <input v-model="cost.payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
                                         Предоплата
                                     </label>
+                                    <p class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                                        Текущие условия: {{ paymentScheduleSummary(cost.payment_schedule) }}
+                                    </p>
                                 </div>
                                 <div v-if="cost.payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
                                     <div class="space-y-2">
@@ -789,11 +800,12 @@
                 </div>
             </div>
 
-            <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-4">
+            <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-5">
                 <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
                 <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
                 <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
                 <div>Доп. расходы: <span class="font-medium">{{ financialSummary.additionalCosts.toFixed(2) }}</span></div>
+                <div>KPI: <span class="font-medium">{{ Number(form.financial_term.kpi_percent || 0).toFixed(2) }}%</span></div>
             </div>
             </div>
 
@@ -816,37 +828,201 @@
                     </ul>
                 </div>
 
-                <div class="rounded-2xl border border-sky-200/80 bg-sky-50/60 p-4 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/25 dark:text-sky-100">
-                    <p class="font-medium">Прикрепление файла</p>
-                    <p class="mt-1 text-xs leading-relaxed text-sky-900/85 dark:text-sky-200/85">
-                        Выбор файла только заполняет форму. Чтобы вложение попало в заказ и отобразилось в журнале документов, обязательно нажмите
-                        <span class="font-semibold">Сохранить</span> в шапке (переключение вкладок ничего не записывает).
-                    </p>
-                </div>
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <div
+                        v-if="documentChecklist.length > 0"
+                        class="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
+                    >
+                        <div class="font-medium text-amber-950 dark:text-amber-100">Обязательные документы для этапов «Оплата» и «Закрыта»</div>
+                        <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
+                            Пока не выполнены все пункты, после выгрузки статус заказа останется «Документы». Для загружаемых файлов — прикрепите файл и поставьте статус «Отправлен» или «Подписан». Для печатных форм — завершите цепочку документа (финальный PDF и подписи по шаблону).
+                        </p>
+                        <ul class="mt-3 space-y-1.5">
+                            <li
+                                v-for="item in documentChecklist"
+                                :key="`doc-req-${item.key}`"
+                                class="flex items-start gap-2 text-amber-950 dark:text-amber-100"
+                            >
+                                <span class="mt-0.5 shrink-0" :class="item.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'">
+                                    {{ item.completed ? '✓' : '○' }}
+                                </span>
+                                <span>
+                                    <span class="font-medium">{{ item.label }}</span>
+                                    <span class="text-zinc-600 dark:text-zinc-400"> — {{ item.description }}</span>
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div
+                        class="space-y-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/25"
+                    >
+                        <div>
+                            <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Печатные формы</h3>
+                            <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
+                                Черновик DOCX → согласование руководителем → печать/подпись у нас → загрузка финального PDF.
+                            </p>
+                        </div>
+                        <template v-if="!order?.id">
+                            <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
+                                Печатные формы привязаны к заказу в базе. Сохраните заказ — появится выбор шаблона и кнопка «Создать в карточке».
+                            </p>
+                        </template>
+                        <template v-else>
+                            <div class="flex flex-wrap items-end gap-3">
+                                <div class="min-w-[200px] flex-1 space-y-1">
+                                    <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Шаблон</label>
+                                    <select
+                                        v-model="workflowTemplateId"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                    >
+                                        <option :value="null">Выберите шаблон</option>
+                                        <option v-for="template in printFormTemplateOptions" :key="`wf-tpl-${template.id}`" :value="template.id">
+                                            {{ templateOptionLabel(template) }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                                    :disabled="!workflowTemplateId || !isEditing"
+                                    @click="createPersistedPrintWorkflowDocument"
+                                >
+                                    Создать в карточке
+                                </button>
+                            </div>
 
-                <div
-                    v-if="documentChecklist.length > 0"
-                    class="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
-                >
-                    <div class="font-medium text-amber-950 dark:text-amber-100">Обязательные документы для этапов «Оплата» и «Закрыта»</div>
-                    <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
-                        Пока не выполнены все пункты, после выгрузки статус заказа останется «Документы». Для загружаемых файлов — прикрепите файл и поставьте статус «Отправлен» или «Подписан». Для заявки из шаблона — завершите цепочку печатной формы (финальный PDF и подписи по шаблону).
-                    </p>
-                    <ul class="mt-3 space-y-1.5">
-                        <li
-                            v-for="item in documentChecklist"
-                            :key="`doc-req-${item.key}`"
-                            class="flex items-start gap-2 text-amber-950 dark:text-amber-100"
-                        >
-                            <span class="mt-0.5 shrink-0" :class="item.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'">
-                                {{ item.completed ? '✓' : '○' }}
-                            </span>
-                            <span>
-                                <span class="font-medium">{{ item.label }}</span>
-                                <span class="text-zinc-600 dark:text-zinc-400"> — {{ item.description }}</span>
-                            </span>
-                        </li>
-                    </ul>
+                            <div v-if="printWorkflowDocuments.length === 0" class="rounded-xl border border-dashed border-emerald-300/80 px-3 py-3 text-sm text-emerald-900/70 dark:border-emerald-800 dark:text-emerald-200/70">
+                                Пока нет печатных форм по этому процессу.
+                            </div>
+
+                            <div v-for="doc in printWorkflowDocuments" :key="`print-wf-${doc.id}`" class="space-y-3 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="text-sm font-medium">
+                                        {{ doc.original_name || 'Документ' }}
+                                        <span
+                                            v-if="doc.workflow_status_label"
+                                            class="ml-2 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-normal text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                        >
+                                            {{ doc.workflow_status_label }}
+                                        </span>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <Link
+                                            v-if="doc.draft_preview_url"
+                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                            :href="doc.draft_preview_url"
+                                        >
+                                            Предпросмотр
+                                        </Link>
+                                        <a
+                                            v-if="doc.draft_download_url"
+                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                            :href="doc.draft_download_url"
+                                        >
+                                            Скачать черновик DOCX
+                                        </a>
+                                        <a
+                                            v-if="doc.final_pdf_download_url"
+                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                            :href="doc.final_pdf_download_url"
+                                        >
+                                            Скачать финальный PDF
+                                        </a>
+                                    </div>
+                                </div>
+                                <p v-if="doc.rejection_reason" class="text-xs text-rose-700 dark:text-rose-300">
+                                    Причина отклонения: {{ doc.rejection_reason }}
+                                </p>
+                                <p
+                                    v-if="doc.signature_status_label"
+                                    class="text-xs text-zinc-600 dark:text-zinc-400"
+                                >
+                                    Подпись (юр.): {{ doc.signature_status_label }}
+                                    <span v-if="doc.requires_counterparty_signature" class="text-zinc-500"> · по шаблону нужна сторона клиента</span>
+                                </p>
+                                <p
+                                    v-if="doc.signature_followup_hint"
+                                    class="rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                                >
+                                    {{ doc.signature_followup_hint }}
+                                </p>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        v-if="doc.can_request_approval"
+                                        type="button"
+                                        class="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                                        :disabled="!isEditing"
+                                        @click="postWorkflowAction('request-approval', doc.id)"
+                                    >
+                                        Отправить на согласование
+                                    </button>
+                                    <button
+                                        v-if="doc.can_regenerate_draft"
+                                        type="button"
+                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                        :disabled="!isEditing"
+                                        @click="postWorkflowAction('regenerate-draft', doc.id)"
+                                    >
+                                        Пересоздать черновик
+                                    </button>
+                                    <button
+                                        v-if="doc.can_approve"
+                                        type="button"
+                                        class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800"
+                                        @click="postWorkflowAction('approve', doc.id)"
+                                    >
+                                        Согласовать
+                                    </button>
+                                    <button
+                                        v-if="doc.can_reject"
+                                        type="button"
+                                        class="rounded-lg border border-rose-300 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                        @click="toggleWorkflowReject(doc.id)"
+                                    >
+                                        Отклонить
+                                    </button>
+                                    <label
+                                        v-if="doc.can_finalize"
+                                        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                    >
+                                        <span>Загрузить финальный PDF</span>
+                                        <input type="file" accept="application/pdf" class="hidden" @change="finalizeWorkflowPdf(doc, $event)" />
+                                    </label>
+                                    <button
+                                        v-if="doc.can_discard_print_draft"
+                                        type="button"
+                                        class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                        :disabled="!isEditing"
+                                        @click="confirmDiscardPrintWorkflow(doc)"
+                                    >
+                                        Удалить черновик
+                                    </button>
+                                </div>
+                                <div v-if="workflowRejectTargetId === doc.id" class="space-y-2 rounded-lg border border-rose-200 bg-rose-50/50 p-2 dark:border-rose-900 dark:bg-rose-950/30">
+                                    <label class="text-xs font-medium text-rose-900 dark:text-rose-200">Причина отклонения</label>
+                                    <textarea
+                                        v-model="workflowRejectReason"
+                                        rows="2"
+                                        class="w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm dark:border-rose-800 dark:bg-zinc-950"
+                                        placeholder="Укажите причину"
+                                    />
+                                    <div class="flex gap-2">
+                                        <button
+                                            type="button"
+                                            class="rounded-lg bg-rose-700 px-3 py-1 text-xs text-white hover:bg-rose-800"
+                                            :disabled="!workflowRejectReason.trim()"
+                                            @click="submitWorkflowReject(doc.id)"
+                                        >
+                                            Подтвердить отклонение
+                                        </button>
+                                        <button type="button" class="rounded-lg border border-zinc-200 px-3 py-1 text-xs dark:border-zinc-600" @click="cancelWorkflowReject">
+                                            Отмена
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
 
                 <div
@@ -857,174 +1033,7 @@
                     {{ page.props.flash.message }}
                 </div>
 
-                <div
-                    v-if="!order?.id"
-                    class="rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 text-sm dark:border-emerald-900/60 dark:bg-emerald-950/25"
-                >
-                    <h3 class="font-semibold text-emerald-950 dark:text-emerald-100">Создать документ из шаблона (заявка)</h3>
-                    <p class="mt-1 text-xs text-emerald-900/80 dark:text-emerald-200/80">
-                        Печатная форма привязана к заказу в базе. Сохраните заказ — на этой вкладке появится выбор шаблона и кнопка «Создать в карточке» (черновик DOCX и цепочка согласования).
-                    </p>
-                </div>
-
-                <div
-                    v-if="order?.id"
-                    class="space-y-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/25"
-                >
-                    <div>
-                        <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Заявка и согласование (печатная форма)</h3>
-                        <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
-                            Цепочка: черновик DOCX → согласование руководителем → печать/подпись у нас → загрузка финального PDF. Если по шаблону нужна подпись клиента, после PDF приложите скан в «Документы заказчика».
-                        </p>
-                    </div>
-
-                    <div class="flex flex-wrap items-end gap-3">
-                        <div class="min-w-[200px] flex-1 space-y-1">
-                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Шаблон</label>
-                            <select
-                                v-model="workflowTemplateId"
-                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                            >
-                                <option :value="null">Выберите шаблон</option>
-                                <option v-for="template in printFormTemplateOptions" :key="`wf-tpl-${template.id}`" :value="template.id">
-                                    {{ templateOptionLabel(template) }}
-                                </option>
-                            </select>
-                        </div>
-                        <button
-                            type="button"
-                            class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-                            :disabled="!workflowTemplateId || !isEditing"
-                            @click="createPersistedPrintWorkflowDocument"
-                        >
-                            Создать в карточке
-                        </button>
-                    </div>
-
-                    <div v-if="printWorkflowDocuments.length === 0" class="rounded-xl border border-dashed border-emerald-300/80 px-3 py-3 text-sm text-emerald-900/70 dark:border-emerald-800 dark:text-emerald-200/70">
-                        Пока нет заявок по этому процессу.
-                    </div>
-
-                    <div v-for="doc in printWorkflowDocuments" :key="`print-wf-${doc.id}`" class="space-y-3 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="text-sm font-medium">
-                                {{ doc.original_name || 'Документ' }}
-                                <span
-                                    v-if="doc.workflow_status_label"
-                                    class="ml-2 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-normal text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                                >
-                                    {{ doc.workflow_status_label }}
-                                </span>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <Link
-                                    v-if="doc.draft_preview_url"
-                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                    :href="doc.draft_preview_url"
-                                >
-                                    Предпросмотр
-                                </Link>
-                                <a
-                                    v-if="doc.draft_download_url"
-                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                    :href="doc.draft_download_url"
-                                >
-                                    Скачать черновик DOCX
-                                </a>
-                                <a
-                                    v-if="doc.final_pdf_download_url"
-                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                    :href="doc.final_pdf_download_url"
-                                >
-                                    Скачать финальный PDF
-                                </a>
-                            </div>
-                        </div>
-                        <p v-if="doc.rejection_reason" class="text-xs text-rose-700 dark:text-rose-300">
-                            Причина отклонения: {{ doc.rejection_reason }}
-                        </p>
-                        <p
-                            v-if="doc.signature_status_label"
-                            class="text-xs text-zinc-600 dark:text-zinc-400"
-                        >
-                            Подпись (юр.): {{ doc.signature_status_label }}
-                            <span v-if="doc.requires_counterparty_signature" class="text-zinc-500"> · по шаблону нужна сторона клиента</span>
-                        </p>
-                        <p
-                            v-if="doc.signature_followup_hint"
-                            class="rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-                        >
-                            {{ doc.signature_followup_hint }}
-                        </p>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-if="doc.can_request_approval"
-                                type="button"
-                                class="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                                :disabled="!isEditing"
-                                @click="postWorkflowAction('request-approval', doc.id)"
-                            >
-                                Отправить на согласование
-                            </button>
-                            <button
-                                v-if="doc.can_regenerate_draft"
-                                type="button"
-                                class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                :disabled="!isEditing"
-                                @click="postWorkflowAction('regenerate-draft', doc.id)"
-                            >
-                                Пересоздать черновик
-                            </button>
-                            <button
-                                v-if="doc.can_approve"
-                                type="button"
-                                class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800"
-                                @click="postWorkflowAction('approve', doc.id)"
-                            >
-                                Согласовать
-                            </button>
-                            <button
-                                v-if="doc.can_reject"
-                                type="button"
-                                class="rounded-lg border border-rose-300 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                                @click="toggleWorkflowReject(doc.id)"
-                            >
-                                Отклонить
-                            </button>
-                            <label
-                                v-if="doc.can_finalize"
-                                class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                            >
-                                <span>Загрузить финальный PDF</span>
-                                <input type="file" accept="application/pdf" class="hidden" @change="finalizeWorkflowPdf(doc, $event)" />
-                            </label>
-                        </div>
-                        <div v-if="workflowRejectTargetId === doc.id" class="space-y-2 rounded-lg border border-rose-200 bg-rose-50/50 p-2 dark:border-rose-900 dark:bg-rose-950/30">
-                            <label class="text-xs font-medium text-rose-900 dark:text-rose-200">Причина отклонения</label>
-                            <textarea
-                                v-model="workflowRejectReason"
-                                rows="2"
-                                class="w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm dark:border-rose-800 dark:bg-zinc-950"
-                                placeholder="Укажите причину"
-                            />
-                            <div class="flex gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded-lg bg-rose-700 px-3 py-1 text-xs text-white hover:bg-rose-800"
-                                    :disabled="!workflowRejectReason.trim()"
-                                    @click="submitWorkflowReject(doc.id)"
-                                >
-                                    Подтвердить отклонение
-                                </button>
-                                <button type="button" class="rounded-lg border border-zinc-200 px-3 py-1 text-xs dark:border-zinc-600" @click="cancelWorkflowReject">
-                                    Отмена
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
+                <div class="grid gap-4 lg:grid-cols-2">
                     <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div class="flex items-center justify-between">
                             <div class="text-sm font-semibold">Документы заказчика</div>
@@ -1110,23 +1119,27 @@
                             </div>
                         </div>
                     </div>
-
-                    <div v-for="(performer, performerIndex) in form.performers" :key="`carrier-doc-stage-${performerIndex}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <div class="text-sm font-semibold">Документы перевозчика — {{ stageLabel(performer.stage) }}</div>
-                                <p class="text-xs text-zinc-500">Блок связан с конкретным плечом маршрута.</p>
+                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div class="text-sm font-semibold">Документы перевозчика</div>
+                        <p v-if="form.performers.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                            Добавьте плечо маршрута, чтобы прикреплять документы перевозчика.
+                        </p>
+                        <div v-for="(performer, performerIndex) in form.performers" :key="`carrier-doc-stage-${performerIndex}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm font-semibold">{{ stageLabel(performer.stage) }}</div>
+                                    <p class="text-xs text-zinc-500">Блок связан с конкретным плечом маршрута.</p>
+                                </div>
+                                <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocumentFor('carrier', performer.stage)">
+                                    Добавить документ перевозчика
+                                </button>
                             </div>
-                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocumentFor('carrier', performer.stage)">
-                                Добавить документ перевозчика
-                            </button>
-                        </div>
 
-                        <div v-if="carrierDocumentsForStage(performer.stage).length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                            Для {{ stageLabel(performer.stage) }} документы перевозчика пока не добавлены.
-                        </div>
+                            <div v-if="carrierDocumentsForStage(performer.stage).length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                                Для {{ stageLabel(performer.stage) }} документы перевозчика пока не добавлены.
+                            </div>
 
-                        <div v-for="item in carrierDocumentsForStage(performer.stage)" :key="`carrier-document-${performerIndex}-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div v-for="item in carrierDocumentsForStage(performer.stage)" :key="`carrier-document-${performerIndex}-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                             <div class="flex items-center justify-between">
                                 <div class="text-sm font-medium">Документ перевозчика</div>
                                 <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
@@ -1198,6 +1211,7 @@
                                 <span v-if="item.document.original_name" class="text-xs text-zinc-500">Файл: {{ item.document.original_name }}</span>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1215,7 +1229,13 @@
                 <div class="mb-4 flex items-center justify-between">
                     <div>
                         <div class="text-lg font-semibold">Новый контрагент</div>
-                        <div class="text-sm text-zinc-500">Создаётся в справочнике и сразу подставляется в заказ</div>
+                        <div class="text-sm text-zinc-500">
+                            {{
+                                counterpartyTarget.kind === 'performer'
+                                    ? 'Создаётся в справочнике и сразу подставляется как перевозчик в это плечо'
+                                    : 'Создаётся в справочнике и сразу подставляется в заказ'
+                            }}
+                        </div>
                     </div>
                     <button type="button" class="rounded-xl p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" @click="closeCounterpartyModal">×</button>
                 </div>
@@ -1398,6 +1418,20 @@ function finalizeWorkflowPdf(doc, event) {
     target.value = '';
 }
 
+function confirmDiscardPrintWorkflow(doc) {
+    if (!props.order?.id || !doc?.id) {
+        return;
+    }
+
+    if (!window.confirm('Удалить черновик по шаблону из заказа? Файл DOCX будет удалён; для нового документа создайте его снова из шаблона.')) {
+        return;
+    }
+
+    router.delete(route('orders.documents.discard-print-workflow', [props.order.id, doc.id]), {
+        preserveScroll: true,
+    });
+}
+
 if (props.order?.client_snapshot) {
     const snap = props.order.client_snapshot;
     const exists = contractors.value.some((c) => Number(c.id) === Number(snap.id));
@@ -1424,6 +1458,8 @@ const fleetOptionsCache = ref({});
 const showCounterpartyModal = ref(false);
 const counterpartyNameInput = ref(null);
 const inlineContractorSaving = ref(false);
+const counterpartyTarget = ref({ kind: 'client', index: null });
+const saveAttempted = ref(false);
 const addressSuggestions = ref({});
 const addressTimers = {};
 const draggedRoutePointIndex = ref(null);
@@ -1478,7 +1514,12 @@ const counterpartyForm = useForm({
     type: 'customer',
 });
 
-async function openCounterpartyModal() {
+async function openCounterpartyModal(options = {}) {
+    counterpartyTarget.value = {
+        kind: options.kind === 'performer' ? 'performer' : 'client',
+        index: Number.isInteger(options.index) ? options.index : null,
+    };
+    counterpartyForm.type = options.type === 'carrier' ? 'carrier' : 'customer';
     showCounterpartyModal.value = true;
 
     await nextTick();
@@ -1487,6 +1528,7 @@ async function openCounterpartyModal() {
 
 function closeCounterpartyModal() {
     showCounterpartyModal.value = false;
+    counterpartyTarget.value = { kind: 'client', index: null };
 }
 
 function templateOptionLabel(template) {
@@ -1623,7 +1665,7 @@ function blankOrder() {
         cargo_recipient_contact: '',
         cargo_recipient_phone: '',
         performers: [
-            { stage: stageLabel('leg_1'), contractor_id: null, fleet_vehicle_id: null, fleet_driver_id: null },
+            { stage: stageLabel('leg_1'), contractor_id: null, contractor_name: null, fleet_vehicle_id: null, fleet_driver_id: null },
         ],
         route_points: [
             blankRoutePoint('loading', 1, stageLabel('leg_1')),
@@ -1670,6 +1712,7 @@ const form = useForm({
         ? props.order.performers.map((performer) => ({
             stage: stageLabel(performer.stage ?? 'leg_1'),
             contractor_id: normalizeNullableNumber(performer.contractor_id),
+            contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
             fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
             fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
         }))
@@ -1793,34 +1836,45 @@ const selectedClient = computed(() => contractors.value.find((contractor) => Num
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
 
-// Проверка обязательных полей
-const requiredFieldsValid = computed(() => {
-    // Основные обязательные поля
-    const hasOwnCompany = !!form.own_company_id;
-    const hasClient = !!form.client_id;
-    const hasOrderDate = !!form.order_date;
-    const hasStatus = !!form.status;
-    
-    // Обязательные поля в performers
-    const performersValid = form.performers.every(performer => !!performer.stage);
-    
-    // Обязательные поля в route_points
-    const routePointsValid = form.route_points.every(point => {
-        return !!point.type && !!point.address;
-    });
-    
-    // Обязательные поля в cargo_items
-    const cargoItemsValid = form.cargo_items.every(item => {
-        return !!item.name && item.dangerous_goods !== undefined && !!item.cargo_type;
-    });
-    
-    // Обязательные поля в financial_term (если financial_term заполнен)
-    const financialTermValid = !form.financial_term.client_price || !!form.financial_term.client_currency;
-    
-    return hasOwnCompany && hasClient && hasOrderDate && hasStatus && performersValid && routePointsValid && cargoItemsValid && financialTermValid;
+const hasSelectedCarrier = computed(() => {
+    const performerCarrier = form.performers.some((performer) => Number(performer?.contractor_id || 0) > 0);
+    const financialCarrier = form.financial_term.contractors_costs.some((cost) => Number(cost?.contractor_id || 0) > 0);
+
+    return performerCarrier || financialCarrier;
 });
 
-// Подсветка для конкретных полей
+const hasClientPrice = computed(() => Number(form.financial_term.client_price || 0) > 0);
+
+const coreValidationIssues = computed(() => {
+    const issues = [];
+
+    if (!form.client_id) {
+        issues.push('Заказчик');
+    }
+
+    if (!form.order_date) {
+        issues.push('Дата заказа');
+    }
+
+    if (!hasSelectedCarrier.value) {
+        issues.push('Перевозчик');
+    }
+
+    if (!hasClientPrice.value) {
+        issues.push('Цена клиента');
+    }
+
+    return issues;
+});
+
+const coreRequiredFieldsValid = computed(() => coreValidationIssues.value.length === 0);
+
+const mandatoryWizardFields = new Set([
+    'client_id',
+    'order_date',
+]);
+
+// Подсветка только безусловно обязательных полей
 const highlightRequiredField = (fieldName, value, conditionValue = null) => {
     // Для поля client_currency проверяем, заполнена ли цена клиента
     if (fieldName === 'client_currency') {
@@ -1829,8 +1883,11 @@ const highlightRequiredField = (fieldName, value, conditionValue = null) => {
         }
         return 'border-zinc-200 dark:border-zinc-700';
     }
-    
-    // Для остальных полей
+
+    if (!mandatoryWizardFields.has(fieldName)) {
+        return 'border-zinc-200 dark:border-zinc-700';
+    }
+
     if (!value || value === '' || value === null) {
         return 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30';
     }
@@ -2140,6 +2197,7 @@ function addPerformer() {
     form.performers.push({
         stage,
         contractor_id: null,
+        contractor_name: null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
     });
@@ -2273,7 +2331,7 @@ function pruneEmptyLegPerformers() {
     form.performers = filtered;
 
     if (form.performers.length === 0) {
-        form.performers = [{ stage: stageLabel('leg_1'), contractor_id: null, fleet_vehicle_id: null, fleet_driver_id: null }];
+        form.performers = [{ stage: stageLabel('leg_1'), contractor_id: null, contractor_name: null, fleet_vehicle_id: null, fleet_driver_id: null }];
         syncRoutePointsFromPerformers();
     } else {
         reindexLegStagesAndRemap();
@@ -2311,6 +2369,27 @@ function ensureContractorInLocalList(contractor) {
     }
 
     contractors.value.unshift({ ...contractor });
+}
+
+/**
+ * Подпись в поле поиска перевозчика: справочник в props может быть укороченным, а contractor_id при этом валиден.
+ */
+function performerCarrierSearchLabel(performerIndex, contractorId) {
+    const id = normalizeNullableNumber(contractorId);
+    if (id === null) {
+        return '';
+    }
+
+    const contractor = getContractorById(id);
+    const fromLookup = contractor?.name ? String(contractor.name).trim() : '';
+    if (fromLookup) {
+        return fromLookup;
+    }
+
+    const row = form.performers[performerIndex];
+    const fromRow = row?.contractor_name ? String(row.contractor_name).trim() : '';
+
+    return fromRow || '';
 }
 
 function carrierSearchKey(kind, index) {
@@ -2456,6 +2535,7 @@ function selectPerformerContractor(index, contractor) {
     updatedPerformers[index] = {
         ...updatedPerformers[index],
         contractor_id: Number(contractor.id),
+        contractor_name: contractor.name ? String(contractor.name).trim() || null : null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
     };
@@ -2473,6 +2553,7 @@ function clearPerformerContractor(index) {
     updatedPerformers[index] = {
         ...updatedPerformers[index],
         contractor_id: null,
+        contractor_name: null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
     };
@@ -2492,6 +2573,7 @@ function syncPerformerContractor(stage, contractorId) {
     }
 
     performer.contractor_id = contractorId !== null ? Number(contractorId) : null;
+    performer.contractor_name = null;
 }
 
 function onPerformerCarrierInput(index, value) {
@@ -2505,7 +2587,7 @@ function onPerformerCarrierInput(index, value) {
 
     const typed = String(value ?? '').trim().toLowerCase();
     const selectedContractor = getContractorById(performer.contractor_id);
-    const selectedName = String(selectedContractor?.name ?? '').trim().toLowerCase();
+    const selectedName = String(selectedContractor?.name ?? performer.contractor_name ?? '').trim().toLowerCase();
 
     if (typed === '') {
         clearPerformerContractor(index);
@@ -2513,8 +2595,9 @@ function onPerformerCarrierInput(index, value) {
         return;
     }
 
-    if (performer.contractor_id !== null && selectedName !== '' && selectedName !== typed) {
+    if (normalizeNullableNumber(performer.contractor_id) !== null && selectedName !== '' && selectedName !== typed) {
         performer.contractor_id = null;
+        performer.contractor_name = null;
         performer.fleet_vehicle_id = null;
         performer.fleet_driver_id = null;
         syncContractorCostsFromPerformers();
@@ -2528,8 +2611,7 @@ function restorePerformerCarrierSearch(index) {
             return;
         }
 
-        const selectedContractor = getContractorById(performer.contractor_id);
-        setCarrierSearchValue('performer', index, selectedContractor?.name ?? '');
+        setCarrierSearchValue('performer', index, performerCarrierSearchLabel(index, performer.contractor_id));
         setCarrierResultsVisible('performer', index, false);
     }, 120);
 }
@@ -2542,23 +2624,37 @@ async function loadFleetOptionsForLeg(legIndex) {
         return;
     }
 
-    try {
-        const [vRes, dRes] = await Promise.all([
-            fetch(`${route('fleet.options.vehicles')}?owner_contractor_id=${contractorId}`, {
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            }),
-            fetch(`${route('fleet.options.drivers')}?carrier_contractor_id=${contractorId}`, {
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            }),
-        ]);
-        const vehicles = (await vRes.json()).vehicles ?? [];
-        const drivers = (await dRes.json()).drivers ?? [];
-        fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles, drivers } };
-    } catch {
-        fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles: [], drivers: [] } };
-    }
+    const requestOptions = {
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'include',
+    };
+
+    const loadVehicles = fetch(`${route('fleet.options.vehicles')}?owner_contractor_id=${contractorId}`, requestOptions)
+        .then(async (response) => {
+            if (!response.ok) {
+                return [];
+            }
+
+            const payload = await response.json();
+
+            return Array.isArray(payload?.vehicles) ? payload.vehicles : [];
+        })
+        .catch(() => []);
+
+    const loadDrivers = fetch(`${route('fleet.options.drivers')}?carrier_contractor_id=${contractorId}`, requestOptions)
+        .then(async (response) => {
+            if (!response.ok) {
+                return [];
+            }
+
+            const payload = await response.json();
+
+            return Array.isArray(payload?.drivers) ? payload.drivers : [];
+        })
+        .catch(() => []);
+
+    const [vehicles, drivers] = await Promise.all([loadVehicles, loadDrivers]);
+    fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles, drivers } };
 }
 
 function fleetVehicleOptionsForLeg(legIndex) {
@@ -2829,6 +2925,34 @@ function routePointTitle(point, index) {
         : `Выгрузка ${ordinal}`;
 }
 
+function routePointCombinedContact(point) {
+    if (point.type === 'loading') {
+        return point.sender_contact || point.sender_phone || point.contact_person || point.contact_phone || '';
+    }
+
+    if (point.type === 'unloading') {
+        return point.recipient_contact || point.recipient_phone || point.contact_person || point.contact_phone || '';
+    }
+
+    return point.contact_person || point.contact_phone || '';
+}
+
+function setRoutePointCombinedContact(point, value) {
+    const normalizedValue = String(value ?? '').trim();
+    point.contact_person = normalizedValue;
+    point.contact_phone = '';
+
+    if (point.type === 'loading') {
+        point.sender_contact = normalizedValue;
+        point.sender_phone = '';
+    }
+
+    if (point.type === 'unloading') {
+        point.recipient_contact = normalizedValue;
+        point.recipient_phone = '';
+    }
+}
+
 /**
  * @return {Array<{ point: object, globalIndex: number }>}
  */
@@ -2985,17 +3109,33 @@ function syncContractorCostsFromPerformers() {
 //     { deep: true },
 // );
 
+if (Array.isArray(props.order?.performers)) {
+    props.order.performers.forEach((p) => {
+        const id = normalizeNullableNumber(p.contractor_id);
+        const name = p.contractor_name ? String(p.contractor_name).trim() : '';
+        if (id !== null && name !== '') {
+            ensureContractorInLocalList({
+                id,
+                name,
+                type: 'carrier',
+                inn: null,
+                phone: null,
+                email: null,
+                is_own_company: false,
+            });
+        }
+    });
+}
+
 watch(
-    () => form.performers.map((performer) => [performer.stage, performer.contractor_id]),
+    () => form.performers.map((performer) => [performer.stage, performer.contractor_id, performer.contractor_name]),
     (performers, prev) => {
         performers.forEach(([stage, contractorId], index) => {
-            const contractor = getContractorById(contractorId);
-
-            setCarrierSearchValue('performer', index, contractor?.name ?? '');
+            setCarrierSearchValue('performer', index, performerCarrierSearchLabel(index, contractorId));
             const costIndex = form.financial_term.contractors_costs.findIndex((row) => stageMatches(row.stage, stage));
 
             if (costIndex !== -1) {
-                setCarrierSearchValue('cost', costIndex, contractor?.name ?? '');
+                setCarrierSearchValue('cost', costIndex, performerCarrierSearchLabel(index, contractorId));
             }
 
             const prevRow = prev?.[index];
@@ -3139,9 +3279,15 @@ async function createInlineCounterparty() {
         if (contractor.is_own_company) {
             ownCompanyOptions.value.unshift(contractor);
         }
-        selectClient(contractor);
+        if (counterpartyTarget.value.kind === 'performer' && counterpartyTarget.value.index !== null) {
+            selectPerformerContractor(counterpartyTarget.value.index, contractor);
+        } else {
+            selectClient(contractor);
+        }
         counterpartyForm.reset();
+        counterpartyForm.type = 'customer';
         showCounterpartyModal.value = false;
+        counterpartyTarget.value = { kind: 'client', index: null };
     } catch (error) {
         console.error(error);
     } finally {
@@ -3247,15 +3393,60 @@ function buildSubmitPayload() {
 }
 
 function submit() {
+    saveAttempted.value = true;
+
+    if (!coreRequiredFieldsValid.value) {
+        const errors = {};
+
+        if (!form.client_id) {
+            errors.client_id = 'Выберите заказчика.';
+        }
+
+        if (!form.order_date) {
+            errors.order_date = 'Укажите дату заказа.';
+        }
+
+        if (!hasSelectedCarrier.value) {
+            errors.performers = 'Укажите хотя бы одного перевозчика.';
+            errors['financial_term.contractors_costs'] = 'Для сохранения нужен выбранный перевозчик.';
+        }
+
+        if (!hasClientPrice.value) {
+            errors['financial_term.client_price'] = 'Укажите цену клиента больше 0.';
+        }
+
+        if (!form.client_id || !form.order_date) {
+            activeTab.value = 'main';
+        } else if (!hasSelectedCarrier.value) {
+            activeTab.value = 'route';
+        } else if (!hasClientPrice.value) {
+            activeTab.value = 'finance';
+        }
+
+        form.clearErrors().setError(errors);
+
+        return;
+    }
+
     const costsByStage = new Map(
         form.financial_term.contractors_costs.map((cost) => [toStageKey(cost.stage), cost]),
     );
     form.performers = form.performers.map((performer) => {
         const syncedCost = costsByStage.get(toStageKey(performer.stage));
+        const prevId = normalizeNullableNumber(performer.contractor_id);
+        const nextId = normalizeNullableNumber(syncedCost?.contractor_id ?? performer.contractor_id ?? null);
+        let nextName = performer.contractor_name ?? null;
+        if (nextId === null) {
+            nextName = null;
+        } else if (nextId !== prevId) {
+            const resolved = getContractorById(nextId);
+            nextName = resolved?.name ? String(resolved.name).trim() || null : null;
+        }
 
         return {
             ...performer,
-            contractor_id: syncedCost?.contractor_id ?? performer.contractor_id ?? null,
+            contractor_id: nextId,
+            contractor_name: nextName,
         };
     });
 

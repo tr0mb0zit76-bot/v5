@@ -69,6 +69,7 @@ class OrderDocumentRequirementService
     {
         return [
             ['value' => 'contract_request', 'label' => 'Договор-заявка'],
+            ['value' => 'contract', 'label' => 'Договор'],
             ['value' => 'request', 'label' => 'Заявка'],
             ['value' => 'waybill', 'label' => 'ТН'],
             ['value' => 'cmr', 'label' => 'CMR'],

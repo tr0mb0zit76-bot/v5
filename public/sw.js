@@ -56,7 +56,7 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(event.request)
                 .then((response) => {
-                    if (!response || response.status >= 400) {
+                    if (!response || response.status >= 400 || response.status === 206) {
                         return response;
                     }
 
@@ -80,7 +80,7 @@ self.addEventListener('fetch', (event) => {
                 }
 
                 return fetch(event.request).then((response) => {
-                    if (!response || response.status >= 400) {
+                    if (!response || response.status >= 400 || response.status === 206) {
                         return response;
                     }
 

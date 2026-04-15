@@ -311,6 +311,29 @@ class OrderPrintDocumentWorkflowService
         $document->update($updates);
     }
 
+    /**
+     * Удаляет из заказа документ по печатному шаблону до финального PDF: запись и файл черновика DOCX.
+     */
+    public function discardPrintWorkflowDocument(OrderDocument $document): void
+    {
+        $this->assertWorkflowDocument($document);
+
+        if (filled($document->generated_pdf_path)) {
+            throw new \InvalidArgumentException('Нельзя удалить документ с прикреплённым финальным PDF.');
+        }
+
+        if (Schema::hasColumn('order_documents', 'workflow_status')
+            && $document->workflow_status === OrderDocumentWorkflowStatus::FINALIZED) {
+            throw new \InvalidArgumentException('Нельзя удалить зафиксированный документ.');
+        }
+
+        if (filled($document->file_path)) {
+            Storage::disk('local')->delete($document->file_path);
+        }
+
+        $document->delete();
+    }
+
     private function assertWorkflowDocument(OrderDocument $document): void
     {
         if (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template') {
