@@ -3,7 +3,10 @@
         <div class="flex items-center justify-between gap-3">
             <div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Реестр документов</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">Единый список документов по заказам с быстрыми ссылками в карточку заказа.</p>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Единый список документов по заказам с быстрыми ссылками в карточку заказа. Состав строк совпадает с доступом в разделе «Заказы» (например, менеджер видит в основном только свои заказы).
+                    Заявки и договоры из мастера — колонки «Заявка …» / «Договор …».
+                </p>
             </div>
             <button
                 type="button"

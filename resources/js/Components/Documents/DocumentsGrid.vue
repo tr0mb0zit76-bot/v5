@@ -168,10 +168,14 @@ const fallbackColumns = [
     { field: 'customer_upd', headerName: 'УПД с заказчиком', width: 220, minWidth: 180 },
     { field: 'customer_act', headerName: 'Акт с заказчиком', width: 220, minWidth: 180 },
     { field: 'customer_invoice_factura', headerName: 'Счёт-фактура с заказчиком', width: 260, minWidth: 220 },
+    { field: 'customer_request', headerName: 'Заявка заказчика', width: 220, minWidth: 180 },
+    { field: 'customer_contract_request', headerName: 'Договор с заказчиком', width: 240, minWidth: 200 },
     { field: 'carrier_invoice', headerName: 'Счёт перевозчику', width: 220, minWidth: 180 },
     { field: 'carrier_upd', headerName: 'УПД с перевозчиком', width: 220, minWidth: 180 },
     { field: 'carrier_act', headerName: 'Акт с перевозчиком', width: 220, minWidth: 180 },
     { field: 'carrier_invoice_factura', headerName: 'Счёт-фактура с перевозчиком', width: 270, minWidth: 230 },
+    { field: 'carrier_request', headerName: 'Заявка перевозчика', width: 220, minWidth: 180 },
+    { field: 'carrier_contract_request', headerName: 'Договор с перевозчиком', width: 240, minWidth: 200 },
     { field: 'transport_docs', headerName: 'Транспортные документы', width: 250, minWidth: 200 },
     { field: 'other_docs', headerName: 'Прочее', width: 220, minWidth: 180 },
 ];
@@ -197,7 +201,7 @@ let removeCenterViewportListener = null;
 
 const gridOptions = { theme: 'legacy' };
 
-const storageKey = computed(() => `documents_grid_state_v1_${props.userId}`);
+const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
 const densityStorageKey = computed(() => `documents_grid_density_${props.userId}`);
 const quickSearchStorageKey = computed(() => `documents_grid_quick_search_${props.userId}`);
 const filterModelStorageKey = computed(() => `documents_grid_filter_model_v1_${props.userId}`);

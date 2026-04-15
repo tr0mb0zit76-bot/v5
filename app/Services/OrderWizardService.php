@@ -103,7 +103,7 @@ class OrderWizardService
     ): array {
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
-        $performers = $this->performersForLegSync($validated);
+        $performers = $this->resolvedPerformers($validated);
         $routePoints = collect($validated['route_points'] ?? [])->sortBy('sequence')->values();
         $firstLoading = $routePoints->firstWhere('type', 'loading');
         $firstLoadingDate = $this->resolveRoutePointDateForOrderAggregate($firstLoading);
@@ -197,6 +197,50 @@ class OrderWizardService
     }
 
     /**
+     * @param  array<string, mixed>  $validated
+     * @return list<array<string, mixed>>
+     */
+    private function resolvedPerformers(array $validated): array
+    {
+        return $this->mergePerformerFleetFields(
+            $this->performersForLegSync($validated),
+            $validated['performers'] ?? []
+        );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $syncedPerformers
+     * @param  array<int, mixed>  $formPerformers
+     * @return list<array<string, mixed>>
+     */
+    private function mergePerformerFleetFields(array $syncedPerformers, array $formPerformers): array
+    {
+        $byStage = collect($formPerformers)
+            ->filter(fn (mixed $p): bool => is_array($p))
+            ->map(fn (array $p): array => $p)
+            ->keyBy(fn (array $p): string => $this->normalizeStageIdentifier((string) ($p['stage'] ?? '')));
+
+        return collect($syncedPerformers)
+            ->map(function (array $p) use ($byStage): array {
+                $stage = $this->normalizeStageIdentifier((string) ($p['stage'] ?? ''));
+                $extra = $byStage->get($stage);
+                if (! is_array($extra)) {
+                    return $p;
+                }
+                foreach (['fleet_vehicle_id', 'fleet_driver_id'] as $key) {
+                    if (! array_key_exists($key, $extra)) {
+                        continue;
+                    }
+                    $val = $extra[$key];
+                    $p[$key] = $val !== null && $val !== '' ? (int) $val : null;
+                }
+
+                return $p;
+            })
+            ->all();
+    }
+
+    /**
      * Исполнители по этапам: приоритет у `financial_term.contractors_costs`; если пусто — массив `performers` из запроса.
      *
      * @return list<array{stage: string, contractor_id: int|null}>
@@ -244,7 +288,7 @@ class OrderWizardService
     {
         $order->loadMissing($this->relationsForNestedSync());
 
-        $performers = $this->performersForLegSync($validated);
+        $performers = $this->resolvedPerformers($validated);
         $normalizedPerformers = collect($performers)
             ->map(function (array $performer): array {
                 if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
@@ -388,11 +432,11 @@ class OrderWizardService
                 }
 
                 if (Schema::hasColumn('order_documents', 'number')) {
-                    $documentAttributes['number'] = $document['number'] ?? null;
+                    $documentAttributes['number'] = $this->nullIfTrimmedEmpty($document['number'] ?? null);
                 }
 
                 if (Schema::hasColumn('order_documents', 'document_date')) {
-                    $documentAttributes['document_date'] = $document['document_date'] ?? null;
+                    $documentAttributes['document_date'] = $this->normalizeOrderDocumentDate($document['document_date'] ?? null);
                 }
 
                 if (Schema::hasColumn('order_documents', 'generated_pdf_path')) {
@@ -619,6 +663,38 @@ class OrderWizardService
         }
 
         return Contractor::query()->find($validated['own_company_id']);
+    }
+
+    /**
+     * Пустая строка из формы/JSON для колонки DATE в MySQL недопустима — только null или валидная дата.
+     */
+    private function normalizeOrderDocumentDate(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return strlen($trimmed) >= 10 ? substr($trimmed, 0, 10) : $trimmed;
+    }
+
+    private function nullIfTrimmedEmpty(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

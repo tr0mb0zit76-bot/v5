@@ -81,8 +81,8 @@ class DocumentRegistryController extends Controller
         $attributes = [
             'order_id' => $order->id,
             'type' => $payload['type'],
-            'number' => $payload['number'] ?? null,
-            'document_date' => $payload['document_date'] ?? null,
+            'number' => $this->nullableTrimmedString($payload['number'] ?? null),
+            'document_date' => $this->nullableDateString($payload['document_date'] ?? null),
             'original_name' => $file?->getClientOriginalName(),
             'file_path' => $storedPath,
             'file_size' => $file?->getSize(),
@@ -120,8 +120,8 @@ class DocumentRegistryController extends Controller
         $attrs = [
             'order_id' => $order->id,
             'type' => $payload['type'],
-            'number' => $payload['number'] ?? null,
-            'document_date' => $payload['document_date'] ?? null,
+            'number' => $this->nullableTrimmedString($payload['number'] ?? null),
+            'document_date' => $this->nullableDateString($payload['document_date'] ?? null),
             'status' => $payload['status'],
             'metadata' => array_merge((array) ($document->metadata ?? []), [
                 'party' => $payload['party'],
@@ -169,10 +169,14 @@ class DocumentRegistryController extends Controller
             'customer_upd' => $this->serializeColumnDocs($documents, 'upd', 'customer'),
             'customer_act' => $this->serializeColumnDocs($documents, 'act', 'customer'),
             'customer_invoice_factura' => $this->serializeColumnDocs($documents, 'invoice_factura', 'customer'),
+            'customer_request' => $this->serializeColumnDocs($documents, 'request', 'customer'),
+            'customer_contract_request' => $this->serializeColumnDocs($documents, 'contract_request', 'customer'),
             'carrier_invoice' => $this->serializeColumnDocs($documents, 'invoice', 'carrier'),
             'carrier_upd' => $this->serializeColumnDocs($documents, 'upd', 'carrier'),
             'carrier_act' => $this->serializeColumnDocs($documents, 'act', 'carrier'),
             'carrier_invoice_factura' => $this->serializeColumnDocs($documents, 'invoice_factura', 'carrier'),
+            'carrier_request' => $this->serializeColumnDocs($documents, 'request', 'carrier'),
+            'carrier_contract_request' => $this->serializeColumnDocs($documents, 'contract_request', 'carrier'),
             'transport_docs' => $this->serializeTransportDocs($documents),
             'other_docs' => $this->serializeOtherDocs($documents),
         ];
@@ -224,10 +228,20 @@ class DocumentRegistryController extends Controller
      */
     private function serializeOtherDocs($documents): array
     {
-        $knownTypes = ['invoice', 'upd', 'act', 'invoice_factura', 'waybill', 'cmr', 'packing_list', 'customs_declaration'];
+        $structuredTypes = ['invoice', 'upd', 'act', 'invoice_factura', 'waybill', 'cmr', 'packing_list', 'customs_declaration'];
+        $partySplitTypes = ['request', 'contract_request'];
 
         return $documents
-            ->filter(fn (OrderDocument $doc): bool => ! in_array($doc->type, $knownTypes, true))
+            ->filter(function (OrderDocument $doc) use ($structuredTypes, $partySplitTypes): bool {
+                $type = $doc->type;
+                $party = (array) ($doc->metadata ?? [])['party'] ?? 'internal';
+
+                if (in_array($type, $partySplitTypes, true) && in_array($party, ['customer', 'carrier'], true)) {
+                    return false;
+                }
+
+                return ! in_array($type, $structuredTypes, true);
+            })
             ->map(fn (OrderDocument $doc): array => [
                 'id' => $doc->id,
                 'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
@@ -247,5 +261,34 @@ class DocumentRegistryController extends Controller
         }
 
         abort_unless($user->isManager() && (int) $order->manager_id === (int) $user->id, 403);
+    }
+
+    private function nullableTrimmedString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function nullableDateString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return strlen($trimmed) >= 10 ? substr($trimmed, 0, 10) : $trimmed;
     }
 }

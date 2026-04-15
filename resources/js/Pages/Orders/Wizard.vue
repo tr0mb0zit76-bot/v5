@@ -35,6 +35,10 @@
                 </button>
             </div>
 
+            <p v-if="hasUnsavedDocumentFiles" class="text-xs text-amber-800 dark:text-amber-200">
+                В документах выбран новый файл — нажмите «Сохранить» выше, иначе вложение не попадёт в заказ.
+            </p>
+
             <div class="space-y-2">
                 <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Шаг</label>
                 <select
@@ -66,7 +70,13 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <span
+                        v-if="hasUnsavedDocumentFiles"
+                        class="max-w-md text-right text-xs text-amber-800 dark:text-amber-200"
+                    >
+                        В документах есть новый файл — сохраните заказ.
+                    </span>
                     <button
                         type="button"
                         class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
@@ -282,15 +292,78 @@
                         :key="`leg-route-${legIndex}`"
                         class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
                     >
-                        <div class="flex items-start justify-between gap-3 border-b border-zinc-100 pb-3 dark:border-zinc-800">
-                            <div>
+                        <div class="flex flex-col gap-4 border-b border-zinc-100 pb-3 dark:border-zinc-800 lg:flex-row lg:items-start lg:justify-between">
+                            <div class="shrink-0">
                                 <div class="text-xs uppercase tracking-wide text-zinc-500">Плечо</div>
                                 <div class="text-base font-semibold">{{ stageLabel(performer.stage) }}</div>
+                            </div>
+                            <div class="flex min-w-0 flex-1 flex-col gap-3 lg:max-w-3xl">
+                                <div class="relative">
+                                    <input
+                                        :value="carrierSearchValue('performer', legIndex)"
+                                        type="text"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Поиск перевозчика"
+                                        @focus="setCarrierResultsVisible('performer', legIndex, true)"
+                                        @input="onPerformerCarrierInput(legIndex, $event.target.value)"
+                                        @blur="restorePerformerCarrierSearch(legIndex)"
+                                    />
+                                    <button
+                                        v-if="form.performers[legIndex]?.contractor_id !== null"
+                                        type="button"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                        title="Очистить перевозчика"
+                                        @click="clearPerformerContractor(legIndex)"
+                                    >
+                                        <X class="h-4 w-4" />
+                                    </button>
+                                    <div
+                                        v-if="isCarrierResultsVisible('performer', legIndex) && filteredCarrierResults('performer', legIndex).length > 0"
+                                        class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                    >
+                                        <button
+                                            v-for="contractor in filteredCarrierResults('performer', legIndex)"
+                                            :key="contractor.id"
+                                            type="button"
+                                            class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                            @click="selectPerformerContractor(legIndex, contractor)"
+                                        >
+                                            <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                            <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
+                                        <select
+                                            v-model="performer.fleet_vehicle_id"
+                                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                            :disabled="!performer.contractor_id"
+                                            @focus="loadFleetOptionsForLeg(legIndex)"
+                                        >
+                                            <option :value="null">—</option>
+                                            <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
+                                        <select
+                                            v-model="performer.fleet_driver_id"
+                                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                            :disabled="!performer.contractor_id"
+                                            @focus="loadFleetOptionsForLeg(legIndex)"
+                                        >
+                                            <option :value="null">—</option>
+                                            <option v-for="d in fleetDriverOptionsForLeg(legIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                             <button
                                 v-if="form.performers.length > 1"
                                 type="button"
-                                class="shrink-0 rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+                                class="shrink-0 self-start rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
                                 @click="removePerformer(legIndex)"
                             >
                                 Удалить плечо
@@ -618,51 +691,20 @@
                                     <p class="text-xs text-zinc-500">Перевозчик и условия оплаты для этого плеча.</p>
                                 </div>
                             </div>
-                            <div class="grid gap-3 md:grid-cols-4">
-                            <select v-model="cost.stage" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <div class="flex flex-wrap items-end gap-3">
+                            <select v-model="cost.stage" class="w-full min-w-[10rem] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm sm:w-auto dark:border-zinc-700 dark:bg-zinc-950">
                                 <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
                             </select>
-                            <div class="relative">
-                                <input
-                                    :value="carrierSearchValue('cost', index)"
-                                    type="text"
-                                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                    placeholder="Поиск перевозчика"
-                                    @focus="setCarrierResultsVisible('cost', index, true)"
-                                    @input="onCostCarrierInput(index, $event.target.value)"
-                                    @blur="restoreCostCarrierSearch(index)"
-                                />
-                                <button
-                                    v-if="form.financial_term.contractors_costs[index]?.contractor_id !== null"
-                                    type="button"
-                                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                                    title="Очистить перевозчика"
-                                    @click="clearCostContractor(index)"
-                                >
-                                    <X class="h-4 w-4" />
-                                </button>
-                                <div
-                                    v-if="isCarrierResultsVisible('cost', index) && filteredCarrierResults('cost', index).length > 0"
-                                    class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                >
-                                    <button
-                                        v-for="contractor in filteredCarrierResults('cost', index)"
-                                        :key="contractor.id"
-                                        type="button"
-                                        class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                        @click="selectCostContractor(index, contractor)"
-                                    >
-                                        <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                        <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
-                                    </button>
+                            <div class="min-w-[12rem] flex-1 rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900/40">
+                                <div class="font-medium text-zinc-900 dark:text-zinc-50">
+                                    {{ getContractorById(cost.contractor_id)?.name ?? 'Перевозчик не выбран' }}
                                 </div>
+                                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Назначается на вкладке «Маршрут» для этого плеча.
+                                </p>
                             </div>
-                            <select v-model="cost.contractor_id" class="hidden rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="applyCarrierDefaultsByStage(cost.stage, cost.contractor_id); syncPerformerContractor(cost.stage, cost.contractor_id)">
-                                <option :value="null">Исполнитель</option>
-                                <option v-for="contractor in filteredCarrierResults('cost', index)" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
-                            </select>
-                            <input v-model="cost.amount" type="number" min="0" step="0.01" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сумма" />
-                            <select v-model="cost.currency" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <input v-model="cost.amount" type="number" min="0" step="0.01" class="w-full min-w-[8rem] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm sm:w-36 dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сумма" />
+                            <select v-model="cost.currency" class="w-full min-w-[5rem] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm sm:w-32 dark:border-zinc-700 dark:bg-zinc-950">
                                 <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                             </div>
@@ -761,6 +803,25 @@
                         <h2 class="text-base font-semibold">Документы</h2>
                         <p class="text-sm text-zinc-500">Общий блок заказчика + отдельные блоки по каждому плечу перевозки</p>
                     </div>
+                </div>
+
+                <div
+                    v-if="documentTabValidationMessages.length > 0"
+                    class="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-100"
+                    role="alert"
+                >
+                    <div class="font-medium">Не удалось сохранить заказ</div>
+                    <ul class="mt-2 list-inside list-disc space-y-1 text-xs">
+                        <li v-for="(msg, idx) in documentTabValidationMessages" :key="`doc-err-${idx}`">{{ msg }}</li>
+                    </ul>
+                </div>
+
+                <div class="rounded-2xl border border-sky-200/80 bg-sky-50/60 p-4 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/25 dark:text-sky-100">
+                    <p class="font-medium">Прикрепление файла</p>
+                    <p class="mt-1 text-xs leading-relaxed text-sky-900/85 dark:text-sky-200/85">
+                        Выбор файла только заполняет форму. Чтобы вложение попало в заказ и отобразилось в журнале документов, обязательно нажмите
+                        <span class="font-semibold">Сохранить</span> в шапке (переключение вкладок ничего не записывает).
+                    </p>
                 </div>
 
                 <div
@@ -1359,6 +1420,7 @@ const clientSearch = ref('');
 const showClientResults = ref(false);
 const carrierSearch = ref({});
 const showCarrierResults = ref({});
+const fleetOptionsCache = ref({});
 const showCounterpartyModal = ref(false);
 const counterpartyNameInput = ref(null);
 const inlineContractorSaving = ref(false);
@@ -1561,7 +1623,7 @@ function blankOrder() {
         cargo_recipient_contact: '',
         cargo_recipient_phone: '',
         performers: [
-            { stage: stageLabel('leg_1'), contractor_id: null },
+            { stage: stageLabel('leg_1'), contractor_id: null, fleet_vehicle_id: null, fleet_driver_id: null },
         ],
         route_points: [
             blankRoutePoint('loading', 1, stageLabel('leg_1')),
@@ -1608,6 +1670,8 @@ const form = useForm({
         ? props.order.performers.map((performer) => ({
             stage: stageLabel(performer.stage ?? 'leg_1'),
             contractor_id: normalizeNullableNumber(performer.contractor_id),
+            fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
+            fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
         }))
         : blankOrder().performers,
     route_points: Array.isArray(props.order?.route_points)
@@ -2076,6 +2140,8 @@ function addPerformer() {
     form.performers.push({
         stage,
         contractor_id: null,
+        fleet_vehicle_id: null,
+        fleet_driver_id: null,
     });
     syncContractorCostsFromPerformers();
     syncRoutePointsFromPerformers();
@@ -2207,7 +2273,7 @@ function pruneEmptyLegPerformers() {
     form.performers = filtered;
 
     if (form.performers.length === 0) {
-        form.performers = [{ stage: stageLabel('leg_1'), contractor_id: null }];
+        form.performers = [{ stage: stageLabel('leg_1'), contractor_id: null, fleet_vehicle_id: null, fleet_driver_id: null }];
         syncRoutePointsFromPerformers();
     } else {
         reindexLegStagesAndRemap();
@@ -2390,6 +2456,8 @@ function selectPerformerContractor(index, contractor) {
     updatedPerformers[index] = {
         ...updatedPerformers[index],
         contractor_id: Number(contractor.id),
+        fleet_vehicle_id: null,
+        fleet_driver_id: null,
     };
     form.performers = updatedPerformers;
 
@@ -2397,20 +2465,23 @@ function selectPerformerContractor(index, contractor) {
     setCarrierResultsVisible('performer', index, false);
     syncContractorCostsFromPerformers();
     applyCarrierDefaultsByStage(form.performers[index].stage, contractor.id);
+    loadFleetOptionsForLeg(index);
 }
 
 function clearPerformerContractor(index) {
-    // Создаем новый массив performers с очищенным contractor_id
     const updatedPerformers = [...form.performers];
     updatedPerformers[index] = {
         ...updatedPerformers[index],
-        contractor_id: null
+        contractor_id: null,
+        fleet_vehicle_id: null,
+        fleet_driver_id: null,
     };
     form.performers = updatedPerformers;
-    
+
     setCarrierSearchValue('performer', index, '');
     setCarrierResultsVisible('performer', index, false);
     syncContractorCostsFromPerformers();
+    fleetOptionsCache.value = { ...fleetOptionsCache.value, [index]: { vehicles: [], drivers: [] } };
 }
 
 function syncPerformerContractor(stage, contractorId) {
@@ -2423,65 +2494,79 @@ function syncPerformerContractor(stage, contractorId) {
     performer.contractor_id = contractorId !== null ? Number(contractorId) : null;
 }
 
-function selectCostContractor(index, contractor) {
-    ensureContractorInLocalList(contractor);
+function onPerformerCarrierInput(index, value) {
+    setCarrierSearchValue('performer', index, value);
+    setCarrierResultsVisible('performer', index, true);
 
-    form.financial_term.contractors_costs[index].contractor_id = Number(contractor.id);
-    setCarrierSearchValue('cost', index, contractor.name);
-    setCarrierResultsVisible('cost', index, false);
-    syncPerformerContractor(form.financial_term.contractors_costs[index].stage, Number(contractor.id));
-    applyCarrierDefaultsByStage(form.financial_term.contractors_costs[index].stage, Number(contractor.id));
-}
-
-function clearCostContractor(index) {
-    const cost = form.financial_term.contractors_costs[index];
-
-    if (!cost) {
-        return;
-    }
-
-    cost.contractor_id = null;
-    setCarrierSearchValue('cost', index, '');
-    setCarrierResultsVisible('cost', index, false);
-    syncPerformerContractor(cost.stage, null);
-}
-
-function onCostCarrierInput(index, value) {
-    setCarrierSearchValue('cost', index, value);
-    setCarrierResultsVisible('cost', index, true);
-
-    const cost = form.financial_term.contractors_costs[index];
-    if (!cost) {
+    const performer = form.performers[index];
+    if (!performer) {
         return;
     }
 
     const typed = String(value ?? '').trim().toLowerCase();
-    const selectedContractor = getContractorById(cost.contractor_id);
+    const selectedContractor = getContractorById(performer.contractor_id);
     const selectedName = String(selectedContractor?.name ?? '').trim().toLowerCase();
 
     if (typed === '') {
-        clearCostContractor(index);
+        clearPerformerContractor(index);
+
         return;
     }
 
-    // Если пользователь начал вводить другое имя, снимаем текущее привязанное contractor_id.
-    if (cost.contractor_id !== null && selectedName !== '' && selectedName !== typed) {
-        cost.contractor_id = null;
-        syncPerformerContractor(cost.stage, null);
+    if (performer.contractor_id !== null && selectedName !== '' && selectedName !== typed) {
+        performer.contractor_id = null;
+        performer.fleet_vehicle_id = null;
+        performer.fleet_driver_id = null;
+        syncContractorCostsFromPerformers();
     }
 }
 
-function restoreCostCarrierSearch(index) {
+function restorePerformerCarrierSearch(index) {
     window.setTimeout(() => {
-        const cost = form.financial_term.contractors_costs[index];
-        if (!cost) {
+        const performer = form.performers[index];
+        if (!performer) {
             return;
         }
 
-        const selectedContractor = getContractorById(cost.contractor_id);
-        setCarrierSearchValue('cost', index, selectedContractor?.name ?? '');
-        setCarrierResultsVisible('cost', index, false);
+        const selectedContractor = getContractorById(performer.contractor_id);
+        setCarrierSearchValue('performer', index, selectedContractor?.name ?? '');
+        setCarrierResultsVisible('performer', index, false);
     }, 120);
+}
+
+async function loadFleetOptionsForLeg(legIndex) {
+    const contractorId = normalizeNullableNumber(form.performers[legIndex]?.contractor_id);
+    if (!contractorId) {
+        fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles: [], drivers: [] } };
+
+        return;
+    }
+
+    try {
+        const [vRes, dRes] = await Promise.all([
+            fetch(`${route('fleet.options.vehicles')}?owner_contractor_id=${contractorId}`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'include',
+            }),
+            fetch(`${route('fleet.options.drivers')}?carrier_contractor_id=${contractorId}`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'include',
+            }),
+        ]);
+        const vehicles = (await vRes.json()).vehicles ?? [];
+        const drivers = (await dRes.json()).drivers ?? [];
+        fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles, drivers } };
+    } catch {
+        fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles: [], drivers: [] } };
+    }
+}
+
+function fleetVehicleOptionsForLeg(legIndex) {
+    return fleetOptionsCache.value[legIndex]?.vehicles ?? [];
+}
+
+function fleetDriverOptionsForLeg(legIndex) {
+    return fleetOptionsCache.value[legIndex]?.drivers ?? [];
 }
 
 const routeChainLabel = computed(() => {
@@ -2509,6 +2594,15 @@ const cargoSummary = computed(() => {
         totalPackages: 0,
     });
 });
+
+/** Ошибки валидации по документам и полю order_payload (вкладка «Документы»). */
+const documentTabValidationMessages = computed(() => {
+    return Object.entries(form.errors)
+        .filter(([key]) => key === 'order_payload' || key.startsWith('documents'))
+        .map(([, value]) => (Array.isArray(value) ? value.join(' ') : String(value)));
+});
+
+const hasUnsavedDocumentFiles = computed(() => form.documents.some((d) => d.file instanceof File));
 
 const financialSummary = computed(() => {
     const clientPrice = Number(form.financial_term.client_price || 0);
@@ -2893,7 +2987,7 @@ function syncContractorCostsFromPerformers() {
 
 watch(
     () => form.performers.map((performer) => [performer.stage, performer.contractor_id]),
-    (performers) => {
+    (performers, prev) => {
         performers.forEach(([stage, contractorId], index) => {
             const contractor = getContractorById(contractorId);
 
@@ -2902,6 +2996,19 @@ watch(
 
             if (costIndex !== -1) {
                 setCarrierSearchValue('cost', costIndex, contractor?.name ?? '');
+            }
+
+            const prevRow = prev?.[index];
+            if (prevRow && prevRow[1] !== contractorId) {
+                const performerRow = form.performers[index];
+                if (performerRow) {
+                    performerRow.fleet_vehicle_id = null;
+                    performerRow.fleet_driver_id = null;
+                }
+            }
+
+            if (!prevRow || prevRow[1] !== contractorId) {
+                loadFleetOptionsForLeg(index);
             }
         });
     },
@@ -2919,7 +3026,11 @@ watch(
 );
 
 function onDocumentFileChange(index, event) {
-    form.documents[index].file = event.target.files?.[0] ?? null;
+    const file = event.target.files?.[0] ?? null;
+    form.documents[index].file = file;
+    if (file) {
+        form.documents[index].original_name = file.name;
+    }
 }
 
 function documentTypeLabel(type) {
@@ -3059,6 +3170,8 @@ function buildSubmitPayload() {
         performers: form.performers.map((performer) => ({
             stage: performer.stage,
             contractor_id: normalizeNullableNumber(performer.contractor_id),
+            fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
+            fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
         })),
 
         // Route points
@@ -3121,7 +3234,9 @@ function buildSubmitPayload() {
             stage: document.stage,
             requirement_key: document.requirement_key,
             number: document.number,
-            document_date: document.document_date,
+            document_date: document.document_date && String(document.document_date).trim() !== ''
+                ? document.document_date
+                : null,
             status: document.status,
             template_id: document.template_id,
             file: document.file instanceof File ? document.file : null,
@@ -3144,14 +3259,52 @@ function submit() {
         };
     });
 
-    // Multipart FormData глубоко вложенные массивы (financial_term, contractors_costs и т.д.) на бэкенде
-    // часто приходят пустыми/обрезанными — без JSON сохранение не совпадает с тем, что в форме.
-    // FormData нужен только при загрузке новых файлов документов.
     const hasNewDocumentFiles = form.documents.some((document) => document.file instanceof File);
-    const submitOptions = {
-        preserveScroll: true,
-        forceFormData: hasNewDocumentFiles,
-    };
+
+    // Multipart FormData с глубокой вложенностью из браузера часто «ломает» financial_term / route_points на PHP.
+    // При новых файлах шлём JSON в `order_payload` и прикладываем бинарники отдельными полями `document_file_{i}`.
+    if (hasNewDocumentFiles) {
+        const payload = buildSubmitPayload();
+        const jsonBody = {
+            ...payload,
+            documents: payload.documents.map(({ file: _file, ...meta }) => meta),
+        };
+        const formData = new FormData();
+        formData.append('order_payload', JSON.stringify(jsonBody));
+        payload.documents.forEach((doc, index) => {
+            if (doc.file instanceof File) {
+                formData.append(`document_file_${index}`, doc.file);
+            }
+        });
+
+        const url = isEditing.value ? route('orders.update', props.order.id) : route('orders.store');
+        const opts = {
+            preserveScroll: true,
+            forceFormData: true,
+            onBefore: () => {
+                form.processing = true;
+            },
+            onFinish: () => {
+                form.processing = false;
+            },
+            onError: (errors) => {
+                form.clearErrors().setError(errors);
+            },
+        };
+
+        if (isEditing.value) {
+            formData.append('_method', 'patch');
+            router.post(url, formData, opts);
+
+            return;
+        }
+
+        router.post(url, formData, opts);
+
+        return;
+    }
+
+    const submitOptions = { preserveScroll: true };
 
     if (isEditing.value) {
         form.transform(() => buildSubmitPayload()).patch(route('orders.update', props.order.id), submitOptions);

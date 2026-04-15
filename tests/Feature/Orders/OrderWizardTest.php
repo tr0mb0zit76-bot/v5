@@ -597,6 +597,190 @@ class OrderWizardTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_create_order_with_order_payload_multipart_and_attached_document_file(): void
+    {
+        $admin = $this->createAdminUser();
+
+        DB::table('kpi_settings')->insert([
+            'key' => 'delta_bonus_multiplier',
+            'value' => '1.30',
+            'type' => 'float',
+            'group' => 'delta',
+            'description' => 'Multiplier',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('salary_coefficients')->insert([
+            'manager_id' => $admin->id,
+            'base_salary' => 10000,
+            'bonus_percent' => 10,
+            'effective_from' => '2026-04-01',
+            'effective_to' => null,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент Payload',
+            'inn' => '1234567891',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $ownCompanyId = DB::table('contractors')->insertGetId([
+            'type' => 'both',
+            'name' => 'ООО Наша Компания Payload',
+            'inn' => '9876543211',
+            'is_active' => true,
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик Payload',
+            'inn' => '5555555556',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderPayload = [
+            'status' => 'new',
+            'own_company_id' => $ownCompanyId,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-01',
+            'order_number' => '',
+            'special_notes' => 'Payload multipart',
+            'additional_expenses' => 1000,
+            'insurance' => 0,
+            'bonus' => 0,
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара, ул. Payload, 1',
+                    'normalized_data' => ['city' => 'Самара'],
+                    'planned_date' => '2026-04-02',
+                    'contact_person' => 'Иван',
+                    'contact_phone' => '+79990000000',
+                    'sender_name' => 'ООО Отправитель',
+                    'sender_contact' => 'Склад',
+                    'sender_phone' => '+79990000001',
+                ],
+                [
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'address' => 'Казань, ул. Payload, 2',
+                    'normalized_data' => ['city' => 'Казань'],
+                    'planned_date' => '2026-04-03',
+                    'contact_person' => 'Петр',
+                    'contact_phone' => '+79991111111',
+                    'recipient_name' => 'ООО Получатель',
+                    'recipient_contact' => 'Приемка',
+                    'recipient_phone' => '+79990000002',
+                ],
+            ],
+            'cargo_items' => [
+                [
+                    'name' => 'Груз payload',
+                    'description' => '',
+                    'weight_kg' => 100,
+                    'volume_m3' => 1,
+                    'package_type' => 'pallet',
+                    'package_count' => 1,
+                    'dangerous_goods' => false,
+                    'dangerous_class' => null,
+                    'hs_code' => '',
+                    'cargo_type' => 'general',
+                ],
+            ],
+            'financial_term' => [
+                'client_price' => 50000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_request_mode' => 'single_request',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 5,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 5,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 30000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 7,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [
+                [
+                    'type' => 'request',
+                    'flow' => 'uploaded',
+                    'party' => 'customer',
+                    'stage' => null,
+                    'requirement_key' => null,
+                    'number' => 'PL-REQ-1',
+                    'document_date' => '',
+                    'status' => 'draft',
+                    'template_id' => null,
+                    'original_name' => '',
+                    'generated_pdf_path' => null,
+                ],
+            ],
+        ];
+
+        $file = UploadedFile::fake()->create('payload-request.pdf', 120, 'application/pdf');
+
+        $response = $this->actingAs($admin)->post(route('orders.store'), [
+            'order_payload' => json_encode($orderPayload, JSON_THROW_ON_ERROR),
+            'document_file_0' => $file,
+        ]);
+
+        $orderId = DB::table('orders')->value('id');
+        $response->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('route_points', [
+            'address' => 'Самара, ул. Payload, 1',
+        ]);
+        $this->assertDatabaseHas('financial_terms', [
+            'order_id' => $orderId,
+            'client_price' => 50000,
+        ]);
+        $this->assertDatabaseHas('order_documents', [
+            'order_id' => $orderId,
+            'number' => 'PL-REQ-1',
+        ]);
+
+        $filePath = DB::table('order_documents')
+            ->where('order_id', $orderId)
+            ->where('number', 'PL-REQ-1')
+            ->value('file_path');
+        $this->assertNotNull($filePath);
+        $this->assertNotSame('', $filePath);
+        $this->assertNull(DB::table('order_documents')
+            ->where('order_id', $orderId)
+            ->where('number', 'PL-REQ-1')
+            ->value('document_date'));
+    }
+
     public function test_admin_can_update_order_and_persist_contractor_costs(): void
     {
         $admin = $this->createAdminUser();

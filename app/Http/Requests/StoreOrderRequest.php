@@ -3,12 +3,17 @@
 namespace App\Http\Requests;
 
 use App\Models\Contractor;
+use App\Models\FleetDriver;
+use App\Models\FleetVehicle;
 use App\Services\ContractorCreditService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
+use JsonException;
 
 class StoreOrderRequest extends FormRequest
 {
@@ -17,6 +22,41 @@ class StoreOrderRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user() !== null;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('order_payload')) {
+            return;
+        }
+
+        try {
+            /** @var array<string, mixed> $data */
+            $data = json_decode($this->string('order_payload')->value(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            throw ValidationException::withMessages([
+                'order_payload' => 'Некорректный JSON заказа.',
+            ]);
+        }
+
+        if (! is_array($data)) {
+            throw ValidationException::withMessages([
+                'order_payload' => 'Некорректный JSON заказа.',
+            ]);
+        }
+
+        $documents = $data['documents'] ?? [];
+        if (is_array($documents)) {
+            foreach (array_keys($documents) as $index) {
+                $uploadKey = 'document_file_'.$index;
+                if ($this->hasFile($uploadKey)) {
+                    $documents[$index]['file'] = $this->file($uploadKey);
+                }
+            }
+            $data['documents'] = $documents;
+        }
+
+        $this->merge($data);
     }
 
     /**
@@ -90,6 +130,44 @@ class StoreOrderRequest extends FormRequest
                     }
                 }
             },
+            function (Validator $validator): void {
+                if (! Schema::hasTable('fleet_vehicles') || ! Schema::hasTable('fleet_drivers')) {
+                    return;
+                }
+
+                $performers = $this->input('performers', []);
+                if (! is_array($performers)) {
+                    return;
+                }
+
+                foreach ($performers as $i => $performer) {
+                    if (! is_array($performer)) {
+                        continue;
+                    }
+
+                    $carrierId = isset($performer['contractor_id']) ? (int) $performer['contractor_id'] : null;
+                    $vehicleId = isset($performer['fleet_vehicle_id']) ? (int) $performer['fleet_vehicle_id'] : null;
+                    $driverId = isset($performer['fleet_driver_id']) ? (int) $performer['fleet_driver_id'] : null;
+
+                    if ($vehicleId > 0) {
+                        $vehicle = FleetVehicle::query()->find($vehicleId);
+                        if ($vehicle === null) {
+                            $validator->errors()->add("performers.$i.fleet_vehicle_id", 'Транспортное средство не найдено.');
+                        } elseif ($carrierId && (int) $vehicle->owner_contractor_id !== $carrierId) {
+                            $validator->errors()->add("performers.$i.fleet_vehicle_id", 'ТС должно принадлежать выбранному перевозчику (владелец в карточке ТС).');
+                        }
+                    }
+
+                    if ($driverId > 0) {
+                        $driver = FleetDriver::query()->find($driverId);
+                        if ($driver === null) {
+                            $validator->errors()->add("performers.$i.fleet_driver_id", 'Водитель не найден.');
+                        } elseif ($carrierId && (int) $driver->carrier_contractor_id !== $carrierId) {
+                            $validator->errors()->add("performers.$i.fleet_driver_id", 'Водитель должен быть привязан к выбранному контрагенту-перевозчику.');
+                        }
+                    }
+                }
+            },
         ];
     }
 
@@ -113,6 +191,8 @@ class StoreOrderRequest extends FormRequest
             'performers' => ['nullable', 'array'],
             'performers.*.stage' => ['required', 'string', 'max:50'],
             'performers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'performers.*.fleet_vehicle_id' => ['nullable', 'integer'],
+            'performers.*.fleet_driver_id' => ['nullable', 'integer'],
 
             'route_points' => ['nullable', 'array'],
             'route_points.*.type' => ['required', Rule::in(['loading', 'unloading'])],

@@ -6,6 +6,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
+use App\Http\Controllers\FleetDriverController;
+use App\Http\Controllers\FleetVehicleController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
@@ -144,17 +146,37 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors-search', 'search')->name('contractors.search');
     });
 
-    Route::get('/fleet/vehicles', function () {
-        return Inertia::render('Fleet/Vehicles');
-    })->middleware('visibility.area:drivers')->name('fleet.vehicles.index');
-
     Route::get('/fleet/containers', function () {
         return Inertia::render('Fleet/Containers');
     })->middleware('visibility.area:drivers')->name('fleet.containers.index');
 
-    Route::get('/drivers', function () {
-        return Inertia::render('Fleet/Drivers');
-    })->middleware('visibility.area:drivers')->name('drivers.index');
+    Route::controller(FleetVehicleController::class)->middleware('visibility.area:drivers')->group(function () {
+        Route::get('/fleet/vehicles', 'index')->name('fleet.vehicles.index');
+        Route::post('/fleet/vehicles', 'store')->name('fleet.vehicles.store');
+        Route::get('/fleet/vehicles/{fleetVehicle}', 'show')->name('fleet.vehicles.show');
+        Route::patch('/fleet/vehicles/{fleetVehicle}', 'update')->name('fleet.vehicles.update');
+        Route::post('/fleet/vehicles/{fleetVehicle}/documents', 'storeDocument')->name('fleet.vehicles.documents.store');
+        Route::delete('/fleet/vehicles/{fleetVehicle}/documents/{fleetVehicleDocument}', 'destroyDocument')->name('fleet.vehicles.documents.destroy');
+        Route::get('/fleet/vehicles/{fleetVehicle}/documents/{fleetVehicleDocument}/download', 'downloadDocument')->name('fleet.vehicles.documents.download');
+    });
+
+    Route::controller(FleetDriverController::class)->middleware('visibility.area:drivers')->group(function () {
+        Route::get('/drivers', 'index')->name('drivers.index');
+        Route::post('/fleet/drivers', 'store')->name('fleet.drivers.store');
+        Route::get('/fleet/drivers/{fleetDriver}', 'show')->name('fleet.drivers.show');
+        Route::patch('/fleet/drivers/{fleetDriver}', 'update')->name('fleet.drivers.update');
+        Route::post('/fleet/drivers/{fleetDriver}/documents', 'storeDocument')->name('fleet.drivers.documents.store');
+        Route::delete('/fleet/drivers/{fleetDriver}/documents/{fleetDriverDocument}', 'destroyDocument')->name('fleet.drivers.documents.destroy');
+        Route::get('/fleet/drivers/{fleetDriver}/documents/{fleetDriverDocument}/download', 'downloadDocument')->name('fleet.drivers.documents.download');
+    });
+
+    Route::get('/fleet/options/vehicles', [FleetVehicleController::class, 'optionsForOrder'])
+        ->middleware('visibility.area:orders')
+        ->name('fleet.options.vehicles');
+
+    Route::get('/fleet/options/drivers', [FleetDriverController::class, 'optionsForOrder'])
+        ->middleware('visibility.area:orders')
+        ->name('fleet.options.drivers');
 
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area:documents')->name('finance.index');
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area:documents')->name('documents.index');
