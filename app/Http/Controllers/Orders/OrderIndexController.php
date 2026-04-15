@@ -301,15 +301,31 @@ class OrderIndexController extends Controller
 
     private function routePointSubquery(string $type)
     {
+        $cityCandidates = array_values(array_filter([
+            Schema::hasColumn('route_points', 'normalized_data')
+                ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(route_points.normalized_data, '$.city')), '')"
+                : null,
+            Schema::hasColumn('route_points', 'metadata')
+                ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(route_points.metadata, '$.normalized_data.city')), '')"
+                : null,
+            'NULLIF(cities.name, "")',
+        ]));
+        $cityExpression = match (count($cityCandidates)) {
+            0 => 'NULL',
+            1 => $cityCandidates[0],
+            default => 'COALESCE('.implode(', ', $cityCandidates).')',
+        };
+
         $addressExpression = Schema::hasColumn('route_points', 'address')
             ? 'COALESCE(NULLIF(route_points.address, ""), NULLIF(cities.name, ""), addresses.address_line)'
             : 'COALESCE(NULLIF(cities.name, ""), addresses.address_line)';
+        $displayExpression = "COALESCE({$cityExpression}, {$addressExpression})";
 
         return DB::table('route_points')
             ->join('order_legs', 'order_legs.id', '=', 'route_points.order_leg_id')
             ->leftJoin('addresses', 'addresses.id', '=', 'route_points.address_id')
             ->leftJoin('cities', 'cities.id', '=', 'addresses.city_id')
-            ->selectRaw($addressExpression)
+            ->selectRaw($displayExpression)
             ->whereColumn('order_legs.order_id', 'orders.id')
             ->where('route_points.type', $type)
             ->orderBy('order_legs.sequence')

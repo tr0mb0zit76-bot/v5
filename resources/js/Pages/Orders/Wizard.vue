@@ -1723,6 +1723,7 @@ const form = useForm({
             ...point,
             stage: stageLabel(point.stage ?? 'leg_1'),
             sequence: Number(point.sequence ?? (index + 1)),
+            normalized_data: point.normalized_data || {},
         }))
         : blankOrder().route_points,
     financial_term: {
