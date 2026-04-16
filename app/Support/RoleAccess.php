@@ -266,6 +266,28 @@ class RoleAccess
         return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
     }
 
+    /**
+     * Массовые операции (переназначение чужих задач и т.п.) — только команда целиком или админ.
+     */
+    public static function canBulkMutateTasks(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'tasks')) {
+            return false;
+        }
+
+        $scope = static::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+
+        return $scope === 'all';
+    }
+
     public static function canAccessSettingsSystem(?User $user): bool
     {
         if ($user === null) {

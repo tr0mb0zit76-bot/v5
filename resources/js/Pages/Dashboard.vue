@@ -137,12 +137,16 @@
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Задач на сегодня</div>
                     <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.tasks_today }}</div>
-                    <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">в том числе просроченных {{ metrics.tasks_overdue }}</div>
+                    <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Открытых просроченных (по сроку или SLA): {{ metrics.tasks_overdue }}</div>
+                    <div v-if="Number(metrics.tasks_sla_breached_open || 0) > 0" class="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                        С просроченным SLA: {{ metrics.tasks_sla_breached_open }}
+                    </div>
                 </article>
 
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">План выполнен на</div>
                     <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ formatPercent(metrics.plan_completion_percent) }}</div>
+                    <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">В срок (закрытые за период): {{ formatPercent(metrics.tasks_on_time_percent) }}</div>
                 </article>
 
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -176,6 +180,11 @@ const props = defineProps({
             direct_share_percent: 0,
             period_delta: 0,
             weekly_client_returns: 0,
+            tasks_today: 0,
+            tasks_overdue: 0,
+            plan_completion_percent: 0,
+            tasks_on_time_percent: 0,
+            tasks_sla_breached_open: 0,
         }),
     },
 });

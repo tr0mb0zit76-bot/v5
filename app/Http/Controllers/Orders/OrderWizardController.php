@@ -477,12 +477,17 @@ class OrderWizardController extends Controller
                         'sequence' => $point->sequence,
                         'address' => $routePointHasAddressColumn && filled($point->address)
                             ? $point->address
-                            : data_get($point->metadata, 'address', $point->instructions),
+                            : data_get($point->metadata, 'address',
+                                data_get($point->metadata, 'full_address',
+                                    data_get($point->normalized_data, 'result', $point->instructions))),
                         'normalized_data' => $routePointHasMetadataColumn
                             ? (data_get($point->metadata, 'normalized_data', []))
                             : ($point->normalized_data ?? []),
                         'planned_date' => optional($point->planned_date)?->toDateString(),
+                        'planned_time_from' => filled($point->planned_time_from) ? substr((string) $point->planned_time_from, 0, 5) : null,
+                        'planned_time_to' => filled($point->planned_time_to) ? substr((string) $point->planned_time_to, 0, 5) : null,
                         'actual_date' => optional($point->actual_date)?->toDateString(),
+                        'actual_time' => filled($point->actual_time) ? substr((string) $point->actual_time, 0, 5) : null,
                         'contact_person' => $point->contact_person,
                         'contact_phone' => $point->contact_phone,
                         'sender_name' => $point->sender_name,
@@ -555,6 +560,7 @@ class OrderWizardController extends Controller
             'responsible_name' => $order->relationLoaded('manager') ? $order->manager?->name : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
+            'loading_types' => $this->resolveLoadingTypesForOrder($order),
             'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
             'insurance' => Schema::hasColumn('orders', 'insurance') ? $order->insurance : null,
             'bonus' => Schema::hasColumn('orders', 'bonus') ? $order->bonus : null,
@@ -1191,6 +1197,68 @@ class OrderWizardController extends Controller
             ->where('order_legs.order_id', $order->id)
             ->orderBy('cargos.id')
             ->get();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveLoadingTypesForOrder(Order $order): array
+    {
+        $types = collect($order->legs ?? [])
+            ->flatMap(fn ($leg) => $leg->routePoints ?? [])
+            ->filter(fn ($point): bool => ($point->type ?? null) === 'loading')
+            ->flatMap(function ($point): array {
+                $fromMetadata = data_get($point->metadata, 'loading_types', []);
+                if (is_array($fromMetadata)) {
+                    return $fromMetadata;
+                }
+
+                $fromNormalized = data_get($point->normalized_data, 'loading_types', []);
+
+                return is_array($fromNormalized) ? $fromNormalized : [];
+            })
+            ->map(fn (mixed $value): ?string => $this->normalizeLoadingType($value))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($types->isEmpty()) {
+            $fallback = data_get($order->metadata, 'loading_types', []);
+            if (is_array($fallback)) {
+                $types = collect($fallback)
+                    ->map(fn (mixed $value): ?string => $this->normalizeLoadingType($value))
+                    ->filter()
+                    ->unique()
+                    ->values();
+            }
+        }
+
+        if ($types->isEmpty()) {
+            $fallback = data_get($order->wizard_state, 'loading_types', []);
+            if (is_array($fallback)) {
+                $types = collect($fallback)
+                    ->map(fn (mixed $value): ?string => $this->normalizeLoadingType($value))
+                    ->filter()
+                    ->unique()
+                    ->values();
+            }
+        }
+
+        return $types->all();
+    }
+
+    private function normalizeLoadingType(mixed $value): ?string
+    {
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        return match (strtolower(trim((string) $value))) {
+            'top', 'верх' => 'top',
+            'side', 'бок' => 'side',
+            'rear', 'зад' => 'rear',
+            default => null,
+        };
     }
 
     /**

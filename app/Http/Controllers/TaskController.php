@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BulkUpdateTasksRequest;
 use App\Http\Requests\StoreTaskAttachmentRequest;
 use App\Http\Requests\StoreTaskChecklistItemRequest;
 use App\Http\Requests\StoreTaskCommentRequest;
@@ -15,6 +16,7 @@ use App\Models\TaskChecklistItem;
 use App\Models\TaskEvent;
 use App\Models\User;
 use App\Services\CabinetNotifier;
+use App\Services\TaskSlaService;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +34,7 @@ class TaskController extends Controller
 {
     public function __construct(
         private readonly CabinetNotifier $cabinetNotifier,
+        private readonly TaskSlaService $taskSlaService,
     ) {}
 
     public function index(Request $request): Response
@@ -72,7 +75,7 @@ class TaskController extends Controller
     {
         $validated = $request->validated();
 
-        $task = Task::query()->create([
+        $attributes = [
             'number' => $this->nextTaskNumber(),
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
@@ -84,7 +87,17 @@ class TaskController extends Controller
             'lead_id' => $validated['lead_id'] ?? null,
             'order_id' => $validated['order_id'] ?? null,
             'contractor_id' => $validated['contractor_id'] ?? null,
-        ]);
+        ];
+
+        if (Schema::hasColumn('tasks', 'sla_deadline_at')) {
+            $sla = $this->taskSlaService->resolveSlaDeadline(
+                isset($validated['due_at']) ? (string) $validated['due_at'] : null,
+                isset($validated['sla_deadline_at']) ? (string) $validated['sla_deadline_at'] : null,
+            );
+            $attributes['sla_deadline_at'] = $sla;
+        }
+
+        $task = Task::query()->create($attributes);
 
         $this->logTaskEvent($task, $request->user()?->id, 'created', 'Создана задача', $task->title);
         $this->syncLinkedLeadStatus($task, $request->user()?->id);
@@ -97,7 +110,7 @@ class TaskController extends Controller
     {
         $validated = $request->validated();
 
-        $task->update([
+        $updatePayload = [
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'],
@@ -108,7 +121,22 @@ class TaskController extends Controller
             'order_id' => $validated['order_id'] ?? null,
             'contractor_id' => $validated['contractor_id'] ?? null,
             'completed_at' => $validated['status'] === 'done' ? now() : null,
-        ]);
+        ];
+
+        if (Schema::hasColumn('tasks', 'sla_deadline_at')) {
+            $updatePayload['sla_deadline_at'] = $this->taskSlaService->resolveSlaDeadline(
+                isset($validated['due_at']) ? (string) $validated['due_at'] : null,
+                isset($validated['sla_deadline_at']) && $validated['sla_deadline_at'] !== null
+                    ? (string) $validated['sla_deadline_at']
+                    : null,
+            );
+        }
+
+        $task->update($updatePayload);
+
+        if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+            $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+        }
 
         if ($task->wasChanged('responsible_id')) {
             $this->cabinetNotifier->notifyTaskAssigned($task->fresh(), $request->user());
@@ -127,6 +155,10 @@ class TaskController extends Controller
             'status' => $status,
             'completed_at' => $status === 'done' ? now() : null,
         ]);
+
+        if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+            $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+        }
 
         $this->logTaskEvent(
             $task,
@@ -263,6 +295,50 @@ class TaskController extends Controller
         return Storage::disk($taskAttachment->disk)->download($taskAttachment->path, $taskAttachment->original_name);
     }
 
+    public function bulkUpdate(BulkUpdateTasksRequest $request): RedirectResponse
+    {
+        abort_unless($this->canAccessTasks($request), 403);
+
+        $validated = $request->validated();
+        $ids = $validated['task_ids'];
+        $action = $validated['action'];
+
+        $tasks = Task::query()->whereIn('id', $ids)->orderBy('id')->get();
+
+        abort_unless($tasks->count() === count(array_unique($ids)), 404);
+
+        foreach ($tasks as $task) {
+            if ($action === 'close') {
+                abort_unless(RoleAccess::canMutateTask($request->user(), $task), 403);
+                $task->update([
+                    'status' => 'done',
+                    'completed_at' => now(),
+                ]);
+                $this->logTaskEvent($task->fresh(), $request->user()?->id, 'bulk_closed', 'Массовое закрытие', $task->title);
+                $this->syncLinkedLeadStatus($task->fresh(), $request->user()?->id);
+                if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+                    $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+                }
+            } else {
+                abort_unless(RoleAccess::canBulkMutateTasks($request->user()), 403);
+                $task->update([
+                    'responsible_id' => $validated['responsible_id'],
+                ]);
+                $assignee = User::query()->find($validated['responsible_id']);
+                $this->logTaskEvent(
+                    $task->fresh(),
+                    $request->user()?->id,
+                    'bulk_assigned',
+                    'Массовое переназначение',
+                    $assignee?->name
+                );
+                $this->cabinetNotifier->notifyTaskAssigned($task->fresh(), $request->user());
+            }
+        }
+
+        return to_route('tasks.index');
+    }
+
     private function canAccessTasks(Request $request): bool
     {
         $user = $request->user();
@@ -308,6 +384,7 @@ class TaskController extends Controller
             'users' => $this->activeUsers(),
             'leadOptions' => $this->leadOptions($request),
             'attachmentBaseUrl' => route('tasks.index'),
+            'can_bulk_mutate_tasks' => RoleAccess::canBulkMutateTasks($request->user()),
         ];
     }
 
@@ -354,6 +431,12 @@ class TaskController extends Controller
             'status_label' => TaskStatus::label($task->status),
             'priority' => $task->priority,
             'due_at' => optional($task->due_at)?->format('Y-m-d\TH:i'),
+            'sla_deadline_at' => Schema::hasColumn('tasks', 'sla_deadline_at')
+                ? optional($task->sla_deadline_at)?->format('Y-m-d\TH:i')
+                : null,
+            'sla_breached' => Schema::hasColumn('tasks', 'sla_deadline_at')
+                ? $this->taskSlaService->isSlaBreached($task)
+                : false,
             'completed_at' => optional($task->completed_at)?->toIso8601String(),
             'responsible_id' => $task->responsible_id,
             'responsible_name' => $task->responsible?->name,

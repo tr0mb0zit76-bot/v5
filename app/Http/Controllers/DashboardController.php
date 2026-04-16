@@ -35,6 +35,8 @@ class DashboardController extends Controller
                     'tasks_today' => 0,
                     'tasks_overdue' => 0,
                     'plan_completion_percent' => 0.0,
+                    'tasks_on_time_percent' => 0.0,
+                    'tasks_sla_breached_open' => 0,
                     'margin_rank' => '—',
                 ]
                 : $dashboardMetricsService->forManager($request->user()->id, $dateFrom, $dateTo),

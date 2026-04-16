@@ -126,7 +126,7 @@
                                         v-if="template.has_source_file"
                                         type="button"
                                         class="rounded-lg border border-emerald-200 p-2 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
-                                        @click="openDraftModal(template)"
+                                        @click="previewTemplateFromRow(template)"
                                     >
                                         <FileText class="h-4 w-4" />
                                     </button>
@@ -556,8 +556,49 @@ function openEditModal(template) {
     showModal.value = true;
 }
 
-function openDraftModal(template) {
-    openEditModal(template);
+function previewTemplateFromRow(template) {
+    if (!template?.has_source_file) {
+        window.alert('У шаблона нет загруженного DOCX-файла.');
+        return;
+    }
+
+    if (template.entity_type === 'order') {
+        const orderId = String(window.prompt('ID заказа для предпросмотра', String(previewOrderId.value || '')) || '').trim();
+        if (orderId === '') {
+            return;
+        }
+        previewOrderId.value = orderId;
+        window.open(
+            route('settings.templates.generate-order-draft', {
+                printFormTemplate: template.id,
+                order_id: orderId,
+                preview: 1,
+                preview_mode: 'browser',
+            }),
+            '_blank'
+        );
+        return;
+    }
+
+    if (template.entity_type === 'lead') {
+        const leadId = String(window.prompt('ID лида для предпросмотра', String(previewLeadId.value || '')) || '').trim();
+        if (leadId === '') {
+            return;
+        }
+        previewLeadId.value = leadId;
+        window.open(
+            route('settings.templates.generate-lead-draft', {
+                printFormTemplate: template.id,
+                lead_id: leadId,
+                preview: 1,
+                preview_mode: 'browser',
+            }),
+            '_blank'
+        );
+        return;
+    }
+
+    window.alert('Для этого типа шаблона быстрый предпросмотр пока не настроен.');
 }
 
 function closeModal() {
@@ -676,6 +717,7 @@ function previewOrderDraft() {
             printFormTemplate: editingTemplate.value.id,
             order_id: orderId,
             preview: 1,
+            preview_mode: 'browser',
         }),
         '_blank'
     );
@@ -716,6 +758,7 @@ function previewLeadDraft() {
             printFormTemplate: editingTemplate.value.id,
             lead_id: leadId,
             preview: 1,
+            preview_mode: 'browser',
         }),
         '_blank'
     );

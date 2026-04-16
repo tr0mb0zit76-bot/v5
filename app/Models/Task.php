@@ -21,6 +21,8 @@ class Task extends Model
         'status',
         'priority',
         'due_at',
+        'sla_deadline_at',
+        'sla_escalated_at',
         'completed_at',
         'created_by',
         'responsible_id',
@@ -37,6 +39,8 @@ class Task extends Model
     {
         return [
             'due_at' => 'datetime',
+            'sla_deadline_at' => 'datetime',
+            'sla_escalated_at' => 'datetime',
             'completed_at' => 'datetime',
             'meta' => 'array',
         ];

@@ -947,6 +947,31 @@ class ContractorManagementTest extends TestCase
         $this->assertGreaterThan(0, count($response->json('contractors') ?? []));
     }
 
+    public function test_scoring_route_returns_json_payload_for_contractor(): void
+    {
+        Config::set('checko.api_key', '');
+
+        $admin = $this->createAdminUser();
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Скоринг',
+            'inn' => '1234567890',
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('contractors.scoring', $contractorId));
+
+        $response->assertOk()
+            ->assertJson([
+                'ok' => false,
+            ]);
+    }
+
     private function createAdminUser(): User
     {
         $adminRoleId = (int) DB::table('roles')->insertGetId([

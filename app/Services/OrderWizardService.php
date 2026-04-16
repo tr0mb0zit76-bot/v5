@@ -43,7 +43,7 @@ class OrderWizardService
                 ? $this->orderNumberGenerator->generate($ownCompany)
                 : ['company_code' => $this->orderNumberGenerator->generate($ownCompany)['company_code'], 'order_number' => $validated['order_number']];
 
-            $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true));
+            $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null, null));
 
             $this->syncNestedData($order, $validated, $user);
             $this->orderCompensationService->recalculateImpactedPeriods($order->fresh());
@@ -72,7 +72,8 @@ class OrderWizardService
                 ? $this->orderNumberGenerator->generate($ownCompany)
                 : ['company_code' => $this->orderNumberGenerator->generate($ownCompany)['company_code'], 'order_number' => $validated['order_number']];
 
-            $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order->manager_id));
+            $existingMetadata = is_array($order->metadata) ? $order->metadata : null;
+            $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order->manager_id, $existingMetadata));
 
             $this->syncNestedData($order, $validated, $user);
 
@@ -100,6 +101,7 @@ class OrderWizardService
         array $numberData,
         bool $isCreating,
         ?int $existingManagerId = null,
+        ?array $existingMetadata = null,
     ): array {
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
@@ -159,6 +161,24 @@ class OrderWizardService
             'updated_by' => $user->id,
             ...($isCreating ? ['created_by' => $user->id] : []),
         ];
+
+        if (Schema::hasColumn('orders', 'metadata')) {
+            $metadata = is_array($existingMetadata) ? $existingMetadata : [];
+            $loadingTypes = array_values(array_filter(
+                array_map(
+                    fn (mixed $value): ?string => $this->normalizeLoadingType($value),
+                    is_array($validated['loading_types'] ?? null) ? $validated['loading_types'] : []
+                )
+            ));
+
+            if ($loadingTypes === []) {
+                unset($metadata['loading_types']);
+            } else {
+                $metadata['loading_types'] = array_values(array_unique($loadingTypes));
+            }
+
+            $attributes['metadata'] = $metadata;
+        }
 
         foreach (['additional_expenses', 'insurance', 'bonus'] as $key) {
             if (! $isCreating && ! array_key_exists($key, $validated)) {
@@ -305,6 +325,13 @@ class OrderWizardService
         $routePoints = collect($validated['route_points'] ?? [])
             ->sortBy('sequence')
             ->values();
+        $loadingTypes = array_values(array_filter(
+            array_map(
+                fn (mixed $value): ?string => $this->normalizeLoadingType($value),
+                is_array($validated['loading_types'] ?? null) ? $validated['loading_types'] : []
+            )
+        ));
+        $loadingTypes = array_values(array_unique($loadingTypes));
         $routePointSequenceByLeg = [];
 
         // Синхронизируем назначения исполнителей и стоимость
@@ -330,6 +357,16 @@ class OrderWizardService
             $routePointStage = $this->normalizeStageIdentifier((string) ($routePoint['stage'] ?? ''));
             $targetLeg = $legsByStage->get($routePointStage, $primaryLeg);
             $normalizedData = Arr::get($routePoint, 'normalized_data', []);
+            if (! is_array($normalizedData)) {
+                $normalizedData = [];
+            }
+            if ($routePointType === 'loading') {
+                if ($loadingTypes !== []) {
+                    $normalizedData['loading_types'] = $loadingTypes;
+                } else {
+                    unset($normalizedData['loading_types']);
+                }
+            }
             $legSequence = ($routePointSequenceByLeg[$targetLeg->id] ?? 0) + 1;
             $routePointSequenceByLeg[$targetLeg->id] = $legSequence;
 
@@ -351,6 +388,16 @@ class OrderWizardService
                 'recipient_contact' => $routePoint['recipient_contact'] ?? null,
                 'recipient_phone' => $routePoint['recipient_phone'] ?? null,
             ];
+
+            if (Schema::hasColumn('route_points', 'planned_time_from')) {
+                $routePointAttributes['planned_time_from'] = $this->normalizeTime($routePoint['planned_time_from'] ?? null);
+            }
+            if (Schema::hasColumn('route_points', 'planned_time_to')) {
+                $routePointAttributes['planned_time_to'] = $this->normalizeTime($routePoint['planned_time_to'] ?? null);
+            }
+            if (Schema::hasColumn('route_points', 'actual_time')) {
+                $routePointAttributes['actual_time'] = $this->normalizeTime($routePoint['actual_time'] ?? null);
+            }
 
             if (Schema::hasColumn('route_points', 'address')) {
                 $routePointAttributes['address'] = $routePointAddress;
@@ -949,5 +996,37 @@ class OrderWizardService
                 ]);
             }
         }
+    }
+
+    private function normalizeLoadingType(mixed $value): ?string
+    {
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        return match (strtolower(trim((string) $value))) {
+            'top', 'верх' => 'top',
+            'side', 'бок' => 'side',
+            'rear', 'зад' => 'rear',
+            default => null,
+        };
+    }
+
+    private function normalizeTime(mixed $value): ?string
+    {
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        if (! preg_match('/^\d{2}:\d{2}$/', $raw)) {
+            return null;
+        }
+
+        return $raw;
     }
 }

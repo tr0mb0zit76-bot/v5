@@ -5,6 +5,7 @@ namespace Tests\Feature\Tasks;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -43,6 +44,7 @@ class TaskManagementTest extends TestCase
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
 
@@ -54,6 +56,8 @@ class TaskManagementTest extends TestCase
             $table->string('status', 30)->default('new');
             $table->string('priority', 20)->default('medium');
             $table->timestamp('due_at')->nullable();
+            $table->timestamp('sla_deadline_at')->nullable();
+            $table->timestamp('sla_escalated_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('responsible_id')->nullable();
@@ -391,5 +395,86 @@ class TaskManagementTest extends TestCase
             'task_id' => $task->id,
             'type' => 'comment_added',
         ]);
+    }
+
+    public function test_bulk_close_marks_tasks_done(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $a = Task::query()->create([
+            'number' => 'TSK-BULK-A',
+            'title' => 'A',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $b = Task::query()->create([
+            'number' => 'TSK-BULK-B',
+            'title' => 'B',
+            'status' => 'in_progress',
+            'priority' => 'medium',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('tasks.bulk'), [
+                'task_ids' => [$a->id, $b->id],
+                'action' => 'close',
+            ])
+            ->assertRedirect(route('tasks.index'));
+
+        $this->assertSame('done', $a->fresh()->status);
+        $this->assertSame('done', $b->fresh()->status);
+        $this->assertNotNull($a->fresh()->completed_at);
+    }
+
+    public function test_sla_escalation_command_sets_escalated_timestamp(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'own']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-SLA-1',
+            'title' => 'SLA тест',
+            'status' => 'new',
+            'priority' => 'high',
+            'responsible_id' => $user->id,
+            'created_by' => $user->id,
+            'due_at' => now()->subDay(),
+            'sla_deadline_at' => now()->subHours(2),
+            'sla_escalated_at' => null,
+        ]);
+
+        Artisan::call('tasks:escalate-breached-sla');
+
+        $this->assertNotNull($task->fresh()->sla_escalated_at);
     }
 }

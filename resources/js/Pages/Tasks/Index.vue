@@ -11,6 +11,31 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <button
+                        v-if="selectedTaskIds.length > 0"
+                        type="button"
+                        class="inline-flex items-center justify-center rounded-xl border border-rose-700 px-4 py-2 text-rose-800 transition hover:bg-rose-50 dark:border-rose-400 dark:text-rose-200 dark:hover:bg-rose-950/40"
+                        @click="bulkCloseSelected"
+                    >
+                        Закрыть выбранные ({{ selectedTaskIds.length }})
+                    </button>
+                    <template v-if="canBulkMutateTasks && selectedTaskIds.length > 0">
+                        <select
+                            v-model="bulkAssignUserId"
+                            class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                        >
+                            <option :value="null" disabled>Назначить на…</option>
+                            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                        </select>
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center rounded-xl border border-zinc-900 px-4 py-2 text-zinc-900 dark:border-zinc-50 dark:text-zinc-50"
+                            :disabled="!bulkAssignUserId"
+                            @click="bulkAssignSelected"
+                        >
+                            Назначить выбранные
+                        </button>
+                    </template>
                     <Link
                         class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-white transition hover:bg-zinc-800 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
                         :href="route('kanban.index')"
@@ -42,6 +67,7 @@
                 :user-id="userId"
                 @create="openCreateModal"
                 @row-dblclick="handleRowDblClick"
+                @selection-changed="onTaskSelectionChanged"
             />
         </div>
 
@@ -79,6 +105,13 @@
                             <span class="rounded-full border border-zinc-200 px-2 py-1 dark:border-zinc-700">{{ selectedTask.status_label }}</span>
                             <span class="rounded-full border border-zinc-200 px-2 py-1 dark:border-zinc-700">Приоритет: {{ priorityLabel(selectedTask.priority) }}</span>
                             <span class="rounded-full border border-zinc-200 px-2 py-1 dark:border-zinc-700">Срок: {{ formatDue(selectedTask.due_at) }}</span>
+                            <span
+                                v-if="selectedTask.sla_deadline_at"
+                                class="rounded-full border px-2 py-1"
+                                :class="selectedTask.sla_breached ? 'border-rose-400 text-rose-700 dark:border-rose-500 dark:text-rose-300' : 'border-zinc-200 dark:border-zinc-700'"
+                            >
+                                SLA: {{ formatDue(selectedTask.sla_deadline_at) }}
+                            </span>
                         </div>
 
                         <div class="mt-8 space-y-8">
@@ -186,6 +219,10 @@
                             <input v-model="form.due_at" type="datetime-local" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" />
                         </div>
                         <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">SLA (если пусто — как срок)</label>
+                            <input v-model="form.sla_deadline_at" type="datetime-local" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" />
+                        </div>
+                        <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Ответственный</label>
                             <select v-model="form.responsible_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
                                 <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
@@ -237,6 +274,10 @@ const props = defineProps({
     statusOptions: Array,
     users: Array,
     leadOptions: Array,
+    can_bulk_mutate_tasks: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const tasks = ref(props.tasks ?? []);
@@ -244,6 +285,7 @@ const quickFilters = computed(() => props.quickFilters ?? []);
 const statusOptions = computed(() => props.statusOptions ?? []);
 const users = computed(() => props.users ?? []);
 const leadOptions = computed(() => props.leadOptions ?? []);
+const canBulkMutateTasks = computed(() => props.can_bulk_mutate_tasks === true);
 
 watch(() => page.props.tasks, (next) => {
     tasks.value = next ?? [];
@@ -262,6 +304,44 @@ watch(selectedTask, (next) => {
 });
 
 const activeFilter = ref('Все');
+const selectedTaskIds = ref([]);
+const bulkAssignUserId = ref(null);
+
+function onTaskSelectionChanged(ids) {
+    selectedTaskIds.value = Array.isArray(ids) ? ids : [];
+}
+
+function bulkCloseSelected() {
+    if (!selectedTaskIds.value.length) {
+        return;
+    }
+    router.post(route('tasks.bulk'), {
+        task_ids: selectedTaskIds.value,
+        action: 'close',
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedTaskIds.value = [];
+        },
+    });
+}
+
+function bulkAssignSelected() {
+    if (!selectedTaskIds.value.length || !bulkAssignUserId.value) {
+        return;
+    }
+    router.post(route('tasks.bulk'), {
+        task_ids: selectedTaskIds.value,
+        action: 'assign',
+        responsible_id: bulkAssignUserId.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedTaskIds.value = [];
+            bulkAssignUserId.value = null;
+        },
+    });
+}
 
 const visibleTasks = computed(() => {
     const list = tasks.value ?? [];
@@ -282,7 +362,7 @@ const visibleTasks = computed(() => {
 });
 
 const editingTask = ref(null);
-const form = useForm({ title: '', description: '', status: 'new', priority: 'medium', due_at: '', responsible_id: null, lead_id: null });
+const form = useForm({ title: '', description: '', status: 'new', priority: 'medium', due_at: '', sla_deadline_at: '', responsible_id: null, lead_id: null });
 
 const checklistForm = useForm({ title: '' });
 const commentForm = useForm({ body: '' });
@@ -348,6 +428,7 @@ function openEditModal(task) {
     form.status = task.status;
     form.priority = task.priority ?? 'medium';
     form.due_at = task.due_at ? task.due_at.slice(0, 16) : '';
+    form.sla_deadline_at = task.sla_deadline_at ? task.sla_deadline_at.slice(0, 16) : '';
     form.responsible_id = task.responsible_id;
     form.lead_id = task.lead_id;
     form.clearErrors();

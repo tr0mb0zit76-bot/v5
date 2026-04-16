@@ -431,7 +431,7 @@
                                 </div>
                             </div>
 
-                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10.5rem_10.5rem] lg:items-end">
+                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_10.5rem] lg:items-end">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
                                     <div class="relative">
@@ -468,6 +468,10 @@
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Фактическая дата</label>
                                     <input v-model="item.point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">{{ item.point.type === 'loading' ? 'Время загрузки' : 'Время выгрузки' }}</label>
+                                    <input v-model="item.point.planned_time_from" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
                             </div>
 
@@ -529,6 +533,17 @@
                     <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addCargoItem">
                         Добавить груз
                     </button>
+                </div>
+
+                <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="text-sm font-medium">Вид погрузки</div>
+                    <p class="mt-1 text-xs text-zinc-500">Выберите один или несколько вариантов для шаблонов и документов.</p>
+                    <div class="mt-3 flex flex-wrap gap-3">
+                        <label v-for="option in loadingTypeOptions" :key="option.value" class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <input v-model="form.loading_types" :value="option.value" type="checkbox" class="rounded border-zinc-300" />
+                            {{ option.label }}
+                        </label>
+                    </div>
                 </div>
 
                 <div class="space-y-4">
@@ -1502,6 +1517,11 @@ const paymentBasisOptions = [
     { value: 'loading', label: 'На загрузке' },
     { value: 'unloading', label: 'На выгрузке' },
 ];
+const loadingTypeOptions = [
+    { value: 'top', label: 'Верх' },
+    { value: 'side', label: 'Бок' },
+    { value: 'rear', label: 'Зад' },
+];
 
 const counterpartyForm = useForm({
     name: '',
@@ -1573,6 +1593,7 @@ function previewDocumentDraft(document) {
             order: props.order.id,
             printFormTemplate: document.template_id,
             preview: 1,
+            preview_mode: 'browser',
         }),
         '_blank'
     );
@@ -1635,7 +1656,10 @@ function blankRoutePoint(type, sequence, stage) {
         address: '',
         normalized_data: {},
         planned_date: '',
+        planned_time_from: '',
+        planned_time_to: '',
         actual_date: '',
+        actual_time: '',
         contact_person: '',
         contact_phone: '',
         sender_name: '',
@@ -1656,6 +1680,7 @@ function blankOrder() {
         order_number: '',
         payment_terms: '',
         special_notes: '',
+        loading_types: [],
         cargo_sender_name: '',
         cargo_sender_address: '',
         cargo_sender_contact: '',
@@ -1708,6 +1733,9 @@ const form = useForm({
     additional_expenses: props.order?.additional_expenses ?? null,
     insurance: props.order?.insurance ?? null,
     bonus: props.order?.bonus ?? null,
+    loading_types: Array.isArray(props.order?.loading_types)
+        ? props.order.loading_types
+        : [],
     performers: Array.isArray(props.order?.performers)
         ? props.order.performers.map((performer) => ({
             stage: stageLabel(performer.stage ?? 'leg_1'),
@@ -3329,7 +3357,10 @@ function buildSubmitPayload() {
             address: point.address,
             normalized_data: point.normalized_data || {},
             planned_date: point.planned_date,
+            planned_time_from: point.planned_time_from || null,
+            planned_time_to: point.planned_time_to || null,
             actual_date: point.actual_date,
+            actual_time: point.actual_time || null,
             contact_person: point.contact_person,
             contact_phone: point.contact_phone,
             sender_name: point.sender_name,
@@ -3339,6 +3370,7 @@ function buildSubmitPayload() {
             recipient_contact: point.recipient_contact,
             recipient_phone: point.recipient_phone,
         })),
+        loading_types: Array.isArray(form.loading_types) ? form.loading_types : [],
 
         // Cargo items
         cargo_items: form.cargo_items.map((item) => ({

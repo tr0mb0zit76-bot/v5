@@ -119,16 +119,26 @@ class OrderPrintFormDraftService
                 'special_notes' => $order->special_notes,
             ],
             'cargo_sender' => [
-                'name' => $loadingPoints->first()?->sender_name,
-                'address' => $loadingPoints->first()?->address,
-                'contact' => $loadingPoints->first()?->sender_contact,
-                'phone' => $loadingPoints->first()?->sender_phone,
+                'name' => $this->resolvePrimaryPartyValue($loadingPoints, 'sender_name'),
+                'address' => $this->resolvePrimaryAddressValue($loadingPoints),
+                // Backward compatibility: legacy mappings can still point to contact / phone.
+                'contact' => $this->resolvePrimaryPartyContactPhone($loadingPoints, 'sender_contact', 'sender_phone'),
+                'phone' => $this->resolvePrimaryPartyContactPhone($loadingPoints, 'sender_contact', 'sender_phone'),
+                'contact_phone' => $this->resolvePrimaryPartyContactPhone($loadingPoints, 'sender_contact', 'sender_phone'),
+                'all_names' => $this->resolvePartyList($loadingPoints, 'sender_name'),
+                'all_addresses' => $this->resolvePartyAddressList($loadingPoints),
+                'all_contact_phones' => $this->resolvePartyContactPhoneList($loadingPoints, 'sender_contact', 'sender_phone'),
             ],
             'cargo_recipient' => [
-                'name' => $unloadingPoints->last()?->recipient_name,
-                'address' => $unloadingPoints->last()?->address,
-                'contact' => $unloadingPoints->last()?->recipient_contact,
-                'phone' => $unloadingPoints->last()?->recipient_phone,
+                'name' => $this->resolvePrimaryPartyValue($unloadingPoints, 'recipient_name'),
+                'address' => $this->resolvePrimaryAddressValue($unloadingPoints),
+                // Backward compatibility: legacy mappings can still point to contact / phone.
+                'contact' => $this->resolvePrimaryPartyContactPhone($unloadingPoints, 'recipient_contact', 'recipient_phone'),
+                'phone' => $this->resolvePrimaryPartyContactPhone($unloadingPoints, 'recipient_contact', 'recipient_phone'),
+                'contact_phone' => $this->resolvePrimaryPartyContactPhone($unloadingPoints, 'recipient_contact', 'recipient_phone'),
+                'all_names' => $this->resolvePartyList($unloadingPoints, 'recipient_name'),
+                'all_addresses' => $this->resolvePartyAddressList($unloadingPoints),
+                'all_contact_phones' => $this->resolvePartyContactPhoneList($unloadingPoints, 'recipient_contact', 'recipient_phone'),
             ],
             'customer' => $this->contractorPayload($order->client),
             'carrier' => $this->contractorPayload($order->carrier),
@@ -147,14 +157,15 @@ class OrderPrintFormDraftService
                 'carrier_email' => $order->carrier_contact_email,
             ],
             'route' => [
-                'loading_addresses' => $loadingPoints->pluck('address')->filter()->implode('; '),
+                'loading_addresses' => $this->resolvePartyAddressList($loadingPoints),
                 'loading_cities' => $loadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
-                'loading_first_address' => $loadingPoints->first()?->address,
+                'loading_first_address' => $this->resolvePointAddress($loadingPoints->first()),
                 'loading_first_city' => data_get($loadingPoints->first()?->normalized_data, 'city'),
                 'loading_method' => $loadingMethod,
-                'unloading_addresses' => $unloadingPoints->pluck('address')->filter()->implode('; '),
+                'loading_types' => $this->resolveLoadingTypes($loadingPoints, $order),
+                'unloading_addresses' => $this->resolvePartyAddressList($unloadingPoints),
                 'unloading_cities' => $unloadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
-                'unloading_first_address' => $unloadingPoints->first()?->address,
+                'unloading_first_address' => $this->resolvePointAddress($unloadingPoints->first()),
                 'unloading_first_city' => data_get($unloadingPoints->first()?->normalized_data, 'city'),
             ],
             'cargo' => [
@@ -323,6 +334,215 @@ class OrderPrintFormDraftService
             if ($value !== '') {
                 return $value;
             }
+        }
+
+        return null;
+    }
+
+    private function resolvePrimaryPartyValue(Collection $points, string $key): ?string
+    {
+        $values = $points
+            ->map(function (mixed $point) use ($key): ?string {
+                $value = data_get($point, $key);
+                if (! is_scalar($value)) {
+                    return null;
+                }
+
+                $trimmed = trim((string) $value);
+
+                return $trimmed === '' ? null : $trimmed;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($values->count() === 1) {
+            return $values->first();
+        }
+
+        $first = data_get($points->first(), $key);
+        if (! is_scalar($first)) {
+            return null;
+        }
+
+        $trimmed = trim((string) $first);
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function resolvePrimaryAddressValue(Collection $points): ?string
+    {
+        $values = $points
+            ->map(fn (mixed $point): ?string => $this->resolvePointAddress($point))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($values->count() === 1) {
+            return $values->first();
+        }
+
+        return $this->resolvePointAddress($points->first());
+    }
+
+    private function resolvePrimaryPartyContactPhone(Collection $points, string $contactKey, string $phoneKey): ?string
+    {
+        $pairs = $points
+            ->map(fn (mixed $point): ?string => $this->buildContactPhoneValue(
+                data_get($point, $contactKey),
+                data_get($point, $phoneKey),
+            ))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($pairs->count() === 1) {
+            return $pairs->first();
+        }
+
+        return $this->buildContactPhoneValue(
+            data_get($points->first(), $contactKey),
+            data_get($points->first(), $phoneKey),
+        );
+    }
+
+    private function resolvePartyList(Collection $points, string $key): ?string
+    {
+        $values = $points
+            ->map(function (mixed $point) use ($key): ?string {
+                $value = data_get($point, $key);
+                if (! is_scalar($value)) {
+                    return null;
+                }
+
+                $trimmed = trim((string) $value);
+
+                return $trimmed === '' ? null : $trimmed;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($values->isEmpty()) {
+            return null;
+        }
+
+        return $values->implode('; ');
+    }
+
+    private function resolvePartyAddressList(Collection $points): ?string
+    {
+        $values = $points
+            ->map(fn (mixed $point): ?string => $this->resolvePointAddress($point))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($values->isEmpty()) {
+            return null;
+        }
+
+        return $values->implode('; ');
+    }
+
+    private function resolvePointAddress(mixed $point): ?string
+    {
+        if ($point === null) {
+            return null;
+        }
+
+        $address = $this->firstFilledValue([
+            data_get($point, 'address'),
+            data_get($point, 'metadata.address'),
+            data_get($point, 'metadata.full_address'),
+            data_get($point, 'normalized_data.result'),
+            data_get($point, 'instructions'),
+        ]);
+
+        return $address;
+    }
+
+    private function resolveLoadingTypes(Collection $loadingPoints, Order $order): ?string
+    {
+        $types = $loadingPoints
+            ->flatMap(function (mixed $point): array {
+                $candidates = data_get($point, 'metadata.loading_types', data_get($point, 'normalized_data.loading_types', []));
+                if (! is_array($candidates)) {
+                    return [];
+                }
+
+                return $candidates;
+            })
+            ->map(fn (mixed $type): ?string => $this->normalizeLoadingType($type))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($types->isEmpty()) {
+            $fallback = data_get($order->wizard_state, 'loading_types', data_get($order->metadata, 'loading_types', []));
+            if (is_array($fallback)) {
+                $types = collect($fallback)
+                    ->map(fn (mixed $type): ?string => $this->normalizeLoadingType($type))
+                    ->filter()
+                    ->unique()
+                    ->values();
+            }
+        }
+
+        if ($types->isEmpty()) {
+            return null;
+        }
+
+        return $types->implode(', ');
+    }
+
+    private function normalizeLoadingType(mixed $value): ?string
+    {
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        return match (strtolower(trim((string) $value))) {
+            'top', 'верх' => 'верх',
+            'side', 'бок' => 'бок',
+            'rear', 'зад' => 'зад',
+            default => null,
+        };
+    }
+
+    private function resolvePartyContactPhoneList(Collection $points, string $contactKey, string $phoneKey): ?string
+    {
+        $values = $points
+            ->map(fn (mixed $point): ?string => $this->buildContactPhoneValue(
+                data_get($point, $contactKey),
+                data_get($point, $phoneKey),
+            ))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($values->isEmpty()) {
+            return null;
+        }
+
+        return $values->implode('; ');
+    }
+
+    private function buildContactPhoneValue(mixed $contact, mixed $phone): ?string
+    {
+        $contactValue = is_scalar($contact) ? trim((string) $contact) : '';
+        $phoneValue = is_scalar($phone) ? trim((string) $phone) : '';
+
+        if ($contactValue !== '' && $phoneValue !== '') {
+            return $contactValue.', '.$phoneValue;
+        }
+
+        if ($contactValue !== '') {
+            return $contactValue;
+        }
+
+        if ($phoneValue !== '') {
+            return $phoneValue;
         }
 
         return null;

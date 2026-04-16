@@ -608,6 +608,7 @@ function previewCommercialDraft() {
             lead: selectedLeadId.value,
             printFormTemplate: selectedTemplateId.value,
             preview: 1,
+            preview_mode: 'browser',
         }),
         '_blank'
     );

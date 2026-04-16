@@ -175,6 +175,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors/create', 'create')->name('contractors.create');
         Route::post('/contractors', 'store')->name('contractors.store');
         Route::get('/contractors/{contractor}', 'show')->name('contractors.show');
+        Route::get('/contractors/{contractor}/scoring', 'scoring')->name('contractors.scoring');
         Route::get('/contractors/{contractor}/edit', 'edit')->name('contractors.edit');
         Route::patch('/contractors/{contractor}', 'update')->name('contractors.update');
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
@@ -183,8 +184,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
         Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
         Route::get('/contractors-suggest/bank', 'suggestBank')->name('contractors.suggest-bank');
-        Route::get('/contractors-search', 'search')->name('contractors.search');
     });
+
+    Route::controller(ContractorController::class)
+        ->middleware('visibility.area.any:contractors|orders')
+        ->group(function () {
+            Route::get('/contractors-search', 'search')->name('contractors.search');
+        });
 
     Route::get('/fleet/containers', function () {
         return Inertia::render('Fleet/Containers');
@@ -240,6 +246,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::middleware('visibility.area:tasks')->group(function () {
             Route::get('/tasks', 'index')->name('tasks.index');
             Route::post('/tasks', 'store')->name('tasks.store');
+            Route::post('/tasks/bulk', 'bulkUpdate')->name('tasks.bulk');
             Route::get('/tasks/{task}', 'show')->name('tasks.show');
             Route::patch('/tasks/{task}', 'update')->name('tasks.update');
             Route::post('/tasks/{task}/checklist-items', 'storeChecklistItem')->name('tasks.checklist-items.store');

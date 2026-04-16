@@ -17,6 +17,11 @@ class StoreTaskRequest extends FormRequest
         if ($leadId === '' || $leadId === null) {
             $this->merge(['lead_id' => null]);
         }
+
+        $sla = $this->input('sla_deadline_at');
+        if ($sla === '') {
+            $this->merge(['sla_deadline_at' => null]);
+        }
     }
 
     /**
@@ -60,6 +65,7 @@ class StoreTaskRequest extends FormRequest
             'priority' => ['required', 'string', Rule::in(['low', 'medium', 'high', 'critical'])],
             'status' => ['nullable', 'string', Rule::in(TaskStatus::values())],
             'due_at' => ['nullable', 'date'],
+            'sla_deadline_at' => ['nullable', 'date'],
             'responsible_id' => ['required', 'integer', 'exists:users,id'],
             'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
             'order_id' => ['nullable', 'integer'],

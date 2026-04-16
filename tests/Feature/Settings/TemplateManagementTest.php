@@ -220,6 +220,8 @@ class TemplateManagementTest extends TestCase
             ->where('templates.0.variables', [])
             ->where('orderVariableOptions', fn ($options): bool => collect($options)->pluck('value')->intersect([
                 'cargo_sender.name',
+                'cargo_sender.contact_phone',
+                'cargo_sender.all_names',
                 'customer.bank_name',
                 'driver.full_name',
                 'route.loading_cities',
@@ -228,7 +230,7 @@ class TemplateManagementTest extends TestCase
                 'vehicle.number',
                 'vehicle.transport_type',
                 'route.loading_method',
-            ])->count() === 9)
+            ])->count() === 11)
             ->where('leadVariableOptions.0.value', 'lead.id')
             ->where('leadVariableOptions.20.value', 'counterparty.name')
             ->where('leadVariableOptions.47.value', 'cargo.summary')

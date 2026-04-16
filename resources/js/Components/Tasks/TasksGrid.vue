@@ -106,7 +106,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['create', 'row-dblclick']);
+const emit = defineEmits(['create', 'row-dblclick', 'selection-changed']);
 
 const agGrid = ref(null);
 const gridApi = ref(null);
@@ -141,6 +141,26 @@ const priorityLabels = {
 const gridOptions = {
   theme: 'legacy',
   getRowId: (params) => String(params.data?.id ?? ''),
+  rowSelection: {
+    mode: 'multiRow',
+    checkboxes: true,
+    headerCheckbox: true,
+    enableClickSelection: true,
+  },
+  selectionColumnDef: {
+    sortable: false,
+    resizable: false,
+    suppressHeaderMenuButton: true,
+    maxWidth: 52,
+    minWidth: 52,
+  },
+  onSelectionChanged: (event) => {
+    const ids = event.api
+      .getSelectedRows()
+      .map((r) => r?.id)
+      .filter((id) => id !== undefined && id !== null);
+    emit('selection-changed', ids);
+  },
   isExternalFilterPresent: () => quickSearch.value.trim().length > 0,
   doesExternalFilterPass: (node) => {
     const q = quickSearch.value.trim().toLowerCase();

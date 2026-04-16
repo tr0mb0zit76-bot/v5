@@ -131,4 +131,48 @@ class CabinetNotifier
             ['task_id' => $task->id, 'task_comment_id' => $comment->id],
         ));
     }
+
+    public function notifyTaskSlaBreached(Task $task): void
+    {
+        if (! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $recipients = User::query()
+            ->when(
+                Schema::hasColumn('users', 'is_active'),
+                fn ($query) => $query->where('is_active', true),
+            )
+            ->when(
+                $task->responsible_id !== null,
+                fn ($query) => $query->where('id', '!=', $task->responsible_id)
+            )
+            ->whereHas('role', fn ($q) => $q->whereIn('name', ['admin', 'supervisor']))
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $title = 'Просрочен SLA по задаче';
+        $body = sprintf(
+            'Задача №%s — %s: контрольный срок SLA истёк.',
+            $task->number,
+            $task->title
+        );
+
+        $actionUrl = route('tasks.show', $task);
+
+        $notification = new CabinetInAppNotification(
+            'task_sla_breached',
+            $title,
+            $body,
+            $actionUrl,
+            ['task_id' => $task->id],
+        );
+
+        foreach ($recipients as $user) {
+            $user->notify($notification);
+        }
+    }
 }
