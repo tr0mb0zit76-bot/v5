@@ -197,9 +197,11 @@ class SettingsManagementTest extends TestCase
             ->has('orderColumns')
             ->has('leadColumns')
             ->has('contractorColumns')
+            ->has('paymentScheduleColumns')
             ->where('orderColumns.0.field', 'id')
             ->where('leadColumns.0.field', 'number')
             ->where('contractorColumns.0.field', 'name')
+            ->where('paymentScheduleColumns.0.field', 'order_number')
         );
     }
 
@@ -282,6 +284,33 @@ class SettingsManagementTest extends TestCase
             ['colId' => 'status_text', 'hide' => false, 'width' => 130, 'order' => 1],
             ['colId' => 'primary_contact', 'hide' => true, 'width' => 180, 'order' => 2],
         ], $columnsConfig['contractors']);
+    }
+
+    public function test_admin_can_update_role_payment_schedule_table_preset(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.tables.update', $managerRoleId), [
+            'table' => 'payment_schedule',
+            'columns' => [
+                ['colId' => 'order_number', 'hide' => false, 'width' => 160, 'order' => 0],
+                ['colId' => 'counterparty_name', 'hide' => false, 'width' => 200, 'order' => 1],
+                ['colId' => 'amount', 'hide' => true, 'width' => 130, 'order' => 2],
+            ],
+        ]);
+
+        $response->assertRedirect(route('settings.tables.index'));
+
+        $role = DB::table('roles')->where('id', $managerRoleId)->first();
+        $columnsConfig = json_decode($role->columns_config, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame([
+            ['colId' => 'order_number', 'hide' => false, 'width' => 160, 'order' => 0],
+            ['colId' => 'counterparty_name', 'hide' => false, 'width' => 200, 'order' => 1],
+            ['colId' => 'amount', 'hide' => true, 'width' => 130, 'order' => 2],
+        ], $columnsConfig['payment_schedule']);
     }
 
     public function test_admin_can_open_motivation_hub_page(): void

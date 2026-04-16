@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Support\ContractorTableColumns;
 use App\Support\LeadTableColumns;
 use App\Support\OrderTableColumns;
+use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,7 +24,7 @@ class UpdateRoleTablePresetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'table' => ['required', 'string', 'in:orders,leads,contractors'],
+            'table' => ['required', 'string', 'in:orders,leads,contractors,payment_schedule'],
             'columns' => ['required', 'array', 'min:1'],
             'columns.*.colId' => ['required', 'string'],
             'columns.*.hide' => ['required', 'boolean'],
@@ -40,6 +41,7 @@ class UpdateRoleTablePresetRequest extends FormRequest
                 'orders' => OrderTableColumns::fields(),
                 'leads' => LeadTableColumns::fields(),
                 'contractors' => ContractorTableColumns::fields(),
+                'payment_schedule' => PaymentScheduleTableColumns::fields(),
                 default => [],
             };
 

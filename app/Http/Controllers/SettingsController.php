@@ -36,7 +36,7 @@ class SettingsController extends Controller
             ],
             [
                 'key' => 'table-presets',
-                'title' => 'Управление таблицей',
+                'title' => 'Управление таблицами',
                 'description' => 'Ролевые пресеты колонок таблиц как базовое представление для группы.',
                 'href' => route('settings.tables.index'),
                 'group' => 'Конфигурация',

@@ -17,6 +17,9 @@ use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\RoleManagementController;
+use App\Http\Controllers\SalesAssistantController;
+use App\Http\Controllers\SalesScriptController;
+use App\Http\Controllers\SalesScriptEditorController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
@@ -57,6 +60,42 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
     });
+
+    Route::middleware('visibility.area:scripts')->group(function () {
+        Route::controller(SalesScriptController::class)->group(function () {
+            Route::get('/scripts', 'index')->name('scripts.index');
+            Route::post('/scripts/sessions', 'storeSession')->name('scripts.sessions.store');
+            Route::get('/scripts/sessions/{sales_script_play_session}', 'showSession')->name('scripts.sessions.show');
+            Route::post('/scripts/sessions/{sales_script_play_session}/advance', 'advance')->name('scripts.sessions.advance');
+            Route::post('/scripts/sessions/{sales_script_play_session}/complete', 'complete')->name('scripts.sessions.complete');
+        });
+
+        Route::controller(SalesAssistantController::class)->prefix('sales-assistant')->name('sales-assistant.')->group(function () {
+            Route::get('/book', 'book')->name('book');
+            Route::get('/trainer', 'trainer')->name('trainer');
+        });
+    });
+
+    Route::prefix('scripts/editor')
+        ->name('scripts.editor.')
+        ->middleware(['visibility.area:scripts', 'can.manage.sales.scripts'])
+        ->group(function () {
+            Route::get('/', [SalesScriptEditorController::class, 'index'])->name('index');
+            Route::post('/scripts', [SalesScriptEditorController::class, 'storeScript'])->name('scripts.store');
+            Route::patch('/scripts/{sales_script}', [SalesScriptEditorController::class, 'updateScript'])->name('scripts.update');
+            Route::delete('/scripts/{sales_script}', [SalesScriptEditorController::class, 'destroyScript'])->name('scripts.destroy');
+            Route::post('/scripts/{sales_script}/versions', [SalesScriptEditorController::class, 'storeVersion'])->name('scripts.versions.store');
+            Route::get('/versions/{sales_script_version}', [SalesScriptEditorController::class, 'showVersion'])->name('versions.show');
+            Route::patch('/versions/{sales_script_version}', [SalesScriptEditorController::class, 'updateVersion'])->name('versions.update');
+            Route::post('/versions/{sales_script_version}/publish', [SalesScriptEditorController::class, 'publishVersion'])->name('versions.publish');
+            Route::post('/versions/{sales_script_version}/unpublish', [SalesScriptEditorController::class, 'unpublishVersion'])->name('versions.unpublish');
+            Route::post('/versions/{sales_script_version}/nodes', [SalesScriptEditorController::class, 'storeNode'])->name('versions.nodes.store');
+            Route::post('/versions/{sales_script_version}/transitions', [SalesScriptEditorController::class, 'storeTransition'])->name('versions.transitions.store');
+            Route::patch('/nodes/{sales_script_node}', [SalesScriptEditorController::class, 'updateNode'])->name('nodes.update');
+            Route::delete('/nodes/{sales_script_node}', [SalesScriptEditorController::class, 'destroyNode'])->name('nodes.destroy');
+            Route::patch('/transitions/{sales_script_transition}', [SalesScriptEditorController::class, 'updateTransition'])->name('transitions.update');
+            Route::delete('/transitions/{sales_script_transition}', [SalesScriptEditorController::class, 'destroyTransition'])->name('transitions.destroy');
+        });
 
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {

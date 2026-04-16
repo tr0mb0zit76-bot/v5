@@ -299,7 +299,6 @@ import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
-    BookOpen,
     ChevronDown,
     ClipboardList,
     Download,
@@ -320,6 +319,7 @@ import {
     Truck,
     Users,
     Wallet,
+    WandSparkles,
 } from 'lucide-vue-next';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
@@ -394,6 +394,9 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
     }
     if (activeKey === 'fleet') {
         keys.push('fleet');
+    }
+    if (activeKey === 'sales-assistant') {
+        keys.push('sales-assistant');
     }
     return keys;
 }
@@ -478,7 +481,17 @@ const menuItems = computed(() => {
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
-        { key: 'scripts', label: 'Скрипты', icon: BookOpen, visibilityArea: 'scripts' },
+        {
+            key: 'sales-assistant',
+            label: 'Помощник продаж',
+            icon: WandSparkles,
+            visibilityArea: 'scripts',
+            children: [
+                { key: 'sales-assistant-scripts', label: 'Скрипты' },
+                { key: 'sales-assistant-book', label: 'Книга продаж' },
+                { key: 'sales-assistant-trainer', label: 'Тренажёр' },
+            ],
+        },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         {
@@ -541,7 +554,7 @@ const menuItems = computed(() => {
                         key: 'configuration',
                         label: 'Конфигурация',
                         children: [
-                            { key: 'table-presets', label: 'Управление таблицей' },
+                            { key: 'table-presets', label: 'Управление таблицами' },
                             { key: 'dictionaries', label: 'Справочники' },
                             { key: 'templates', label: 'Шаблоны' },
                         ],
@@ -711,7 +724,9 @@ function handleMenuSelect(key) {
         'finance-salary': '/finance/salary',
         reports: '/reports',
         modules: '/modules',
-        scripts: '/scripts',
+        'sales-assistant-scripts': '/scripts',
+        'sales-assistant-book': '/sales-assistant/book',
+        'sales-assistant-trainer': '/sales-assistant/trainer',
         settings: '/settings',
         users: '/settings/users',
         roles: '/settings/roles',
@@ -723,7 +738,7 @@ function handleMenuSelect(key) {
         'salary-settings': '/settings/motivation/salary',
     };
 
-    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant'].includes(key)) {
         toggleMenuGroup(key);
     }
 

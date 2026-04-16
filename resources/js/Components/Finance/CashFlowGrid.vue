@@ -39,7 +39,7 @@
                     ref="agGrid"
                     :gridOptions="gridOptions"
                     :rowData="rows"
-                    :columnDefs="columnDefs"
+                    :columnDefs="dynamicColumnDefs"
                     :defaultColDef="defaultColDef"
                     domLayout="normal"
                     :pagination="false"
@@ -89,6 +89,18 @@ const props = defineProps({
     userId: {
         type: [String, Number],
         default: 'guest',
+    },
+    availableColumns: {
+        type: Array,
+        default: () => [],
+    },
+    roleColumnsConfig: {
+        type: Object,
+        default: () => ({}),
+    },
+    canManageActions: {
+        type: Boolean,
+        default: false,
     },
 });
 
@@ -210,7 +222,7 @@ class PaymentScheduleCell {
     }
 }
 
-const columnDefs = [
+const baseColumnDefs = [
     {
         colId: 'order_number',
         headerName: 'Заказ',
@@ -221,12 +233,14 @@ const columnDefs = [
         valueGetter: (p) => p.data?.order_number || `#${p.data?.order_id}`,
     },
     {
+        colId: 'direction',
         field: 'direction',
         headerName: 'Направление',
         minWidth: 110,
         sortable: true,
     },
     {
+        colId: 'counterparty_name',
         field: 'counterparty_name',
         headerName: 'Контрагент',
         minWidth: 160,
@@ -235,12 +249,14 @@ const columnDefs = [
         valueFormatter: (p) => p.value || '—',
     },
     {
+        colId: 'payment_type',
         field: 'payment_type',
         headerName: 'Тип',
         minWidth: 120,
         sortable: true,
     },
     {
+        colId: 'planned_date',
         field: 'planned_date',
         headerName: 'План',
         minWidth: 120,
@@ -248,6 +264,7 @@ const columnDefs = [
         valueFormatter: (p) => (p.value ? String(p.value).slice(0, 10) : '—'),
     },
     {
+        colId: 'actual_date',
         field: 'actual_date',
         headerName: 'Факт',
         minWidth: 120,
@@ -255,6 +272,7 @@ const columnDefs = [
         valueFormatter: (p) => (p.value ? String(p.value).slice(0, 10) : '—'),
     },
     {
+        colId: 'amount',
         field: 'amount',
         headerName: 'Сумма',
         minWidth: 120,
@@ -282,6 +300,52 @@ const columnDefs = [
         cellRenderer: PaymentScheduleCell,
     },
 ];
+
+const dynamicColumnDefs = computed(() => {
+    const baseById = new Map(baseColumnDefs.map((column) => [column.colId, { ...column }]));
+    const roleState = Array.isArray(props.roleColumnsConfig?.payment_schedule)
+        ? props.roleColumnsConfig.payment_schedule
+        : [];
+
+    let ordered = [...baseColumnDefs];
+    if (roleState.length > 0) {
+        const sortedState = [...roleState].sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0));
+        const seen = new Set();
+        ordered = sortedState
+            .map((state) => {
+                const colId = state.colId;
+                if (!baseById.has(colId)) {
+                    return null;
+                }
+                seen.add(colId);
+                return {
+                    ...baseById.get(colId),
+                    hide: Boolean(state.hide),
+                    width: Number(state.width) || baseById.get(colId).width,
+                };
+            })
+            .filter(Boolean);
+
+        baseColumnDefs.forEach((column) => {
+            if (!seen.has(column.colId)) {
+                ordered.push({ ...column });
+            }
+        });
+    }
+
+    const allowedColumnIds = props.availableColumns.map((column) => column.field);
+    if (allowedColumnIds.length > 0) {
+        ordered = ordered.filter((column) => allowedColumnIds.includes(column.colId));
+    }
+
+    return ordered.map((column) => {
+        if (column.colId === 'actions' && !props.canManageActions) {
+            return { ...column, hide: true };
+        }
+
+        return column;
+    });
+});
 
 const defaultColDef = {
     sortable: true,

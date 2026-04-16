@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\RoleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,6 +16,8 @@ class PaymentScheduleController extends Controller
      */
     public function recordPayment(Request $request, PaymentSchedule $paymentSchedule)
     {
+        $this->ensureCanManagePaymentSchedule($request);
+
         $validated = $request->validate([
             'paid_amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|string|max:50',
@@ -157,6 +160,8 @@ class PaymentScheduleController extends Controller
      */
     public function cancel(Request $request, PaymentSchedule $paymentSchedule)
     {
+        $this->ensureCanManagePaymentSchedule($request);
+
         $paymentSchedule->status = 'cancelled';
         $paymentSchedule->save();
 
@@ -178,6 +183,8 @@ class PaymentScheduleController extends Controller
      */
     public function restore(Request $request, PaymentSchedule $paymentSchedule)
     {
+        $this->ensureCanManagePaymentSchedule($request);
+
         if ($paymentSchedule->status !== 'cancelled') {
             if ($request->expectsJson() || $request->wantsJson()) {
                 return response()->json([
@@ -203,5 +210,10 @@ class PaymentScheduleController extends Controller
         }
 
         return back()->with('success', 'Платеж восстановлен');
+    }
+
+    private function ensureCanManagePaymentSchedule(Request $request): void
+    {
+        abort_unless(RoleAccess::canAccessFinanceSalary($request->user()), 403);
     }
 }

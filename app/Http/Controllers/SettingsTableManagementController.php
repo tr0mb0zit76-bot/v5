@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Support\ContractorTableColumns;
 use App\Support\LeadTableColumns;
 use App\Support\OrderTableColumns;
+use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ class SettingsTableManagementController extends Controller
                             'orders' => $columnsConfig['orders'] ?? OrderTableColumns::defaultState($role->name),
                             'leads' => $columnsConfig['leads'] ?? LeadTableColumns::defaultState($role->name),
                             'contractors' => $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($role->name),
+                            'payment_schedule' => $columnsConfig['payment_schedule'] ?? PaymentScheduleTableColumns::defaultState($role->name),
                         ],
                     ];
                 })
@@ -42,6 +44,7 @@ class SettingsTableManagementController extends Controller
             'orderColumns' => OrderTableColumns::options(),
             'leadColumns' => LeadTableColumns::options(),
             'contractorColumns' => ContractorTableColumns::options(),
+            'paymentScheduleColumns' => PaymentScheduleTableColumns::options(),
         ]);
     }
 

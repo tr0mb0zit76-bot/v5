@@ -135,7 +135,7 @@ import { reactive } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'scripts' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),
 });
 
 const props = defineProps({

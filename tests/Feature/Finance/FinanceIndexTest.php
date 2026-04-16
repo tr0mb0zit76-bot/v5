@@ -557,4 +557,44 @@ class FinanceIndexTest extends TestCase
             ->get(route('finance.index', ['section' => 'documents']))
             ->assertRedirect(route('finance.index'));
     }
+
+    public function test_manager_cannot_mutate_payment_schedule_actions(): void
+    {
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $manager->id,
+            'order_number' => 'ORD-LOCK',
+            'order_date' => '2026-04-05',
+            'status' => 'new',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $paymentScheduleId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 1000,
+            'planned_date' => '2026-04-20',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->post(route('payment-schedules.cancel', $paymentScheduleId));
+
+        $response->assertForbidden();
+    }
 }

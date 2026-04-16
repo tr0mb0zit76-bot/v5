@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\Finance\FinanceOverviewService;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,6 +43,8 @@ class FinanceIndexController extends Controller
             'todays_cash_flow' => $cashFlowStats['periods']['today'],
             'cash_flow_stats' => $cashFlowStats,
             'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
+            'can_manage_payment_schedule' => RoleAccess::canAccessFinanceSalary($user),
+            'paymentScheduleColumns' => PaymentScheduleTableColumns::options(),
         ]);
     }
 }

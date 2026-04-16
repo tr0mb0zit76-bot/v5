@@ -153,7 +153,13 @@
             </div>
 
             <section class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <CashFlowGrid :rows="cashFlowJournal" :user-id="cashFlowGridUserId" />
+                <CashFlowGrid
+                    :rows="cashFlowJournal"
+                    :user-id="cashFlowGridUserId"
+                    :available-columns="paymentScheduleColumns"
+                    :role-columns-config="roleColumnsConfig"
+                    :can-manage-actions="canManagePaymentSchedule"
+                />
             </section>
         </div>
     </div>
@@ -195,6 +201,7 @@ defineOptions({
 
 const page = usePage();
 const cashFlowGridUserId = computed(() => page.props.auth?.user?.id ?? 'guest');
+const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 
 const props = defineProps({
     summary: {
@@ -221,9 +228,18 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    can_manage_payment_schedule: {
+        type: Boolean,
+        default: false,
+    },
+    paymentScheduleColumns: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const activeSubmodule = computed(() => props.active_submodule);
+const canManagePaymentSchedule = computed(() => props.can_manage_payment_schedule);
 
 const cashFlowStats = computed(() => {
     if (Object.keys(props.cash_flow_stats).length === 0) {

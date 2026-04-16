@@ -1,9 +1,9 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <div class="shrink-0">
-            <h1 class="text-2xl font-semibold">Управление таблицей</h1>
+            <h1 class="text-2xl font-semibold">Управление таблицами</h1>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Здесь задаётся разрешённый набор колонок для ролей в таблицах заказов, лидов и контрагентов. Пользователь видит и настраивает только те поля, которые разрешены его роли.
+                Здесь задаётся разрешённый набор колонок для ролей в таблицах заказов, лидов, контрагентов и графика оплат. Пользователь видит и настраивает только те поля, которые разрешены его роли.
             </p>
         </div>
 
@@ -173,12 +173,17 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    paymentScheduleColumns: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const tableDefinitions = [
     { key: 'orders', label: 'Заказы' },
     { key: 'leads', label: 'Лиды' },
     { key: 'contractors', label: 'Контрагенты' },
+    { key: 'payment_schedule', label: 'График оплат' },
 ];
 
 const groupDefinitions = [
@@ -295,6 +300,18 @@ const contractorGroupMap = {
     is_own_company: 'status',
 };
 
+const paymentScheduleGroupMap = {
+    order_number: 'identity',
+    direction: 'routing',
+    counterparty_name: 'participants',
+    payment_type: 'finance',
+    planned_date: 'finance',
+    actual_date: 'finance',
+    amount: 'finance',
+    status: 'status',
+    actions: 'system',
+};
+
 const selectedRoleId = ref(props.roles[0]?.id ?? null);
 const selectedTableKey = ref('orders');
 const draftColumnsByRole = ref(Object.fromEntries(
@@ -304,6 +321,7 @@ const draftColumnsByRole = ref(Object.fromEntries(
             orders: (role.columns_config?.orders ?? []).map((column) => ({ ...column })),
             leads: (role.columns_config?.leads ?? []).map((column) => ({ ...column })),
             contractors: (role.columns_config?.contractors ?? []).map((column) => ({ ...column })),
+            payment_schedule: (role.columns_config?.payment_schedule ?? []).map((column) => ({ ...column })),
         },
     ]),
 ));
@@ -319,6 +337,7 @@ const activeColumns = computed(() => ({
     orders: props.orderColumns,
     leads: props.leadColumns,
     contractors: props.contractorColumns,
+    payment_schedule: props.paymentScheduleColumns,
 }[selectedTableKey.value] ?? []));
 
 const groupedSelectedColumns = computed(() => {
@@ -326,6 +345,7 @@ const groupedSelectedColumns = computed(() => {
         orders: groupMap,
         leads: leadGroupMap,
         contractors: contractorGroupMap,
+        payment_schedule: paymentScheduleGroupMap,
     }[selectedTableKey.value] ?? {};
 
     const grouped = new Map(groupDefinitions.map((group) => [group.key, {
