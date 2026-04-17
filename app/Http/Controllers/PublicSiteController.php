@@ -25,6 +25,8 @@ class PublicSiteController extends Controller
     protected function sharedProps(): array
     {
         $translations = [];
+        $crmHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.log-sol.local';
+        $crmScheme = request()->isSecure() ? 'https' : 'http';
 
         foreach ($this->translationPaths() as $translationsPath) {
             if (! is_file($translationsPath)) {
@@ -44,6 +46,7 @@ class PublicSiteController extends Controller
             'canRegister' => \Route::has('register'),
             'publicSite' => [
                 'texts' => $translations,
+                'crm_login_url' => sprintf('%s://%s/login', $crmScheme, $crmHost),
             ],
         ];
     }

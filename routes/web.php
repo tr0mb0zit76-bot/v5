@@ -30,19 +30,38 @@ use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    if (auth()->check()) {
-        return redirect('/dashboard');
-    }
+// Use APP_URL host as CRM domain so local/prod can differ without route edits.
+$crmDomain = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.log-sol.local';
+$showcaseDomain = 'v5.local';
 
-    return app(PublicSiteController::class)->home();
-});
-
-Route::controller(PublicSiteController::class)->group(function () {
+Route::domain($showcaseDomain)->controller(PublicSiteController::class)->group(function () {
+    Route::get('/', 'home')->name('public.home');
     Route::get('/about', 'about')->name('public.about');
     Route::get('/services', 'services')->name('public.services');
     Route::get('/cases', 'cases')->name('public.cases');
     Route::get('/contacts', 'contacts')->name('public.contacts');
+    Route::any('/_boost/browser-logs', fn () => response()->noContent())->name('public.boost.browser-logs');
+});
+
+Route::domain($showcaseDomain)->any('/{any}', function () use ($crmDomain) {
+    $scheme = request()->isSecure() ? 'https' : 'http';
+    $path = ltrim((string) request()->path(), '/');
+    $queryString = request()->getQueryString();
+    $target = sprintf('%s://%s/%s', $scheme, $crmDomain, $path);
+
+    if (is_string($queryString) && $queryString !== '') {
+        $target .= '?'.$queryString;
+    }
+
+    return redirect()->to($target);
+})->where('any', '.*');
+
+Route::domain($crmDomain)->get('/', function () {
+    if (auth()->check()) {
+        return redirect('/dashboard');
+    }
+
+    return redirect()->route('login');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

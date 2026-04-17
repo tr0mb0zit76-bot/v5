@@ -40,6 +40,8 @@ class LeadPrintFormDraftService
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
             $processor->setValue($placeholder, $replacement);
+            // Some DOCX templates keep `${ placeholder }` with inner spaces.
+            $processor->setValue(' '.$placeholder.' ', $replacement);
         }
 
         if ($placeholders->isNotEmpty()) {

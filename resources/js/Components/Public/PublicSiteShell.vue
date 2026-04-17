@@ -28,6 +28,7 @@ const logoUrl = '/assets/logo.png';
 const modalLogoUrl = '/assets/logo_black.png';
 
 const texts = computed(() => page.props.publicSite?.texts ?? {});
+const crmLoginUrl = computed(() => page.props.publicSite?.crm_login_url ?? '/login');
 const authUser = computed(() => page.props.auth?.user ?? null);
 const sections = computed(() => props.page.sections ?? []);
 const isVerticalMode = computed(() => props.page.mode === 'vertical');
@@ -62,7 +63,7 @@ const switchSection = (index) => {
 
 const openLogin = () => {
     isMobileMenuOpen.value = false;
-    isLoginOpen.value = true;
+    window.location.assign(crmLoginUrl.value);
 };
 
 const closeLogin = () => {
@@ -193,9 +194,8 @@ onBeforeUnmount(() => {
 
                     <a
                         v-else
-                        href="#"
+                        :href="crmLoginUrl"
                         class="login-nav-link"
-                        @click.prevent="openLogin"
                     >
                         {{ t('cabinet', 'Личный кабинет') }}
                     </a>
@@ -242,14 +242,14 @@ onBeforeUnmount(() => {
                     Р’ РєР°Р±РёРЅРµС‚
                 </Link>
 
-                <button
+                <a
                     v-else
-                    type="button"
+                    :href="crmLoginUrl"
                     class="mobile-nav-login"
-                    @click="openLogin"
+                    @click="closeMobileMenu"
                 >
                     {{ t('cabinet', 'Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚') }}
-                </button>
+                </a>
             </nav>
         </div>
 

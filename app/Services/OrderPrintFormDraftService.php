@@ -38,17 +38,19 @@ class OrderPrintFormDraftService
         $processor->setMacroChars('${', '}');
 
         foreach ($placeholders as $placeholder) {
-            $mappedPath = $mapping->get($placeholder, $placeholder);
+            $mappedPath = $this->resolveMappedPath($placeholder, $mapping);
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
             $processor->setValue($placeholder, $replacement);
+            // Some DOCX templates keep `${ placeholder }` with inner spaces.
+            $processor->setValue(' '.$placeholder.' ', $replacement);
         }
 
         if ($placeholders->isNotEmpty()) {
             $processor->setMacroChars('{{', '}}');
 
             foreach ($placeholders as $placeholder) {
-                $mappedPath = $mapping->get($placeholder, $placeholder);
+                $mappedPath = $this->resolveMappedPath($placeholder, $mapping);
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
                 $processor->setValue($placeholder, $replacement);
@@ -161,12 +163,16 @@ class OrderPrintFormDraftService
                 'loading_cities' => $loadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
                 'loading_first_address' => $this->resolvePointAddress($loadingPoints->first()),
                 'loading_first_city' => data_get($loadingPoints->first()?->normalized_data, 'city'),
+                'loading_time_from' => $this->resolvePointTimeValue($loadingPoints->first(), 'planned_time_from'),
+                'loading_time_to' => $this->resolvePointTimeValue($loadingPoints->first(), 'planned_time_to'),
                 'loading_method' => $loadingMethod,
                 'loading_types' => $this->resolveLoadingTypes($loadingPoints, $order),
                 'unloading_addresses' => $this->resolvePartyAddressList($unloadingPoints),
                 'unloading_cities' => $unloadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
                 'unloading_first_address' => $this->resolvePointAddress($unloadingPoints->first()),
                 'unloading_first_city' => data_get($unloadingPoints->first()?->normalized_data, 'city'),
+                'unloading_time_from' => $this->resolvePointTimeValue($unloadingPoints->first(), 'planned_time_from'),
+                'unloading_time_to' => $this->resolvePointTimeValue($unloadingPoints->first(), 'planned_time_to'),
             ],
             'cargo' => [
                 'summary' => $cargoItems
@@ -462,6 +468,25 @@ class OrderPrintFormDraftService
         return $address;
     }
 
+    private function resolvePointTimeValue(mixed $point, string $key): ?string
+    {
+        if ($point === null) {
+            return null;
+        }
+
+        $value = data_get($point, $key);
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return mb_substr($trimmed, 0, 5, 'UTF-8');
+    }
+
     private function resolveLoadingTypes(Collection $loadingPoints, Order $order): ?string
     {
         $types = $loadingPoints
@@ -563,6 +588,76 @@ class OrderPrintFormDraftService
         }
 
         return '';
+    }
+
+    private function resolveMappedPath(string $placeholder, Collection $mapping): string
+    {
+        $explicit = $mapping->get($placeholder);
+        if (is_string($explicit) && $explicit !== '') {
+            return $explicit;
+        }
+
+        $legacy = $this->legacyPlaceholderMappings();
+        $normalized = $this->normalizeLegacyPlaceholderKey($placeholder);
+
+        return $legacy[$normalized] ?? $placeholder;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function legacyPlaceholderMappings(): array
+    {
+        return [
+            'nomer_zayavki' => 'order.order_number',
+            'data_zakaza' => 'order.order_date',
+            'data_zagruzki' => 'order.loading_date',
+            'data_vygruzki' => 'order.unloading_date',
+            'vremya_zagruzki' => 'route.loading_time_from',
+            'vremya_vygruzki' => 'route.unloading_time_from',
+            'address_zagruzki' => 'route.loading_first_address',
+            'address_vygruzki' => 'route.unloading_first_address',
+            'gorod_zagruzki' => 'route.loading_first_city',
+            'gorod_vygruzki' => 'route.unloading_first_city',
+            'gruzootpav' => 'cargo_sender.name',
+            'gruzopoluchatel' => 'cargo_recipient.name',
+            'kontakt_na_zagruzke' => 'cargo_sender.contact_phone',
+            'kontakt_na_vygruzke' => 'cargo_recipient.contact_phone',
+            'cargo_summary' => 'cargo.summary',
+            'stoimost' => 'order.customer_rate',
+            'forma_oplaty' => 'order.customer_payment_form',
+            'usloviya_oplaty' => 'order.customer_payment_term',
+            'primechanya' => 'order.special_notes',
+            'fio_voditel' => 'driver.full_name',
+            'tel_voditel' => 'driver.phone',
+            'passport_voditel' => 'driver.passport_data',
+            'marka_avto' => 'vehicle.brand',
+            'gosnomer' => 'vehicle.number',
+            'tip_pritsepa' => 'vehicle.transport_type',
+            'tip_prizepa' => 'vehicle.transport_type',
+            'poln_nazv_zak' => 'customer.full_name',
+            'kratk_nazv_zak' => 'customer.name',
+            'inn' => 'customer.inn',
+            'kpp' => 'customer.kpp',
+            'ogrn' => 'customer.ogrn',
+            'yur_address' => 'customer.legal_address',
+            'pocht_address' => 'customer.actual_address',
+            'bank' => 'customer.bank_name',
+            'bik' => 'customer.bik',
+            'r/s' => 'customer.account_number',
+            'k/s' => 'customer.correspondent_account',
+            'fio_podpisant' => 'customer.signer_name_nominative',
+            'fio_podpisant_rod' => 'customer.signer_name_prepositional',
+            'dolzhn_podpisant' => 'customer.signer_position',
+        ];
+    }
+
+    private function normalizeLegacyPlaceholderKey(string $placeholder): string
+    {
+        $value = mb_strtolower(trim($placeholder), 'UTF-8');
+        $value = str_replace(['’', '`', '´'], '', $value);
+
+        return $value;
     }
 
     private function formatDate(mixed $value): ?string

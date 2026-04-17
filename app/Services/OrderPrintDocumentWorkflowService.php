@@ -16,6 +16,7 @@ class OrderPrintDocumentWorkflowService
 {
     public function __construct(
         private readonly OrderPrintFormDraftService $draftService,
+        private readonly DocumentStorageService $documentStorage,
     ) {}
 
     /**
@@ -27,10 +28,8 @@ class OrderPrintDocumentWorkflowService
         $generated = $this->draftService->generate($template, $order);
 
         $permanentPath = sprintf('order_documents/%d/%s-draft.docx', $order->id, (string) Str::uuid());
-        Storage::disk('local')->put(
-            $permanentPath,
-            Storage::disk($generated['disk'])->get($generated['path'])
-        );
+        $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
+        $this->documentStorage->put($permanentPath, $docxContents);
         Storage::disk($generated['disk'])->delete($generated['path']);
 
         $attributes = [
@@ -45,6 +44,7 @@ class OrderPrintDocumentWorkflowService
                 'party' => $this->resolveMetadataParty($template),
                 'template_code' => $template->code,
                 'template_name' => $template->name,
+                'storage_driver' => $this->documentStorage->configuredDriver(),
             ],
         ];
 
@@ -73,7 +73,10 @@ class OrderPrintDocumentWorkflowService
         }
 
         if (Schema::hasColumn('order_documents', 'file_size')) {
-            $attributes['file_size'] = Storage::disk('local')->size($permanentPath);
+            $attributes['file_size'] = $this->documentStorage->size(
+                $permanentPath,
+                knownContents: $docxContents
+            );
         }
 
         if (Schema::hasColumn('order_documents', 'mime_type')) {
@@ -220,7 +223,8 @@ class OrderPrintDocumentWorkflowService
         }
 
         $path = sprintf('order_documents/%d/%s-final.pdf', $document->order_id, (string) Str::uuid());
-        Storage::disk('local')->put($path, $file->getContent());
+        $pdfContents = $file->getContent();
+        $this->documentStorage->put($path, $pdfContents);
 
         $updates = [
             'generated_pdf_path' => $path,
@@ -251,12 +255,16 @@ class OrderPrintDocumentWorkflowService
         }
 
         if (Schema::hasColumn('order_documents', 'file_size')) {
-            $updates['file_size'] = Storage::disk('local')->size($path);
+            $updates['file_size'] = $file->getSize() ?: strlen($pdfContents);
         }
 
         if (Schema::hasColumn('order_documents', 'original_name')) {
             $updates['original_name'] = $file->getClientOriginalName();
         }
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $metadata['generated_pdf_storage_driver'] = $this->documentStorage->configuredDriver();
+        $updates['metadata'] = $metadata;
 
         $document->update($updates);
     }
@@ -285,14 +293,13 @@ class OrderPrintDocumentWorkflowService
         $generated = $this->draftService->generate($template, $order);
 
         if ($document->file_path) {
-            Storage::disk('local')->delete($document->file_path);
+            $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete($document->file_path, $storageDriver);
         }
 
         $permanentPath = sprintf('order_documents/%d/%s-draft.docx', $order->id, (string) Str::uuid());
-        Storage::disk('local')->put(
-            $permanentPath,
-            Storage::disk($generated['disk'])->get($generated['path'])
-        );
+        $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
+        $this->documentStorage->put($permanentPath, $docxContents);
         Storage::disk($generated['disk'])->delete($generated['path']);
 
         $updates = [
@@ -301,12 +308,19 @@ class OrderPrintDocumentWorkflowService
         ];
 
         if (Schema::hasColumn('order_documents', 'file_size')) {
-            $updates['file_size'] = Storage::disk('local')->size($permanentPath);
+            $updates['file_size'] = $this->documentStorage->size(
+                $permanentPath,
+                knownContents: $docxContents
+            );
         }
 
         if (Schema::hasColumn('order_documents', 'mime_type')) {
             $updates['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
         }
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
+        $updates['metadata'] = $metadata;
 
         $document->update($updates);
     }
@@ -328,7 +342,8 @@ class OrderPrintDocumentWorkflowService
         }
 
         if (filled($document->file_path)) {
-            Storage::disk('local')->delete($document->file_path);
+            $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete($document->file_path, $storageDriver);
         }
 
         $document->delete();

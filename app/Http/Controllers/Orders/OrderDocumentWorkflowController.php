@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Services\CabinetNotifier;
+use App\Services\DocumentStorageService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\PrintFormDraftResponseBuilder;
@@ -16,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -29,6 +31,7 @@ class OrderDocumentWorkflowController extends Controller
         private readonly CabinetNotifier $cabinetNotifier,
         private readonly PrintFormDraftResponseBuilder $draftResponseBuilder,
         private readonly OrderCompensationService $orderCompensationService,
+        private readonly DocumentStorageService $documentStorage,
     ) {}
 
     public function storeFromTemplate(Request $request, Order $order): RedirectResponse
@@ -206,7 +209,7 @@ class OrderDocumentWorkflowController extends Controller
             'orderNumber' => $order->order_number,
             'documentId' => $orderDocument->id,
             'documentTitle' => $orderDocument->original_name ?: 'Черновик заявки',
-            'embedUrl' => route('orders.documents.download-draft', [$order, $orderDocument]).'?preview=1',
+            'embedUrl' => route('orders.documents.download-draft', [$order, $orderDocument]).'?preview=1&preview_mode=browser',
             'workflowStatusLabel' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
             'canRequestApproval' => $canRequestApproval,
         ]);
@@ -219,6 +222,22 @@ class OrderDocumentWorkflowController extends Controller
 
         abort_if(blank($orderDocument->file_path), 404);
 
+        $cachedPreviewResponse = $this->resolveCachedPdfPreviewResponse($request, $order, $orderDocument);
+        if ($cachedPreviewResponse !== null) {
+            return $cachedPreviewResponse;
+        }
+
+        $storageDriver = $this->resolveDraftStorageDriver($orderDocument);
+        if ($storageDriver === DocumentStorageService::DRIVER_NEXTCLOUD) {
+            $contents = $this->documentStorage->get($orderDocument->file_path, $storageDriver);
+
+            return $this->draftResponseBuilder->fromStoredDocxContent(
+                $request,
+                $contents,
+                $orderDocument->original_name ?: 'draft.docx'
+            );
+        }
+
         return $this->draftResponseBuilder->fromStoredDocx(
             $request,
             'local',
@@ -227,17 +246,115 @@ class OrderDocumentWorkflowController extends Controller
         );
     }
 
-    public function downloadFinal(Request $request, Order $order, OrderDocument $orderDocument): BinaryFileResponse
+    public function downloadFinal(Request $request, Order $order, OrderDocument $orderDocument): Response|BinaryFileResponse
     {
         $this->ensureCanViewOrderDocuments($request, $order);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         abort_if(blank($orderDocument->generated_pdf_path), 404);
 
+        $storageDriver = $this->resolveFinalPdfStorageDriver($orderDocument);
+        if ($storageDriver === DocumentStorageService::DRIVER_NEXTCLOUD) {
+            $contents = $this->documentStorage->get($orderDocument->generated_pdf_path, $storageDriver);
+
+            return response()->streamDownload(
+                static function () use ($contents): void {
+                    echo $contents;
+                },
+                'order-'.$order->id.'-document-'.$orderDocument->id.'.pdf',
+                [
+                    'Content-Type' => 'application/pdf',
+                    'Cache-Control' => 'no-store, private',
+                ]
+            );
+        }
+
         return Storage::disk('local')->download(
             $orderDocument->generated_pdf_path,
             'order-'.$order->id.'-document-'.$orderDocument->id.'.pdf'
         );
+    }
+
+    private function resolveDraftStorageDriver(OrderDocument $orderDocument): string
+    {
+        $driver = data_get($orderDocument->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+
+        return $driver === DocumentStorageService::DRIVER_NEXTCLOUD
+            ? DocumentStorageService::DRIVER_NEXTCLOUD
+            : DocumentStorageService::DRIVER_LOCAL;
+    }
+
+    private function resolveFinalPdfStorageDriver(OrderDocument $orderDocument): string
+    {
+        $driver = data_get($orderDocument->metadata, 'generated_pdf_storage_driver', DocumentStorageService::DRIVER_LOCAL);
+
+        return $driver === DocumentStorageService::DRIVER_NEXTCLOUD
+            ? DocumentStorageService::DRIVER_NEXTCLOUD
+            : DocumentStorageService::DRIVER_LOCAL;
+    }
+
+    private function resolveCachedPdfPreviewResponse(
+        Request $request,
+        Order $order,
+        OrderDocument $orderDocument,
+    ): ?Response {
+        if (! $this->isBrowserPreviewRequested($request)) {
+            return null;
+        }
+
+        $metadata = is_array($orderDocument->metadata) ? $orderDocument->metadata : [];
+        $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
+        $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
+
+        if ($previewPath !== '' && $this->documentStorage->exists($previewPath, $previewDriver)) {
+            $pdfContents = $this->documentStorage->get($previewPath, $previewDriver);
+
+            return $this->inlinePdfResponse($pdfContents, $order, $orderDocument);
+        }
+
+        $docxDriver = $this->resolveDraftStorageDriver($orderDocument);
+        $docxContents = $this->documentStorage->get($orderDocument->file_path, $docxDriver);
+        $pdfContents = $this->draftResponseBuilder->previewPdfFromDocxContent(
+            $docxContents,
+            $orderDocument->original_name ?: 'draft.docx'
+        );
+
+        if ($pdfContents === null) {
+            return null;
+        }
+
+        $targetPath = sprintf(
+            'order_documents/%d/%s-preview.pdf',
+            (int) $orderDocument->order_id,
+            (string) Str::uuid()
+        );
+        $targetDriver = $this->documentStorage->configuredDriver();
+        $this->documentStorage->put($targetPath, $pdfContents, $targetDriver);
+
+        $metadata['preview_pdf_path'] = $targetPath;
+        $metadata['preview_pdf_storage_driver'] = $targetDriver;
+        $metadata['preview_pdf_generated_at'] = now()->toIso8601String();
+        $orderDocument->update(['metadata' => $metadata]);
+
+        return $this->inlinePdfResponse($pdfContents, $order, $orderDocument);
+    }
+
+    private function inlinePdfResponse(string $contents, Order $order, OrderDocument $orderDocument): Response
+    {
+        return response($contents, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => sprintf(
+                'inline; filename="%s"',
+                'order-'.$order->id.'-document-'.$orderDocument->id.'-preview.pdf'
+            ),
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
+    private function isBrowserPreviewRequested(Request $request): bool
+    {
+        return $request->boolean('preview')
+            && strtolower($request->query('preview_mode', '')) === 'browser';
     }
 
     private function ensureDocumentBelongsToOrder(Order $order, OrderDocument $orderDocument): void
