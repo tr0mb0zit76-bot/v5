@@ -44,7 +44,7 @@ class CabinetNotifier
             $orderLabel
         );
 
-        $actionUrl = route('orders.edit', $order).'?tab=documents';
+        $actionUrl = route('orders.edit', $order, false).'?tab=documents';
 
         $notification = new CabinetInAppNotification(
             'order_document_approval',
@@ -86,7 +86,7 @@ class CabinetNotifier
             $task->title
         );
 
-        $actionUrl = route('tasks.index').'?task='.$task->id;
+        $actionUrl = route('tasks.index', absolute: false).'?task='.$task->id;
 
         $recipient->notify(new CabinetInAppNotification(
             'task_assigned',
@@ -121,7 +121,7 @@ class CabinetNotifier
             mb_strimwidth((string) $comment->body, 0, 160, '…')
         );
 
-        $actionUrl = route('tasks.index').'?task='.$task->id;
+        $actionUrl = route('tasks.index', absolute: false).'?task='.$task->id;
 
         $recipient->notify(new CabinetInAppNotification(
             'task_comment',
@@ -161,7 +161,7 @@ class CabinetNotifier
             $task->title
         );
 
-        $actionUrl = route('tasks.show', $task);
+        $actionUrl = route('tasks.show', $task, false);
 
         $notification = new CabinetInAppNotification(
             'task_sla_breached',

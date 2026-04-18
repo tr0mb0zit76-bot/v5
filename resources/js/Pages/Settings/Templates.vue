@@ -18,6 +18,14 @@
             </button>
         </div>
 
+        <div
+            v-if="!documentPreview.pdf_preview_available"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+            role="status"
+        >
+            {{ documentPreview.hint }}
+        </div>
+
         <div class="grid gap-3 md:grid-cols-3">
             <section class="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Всего шаблонов</div>
@@ -277,14 +285,121 @@
                                     <div v-if="form.errors.source_file" class="text-sm text-rose-600">{{ form.errors.source_file }}</div>
                                 </div>
 
-                                <div
-                                    v-if="editingTemplate !== null && editingTemplate.has_source_file"
-                                    class="border border-zinc-200 p-4 dark:border-zinc-800"
-                                >
-                                    <div class="mb-3 text-sm font-medium">Тестовая генерация DOCX</div>
-                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                                        «Предпросмотр» открывает тот же DOCX для просмотра в браузере (где поддерживается). Для гарантированного файла на диске — «Скачать DOCX».
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium">Подпись и печать для DOCX</div>
+                                    <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                        Это <span class="font-medium">отдельные поля картинок</span> (PhpWord
+                                        <span class="font-mono">setImageValue</span>), не текстовые плейсхолдеры из блока ниже. В DOCX должны быть макросы в том же виде, что задаёте здесь, например
+                                        <span class="font-mono">${internal_signature_image}</span> и
+                                        <span class="font-mono">${internal_stamp_image}</span> или
+                                        <span class="font-mono">&#123;&#123;internal_stamp_image&#125;&#125;</span> — оба стиля макросов обрабатываются. После выбора файла нажмите «Сохранить» внизу окна.
+                                        Для фона под печатью лучше <span class="font-medium">PNG с прозрачностью</span> — в итоговом PDF через LibreOffice/Gotenberg она обычно сохраняется лучше, чем в HTML-предпросмотре.
                                     </p>
+                                    <div class="grid gap-4 md:grid-cols-2">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">Плейсхолдер подписи</label>
+                                            <input v-model="form.internal_signature_placeholder" type="text" class="field font-mono text-sm" autocomplete="off" />
+                                            <div v-if="form.errors.internal_signature_placeholder" class="text-sm text-rose-600">
+                                                {{ form.errors.internal_signature_placeholder }}
+                                            </div>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">Плейсхолдер печати</label>
+                                            <input v-model="form.internal_stamp_placeholder" type="text" class="field font-mono text-sm" autocomplete="off" />
+                                            <div v-if="form.errors.internal_stamp_placeholder" class="text-sm text-rose-600">
+                                                {{ form.errors.internal_stamp_placeholder }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                        <div class="space-y-2 rounded-xl border border-zinc-100 p-3 dark:border-zinc-800">
+                                            <label class="text-sm font-medium">Файл подписи</label>
+                                            <input
+                                                type="file"
+                                                name="signature_image_file"
+                                                accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                                                class="field file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm dark:file:bg-zinc-800"
+                                                @change="onSignatureImageFileChange"
+                                            />
+                                            <div v-if="form.errors.signature_image_file" class="text-sm text-rose-600">{{ form.errors.signature_image_file }}</div>
+                                            <img
+                                                v-if="editingTemplate?.signature_image_preview_url"
+                                                :src="editingTemplate.signature_image_preview_url"
+                                                alt="Подпись"
+                                                class="mt-2 max-h-20 rounded border border-zinc-200 object-contain dark:border-zinc-700"
+                                            />
+                                        </div>
+                                        <div class="space-y-2 rounded-xl border border-zinc-100 p-3 dark:border-zinc-800">
+                                            <label class="text-sm font-medium">Файл печати</label>
+                                            <input
+                                                type="file"
+                                                name="stamp_image_file"
+                                                accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                                                class="field file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm dark:file:bg-zinc-800"
+                                                @change="onStampImageFileChange"
+                                            />
+                                            <div v-if="form.errors.stamp_image_file" class="text-sm text-rose-600">{{ form.errors.stamp_image_file }}</div>
+                                            <img
+                                                v-if="editingTemplate?.stamp_image_preview_url"
+                                                :src="editingTemplate.stamp_image_preview_url"
+                                                alt="Печать"
+                                                class="mt-2 max-h-20 rounded border border-zinc-200 object-contain dark:border-zinc-700"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: ширина, мм</label>
+                                            <input v-model.number="form.signature_image_width_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: высота, мм</label>
+                                            <input v-model.number="form.signature_image_height_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: ширина, мм</label>
+                                            <input v-model.number="form.stamp_image_width_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: высота, мм</label>
+                                            <input v-model.number="form.stamp_image_height_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: сдвиг X, мм</label>
+                                            <input v-model.number="form.signature_image_offset_x_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: сдвиг Y, мм</label>
+                                            <input v-model.number="form.signature_image_offset_y_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: сдвиг X, мм</label>
+                                            <input v-model.number="form.stamp_image_offset_x_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                        </div>
+                                        <div class="space-y-1">
+                                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: сдвиг Y, мм</label>
+                                            <input v-model.number="form.stamp_image_offset_y_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                        </div>
+                                    </div>
+
+                                    <label class="mt-3 flex items-start gap-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                                        <input v-model="form.apply_crm_overlay_offsets" type="checkbox" class="mt-1 rounded border-zinc-300" />
+                                        <div>
+                                            <div class="text-sm font-medium">Смещения и привязка к странице из CRM</div>
+                                            <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                Если выключено, подпись и печать вставляются только в местах плейсхолдеров DOCX (размеры ниже сохраняются; сдвиги и перетаскивание на предпросмотре не применяются к файлу).
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    <div
+                                        v-if="editingTemplate !== null && editingTemplate.has_source_file"
+                                        class="mt-4 space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800"
+                                    >
+                                        <div class="text-sm font-medium">Тестовая генерация DOCX</div>
+                                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            «Предпросмотр» открывает документ в браузере. «Скачать DOCX» — файл на диск. «Печать и подпись на предпросмотре» — при включённых смещениях из CRM: перетаскивание поверх PDF; при выключенных — готовый вид как при печати (нужен Gotenberg, см. предупреждение вверху страницы).
+                                        </p>
                                     <div v-if="form.entity_type === 'order'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID заказа</label>
@@ -305,6 +420,14 @@
                                                 @click="downloadOrderDraft"
                                             >
                                                 Скачать DOCX
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/60"
+                                                @click="openOrderOverlayPreview"
+                                            >
+                                                <Move class="h-4 w-4" />
+                                                Печать и подпись на предпросмотре
                                             </button>
                                         </div>
                                     </div>
@@ -329,8 +452,23 @@
                                             >
                                                 Скачать DOCX
                                             </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/60"
+                                                @click="openLeadOverlayPreview"
+                                            >
+                                                <Move class="h-4 w-4" />
+                                                Печать и подпись на предпросмотре
+                                            </button>
                                         </div>
                                     </div>
+                                    </div>
+                                    <p v-else-if="editingTemplate !== null && !editingTemplate.has_source_file" class="mt-3 text-xs text-amber-800 dark:text-amber-200">
+                                        Сохраните шаблон с загруженным DOCX — здесь появятся кнопки предпросмотра и скачивания.
+                                    </p>
+                                    <p v-else class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                        После первого сохранения с файлом DOCX откроется тестовая генерация по ID заказа или лида.
+                                    </p>
                                 </div>
                             </div>
 
@@ -376,7 +514,10 @@
                                 </div>
 
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">Сопоставление плейсхолдеров</div>
+                                    <div class="mb-3 text-sm font-medium">Сопоставление плейсхолдеров (текст и данные)</div>
+                                    <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                        Сюда попадают только подстановки значений заказа/лида. Плейсхолдеры подписи и печати настраиваются в блоке «Подпись и печать для DOCX» и здесь не дублируются.
+                                    </p>
                                     <div v-if="form.variable_mappings.length > 0" class="space-y-3">
                                         <div
                                             v-for="(mapping, index) in form.variable_mappings"
@@ -401,6 +542,9 @@
                                     <div v-else class="text-sm text-zinc-500 dark:text-zinc-400">
                                         Сначала загрузи DOCX или открой шаблон, в котором уже обнаружены плейсхолдеры.
                                     </div>
+                                    <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                        Для шаблонов заказа в списке уже показано итоговое сопоставление: явно сохранённое в БД плюс автоматические правила для типовых имён плейсхолдеров (как при генерации DOCX). Для лидов без явного маппинга по умолчанию подставляется путь с тем же именем, что и плейсхолдер.
+                                    </p>
                                 </div>
 
                                 <div class="border border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
@@ -433,9 +577,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { FileText, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
+import { FileText, Move, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -479,6 +623,15 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    documentPreview: {
+        type: Object,
+        default: () => ({
+            driver: 'html',
+            gotenberg_url_configured: false,
+            pdf_preview_available: false,
+            hint: '',
+        }),
+    },
 });
 
 const showModal = ref(false);
@@ -501,6 +654,19 @@ const form = useForm({
     is_active: true,
     source_file: null,
     variable_mappings: [],
+    internal_signature_placeholder: 'internal_signature_image',
+    internal_stamp_placeholder: 'internal_stamp_image',
+    signature_image_width_mm: 42,
+    signature_image_height_mm: 18,
+    signature_image_offset_x_mm: 0,
+    signature_image_offset_y_mm: 0,
+    stamp_image_width_mm: 30,
+    stamp_image_height_mm: 30,
+    stamp_image_offset_x_mm: 0,
+    stamp_image_offset_y_mm: 0,
+    apply_crm_overlay_offsets: true,
+    signature_image_file: null,
+    stamp_image_file: null,
 });
 
 const externalTemplateCount = computed(() => props.templates.filter((template) => template.source_type === 'external_docx').length);
@@ -524,6 +690,19 @@ function resetForm() {
     form.is_active = true;
     form.source_file = null;
     form.variable_mappings = [];
+    form.internal_signature_placeholder = 'internal_signature_image';
+    form.internal_stamp_placeholder = 'internal_stamp_image';
+    form.signature_image_width_mm = 42;
+    form.signature_image_height_mm = 18;
+    form.signature_image_offset_x_mm = 0;
+    form.signature_image_offset_y_mm = 0;
+    form.stamp_image_width_mm = 30;
+    form.stamp_image_height_mm = 30;
+    form.stamp_image_offset_x_mm = 0;
+    form.stamp_image_offset_y_mm = 0;
+    form.apply_crm_overlay_offsets = true;
+    form.signature_image_file = null;
+    form.stamp_image_file = null;
     previewOrderId.value = '';
     previewLeadId.value = '';
 }
@@ -551,9 +730,35 @@ function openEditModal(template) {
     form.is_active = Boolean(template.is_active);
     form.source_file = null;
     form.variable_mappings = buildVariableMappings(template);
+    form.internal_signature_placeholder = template.internal_signature_placeholder ?? 'internal_signature_image';
+    form.internal_stamp_placeholder = template.internal_stamp_placeholder ?? 'internal_stamp_image';
+    form.signature_image_width_mm = Number(template.signature_image_width_mm ?? 42);
+    form.signature_image_height_mm = Number(template.signature_image_height_mm ?? 18);
+    form.signature_image_offset_x_mm = Number(template.signature_image_offset_x_mm ?? 0);
+    form.signature_image_offset_y_mm = Number(template.signature_image_offset_y_mm ?? 0);
+    form.stamp_image_width_mm = Number(template.stamp_image_width_mm ?? 30);
+    form.stamp_image_height_mm = Number(template.stamp_image_height_mm ?? 30);
+    form.stamp_image_offset_x_mm = Number(template.stamp_image_offset_x_mm ?? 0);
+    form.stamp_image_offset_y_mm = Number(template.stamp_image_offset_y_mm ?? 0);
+    form.apply_crm_overlay_offsets = template.apply_crm_overlay_offsets !== false;
+    form.signature_image_file = null;
+    form.stamp_image_file = null;
     previewOrderId.value = '';
     previewLeadId.value = '';
     showModal.value = true;
+}
+
+function draftPreviewCacheBust(templateRef) {
+    const stamp = Date.now();
+    const t = templateRef;
+    if (t?.updated_at) {
+        const parsed = Date.parse(t.updated_at);
+        if (!Number.isNaN(parsed)) {
+            return `${parsed}-${stamp}`;
+        }
+    }
+
+    return stamp;
 }
 
 function previewTemplateFromRow(template) {
@@ -574,6 +779,7 @@ function previewTemplateFromRow(template) {
                 order_id: orderId,
                 preview: 1,
                 preview_mode: 'browser',
+                cb: draftPreviewCacheBust(template),
             }),
             '_blank'
         );
@@ -592,6 +798,7 @@ function previewTemplateFromRow(template) {
                 lead_id: leadId,
                 preview: 1,
                 preview_mode: 'browser',
+                cb: draftPreviewCacheBust(template),
             }),
             '_blank'
         );
@@ -609,6 +816,14 @@ function closeModal() {
 
 function onFileChange(event) {
     form.source_file = event.target.files?.[0] ?? null;
+}
+
+function onSignatureImageFileChange(event) {
+    form.signature_image_file = event.target.files?.[0] ?? null;
+}
+
+function onStampImageFileChange(event) {
+    form.stamp_image_file = event.target.files?.[0] ?? null;
 }
 
 function labelFor(options, value) {
@@ -635,14 +850,55 @@ function sourceTypeLabel(value) {
     return labelFor(props.sourceTypeOptions, value);
 }
 
+function imageOverlayPlaceholderSet(template) {
+    const names = [
+        template?.internal_signature_placeholder,
+        template?.internal_stamp_placeholder,
+        'internal_signature_image',
+        'internal_stamp_image',
+    ];
+
+    return new Set(
+        names
+            .map((s) => String(s ?? '').trim())
+            .filter((s) => s !== ''),
+    );
+}
+
+function imageOverlayPlaceholderSetFromForm() {
+    const names = [
+        form.internal_signature_placeholder,
+        form.internal_stamp_placeholder,
+        'internal_signature_image',
+        'internal_stamp_image',
+    ];
+
+    return new Set(
+        names
+            .map((s) => String(s ?? '').trim())
+            .filter((s) => s !== ''),
+    );
+}
+
 function buildVariableMappings(template) {
     const currentMapping = template.variable_mapping || {};
+    const skipImages = imageOverlayPlaceholderSet(template);
 
-    return (template.variables || []).map((placeholder) => ({
-        placeholder,
-        source_path: currentMapping[placeholder] || '',
-    }));
+    return (template.variables || [])
+        .filter((placeholder) => !skipImages.has(placeholder))
+        .map((placeholder) => ({
+            placeholder,
+            source_path: currentMapping[placeholder] || '',
+        }));
 }
+
+watch(
+    () => [form.internal_signature_placeholder, form.internal_stamp_placeholder],
+    () => {
+        const skip = imageOverlayPlaceholderSetFromForm();
+        form.variable_mappings = form.variable_mappings.filter((row) => !skip.has(row.placeholder));
+    },
+);
 
 function pipelineStatusLabel(value) {
     return {
@@ -718,8 +974,51 @@ function previewOrderDraft() {
             order_id: orderId,
             preview: 1,
             preview_mode: 'browser',
+            cb: draftPreviewCacheBust(editingTemplate.value),
         }),
         '_blank'
+    );
+}
+
+function openOrderOverlayPreview() {
+    if (editingTemplate.value === null) {
+        return;
+    }
+
+    const orderId = String(previewOrderId.value || '').trim();
+
+    if (orderId === '') {
+        window.alert('Укажи ID заказа — по нему строится фон предпросмотра без печати/подписи, поверх которого перетаскиваются изображения.');
+        return;
+    }
+
+    router.visit(
+        route('settings.templates.preview-order-overlay', {
+            printFormTemplate: editingTemplate.value.id,
+            order_id: orderId,
+            cb: Date.now(),
+        })
+    );
+}
+
+function openLeadOverlayPreview() {
+    if (editingTemplate.value === null) {
+        return;
+    }
+
+    const leadId = String(previewLeadId.value || '').trim();
+
+    if (leadId === '') {
+        window.alert('Укажи ID лида — по нему строится фон предпросмотра без печати/подписи.');
+        return;
+    }
+
+    router.visit(
+        route('settings.templates.preview-lead-overlay', {
+            printFormTemplate: editingTemplate.value.id,
+            lead_id: leadId,
+            cb: Date.now(),
+        })
     );
 }
 
@@ -738,6 +1037,7 @@ function downloadOrderDraft() {
     window.location.href = route('settings.templates.generate-order-draft', {
         printFormTemplate: editingTemplate.value.id,
         order_id: orderId,
+        cb: draftPreviewCacheBust(editingTemplate.value),
     });
 }
 
@@ -759,6 +1059,7 @@ function previewLeadDraft() {
             lead_id: leadId,
             preview: 1,
             preview_mode: 'browser',
+            cb: draftPreviewCacheBust(editingTemplate.value),
         }),
         '_blank'
     );
@@ -779,6 +1080,7 @@ function downloadLeadDraft() {
     window.location.href = route('settings.templates.generate-lead-draft', {
         printFormTemplate: editingTemplate.value.id,
         lead_id: leadId,
+        cb: draftPreviewCacheBust(editingTemplate.value),
     });
 }
 </script>

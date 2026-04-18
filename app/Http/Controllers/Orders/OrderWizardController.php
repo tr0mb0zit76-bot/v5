@@ -16,6 +16,7 @@ use App\Models\PaymentSchedule;
 use App\Models\PrintFormTemplate;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
+use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
@@ -25,6 +26,7 @@ use App\Services\OrderWizardStateService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderPrintWorkflowLock;
 use App\Support\PaymentScheduleAutomaticStatus;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -59,6 +61,8 @@ class OrderWizardController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order, OrderWizardService $orderWizardService): RedirectResponse
     {
+        abort_unless($this->canEditInlineField($request, $order), 403);
+
         Log::info('orders.update request received', [
             'order_id' => $order->id,
             'user_id' => $request->user()?->id,
@@ -313,12 +317,18 @@ class OrderWizardController extends Controller
             });
         }
 
-        $canManageOrderDocuments = $order !== null && $this->canEditInlineField($request, $order);
-        $canApproveOrderDocuments = $request->user() !== null
-            && ($request->user()->isSupervisor() || $request->user()->isAdmin());
+        $user = $request->user();
+        $isSignerOnly = $user !== null
+            && $user->hasSigningAuthority()
+            && ! ($user->isAdmin() || $user->isSupervisor());
+
+        $canManageOrderDocuments = $order !== null
+            && $this->canEditInlineField($request, $order)
+            && ! $isSignerOnly;
+        $canApproveOrderDocuments = $user !== null && $user->hasSigningAuthority();
 
         return Inertia::render('Orders/Wizard', [
-            'order' => $order === null ? null : $this->serializeOrder($order, $canManageOrderDocuments, $canApproveOrderDocuments),
+            'order' => $order === null ? null : $this->serializeOrder($request, $order, $canManageOrderDocuments, $canApproveOrderDocuments),
             'contractors' => $contractors->values(),
             'ownCompanies' => Schema::hasColumn('contractors', 'is_own_company')
                 ? $contractors->where('is_own_company', true)->values()
@@ -370,6 +380,7 @@ class OrderWizardController extends Controller
             'orderDocumentWorkflow' => [
                 'status_options' => OrderDocumentWorkflowStatus::options(),
             ],
+            'documentStorage' => $this->printWorkflowDocumentStorageMeta(),
             'currentUser' => [
                 'id' => $request->user()?->id,
                 'name' => $request->user()?->name,
@@ -421,13 +432,17 @@ class OrderWizardController extends Controller
             return false;
         }
 
-        return $order->manager_id === $user->id;
+        if ((int) $order->manager_id !== (int) $user->id) {
+            return false;
+        }
+
+        return ! OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function serializeOrder(Order $order, bool $canManageOrderDocuments, bool $canApproveOrderDocuments): array
+    private function serializeOrder(Request $request, Order $order, bool $canManageOrderDocuments, bool $canApproveOrderDocuments): array
     {
         if (Schema::hasTable('payment_schedules')) {
             PaymentScheduleAutomaticStatus::refreshForOrder((int) $order->id);
@@ -463,6 +478,12 @@ class OrderWizardController extends Controller
         $routePointHasMetadataColumn = Schema::hasColumn('route_points', 'metadata');
         $cargoItems = $this->orderCargoItems($order);
         $documents = Schema::hasTable('order_documents') ? $order->documents : collect();
+        $templateIds = $documents->pluck('template_id')->filter()->unique()->values()->all();
+        /** @var Collection<int, PrintFormTemplate> $templatesById */
+        $templatesById = collect();
+        if ($templateIds !== [] && Schema::hasTable('print_form_templates')) {
+            $templatesById = PrintFormTemplate::query()->whereIn('id', $templateIds)->get()->keyBy('id');
+        }
         $statusLogs = Schema::hasTable('order_status_logs') ? $order->statusLogs : collect();
         $routePoints = $order->legs
             ->sortBy('sequence')
@@ -542,6 +563,7 @@ class OrderWizardController extends Controller
             ->all();
 
         return [
+            'can_edit_order' => $this->canEditInlineField($request, $order),
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,
@@ -608,7 +630,8 @@ class OrderWizardController extends Controller
                 $document,
                 $order,
                 $canManageOrderDocuments,
-                $canApproveOrderDocuments
+                $canApproveOrderDocuments,
+                $templatesById
             ))->values()->all(),
             'status_logs' => $statusLogs->map(fn ($log): array => [
                 'id' => $log->id,
@@ -628,6 +651,7 @@ class OrderWizardController extends Controller
         Order $order,
         bool $canManageOrderDocuments,
         bool $canApproveOrderDocuments,
+        Collection $templatesById,
     ): array {
         $base = [
             'id' => $document->id,
@@ -675,11 +699,21 @@ class OrderWizardController extends Controller
             ? route('orders.documents.download-final', [$order, $document])
             : null;
 
+        $isFinalized = $workflowStatus === OrderDocumentWorkflowStatus::FINALIZED;
+
+        $printPartyLabel = null;
+        if ($document->template_id !== null && $templatesById->has($document->template_id)) {
+            /** @var PrintFormTemplate $tpl */
+            $tpl = $templatesById->get($document->template_id);
+            $printPartyLabel = $this->printTemplatePartyLabel($tpl);
+        }
+
         return array_merge($base, [
             'is_print_workflow' => true,
             'source' => Schema::hasColumn('order_documents', 'source') ? $document->source : null,
             'workflow_status' => $workflowStatus,
             'workflow_status_label' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
+            'print_party_label' => $printPartyLabel,
             'approval_requested_at' => Schema::hasColumn('order_documents', 'approval_requested_at')
                 ? optional($document->approval_requested_at)?->toIso8601String()
                 : null,
@@ -692,9 +726,11 @@ class OrderWizardController extends Controller
             'rejection_reason' => Schema::hasColumn('order_documents', 'rejection_reason')
                 ? $document->rejection_reason
                 : null,
-            'draft_download_url' => $draftUrl,
-            'draft_preview_url' => $draftPreviewUrl,
+            'draft_download_url' => $isFinalized ? null : $draftUrl,
+            'draft_preview_url' => $isFinalized ? null : $draftPreviewUrl,
             'final_pdf_download_url' => $finalUrl,
+            'final_pdf_storage_path' => filled($document->generated_pdf_path) ? $document->generated_pdf_path : null,
+            'draft_storage_path' => filled($document->file_path) ? $document->file_path : null,
             'can_request_approval' => $canManageOrderDocuments && in_array($workflowStatus, [
                 OrderDocumentWorkflowStatus::DRAFT,
                 OrderDocumentWorkflowStatus::REJECTED,
@@ -753,7 +789,7 @@ class OrderWizardController extends Controller
         }
 
         if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
-            return $canApproveOrderDocuments;
+            return false;
         }
 
         return $canManageOrderDocuments && in_array($workflowStatus, [
@@ -761,6 +797,16 @@ class OrderWizardController extends Controller
             OrderDocumentWorkflowStatus::REJECTED,
             OrderDocumentWorkflowStatus::APPROVED,
         ], true);
+    }
+
+    private function printTemplatePartyLabel(PrintFormTemplate $template): string
+    {
+        return match ((string) $template->party) {
+            'customer' => 'Заказчик',
+            'carrier' => 'Перевозчик',
+            'internal' => 'Внутренняя',
+            default => (string) $template->party,
+        };
     }
 
     /**
@@ -1718,5 +1764,22 @@ class OrderWizardController extends Controller
         $max = $dates->max();
 
         return $max;
+    }
+
+    /**
+     * @return array{driver: string, label: string}
+     */
+    private function printWorkflowDocumentStorageMeta(): array
+    {
+        $documentStorage = app(DocumentStorageService::class);
+        $driver = $documentStorage->configuredDriver();
+        $label = $driver === DocumentStorageService::DRIVER_NEXTCLOUD
+            ? 'Nextcloud (WebDAV)'
+            : 'локальное хранилище приложения';
+
+        return [
+            'driver' => $driver,
+            'label' => $label,
+        ];
     }
 }

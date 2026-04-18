@@ -17,6 +17,10 @@
             <directory>app</directory>
         </include>
     </source>
+    <!--
+        Тесты по умолчанию на SQLite :memory: (часть миграций с information_schema не совместима).
+        Для полного прогона: отдельная БД MySQL/MariaDB в .env.testing (DB_CONNECTION=mysql, DB_DATABASE=…).
+    -->
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

@@ -21,6 +21,7 @@ class PaymentSchedule extends Model
         'party',
         'type',
         'amount',
+        'invoice_number',
         'paid_amount',
         'remaining_amount',
         'planned_date',
@@ -105,8 +106,9 @@ class PaymentSchedule extends Model
         if ($this->is_partial) {
             return (float) $this->paid_amount;
         }
-        
+
         $partialTotal = $this->partialPayments()->sum('paid_amount');
+
         return (float) $this->paid_amount + $partialTotal;
     }
 
@@ -118,8 +120,9 @@ class PaymentSchedule extends Model
         if ($this->amount <= 0) {
             return 0;
         }
-        
+
         $totalPaid = $this->total_paid;
+
         return min(100, ($totalPaid / $this->amount) * 100);
     }
 }

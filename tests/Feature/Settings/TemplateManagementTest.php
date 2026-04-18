@@ -238,6 +238,51 @@ class TemplateManagementTest extends TestCase
         );
     }
 
+    public function test_templates_index_exposes_effective_variable_mapping_including_order_legacy_rules(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        DB::table('print_form_templates')->insert([
+            'code' => 'legacy_map_preview',
+            'name' => 'Проверка отображения маппинга',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'original_filename' => 't.docx',
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/1/x.docx',
+            'settings' => json_encode([
+                'variables' => ['nomer_zayavki', 'custom_x'],
+                'variable_mapping' => (object) [],
+                'pipeline_status' => 'placeholders_ready',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('settings.templates.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Settings/Templates')
+            ->has('templates', 1)
+            ->where('templates.0.variable_mapping', [
+                'nomer_zayavki' => 'order.order_number',
+                'custom_x' => 'custom_x',
+            ])
+        );
+    }
+
     public function test_admin_can_create_external_docx_template(): void
     {
         Storage::fake('local');
@@ -578,6 +623,314 @@ class TemplateManagementTest extends TestCase
         $previewResponse->assertOk();
         $this->assertStringContainsString('wordprocessingml', strtolower($previewResponse->headers->get('content-type') ?? ''));
         $this->assertStringContainsString('inline', strtolower($previewResponse->headers->get('content-disposition') ?? ''));
+    }
+
+    public function test_admin_can_upload_signature_and_stamp_assets_and_render_them_into_docx(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Заказчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('settings.templates.store'), [
+            'code' => 'order_with_stamp_assets',
+            'name' => 'Шаблон с печатью',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'is_default' => false,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'internal_signature_placeholder' => 'internal_signature_image',
+            'internal_stamp_placeholder' => 'internal_stamp_image',
+            'signature_image_width_mm' => 40,
+            'signature_image_height_mm' => 16,
+            'signature_image_offset_x_mm' => 11,
+            'signature_image_offset_y_mm' => -6,
+            'stamp_image_width_mm' => 28,
+            'stamp_image_height_mm' => 28,
+            'stamp_image_offset_x_mm' => -8,
+            'stamp_image_offset_y_mm' => 14,
+            'signature_image_file' => UploadedFile::fake()->image('signature.jpg', 320, 140),
+            'stamp_image_file' => UploadedFile::fake()->image('stamp.jpg', 300, 300),
+            'source_file' => $this->makeDocxUpload('order-with-assets.docx', [
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p><w:p><w:r><w:t>${internal_signature_image}</w:t></w:r></w:p><w:p><w:r><w:t>${internal_stamp_image}</w:t></w:r></w:p></w:body></w:document>',
+            ]),
+        ]);
+
+        $response->assertRedirect(route('settings.templates.index'));
+
+        $template = DB::table('print_form_templates')->where('code', 'order_with_stamp_assets')->first();
+        $this->assertNotNull($template);
+
+        $templateSettings = json_decode((string) $template->settings, true, 512, JSON_THROW_ON_ERROR);
+        $signaturePath = data_get($templateSettings, 'image_overlays.internal_signature.path');
+        $stampPath = data_get($templateSettings, 'image_overlays.internal_stamp.path');
+
+        $this->assertNotNull($signaturePath);
+        $this->assertNotNull($stampPath);
+        $this->assertSame(11.0, (float) data_get($templateSettings, 'image_overlays.internal_signature.offset_x_mm'));
+        $this->assertSame(-6.0, (float) data_get($templateSettings, 'image_overlays.internal_signature.offset_y_mm'));
+        $this->assertSame(-8.0, (float) data_get($templateSettings, 'image_overlays.internal_stamp.offset_x_mm'));
+        $this->assertSame(14.0, (float) data_get($templateSettings, 'image_overlays.internal_stamp.offset_y_mm'));
+        Storage::disk('local')->assertExists((string) $signaturePath);
+        Storage::disk('local')->assertExists((string) $stampPath);
+
+        $signatureAssetResponse = $this->actingAs($admin)->get(route('settings.templates.overlay-asset', [
+            'printFormTemplate' => (int) $template->id,
+            'overlayKey' => 'internal_signature',
+        ]));
+        $signatureAssetResponse->assertOk();
+        $this->assertStringStartsWith('image/', strtolower((string) $signatureAssetResponse->headers->get('content-type')));
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-IMG-001',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $customerId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $downloadResponse = $this->actingAs($admin)->get(route('settings.templates.generate-order-draft', [
+            'printFormTemplate' => (int) $template->id,
+            'order_id' => $orderId,
+        ]));
+
+        $downloadResponse->assertOk();
+        $downloadResponse->assertDownload('order-with-stamp-assets-order-'.$orderId.'-draft.docx');
+
+        $downloadedPath = $downloadResponse->baseResponse->getFile()->getPathname();
+        $zip = new ZipArchive;
+        $zip->open($downloadedPath);
+        $documentXml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        $this->assertIsString($documentXml);
+        $this->assertStringContainsString('<w:pict>', $documentXml);
+        $this->assertStringContainsString('v:imagedata', $documentXml);
+        $this->assertStringContainsString('margin-left:11.00mm', $documentXml);
+        $this->assertStringContainsString('margin-top:-6.00mm', $documentXml);
+        $this->assertStringContainsString('margin-left:-8.00mm', $documentXml);
+        $this->assertStringContainsString('margin-top:14.00mm', $documentXml);
+        $this->assertStringNotContainsString('internal_signature_image', $documentXml);
+        $this->assertStringNotContainsString('internal_stamp_image', $documentXml);
+    }
+
+    public function test_admin_can_patch_template_to_upload_overlay_images_without_reuploading_docx(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'patch_overlay_images',
+            'name' => 'Patch overlay images',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => null,
+            'original_filename' => 'orig.docx',
+            'settings' => json_encode([
+                'variables' => ['internal_stamp_image'],
+                'variable_mapping' => [],
+                'image_overlays' => [
+                    'internal_signature' => [
+                        'placeholder' => 'internal_signature_image',
+                        'width_mm' => 42,
+                        'height_mm' => 18,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => null,
+                        'disk' => null,
+                    ],
+                    'internal_stamp' => [
+                        'placeholder' => 'internal_stamp_image',
+                        'width_mm' => 30,
+                        'height_mm' => 30,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => null,
+                        'disk' => null,
+                    ],
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $relativePath = 'print-form-templates/'.$templateId.'/source.docx';
+        Storage::disk('local')->put($relativePath, file_get_contents($this->makeDocxUpload('patch-only.docx', [
+            'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${internal_stamp_image}</w:t></w:r></w:p></w:body></w:document>',
+        ])));
+
+        DB::table('print_form_templates')->where('id', $templateId)->update([
+            'file_path' => $relativePath,
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('settings.templates.update', $templateId), [
+            '_method' => 'patch',
+            'code' => 'patch_overlay_images',
+            'name' => 'Patch overlay images',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'is_default' => false,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'variable_mappings' => [],
+            'internal_signature_placeholder' => 'internal_signature_image',
+            'internal_stamp_placeholder' => 'internal_stamp_image',
+            'signature_image_width_mm' => 42,
+            'signature_image_height_mm' => 18,
+            'signature_image_offset_x_mm' => 0,
+            'signature_image_offset_y_mm' => 0,
+            'stamp_image_width_mm' => 30,
+            'stamp_image_height_mm' => 30,
+            'stamp_image_offset_x_mm' => 0,
+            'stamp_image_offset_y_mm' => 0,
+            'signature_image_file' => UploadedFile::fake()->image('sig-patch.png', 120, 60),
+            'stamp_image_file' => UploadedFile::fake()->image('stamp-patch.png', 80, 80),
+        ]);
+
+        $response->assertRedirect(route('settings.templates.index'));
+
+        $row = DB::table('print_form_templates')->find($templateId);
+        $this->assertNotNull($row);
+        $settings = json_decode((string) $row->settings, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertNotNull(data_get($settings, 'image_overlays.internal_signature.path'));
+        $this->assertNotNull(data_get($settings, 'image_overlays.internal_stamp.path'));
+        Storage::disk('local')->assertExists((string) data_get($settings, 'image_overlays.internal_signature.path'));
+        Storage::disk('local')->assertExists((string) data_get($settings, 'image_overlays.internal_stamp.path'));
+    }
+
+    public function test_admin_can_open_overlay_preview_and_save_positions(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'overlay_preview',
+            'name' => 'Overlay Preview',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/1/source.docx',
+            'original_filename' => 'source.docx',
+            'settings' => json_encode([
+                'variables' => ['order.order_number'],
+                'variable_mapping' => [
+                    'order.order_number' => 'order.order_number',
+                ],
+                'image_overlays' => [
+                    'internal_signature' => [
+                        'placeholder' => 'internal_signature_image',
+                        'width_mm' => 42,
+                        'height_mm' => 18,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => null,
+                        'disk' => null,
+                    ],
+                    'internal_stamp' => [
+                        'placeholder' => 'internal_stamp_image',
+                        'width_mm' => 30,
+                        'height_mm' => 30,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => null,
+                        'disk' => null,
+                    ],
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/1/source.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.order_number}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-PRV-1',
+            'manager_id' => $admin->id,
+            'order_date' => now()->toDateString(),
+            'status' => 'new',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('settings.templates.preview-order-overlay', [
+                'printFormTemplate' => $templateId,
+                'order_id' => $orderId,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Settings/TemplateOverlayPreview')
+                ->where('templateId', (int) $templateId)
+                ->where('orderId', (int) $orderId)
+            );
+
+        $this->actingAs($admin)
+            ->post(route('settings.templates.update-overlay-positions', ['printFormTemplate' => $templateId]), [
+                'signature_offset_x_mm' => 14.2,
+                'signature_offset_y_mm' => -3.7,
+                'stamp_offset_x_mm' => -5.5,
+                'stamp_offset_y_mm' => 11.0,
+                'order_id' => $orderId,
+            ])
+            ->assertRedirect(route('settings.templates.preview-order-overlay', [
+                'printFormTemplate' => $templateId,
+                'order_id' => $orderId,
+            ]));
+
+        $settings = json_decode((string) DB::table('print_form_templates')->where('id', $templateId)->value('settings'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(14.2, (float) data_get($settings, 'image_overlays.internal_signature.offset_x_mm'));
+        $this->assertSame(-3.7, (float) data_get($settings, 'image_overlays.internal_signature.offset_y_mm'));
+        $this->assertSame(-5.5, (float) data_get($settings, 'image_overlays.internal_stamp.offset_x_mm'));
+        $this->assertSame(11.0, (float) data_get($settings, 'image_overlays.internal_stamp.offset_y_mm'));
     }
 
     private function createRole(string $name, string $displayName): int

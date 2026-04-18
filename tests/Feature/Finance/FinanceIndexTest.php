@@ -92,9 +92,14 @@ class FinanceIndexTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('order_id');
             $table->unsignedBigInteger('counterparty_id')->nullable();
+            $table->unsignedBigInteger('parent_payment_id')->nullable();
+            $table->boolean('is_partial')->default(false);
             $table->enum('party', ['customer', 'carrier']);
             $table->enum('type', ['prepayment', 'final']);
             $table->decimal('amount', 12, 2);
+            $table->string('invoice_number', 120)->nullable();
+            $table->decimal('paid_amount', 12, 2)->nullable();
+            $table->decimal('remaining_amount', 12, 2)->nullable();
             $table->date('planned_date')->nullable();
             $table->date('actual_date')->nullable();
             $table->enum('status', ['pending', 'paid', 'overdue', 'cancelled'])->default('pending');
@@ -173,6 +178,7 @@ class FinanceIndexTest extends TestCase
             'party' => 'customer',
             'type' => 'final',
             'amount' => 120000,
+            'invoice_number' => 'СЧ-PS-1',
             'planned_date' => '2026-04-20',
             'status' => 'pending',
             'created_at' => now(),
@@ -189,9 +195,263 @@ class FinanceIndexTest extends TestCase
             ->has('cashFlowJournal', 1)
             ->where('active_submodule', 'cashflow')
             ->where('cashFlowJournal.0.direction', 'Нам')
+            ->where('cashFlowJournal.0.invoice_number', 'СЧ-PS-1')
             ->where('cash_flow_stats.receivables.total', 120000)
             ->where('cash_flow_stats.receivables.pending', 120000)
             ->where('cash_flow_stats.receivables.overdue', 0)
+        );
+    }
+
+    public function test_cash_flow_stats_use_remaining_amount_when_partially_paid(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $user->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'ORD-PART',
+            'order_date' => '2026-04-05',
+            'customer_rate' => 120000,
+            'carrier_rate' => 80000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'paid_amount' => 70000,
+            'remaining_amount' => 50000,
+            'planned_date' => '2026-04-20',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('finance.index', ['section' => 'cashflow']));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('cash_flow_stats.receivables.total', 50000)
+            ->where('cash_flow_stats.receivables.pending', 50000)
+        );
+    }
+
+    public function test_cash_flow_journal_excludes_paid_root_rows(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $manager->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'ORD-ALL',
+            'order_date' => '2026-04-05',
+            'customer_rate' => 120000,
+            'carrier_rate' => 80000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'paid_amount' => 120000,
+            'remaining_amount' => 0,
+            'planned_date' => '2026-04-20',
+            'actual_date' => '2026-04-18',
+            'status' => 'paid',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('cashFlowJournal', 0)
+            );
+    }
+
+    public function test_cash_flow_stats_use_full_amount_when_remaining_amount_is_null(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $user->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'ORD-NULL-REM',
+            'order_date' => '2026-04-05',
+            'customer_rate' => 120000,
+            'carrier_rate' => 80000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'paid_amount' => null,
+            'remaining_amount' => null,
+            'planned_date' => '2026-04-20',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->get(route('finance.index', ['section' => 'cashflow']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('cash_flow_stats.receivables.total', 120000)
+                ->where('cash_flow_stats.receivables.pending', 120000)
+            );
+    }
+
+    public function test_admin_can_patch_payment_schedule_invoice_number(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'visibility_areas' => json_encode(['dashboard', 'documents', 'finance_salary'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'all'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $user->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'ORD-INV',
+            'order_date' => '2026-04-05',
+            'customer_rate' => 120000,
+            'carrier_rate' => 80000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'documents',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $paymentScheduleId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 120000,
+            'planned_date' => '2026-04-20',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->patchJson(route('payment-schedules.invoice-number', $paymentScheduleId), [
+            'invoice_number' => 'СЧ-999',
+        ])->assertOk()->assertJson(['success' => true]);
+
+        $this->assertSame(
+            'СЧ-999',
+            DB::table('payment_schedules')->where('id', $paymentScheduleId)->value('invoice_number')
         );
     }
 

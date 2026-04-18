@@ -294,6 +294,8 @@ class OrderCompensationService
             return;
         }
 
+        $invoiceByKey = $this->snapshotInvoiceNumbersByOrder($order->id);
+
         try {
             // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
             DB::table('payment_schedules')
@@ -334,6 +336,7 @@ class OrderCompensationService
             (float) ($order->customer_rate ?? 0),
             (array) data_get($paymentTerms, 'client.payment_schedule', []),
             null,
+            $invoiceByKey,
         );
 
         foreach ($this->extractContractorsCosts($order) as $cost) {
@@ -349,6 +352,7 @@ class OrderCompensationService
                     (float) ($cost['amount'] ?? 0),
                     (array) ($cost['payment_schedule'] ?? []),
                     $carrierContractorId,
+                    $invoiceByKey,
                 ),
             ];
         }
@@ -366,6 +370,7 @@ class OrderCompensationService
 
     /**
      * @param  array<string, mixed>  $schedule
+     * @param  array<string, string>  $invoiceByKey
      * @return list<array<string, mixed>>
      */
     private function buildPaymentScheduleRows(
@@ -374,6 +379,7 @@ class OrderCompensationService
         float $amount,
         array $schedule,
         ?int $carrierContractorId,
+        array $invoiceByKey = [],
     ): array {
         if ($amount <= 0) {
             return [];
@@ -399,6 +405,7 @@ class OrderCompensationService
                     true,
                 ),
                 $carrierContractorId,
+                $invoiceByKey,
             );
         }
 
@@ -416,6 +423,7 @@ class OrderCompensationService
                     false,
                 ),
                 $carrierContractorId,
+                $invoiceByKey,
             );
         }
 
@@ -423,6 +431,7 @@ class OrderCompensationService
     }
 
     /**
+     * @param  array<string, string>  $invoiceByKey
      * @return array<string, mixed>
      */
     private function paymentScheduleRowAttributes(
@@ -432,6 +441,7 @@ class OrderCompensationService
         float $amount,
         ?string $plannedDate,
         ?int $carrierContractorId,
+        array $invoiceByKey = [],
     ): array {
         $row = [
             'order_id' => $order->id,
@@ -450,7 +460,41 @@ class OrderCompensationService
             $row['counterparty_id'] = $party === 'carrier' ? $carrierContractorId : null;
         }
 
+        if (Schema::hasColumn('payment_schedules', 'invoice_number')) {
+            $key = $party.'|'.$type.'|'.($plannedDate ?? '');
+            $row['invoice_number'] = $invoiceByKey[$key] ?? null;
+        }
+
         return $row;
+    }
+
+    /**
+     * Сохраняем вручную введённые номера счетов при пересборке графика из мастера заказа.
+     *
+     * @return array<string, string>
+     */
+    private function snapshotInvoiceNumbersByOrder(int $orderId): array
+    {
+        if (! Schema::hasColumn('payment_schedules', 'invoice_number')) {
+            return [];
+        }
+
+        $rows = DB::table('payment_schedules')
+            ->where('order_id', $orderId)
+            ->get(['party', 'type', 'planned_date', 'invoice_number']);
+
+        $map = [];
+        foreach ($rows as $r) {
+            $inv = trim((string) ($r->invoice_number ?? ''));
+            if ($inv === '') {
+                continue;
+            }
+
+            $key = $r->party.'|'.$r->type.'|'.($r->planned_date ?? '');
+            $map[$key] = $r->invoice_number;
+        }
+
+        return $map;
     }
 
     private function resolveScheduleDate(

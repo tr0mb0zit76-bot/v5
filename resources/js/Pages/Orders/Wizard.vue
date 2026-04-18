@@ -27,7 +27,7 @@
                 <button
                     type="button"
                     class="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        :disabled="form.processing || customerDebtBlocked"
+                        :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
                     @click="submit"
                 >
                     <Save class="h-4 w-4" />
@@ -83,7 +83,7 @@
                     <button
                         type="button"
                         class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                        :disabled="form.processing || customerDebtBlocked"
+                        :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
                         @click="submit"
                     >
                         <Save class="h-4 w-4" />
@@ -109,7 +109,17 @@
             </div>
         </template>
 
-        <div class="min-h-0 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5">
+        <div
+            class="min-h-0 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5"
+            :inert="isEditing && !isOrderFormEditable"
+        >
+            <p
+                v-if="isEditing && !isOrderFormEditable"
+                class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                role="status"
+            >
+                Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Данные можно просматривать; изменения не сохраняются.
+            </p>
             <p class="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
                 Обязательные поля для сохранения: заказчик, дата заказа, перевозчик и цена клиента. Остальные данные можно заполнять постепенно.
             </p>
@@ -874,7 +884,7 @@
                         <div>
                             <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Печатные формы</h3>
                             <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
-                                Черновик DOCX → согласование руководителем → печать/подпись у нас → загрузка финального PDF.
+                                Черновик DOCX → согласование руководителем → печать/подпись у нас → загрузка финального PDF. В одном заказе могут быть отдельные заявки для заказчика и для перевозчика — у каждой строки указана сторона шаблона.
                             </p>
                         </div>
                         <template v-if="!order?.id">
@@ -899,7 +909,7 @@
                                 <button
                                     type="button"
                                     class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-                                    :disabled="!workflowTemplateId || !isEditing"
+                                    :disabled="!workflowTemplateId || !isOrderFormEditable"
                                     @click="createPersistedPrintWorkflowDocument"
                                 >
                                     Создать в карточке
@@ -914,6 +924,12 @@
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <div class="text-sm font-medium">
                                         {{ doc.original_name || 'Документ' }}
+                                        <span
+                                            v-if="doc.print_party_label"
+                                            class="ml-2 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-normal text-sky-900 dark:bg-sky-950/50 dark:text-sky-200"
+                                        >
+                                            Сторона: {{ doc.print_party_label }}
+                                        </span>
                                         <span
                                             v-if="doc.workflow_status_label"
                                             class="ml-2 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-normal text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
@@ -941,7 +957,7 @@
                                             class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
                                             :href="doc.final_pdf_download_url"
                                         >
-                                            Скачать финальный PDF
+                                            {{ doc.workflow_status === 'finalized' ? 'Скачать PDF с нашей подписью' : 'Скачать финальный PDF' }}
                                         </a>
                                     </div>
                                 </div>
@@ -961,12 +977,29 @@
                                 >
                                     {{ doc.signature_followup_hint }}
                                 </p>
+                                <p
+                                    v-if="doc.can_finalize && order?.id"
+                                    class="rounded-lg border border-emerald-200 bg-emerald-50/70 px-2 py-1.5 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-100"
+                                >
+                                    Укажите отсканированный PDF после печати: файл будет
+                                    <span class="font-medium">сохранён в хранилище документов</span>
+                                    ({{ documentStorage.label }}) в папке заказа
+                                    <code class="rounded bg-white/80 px-1 font-mono text-[11px] dark:bg-emerald-950/80">order_documents/{{ order.id }}/…-final.pdf</code>
+                                    и останется в карточке — скачивание по кнопке «Скачать PDF с нашей подписью» / «Скачать финальный PDF» выше.
+                                </p>
+                                <p
+                                    v-if="doc.workflow_status === 'finalized' && doc.final_pdf_storage_path"
+                                    class="text-xs text-zinc-600 dark:text-zinc-400"
+                                >
+                                    Финальный файл в хранилище ({{ documentStorage.label }}):
+                                    <code class="rounded bg-zinc-100 px-1 font-mono text-[11px] dark:bg-zinc-800">{{ doc.final_pdf_storage_path }}</code>
+                                </p>
                                 <div class="flex flex-wrap gap-2">
                                     <button
                                         v-if="doc.can_request_approval"
                                         type="button"
                                         class="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                                        :disabled="!isEditing"
+                                        :disabled="!isOrderFormEditable"
                                         @click="postWorkflowAction('request-approval', doc.id)"
                                     >
                                         Отправить на согласование
@@ -975,7 +1008,7 @@
                                         v-if="doc.can_regenerate_draft"
                                         type="button"
                                         class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                        :disabled="!isEditing"
+                                        :disabled="!isOrderFormEditable"
                                         @click="postWorkflowAction('regenerate-draft', doc.id)"
                                     >
                                         Пересоздать черновик
@@ -986,7 +1019,7 @@
                                         class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800"
                                         @click="postWorkflowAction('approve', doc.id)"
                                     >
-                                        Согласовать
+                                        Подписать
                                     </button>
                                     <button
                                         v-if="doc.can_reject"
@@ -994,20 +1027,20 @@
                                         class="rounded-lg border border-rose-300 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
                                         @click="toggleWorkflowReject(doc.id)"
                                     >
-                                        Отклонить
+                                        Отказать
                                     </button>
                                     <label
                                         v-if="doc.can_finalize"
-                                        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-950/70"
                                     >
-                                        <span>Загрузить финальный PDF</span>
+                                        <span>Сохранить финальный PDF в заказе</span>
                                         <input type="file" accept="application/pdf" class="hidden" @change="finalizeWorkflowPdf(doc, $event)" />
                                     </label>
                                     <button
                                         v-if="doc.can_discard_print_draft"
                                         type="button"
                                         class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                                        :disabled="!isEditing"
+                                        :disabled="!isOrderFormEditable"
                                         @click="confirmDiscardPrintWorkflow(doc)"
                                     >
                                         Удалить черновик
@@ -1108,7 +1141,7 @@
                                 <button
                                     type="button"
                                     class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
                                     @click="previewDocumentDraft(item.document)"
                                 >
                                     Предпросмотр
@@ -1116,7 +1149,7 @@
                                 <button
                                     type="button"
                                     class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
                                     @click="downloadDocumentDraft(item.document)"
                                 >
                                     Скачать DOCX
@@ -1201,7 +1234,7 @@
                                 <button
                                     type="button"
                                     class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
                                     @click="previewDocumentDraft(item.document)"
                                 >
                                     Предпросмотр
@@ -1209,7 +1242,7 @@
                                 <button
                                     type="button"
                                     class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isEditing || !order?.id || !item.document.template_id"
+                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
                                     @click="downloadDocumentDraft(item.document)"
                                 >
                                     Скачать DOCX
@@ -1303,6 +1336,13 @@ const props = defineProps({
     documentStatusOptions: { type: Array, default: () => [] },
     printFormTemplateOptions: { type: Array, default: () => [] },
     orderDocumentWorkflow: { type: Object, default: () => ({ status_options: [] }) },
+    documentStorage: {
+        type: Object,
+        default: () => ({
+            driver: 'local',
+            label: 'локальное хранилище приложения',
+        }),
+    },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     currentUser: { type: Object, default: () => ({}) },
@@ -1551,8 +1591,26 @@ function closeCounterpartyModal() {
     counterpartyTarget.value = { kind: 'client', index: null };
 }
 
+function templatePartyShortLabel(party) {
+    if (party === 'customer') {
+        return 'заказчик';
+    }
+    if (party === 'carrier') {
+        return 'перевозчик';
+    }
+    if (party === 'internal') {
+        return 'внутр.';
+    }
+
+    return party ? String(party) : '';
+}
+
 function templateOptionLabel(template) {
     const suffix = [];
+    const partyLabel = templatePartyShortLabel(template.party);
+    if (partyLabel) {
+        suffix.push(partyLabel);
+    }
 
     if (template.contractor_name) {
         suffix.push(template.contractor_name);
@@ -1852,6 +1910,14 @@ watch(
 );
 
 const isEditing = computed(() => props.order !== null);
+/** Ложь, когда владелец заказа не может менять карточку (все печатные заявки финализированы). */
+const isOrderFormEditable = computed(() => {
+    if (!isEditing.value) {
+        return true;
+    }
+
+    return props.order?.can_edit_order !== false;
+});
 const responsibleDisplayName = computed(() => props.order?.responsible_name ?? props.currentUser?.name ?? '—');
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
@@ -3427,6 +3493,10 @@ function buildSubmitPayload() {
 
 function submit() {
     saveAttempted.value = true;
+
+    if (isEditing.value && !isOrderFormEditable.value) {
+        return;
+    }
 
     if (!coreRequiredFieldsValid.value) {
         const errors = {};

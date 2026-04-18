@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
+use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -14,12 +15,13 @@ class LeadPrintFormDraftService
 {
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
+        private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
     ) {}
 
     /**
      * @return array{disk: string, path: string, download_name: string}
      */
-    public function generate(PrintFormTemplate $template, Lead $lead): array
+    public function generate(PrintFormTemplate $template, Lead $lead, bool $includeTemplateOverlays = true): array
     {
         $templatePath = Storage::disk($template->file_disk)->path($template->file_path);
         $processor = new TemplateProcessor($templatePath);
@@ -32,11 +34,16 @@ class LeadPrintFormDraftService
             ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
         $snapshot = $this->buildSnapshot($this->loadLeadContext($lead));
+        $overlayPlaceholders = $this->overlayPlaceholderList($template);
 
         $processor->setMacroChars('${', '}');
 
         foreach ($placeholders as $placeholder) {
-            $mappedPath = $mapping->get($placeholder, $placeholder);
+            if (in_array($placeholder, $overlayPlaceholders, true)) {
+                continue;
+            }
+
+            $mappedPath = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'lead');
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
             $processor->setValue($placeholder, $replacement);
@@ -48,11 +55,23 @@ class LeadPrintFormDraftService
             $processor->setMacroChars('{{', '}}');
 
             foreach ($placeholders as $placeholder) {
-                $mappedPath = $mapping->get($placeholder, $placeholder);
+                if (in_array($placeholder, $overlayPlaceholders, true)) {
+                    continue;
+                }
+
+                $mappedPath = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'lead');
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
                 $processor->setValue($placeholder, $replacement);
                 $processor->setValue(' '.$placeholder.' ', $replacement);
+            }
+        }
+
+        $overlayStyles = [];
+        if ($includeTemplateOverlays) {
+            $this->injectTemplateOverlayImages($processor, $template);
+            if ($template->shouldApplyCrmOverlayOffsets()) {
+                $overlayStyles = $this->buildOverlayFloatingStyles($template);
             }
         }
 
@@ -67,12 +86,105 @@ class LeadPrintFormDraftService
         }
 
         $processor->saveAs($absoluteTarget);
+        if ($includeTemplateOverlays && $overlayStyles !== []) {
+            $this->applyFloatingImageStyle($absoluteTarget, $overlayStyles);
+        }
 
         return [
             'disk' => $disk,
             'path' => $storagePath,
             'download_name' => $downloadName,
         ];
+    }
+
+    /**
+     * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
+     */
+    private function applyFloatingImageStyle(string $absoluteDocxPath, array $overlayStyles): void
+    {
+        $zip = new \ZipArchive;
+        if ($zip->open($absoluteDocxPath) !== true) {
+            return;
+        }
+
+        $documentXml = $zip->getFromName('word/document.xml');
+        if (! is_string($documentXml) || $documentXml === '') {
+            $zip->close();
+
+            return;
+        }
+
+        $styleIndex = 0;
+        $updatedDocumentXml = preg_replace_callback(
+            '/<v:shape([^>]*?)style="([^"]*?)"([^>]*)>/',
+            static function (array $matches) use ($overlayStyles, &$styleIndex): string {
+                $before = $matches[1];
+                $style = $matches[2];
+                $after = $matches[3];
+
+                if (! str_contains($style, 'position:absolute')) {
+                    $style = 'position:absolute;'.$style;
+                }
+
+                if (! str_contains($style, 'z-index')) {
+                    $style .= ';z-index:251659264';
+                }
+
+                if (! str_contains($style, 'mso-wrap-style')) {
+                    $style .= ';mso-wrap-style:none';
+                }
+
+                // См. OrderPrintFormDraftService::applyFloatingImageStyle — привязка к странице для стабильного положения.
+                if (! str_contains($style, 'mso-position-horizontal-relative')) {
+                    $style .= ';mso-position-horizontal-relative:page';
+                }
+
+                if (! str_contains($style, 'mso-position-vertical-relative')) {
+                    $style .= ';mso-position-vertical-relative:page';
+                }
+
+                $resolvedOverlayStyle = $overlayStyles[$styleIndex] ?? ['margin_left_mm' => 0.0, 'margin_top_mm' => 0.0];
+                $styleIndex++;
+
+                if (! str_contains($style, 'margin-left')) {
+                    $style .= ';margin-left:'.number_format((float) $resolvedOverlayStyle['margin_left_mm'], 2, '.', '').'mm';
+                }
+
+                if (! str_contains($style, 'margin-top')) {
+                    $style .= ';margin-top:'.number_format((float) $resolvedOverlayStyle['margin_top_mm'], 2, '.', '').'mm';
+                }
+
+                return '<v:shape'.$before.'style="'.$style.'"'.$after.'>';
+            },
+            $documentXml
+        );
+
+        if (is_string($updatedDocumentXml) && $updatedDocumentXml !== $documentXml) {
+            $zip->addFromString('word/document.xml', $updatedDocumentXml);
+        }
+
+        $zip->close();
+    }
+
+    /**
+     * @return list<array{margin_left_mm: float, margin_top_mm: float}>
+     */
+    private function buildOverlayFloatingStyles(PrintFormTemplate $template): array
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        return collect(['internal_signature', 'internal_stamp'])
+            ->map(function (string $key) use ($overlays): array {
+                $overlay = is_array($overlays[$key] ?? null) ? $overlays[$key] : [];
+
+                return [
+                    'margin_left_mm' => (float) ($overlay['offset_x_mm'] ?? 0),
+                    'margin_top_mm' => (float) ($overlay['offset_y_mm'] ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     private function loadLeadContext(Lead $lead): Lead
@@ -241,5 +353,76 @@ class LeadPrintFormDraftService
     private function formatNumber(mixed $value): string
     {
         return number_format((float) $value, 2, ',', ' ');
+    }
+
+    private function injectTemplateOverlayImages(TemplateProcessor $processor, PrintFormTemplate $template): void
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        $this->injectSingleOverlayImage($processor, is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [], 'internal_signature_image');
+        $this->injectSingleOverlayImage($processor, is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [], 'internal_stamp_image');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function overlayPlaceholderList(PrintFormTemplate $template): array
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        return collect(['internal_signature', 'internal_stamp'])
+            ->map(function (string $key) use ($overlays): string {
+                $placeholder = trim((string) data_get($overlays, $key.'.placeholder', $key === 'internal_signature' ? 'internal_signature_image' : 'internal_stamp_image'));
+
+                return $placeholder !== '' ? $placeholder : ($key === 'internal_signature' ? 'internal_signature_image' : 'internal_stamp_image');
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $overlay
+     */
+    private function injectSingleOverlayImage(TemplateProcessor $processor, array $overlay, string $defaultPlaceholder): void
+    {
+        $path = $overlay['path'] ?? null;
+        if (! is_string($path) || $path === '') {
+            return;
+        }
+
+        $disk = (string) ($overlay['disk'] ?? 'local');
+        if (! Storage::disk($disk)->exists($path)) {
+            return;
+        }
+
+        $placeholder = trim((string) ($overlay['placeholder'] ?? $defaultPlaceholder));
+        if ($placeholder === '') {
+            $placeholder = $defaultPlaceholder;
+        }
+
+        $widthMm = (float) ($overlay['width_mm'] ?? 30);
+        $heightMm = (float) ($overlay['height_mm'] ?? 30);
+        $widthPx = max(20, (int) round($widthMm * 3.78));
+        $heightPx = max(20, (int) round($heightMm * 3.78));
+        $absolutePath = Storage::disk($disk)->path($path);
+
+        $processor->setMacroChars('${', '}');
+        $processor->setImageValue($placeholder, [
+            'path' => $absolutePath,
+            'width' => $widthPx,
+            'height' => $heightPx,
+            'ratio' => true,
+        ]);
+        $processor->setMacroChars('{{', '}}');
+        $processor->setImageValue($placeholder, [
+            'path' => $absolutePath,
+            'width' => $widthPx,
+            'height' => $heightPx,
+            'ratio' => true,
+        ]);
     }
 }

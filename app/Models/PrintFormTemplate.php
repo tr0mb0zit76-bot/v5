@@ -73,6 +73,22 @@ class PrintFormTemplate extends Model
     }
 
     /**
+     * Дополнительные смещения подписи/печати из CRM (маргины в DOCX после вставки картинок).
+     * Если false — положение только из макета DOCX (плейсхолдеры), без пост-обработки VML (маргины CRM).
+     */
+    public function shouldApplyCrmOverlayOffsets(): bool
+    {
+        $settings = is_array($this->settings) ? $this->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        if (! array_key_exists('apply_crm_overlay_offsets', $overlays)) {
+            return true;
+        }
+
+        return (bool) $overlays['apply_crm_overlay_offsets'];
+    }
+
+    /**
      * @return list<array{value: string, label: string}>
      */
     public static function entityTypeOptions(): array

@@ -34,6 +34,24 @@ function csrfHeaders() {
     };
 }
 
+function normalizeActionUrl(url) {
+    if (!url || typeof url !== 'string') {
+        return '/';
+    }
+
+    try {
+        const parsed = new URL(url, window.location.origin);
+
+        if (parsed.host === window.location.host) {
+            return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+        }
+
+        return parsed.toString();
+    } catch {
+        return url;
+    }
+}
+
 function initialBadges() {
     return page.props.cabinet_notification_badges ?? { total: 0, orders: 0, tasks: 0 };
 }
@@ -44,7 +62,7 @@ async function fetchList() {
     }
     loading.value = true;
     try {
-        const response = await fetch(route('cabinet-notifications.index'), {
+        const response = await fetch(route('cabinet-notifications.index', undefined, false), {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
         });
@@ -61,7 +79,7 @@ async function fetchList() {
 
 /** Сбрасывает непрочитанные на сервере и обновляет бейджи (без перезагрузки страницы). */
 async function markAllReadQuiet() {
-    await fetch(route('cabinet-notifications.read-all'), {
+    await fetch(route('cabinet-notifications.read-all', undefined, false), {
         method: 'POST',
         headers: csrfHeaders(),
         credentials: 'same-origin',
@@ -75,7 +93,7 @@ async function pollSummary() {
         return;
     }
     try {
-        const response = await fetch(route('cabinet-notifications.summary'), {
+        const response = await fetch(route('cabinet-notifications.summary', undefined, false), {
             headers: { Accept: 'application/json' },
             credentials: 'same-origin',
         });
@@ -109,7 +127,7 @@ function toggle() {
 }
 
 async function markRead(id) {
-    await fetch(route('cabinet-notifications.read', id), {
+    await fetch(route('cabinet-notifications.read', id, false), {
         method: 'POST',
         headers: csrfHeaders(),
         credentials: 'same-origin',
@@ -127,7 +145,7 @@ async function markAllRead() {
 async function visit(item) {
     open.value = false;
     await markRead(item.id);
-    router.visit(item.action_url);
+    router.visit(normalizeActionUrl(item.action_url));
 }
 
 function formatTime(iso) {

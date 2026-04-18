@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class DocxPdfPreviewService
@@ -17,6 +18,8 @@ class DocxPdfPreviewService
 
         $url = rtrim((string) config('document_preview.gotenberg.url', ''), '/');
         if ($url === '') {
+            Log::warning('DOCX->PDF preview skipped: empty GOTENBERG_URL');
+
             return null;
         }
 
@@ -38,9 +41,12 @@ class DocxPdfPreviewService
 
             return (string) $response->body();
         } catch (\Throwable $e) {
-            Log::warning('DOCX->PDF preview conversion failed', [
-                'message' => $e->getMessage(),
-            ]);
+            $context = ['message' => $e->getMessage()];
+            if ($e instanceof RequestException && $e->response !== null) {
+                $context['status'] = $e->response->status();
+                $context['body_preview'] = Str::limit((string) $e->response->body(), 500);
+            }
+            Log::warning('DOCX->PDF preview conversion failed', $context);
 
             return null;
         } finally {

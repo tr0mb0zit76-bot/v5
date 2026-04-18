@@ -13,6 +13,7 @@ use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderPrintWorkflowLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -37,6 +38,7 @@ class OrderDocumentWorkflowController extends Controller
     public function storeFromTemplate(Request $request, Order $order): RedirectResponse
     {
         $this->ensureCanEditOrder($request, $order);
+        $this->ensureCanManagePrintWorkflow($request);
 
         $validated = $request->validate([
             'print_form_template_id' => ['required', 'integer', 'exists:print_form_templates,id'],
@@ -70,6 +72,7 @@ class OrderDocumentWorkflowController extends Controller
     public function requestApproval(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
     {
         $this->ensureCanEditOrder($request, $order);
+        $this->ensureCanManagePrintWorkflow($request);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         try {
@@ -125,6 +128,7 @@ class OrderDocumentWorkflowController extends Controller
     public function finalize(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
     {
         $this->ensureCanEditOrder($request, $order);
+        $this->ensureCanManagePrintWorkflow($request);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         $validated = $request->validate([
@@ -141,12 +145,16 @@ class OrderDocumentWorkflowController extends Controller
 
         return redirect()
             ->route('orders.edit', $order)
-            ->with('flash', ['type' => 'success', 'message' => 'Финальный PDF прикреплён к заказу.']);
+            ->with('flash', [
+                'type' => 'success',
+                'message' => 'Финальный PDF сохранён в папке заказа в хранилище документов и прикреплён к карточке. Скачать можно по ссылке «Скачать финальный PDF».',
+            ]);
     }
 
     public function regenerateDraft(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
     {
         $this->ensureCanEditOrder($request, $order);
+        $this->ensureCanManagePrintWorkflow($request);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         try {
@@ -170,8 +178,10 @@ class OrderDocumentWorkflowController extends Controller
 
         if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
             $this->ensureCanApproveDocuments($request);
+            $this->ensureCanDiscardPendingApproval($request);
         } else {
             $this->ensureCanEditOrder($request, $order);
+            $this->ensureCanManagePrintWorkflow($request);
         }
 
         try {
@@ -203,6 +213,16 @@ class OrderDocumentWorkflowController extends Controller
             OrderDocumentWorkflowStatus::DRAFT,
             OrderDocumentWorkflowStatus::REJECTED,
         ], true);
+        $template = $orderDocument->template_id !== null
+            ? PrintFormTemplate::query()->find($orderDocument->template_id)
+            : null;
+        $templateSettings = is_array($template?->settings) ? $template->settings : [];
+        $signaturePath = data_get($templateSettings, 'image_overlays.internal_signature.path');
+        $stampPath = data_get($templateSettings, 'image_overlays.internal_stamp.path');
+        $canAdjustOverlay = $canManage
+            && $template !== null
+            && $template->shouldApplyCrmOverlayOffsets()
+            && in_array($workflowStatus, [OrderDocumentWorkflowStatus::DRAFT, OrderDocumentWorkflowStatus::REJECTED], true);
 
         return Inertia::render('Orders/PrintWorkflowDocumentPreview', [
             'orderId' => $order->id,
@@ -212,7 +232,94 @@ class OrderDocumentWorkflowController extends Controller
             'embedUrl' => route('orders.documents.download-draft', [$order, $orderDocument]).'?preview=1&preview_mode=browser',
             'workflowStatusLabel' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
             'canRequestApproval' => $canRequestApproval,
+            'canAdjustOverlay' => $canAdjustOverlay,
+            'overlaySaveUrl' => $canAdjustOverlay ? route('orders.documents.update-overlay-positions', [$order, $orderDocument]) : null,
+            'signatureOverlayImageUrl' => is_string($signaturePath) && $signaturePath !== ''
+                ? route('orders.documents.overlay-asset', [$order, $orderDocument, 'overlayKey' => 'internal_signature'])
+                : null,
+            'stampOverlayImageUrl' => is_string($stampPath) && $stampPath !== ''
+                ? route('orders.documents.overlay-asset', [$order, $orderDocument, 'overlayKey' => 'internal_stamp'])
+                : null,
+            'signatureOffsetXmm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.offset_x_mm', 0),
+            'signatureOffsetYmm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.offset_y_mm', 0),
+            'stampOffsetXmm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.offset_x_mm', 0),
+            'stampOffsetYmm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.offset_y_mm', 0),
+            'signatureWidthMm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.width_mm', 42),
+            'signatureHeightMm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.height_mm', 18),
+            'stampWidthMm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.width_mm', 30),
+            'stampHeightMm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.height_mm', 30),
         ]);
+    }
+
+    public function overlayAsset(
+        Request $request,
+        Order $order,
+        OrderDocument $orderDocument,
+        string $overlayKey,
+    ): Response {
+        $this->ensureCanViewOrderDocuments($request, $order);
+        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+        abort_unless(in_array($overlayKey, ['internal_signature', 'internal_stamp'], true), 404);
+        abort_if($orderDocument->template_id === null, 404);
+
+        $template = PrintFormTemplate::query()->findOrFail($orderDocument->template_id);
+        $path = data_get($template->settings, 'image_overlays.'.$overlayKey.'.path');
+        $disk = (string) data_get($template->settings, 'image_overlays.'.$overlayKey.'.disk', 'local');
+
+        abort_if(! is_string($path) || $path === '' || ! Storage::disk($disk)->exists($path), 404);
+
+        $contents = Storage::disk($disk)->get($path);
+        $mime = Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
+
+        return response($contents, 200, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, max-age=60',
+            'Content-Disposition' => 'inline; filename="'.basename($path).'"',
+        ]);
+    }
+
+    public function updateOverlayPositions(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
+    {
+        $this->ensureCanEditOrder($request, $order);
+        $this->ensureCanManagePrintWorkflow($request);
+        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+        abort_if($orderDocument->template_id === null, 422, 'У документа не указан шаблон.');
+
+        $validated = $request->validate([
+            'signature_offset_x_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
+            'signature_offset_y_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
+            'stamp_offset_x_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
+            'stamp_offset_y_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
+        ]);
+
+        $template = PrintFormTemplate::query()->findOrFail($orderDocument->template_id);
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+        $signature = is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [];
+        $stamp = is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [];
+
+        $signature['offset_x_mm'] = (float) $validated['signature_offset_x_mm'];
+        $signature['offset_y_mm'] = (float) $validated['signature_offset_y_mm'];
+        $stamp['offset_x_mm'] = (float) $validated['stamp_offset_x_mm'];
+        $stamp['offset_y_mm'] = (float) $validated['stamp_offset_y_mm'];
+        $overlays['internal_signature'] = $signature;
+        $overlays['internal_stamp'] = $stamp;
+        $settings['image_overlays'] = $overlays;
+
+        $template->forceFill([
+            'settings' => $settings,
+            'updated_by' => $request->user()?->id,
+        ])->save();
+
+        $this->clearCachedPreviewPdf($orderDocument);
+
+        try {
+            $this->workflowService->regenerateDraft($orderDocument->fresh(), $request->user());
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return redirect()->route('orders.documents.preview-draft', [$order, $orderDocument]);
     }
 
     public function downloadDraft(Request $request, Order $order, OrderDocument $orderDocument): Response|BinaryFileResponse
@@ -379,6 +486,9 @@ class OrderDocumentWorkflowController extends Controller
         }
 
         abort_unless((int) $order->manager_id === (int) $user->id, 403);
+
+        $order->loadMissing('documents');
+        abort_if(OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order), 403);
     }
 
     private function ensureCanApproveDocuments(Request $request): void
@@ -389,7 +499,37 @@ class OrderDocumentWorkflowController extends Controller
             abort(403);
         }
 
-        abort_unless($user->isAdmin() || $user->isSupervisor(), 403);
+        abort_unless($user->hasSigningAuthority(), 403);
+    }
+
+    private function ensureCanManagePrintWorkflow(Request $request): void
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            abort(403);
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return;
+        }
+
+        abort_unless(! $user->hasSigningAuthority(), 403);
+    }
+
+    private function ensureCanDiscardPendingApproval(Request $request): void
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            abort(403);
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return;
+        }
+
+        abort(403);
     }
 
     private function ensureCanViewOrderDocuments(Request $request, Order $order): void
@@ -423,6 +563,27 @@ class OrderDocumentWorkflowController extends Controller
             return true;
         }
 
+        if ($user->hasSigningAuthority()) {
+            return false;
+        }
+
         return $user->isManager() && (int) $order->manager_id === (int) $user->id;
+    }
+
+    private function clearCachedPreviewPdf(OrderDocument $orderDocument): void
+    {
+        $metadata = is_array($orderDocument->metadata) ? $orderDocument->metadata : [];
+        $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
+        $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
+
+        if ($previewPath !== '' && $this->documentStorage->exists($previewPath, $previewDriver)) {
+            $this->documentStorage->delete($previewPath, $previewDriver);
+        }
+
+        unset($metadata['preview_pdf_path'], $metadata['preview_pdf_storage_driver'], $metadata['preview_pdf_generated_at']);
+
+        $orderDocument->update([
+            'metadata' => $metadata,
+        ]);
     }
 }

@@ -56,6 +56,7 @@ class OrderWizardTest extends TestCase
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->boolean('has_signing_authority')->default(false);
             $table->rememberToken();
             $table->timestamps();
         });
@@ -1752,10 +1753,295 @@ class OrderWizardTest extends TestCase
             'pdf' => $pdf,
         ])->assertRedirect(route('orders.edit', $orderId));
 
+        /** @var array{type: string, message: string}|null $flash */
+        $flash = session('flash');
+        $this->assertIsArray($flash);
+        $this->assertArrayHasKey('message', $flash);
+        $this->assertStringContainsString('папке заказа', $flash['message']);
+
         $this->assertDatabaseHas('order_documents', [
             'id' => $documentId,
             'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
         ]);
+
+        $path = (string) DB::table('order_documents')->where('id', $documentId)->value('generated_pdf_path');
+        $this->assertStringStartsWith('order_documents/'.$orderId.'/', $path);
+        $this->assertStringEndsWith('-final.pdf', $path);
+    }
+
+    public function test_manager_can_update_overlay_positions_from_preview_module(): void
+    {
+        Storage::fake('local');
+
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['orders']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'has_signing_authority' => false,
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-OVERLAY-1',
+            'manager_id' => $manager->id,
+            'order_date' => now()->toDateString(),
+            'status' => 'new',
+            'customer_id' => $customerId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/11/wf-overlay.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p><w:p><w:r><w:t>${internal_signature_image}</w:t></w:r></w:p><w:p><w:r><w:t>${internal_stamp_image}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+        $signatureImage = UploadedFile::fake()->image('signature.png', 320, 140);
+        $stampImage = UploadedFile::fake()->image('stamp.png', 300, 300);
+        Storage::disk('local')->put('print-form-template-assets/11/signature.png', (string) $signatureImage->getContent());
+        Storage::disk('local')->put('print-form-template-assets/11/stamp.png', (string) $stampImage->getContent());
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'wf_overlay',
+            'name' => 'WF Overlay',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/11/wf-overlay.docx',
+            'original_filename' => 'wf-overlay.docx',
+            'settings' => json_encode([
+                'variables' => ['order.number', 'internal_signature_image', 'internal_stamp_image'],
+                'variable_mapping' => [
+                    'order.number' => 'order.order_number',
+                ],
+                'image_overlays' => [
+                    'internal_signature' => [
+                        'placeholder' => 'internal_signature_image',
+                        'width_mm' => 42,
+                        'height_mm' => 18,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => 'print-form-template-assets/11/signature.png',
+                        'disk' => 'local',
+                    ],
+                    'internal_stamp' => [
+                        'placeholder' => 'internal_stamp_image',
+                        'width_mm' => 30,
+                        'height_mm' => 30,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => 'print-form-template-assets/11/stamp.png',
+                        'disk' => 'local',
+                    ],
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($manager)->post(route('orders.documents.from-template', $orderId), [
+            'print_form_template_id' => $templateId,
+        ])->assertRedirect(route('orders.edit', $orderId));
+
+        $documentId = (int) DB::table('order_documents')
+            ->where('order_id', $orderId)
+            ->value('id');
+
+        $this->actingAs($manager)
+            ->get(route('orders.documents.overlay-asset', [
+                'order' => $orderId,
+                'orderDocument' => $documentId,
+                'overlayKey' => 'internal_signature',
+            ]))
+            ->assertOk();
+
+        $this->actingAs($manager)->post(route('orders.documents.update-overlay-positions', [
+            'order' => $orderId,
+            'orderDocument' => $documentId,
+        ]), [
+            'signature_offset_x_mm' => 12.5,
+            'signature_offset_y_mm' => -4.5,
+            'stamp_offset_x_mm' => -7.0,
+            'stamp_offset_y_mm' => 9.0,
+        ])->assertRedirect(route('orders.documents.preview-draft', [$orderId, $documentId]));
+
+        $settings = json_decode((string) DB::table('print_form_templates')->where('id', $templateId)->value('settings'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(12.5, (float) data_get($settings, 'image_overlays.internal_signature.offset_x_mm'));
+        $this->assertSame(-4.5, (float) data_get($settings, 'image_overlays.internal_signature.offset_y_mm'));
+        $this->assertSame(-7.0, (float) data_get($settings, 'image_overlays.internal_stamp.offset_x_mm'));
+        $this->assertSame(9.0, (float) data_get($settings, 'image_overlays.internal_stamp.offset_y_mm'));
+    }
+
+    public function test_admin_without_signing_authority_cannot_approve_print_document(): void
+    {
+        $admin = User::factory()->create([
+            'has_signing_authority' => false,
+        ]);
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'display_name' => 'Admin',
+            'visibility_areas' => json_encode(['orders', 'settings']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $roleId]);
+        $admin->role_id = $roleId;
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client No Sign',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WF-NOSIGN',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put('order_documents/'.$orderId.'/pending.docx', 'draft');
+
+        $documentId = DB::table('order_documents')->insertGetId([
+            'order_id' => $orderId,
+            'type' => 'request',
+            'document_group' => null,
+            'source' => 'print_template',
+            'number' => null,
+            'document_date' => null,
+            'original_name' => 'pending.docx',
+            'file_path' => 'order_documents/'.$orderId.'/pending.docx',
+            'generated_pdf_path' => null,
+            'template_id' => null,
+            'status' => 'pending',
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'signature_status' => 'not_requested',
+            'metadata' => json_encode(['flow' => 'print_template_workflow'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.documents.approve', [$orderId, $documentId]))
+            ->assertForbidden();
+    }
+
+    public function test_signing_authority_user_can_only_approve_or_reject_in_print_workflow(): void
+    {
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['orders']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $signer = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'has_signing_authority' => true,
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client Sign',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WF-SIGNER',
+            'company_code' => 'TST',
+            'manager_id' => $signer->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put('order_documents/'.$orderId.'/pending.docx', 'draft');
+
+        $documentId = DB::table('order_documents')->insertGetId([
+            'order_id' => $orderId,
+            'type' => 'request',
+            'document_group' => null,
+            'source' => 'print_template',
+            'number' => null,
+            'document_date' => null,
+            'original_name' => 'pending.docx',
+            'file_path' => 'order_documents/'.$orderId.'/pending.docx',
+            'generated_pdf_path' => null,
+            'template_id' => null,
+            'status' => 'pending',
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'signature_status' => 'not_requested',
+            'metadata' => json_encode(['flow' => 'print_template_workflow'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($signer)->get(route('orders.edit', $orderId))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('order.documents.0.id', $documentId)
+                ->where('order.documents.0.can_approve', true)
+                ->where('order.documents.0.can_reject', true)
+                ->where('order.documents.0.can_request_approval', false)
+                ->where('order.documents.0.can_regenerate_draft', false)
+                ->where('order.documents.0.can_finalize', false)
+                ->where('order.documents.0.can_discard_print_draft', false)
+            );
+
+        $this->actingAs($signer)
+            ->post(route('orders.documents.request-approval', [$orderId, $documentId]))
+            ->assertForbidden();
+
+        $this->actingAs($signer)
+            ->post(route('orders.documents.regenerate-draft', [$orderId, $documentId]))
+            ->assertForbidden();
+
+        $this->actingAs($signer)
+            ->post(route('orders.documents.finalize', [$orderId, $documentId]), [
+                'pdf' => UploadedFile::fake()->create('final.pdf', 100, 'application/pdf'),
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($signer)
+            ->delete(route('orders.documents.discard-print-workflow', [$orderId, $documentId]))
+            ->assertForbidden();
     }
 
     public function test_print_workflow_discard_removes_draft_and_deletes_file(): void
@@ -2443,6 +2729,393 @@ class OrderWizardTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
+    public function test_manager_cannot_update_order_when_all_print_workflow_documents_are_finalized(): void
+    {
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['orders']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'has_signing_authority' => false,
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент lock',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик lock',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-LOCK-1',
+            'manager_id' => $manager->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'lock_tpl_1',
+            'name' => 'LockTpl',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/lock/1.docx',
+            'original_filename' => '1.docx',
+            'settings' => json_encode(['variables' => []], JSON_THROW_ON_ERROR),
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_documents')->insert([
+            'order_id' => $orderId,
+            'type' => 'contract_request',
+            'source' => 'print_template',
+            'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
+            'generated_pdf_path' => 'order_documents/'.$orderId.'/a-final.pdf',
+            'template_id' => $templateId,
+            'original_name' => 'Заявка',
+            'status' => 'sent',
+            'metadata' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $patchPayload = [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-02',
+            'order_number' => 'ORD-LOCK-1',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-04-02',
+                    'actual_date' => null,
+                    'contact_person' => null,
+                    'contact_phone' => null,
+                    'sender_name' => 'ООО Отправитель',
+                    'sender_contact' => 'Диспетчер',
+                    'sender_phone' => '+79990000003',
+                ],
+                [
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'address' => 'Уфа',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-04-03',
+                    'actual_date' => null,
+                    'contact_person' => null,
+                    'contact_phone' => null,
+                    'recipient_name' => 'ООО Получатель',
+                    'recipient_contact' => 'Приемка',
+                    'recipient_phone' => '+79990000004',
+                ],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 150000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 5,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 99000.50,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 3,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ];
+
+        $this->actingAs($manager)->patch(route('orders.update', $orderId), $patchPayload)->assertForbidden();
+
+        $template2Id = DB::table('print_form_templates')->insertGetId([
+            'code' => 'lock_tpl_2',
+            'name' => 'LockTpl2',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/lock/2.docx',
+            'original_filename' => '2.docx',
+            'settings' => json_encode(['variables' => []], JSON_THROW_ON_ERROR),
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($manager)->post(route('orders.documents.from-template', $orderId), [
+            'print_form_template_id' => $template2Id,
+        ])->assertForbidden();
+    }
+
+    public function test_manager_can_update_order_when_at_least_one_print_workflow_document_is_not_finalized(): void
+    {
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['orders']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $managerRoleId,
+            'has_signing_authority' => false,
+        ]);
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент partial',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик partial',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-PART-1',
+            'manager_id' => $manager->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateA = DB::table('print_form_templates')->insertGetId([
+            'code' => 'part_tpl_a',
+            'name' => 'PartA',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/part/a.docx',
+            'original_filename' => 'a.docx',
+            'settings' => json_encode(['variables' => []], JSON_THROW_ON_ERROR),
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateB = DB::table('print_form_templates')->insertGetId([
+            'code' => 'part_tpl_b',
+            'name' => 'PartB',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/part/b.docx',
+            'original_filename' => 'b.docx',
+            'settings' => json_encode(['variables' => []], JSON_THROW_ON_ERROR),
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_documents')->insert([
+            'order_id' => $orderId,
+            'type' => 'contract_request',
+            'source' => 'print_template',
+            'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
+            'generated_pdf_path' => 'order_documents/'.$orderId.'/a-final.pdf',
+            'template_id' => $templateA,
+            'original_name' => 'Заявка заказчик',
+            'status' => 'sent',
+            'metadata' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_documents')->insert([
+            'order_id' => $orderId,
+            'type' => 'contract_request',
+            'source' => 'print_template',
+            'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+            'file_path' => 'order_documents/'.$orderId.'/draft.docx',
+            'generated_pdf_path' => null,
+            'template_id' => $templateB,
+            'original_name' => 'Заявка перевозчик',
+            'status' => 'draft',
+            'metadata' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $patchPayload = [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-02',
+            'order_number' => 'ORD-PART-1',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                [
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'address' => 'Самара',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-04-02',
+                    'actual_date' => null,
+                    'contact_person' => null,
+                    'contact_phone' => null,
+                    'sender_name' => 'ООО Отправитель',
+                    'sender_contact' => 'Диспетчер',
+                    'sender_phone' => '+79990000003',
+                ],
+                [
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'address' => 'Уфа',
+                    'normalized_data' => [],
+                    'planned_date' => '2026-04-03',
+                    'actual_date' => null,
+                    'contact_person' => null,
+                    'contact_phone' => null,
+                    'recipient_name' => 'ООО Получатель',
+                    'recipient_contact' => 'Приемка',
+                    'recipient_phone' => '+79990000004',
+                ],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 150000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 5,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 99000.50,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [
+                            'has_prepayment' => false,
+                            'postpayment_days' => 3,
+                            'postpayment_mode' => 'ottn',
+                        ],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [],
+        ];
+
+        $this->actingAs($manager)->patch(route('orders.update', $orderId), $patchPayload)->assertRedirect(route('orders.edit', $orderId));
+    }
+
     private function makeDocxPath(array $entries): string
     {
         $directory = storage_path('framework/testing/disks/local');
@@ -2474,7 +3147,9 @@ class OrderWizardTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'has_signing_authority' => true,
+        ]);
 
         DB::table('users')->where('id', $user->id)->update(['role_id' => $roleId]);
         $user->role_id = $roleId;

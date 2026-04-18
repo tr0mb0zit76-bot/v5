@@ -1,7 +1,9 @@
 <?php
 
+use App\Support\DocumentPreview;
+
 return [
-    'driver' => env('DOC_PREVIEW_DRIVER', 'html'),
+    'driver' => DocumentPreview::resolvedDriverFromEnv(),
 
     'gotenberg' => [
         'url' => env('GOTENBERG_URL'),

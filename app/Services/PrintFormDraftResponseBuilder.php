@@ -38,7 +38,8 @@ class PrintFormDraftResponseBuilder
             return response()->file($absolutePath, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 'Content-Disposition' => 'inline; filename="'.$generatedFile['download_name'].'"',
-                'Cache-Control' => 'no-store, private',
+                'Cache-Control' => 'no-store, private, max-age=0',
+                'Pragma' => 'no-cache',
             ]);
         }
 
@@ -101,7 +102,8 @@ class PrintFormDraftResponseBuilder
         return response($contents, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'Content-Disposition' => sprintf('%s; filename="%s"', $disposition, $downloadName),
-            'Cache-Control' => 'no-store, private',
+            'Cache-Control' => 'no-store, private, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 
@@ -128,7 +130,8 @@ class PrintFormDraftResponseBuilder
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$pdfName.'"',
-            'Cache-Control' => 'no-store, private',
+            'Cache-Control' => 'no-store, private, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 
@@ -146,7 +149,8 @@ class PrintFormDraftResponseBuilder
 
         return response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
-            'Cache-Control' => 'no-store, private',
+            'Cache-Control' => 'no-store, private, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 

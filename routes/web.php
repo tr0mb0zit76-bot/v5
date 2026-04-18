@@ -30,39 +30,63 @@ use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Use APP_URL host as CRM domain so local/prod can differ without route edits.
-$crmDomain = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.log-sol.local';
-$showcaseDomain = 'v5.local';
+// Keep CRM and showcase hosts independent per-environment.
+$crmDomain = (string) config('app.crm_domain');
+$showcaseDomain = (string) config('app.showcase_domain');
+$sameShowcaseAndCrmHost = $crmDomain !== '' && strcasecmp($crmDomain, $showcaseDomain) === 0;
 
-Route::domain($showcaseDomain)->controller(PublicSiteController::class)->group(function () {
-    Route::get('/', 'home')->name('public.home');
-    Route::get('/about', 'about')->name('public.about');
-    Route::get('/services', 'services')->name('public.services');
-    Route::get('/cases', 'cases')->name('public.cases');
-    Route::get('/contacts', 'contacts')->name('public.contacts');
-    Route::any('/_boost/browser-logs', fn () => response()->noContent())->name('public.boost.browser-logs');
-});
+if ($sameShowcaseAndCrmHost) {
+    // Один хост: публичные страницы и кабинет на одном домене (без редиректа на другой origin).
+    // Иначе Inertia/Vite на v5.local получают 302 на crm.* и CORS блокирует XHR.
+    Route::domain($showcaseDomain)->group(function () {
+        Route::get('/', function () {
+            if (auth()->check()) {
+                return redirect('/dashboard');
+            }
 
-Route::domain($showcaseDomain)->any('/{any}', function () use ($crmDomain) {
-    $scheme = request()->isSecure() ? 'https' : 'http';
-    $path = ltrim((string) request()->path(), '/');
-    $queryString = request()->getQueryString();
-    $target = sprintf('%s://%s/%s', $scheme, $crmDomain, $path);
+            return app(PublicSiteController::class)->home();
+        })->name('public.home');
 
-    if (is_string($queryString) && $queryString !== '') {
-        $target .= '?'.$queryString;
-    }
+        Route::controller(PublicSiteController::class)->group(function () {
+            Route::get('/about', 'about')->name('public.about');
+            Route::get('/services', 'services')->name('public.services');
+            Route::get('/cases', 'cases')->name('public.cases');
+            Route::get('/contacts', 'contacts')->name('public.contacts');
+        });
 
-    return redirect()->to($target);
-})->where('any', '.*');
+        Route::any('/_boost/browser-logs', fn () => response()->noContent())->name('public.boost.browser-logs');
+    });
+} else {
+    Route::domain($showcaseDomain)->controller(PublicSiteController::class)->group(function () {
+        Route::get('/', 'home')->name('public.home');
+        Route::get('/about', 'about')->name('public.about');
+        Route::get('/services', 'services')->name('public.services');
+        Route::get('/cases', 'cases')->name('public.cases');
+        Route::get('/contacts', 'contacts')->name('public.contacts');
+        Route::any('/_boost/browser-logs', fn () => response()->noContent())->name('public.boost.browser-logs');
+    });
 
-Route::domain($crmDomain)->get('/', function () {
-    if (auth()->check()) {
-        return redirect('/dashboard');
-    }
+    Route::domain($showcaseDomain)->any('/{any}', function () use ($crmDomain) {
+        $scheme = request()->isSecure() ? 'https' : 'http';
+        $path = ltrim((string) request()->path(), '/');
+        $queryString = request()->getQueryString();
+        $target = sprintf('%s://%s/%s', $scheme, $crmDomain, $path);
 
-    return redirect()->route('login');
-});
+        if (is_string($queryString) && $queryString !== '') {
+            $target .= '?'.$queryString;
+        }
+
+        return redirect()->to($target);
+    })->where('any', '.*');
+
+    Route::domain($crmDomain)->get('/', function () {
+        if (auth()->check()) {
+            return redirect('/dashboard');
+        }
+
+        return redirect()->route('login');
+    });
+}
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
@@ -138,6 +162,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders/{order}/documents/{orderDocument}/regenerate-draft', 'regenerateDraft')->name('orders.documents.regenerate-draft');
         Route::delete('/orders/{order}/documents/{orderDocument}/print-workflow', 'discardPrintWorkflow')->name('orders.documents.discard-print-workflow');
         Route::get('/orders/{order}/documents/{orderDocument}/preview-draft', 'previewDraft')->name('orders.documents.preview-draft');
+        Route::get('/orders/{order}/documents/{orderDocument}/overlay-assets/{overlayKey}', 'overlayAsset')->name('orders.documents.overlay-asset');
+        Route::post('/orders/{order}/documents/{orderDocument}/overlay-positions', 'updateOverlayPositions')->name('orders.documents.update-overlay-positions');
         Route::get('/orders/{order}/documents/{orderDocument}/download-draft', 'downloadDraft')->name('orders.documents.download-draft');
         Route::get('/orders/{order}/documents/{orderDocument}/download-final', 'downloadFinal')->name('orders.documents.download-final');
     });
@@ -170,6 +196,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/settings/templates', 'store')->name('settings.templates.store');
         Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
         Route::delete('/settings/templates/{printFormTemplate}', 'destroy')->name('settings.templates.destroy');
+        Route::get('/settings/templates/{printFormTemplate}/overlay-assets/{overlayKey}', 'overlayAsset')->name('settings.templates.overlay-asset');
+        Route::get('/settings/templates/{printFormTemplate}/preview-order-overlay', 'previewOrderOverlay')->name('settings.templates.preview-order-overlay');
+        Route::get('/settings/templates/{printFormTemplate}/preview-lead-overlay', 'previewLeadOverlay')->name('settings.templates.preview-lead-overlay');
+        Route::post('/settings/templates/{printFormTemplate}/overlay-positions', 'updateOverlayPositions')->name('settings.templates.update-overlay-positions');
         Route::get('/settings/templates/{printFormTemplate}/generate-order-draft', 'generateOrderDraft')->name('settings.templates.generate-order-draft');
         Route::get('/settings/templates/{printFormTemplate}/generate-lead-draft', 'generateLeadDraft')->name('settings.templates.generate-lead-draft');
     });
@@ -309,6 +339,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Payment Schedule Routes
     Route::prefix('payment-schedules')->name('payment-schedules.')->group(function () {
         Route::post('/{paymentSchedule}/record-payment', [PaymentScheduleController::class, 'recordPayment'])->name('record-payment');
+        Route::patch('/{paymentSchedule}/invoice-number', [PaymentScheduleController::class, 'updateInvoiceNumber'])->name('invoice-number');
         Route::get('/{paymentSchedule}/partial-payments', [PaymentScheduleController::class, 'getPartialPayments'])->name('partial-payments');
         Route::post('/{paymentSchedule}/cancel', [PaymentScheduleController::class, 'cancel'])->name('cancel');
         Route::post('/{paymentSchedule}/restore', [PaymentScheduleController::class, 'restore'])->name('restore');

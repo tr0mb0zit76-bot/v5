@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
+use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -16,12 +17,13 @@ class OrderPrintFormDraftService
 {
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
+        private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
     ) {}
 
     /**
      * @return array{disk: string, path: string, download_name: string}
      */
-    public function generate(PrintFormTemplate $template, Order $order): array
+    public function generate(PrintFormTemplate $template, Order $order, bool $includeTemplateOverlays = true): array
     {
         $templatePath = Storage::disk($template->file_disk)->path($template->file_path);
         $processor = new TemplateProcessor($templatePath);
@@ -34,10 +36,15 @@ class OrderPrintFormDraftService
             ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
         $snapshot = $this->buildSnapshot($this->loadOrderContext($order));
+        $overlayPlaceholders = $this->overlayPlaceholderList($template);
 
         $processor->setMacroChars('${', '}');
 
         foreach ($placeholders as $placeholder) {
+            if (in_array($placeholder, $overlayPlaceholders, true)) {
+                continue;
+            }
+
             $mappedPath = $this->resolveMappedPath($placeholder, $mapping);
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
@@ -50,11 +57,23 @@ class OrderPrintFormDraftService
             $processor->setMacroChars('{{', '}}');
 
             foreach ($placeholders as $placeholder) {
+                if (in_array($placeholder, $overlayPlaceholders, true)) {
+                    continue;
+                }
+
                 $mappedPath = $this->resolveMappedPath($placeholder, $mapping);
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
                 $processor->setValue($placeholder, $replacement);
                 $processor->setValue(' '.$placeholder.' ', $replacement);
+            }
+        }
+
+        $overlayStyles = [];
+        if ($includeTemplateOverlays) {
+            $this->injectTemplateOverlayImages($processor, $template);
+            if ($template->shouldApplyCrmOverlayOffsets()) {
+                $overlayStyles = $this->buildOverlayFloatingStyles($template);
             }
         }
 
@@ -69,12 +88,106 @@ class OrderPrintFormDraftService
         }
 
         $processor->saveAs($absoluteTarget);
+        if ($includeTemplateOverlays && $overlayStyles !== []) {
+            $this->applyFloatingImageStyle($absoluteTarget, $overlayStyles);
+        }
 
         return [
             'disk' => $disk,
             'path' => $storagePath,
             'download_name' => $downloadName,
         ];
+    }
+
+    /**
+     * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
+     */
+    private function applyFloatingImageStyle(string $absoluteDocxPath, array $overlayStyles): void
+    {
+        $zip = new \ZipArchive;
+        if ($zip->open($absoluteDocxPath) !== true) {
+            return;
+        }
+
+        $documentXml = $zip->getFromName('word/document.xml');
+        if (! is_string($documentXml) || $documentXml === '') {
+            $zip->close();
+
+            return;
+        }
+
+        $styleIndex = 0;
+        $updatedDocumentXml = preg_replace_callback(
+            '/<v:shape([^>]*?)style="([^"]*?)"([^>]*)>/',
+            static function (array $matches) use ($overlayStyles, &$styleIndex): string {
+                $before = $matches[1];
+                $style = $matches[2];
+                $after = $matches[3];
+
+                if (! str_contains($style, 'position:absolute')) {
+                    $style = 'position:absolute;'.$style;
+                }
+
+                if (! str_contains($style, 'z-index')) {
+                    $style .= ';z-index:251659264';
+                }
+
+                if (! str_contains($style, 'mso-wrap-style')) {
+                    $style .= ';mso-wrap-style:none';
+                }
+
+                // Привязка к странице (а не к абзацу/тексту), иначе при длинном тексте в плейсхолдерах
+                // плавающие печать/подпись смещаются вместе с потоком. Gotenberg/LibreOffice рендерит тот же DOCX.
+                if (! str_contains($style, 'mso-position-horizontal-relative')) {
+                    $style .= ';mso-position-horizontal-relative:page';
+                }
+
+                if (! str_contains($style, 'mso-position-vertical-relative')) {
+                    $style .= ';mso-position-vertical-relative:page';
+                }
+
+                $resolvedOverlayStyle = $overlayStyles[$styleIndex] ?? ['margin_left_mm' => 0.0, 'margin_top_mm' => 0.0];
+                $styleIndex++;
+
+                if (! str_contains($style, 'margin-left')) {
+                    $style .= ';margin-left:'.number_format((float) $resolvedOverlayStyle['margin_left_mm'], 2, '.', '').'mm';
+                }
+
+                if (! str_contains($style, 'margin-top')) {
+                    $style .= ';margin-top:'.number_format((float) $resolvedOverlayStyle['margin_top_mm'], 2, '.', '').'mm';
+                }
+
+                return '<v:shape'.$before.'style="'.$style.'"'.$after.'>';
+            },
+            $documentXml
+        );
+
+        if (is_string($updatedDocumentXml) && $updatedDocumentXml !== $documentXml) {
+            $zip->addFromString('word/document.xml', $updatedDocumentXml);
+        }
+
+        $zip->close();
+    }
+
+    /**
+     * @return list<array{margin_left_mm: float, margin_top_mm: float}>
+     */
+    private function buildOverlayFloatingStyles(PrintFormTemplate $template): array
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        return collect(['internal_signature', 'internal_stamp'])
+            ->map(function (string $key) use ($overlays): array {
+                $overlay = is_array($overlays[$key] ?? null) ? $overlays[$key] : [];
+
+                return [
+                    'margin_left_mm' => (float) ($overlay['offset_x_mm'] ?? 0),
+                    'margin_top_mm' => (float) ($overlay['offset_y_mm'] ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -376,6 +489,78 @@ class OrderPrintFormDraftService
         return $trimmed === '' ? null : $trimmed;
     }
 
+    private function injectTemplateOverlayImages(TemplateProcessor $processor, PrintFormTemplate $template): void
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        $this->injectSingleOverlayImage($processor, is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [], 'internal_signature_image');
+        $this->injectSingleOverlayImage($processor, is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [], 'internal_stamp_image');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function overlayPlaceholderList(PrintFormTemplate $template): array
+    {
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
+
+        return collect(['internal_signature', 'internal_stamp'])
+            ->map(function (string $key) use ($overlays): string {
+                $placeholder = trim((string) data_get($overlays, $key.'.placeholder', $key === 'internal_signature' ? 'internal_signature_image' : 'internal_stamp_image'));
+
+                return $placeholder !== '' ? $placeholder : ($key === 'internal_signature' ? 'internal_signature_image' : 'internal_stamp_image');
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $overlay
+     */
+    private function injectSingleOverlayImage(TemplateProcessor $processor, array $overlay, string $defaultPlaceholder): void
+    {
+        $path = $overlay['path'] ?? null;
+        if (! is_string($path) || $path === '') {
+            return;
+        }
+
+        $disk = (string) ($overlay['disk'] ?? 'local');
+        if (! Storage::disk($disk)->exists($path)) {
+            return;
+        }
+
+        $placeholder = trim((string) ($overlay['placeholder'] ?? $defaultPlaceholder));
+        if ($placeholder === '') {
+            $placeholder = $defaultPlaceholder;
+        }
+
+        $widthMm = (float) ($overlay['width_mm'] ?? 30);
+        $heightMm = (float) ($overlay['height_mm'] ?? 30);
+        $widthPx = max(20, (int) round($widthMm * 3.78));
+        $heightPx = max(20, (int) round($heightMm * 3.78));
+
+        $absolutePath = Storage::disk($disk)->path($path);
+
+        $processor->setMacroChars('${', '}');
+        $processor->setImageValue($placeholder, [
+            'path' => $absolutePath,
+            'width' => $widthPx,
+            'height' => $heightPx,
+            'ratio' => true,
+        ]);
+        $processor->setMacroChars('{{', '}}');
+        $processor->setImageValue($placeholder, [
+            'path' => $absolutePath,
+            'width' => $widthPx,
+            'height' => $heightPx,
+            'ratio' => true,
+        ]);
+    }
+
     private function resolvePrimaryAddressValue(Collection $points): ?string
     {
         $values = $points
@@ -592,72 +777,7 @@ class OrderPrintFormDraftService
 
     private function resolveMappedPath(string $placeholder, Collection $mapping): string
     {
-        $explicit = $mapping->get($placeholder);
-        if (is_string($explicit) && $explicit !== '') {
-            return $explicit;
-        }
-
-        $legacy = $this->legacyPlaceholderMappings();
-        $normalized = $this->normalizeLegacyPlaceholderKey($placeholder);
-
-        return $legacy[$normalized] ?? $placeholder;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function legacyPlaceholderMappings(): array
-    {
-        return [
-            'nomer_zayavki' => 'order.order_number',
-            'data_zakaza' => 'order.order_date',
-            'data_zagruzki' => 'order.loading_date',
-            'data_vygruzki' => 'order.unloading_date',
-            'vremya_zagruzki' => 'route.loading_time_from',
-            'vremya_vygruzki' => 'route.unloading_time_from',
-            'address_zagruzki' => 'route.loading_first_address',
-            'address_vygruzki' => 'route.unloading_first_address',
-            'gorod_zagruzki' => 'route.loading_first_city',
-            'gorod_vygruzki' => 'route.unloading_first_city',
-            'gruzootpav' => 'cargo_sender.name',
-            'gruzopoluchatel' => 'cargo_recipient.name',
-            'kontakt_na_zagruzke' => 'cargo_sender.contact_phone',
-            'kontakt_na_vygruzke' => 'cargo_recipient.contact_phone',
-            'cargo_summary' => 'cargo.summary',
-            'stoimost' => 'order.customer_rate',
-            'forma_oplaty' => 'order.customer_payment_form',
-            'usloviya_oplaty' => 'order.customer_payment_term',
-            'primechanya' => 'order.special_notes',
-            'fio_voditel' => 'driver.full_name',
-            'tel_voditel' => 'driver.phone',
-            'passport_voditel' => 'driver.passport_data',
-            'marka_avto' => 'vehicle.brand',
-            'gosnomer' => 'vehicle.number',
-            'tip_pritsepa' => 'vehicle.transport_type',
-            'tip_prizepa' => 'vehicle.transport_type',
-            'poln_nazv_zak' => 'customer.full_name',
-            'kratk_nazv_zak' => 'customer.name',
-            'inn' => 'customer.inn',
-            'kpp' => 'customer.kpp',
-            'ogrn' => 'customer.ogrn',
-            'yur_address' => 'customer.legal_address',
-            'pocht_address' => 'customer.actual_address',
-            'bank' => 'customer.bank_name',
-            'bik' => 'customer.bik',
-            'r/s' => 'customer.account_number',
-            'k/s' => 'customer.correspondent_account',
-            'fio_podpisant' => 'customer.signer_name_nominative',
-            'fio_podpisant_rod' => 'customer.signer_name_prepositional',
-            'dolzhn_podpisant' => 'customer.signer_position',
-        ];
-    }
-
-    private function normalizeLegacyPlaceholderKey(string $placeholder): string
-    {
-        $value = mb_strtolower(trim($placeholder), 'UTF-8');
-        $value = str_replace(['’', '`', '´'], '', $value);
-
-        return $value;
+        return $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'order');
     }
 
     private function formatDate(mixed $value): ?string

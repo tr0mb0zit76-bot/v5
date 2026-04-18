@@ -44,12 +44,13 @@
                     domLayout="normal"
                     :pagination="false"
                     :animateRows="true"
-                    :suppressCellFocus="true"
+                    :suppressCellFocus="false"
                     :alwaysShowVerticalScroll="true"
                     style="height: 100%; width: 100%;"
                     @grid-ready="onGridReady"
                     @first-data-rendered="onFirstDataRendered"
                     @cell-double-clicked="onCellDoubleClicked"
+                    @cell-value-changed="onCellValueChanged"
                     @filter-changed="onFilterChanged"
                 />
             </div>
@@ -69,6 +70,7 @@
 
 <script setup>
 import { createVNode, computed, nextTick, onMounted, onUnmounted, ref, render, watch } from 'vue';
+import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -152,6 +154,7 @@ function statusLabel(status) {
         pending: 'По плану',
         paid: 'Оплачено',
         overdue: 'Просрочено',
+        cancelled: 'Отменено',
     };
 
     return labels[status] || status;
@@ -162,6 +165,7 @@ function statusClass(status) {
         pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
         paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200',
         overdue: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200',
+        cancelled: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
     };
 
     return classes[status] || 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200';
@@ -254,6 +258,16 @@ const baseColumnDefs = [
         headerName: 'Тип',
         minWidth: 120,
         sortable: true,
+    },
+    {
+        colId: 'invoice_number',
+        field: 'invoice_number',
+        headerName: 'Номер счёта',
+        minWidth: 140,
+        flex: 1,
+        sortable: true,
+        editable: (p) => Boolean(props.canManageActions),
+        valueFormatter: (p) => (p.value ? String(p.value) : '—'),
     },
     {
         colId: 'planned_date',
@@ -509,11 +523,40 @@ const onFirstDataRendered = () => {
 };
 
 const onCellDoubleClicked = (event) => {
+    if (event.colDef?.colId === 'invoice_number') {
+        return;
+    }
+
     const orderId = event.data?.order_id;
 
     if (orderId) {
         router.visit(route('orders.edit', orderId));
     }
+};
+
+const onCellValueChanged = (event) => {
+    if (event.colDef.colId !== 'invoice_number' || !props.canManageActions) {
+        return;
+    }
+
+    const id = event.data?.id;
+    if (!id) {
+        return;
+    }
+
+    const newVal = event.newValue != null ? String(event.newValue).trim() : '';
+    const oldVal = event.oldValue != null ? String(event.oldValue).trim() : '';
+    if (newVal === oldVal) {
+        return;
+    }
+
+    axios
+        .patch(route('payment-schedules.invoice-number', id), {
+            invoice_number: newVal === '' ? null : newVal,
+        })
+        .catch(() => {
+            event.api.refreshCells({ rowNodes: [event.node], columns: ['invoice_number'], force: true });
+        });
 };
 
 watch(quickSearch, (value) => {

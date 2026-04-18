@@ -25,7 +25,10 @@ class PublicSiteController extends Controller
     protected function sharedProps(): array
     {
         $translations = [];
-        $crmHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.log-sol.local';
+        $crmHost = trim((string) config('app.crm_domain'));
+        if ($crmHost === '') {
+            $crmHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.log-sol.local';
+        }
         $crmScheme = request()->isSecure() ? 'https' : 'http';
 
         foreach ($this->translationPaths() as $translationsPath) {

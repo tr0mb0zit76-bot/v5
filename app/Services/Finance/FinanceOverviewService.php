@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\Schema;
 class FinanceOverviewService
 {
     /**
-     * Журнал плановых и фактических оплат по заказам (payment_schedules).
-     *
      * @return Collection<int, array<string, mixed>>
      */
     public function cashFlowJournal(?int $userId, ?string $roleName, string $ordersScope): Collection
@@ -74,9 +72,15 @@ class FinanceOverviewService
         }
 
         if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
-            $select[] = DB::raw('COALESCE(payment_schedules.remaining_amount, payment_schedules.amount) as remaining_amount');
+            $select[] = DB::raw(
+                'CASE WHEN payment_schedules.remaining_amount IS NULL THEN payment_schedules.amount ELSE payment_schedules.remaining_amount END as remaining_amount'
+            );
         } else {
             $select[] = DB::raw('payment_schedules.amount as remaining_amount');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'invoice_number')) {
+            $select[] = 'payment_schedules.invoice_number';
         }
 
         if (Schema::hasColumn('payment_schedules', 'is_partial')) {
@@ -144,6 +148,7 @@ class FinanceOverviewService
             'parent_payment_id' => $parentPaymentId,
             'payment_progress' => $paymentProgress,
             'has_partial_payments' => $parentPaymentId === null && $paidAmount > 0 && $remainingAmount > 0,
+            'invoice_number' => data_get($row, 'invoice_number'),
         ];
     }
 
@@ -242,7 +247,52 @@ class FinanceOverviewService
     }
 
     /**
+     * Базовый запрос: только «открытые» корневые строки графика (как в журнале «Открытые»).
+     *
+     * @param  'all'|'own'  $ordersScope
+     */
+    private function paymentSchedulesOpenRootsBaseQuery(?int $userId, ?string $roleName, string $ordersScope)
+    {
+        return DB::table('payment_schedules')
+            ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
+            ->when(
+                $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
+                fn ($query) => $query->where('orders.manager_id', $userId),
+            )
+            ->when(
+                Schema::hasColumn('orders', 'deleted_at'),
+                fn ($query) => $query->whereNull('orders.deleted_at'),
+            )
+            ->whereNotIn('payment_schedules.status', ['paid', 'cancelled'])
+            ->when(
+                Schema::hasColumn('payment_schedules', 'parent_payment_id'),
+                fn ($query) => $query->whereNull('payment_schedules.parent_payment_id'),
+            )
+            ->when(
+                Schema::hasColumn('payment_schedules', 'is_partial'),
+                fn ($query) => $query->where(function ($q): void {
+                    $q->whereNull('payment_schedules.is_partial')
+                        ->orWhere('payment_schedules.is_partial', false);
+                }),
+            );
+    }
+
+    /**
+     * Остаток к оплате по строке графика: при частичной оплате — remaining_amount, иначе полная сумма.
+     */
+    private function paymentScheduleEffectiveAmountSql(): string
+    {
+        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+            return 'CASE WHEN payment_schedules.remaining_amount IS NULL THEN payment_schedules.amount ELSE payment_schedules.remaining_amount END';
+        }
+
+        return 'payment_schedules.amount';
+    }
+
+    /**
      * Агрегаты по графику оплат: периоды, дебиторка, кредиторка (всего / в срок по плану / просрочено).
+     * Учитываются только открытые корневые строки (не paid/cancelled, не дочерние частичные).
+     * Суммы — по остатку к оплате, если есть колонка remaining_amount.
      *
      * @return array<string, mixed>
      */
@@ -257,35 +307,29 @@ class FinanceOverviewService
         $monthStart = $today->copy()->startOfMonth();
         $monthEnd = $today->copy()->endOfMonth();
 
-        $rows = DB::table('payment_schedules')
-            ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
-            ->when(
-                $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
-                fn ($query) => $query->where('orders.manager_id', $userId),
+        $effective = $this->paymentScheduleEffectiveAmountSql();
+
+        $rows = $this->paymentSchedulesOpenRootsBaseQuery($userId, $roleName, $ordersScope)
+            ->selectRaw(
+                'payment_schedules.party, '.
+                "SUM(CASE WHEN payment_schedules.planned_date = ? THEN {$effective} ELSE 0 END) as today, ".
+                "SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN {$effective} ELSE 0 END) as week, ".
+                "SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN {$effective} ELSE 0 END) as month, ".
+                "SUM(CASE WHEN payment_schedules.status IN (?, ?) THEN {$effective} ELSE 0 END) as outstanding, ".
+                "SUM(CASE WHEN payment_schedules.status = ? THEN {$effective} ELSE 0 END) as pending_only, ".
+                "SUM(CASE WHEN payment_schedules.status = ? THEN {$effective} ELSE 0 END) as overdue",
+                [
+                    $today,
+                    $today,
+                    $weekEnd,
+                    $monthStart,
+                    $monthEnd,
+                    'pending',
+                    'overdue',
+                    'pending',
+                    'overdue',
+                ]
             )
-            ->when(
-                Schema::hasColumn('orders', 'deleted_at'),
-                fn ($query) => $query->whereNull('orders.deleted_at'),
-            )
-            ->selectRaw(<<<'SQL'
-                payment_schedules.party,
-                SUM(CASE WHEN payment_schedules.planned_date = ? THEN payment_schedules.amount ELSE 0 END) as today,
-                SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN payment_schedules.amount ELSE 0 END) as week,
-                SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN payment_schedules.amount ELSE 0 END) as month,
-                SUM(CASE WHEN payment_schedules.status IN (?, ?) THEN payment_schedules.amount ELSE 0 END) as outstanding,
-                SUM(CASE WHEN payment_schedules.status = ? THEN payment_schedules.amount ELSE 0 END) as pending_only,
-                SUM(CASE WHEN payment_schedules.status = ? THEN payment_schedules.amount ELSE 0 END) as overdue
-            SQL, [
-                $today,
-                $today,
-                $weekEnd,
-                $monthStart,
-                $monthEnd,
-                'pending',
-                'overdue',
-                'pending',
-                'overdue',
-            ])
             ->groupBy('payment_schedules.party')
             ->get()
             ->keyBy('party');

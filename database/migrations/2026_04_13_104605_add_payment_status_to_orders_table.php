@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
-            if (!Schema::hasColumn('orders', 'payment_status')) {
+            if (! Schema::hasColumn('orders', 'payment_status')) {
                 $table->enum('payment_status', ['pending', 'partial', 'paid', 'overdue', 'cancelled'])
                     ->default('pending')
                     ->after('status');
@@ -25,6 +29,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('orders')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
             if (Schema::hasColumn('orders', 'payment_status')) {
                 $table->dropColumn('payment_status');

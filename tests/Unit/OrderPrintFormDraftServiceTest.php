@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Services\DocxPlaceholderExtractor;
 use App\Services\OrderPrintFormDraftService;
+use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
 
@@ -27,7 +28,7 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
     public function test_sender_contact_phone_is_combined_and_addresses_aggregated(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor);
+        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
         $order = new Order;
 
         $order->setRelation('routePoints', new Collection([
@@ -70,7 +71,7 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
     public function test_sender_primary_value_uses_first_point_when_multiple_senders_present(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor);
+        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
         $order = new Order;
 
         $order->setRelation('routePoints', new Collection([

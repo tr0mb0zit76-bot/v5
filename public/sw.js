@@ -53,6 +53,13 @@ self.addEventListener('fetch', (event) => {
     const isStaticAsset = requestUrl.pathname.startsWith('/build/') || requestUrl.pathname.startsWith('/assets/');
 
     if (isNavigationRequest) {
+        // Не кэшируем произвольные GET-страницы как «/» — иначе предпросмотры перезаписывают shell-кэш.
+        if (requestUrl.pathname !== '/') {
+            event.respondWith(fetch(event.request));
+
+            return;
+        }
+
         event.respondWith(
             fetch(event.request)
                 .then((response) => {

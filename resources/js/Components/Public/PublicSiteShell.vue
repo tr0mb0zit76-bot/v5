@@ -29,6 +29,30 @@ const modalLogoUrl = '/assets/logo_black.png';
 
 const texts = computed(() => page.props.publicSite?.texts ?? {});
 const crmLoginUrl = computed(() => page.props.publicSite?.crm_login_url ?? '/login');
+/** URL дашборда на том же хосте, что и страница входа в кабинет (для витрины ≠ CRM). */
+const crmDashboardUrl = computed(() => {
+    try {
+        const u = new URL(crmLoginUrl.value);
+        u.pathname = '/dashboard';
+        u.search = '';
+        u.hash = '';
+
+        return u.toString();
+    } catch {
+        return '/dashboard';
+    }
+});
+/** Inertia-навигация на другой origin ломается (CORS); нужна обычная ссылка. */
+const isCrmAnotherOrigin = computed(() => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    try {
+        return new URL(crmLoginUrl.value).origin !== window.location.origin;
+    } catch {
+        return false;
+    }
+});
 const authUser = computed(() => page.props.auth?.user ?? null);
 const sections = computed(() => props.page.sections ?? []);
 const isVerticalMode = computed(() => props.page.mode === 'vertical');
@@ -184,8 +208,15 @@ onBeforeUnmount(() => {
                         {{ t(item.labelKey, item.key) }}
                     </Link>
 
+                    <a
+                        v-if="authUser && isCrmAnotherOrigin"
+                        :href="crmDashboardUrl"
+                        class="login-nav-link"
+                    >
+                        В кабинет
+                    </a>
                     <Link
-                        v-if="authUser"
+                        v-else-if="authUser"
                         :href="route('dashboard')"
                         class="login-nav-link"
                     >
@@ -233,13 +264,21 @@ onBeforeUnmount(() => {
                     {{ t(item.labelKey, item.key) }}
                 </Link>
 
+                <a
+                    v-if="authUser && isCrmAnotherOrigin"
+                    :href="crmDashboardUrl"
+                    class="mobile-nav-login"
+                    @click="closeMobileMenu"
+                >
+                    В кабинет
+                </a>
                 <Link
-                    v-if="authUser"
+                    v-else-if="authUser"
                     :href="route('dashboard')"
                     class="mobile-nav-login"
                     @click="closeMobileMenu"
                 >
-                    Р’ РєР°Р±РёРЅРµС‚
+                    В кабинет
                 </Link>
 
                 <a
@@ -248,8 +287,9 @@ onBeforeUnmount(() => {
                     class="mobile-nav-login"
                     @click="closeMobileMenu"
                 >
-                    {{ t('cabinet', 'Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚') }}
+                    {{ t('cabinet', 'Личный кабинет') }}
                 </a>
+
             </nav>
         </div>
 

@@ -55,6 +55,14 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     /*
+    | Домены витрины и кабинета (разные хосты в проде: log-sol.ru vs crm.log-sol.ru).
+    | Локально по умолчанию: витрина v5.local, кабинет из CRM_DOMAIN (например crm.log-sol.local).
+    */
+    'crm_domain' => env('CRM_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost'),
+
+    'showcase_domain' => env('SHOWCASE_DOMAIN', 'v5.local'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------

@@ -305,6 +305,7 @@ const paymentScheduleGroupMap = {
     direction: 'routing',
     counterparty_name: 'participants',
     payment_type: 'finance',
+    invoice_number: 'documents',
     planned_date: 'finance',
     actual_date: 'finance',
     amount: 'finance',
