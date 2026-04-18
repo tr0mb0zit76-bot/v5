@@ -146,7 +146,11 @@ class PrintFormDraftResponseBuilder
             .'main{max-width:980px;margin:0 auto;padding:24px}h1{font-size:20px;margin:0 0 8px}p{margin:0 0 16px;color:#475569}'
             .'pre{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;white-space:pre-wrap;word-break:break-word;line-height:1.45}'
             .'</style></head><body><main><h1>Предпросмотр данных</h1>'
-            .'<p>Файл: '.e($downloadName).'</p><pre>'.e($previewText).'</pre></main></body></html>';
+            .'<p>Файл: '.e($downloadName).'</p>'
+            .'<p style="margin:0 0 16px;color:#b45309;font-size:14px;line-height:1.45">'
+            .'PDF-предпросмотр через Gotenberg недоступен (сервис не отвечает или не настроен <code>GOTENBERG_URL</code>). '
+            .'Ниже — текстовый слой из DOCX.</p>'
+            .'<pre>'.e($previewText).'</pre></main></body></html>';
 
         return response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',

@@ -213,16 +213,6 @@ class OrderDocumentWorkflowController extends Controller
             OrderDocumentWorkflowStatus::DRAFT,
             OrderDocumentWorkflowStatus::REJECTED,
         ], true);
-        $template = $orderDocument->template_id !== null
-            ? PrintFormTemplate::query()->find($orderDocument->template_id)
-            : null;
-        $templateSettings = is_array($template?->settings) ? $template->settings : [];
-        $signaturePath = data_get($templateSettings, 'image_overlays.internal_signature.path');
-        $stampPath = data_get($templateSettings, 'image_overlays.internal_stamp.path');
-        $canAdjustOverlay = $canManage
-            && $template !== null
-            && $template->shouldApplyCrmOverlayOffsets()
-            && in_array($workflowStatus, [OrderDocumentWorkflowStatus::DRAFT, OrderDocumentWorkflowStatus::REJECTED], true);
 
         return Inertia::render('Orders/PrintWorkflowDocumentPreview', [
             'orderId' => $order->id,
@@ -232,22 +222,10 @@ class OrderDocumentWorkflowController extends Controller
             'embedUrl' => route('orders.documents.download-draft', [$order, $orderDocument]).'?preview=1&preview_mode=browser',
             'workflowStatusLabel' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
             'canRequestApproval' => $canRequestApproval,
-            'canAdjustOverlay' => $canAdjustOverlay,
-            'overlaySaveUrl' => $canAdjustOverlay ? route('orders.documents.update-overlay-positions', [$order, $orderDocument]) : null,
-            'signatureOverlayImageUrl' => is_string($signaturePath) && $signaturePath !== ''
-                ? route('orders.documents.overlay-asset', [$order, $orderDocument, 'overlayKey' => 'internal_signature'])
-                : null,
-            'stampOverlayImageUrl' => is_string($stampPath) && $stampPath !== ''
-                ? route('orders.documents.overlay-asset', [$order, $orderDocument, 'overlayKey' => 'internal_stamp'])
-                : null,
-            'signatureOffsetXmm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.offset_x_mm', 0),
-            'signatureOffsetYmm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.offset_y_mm', 0),
-            'stampOffsetXmm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.offset_x_mm', 0),
-            'stampOffsetYmm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.offset_y_mm', 0),
-            'signatureWidthMm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.width_mm', 42),
-            'signatureHeightMm' => (float) data_get($templateSettings, 'image_overlays.internal_signature.height_mm', 18),
-            'stampWidthMm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.width_mm', 30),
-            'stampHeightMm' => (float) data_get($templateSettings, 'image_overlays.internal_stamp.height_mm', 30),
+            'canAdjustOverlay' => false,
+            'overlaySaveUrl' => null,
+            'signatureOverlayImageUrl' => null,
+            'stampOverlayImageUrl' => null,
         ]);
     }
 
@@ -280,46 +258,7 @@ class OrderDocumentWorkflowController extends Controller
 
     public function updateOverlayPositions(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
     {
-        $this->ensureCanEditOrder($request, $order);
-        $this->ensureCanManagePrintWorkflow($request);
-        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
-        abort_if($orderDocument->template_id === null, 422, 'У документа не указан шаблон.');
-
-        $validated = $request->validate([
-            'signature_offset_x_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'signature_offset_y_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'stamp_offset_x_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'stamp_offset_y_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-        ]);
-
-        $template = PrintFormTemplate::query()->findOrFail($orderDocument->template_id);
-        $settings = is_array($template->settings) ? $template->settings : [];
-        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
-        $signature = is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [];
-        $stamp = is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [];
-
-        $signature['offset_x_mm'] = (float) $validated['signature_offset_x_mm'];
-        $signature['offset_y_mm'] = (float) $validated['signature_offset_y_mm'];
-        $stamp['offset_x_mm'] = (float) $validated['stamp_offset_x_mm'];
-        $stamp['offset_y_mm'] = (float) $validated['stamp_offset_y_mm'];
-        $overlays['internal_signature'] = $signature;
-        $overlays['internal_stamp'] = $stamp;
-        $settings['image_overlays'] = $overlays;
-
-        $template->forceFill([
-            'settings' => $settings,
-            'updated_by' => $request->user()?->id,
-        ])->save();
-
-        $this->clearCachedPreviewPdf($orderDocument);
-
-        try {
-            $this->workflowService->regenerateDraft($orderDocument->fresh(), $request->user());
-        } catch (\InvalidArgumentException $e) {
-            abort(422, $e->getMessage());
-        }
-
-        return redirect()->route('orders.documents.preview-draft', [$order, $orderDocument]);
+        abort(403, 'Смещения подписи и печати настраиваются в «Настройки → Шаблоны», а не в карточке заказа.');
     }
 
     public function downloadDraft(Request $request, Order $order, OrderDocument $orderDocument): Response|BinaryFileResponse
@@ -568,22 +507,5 @@ class OrderDocumentWorkflowController extends Controller
         }
 
         return $user->isManager() && (int) $order->manager_id === (int) $user->id;
-    }
-
-    private function clearCachedPreviewPdf(OrderDocument $orderDocument): void
-    {
-        $metadata = is_array($orderDocument->metadata) ? $orderDocument->metadata : [];
-        $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
-        $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
-
-        if ($previewPath !== '' && $this->documentStorage->exists($previewPath, $previewDriver)) {
-            $this->documentStorage->delete($previewPath, $previewDriver);
-        }
-
-        unset($metadata['preview_pdf_path'], $metadata['preview_pdf_storage_driver'], $metadata['preview_pdf_generated_at']);
-
-        $orderDocument->update([
-            'metadata' => $metadata,
-        ]);
     }
 }

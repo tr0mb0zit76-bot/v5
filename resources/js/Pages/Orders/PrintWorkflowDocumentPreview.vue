@@ -1,5 +1,5 @@
 <template>
-    <div class="flex min-h-dvh flex-col bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
+    <div class="flex h-dvh max-h-dvh flex-col overflow-hidden bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
         <header class="shrink-0 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
             <div class="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
@@ -19,7 +19,7 @@
             </div>
         </header>
 
-        <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 p-3">
+        <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 overflow-hidden p-3">
             <div
                 v-if="canAdjustOverlay && hasAnyOverlayImage"
                 class="space-y-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
