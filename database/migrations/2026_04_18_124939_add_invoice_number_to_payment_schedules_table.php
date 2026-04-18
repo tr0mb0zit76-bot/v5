@@ -19,8 +19,16 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('payment_schedules', function (Blueprint $table) {
-            $table->string('invoice_number', 120)->nullable()->after('amount');
+        $driver = Schema::getConnection()->getDriverName();
+        $placeAfterAmount = in_array($driver, ['mysql', 'mariadb'], true)
+            && Schema::hasColumn('payment_schedules', 'amount');
+
+        Schema::table('payment_schedules', function (Blueprint $table) use ($placeAfterAmount) {
+            if ($placeAfterAmount) {
+                $table->string('invoice_number', 120)->nullable()->after('amount');
+            } else {
+                $table->string('invoice_number', 120)->nullable();
+            }
         });
     }
 

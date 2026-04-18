@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('sales_scripts')) {
+            return;
+        }
+
         Schema::create('sales_script_reaction_classes', function (Blueprint $table) {
             $table->id();
             $table->string('key')->unique();
