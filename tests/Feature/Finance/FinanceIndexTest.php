@@ -788,9 +788,9 @@ class FinanceIndexTest extends TestCase
         try {
             $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']));
 
-            $response->assertOk();
-            $response->assertInertia(fn (Assert $page) => $page
-                ->has('cashFlowJournal', 1)
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->has('cashFlowJournal', 1)
                 ->where('cashFlowJournal.0.status', 'overdue')
             );
         } finally {

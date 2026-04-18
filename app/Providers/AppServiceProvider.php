@@ -18,6 +18,7 @@ use App\Services\NextcloudWebDavStorage;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use PhpOffice\PhpWord\Settings as PhpWordSettings;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -42,6 +43,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configurePhpWordTempDir();
+
         Vite::prefetch(concurrency: 3);
 
         Gate::policy(SalesScript::class, SalesScriptPolicy::class);
@@ -50,5 +53,23 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SalesScriptTransition::class, SalesScriptTransitionPolicy::class);
         Gate::policy(SalesScriptPlaySession::class, SalesScriptPlaySessionPolicy::class);
         Gate::policy(Task::class, TaskPolicy::class);
+    }
+
+    /**
+     * На хостингах с open_basedir без /tmp PhpWord падает на tempnam() в /tmp.
+     * Пишем временные файлы внутри storage (обычно уже в разрешённом пути).
+     */
+    private function configurePhpWordTempDir(): void
+    {
+        if (! class_exists(PhpWordSettings::class)) {
+            return;
+        }
+
+        $tempDir = storage_path('framework/phpword-tmp');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        PhpWordSettings::setTempDir($tempDir);
     }
 }
