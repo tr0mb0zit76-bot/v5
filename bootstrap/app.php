@@ -1,5 +1,9 @@
 <?php
 
+require_once __DIR__.'/temp-dir.php';
+
+configure_phpword_temp_dir(dirname(__DIR__));
+
 use App\Http\Middleware\EnsureCanManageSalesScripts;
 use App\Http\Middleware\EnsureSettingsVisibilityAccess;
 use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;

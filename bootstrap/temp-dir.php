@@ -15,11 +15,17 @@ function resolve_application_temp_dir(string $basePath): ?string
     $candidates = [
         $basePath.'/storage/framework/phpword-tmp',
         $basePath.'/storage/app/tmp',
+        $basePath.'/storage/framework/cache',
+        $basePath.'/storage/framework/sessions',
     ];
 
     foreach ($candidates as $candidate) {
         if (! is_dir($candidate)) {
             @mkdir($candidate, 0775, true);
+        }
+
+        if (is_dir($candidate) && ! is_writable($candidate)) {
+            @chmod($candidate, 0777);
         }
 
         if (is_dir($candidate) && is_writable($candidate)) {
@@ -45,7 +51,6 @@ function configure_phpword_temp_dir(string $basePath): void
 
     putenv('TMPDIR='.$dir);
 
-    if (class_exists(Settings::class)) {
-        Settings::setTempDir($dir);
-    }
+    // Не оборачиваем в class_exists: автозагрузчик подтянет класс; иначе setTempDir мог не вызваться.
+    Settings::setTempDir($dir);
 }
