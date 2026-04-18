@@ -13,7 +13,6 @@ if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php'))
 // Register the Composer autoloader...
 require __DIR__.'/../vendor/autoload.php';
 
-require __DIR__.'/../bootstrap/phpword-temp.php';
 configure_phpword_temp_dir(dirname(__DIR__));
 
 // Bootstrap Laravel and handle the request...

@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
+use App\Support\ApplicationTempDirectory;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use RuntimeException;
 
 class DocxPdfPreviewService
 {
@@ -23,10 +23,7 @@ class DocxPdfPreviewService
             return null;
         }
 
-        $tmpPath = tempnam(sys_get_temp_dir(), 'docx-preview-');
-        if ($tmpPath === false) {
-            throw new RuntimeException('Не удалось создать временный файл для конвертации DOCX.');
-        }
+        $tmpPath = ApplicationTempDirectory::tempFile('docx-preview-');
 
         file_put_contents($tmpPath, $docxContents);
 

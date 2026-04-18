@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ApplicationTempDirectory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -82,9 +83,9 @@ class PrintFormDraftResponseBuilder
                 return $pdfResponse;
             }
 
-            $temporaryPath = tempnam(sys_get_temp_dir(), 'docx-preview-');
-
-            if ($temporaryPath === false) {
+            try {
+                $temporaryPath = ApplicationTempDirectory::tempFile('docx-preview-');
+            } catch (\Throwable) {
                 return response('Не удалось подготовить предпросмотр документа.', 500);
             }
 

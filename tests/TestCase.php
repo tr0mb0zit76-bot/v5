@@ -21,6 +21,8 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        configure_phpword_temp_dir(base_path());
+
         $this->withoutVite();
     }
 }
