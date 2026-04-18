@@ -9,6 +9,9 @@ define('LARAVEL_START', microtime(true));
 // Register the Composer autoloader...
 require __DIR__.'/vendor/autoload.php';
 
+require __DIR__.'/bootstrap/phpword-temp.php';
+configure_phpword_temp_dir(__DIR__);
+
 // Bootstrap Laravel and handle the command...
 /** @var Application $app */
 $app = require_once __DIR__.'/bootstrap/app.php';
