@@ -287,20 +287,26 @@ class OrderPrintFormDraftService
                 'unloading_time_from' => $this->resolvePointTimeValue($unloadingPoints->first(), 'planned_time_from'),
                 'unloading_time_to' => $this->resolvePointTimeValue($unloadingPoints->first(), 'planned_time_to'),
             ],
-            'cargo' => [
+            'cargo' => array_merge([
                 'summary' => $cargoItems
                     ->map(fn ($cargo): string => trim(implode(', ', array_filter([
                         $cargo->title,
                         $cargo->weight !== null ? $this->formatNumber($cargo->weight).' кг' : null,
-                        $cargo->volume !== null ? $this->formatNumber($cargo->volume).' м3' : null,
+                        $cargo->volume !== null ? $this->formatNumber($cargo->volume).' м³' : null,
+                        $this->cargoDimensionsLabelForCargo($cargo),
                     ]))))
                     ->filter()
                     ->implode('; '),
+                'lines_multiline' => $cargoItems
+                    ->map(fn ($cargo): string => $this->cargoLineDetailText($cargo))
+                    ->filter()
+                    ->implode("\n"),
                 'names' => $cargoNames,
                 'total_weight' => $this->formatNumber($cargoTotalWeight),
+                'total_weight_tons' => $this->formatNumber($cargoTotalWeight / 1000),
                 'total_volume' => $this->formatNumber($cargoTotalVolume),
                 'total_packages' => (string) $cargoTotalPackages,
-            ],
+            ], $this->cargoPerLinePlaceholderMap($cargoItems)),
         ];
     }
 
@@ -756,6 +762,62 @@ class OrderPrintFormDraftService
         }
 
         return null;
+    }
+
+    /**
+     * Текстовая строка по одной позиции груза: наименование, вес, объём, габариты (как отдельные плейсхолдеры line_N_text).
+     */
+    private function cargoLineDetailText(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        $parts = array_filter([
+            $cargo->title ?: $cargo->description,
+            $cargo->weight !== null ? $this->formatNumber((float) $cargo->weight).' кг' : null,
+            $cargo->volume !== null ? $this->formatNumber((float) $cargo->volume).' м³' : null,
+            $this->cargoDimensionsLabelForCargo($cargo),
+        ], static fn (mixed $v): bool => $v !== null && $v !== '');
+
+        return trim(implode(', ', $parts));
+    }
+
+    private function cargoDimensionsLabelForCargo(mixed $cargo): ?string
+    {
+        if (! is_object($cargo)) {
+            return null;
+        }
+
+        $l = $cargo->length ?? null;
+        $w = $cargo->width ?? null;
+        $h = $cargo->height ?? null;
+
+        if ($l === null && $w === null && $h === null) {
+            return null;
+        }
+
+        $lf = $l !== null ? $this->formatNumber((float) $l) : '—';
+        $wf = $w !== null ? $this->formatNumber((float) $w) : '—';
+        $hf = $h !== null ? $this->formatNumber((float) $h) : '—';
+
+        return 'габариты '.$lf.'×'.$wf.'×'.$hf.' м';
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     * @return array<string, string>
+     */
+    private function cargoPerLinePlaceholderMap(Collection $cargoItems): array
+    {
+        $out = [];
+        $values = $cargoItems->values();
+        for ($i = 1; $i <= 10; $i++) {
+            $cargo = $values->get($i - 1);
+            $out['line_'.$i.'_text'] = $cargo !== null ? $this->cargoLineDetailText($cargo) : '';
+        }
+
+        return $out;
     }
 
     private function stringifyValue(mixed $value): string

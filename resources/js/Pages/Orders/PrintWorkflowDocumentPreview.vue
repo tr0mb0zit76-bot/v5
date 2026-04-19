@@ -1,5 +1,7 @@
 <template>
-    <div class="flex h-dvh max-h-dvh flex-col overflow-hidden bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
+    <div
+        class="flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
+    >
         <header class="shrink-0 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
             <div class="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
@@ -65,7 +67,9 @@
                 </div>
             </div>
 
-            <div class="min-h-0 flex-1 overflow-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div
+                class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            >
                 <div ref="overlayCanvas" class="relative mx-auto w-full max-w-[980px]" :style="canvasStyle">
                     <iframe
                         :src="embedUrl"

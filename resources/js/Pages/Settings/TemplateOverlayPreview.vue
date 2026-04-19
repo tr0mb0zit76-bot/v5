@@ -1,5 +1,7 @@
 <template>
-    <div class="flex min-h-dvh flex-col bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50">
+    <div
+        class="flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
+    >
         <header class="shrink-0 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
             <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
                 <div>
@@ -15,7 +17,7 @@
             </div>
         </header>
 
-        <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 p-3">
+        <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 overflow-hidden p-3">
             <div
                 v-if="!documentPreview.pdf_preview_available"
                 class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
@@ -56,7 +58,9 @@
                 Для этого шаблона отключены смещения из CRM: подпись и печать вставляются в DOCX только в местах плейсхолдеров. Ниже — предпросмотр с уже встроенными изображениями (как при печати).
             </div>
 
-            <div class="min-h-0 flex-1 overflow-auto rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div
+                class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            >
                 <div ref="overlayCanvas" class="relative mx-auto w-full max-w-[980px]" :style="canvasStyle">
                     <iframe
                         :src="embedUrl"

@@ -539,12 +539,15 @@ class OrderWizardController extends Controller
                 $wizardCosts = [];
             }
 
-            if ($wizardCosts === [] && $financialTerm !== null) {
+            if ($wizardCosts === []) {
                 // Пустой снимок в wizard_state не должен затирать детализацию из financial_terms.
                 $financialTermForNormalize = $financialTerm;
             } else {
+                $dbCosts = is_array($financialTerm?->contractors_costs) ? $financialTerm->contractors_costs : [];
+                $mergedCosts = $this->mergeContractorsCostsSnapshots($dbCosts, $wizardCosts);
+
                 $financialTermForNormalize = new FinancialTerm([
-                    'contractors_costs' => $wizardCosts,
+                    'contractors_costs' => $mergedCosts,
                     'client_currency' => $wizardFt['client_currency'] ?? $financialTerm?->client_currency ?? 'RUB',
                 ]);
             }
@@ -593,7 +596,11 @@ class OrderWizardController extends Controller
                 'name' => $cargo->title,
                 'description' => $cargo->description,
                 'weight_kg' => $cargo->weight,
+                'weight_unit' => 'kg',
                 'volume_m3' => $cargo->volume,
+                'length_m' => $cargo->length,
+                'width_m' => $cargo->width,
+                'height_m' => $cargo->height,
                 'package_type' => $cargo->packing_type,
                 'package_count' => $cargo->package_count ?? $cargo->pallet_count,
                 'dangerous_goods' => $cargo->is_hazardous,
@@ -1305,6 +1312,61 @@ class OrderWizardController extends Controller
             'rear', 'зад' => 'rear',
             default => null,
         };
+    }
+
+    /**
+     * Объединяет строки contractors_costs из БД со снимком мастера: суммы и условия из financial_terms сохраняются,
+     * если в wizard_state они не заданы (частичный снимок не должен обнулять ставки перевозчика).
+     *
+     * @param  list<array<string, mixed>>  $dbCosts
+     * @param  list<array<string, mixed>>  $wizardCosts
+     * @return list<array<string, mixed>>
+     */
+    private function mergeContractorsCostsSnapshots(array $dbCosts, array $wizardCosts): array
+    {
+        $byStage = [];
+
+        foreach ($dbCosts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $key = $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? ''));
+            $byStage[$key] = $row;
+        }
+
+        foreach ($wizardCosts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $key = $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1'));
+            $base = $byStage[$key] ?? [];
+            $merged = array_merge($base, $row);
+
+            if (! array_key_exists('amount', $row) || $row['amount'] === null || $row['amount'] === '') {
+                $merged['amount'] = $base['amount'] ?? null;
+            }
+
+            if (! array_key_exists('currency', $row) || $row['currency'] === null || $row['currency'] === '') {
+                $merged['currency'] = $base['currency'] ?? 'RUB';
+            }
+
+            if (! array_key_exists('payment_form', $row) || $row['payment_form'] === null || $row['payment_form'] === '') {
+                $merged['payment_form'] = $base['payment_form'] ?? null;
+            }
+
+            if (! array_key_exists('payment_schedule', $row) || $row['payment_schedule'] === null
+                || (is_array($row['payment_schedule']) && $row['payment_schedule'] === [])) {
+                $schedule = $base['payment_schedule'] ?? [];
+                $merged['payment_schedule'] = is_array($schedule) ? $schedule : [];
+            }
+
+            $merged['stage'] = $row['stage'] ?? $base['stage'] ?? $key;
+            $byStage[$key] = $merged;
+        }
+
+        return array_values($byStage);
     }
 
     /**

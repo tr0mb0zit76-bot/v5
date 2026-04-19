@@ -424,10 +424,17 @@ class OrderWizardService
                 continue;
             }
 
+            $weightKg = isset($cargoItem['weight_kg']) && $cargoItem['weight_kg'] !== null && $cargoItem['weight_kg'] !== ''
+                ? (float) $cargoItem['weight_kg']
+                : null;
+            if ($weightKg !== null && (($cargoItem['weight_unit'] ?? 'kg') === 't')) {
+                $weightKg = $weightKg * 1000;
+            }
+
             $cargoAttributes = [
                 'title' => $cargoTitle,
                 'description' => $cargoItem['description'] ?? null,
-                'weight' => $cargoItem['weight_kg'] ?? null,
+                'weight' => $weightKg,
                 'volume' => $cargoItem['volume_m3'] ?? null,
                 'cargo_type' => $cargoType,
                 'packing_type' => $cargoItem['package_type'] ?? null,
@@ -447,6 +454,13 @@ class OrderWizardService
                 $cargoAttributes['package_count'] = $cargoItem['package_count'] ?? null;
             } elseif (Schema::hasColumn('cargos', 'pallet_count') && ($cargoItem['package_type'] ?? null) === 'pallet') {
                 $cargoAttributes['pallet_count'] = $cargoItem['package_count'] ?? null;
+            }
+
+            foreach (['length' => 'length_m', 'width' => 'width_m', 'height' => 'height_m'] as $column => $payloadKey) {
+                if (Schema::hasColumn('cargos', $column) && array_key_exists($payloadKey, $cargoItem)) {
+                    $val = $cargoItem[$payloadKey];
+                    $cargoAttributes[$column] = $val !== null && $val !== '' ? (float) $val : null;
+                }
             }
 
             $cargo = Cargo::query()->create($cargoAttributes);

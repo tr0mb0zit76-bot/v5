@@ -1,4 +1,4 @@
-﻿<template>
+<template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <div
             v-if="isMobileStandalone"
@@ -545,17 +545,6 @@
                     </button>
                 </div>
 
-                <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="text-sm font-medium">Вид погрузки</div>
-                    <p class="mt-1 text-xs text-zinc-500">Выберите один или несколько вариантов для шаблонов и документов.</p>
-                    <div class="mt-3 flex flex-wrap gap-3">
-                        <label v-for="option in loadingTypeOptions" :key="option.value" class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                            <input v-model="form.loading_types" :value="option.value" type="checkbox" class="rounded border-zinc-300" />
-                            {{ option.label }}
-                        </label>
-                    </div>
-                </div>
-
                 <div class="space-y-4">
                     <div v-for="(item, index) in form.cargo_items" :key="`cargo-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div class="flex items-center justify-between">
@@ -565,43 +554,113 @@
                             </button>
                         </div>
 
-                        <div class="grid gap-3 md:grid-cols-4">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Наименование</label>
-                                <input v-model="item.name" list="cargo-title-suggestions" type="text" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]" />
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-12 lg:gap-x-2 lg:gap-y-2">
+                            <div class="space-y-1 lg:col-span-4">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Наименование</label>
+                                <input v-model="item.name" list="cargo-title-suggestions" type="text" :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_name_' + index, item.name)]" />
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Тип груза</label>
-                                <select v-model="item.cargo_type" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_type_' + index, item.cargo_type)]">
+                            <div class="space-y-1 lg:col-span-2">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип груза</label>
+                                <select v-model="item.cargo_type" :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_type_' + index, item.cargo_type)]">
                                     <option v-for="option in cargoTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Вес, кг</label>
-                                <input v-model="item.weight_kg" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            <div class="space-y-1 lg:col-span-2">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Вес</label>
+                                <div class="flex gap-1.5">
+                                    <input
+                                        v-model="item.weight_kg"
+                                        type="number"
+                                        min="0"
+                                        step="0.001"
+                                        class="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                    />
+                                    <select v-model="item.weight_unit" class="w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1.5 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-950">
+                                        <option value="kg">кг</option>
+                                        <option value="t">т</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Объём, м³</label>
-                                <input v-model="item.volume_m3" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            <div class="space-y-1 lg:col-span-1">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Мест</label>
+                                <input v-model="item.package_count" type="number" min="0" step="1" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Количество мест</label>
-                                <input v-model="item.package_count" type="number" min="0" step="1" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Упаковка</label>
-                                <select v-model="item.package_type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                    <option :value="null">Не выбрана</option>
+                            <div class="space-y-1 lg:col-span-1">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Упаковка</label>
+                                <select v-model="item.package_type" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <option :value="null">—</option>
                                     <option v-for="option in packageTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Код ТН ВЭД</label>
-                                <input v-model="item.hs_code" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            <div class="space-y-1 lg:col-span-1">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">ТН ВЭД</label>
+                                <input v-model="item.hs_code" type="text" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                             </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Класс опасности</label>
-                                <input v-model="item.dangerous_class" :disabled="!item.dangerous_goods" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:disabled:bg-zinc-800" />
+                            <div class="space-y-1 lg:col-span-1">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Класс опасн.</label>
+                                <input v-model="item.dangerous_class" type="text" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-end gap-x-2 gap-y-2">
+                            <div
+                                v-if="index === 0"
+                                class="flex max-w-full shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-zinc-200 pr-3 sm:border-r sm:pr-5 dark:border-zinc-700"
+                            >
+                                <span class="shrink-0 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">Погрузка</span>
+                                <div class="flex flex-wrap gap-2">
+                                    <label
+                                        v-for="option in loadingTypeOptions"
+                                        :key="option.value"
+                                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium leading-snug shadow-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                    >
+                                        <input v-model="form.loading_types" :value="option.value" type="checkbox" class="h-4 w-4 shrink-0 rounded border-zinc-300" />
+                                        {{ option.label }}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="flex min-w-0 flex-1 flex-wrap items-end gap-x-1.5 gap-y-1">
+                                <div class="w-[3.5rem] shrink-0 space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Д, м</label>
+                                    <input
+                                        v-model="item.length_m"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="h-7 w-full rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                    />
+                                </div>
+                                <div class="w-[3.5rem] shrink-0 space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш, м</label>
+                                    <input
+                                        v-model="item.width_m"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="h-7 w-full rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                    />
+                                </div>
+                                <div class="w-[3.5rem] shrink-0 space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">В, м</label>
+                                    <input
+                                        v-model="item.height_m"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="h-7 w-full rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                    />
+                                </div>
+                                <div class="w-[4rem] shrink-0 space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
+                                    <input
+                                        type="text"
+                                        readonly
+                                        tabindex="-1"
+                                        :value="cargoVolumeDisplay(item)"
+                                        placeholder="—"
+                                        class="h-7 w-full cursor-default rounded border border-dashed border-zinc-200 bg-zinc-50 px-1 text-xs tabular-nums text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100"
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -612,16 +671,12 @@
                             </div>
                             <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900/40 md:col-span-4">
                                 <div class="font-medium text-zinc-700 dark:text-zinc-200">Сводка позиции</div>
-                                <div class="mt-1">Вес: {{ Number(item.weight_kg || 0).toFixed(2) }} кг</div>
-                                <div>Объём: {{ Number(item.volume_m3 || 0).toFixed(2) }} м³</div>
+                                <div class="mt-1">Вес: {{ cargoWeightInKg(item).toFixed(2) }} кг</div>
+                                <div>Объём: {{ cargoVolumeDisplay(item) || '—' }} м³</div>
+                                <div v-if="cargoHasDimensions(item)">Габариты (Д×Ш×В): {{ cargoDimensionsLabel(item) }}</div>
                                 <div>Мест: {{ Number(item.package_count || 0) }}</div>
                             </div>
                         </div>
-
-                        <label class="inline-flex items-center gap-2 text-sm">
-                            <input v-model="item.dangerous_goods" type="checkbox" class="rounded border-zinc-300" />
-                            Опасный груз
-                        </label>
                     </div>
                 </div>
 
@@ -1755,7 +1810,22 @@ function blankOrder() {
             blankRoutePoint('unloading', 2, stageLabel('leg_1')),
         ],
         cargo_items: [
-            { name: '', description: '', weight_kg: null, volume_m3: null, package_type: null, package_count: null, dangerous_goods: false, dangerous_class: '', hs_code: '', cargo_type: 'general' },
+            {
+                name: '',
+                description: '',
+                weight_kg: null,
+                weight_unit: 'kg',
+                volume_m3: null,
+                length_m: null,
+                width_m: null,
+                height_m: null,
+                package_type: null,
+                package_count: null,
+                dangerous_goods: false,
+                dangerous_class: '',
+                hs_code: '',
+                cargo_type: 'general',
+            },
         ],
         financial_term: {
             client_price: null,
@@ -1783,6 +1853,89 @@ function normalizeNullableNumber(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeCargoItem(raw = {}) {
+    let cargoType = raw.cargo_type && String(raw.cargo_type).trim() !== '' ? raw.cargo_type : 'general';
+    if (cargoType === 'general' && Boolean(raw.dangerous_goods)) {
+        cargoType = 'dangerous';
+    }
+
+    return {
+        name: raw.name ?? '',
+        description: raw.description ?? '',
+        weight_kg: raw.weight_kg ?? null,
+        weight_unit: raw.weight_unit === 't' ? 't' : 'kg',
+        volume_m3: raw.volume_m3 ?? null,
+        length_m: raw.length_m ?? null,
+        width_m: raw.width_m ?? null,
+        height_m: raw.height_m ?? null,
+        package_type: raw.package_type ?? null,
+        package_count: raw.package_count ?? null,
+        dangerous_goods: cargoType === 'dangerous',
+        dangerous_class: raw.dangerous_class ?? '',
+        hs_code: raw.hs_code ?? '',
+        cargo_type: cargoType,
+    };
+}
+
+function cargoWeightInKg(item) {
+    const v = Number(item.weight_kg || 0);
+    if (item.weight_unit === 't') {
+        return v * 1000;
+    }
+
+    return v;
+}
+
+function cargoHasDimensions(item) {
+    return [item.length_m, item.width_m, item.height_m].some((v) => v !== null && v !== undefined && String(v).trim() !== '');
+}
+
+function cargoDimensionsLabel(item) {
+    const l = item.length_m !== null && item.length_m !== undefined && item.length_m !== '' ? Number(item.length_m).toFixed(2) : '—';
+    const w = item.width_m !== null && item.width_m !== undefined && item.width_m !== '' ? Number(item.width_m).toFixed(2) : '—';
+    const h = item.height_m !== null && item.height_m !== undefined && item.height_m !== '' ? Number(item.height_m).toFixed(2) : '—';
+
+    return `${l}×${w}×${h} м`;
+}
+
+/**
+ * Объём по габаритам (м³). Только если заданы все три стороны и они положительны.
+ */
+function cargoComputedVolumeM3(item) {
+    const l = Number(item.length_m);
+    const w = Number(item.width_m);
+    const h = Number(item.height_m);
+
+    if (!Number.isFinite(l) || !Number.isFinite(w) || !Number.isFinite(h) || l <= 0 || w <= 0 || h <= 0) {
+        return null;
+    }
+
+    return l * w * h;
+}
+
+function cargoDimensionFieldsEmpty(item) {
+    return [item.length_m, item.width_m, item.height_m].every(
+        (v) => v === null || v === undefined || v === '',
+    );
+}
+
+/**
+ * Текст для readonly «Объём»: сначала расчёт по габаритам, иначе значение из базы.
+ */
+function cargoVolumeDisplay(item) {
+    const computed = cargoComputedVolumeM3(item);
+    if (computed !== null) {
+        return (Math.round(computed * 1000) / 1000).toFixed(3);
+    }
+
+    const legacy = Number(item.volume_m3);
+    if (Number.isFinite(legacy)) {
+        return legacy.toFixed(3);
+    }
+
+    return '';
+}
+
 const form = useForm({
     ...blankOrder(),
     ...(props.order ?? {}),
@@ -1794,6 +1947,9 @@ const form = useForm({
     loading_types: Array.isArray(props.order?.loading_types)
         ? props.order.loading_types
         : [],
+    cargo_items: Array.isArray(props.order?.cargo_items)
+        ? props.order.cargo_items.map((c) => normalizeCargoItem(c))
+        : blankOrder().cargo_items,
     performers: Array.isArray(props.order?.performers)
         ? props.order.performers.map((performer) => ({
             stage: stageLabel(performer.stage ?? 'leg_1'),
@@ -2774,7 +2930,7 @@ const routeChainLabel = computed(() => {
 
 const cargoSummary = computed(() => {
     return form.cargo_items.reduce((summary, item) => {
-        summary.totalWeight += Number(item.weight_kg || 0);
+        summary.totalWeight += cargoWeightInKg(item);
         summary.totalVolume += Number(item.volume_m3 || 0);
         summary.totalPackages += Number(item.package_count || 0);
 
@@ -2785,6 +2941,22 @@ const cargoSummary = computed(() => {
         totalPackages: 0,
     });
 });
+
+watch(
+    () => form.cargo_items,
+    (items) => {
+        items.forEach((item) => {
+            item.dangerous_goods = item.cargo_type === 'dangerous';
+            const v = cargoComputedVolumeM3(item);
+            if (v !== null) {
+                item.volume_m3 = Math.round(v * 1000) / 1000;
+            } else if (!cargoDimensionFieldsEmpty(item)) {
+                item.volume_m3 = null;
+            }
+        });
+    },
+    { deep: true, immediate: true },
+);
 
 /** Ошибки валидации по документам и полю order_payload (вкладка «Документы»). */
 const documentTabValidationMessages = computed(() => {
@@ -3122,18 +3294,7 @@ function handleRoutePointDragEnd() {
 }
 
 function addCargoItem() {
-    form.cargo_items.push({
-        name: '',
-        description: '',
-        weight_kg: null,
-        volume_m3: null,
-        package_type: null,
-        package_count: null,
-        dangerous_goods: false,
-        dangerous_class: '',
-        hs_code: '',
-        cargo_type: 'general',
-    });
+    form.cargo_items.push(normalizeCargoItem({}));
 }
 
 function addDocument() {
@@ -3443,7 +3604,11 @@ function buildSubmitPayload() {
             name: item.name,
             description: item.description,
             weight_kg: item.weight_kg,
+            weight_unit: item.weight_unit === 't' ? 't' : 'kg',
             volume_m3: item.volume_m3,
+            length_m: item.length_m,
+            width_m: item.width_m,
+            height_m: item.height_m,
             package_type: item.package_type,
             package_count: item.package_count,
             dangerous_goods: item.dangerous_goods,

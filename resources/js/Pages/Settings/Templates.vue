@@ -1,5 +1,5 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:min-h-0">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:min-h-0">
         <div class="flex items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-semibold">Шаблоны</h1>
@@ -190,8 +190,31 @@
                         </button>
                     </div>
 
-                    <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submit">
-                        <div class="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-5 py-5 lg:grid-cols-2">
+                    <div class="flex shrink-0 gap-1 border-b border-zinc-200 px-5 pt-2 dark:border-zinc-800">
+                        <button
+                            type="button"
+                            class="rounded-t-lg px-3 py-2 text-sm font-medium"
+                            :class="templateModalTab === 'main'
+                                ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+                                : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+                            @click="templateModalTab = 'main'"
+                        >
+                            Основное
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-t-lg px-3 py-2 text-sm font-medium"
+                            :class="templateModalTab === 'placeholders'
+                                ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+                                : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+                            @click="templateModalTab = 'placeholders'"
+                        >
+                            Плейсхолдеры
+                        </button>
+                    </div>
+
+                    <form class="flex min-h-0 flex-1 flex-col overflow-hidden" @submit.prevent="submit">
+                        <div v-show="templateModalTab === 'main'" class="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-y-auto px-5 py-5 lg:grid-cols-2">
                             <div class="space-y-4">
                                 <div class="grid gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
@@ -513,47 +536,52 @@
                                     </div>
                                 </div>
 
-                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">Сопоставление плейсхолдеров (текст и данные)</div>
-                                    <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
-                                        Сюда попадают только подстановки значений заказа/лида. Плейсхолдеры подписи и печати настраиваются в блоке «Подпись и печать для DOCX» и здесь не дублируются.
-                                    </p>
-                                    <div v-if="form.variable_mappings.length > 0" class="space-y-3">
-                                        <div
-                                            v-for="(mapping, index) in form.variable_mappings"
-                                            :key="mapping.placeholder"
-                                            class="grid gap-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800"
-                                        >
-                                            <div>
-                                                <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Плейсхолдер</div>
-                                                <div class="mt-1 font-mono text-sm">{{ mapping.placeholder }}</div>
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium">Поле источника</label>
-                                                <select v-model="form.variable_mappings[index].source_path" class="field">
-                                                    <option value="">Не сопоставлено</option>
-                                                    <option v-for="option in activeVariableOptions" :key="option.value" :value="option.value">
-                                                        {{ option.label }}
-                                                    </option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-else class="text-sm text-zinc-500 dark:text-zinc-400">
-                                        Сначала загрузи DOCX или открой шаблон, в котором уже обнаружены плейсхолдеры.
-                                    </div>
-                                    <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                                        Для шаблонов заказа в списке уже показано итоговое сопоставление: явно сохранённое в БД плюс автоматические правила для типовых имён плейсхолдеров (как при генерации DOCX). Для лидов без явного маппинга по умолчанию подставляется путь с тем же именем, что и плейсхолдер.
-                                    </p>
-                                </div>
-
                                 <div class="border border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                                     Следующий этап после этого экрана: разбор плейсхолдеров, генерация DOCX, внедрение подписи и печати, финальная конвертация в PDF.
                                 </div>
                             </div>
                         </div>
 
-                        <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                        <div
+                            v-show="templateModalTab === 'placeholders'"
+                            class="min-h-0 flex-1 overflow-y-auto px-5 py-5"
+                        >
+                            <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="mb-3 text-sm font-medium">Сопоставление плейсхолдеров (текст и данные)</div>
+                                <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Подстановки заказа/лида. Плейсхолдеры подписи и печати — в блоке «Основное» → «Подпись и печать для DOCX».
+                                </p>
+                                <div v-if="form.variable_mappings.length > 0" class="grid gap-4 md:grid-cols-2">
+                                    <div
+                                        v-for="(mapping, index) in form.variable_mappings"
+                                        :key="mapping.placeholder"
+                                        class="grid gap-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800"
+                                    >
+                                        <div>
+                                            <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Плейсхолдер</div>
+                                            <div class="mt-1 font-mono text-sm break-all">{{ mapping.placeholder }}</div>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium">Поле источника</label>
+                                            <select v-model="form.variable_mappings[index].source_path" class="field">
+                                                <option value="">Не сопоставлено</option>
+                                                <option v-for="option in activeVariableOptions" :key="option.value" :value="option.value">
+                                                    {{ option.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else class="text-sm text-zinc-500 dark:text-zinc-400">
+                                    Сначала загрузи DOCX или открой шаблон, в котором уже обнаружены плейсхолдеры.
+                                </div>
+                                <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                    Для шаблонов заказа в списке показано итоговое сопоставление: явно сохранённое в БД плюс автоматические правила для типовых имён.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
                             <button
                                 type="button"
                                 class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
@@ -636,6 +664,7 @@ const props = defineProps({
 
 const showModal = ref(false);
 const editingTemplate = ref(null);
+const templateModalTab = ref('main');
 const previewOrderId = ref('');
 const previewLeadId = ref('');
 
@@ -710,6 +739,7 @@ function resetForm() {
 function openCreateModal() {
     editingTemplate.value = null;
     resetForm();
+    templateModalTab.value = 'main';
     showModal.value = true;
 }
 
@@ -745,6 +775,7 @@ function openEditModal(template) {
     form.stamp_image_file = null;
     previewOrderId.value = '';
     previewLeadId.value = '';
+    templateModalTab.value = 'main';
     showModal.value = true;
 }
 
@@ -923,7 +954,7 @@ function submit() {
         form.post(route('settings.templates.store'), {
             forceFormData: true,
             preserveScroll: true,
-            onSuccess: () => closeModal(),
+            preserveState: true,
         });
         return;
     }
@@ -936,9 +967,9 @@ function submit() {
         .post(route('settings.templates.update', editingTemplate.value.id), {
             forceFormData: true,
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => {
                 form.transform((data) => data);
-                closeModal();
             },
             onError: () => {
                 form.transform((data) => data);

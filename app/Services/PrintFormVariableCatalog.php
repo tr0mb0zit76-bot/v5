@@ -115,11 +115,18 @@ class PrintFormVariableCatalog
             ['value' => 'route.unloading_first_address', 'label' => 'Маршрут: Первая выгрузка, адрес'],
             ['value' => 'route.unloading_first_city', 'label' => 'Маршрут: Первая выгрузка, город'],
 
-            ['value' => 'cargo.summary', 'label' => 'Груз: Сводка'],
+            ['value' => 'cargo.summary', 'label' => 'Груз: Сводка (одной строкой по позициям)'],
+            ['value' => 'cargo.lines_multiline', 'label' => 'Груз: Все позиции, каждая с новой строки'],
             ['value' => 'cargo.names', 'label' => 'Груз: Наименования'],
             ['value' => 'cargo.total_weight', 'label' => 'Груз: Общий вес, кг'],
+            ['value' => 'cargo.total_weight_tons', 'label' => 'Груз: Общий вес, т'],
             ['value' => 'cargo.total_volume', 'label' => 'Груз: Общий объем, м3'],
             ['value' => 'cargo.total_packages', 'label' => 'Груз: Всего мест'],
+            ['value' => 'cargo.line_1_text', 'label' => 'Груз: Позиция 1 (текст одной строкой)'],
+            ['value' => 'cargo.line_2_text', 'label' => 'Груз: Позиция 2'],
+            ['value' => 'cargo.line_3_text', 'label' => 'Груз: Позиция 3'],
+            ['value' => 'cargo.line_4_text', 'label' => 'Груз: Позиция 4'],
+            ['value' => 'cargo.line_5_text', 'label' => 'Груз: Позиция 5'],
         ];
     }
 
