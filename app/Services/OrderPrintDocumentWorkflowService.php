@@ -8,6 +8,7 @@ use App\Models\PrintFormTemplate;
 use App\Models\User;
 use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -17,6 +18,7 @@ class OrderPrintDocumentWorkflowService
     public function __construct(
         private readonly OrderPrintFormDraftService $draftService,
         private readonly DocumentStorageService $documentStorage,
+        private readonly DocxPdfPreviewService $docxPdfPreviewService,
     ) {}
 
     /**
@@ -25,7 +27,7 @@ class OrderPrintDocumentWorkflowService
     public function createFromTemplate(Order $order, PrintFormTemplate $template, User $user): OrderDocument
     {
         $order = $this->draftService->loadOrderContext($order);
-        $generated = $this->draftService->generate($template, $order);
+        $generated = $this->draftService->generate($template, $order, false);
 
         $permanentPath = sprintf('order_documents/%d/%s-draft.docx', $order->id, (string) Str::uuid());
         $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
@@ -168,6 +170,9 @@ class OrderPrintDocumentWorkflowService
         }
 
         $document->update($updates);
+
+        $document->refresh();
+        $this->materializeSignedPrintArtifacts($document);
     }
 
     public function reject(OrderDocument $document, User $user, string $reason): void
@@ -220,6 +225,11 @@ class OrderPrintDocumentWorkflowService
 
         if ($document->workflow_status !== OrderDocumentWorkflowStatus::APPROVED) {
             throw new \InvalidArgumentException('Загрузить финальный PDF можно только после согласования.');
+        }
+
+        if (filled($document->generated_pdf_path)) {
+            $prevDriver = (string) data_get($document->metadata, 'generated_pdf_storage_driver', DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete((string) $document->generated_pdf_path, $prevDriver);
         }
 
         $path = sprintf('order_documents/%d/%s-final.pdf', $document->order_id, (string) Str::uuid());
@@ -290,7 +300,7 @@ class OrderPrintDocumentWorkflowService
         $template = PrintFormTemplate::query()->findOrFail($document->template_id);
         $order = Order::query()->findOrFail($document->order_id);
         $order = $this->draftService->loadOrderContext($order);
-        $generated = $this->draftService->generate($template, $order);
+        $generated = $this->draftService->generate($template, $order, false);
 
         if ($document->file_path) {
             $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
@@ -320,9 +330,112 @@ class OrderPrintDocumentWorkflowService
 
         $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
+        $metadata = $this->withoutCachedBrowserPreviewPdf($document, $metadata);
         $updates['metadata'] = $metadata;
 
         $document->update($updates);
+    }
+
+    /**
+     * После согласования руководителем: DOCX с печатью/подписью и PDF для отправки менеджером (если доступен Gotenberg).
+     */
+    private function materializeSignedPrintArtifacts(OrderDocument $document): void
+    {
+        if ($document->template_id === null) {
+            return;
+        }
+
+        if (! Schema::hasColumn('order_documents', 'workflow_status')
+            || $document->workflow_status !== OrderDocumentWorkflowStatus::APPROVED) {
+            return;
+        }
+
+        $template = PrintFormTemplate::query()->find($document->template_id);
+        if ($template === null) {
+            return;
+        }
+
+        $order = Order::query()->findOrFail($document->order_id);
+        $order = $this->draftService->loadOrderContext($order);
+        $generated = $this->draftService->generate($template, $order, true);
+
+        if ($document->file_path) {
+            $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete($document->file_path, $storageDriver);
+        }
+
+        $permanentPath = sprintf('order_documents/%d/%s-signed.docx', $order->id, (string) Str::uuid());
+        $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
+        $this->documentStorage->put($permanentPath, $docxContents);
+        Storage::disk($generated['disk'])->delete($generated['path']);
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $metadata = $this->withoutCachedBrowserPreviewPdf($document, $metadata);
+        $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
+
+        $pdfContents = $this->docxPdfPreviewService->convertToPdf($docxContents, $generated['download_name']);
+        $pdfPath = null;
+        if ($pdfContents !== null) {
+            $pdfPath = sprintf('order_documents/%d/%s-approved.pdf', $order->id, (string) Str::uuid());
+            $this->documentStorage->put($pdfPath, $pdfContents, $this->documentStorage->configuredDriver());
+            $metadata['generated_pdf_storage_driver'] = $this->documentStorage->configuredDriver();
+        } else {
+            Log::warning('order.print_workflow.approved_pdf_skipped', [
+                'order_document_id' => $document->id,
+                'message' => 'Конвертация DOCX→PDF недоступна; менеджеру остаётся DOCX с печатью и подписью.',
+            ]);
+        }
+
+        $updates = [
+            'file_path' => $permanentPath,
+            'metadata' => $metadata,
+        ];
+
+        if ($pdfPath !== null) {
+            $updates['generated_pdf_path'] = $pdfPath;
+        }
+
+        if (Schema::hasColumn('order_documents', 'file_size')) {
+            $updates['file_size'] = $this->documentStorage->size(
+                $permanentPath,
+                knownContents: $docxContents
+            );
+        }
+
+        if (Schema::hasColumn('order_documents', 'mime_type')) {
+            $updates['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        }
+
+        if (Schema::hasColumn('order_documents', 'original_name')) {
+            $updates['original_name'] = $generated['download_name'];
+        }
+
+        $document->update($updates);
+    }
+
+    /**
+     * Удаляет закэшированный PDF предпросмотра в браузере — он привязан к старому DOCX и иначе остаётся в iframe.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function withoutCachedBrowserPreviewPdf(OrderDocument $document, array $metadata): array
+    {
+        $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
+        if ($previewPath !== '') {
+            $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete($previewPath, $previewDriver);
+        }
+
+        unset(
+            $metadata['preview_pdf_path'],
+            $metadata['preview_pdf_storage_driver'],
+            $metadata['preview_pdf_generated_at'],
+            $metadata['preview_pdf_source_docx_path'],
+            $metadata['preview_pdf_source_docx_size'],
+        );
+
+        return $metadata;
     }
 
     /**
@@ -332,13 +445,26 @@ class OrderPrintDocumentWorkflowService
     {
         $this->assertWorkflowDocument($document);
 
-        if (filled($document->generated_pdf_path)) {
-            throw new \InvalidArgumentException('Нельзя удалить документ с прикреплённым финальным PDF.');
-        }
-
         if (Schema::hasColumn('order_documents', 'workflow_status')
             && $document->workflow_status === OrderDocumentWorkflowStatus::FINALIZED) {
             throw new \InvalidArgumentException('Нельзя удалить зафиксированный документ.');
+        }
+
+        if (Schema::hasColumn('order_documents', 'signature_status')
+            && ($document->signature_status ?? '') === 'signed_both_sides') {
+            throw new \InvalidArgumentException('Нельзя удалить документ после подписания с двух сторон.');
+        }
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
+        if ($previewPath !== '') {
+            $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete($previewPath, $previewDriver);
+        }
+
+        if (filled($document->generated_pdf_path)) {
+            $pdfDriver = (string) data_get($document->metadata, 'generated_pdf_storage_driver', DocumentStorageService::DRIVER_LOCAL);
+            $this->documentStorage->delete((string) $document->generated_pdf_path, $pdfDriver);
         }
 
         if (filled($document->file_path)) {

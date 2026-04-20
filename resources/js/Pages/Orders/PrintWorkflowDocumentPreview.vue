@@ -23,6 +23,13 @@
 
         <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 overflow-hidden p-3">
             <div
+                v-if="documentPreview && !documentPreview.pdf_preview_available"
+                class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+                role="status"
+            >
+                {{ documentPreview.hint }}
+            </div>
+            <div
                 v-if="canAdjustOverlay && hasAnyOverlayImage"
                 class="space-y-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             >
@@ -73,13 +80,13 @@
                 <div ref="overlayCanvas" class="relative mx-auto w-full max-w-[980px]" :style="canvasStyle">
                     <iframe
                         :src="embedUrl"
-                        :class="positionModeEnabled ? 'pointer-events-none' : 'pointer-events-auto'"
+                        :class="iframePointerEventsClass"
                         class="absolute inset-0 h-full w-full border-0"
                         title="Предпросмотр черновика"
                     />
 
                     <button
-                        v-if="positionModeEnabled && stampOverlayImageUrl"
+                        v-if="positionModeEnabled && !readonlyOverlayDecorations && stampOverlayImageUrl"
                         type="button"
                         class="absolute z-20 cursor-move rounded border border-emerald-500/70 bg-transparent"
                         :style="stampStyle"
@@ -89,7 +96,7 @@
                     </button>
 
                     <button
-                        v-if="positionModeEnabled && signatureOverlayImageUrl"
+                        v-if="positionModeEnabled && !readonlyOverlayDecorations && signatureOverlayImageUrl"
                         type="button"
                         class="absolute z-30 cursor-move rounded border border-sky-500/70 bg-transparent"
                         :style="signatureStyle"
@@ -97,30 +104,93 @@
                     >
                         <img :src="signatureOverlayImageUrl" alt="Подпись" class="h-full w-full select-none object-contain" draggable="false" />
                     </button>
+
+                    <div
+                        v-if="readonlyOverlayDecorations && stampOverlayImageUrl"
+                        class="pointer-events-none absolute z-20 rounded border border-emerald-500/40 bg-transparent"
+                        :style="stampStyle"
+                    >
+                        <img :src="stampOverlayImageUrl" alt="Печать" class="h-full w-full select-none object-contain" draggable="false" />
+                    </div>
+
+                    <div
+                        v-if="readonlyOverlayDecorations && signatureOverlayImageUrl"
+                        class="pointer-events-none absolute z-30 rounded border border-sky-500/40 bg-transparent"
+                        :style="signatureStyle"
+                    >
+                        <img :src="signatureOverlayImageUrl" alt="Подпись" class="h-full w-full select-none object-contain" draggable="false" />
+                    </div>
                 </div>
             </div>
         </main>
 
         <footer class="shrink-0 border-t border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-                <Link
-                    :href="route('orders.edit', orderId)"
-                    class="text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-200"
+            <div class="mx-auto flex max-w-6xl flex-col gap-3">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <Link
+                        :href="route('orders.edit', orderId)"
+                        class="text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-200"
+                    >
+                        {{ canWorkflowApprove ? '← К заказу' : 'Вернуться и исправить данные' }}
+                    </Link>
+                    <div v-if="canWorkflowApprove || canWorkflowReject" class="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                            :disabled="submitting || rejectSubmitting"
+                            @click="approveWorkflow"
+                        >
+                            {{ submitting ? 'Подписание…' : 'Подписать' }}
+                        </button>
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center rounded-xl border border-rose-300 px-5 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60 dark:border-rose-700 dark:text-rose-200 dark:hover:bg-rose-950/40"
+                            :disabled="submitting || rejectSubmitting"
+                            @click="toggleRejectPanel"
+                        >
+                            Отказать
+                        </button>
+                    </div>
+                    <button
+                        v-else-if="canRequestApproval"
+                        type="button"
+                        class="inline-flex items-center justify-center rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        :disabled="submitting"
+                        @click="sendForApproval"
+                    >
+                        {{ submitting ? 'Отправка…' : 'Отправить на согласование' }}
+                    </button>
+                    <p v-else class="text-sm text-zinc-500 dark:text-zinc-400">Действия по этому документу сейчас недоступны.</p>
+                </div>
+                <div
+                    v-if="rejectPanelOpen && (canWorkflowApprove || canWorkflowReject)"
+                    class="rounded-xl border border-rose-200 bg-rose-50/50 p-3 dark:border-rose-900 dark:bg-rose-950/30"
                 >
-                    Вернуться и исправить данные
-                </Link>
-                <button
-                    v-if="canRequestApproval"
-                    type="button"
-                    class="inline-flex items-center justify-center rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                    :disabled="submitting"
-                    @click="sendForApproval"
-                >
-                    {{ submitting ? 'Отправка…' : 'Отправить на согласование' }}
-                </button>
-                <p v-else class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Отправка на согласование сейчас недоступна.
-                </p>
+                    <label class="mb-1 block text-xs font-medium text-rose-900 dark:text-rose-200">Комментарий к отказу</label>
+                    <textarea
+                        v-model="rejectReason"
+                        rows="3"
+                        class="mb-2 w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm dark:border-rose-800 dark:bg-zinc-950"
+                        placeholder="Укажите причину отказа"
+                    />
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-rose-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-800 disabled:opacity-50"
+                            :disabled="!rejectReason.trim() || rejectSubmitting"
+                            @click="submitWorkflowReject"
+                        >
+                            {{ rejectSubmitting ? 'Отправка…' : 'Подтвердить отказ' }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs dark:border-zinc-600"
+                            @click="cancelRejectPanel"
+                        >
+                            Отмена
+                        </button>
+                    </div>
+                </div>
             </div>
         </footer>
     </div>
@@ -148,6 +218,10 @@ const props = defineProps({
     embedUrl: { type: String, required: true },
     workflowStatusLabel: { type: String, default: null },
     canRequestApproval: { type: Boolean, default: false },
+    canWorkflowApprove: { type: Boolean, default: false },
+    canWorkflowReject: { type: Boolean, default: false },
+    workflowApproveUrl: { type: String, default: '' },
+    workflowRejectUrl: { type: String, default: '' },
     canAdjustOverlay: { type: Boolean, default: false },
     overlaySaveUrl: { type: String, default: null },
     signatureOverlayImageUrl: { type: String, default: null },
@@ -160,9 +234,22 @@ const props = defineProps({
     signatureHeightMm: { type: Number, default: 18 },
     stampWidthMm: { type: Number, default: 30 },
     stampHeightMm: { type: Number, default: 30 },
+    documentPreview: {
+        type: Object,
+        default: () => ({
+            driver: 'html',
+            gotenberg_url_configured: false,
+            pdf_preview_available: false,
+            hint: '',
+        }),
+    },
+    readonlyOverlayDecorations: { type: Boolean, default: false },
 });
 
 const submitting = ref(false);
+const rejectSubmitting = ref(false);
+const rejectPanelOpen = ref(false);
+const rejectReason = ref('');
 const savingPositions = ref(false);
 const positionModeEnabled = ref(Boolean(props.canAdjustOverlay));
 const dragState = ref(null);
@@ -180,6 +267,10 @@ const stampOffsetXmm = ref(Number(props.stampOffsetXmm || 0));
 const stampOffsetYmm = ref(Number(props.stampOffsetYmm || 0));
 
 const hasAnyOverlayImage = computed(() => Boolean(props.signatureOverlayImageUrl || props.stampOverlayImageUrl));
+
+const iframePointerEventsClass = computed(() =>
+    positionModeEnabled.value && !props.readonlyOverlayDecorations ? 'pointer-events-none' : 'pointer-events-auto',
+);
 
 const signatureStyle = computed(() =>
     buildOverlayStyle(
@@ -300,6 +391,45 @@ function sendForApproval() {
             preserveScroll: false,
             onFinish: () => {
                 submitting.value = false;
+            },
+        },
+    );
+}
+
+function approveWorkflow() {
+    if (!props.workflowApproveUrl) {
+        return;
+    }
+    submitting.value = true;
+    router.post(props.workflowApproveUrl, {}, {
+        preserveScroll: false,
+        onFinish: () => {
+            submitting.value = false;
+        },
+    });
+}
+
+function toggleRejectPanel() {
+    rejectPanelOpen.value = !rejectPanelOpen.value;
+}
+
+function cancelRejectPanel() {
+    rejectPanelOpen.value = false;
+    rejectReason.value = '';
+}
+
+function submitWorkflowReject() {
+    if (!props.workflowRejectUrl || !rejectReason.value.trim()) {
+        return;
+    }
+    rejectSubmitting.value = true;
+    router.post(
+        props.workflowRejectUrl,
+        { rejection_reason: rejectReason.value.trim() },
+        {
+            preserveScroll: false,
+            onFinish: () => {
+                rejectSubmitting.value = false;
             },
         },
     );

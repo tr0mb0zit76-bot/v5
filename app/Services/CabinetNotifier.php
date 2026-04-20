@@ -20,8 +20,13 @@ class CabinetNotifier
 
         $recipients = User::query()
             ->where('is_active', true)
-            ->whereHas('role', fn ($q) => $q->whereIn('name', ['admin', 'supervisor']))
             ->where('id', '!=', $requester->id)
+            ->where(function ($q): void {
+                $q->whereHas('role', fn ($rq) => $rq->whereIn('name', ['admin', 'supervisor']));
+                if (Schema::hasColumn('users', 'has_signing_authority')) {
+                    $q->orWhere('has_signing_authority', true);
+                }
+            })
             ->get();
 
         if ($recipients->isEmpty()) {
@@ -44,7 +49,7 @@ class CabinetNotifier
             $orderLabel
         );
 
-        $actionUrl = route('orders.edit', $order, false).'?tab=documents';
+        $actionUrl = route('orders.documents.preview-draft', [$order, $document], false);
 
         $notification = new CabinetInAppNotification(
             'order_document_approval',

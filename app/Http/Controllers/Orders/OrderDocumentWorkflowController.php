@@ -12,6 +12,7 @@ use App\Services\OrderCompensationService;
 use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
+use App\Support\DocumentPreview;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use Illuminate\Http\RedirectResponse;
@@ -102,7 +103,10 @@ class OrderDocumentWorkflowController extends Controller
 
         return redirect()
             ->route('orders.edit', $order)
-            ->with('flash', ['type' => 'success', 'message' => 'Документ согласован.']);
+            ->with('flash', [
+                'type' => 'success',
+                'message' => 'Документ подписан: в файл добавлены печать и подпись, сформирован PDF для отправки контрагенту (если настроен конвертер DOCX→PDF).',
+            ]);
     }
 
     public function reject(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
@@ -177,8 +181,17 @@ class OrderDocumentWorkflowController extends Controller
             : null;
 
         if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
+            $user = $request->user();
+            abort_if($user === null, 403);
+            if ($user->hasSigningAuthority()) {
+                $this->ensureCanApproveDocuments($request);
+                $this->ensureCanViewOrderDocuments($request, $order);
+            } else {
+                $this->ensureCanDiscardPendingApproval($request);
+            }
+        } elseif ($workflowStatus === OrderDocumentWorkflowStatus::APPROVED) {
             $this->ensureCanApproveDocuments($request);
-            $this->ensureCanDiscardPendingApproval($request);
+            $this->ensureCanViewOrderDocuments($request, $order);
         } else {
             $this->ensureCanEditOrder($request, $order);
             $this->ensureCanManagePrintWorkflow($request);
@@ -214,6 +227,48 @@ class OrderDocumentWorkflowController extends Controller
             OrderDocumentWorkflowStatus::REJECTED,
         ], true);
 
+        $previewMeta = DocumentPreview::inertiaMeta();
+        $template = $orderDocument->template_id
+            ? PrintFormTemplate::query()->find($orderDocument->template_id)
+            : null;
+
+        $workflowShowsPrintImages = in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true);
+
+        // После согласования при CRM-смещениях печать/подпись часто остаются только в VML; Gotenberg/LibreOffice
+        // может не отрисовать их в PDF. Показываем те же PNG поверх предпросмотра и при включённом PDF.
+        $readonlyOverlays = $workflowShowsPrintImages
+            && $template instanceof PrintFormTemplate
+            && $template->shouldApplyCrmOverlayOffsets();
+
+        $signatureOverlayImageUrl = null;
+        $stampOverlayImageUrl = null;
+        if ($readonlyOverlays) {
+            $settings = is_array($template->settings) ? $template->settings : [];
+            if (filled(data_get($settings, 'image_overlays.internal_signature.path'))) {
+                $signatureOverlayImageUrl = route('orders.documents.overlay-asset', [
+                    $order,
+                    $orderDocument,
+                    'internal_signature',
+                ]);
+            }
+            if (filled(data_get($settings, 'image_overlays.internal_stamp.path'))) {
+                $stampOverlayImageUrl = route('orders.documents.overlay-asset', [
+                    $order,
+                    $orderDocument,
+                    'internal_stamp',
+                ]);
+            }
+        }
+
+        $settings = $template instanceof PrintFormTemplate && is_array($template->settings) ? $template->settings : [];
+
+        $canSign = $request->user()?->hasSigningAuthority() ?? false;
+        $canWorkflowApprove = $canSign && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL;
+        $canWorkflowReject = $canWorkflowApprove;
+
         return Inertia::render('Orders/PrintWorkflowDocumentPreview', [
             'orderId' => $order->id,
             'orderNumber' => $order->order_number,
@@ -222,10 +277,24 @@ class OrderDocumentWorkflowController extends Controller
             'embedUrl' => route('orders.documents.download-draft', [$order, $orderDocument]).'?preview=1&preview_mode=browser',
             'workflowStatusLabel' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
             'canRequestApproval' => $canRequestApproval,
+            'canWorkflowApprove' => $canWorkflowApprove,
+            'canWorkflowReject' => $canWorkflowReject,
+            'workflowApproveUrl' => route('orders.documents.approve', [$order, $orderDocument]),
+            'workflowRejectUrl' => route('orders.documents.reject', [$order, $orderDocument]),
             'canAdjustOverlay' => false,
             'overlaySaveUrl' => null,
-            'signatureOverlayImageUrl' => null,
-            'stampOverlayImageUrl' => null,
+            'documentPreview' => $previewMeta,
+            'readonlyOverlayDecorations' => $readonlyOverlays && ($signatureOverlayImageUrl !== null || $stampOverlayImageUrl !== null),
+            'signatureOverlayImageUrl' => $signatureOverlayImageUrl,
+            'stampOverlayImageUrl' => $stampOverlayImageUrl,
+            'signatureOffsetXmm' => (float) data_get($settings, 'image_overlays.internal_signature.offset_x_mm', 0),
+            'signatureOffsetYmm' => (float) data_get($settings, 'image_overlays.internal_signature.offset_y_mm', 0),
+            'stampOffsetXmm' => (float) data_get($settings, 'image_overlays.internal_stamp.offset_x_mm', 0),
+            'stampOffsetYmm' => (float) data_get($settings, 'image_overlays.internal_stamp.offset_y_mm', 0),
+            'signatureWidthMm' => (float) data_get($settings, 'image_overlays.internal_signature.width_mm', 42),
+            'signatureHeightMm' => (float) data_get($settings, 'image_overlays.internal_signature.height_mm', 18),
+            'stampWidthMm' => (float) data_get($settings, 'image_overlays.internal_stamp.width_mm', 30),
+            'stampHeightMm' => (float) data_get($settings, 'image_overlays.internal_stamp.height_mm', 30),
         ]);
     }
 
@@ -245,6 +314,17 @@ class OrderDocumentWorkflowController extends Controller
         $disk = (string) data_get($template->settings, 'image_overlays.'.$overlayKey.'.disk', 'local');
 
         abort_if(! is_string($path) || $path === '' || ! Storage::disk($disk)->exists($path), 404);
+
+        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
+            ? $orderDocument->workflow_status
+            : null;
+        $revealed = in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true);
+        $privileged = $request->user() !== null
+            && ($request->user()->isAdmin() || $request->user()->isSupervisor());
+        abort_unless($revealed || $privileged, 404);
 
         $contents = Storage::disk($disk)->get($path);
         $mime = Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
@@ -267,6 +347,8 @@ class OrderDocumentWorkflowController extends Controller
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         abort_if(blank($orderDocument->file_path), 404);
+
+        $orderDocument->refresh();
 
         $cachedPreviewResponse = $this->resolveCachedPdfPreviewResponse($request, $order, $orderDocument);
         if ($cachedPreviewResponse !== null) {
@@ -348,9 +430,40 @@ class OrderDocumentWorkflowController extends Controller
             return null;
         }
 
+        if ($this->shouldInlineStoredWorkflowPdfForBrowserPreview($orderDocument)) {
+            $pdfPath = (string) $orderDocument->generated_pdf_path;
+            $pdfDriver = $this->resolveFinalPdfStorageDriver($orderDocument);
+            if ($this->documentStorage->exists($pdfPath, $pdfDriver)) {
+                $pdfContents = $this->documentStorage->get($pdfPath, $pdfDriver);
+
+                return $this->inlinePdfResponse($pdfContents, $order, $orderDocument);
+            }
+        }
+
         $metadata = is_array($orderDocument->metadata) ? $orderDocument->metadata : [];
         $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
         $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
+        $cachedSourceDocxPath = (string) ($metadata['preview_pdf_source_docx_path'] ?? '');
+        $cachedSourceDocxSize = (int) ($metadata['preview_pdf_source_docx_size'] ?? -1);
+
+        $currentDocxPath = (string) $orderDocument->file_path;
+        $currentDocxSize = (int) ($orderDocument->file_size ?? -1);
+
+        $cacheMatchesCurrentDraft = $cachedSourceDocxPath !== ''
+            && $cachedSourceDocxPath === $currentDocxPath
+            && ($cachedSourceDocxSize < 0 || $currentDocxSize < 0 || $cachedSourceDocxSize === $currentDocxSize);
+
+        if ($previewPath !== '' && ! $cacheMatchesCurrentDraft) {
+            $this->documentStorage->delete($previewPath, $previewDriver);
+            unset(
+                $metadata['preview_pdf_path'],
+                $metadata['preview_pdf_storage_driver'],
+                $metadata['preview_pdf_generated_at'],
+                $metadata['preview_pdf_source_docx_path'],
+                $metadata['preview_pdf_source_docx_size'],
+            );
+            $previewPath = '';
+        }
 
         if ($previewPath !== '' && $this->documentStorage->exists($previewPath, $previewDriver)) {
             $pdfContents = $this->documentStorage->get($previewPath, $previewDriver);
@@ -377,12 +490,33 @@ class OrderDocumentWorkflowController extends Controller
         $targetDriver = $this->documentStorage->configuredDriver();
         $this->documentStorage->put($targetPath, $pdfContents, $targetDriver);
 
+        $fingerprintSize = $currentDocxSize >= 0 ? $currentDocxSize : strlen($docxContents);
+
         $metadata['preview_pdf_path'] = $targetPath;
         $metadata['preview_pdf_storage_driver'] = $targetDriver;
         $metadata['preview_pdf_generated_at'] = now()->toIso8601String();
+        $metadata['preview_pdf_source_docx_path'] = $currentDocxPath;
+        $metadata['preview_pdf_source_docx_size'] = $fingerprintSize;
         $orderDocument->update(['metadata' => $metadata]);
 
         return $this->inlinePdfResponse($pdfContents, $order, $orderDocument);
+    }
+
+    private function shouldInlineStoredWorkflowPdfForBrowserPreview(OrderDocument $orderDocument): bool
+    {
+        if (! Schema::hasColumn('order_documents', 'workflow_status')) {
+            return false;
+        }
+
+        $status = $orderDocument->workflow_status;
+        if (! in_array($status, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true)) {
+            return false;
+        }
+
+        return filled($orderDocument->generated_pdf_path);
     }
 
     private function inlinePdfResponse(string $contents, Order $order, OrderDocument $orderDocument): Response
@@ -485,6 +619,13 @@ class OrderDocumentWorkflowController extends Controller
 
         if ($user->isManager() && (int) $order->manager_id === (int) $user->id) {
             return;
+        }
+
+        if ($user->hasSigningAuthority()) {
+            $order->loadMissing('documents');
+            if (OrderPrintWorkflowLock::orderHasPrintDocumentPendingApproval($order)) {
+                return;
+            }
         }
 
         abort(403);

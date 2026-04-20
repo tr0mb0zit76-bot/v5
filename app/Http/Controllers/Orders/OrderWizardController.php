@@ -787,23 +787,31 @@ class OrderWizardController extends Controller
         bool $canManageOrderDocuments,
         bool $canApproveOrderDocuments,
     ): bool {
-        if (filled($document->generated_pdf_path)) {
-            return false;
-        }
-
         if ($workflowStatus === OrderDocumentWorkflowStatus::FINALIZED) {
             return false;
         }
 
-        if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
+        $signatureStatus = Schema::hasColumn('order_documents', 'signature_status')
+            ? (string) ($document->signature_status ?? '')
+            : '';
+
+        if ($signatureStatus === 'signed_both_sides') {
             return false;
         }
 
-        return $canManageOrderDocuments && in_array($workflowStatus, [
-            OrderDocumentWorkflowStatus::DRAFT,
-            OrderDocumentWorkflowStatus::REJECTED,
-            OrderDocumentWorkflowStatus::APPROVED,
-        ], true);
+        $managerMayDiscardBeforeApproval = $canManageOrderDocuments
+            && in_array($workflowStatus, [
+                OrderDocumentWorkflowStatus::DRAFT,
+                OrderDocumentWorkflowStatus::REJECTED,
+            ], true);
+
+        $signerMayDiscardUntilBothSignatures = $canApproveOrderDocuments
+            && in_array($workflowStatus, [
+                OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+                OrderDocumentWorkflowStatus::APPROVED,
+            ], true);
+
+        return $managerMayDiscardBeforeApproval || $signerMayDiscardUntilBothSignatures;
     }
 
     private function printTemplatePartyLabel(PrintFormTemplate $template): string

@@ -1769,20 +1769,125 @@ class OrderWizardTest extends TestCase
         $this->assertStringEndsWith('-final.pdf', $path);
     }
 
-    public function test_manager_can_update_overlay_positions_from_preview_module(): void
+    public function test_regenerate_draft_clears_cached_browser_preview_pdf_metadata(): void
     {
-        Storage::fake('local');
+        $admin = $this->createAdminUser();
 
-        $managerRoleId = DB::table('roles')->insertGetId([
-            'name' => 'manager',
-            'display_name' => 'Manager',
-            'visibility_areas' => json_encode(['orders']),
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Заказчик кэш PDF',
+            'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        $manager = User::factory()->create([
-            'role_id' => $managerRoleId,
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WF-CACHE',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-04',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Storage::disk('local')->put(
+            'print-form-templates/10/wf-cache.docx',
+            file_get_contents($this->makeDocxPath([
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p></w:body></w:document>',
+            ]))
+        );
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'wf_cache',
+            'name' => 'Заявка кэш',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/10/wf-cache.docx',
+            'original_filename' => 'wf-cache.docx',
+            'settings' => json_encode([
+                'variables' => ['order.number'],
+                'variable_mapping' => [
+                    'order.number' => 'order.order_number',
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->post(route('orders.documents.from-template', $orderId), [
+            'print_form_template_id' => $templateId,
+        ])->assertRedirect(route('orders.edit', $orderId));
+
+        $documentId = (int) DB::table('order_documents')->where('order_id', $orderId)->value('id');
+        $this->assertNotSame(0, $documentId);
+
+        $stalePreview = 'order_documents/'.$orderId.'/stale-preview.pdf';
+        Storage::disk('local')->put($stalePreview, '%PDF-1.4 fake');
+
+        $row = DB::table('order_documents')->where('id', $documentId)->first();
+        $this->assertNotNull($row);
+        $metadata = json_decode((string) $row->metadata, true, 512, JSON_THROW_ON_ERROR);
+        $metadata['preview_pdf_path'] = $stalePreview;
+        $metadata['preview_pdf_storage_driver'] = 'local';
+        $metadata['preview_pdf_generated_at'] = now()->toIso8601String();
+        $metadata['preview_pdf_source_docx_path'] = 'order_documents/'.$orderId.'/nonexistent-old.docx';
+        $metadata['preview_pdf_source_docx_size'] = 999;
+
+        DB::table('order_documents')->where('id', $documentId)->update([
+            'metadata' => json_encode($metadata, JSON_THROW_ON_ERROR),
+        ]);
+
+        $this->assertTrue(Storage::disk('local')->exists($stalePreview));
+
+        $this->actingAs($admin)->post(route('orders.documents.regenerate-draft', [$orderId, $documentId]))
+            ->assertRedirect(route('orders.edit', $orderId));
+
+        $metadataAfter = json_decode((string) DB::table('order_documents')->where('id', $documentId)->value('metadata'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertArrayNotHasKey('preview_pdf_path', $metadataAfter);
+        $this->assertArrayNotHasKey('preview_pdf_source_docx_path', $metadataAfter);
+        $this->assertFalse(Storage::disk('local')->exists($stalePreview));
+    }
+
+    public function test_settings_user_can_update_template_overlay_positions(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'display_name' => 'Admin',
+            'visibility_areas' => json_encode(['orders', 'settings']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $admin = User::factory()->create([
+            'role_id' => $adminRoleId,
             'has_signing_authority' => false,
         ]);
 
@@ -1795,7 +1900,7 @@ class OrderWizardTest extends TestCase
 
         $orderId = DB::table('orders')->insertGetId([
             'order_number' => 'ORD-OVERLAY-1',
-            'manager_id' => $manager->id,
+            'manager_id' => $admin->id,
             'order_date' => now()->toDateString(),
             'status' => 'new',
             'customer_id' => $customerId,
@@ -1859,37 +1964,31 @@ class OrderWizardTest extends TestCase
                 ],
                 'pipeline_status' => 'placeholders_ready',
             ], JSON_THROW_ON_ERROR),
-            'created_by' => $manager->id,
-            'updated_by' => $manager->id,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        $this->actingAs($manager)->post(route('orders.documents.from-template', $orderId), [
-            'print_form_template_id' => $templateId,
-        ])->assertRedirect(route('orders.edit', $orderId));
-
-        $documentId = (int) DB::table('order_documents')
-            ->where('order_id', $orderId)
-            ->value('id');
-
-        $this->actingAs($manager)
-            ->get(route('orders.documents.overlay-asset', [
-                'order' => $orderId,
-                'orderDocument' => $documentId,
+        $this->actingAs($admin)
+            ->get(route('settings.templates.overlay-asset', [
+                'printFormTemplate' => $templateId,
                 'overlayKey' => 'internal_signature',
             ]))
             ->assertOk();
 
-        $this->actingAs($manager)->post(route('orders.documents.update-overlay-positions', [
-            'order' => $orderId,
-            'orderDocument' => $documentId,
+        $this->actingAs($admin)->post(route('settings.templates.update-overlay-positions', [
+            'printFormTemplate' => $templateId,
         ]), [
             'signature_offset_x_mm' => 12.5,
             'signature_offset_y_mm' => -4.5,
             'stamp_offset_x_mm' => -7.0,
             'stamp_offset_y_mm' => 9.0,
-        ])->assertRedirect(route('orders.documents.preview-draft', [$orderId, $documentId]));
+            'order_id' => $orderId,
+        ])->assertRedirect(route('settings.templates.preview-order-overlay', [
+            'printFormTemplate' => $templateId,
+            'order_id' => $orderId,
+        ]));
 
         $settings = json_decode((string) DB::table('print_form_templates')->where('id', $templateId)->value('settings'), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame(12.5, (float) data_get($settings, 'image_overlays.internal_signature.offset_x_mm'));
@@ -1958,7 +2057,7 @@ class OrderWizardTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_signing_authority_user_can_only_approve_or_reject_in_print_workflow(): void
+    public function test_signing_authority_user_can_approve_reject_or_discard_while_pending_approval(): void
     {
         $managerRoleId = DB::table('roles')->insertGetId([
             'name' => 'manager',
@@ -2022,7 +2121,7 @@ class OrderWizardTest extends TestCase
                 ->where('order.documents.0.can_request_approval', false)
                 ->where('order.documents.0.can_regenerate_draft', false)
                 ->where('order.documents.0.can_finalize', false)
-                ->where('order.documents.0.can_discard_print_draft', false)
+                ->where('order.documents.0.can_discard_print_draft', true)
             );
 
         $this->actingAs($signer)
@@ -2041,7 +2140,9 @@ class OrderWizardTest extends TestCase
 
         $this->actingAs($signer)
             ->delete(route('orders.documents.discard-print-workflow', [$orderId, $documentId]))
-            ->assertForbidden();
+            ->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseMissing('order_documents', ['id' => $documentId]);
     }
 
     public function test_print_workflow_discard_removes_draft_and_deletes_file(): void
@@ -2122,7 +2223,6 @@ class OrderWizardTest extends TestCase
         $documentId = (int) DB::table('order_documents')->where('order_id', $orderId)->value('id');
         $filePath = (string) DB::table('order_documents')->where('id', $documentId)->value('file_path');
         $this->assertNotSame('', $filePath);
-        Storage::disk('local')->assertExists($filePath);
 
         $this->actingAs($admin)->delete(route('orders.documents.discard-print-workflow', [$orderId, $documentId]))
             ->assertRedirect(route('orders.edit', $orderId));

@@ -1012,7 +1012,13 @@
                                             class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
                                             :href="doc.final_pdf_download_url"
                                         >
-                                            {{ doc.workflow_status === 'finalized' ? 'Скачать PDF с нашей подписью' : 'Скачать финальный PDF' }}
+                                            {{
+                                                doc.workflow_status === 'finalized'
+                                                    ? 'Скачать PDF с нашей подписью'
+                                                    : doc.workflow_status === 'approved'
+                                                      ? 'Скачать PDF для контрагента'
+                                                      : 'Скачать PDF'
+                                            }}
                                         </a>
                                     </div>
                                 </div>
@@ -1031,16 +1037,6 @@
                                     class="rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
                                 >
                                     {{ doc.signature_followup_hint }}
-                                </p>
-                                <p
-                                    v-if="doc.can_finalize && order?.id"
-                                    class="rounded-lg border border-emerald-200 bg-emerald-50/70 px-2 py-1.5 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-100"
-                                >
-                                    Укажите отсканированный PDF после печати: файл будет
-                                    <span class="font-medium">сохранён в хранилище документов</span>
-                                    ({{ documentStorage.label }}) в папке заказа
-                                    <code class="rounded bg-white/80 px-1 font-mono text-[11px] dark:bg-emerald-950/80">order_documents/{{ order.id }}/…-final.pdf</code>
-                                    и останется в карточке — скачивание по кнопке «Скачать PDF с нашей подписью» / «Скачать финальный PDF» выше.
                                 </p>
                                 <p
                                     v-if="doc.workflow_status === 'finalized' && doc.final_pdf_storage_path"

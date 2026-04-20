@@ -39,7 +39,7 @@ class DocumentPreview
         $hint = match (true) {
             $pdf => 'PDF-предпросмотр DOCX через Gotenberg включён — можно выравнивать печать и подпись по макету.',
             $driver === 'gotenberg' && $url === '' => 'Режим Gotenberg выбран, но GOTENBERG_URL пустой — укажите URL API (например http://127.0.0.1:3000) и выполните php artisan config:clear.',
-            default => 'Предпросмотр DOCX сейчас без PDF-макета. Для выравнивания печати и подписи включите Gotenberg: DOC_PREVIEW_DRIVER=gotenberg и GOTENBERG_URL=… (или задайте только GOTENBERG_URL, если DOC_PREVIEW_DRIVER не указан).',
+            default => 'Предпросмотр DOCX сейчас без PDF в браузере: без Gotenberg отдаётся DOCX inline. Для PDF в iframe задайте DOC_PREVIEW_DRIVER=gotenberg и GOTENBERG_URL=… (или только GOTENBERG_URL).',
         };
 
         return [

@@ -70,8 +70,9 @@ class OrderPrintFormDraftService
         }
 
         $overlayStyles = [];
+        $overlayTempFiles = [];
         if ($includeTemplateOverlays) {
-            $this->injectTemplateOverlayImages($processor, $template);
+            $overlayTempFiles = $this->injectTemplateOverlayImages($processor, $template);
             if ($template->shouldApplyCrmOverlayOffsets()) {
                 $overlayStyles = $this->buildOverlayFloatingStyles($template);
             }
@@ -88,6 +89,13 @@ class OrderPrintFormDraftService
         }
 
         $processor->saveAs($absoluteTarget);
+
+        foreach ($overlayTempFiles as $tmpPath) {
+            if (is_string($tmpPath) && $tmpPath !== '' && is_file($tmpPath)) {
+                @unlink($tmpPath);
+            }
+        }
+
         if ($includeTemplateOverlays && $overlayStyles !== []) {
             $this->applyFloatingImageStyle($absoluteTarget, $overlayStyles);
         }
@@ -495,13 +503,18 @@ class OrderPrintFormDraftService
         return $trimmed === '' ? null : $trimmed;
     }
 
-    private function injectTemplateOverlayImages(TemplateProcessor $processor, PrintFormTemplate $template): void
+    /**
+     * @return list<string> Temporary filesystem paths created for PhpWord (delete after saveAs).
+     */
+    private function injectTemplateOverlayImages(TemplateProcessor $processor, PrintFormTemplate $template): array
     {
         $settings = is_array($template->settings) ? $template->settings : [];
         $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
 
-        $this->injectSingleOverlayImage($processor, is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [], 'internal_signature_image');
-        $this->injectSingleOverlayImage($processor, is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [], 'internal_stamp_image');
+        return array_values(array_filter(array_merge(
+            $this->injectSingleOverlayImage($processor, is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [], 'internal_signature_image'),
+            $this->injectSingleOverlayImage($processor, is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [], 'internal_stamp_image'),
+        )));
     }
 
     /**
@@ -526,17 +539,23 @@ class OrderPrintFormDraftService
 
     /**
      * @param  array<string, mixed>  $overlay
+     * @return list<string>
      */
-    private function injectSingleOverlayImage(TemplateProcessor $processor, array $overlay, string $defaultPlaceholder): void
+    private function injectSingleOverlayImage(TemplateProcessor $processor, array $overlay, string $defaultPlaceholder): array
     {
         $path = $overlay['path'] ?? null;
         if (! is_string($path) || $path === '') {
-            return;
+            return [];
         }
 
         $disk = (string) ($overlay['disk'] ?? 'local');
         if (! Storage::disk($disk)->exists($path)) {
-            return;
+            return [];
+        }
+
+        $resolved = $this->resolveOverlayImageAbsolutePathForPhpWord($disk, $path);
+        if ($resolved === null) {
+            return [];
         }
 
         $placeholder = trim((string) ($overlay['placeholder'] ?? $defaultPlaceholder));
@@ -549,7 +568,7 @@ class OrderPrintFormDraftService
         $widthPx = max(20, (int) round($widthMm * 3.78));
         $heightPx = max(20, (int) round($heightMm * 3.78));
 
-        $absolutePath = Storage::disk($disk)->path($path);
+        $absolutePath = $resolved['absolute'];
 
         $processor->setMacroChars('${', '}');
         $processor->setImageValue($placeholder, [
@@ -565,6 +584,44 @@ class OrderPrintFormDraftService
             'height' => $heightPx,
             'ratio' => true,
         ]);
+
+        return $resolved['cleanup'];
+    }
+
+    /**
+     * PhpWord needs a readable local path. Non-local disks (or adapters without a real path) copy into a temp file.
+     *
+     * @return array{absolute: string, cleanup: list<string>}|null
+     */
+    private function resolveOverlayImageAbsolutePathForPhpWord(string $disk, string $path): ?array
+    {
+        $filesystem = Storage::disk($disk);
+
+        try {
+            $candidate = $filesystem->path($path);
+            if (is_file($candidate)) {
+                return ['absolute' => $candidate, 'cleanup' => []];
+            }
+        } catch (\Throwable) {
+            // Flysystem adapters without a local path() throw or return unusable paths.
+        }
+
+        $contents = $filesystem->get($path);
+        $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
+        if ($ext === '') {
+            $ext = 'png';
+        }
+
+        $tmpBase = tempnam(sys_get_temp_dir(), 'crm-tpl-overlay-');
+        if ($tmpBase === false) {
+            return null;
+        }
+
+        @unlink($tmpBase);
+        $absolute = $tmpBase.'.'.$ext;
+        file_put_contents($absolute, $contents);
+
+        return ['absolute' => $absolute, 'cleanup' => [$absolute]];
     }
 
     private function resolvePrimaryAddressValue(Collection $points): ?string
