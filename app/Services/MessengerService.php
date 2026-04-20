@@ -142,7 +142,7 @@ class MessengerService
             $scopes = json_decode($scopes, true);
         }
 
-        $ordersScope = RoleAccess::resolveVisibilityScope($roleName, is_array($scopes) ? $scopes : null, 'orders');
+        $documentsScope = RoleAccess::resolveVisibilityScope($roleName, is_array($scopes) ? $scopes : null, 'documents');
 
         $query = DB::table('order_documents')
             ->join('orders', 'orders.id', '=', 'order_documents.order_id')
@@ -158,7 +158,7 @@ class MessengerService
             $query->addSelect('orders.order_customer_number');
         }
 
-        if ($roleName !== 'admin' && $ordersScope !== 'all') {
+        if ($roleName !== 'admin' && $documentsScope !== 'all') {
             $query->where('orders.manager_id', $user->id);
         }
 

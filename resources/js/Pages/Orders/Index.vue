@@ -35,6 +35,21 @@
                     <span>Найдено: {{ mobileRows.length }}</span>
                     <span>Всего: {{ rows.length }}</span>
                 </div>
+
+                <div class="-mx-1 flex gap-2 overflow-x-auto pb-1 pt-1">
+                    <button
+                        v-for="opt in mobileSortOptions"
+                        :key="opt.value"
+                        type="button"
+                        class="shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                        :class="mobileSort === opt.value
+                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                            : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-600'"
+                        @click="mobileSort = opt.value"
+                    >
+                        {{ opt.label }}
+                    </button>
+                </div>
             </section>
 
             <section class="space-y-3">
@@ -152,6 +167,15 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+
+const MOBILE_SORT_OPTIONS = [
+    { value: 'id_desc', label: 'Сначала новые' },
+    { value: 'id_asc', label: 'Сначала старые' },
+    { value: 'number_desc', label: 'Номер ↓' },
+    { value: 'number_asc', label: 'Номер ↑' },
+    { value: 'date_desc', label: 'Дата ↓' },
+    { value: 'date_asc', label: 'Дата ↑' },
+];
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -163,6 +187,8 @@ defineOptions({
 
 const page = usePage();
 const mobileSearch = ref('');
+const mobileSort = ref('id_desc');
+const mobileSortOptions = MOBILE_SORT_OPTIONS;
 
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const roleKey = computed(() => page.props.roleKey ?? page.props.auth?.user?.role?.name ?? 'manager');
@@ -178,24 +204,61 @@ const isMobileStandalone = computed(() => {
         && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
 });
 
+function sortMobileRows(list) {
+    const out = [...list];
+    const cmpNum = (a, b) => Number(a) - Number(b);
+    const cmpStr = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ru', { numeric: true, sensitivity: 'base' });
+    const dateVal = (r) => {
+        if (! r?.order_date) {
+            return 0;
+        }
+        const t = new Date(r.order_date).getTime();
+
+        return Number.isFinite(t) ? t : 0;
+    };
+
+    switch (mobileSort.value) {
+        case 'id_asc':
+            out.sort((a, b) => cmpNum(a.id, b.id));
+            break;
+        case 'number_desc':
+            out.sort((a, b) => -cmpStr(a.order_number, b.order_number));
+            break;
+        case 'number_asc':
+            out.sort((a, b) => cmpStr(a.order_number, b.order_number));
+            break;
+        case 'date_desc':
+            out.sort((a, b) => dateVal(b) - dateVal(a));
+            break;
+        case 'date_asc':
+            out.sort((a, b) => dateVal(a) - dateVal(b));
+            break;
+        case 'id_desc':
+        default:
+            out.sort((a, b) => cmpNum(b.id, a.id));
+    }
+
+    return out;
+}
+
 const mobileRows = computed(() => {
     const query = mobileSearch.value.trim().toLowerCase();
 
-    if (query === '') {
-        return rows.value;
-    }
+    const filtered = query === ''
+        ? rows.value
+        : rows.value.filter((row) => {
+            return [
+                row.order_number,
+                row.customer_name,
+                row.carrier_name,
+                row.loading_point,
+                row.unloading_point,
+                row.cargo_description,
+                row.status_text,
+            ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+        });
 
-    return rows.value.filter((row) => {
-        return [
-            row.order_number,
-            row.customer_name,
-            row.carrier_name,
-            row.loading_point,
-            row.unloading_point,
-            row.cargo_description,
-            row.status_text,
-        ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
-    });
+    return sortMobileRows(filtered);
 });
 
 const handleCellSave = (event) => {

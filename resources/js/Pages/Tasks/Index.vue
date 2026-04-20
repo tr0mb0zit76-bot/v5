@@ -252,6 +252,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';
 
@@ -504,9 +505,13 @@ function addComment() {
     });
 }
 
-function onAttachmentSelected(event) {
+async function onAttachmentSelected(event) {
     const files = event.target?.files;
-    attachmentFile.value = files && files[0] ? files[0] : null;
+    const picked = files && files[0] ? files[0] : null;
+    if (picked) {
+        await warnIfDocumentExceedsBudget(picked, page.props.document_upload_limits ?? {});
+    }
+    attachmentFile.value = picked;
     attachmentForm.file = attachmentFile.value;
 }
 

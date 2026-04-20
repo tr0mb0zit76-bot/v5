@@ -30,6 +30,7 @@ class User extends Authenticatable
         'has_signing_authority',
         'ai_preferences',
         'ai_learning_enabled',
+        'mobile_nav_keys',
     ];
 
     /**
@@ -52,6 +53,7 @@ class User extends Authenticatable
             'has_signing_authority' => 'boolean',
             'ai_learning_enabled' => 'boolean',
             'ai_preferences' => 'array',
+            'mobile_nav_keys' => 'array',
         ];
     }
 

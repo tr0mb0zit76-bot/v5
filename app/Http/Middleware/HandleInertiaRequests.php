@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Support\CabinetNotificationBadges;
+use App\Support\DocumentUploadLimits;
+use App\Support\MobileNavResolver;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,9 +47,11 @@ class HandleInertiaRequests extends Middleware
             'cabinet_notification_badges' => $user === null
                 ? ['total' => 0, 'orders' => 0, 'tasks' => 0]
                 : CabinetNotificationBadges::unreadFor($user),
+            'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
             'auth' => [
                 'user' => $user === null ? null : [
                     ...$user->toArray(),
+                    'mobile_nav' => MobileNavResolver::forInertiaUser($user),
                     'role' => $user->role_id === null || ! $hasRolesTable ? null : (function () use ($user, $hasVisibilityAreasColumn, $hasVisibilityScopesColumn) {
                         $columns = ['id', 'name', 'display_name', 'permissions', 'columns_config'];
 

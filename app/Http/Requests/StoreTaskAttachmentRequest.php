@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Models\Task;
+use App\Rules\DocumentWithinPageBudget;
+use App\Support\DocumentUploadBudget;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -33,7 +35,12 @@ class StoreTaskAttachmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', File::types(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'webp', 'txt'])->max(15 * 1024)],
+            'file' => [
+                'required',
+                File::types(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'webp', 'txt'])
+                    ->max(DocumentUploadBudget::absoluteMaxKilobytes()),
+                new DocumentWithinPageBudget,
+            ],
         ];
     }
 }

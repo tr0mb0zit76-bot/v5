@@ -181,6 +181,34 @@
                             </td>
                         </tr>
 
+                        <tr v-if="mobileNavCatalog.length">
+                            <td class="sticky left-0 z-10 border-b border-r border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
+                                <div class="font-medium">Мобильное приложение</div>
+                                <div class="text-xs text-zinc-500">Кнопки нижней панели по умолчанию (до 6). Пользователь может переопределить у себя в PWA.</div>
+                            </td>
+                            <td
+                                v-for="role in roleColumns"
+                                :key="`mnav-${role.id}`"
+                                class="border-b border-zinc-200 px-3 py-2.5 align-top dark:border-zinc-800"
+                            >
+                                <div class="flex max-w-[220px] flex-col gap-1.5">
+                                    <label
+                                        v-for="opt in mobileNavCatalog"
+                                        :key="`${role.id}-${opt.key}`"
+                                        class="inline-flex items-center gap-2 text-xs"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            class="rounded border-zinc-300"
+                                            :checked="(role.default_mobile_nav_keys || []).includes(opt.key)"
+                                            @change="toggleRoleMobileNavKey(role, opt.key)"
+                                        />
+                                        <span>{{ opt.label }}</span>
+                                    </label>
+                                </div>
+                            </td>
+                        </tr>
+
                         <tr class="bg-zinc-50/80 dark:bg-zinc-950/50">
                             <td class="sticky left-0 z-10 border-b border-r border-zinc-200 bg-zinc-50/80 px-3 py-2.5 font-medium dark:border-zinc-800 dark:bg-zinc-950/50">
                                 Права
@@ -347,6 +375,7 @@ const props = defineProps({
     permissionOptions: { type: Array, default: () => [] },
     visibilityAreaOptions: { type: Array, default: () => [] },
     visibilityScopeOptions: { type: Array, default: () => [] },
+    mobileNavCatalog: { type: Array, default: () => [] },
 });
 
 const showCreateForm = ref(false);
@@ -475,6 +504,7 @@ function cloneRole(role) {
         visibility_areas: visibilityAreas,
         visibility_scopes: normalizeScopes(role.visibility_scopes || {}),
         has_signing_authority: Boolean(role.default_has_signing_authority),
+        default_mobile_nav_keys: Array.isArray(role.default_mobile_nav_keys) ? [...role.default_mobile_nav_keys] : null,
         module_modes: Object.fromEntries(
             Object.entries(childAreaMap).map(([areaKey, childKeys]) => [
                 areaKey,
@@ -540,7 +570,19 @@ function serializeRole(role) {
             Object.entries(role.visibility_scopes).map(([key, value]) => [key, { mode: value.mode }]),
         ),
         has_signing_authority: role.has_signing_authority,
+        default_mobile_nav_keys: role.default_mobile_nav_keys,
     };
+}
+
+function toggleRoleMobileNavKey(role, key) {
+    const current = Array.isArray(role.default_mobile_nav_keys) ? [...role.default_mobile_nav_keys] : [];
+    const idx = current.indexOf(key);
+    if (idx >= 0) {
+        current.splice(idx, 1);
+    } else if (current.length < 6) {
+        current.push(key);
+    }
+    role.default_mobile_nav_keys = current.length ? current : null;
 }
 
 function removeRole(role) {

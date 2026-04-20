@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Http\Requests\UpdateMobileBottomNavRequest;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -38,6 +40,22 @@ class ProfileController extends Controller
         $request->user()->save();
 
         return Redirect::route('profile.edit');
+    }
+
+    /**
+     * Порядок и состав кнопок нижней панели в мобильном PWA (личные настройки пользователя).
+     */
+    public function updateMobileBottomNav(UpdateMobileBottomNavRequest $request): RedirectResponse
+    {
+        if (! Schema::hasColumn('users', 'mobile_nav_keys')) {
+            abort(404);
+        }
+
+        $keys = $request->validated('mobile_nav_keys');
+        $request->user()->mobile_nav_keys = $keys === [] ? null : array_values($keys);
+        $request->user()->save();
+
+        return Redirect::back();
     }
 
     /**

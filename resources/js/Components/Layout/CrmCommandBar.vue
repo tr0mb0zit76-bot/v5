@@ -424,6 +424,7 @@ import axios from 'axios';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import {
     ClipboardList,
     FileText,
@@ -884,8 +885,12 @@ function autosize() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
 }
 
-function handleFiles(event) {
+async function handleFiles(event) {
     const files = Array.from(event.target.files || []);
+    const limits = page.props.document_upload_limits ?? {};
+    for (const file of files) {
+        await warnIfDocumentExceedsBudget(file, limits);
+    }
     attachedFiles.value = [...attachedFiles.value, ...files];
     event.target.value = '';
 }

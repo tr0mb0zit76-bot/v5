@@ -13,7 +13,10 @@ use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -39,5 +42,22 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('api', ReconnectOnPreparedStatementError::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->renderable(function (PostTooLargeException $e, Request $request): ?Response {
+            $message = 'Размер отправленных данных слишком большой для текущих настроек PHP (post_max_size / upload_max_filesize). '
+                .'Увеличьте их в php.ini для вашего сайта (например upload_max_filesize=128M и post_max_size=128M; post_max_size должен быть не меньше upload_max_filesize). '
+                .'В OSPanel: настройки модуля PHP → php.ini. После изменения перезапустите веб-сервер.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 413);
+            }
+
+            if ($request->header('X-Inertia')) {
+                return redirect()->back()->with('flash', [
+                    'type' => 'error',
+                    'message' => $message,
+                ]);
+            }
+
+            return response($message, 413)->header('Content-Type', 'text/plain; charset=UTF-8');
+        });
     })->create();

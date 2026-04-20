@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\MobileNavCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -31,6 +32,8 @@ class StoreRoleRequest extends FormRequest
             'visibility_scopes.*' => ['array'],
             'visibility_scopes.*.mode' => ['required_with:visibility_scopes', 'string', Rule::in(array_column(RoleAccess::visibilityScopeOptions(), 'value'))],
             'has_signing_authority' => ['nullable', 'boolean'],
+            'default_mobile_nav_keys' => ['sometimes', 'nullable', 'array', 'max:'.MobileNavCatalog::MAX_SELECTABLE],
+            'default_mobile_nav_keys.*' => ['string', Rule::in(MobileNavCatalog::validKeys())],
         ];
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreRoleRequest;
 use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
+use App\Support\MobileNavCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,12 +39,16 @@ class RoleManagementController extends Controller
                     'default_has_signing_authority' => Schema::hasColumn('roles', 'has_signing_authority')
                         ? (bool) $role->has_signing_authority
                         : false,
+                    'default_mobile_nav_keys' => Schema::hasColumn('roles', 'default_mobile_nav_keys')
+                        ? ($role->default_mobile_nav_keys ?? null)
+                        : null,
                     'users_count' => $role->users_count,
                 ])
                 ->values(),
             'permissionOptions' => RoleAccess::permissionOptions(),
             'visibilityAreaOptions' => RoleAccess::visibilityAreaOptions(),
             'visibilityScopeOptions' => RoleAccess::visibilityScopeOptions(),
+            'mobileNavCatalog' => MobileNavCatalog::optionsForUi(),
         ]);
     }
 
@@ -63,6 +68,14 @@ class RoleManagementController extends Controller
 
         if (Schema::hasColumn('roles', 'has_signing_authority')) {
             $attributes['has_signing_authority'] = (bool) $request->validated('has_signing_authority', false);
+        }
+
+        if (Schema::hasColumn('roles', 'default_mobile_nav_keys')) {
+            $validated = $request->validated();
+            if (array_key_exists('default_mobile_nav_keys', $validated)) {
+                $keys = $validated['default_mobile_nav_keys'];
+                $attributes['default_mobile_nav_keys'] = is_array($keys) && $keys !== [] ? array_values($keys) : null;
+            }
         }
 
         Role::query()->create($attributes);
@@ -86,6 +99,14 @@ class RoleManagementController extends Controller
 
         if (Schema::hasColumn('roles', 'has_signing_authority')) {
             $attributes['has_signing_authority'] = (bool) $request->validated('has_signing_authority', false);
+        }
+
+        if (Schema::hasColumn('roles', 'default_mobile_nav_keys')) {
+            $validated = $request->validated();
+            if (array_key_exists('default_mobile_nav_keys', $validated)) {
+                $keys = $validated['default_mobile_nav_keys'];
+                $attributes['default_mobile_nav_keys'] = is_array($keys) && $keys !== [] ? array_values($keys) : null;
+            }
         }
 
         $role->update($attributes);

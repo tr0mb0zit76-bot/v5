@@ -67,6 +67,78 @@ class CabinetNotifier
         }
     }
 
+    /**
+     * Уведомление о согласовании заявки: менеджеру (владельцу заказа) и инициатору отправки на согласование (если это другие люди, не подписант).
+     */
+    public function notifyDocumentApproved(Order $order, OrderDocument $document, User $signer): void
+    {
+        if (! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $recipientIds = [];
+
+        if ($order->manager_id !== null) {
+            $recipientIds[] = (int) $order->manager_id;
+        }
+
+        if (Schema::hasColumn('order_documents', 'approval_requested_by') && $document->approval_requested_by !== null) {
+            $recipientIds[] = (int) $document->approval_requested_by;
+        }
+
+        $signerId = (int) $signer->id;
+        $recipientIds = array_values(array_unique(array_filter(
+            $recipientIds,
+            static fn (int $id): bool => $id > 0 && $id !== $signerId,
+        )));
+
+        if ($recipientIds === []) {
+            return;
+        }
+
+        $recipients = User::query()
+            ->where('is_active', true)
+            ->whereIn('id', $recipientIds)
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $orderLabel = $order->order_number !== null && $order->order_number !== ''
+            ? (string) $order->order_number
+            : '#'.$order->id;
+
+        $docName = $document->original_name !== null && $document->original_name !== ''
+            ? $document->original_name
+            : 'заявка';
+
+        $title = 'Заявка подписана';
+        $body = sprintf(
+            '%s согласовал(а) документ «%s» по заказу %s.',
+            $signer->name,
+            $docName,
+            $orderLabel
+        );
+
+        $actionUrl = route('orders.edit', [$order], false);
+
+        $notification = new CabinetInAppNotification(
+            'order_document_approved',
+            $title,
+            $body,
+            $actionUrl,
+            [
+                'order_id' => $order->id,
+                'order_document_id' => $document->id,
+            ]
+        );
+
+        foreach ($recipients as $user) {
+            $user->notify($notification);
+        }
+    }
+
     public function notifyTaskAssigned(Task $task, ?User $actor): void
     {
         if (! Schema::hasTable('notifications') || $actor === null) {

@@ -149,7 +149,8 @@
 
 <script setup>
 import { ref, watch } from 'vue';
-import { useForm } from '@inertiajs/vue3';
+import { useForm, usePage } from '@inertiajs/vue3';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 
 const props = defineProps({
     selectedDriver: { type: Object, default: null },
@@ -158,6 +159,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'saved']);
+
+const page = usePage();
 
 const carrierSearch = ref('');
 const carrierResults = ref([]);
@@ -261,8 +264,11 @@ function submitMain() {
     }
 }
 
-function onDocFile(e) {
+async function onDocFile(e) {
     const f = e.target?.files?.[0];
+    if (f) {
+        await warnIfDocumentExceedsBudget(f, page.props.document_upload_limits ?? {});
+    }
     docFile.value = f ?? null;
     docForm.file = f ?? null;
 }

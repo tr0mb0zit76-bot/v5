@@ -40,6 +40,14 @@
                         <span class="font-medium text-zinc-100">Установить приложение</span>.
                     </div>
 
+                    <button
+                        type="button"
+                        class="flex w-full items-center justify-center rounded-2xl border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm font-medium text-zinc-100 transition hover:bg-zinc-700"
+                        @click="continueMobileBrowserCabinet"
+                    >
+                        Продолжить в браузере
+                    </button>
+
                     <a
                         href="/"
                         class="flex w-full items-center justify-center rounded-2xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800"
@@ -61,6 +69,15 @@
                     </div>
 
                     <div class="flex items-center gap-2">
+                        <button
+                            v-if="authUser?.mobile_nav?.candidate_keys?.length"
+                            type="button"
+                            class="flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                            title="Нижнее меню приложения"
+                            @click="openMobileNavModal"
+                        >
+                            <LayoutGrid class="h-4 w-4" />
+                        </button>
                         <ThemeToggle />
                         <Link
                             :href="route('logout')"
@@ -74,17 +91,71 @@
                 </div>
             </header>
 
+            <div
+                v-if="mobileNavModalOpen"
+                class="fixed inset-0 z-[60] flex items-end justify-center bg-zinc-950/60 px-3 py-4 lg:hidden"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Настройка нижнего меню"
+                @click.self="mobileNavModalOpen = false"
+            >
+                <div class="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                    <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Кнопки внизу экрана</div>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        До 6 пунктов. Пустой список после «Сбросить» — как задано для роли в администрировании.
+                    </p>
+                    <div class="mt-4 max-h-[45vh] space-y-2 overflow-y-auto">
+                        <label
+                            v-for="entry in mobileNavCandidateEntries"
+                            :key="entry.key"
+                            class="flex cursor-pointer items-center gap-3 rounded-2xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
+                        >
+                            <input
+                                type="checkbox"
+                                class="rounded border-zinc-300"
+                                :checked="mobileNavDraftKeys.includes(entry.key)"
+                                @change="toggleMobileNavDraftKey(entry.key)"
+                            >
+                            <span>{{ entry.label }}</span>
+                        </label>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="flex-1 rounded-2xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+                            @click="saveMobileNavDraft"
+                        >
+                            Сохранить
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-2xl border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600"
+                            @click="resetMobileNavDraft"
+                        >
+                            Сбросить
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-2xl border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600"
+                            @click="mobileNavModalOpen = false"
+                        >
+                            Отмена
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <main class="min-h-0 flex-1 overflow-y-auto bg-zinc-50 px-4 pt-1.5 pb-28 dark:bg-zinc-950" scroll-region>
                 <slot />
             </main>
 
             <nav class="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-200 bg-white/95 px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-                <div class="grid grid-cols-5 gap-2">
+                <div class="flex gap-1">
                     <button
                         v-for="item in mobileNavItems"
                         :key="item.key"
                         type="button"
-                        class="relative flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition-colors"
+                        class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-medium transition-colors"
                         :class="activeKey === item.key
                             ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
                             : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
@@ -306,6 +377,7 @@ import {
     House,
     Kanban,
     LayoutDashboard,
+    LayoutGrid,
     LogOut,
     Menu,
     Package,
@@ -446,36 +518,126 @@ const hasSettingsMotivationAccess = computed(() => {
     return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
 });
 const hasFinanceSalaryAccess = computed(() => authUser.value?.role?.name === 'admin' || visibleAreas.value.includes('finance_salary'));
-const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value);
-const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
-const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
-const mobileNavItems = computed(() => {
-    const items = [
+
+const MOBILE_BROWSER_BYPASS = 'crm_mobile_browser_cabinet_v1';
+
+function readMobileBrowserBypassFromStorage() {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    try {
+        return window.localStorage.getItem(MOBILE_BROWSER_BYPASS) === '1';
+    } catch {
+        return false;
+    }
+}
+
+const allowMobileBrowserCabinet = ref(false);
+
+function continueMobileBrowserCabinet() {
+    try {
+        window.localStorage.setItem(MOBILE_BROWSER_BYPASS, '1');
+    } catch {
+        /* ignore */
+    }
+    allowMobileBrowserCabinet.value = true;
+}
+
+const MOBILE_NAV_DEF = [
     { key: 'dashboard', label: 'Главная', icon: House },
     { key: 'orders', label: 'Заказы', icon: Package },
     { key: 'tasks', label: 'Задачи', icon: ClipboardList },
     { key: 'kanban', label: 'Канбан', icon: Kanban },
     { key: 'documents', label: 'Документы', icon: FileText },
+    { key: 'reports', label: 'Отчёты', icon: BarChart3 },
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'orders-create', label: 'Новый', icon: SquarePen },
     { key: 'contractors', label: 'База', icon: Users },
-    { key: 'reports', label: 'Отчёты', icon: BarChart3 },
-    ];
+];
 
-    return items
-        .filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports'].includes(item.key))
-        .filter((item) => {
-            if (authUser.value?.role?.name === 'admin' || item.key === 'dashboard') {
-                return true;
-            }
+function mobileNavItemsLegacy() {
+    const items = MOBILE_NAV_DEF.filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports'].includes(item.key));
 
-            if (item.key === 'kanban') {
-                return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
-            }
+    return items.filter((item) => {
+        if (authUser.value?.role?.name === 'admin' || item.key === 'dashboard') {
+            return true;
+        }
 
-            return visibleAreas.value.includes(item.key);
-        });
+        if (item.key === 'kanban') {
+            return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
+        }
+
+        return visibleAreas.value.includes(item.key);
+    });
+}
+
+const mobileNavItems = computed(() => {
+    const resolved = authUser.value?.mobile_nav?.resolved_keys;
+    if (Array.isArray(resolved) && resolved.length > 0) {
+        return resolved
+            .map((key) => MOBILE_NAV_DEF.find((i) => i.key === key))
+            .filter(Boolean);
+    }
+
+    return mobileNavItemsLegacy();
 });
+
+const mobileNavModalOpen = ref(false);
+const mobileNavDraftKeys = ref([]);
+
+const mobileNavCandidateEntries = computed(() => {
+    const labels = authUser.value?.mobile_nav?.labels ?? {};
+    const candidates = authUser.value?.mobile_nav?.candidate_keys ?? [];
+    const order = MOBILE_NAV_DEF.map((i) => i.key);
+
+    return order
+        .filter((key) => candidates.includes(key))
+        .map((key) => ({
+            key,
+            label: labels[key] || MOBILE_NAV_DEF.find((i) => i.key === key)?.label || key,
+        }));
+});
+
+function openMobileNavModal() {
+    const cur = authUser.value?.mobile_nav?.resolved_keys;
+    const fallback = [...(authUser.value?.mobile_nav?.candidate_keys ?? [])].slice(0, 6);
+    mobileNavDraftKeys.value = Array.isArray(cur) && cur.length ? [...cur] : [...fallback];
+    mobileNavModalOpen.value = true;
+}
+
+function toggleMobileNavDraftKey(key) {
+    const arr = [...mobileNavDraftKeys.value];
+    const i = arr.indexOf(key);
+    if (i >= 0) {
+        arr.splice(i, 1);
+    } else if (arr.length < 6) {
+        arr.push(key);
+    }
+    mobileNavDraftKeys.value = arr;
+}
+
+function saveMobileNavDraft() {
+    router.patch(route('profile.mobile-bottom-nav'), { mobile_nav_keys: mobileNavDraftKeys.value }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            mobileNavModalOpen.value = false;
+        },
+    });
+}
+
+function resetMobileNavDraft() {
+    router.patch(route('profile.mobile-bottom-nav'), { mobile_nav_keys: [] }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            mobileNavDraftKeys.value = [];
+            mobileNavModalOpen.value = false;
+        },
+    });
+}
+
+const showMobileAppGate = computed(() => isMobileViewport.value && !isStandaloneApp.value && !allowMobileBrowserCabinet.value);
+const showMobileAppShell = computed(() => isMobileViewport.value && isStandaloneApp.value);
+const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
 
 const menuItems = computed(() => {
     const items = [
@@ -649,6 +811,7 @@ onBeforeMount(() => {
 });
 
 onMounted(() => {
+    allowMobileBrowserCabinet.value = readMobileBrowserBypassFromStorage();
     updateMobileEnvironment();
 
     window.addEventListener('resize', updateMobileEnvironment);

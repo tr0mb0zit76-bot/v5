@@ -5,7 +5,9 @@ namespace App\Http\Requests;
 use App\Models\Contractor;
 use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
+use App\Rules\DocumentWithinPageBudget;
 use App\Services\ContractorCreditService;
+use App\Support\DocumentUploadBudget;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -298,7 +300,12 @@ class StoreOrderRequest extends FormRequest
             'documents.*.document_date' => ['nullable', 'date'],
             'documents.*.status' => ['required', Rule::in(['draft', 'pending', 'signed', 'sent'])],
             'documents.*.template_id' => ['nullable', 'integer'],
-            'documents.*.file' => ['nullable', 'file', 'max:3072'],
+            'documents.*.file' => [
+                'nullable',
+                'file',
+                'max:'.DocumentUploadBudget::absoluteMaxKilobytes(),
+                new DocumentWithinPageBudget,
+            ],
         ];
     }
 }

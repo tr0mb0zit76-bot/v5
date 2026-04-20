@@ -19,6 +19,7 @@ class Role extends Model
         'visibility_scopes',
         'columns_config',
         'has_signing_authority',
+        'default_mobile_nav_keys',
     ];
 
     /**
@@ -32,6 +33,7 @@ class Role extends Model
             'visibility_scopes' => 'array',
             'columns_config' => 'array',
             'has_signing_authority' => 'boolean',
+            'default_mobile_nav_keys' => 'array',
         ];
     }
 

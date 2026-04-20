@@ -1367,6 +1367,7 @@ import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -1505,13 +1506,15 @@ function submitWorkflowReject(documentId) {
     );
 }
 
-function finalizeWorkflowPdf(doc, event) {
+async function finalizeWorkflowPdf(doc, event) {
     const target = event.target;
     const file = target?.files?.[0];
 
     if (!file || !props.order?.id) {
         return;
     }
+
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
 
     const formData = new FormData();
     formData.append('pdf', file);
@@ -3417,8 +3420,11 @@ watch(
     { immediate: true },
 );
 
-function onDocumentFileChange(index, event) {
+async function onDocumentFileChange(index, event) {
     const file = event.target.files?.[0] ?? null;
+    if (file) {
+        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    }
     form.documents[index].file = file;
     if (file) {
         form.documents[index].original_name = file.name;

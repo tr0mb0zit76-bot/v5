@@ -27,7 +27,15 @@ class DocumentRegistryController extends Controller
         abort_if($user === null, 403);
 
         $user->loadMissing('role');
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'orders');
+        $scopes = $user->role?->visibility_scopes;
+        if (is_string($scopes)) {
+            $scopes = json_decode($scopes, true);
+        }
+        $scope = RoleAccess::resolveVisibilityScope(
+            $user->role?->name,
+            is_array($scopes) ? $scopes : null,
+            'documents',
+        );
         $search = trim((string) $request->query('q', ''));
 
         $query = Order::query()
@@ -260,7 +268,22 @@ class DocumentRegistryController extends Controller
             return;
         }
 
-        abort_unless($user->isManager() && (int) $order->manager_id === (int) $user->id, 403);
+        $user->loadMissing('role');
+        $scopes = $user->role?->visibility_scopes;
+        if (is_string($scopes)) {
+            $scopes = json_decode($scopes, true);
+        }
+        $docScope = RoleAccess::resolveVisibilityScope(
+            $user->role?->name,
+            is_array($scopes) ? $scopes : null,
+            'documents',
+        );
+
+        if ($docScope === 'all') {
+            return;
+        }
+
+        abort_unless((int) $order->manager_id === (int) $user->id, 403);
     }
 
     private function nullableTrimmedString(mixed $value): ?string

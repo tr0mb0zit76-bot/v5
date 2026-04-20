@@ -74,7 +74,8 @@
                         </div>
                     </div>
                     <div>
-                        <label class="text-xs text-zinc-500">Файл (договор до 3 МБ, остальные до 1 МБ)</label>
+                        <label class="text-xs text-zinc-500">Файл</label>
+                        <p v-if="documentUploadHint" class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
                         <input type="file" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" @change="onFilePicked">
                         <p v-if="documentForm.errors.file" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.file }}</p>
                     </div>
@@ -93,6 +94,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useForm, usePage } from '@inertiajs/vue3';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import Modal from '@/Components/Modal.vue';
 import DocumentsGrid from '@/Components/Documents/DocumentsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -108,6 +110,7 @@ const props = defineProps({
 
 const page = usePage();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
+const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
 const showDocumentModal = ref(false);
 const modalMode = ref('create');
 const editingDocumentId = ref(null);
@@ -139,8 +142,11 @@ function orderLabel(order) {
     return order.order_number ? `${order.order_number} (${order.customer_name || '—'})` : `#${order.id}`;
 }
 
-function onFilePicked(event) {
+async function onFilePicked(event) {
     const [file] = event.target.files || [];
+    if (file) {
+        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    }
     documentForm.file = file ?? null;
 }
 

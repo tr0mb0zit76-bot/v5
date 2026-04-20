@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentWithinPageBudget;
+use App\Support\DocumentUploadBudget;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,7 +22,12 @@ class StoreFleetDriverDocumentRequest extends FormRequest
     {
         return [
             'document_type' => ['required', 'string', Rule::in(['passport', 'license', 'other'])],
-            'file' => ['required', 'file', 'max:10240'],
+            'file' => [
+                'required',
+                'file',
+                'max:'.DocumentUploadBudget::absoluteMaxKilobytes(),
+                new DocumentWithinPageBudget,
+            ],
         ];
     }
 }

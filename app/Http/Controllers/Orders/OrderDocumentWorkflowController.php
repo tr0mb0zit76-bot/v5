@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
+use App\Rules\DocumentWithinPageBudget;
 use App\Services\CabinetNotifier;
 use App\Services\DocumentStorageService;
 use App\Services\OrderCompensationService;
@@ -13,6 +14,7 @@ use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\DocumentPreview;
+use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use Illuminate\Http\RedirectResponse;
@@ -101,6 +103,9 @@ class OrderDocumentWorkflowController extends Controller
             abort(422, $e->getMessage());
         }
 
+        $orderDocument->refresh();
+        $this->cabinetNotifier->notifyDocumentApproved($order->fresh(), $orderDocument, $request->user());
+
         return redirect()
             ->route('orders.edit', $order)
             ->with('flash', [
@@ -136,7 +141,13 @@ class OrderDocumentWorkflowController extends Controller
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
         $validated = $request->validate([
-            'pdf' => ['required', 'file', 'mimes:pdf', 'max:15360'],
+            'pdf' => [
+                'required',
+                'file',
+                'mimes:pdf',
+                'max:'.DocumentUploadBudget::absoluteMaxKilobytes(),
+                new DocumentWithinPageBudget,
+            ],
         ]);
 
         try {
