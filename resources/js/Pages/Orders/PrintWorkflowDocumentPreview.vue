@@ -198,7 +198,7 @@
 
 <script setup>
 import { Link, router } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
     OVERLAY_PREVIEW_SIGNATURE_ANCHOR_LEGACY,
@@ -265,6 +265,30 @@ const signatureOffsetXmm = ref(Number(props.signatureOffsetXmm || 0));
 const signatureOffsetYmm = ref(Number(props.signatureOffsetYmm || 0));
 const stampOffsetXmm = ref(Number(props.stampOffsetXmm || 0));
 const stampOffsetYmm = ref(Number(props.stampOffsetYmm || 0));
+
+function resetOverlayUiFromProps() {
+    signatureOffsetXmm.value = Number(props.signatureOffsetXmm || 0);
+    signatureOffsetYmm.value = Number(props.signatureOffsetYmm || 0);
+    stampOffsetXmm.value = Number(props.stampOffsetXmm || 0);
+    stampOffsetYmm.value = Number(props.stampOffsetYmm || 0);
+    positionModeEnabled.value = Boolean(props.canAdjustOverlay);
+    stopDrag();
+}
+
+watch(
+    () => [
+        props.documentId,
+        props.signatureOffsetXmm,
+        props.signatureOffsetYmm,
+        props.stampOffsetXmm,
+        props.stampOffsetYmm,
+        props.canAdjustOverlay,
+        props.readonlyOverlayDecorations,
+    ],
+    () => {
+        resetOverlayUiFromProps();
+    },
+);
 
 const hasAnyOverlayImage = computed(() => Boolean(props.signatureOverlayImageUrl || props.stampOverlayImageUrl));
 

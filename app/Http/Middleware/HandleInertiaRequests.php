@@ -88,9 +88,7 @@ class HandleInertiaRequests extends Middleware
                         $columnsConfig = is_string($rawColumnsConfig)
                             ? json_decode($rawColumnsConfig, true)
                             : $rawColumnsConfig;
-                        $visibilityScopes = is_string($rawVisibilityScopes)
-                            ? json_decode($rawVisibilityScopes, true)
-                            : $rawVisibilityScopes;
+                        $visibilityScopes = RoleAccess::coerceVisibilityScopes($rawVisibilityScopes);
 
                         return [
                             'id' => $role->id,

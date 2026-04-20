@@ -195,6 +195,57 @@ class RoleAccess
     }
 
     /**
+     * Нормализует visibility_scopes из БД/Eloquent (массив, JSON-строка, null).
+     * Невалидная строка трактуется как отсутствие переопределений (null → дефолты роли).
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function coerceVisibilityScopes(mixed $raw): ?array
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+
+            return is_array($decoded) ? $decoded : null;
+        }
+
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        return null;
+    }
+
+    /**
+     * Удобный вход, когда роль читается из DB::table / массива (не модель User).
+     */
+    public static function resolveVisibilityScopeForRolePayload(?string $roleName, mixed $rawVisibilityScopes, string $area): string
+    {
+        return static::resolveVisibilityScope($roleName, static::coerceVisibilityScopes($rawVisibilityScopes), $area);
+    }
+
+    /**
+     * Разрешение области видимости для текущего пользователя (подгружает роль, нормализует scopes).
+     */
+    public static function resolveVisibilityScopeForUser(?User $user, string $area): string
+    {
+        if ($user === null) {
+            return static::resolveVisibilityScope(null, null, $area);
+        }
+
+        $user->loadMissing('role');
+
+        return static::resolveVisibilityScopeForRolePayload(
+            $user->role?->name,
+            $user->role?->visibility_scopes,
+            $area
+        );
+    }
+
+    /**
      * @return list<string>
      */
     public static function userVisibilityAreas(User $user): array
@@ -261,7 +312,7 @@ class RoleAccess
             return false;
         }
 
-        $scope = static::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+        $scope = static::resolveVisibilityScopeForUser($user, 'tasks');
 
         return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
     }
@@ -283,7 +334,7 @@ class RoleAccess
             return false;
         }
 
-        $scope = static::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+        $scope = static::resolveVisibilityScopeForUser($user, 'tasks');
 
         return $scope === 'all';
     }

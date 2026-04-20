@@ -17,7 +17,7 @@ class StoreLeadRequest extends FormRequest
             return;
         }
 
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
         if ($scope === 'own') {
             $this->merge(['responsible_id' => $user->id]);

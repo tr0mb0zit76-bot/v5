@@ -23,7 +23,7 @@ class OrderIndexController extends Controller
         $user = $request->user();
         $role = $this->resolveRole($user?->role_id);
         $roleName = $role['name'];
-        $ordersScope = RoleAccess::resolveVisibilityScope($roleName, $role['visibility_scopes'], 'orders');
+        $ordersScope = RoleAccess::resolveVisibilityScopeForRolePayload($roleName, $role['visibility_scopes'], 'orders');
 
         // Крупный JSON (ai_metadata, ati_response, metadata, payment_statuses) не выбираем — только карточка заказа.
 
@@ -243,12 +243,8 @@ class OrderIndexController extends Controller
         }
 
         $visibilityScopes = property_exists($role, 'visibility_scopes')
-            ? $role->visibility_scopes
-            : [];
-
-        if (is_string($visibilityScopes)) {
-            $visibilityScopes = json_decode($visibilityScopes, true);
-        }
+            ? RoleAccess::coerceVisibilityScopes($role->visibility_scopes)
+            : null;
 
         return [
             'name' => $role->name,

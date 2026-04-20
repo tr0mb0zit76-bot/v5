@@ -248,9 +248,15 @@ class OrderDocumentWorkflowController extends Controller
             OrderDocumentWorkflowStatus::FINALIZED,
         ], true);
 
-        // После согласования при CRM-смещениях печать/подпись часто остаются только в VML; Gotenberg/LibreOffice
-        // может не отрисовать их в PDF. Показываем те же PNG поверх предпросмотра и при включённом PDF.
+        // Если уже есть сгенерированный PDF, браузерный предпросмотр отдаёт его целиком (download-draft + preview) —
+        // подпись и печать уже внутри файла. HTML-слой с теми же PNG давал «двойные» печати/подписи.
+        // Дополнительные PNG сверху оставляем только когда PDF финала ещё нет (например, конвертер недоступен),
+        // а в DOCX остались только VML — тогда Gotenberg мог не отрисовать картинки в промежуточном PDF.
+        $hasAuthoritativeWorkflowPdf = $workflowShowsPrintImages
+            && filled($orderDocument->generated_pdf_path);
+
         $readonlyOverlays = $workflowShowsPrintImages
+            && ! $hasAuthoritativeWorkflowPdf
             && $template instanceof PrintFormTemplate
             && $template->shouldApplyCrmOverlayOffsets();
 

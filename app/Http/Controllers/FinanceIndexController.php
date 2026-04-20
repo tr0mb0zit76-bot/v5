@@ -21,7 +21,7 @@ class FinanceIndexController extends Controller
 
         $user = $request->user();
         $role = $financeOverview->resolveRole($user?->role_id);
-        $ordersScope = RoleAccess::resolveVisibilityScope($role['name'], $role['visibility_scopes'], 'orders');
+        $ordersScope = RoleAccess::resolveVisibilityScopeForRolePayload($role['name'], $role['visibility_scopes'], 'orders');
 
         $activeSubmodule = match ($request->query('section')) {
             'dds', 'cashflow' => 'cashflow',

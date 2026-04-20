@@ -35,7 +35,7 @@ class StoreLeadNextStepRequest extends FormRequest
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         if ($scope === 'own' && (int) $this->input('responsible_id') !== (int) $user->id) {
             return false;

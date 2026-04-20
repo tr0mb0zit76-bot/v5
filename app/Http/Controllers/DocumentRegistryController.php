@@ -26,16 +26,7 @@ class DocumentRegistryController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
 
-        $user->loadMissing('role');
-        $scopes = $user->role?->visibility_scopes;
-        if (is_string($scopes)) {
-            $scopes = json_decode($scopes, true);
-        }
-        $scope = RoleAccess::resolveVisibilityScope(
-            $user->role?->name,
-            is_array($scopes) ? $scopes : null,
-            'documents',
-        );
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
         $search = trim((string) $request->query('q', ''));
 
         $query = Order::query()
@@ -268,16 +259,7 @@ class DocumentRegistryController extends Controller
             return;
         }
 
-        $user->loadMissing('role');
-        $scopes = $user->role?->visibility_scopes;
-        if (is_string($scopes)) {
-            $scopes = json_decode($scopes, true);
-        }
-        $docScope = RoleAccess::resolveVisibilityScope(
-            $user->role?->name,
-            is_array($scopes) ? $scopes : null,
-            'documents',
-        );
+        $docScope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
 
         if ($docScope === 'all') {
             return;

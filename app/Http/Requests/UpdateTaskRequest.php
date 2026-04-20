@@ -69,7 +69,7 @@ class UpdateTaskRequest extends FormRequest
             return;
         }
 
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         if ($scope === 'own' && (int) $this->input('responsible_id') !== (int) $user->id) {
             abort(403);

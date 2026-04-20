@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -412,12 +413,8 @@ class FinanceOverviewService
         }
 
         $visibilityScopes = property_exists($role, 'visibility_scopes')
-            ? $role->visibility_scopes
-            : [];
-
-        if (is_string($visibilityScopes)) {
-            $visibilityScopes = json_decode($visibilityScopes, true);
-        }
+            ? RoleAccess::coerceVisibilityScopes($role->visibility_scopes)
+            : null;
 
         return [
             'name' => $role->name,

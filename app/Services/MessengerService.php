@@ -119,7 +119,7 @@ class MessengerService
     }
 
     /**
-     * Документы заказов для чипов-ссылок (видимость согласована со списком заказов).
+     * Документы заказов для чипов-ссылок (область видимости «Документы», как в реестре).
      * Без строки поиска — последние 40 по дате обновления; с непустым $search — фильтр по подстроке и числовому id (до 50 строк).
      *
      * @return list<array{id: int, order_id: int, label: string, url: string}>
@@ -137,12 +137,7 @@ class MessengerService
         }
 
         $roleName = $user->role?->name;
-        $scopes = $user->role?->visibility_scopes;
-        if (is_string($scopes)) {
-            $scopes = json_decode($scopes, true);
-        }
-
-        $documentsScope = RoleAccess::resolveVisibilityScope($roleName, is_array($scopes) ? $scopes : null, 'documents');
+        $documentsScope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
 
         $query = DB::table('order_documents')
             ->join('orders', 'orders.id', '=', 'order_documents.order_id')

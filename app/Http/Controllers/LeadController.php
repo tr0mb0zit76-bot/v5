@@ -296,8 +296,7 @@ class LeadController extends Controller
     private function leadRows(Request $request)
     {
         $user = $request->user();
-        $roleName = $user?->role?->name;
-        $leadsScope = RoleAccess::resolveVisibilityScope($roleName, $user?->role?->visibility_scopes, 'leads');
+        $leadsScope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
         $leads = Lead::query()
             ->with(['counterparty:id,name', 'responsible:id,name', 'offers:id,lead_id,status,number,offer_date'])
@@ -387,7 +386,7 @@ class LeadController extends Controller
             return true;
         }
 
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
         return $scope === 'all' || $lead->responsible_id === $user->id;
     }
@@ -404,7 +403,7 @@ class LeadController extends Controller
             return true;
         }
 
-        return RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'leads') === 'all';
+        return RoleAccess::resolveVisibilityScopeForUser($user, 'leads') === 'all';
     }
 
     private function canUseLeadTasks(Request $request): bool

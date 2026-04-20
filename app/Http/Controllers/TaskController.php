@@ -488,7 +488,7 @@ class TaskController extends Controller
         }
 
         $user = $request->user();
-        $scope = RoleAccess::resolveVisibilityScope($user?->role?->name, $user?->role?->visibility_scopes, 'tasks');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         $taskQuery = Task::query()
             ->with($this->taskEagerLoads())
@@ -556,7 +556,7 @@ class TaskController extends Controller
         }
 
         $user = $request->user();
-        $scope = RoleAccess::resolveVisibilityScope($user?->role?->name, $user?->role?->visibility_scopes, 'leads');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
         return Lead::query()
             ->when(
@@ -622,7 +622,7 @@ class TaskController extends Controller
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
     }

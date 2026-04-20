@@ -30,7 +30,7 @@ class TaskPolicy
             return false;
         }
 
-        $scope = RoleAccess::resolveVisibilityScope($user->role?->name, $user->role?->visibility_scopes, 'tasks');
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
 
         return $scope === 'all' || (int) $task->responsible_id === (int) $user->id;
     }
