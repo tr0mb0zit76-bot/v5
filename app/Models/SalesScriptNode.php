@@ -18,6 +18,8 @@ class SalesScriptNode extends Model
         'body',
         'hint',
         'sort_order',
+        'canvas_x',
+        'canvas_y',
     ];
 
     /**
@@ -49,6 +51,8 @@ class SalesScriptNode extends Model
         return [
             'kind' => SalesScriptNodeKind::class,
             'sort_order' => 'integer',
+            'canvas_x' => 'integer',
+            'canvas_y' => 'integer',
         ];
     }
 }

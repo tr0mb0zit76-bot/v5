@@ -13,6 +13,7 @@
         "laravel/framework": "^13.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
+        "league/html-to-markdown": "^5.0",
         "phpoffice/phpword": "^1.4",
         "tightenco/ziggy": "^2.0"
     },
@@ -95,3 +96,4 @@
     "minimum-stability": "stable",
     "prefer-stable": true
 }
+

@@ -8,6 +8,7 @@ use App\Http\Requests\AdvanceSalesScriptPlaySessionRequest;
 use App\Http\Requests\CompleteSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreSalesScriptPlaySessionRequest;
 use App\Models\SalesScript;
+use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptVersion;
@@ -75,13 +76,14 @@ class SalesScriptController extends Controller
         return to_route('scripts.sessions.show', $session);
     }
 
-    public function showSession(Request $request, SalesScriptPlaySession $session): Response
+    public function showSession(Request $request, SalesScriptPlaySession $sales_script_play_session): Response
     {
+        $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
         $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node']);
-
-        $current = $session->currentNode;
+        $current = $this->resolveCurrentNode($session);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node']);
         $outgoing = [];
         if ($current !== null && ! $session->isComplete()) {
             foreach ($this->playSessionService->outgoingTransitions($current) as $t) {
@@ -141,8 +143,91 @@ class SalesScriptController extends Controller
         ]);
     }
 
-    public function advance(AdvanceSalesScriptPlaySessionRequest $request, SalesScriptPlaySession $session): RedirectResponse
+    private function restoreMissingCurrentNode(SalesScriptPlaySession $session): void
     {
+        if ($session->isComplete()) {
+            return;
+        }
+
+        if ($session->currentNode !== null) {
+            return;
+        }
+
+        if ($session->current_node_id !== null) {
+            $directNode = SalesScriptNode::query()->find($session->current_node_id);
+            if ($directNode !== null) {
+                return;
+            }
+        }
+
+        $version = $session->version;
+        $entryNodeKey = $version?->entry_node_key;
+        if ($version === null || $entryNodeKey === null || $entryNodeKey === '') {
+            return;
+        }
+
+        $entryNode = $version->nodes()->where('client_key', $entryNodeKey)->first();
+        if ($entryNode === null) {
+            return;
+        }
+
+        $session->update([
+            'current_node_id' => $entryNode->id,
+        ]);
+    }
+
+    private function resolveCurrentNode(SalesScriptPlaySession $session): ?SalesScriptNode
+    {
+        if ($session->isComplete()) {
+            return $session->currentNode;
+        }
+
+        if ($session->currentNode !== null) {
+            return $session->currentNode;
+        }
+
+        $resolved = null;
+
+        if ($session->current_node_id !== null) {
+            $resolved = SalesScriptNode::query()->find($session->current_node_id);
+        }
+
+        if ($resolved === null) {
+            $lastEnteredEvent = $session->events
+                ->where('type', SalesPlayEventType::EnteredNode)
+                ->sortByDesc('id')
+                ->first();
+
+            if ($lastEnteredEvent?->sales_script_node_id !== null) {
+                $resolved = SalesScriptNode::query()->find($lastEnteredEvent->sales_script_node_id);
+            }
+        }
+
+        if ($resolved === null) {
+            $this->restoreMissingCurrentNode($session);
+            $session->refresh();
+            $resolved = $session->currentNode;
+
+            if ($resolved === null && $session->current_node_id !== null) {
+                $resolved = SalesScriptNode::query()->find($session->current_node_id);
+            }
+        }
+
+        if ($resolved !== null && (int) $session->current_node_id !== (int) $resolved->id) {
+            $session->update([
+                'current_node_id' => $resolved->id,
+            ]);
+            $session->setRelation('currentNode', $resolved);
+        }
+
+        return $resolved;
+    }
+
+    public function advance(
+        AdvanceSalesScriptPlaySessionRequest $request,
+        SalesScriptPlaySession $sales_script_play_session,
+    ): RedirectResponse {
+        $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
         $validated = $request->validated();
@@ -159,8 +244,11 @@ class SalesScriptController extends Controller
         return to_route('scripts.sessions.show', $session);
     }
 
-    public function complete(CompleteSalesScriptPlaySessionRequest $request, SalesScriptPlaySession $session): RedirectResponse
-    {
+    public function complete(
+        CompleteSalesScriptPlaySessionRequest $request,
+        SalesScriptPlaySession $sales_script_play_session,
+    ): RedirectResponse {
+        $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
         $validated = $request->validated();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SalesScriptNodeKind;
+use App\Http\Requests\SalesScripts\SaveGraphRequest;
 use App\Http\Requests\SalesScripts\StoreNodeRequest;
 use App\Http\Requests\SalesScripts\StoreScriptRequest;
 use App\Http\Requests\SalesScripts\StoreTransitionRequest;
@@ -52,8 +53,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function updateScript(UpdateScriptRequest $request, SalesScript $script): RedirectResponse
+    public function updateScript(UpdateScriptRequest $request, SalesScript $sales_script): RedirectResponse
     {
+        $script = $sales_script;
         $this->authorize('update', $script);
 
         $script->update($request->validated());
@@ -64,8 +66,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function destroyScript(SalesScript $script): RedirectResponse
+    public function destroyScript(SalesScript $sales_script): RedirectResponse
     {
+        $script = $sales_script;
         $this->authorize('delete', $script);
 
         $script->delete();
@@ -76,8 +79,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function storeVersion(StoreVersionRequest $request, SalesScript $script): RedirectResponse
+    public function storeVersion(StoreVersionRequest $request, SalesScript $sales_script): RedirectResponse
     {
+        $script = $sales_script;
         $this->authorize('update', $script);
 
         $version = DB::transaction(function () use ($request, $script): SalesScriptVersion {
@@ -126,8 +130,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function showVersion(SalesScriptVersion $version): Response
+    public function showVersion(SalesScriptVersion $sales_script_version): Response
     {
+        $version = $sales_script_version;
         $this->authorize('view', $version);
 
         $version->load(['script']);
@@ -142,8 +147,116 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function updateVersion(UpdateVersionRequest $request, SalesScriptVersion $version): RedirectResponse
+    public function showGraph(SalesScriptVersion $sales_script_version): Response
     {
+        $version = $sales_script_version;
+        $this->authorize('view', $version);
+
+        $version->load(['script']);
+
+        return Inertia::render('SalesScripts/Editor/Graph', [
+            'payload' => $this->serializeVersionPayload($version),
+            'reactionClasses' => SalesScriptReactionClass::query()
+                ->orderBy('sort_order')
+                ->orderBy('label')
+                ->get(['id', 'key', 'label']),
+            'nodeKinds' => $this->nodeKindOptions(),
+        ]);
+    }
+
+    public function updateGraph(SaveGraphRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse
+    {
+        $version = $sales_script_version;
+        $this->authorize('update', $version);
+
+        $validated = $request->validated();
+        $nodesPayload = collect($validated['nodes'])->values();
+        $transitionsPayload = collect($validated['transitions'] ?? [])->values();
+        $nodeKeys = $nodesPayload->pluck('client_key');
+
+        if ($nodeKeys->unique()->count() !== $nodeKeys->count()) {
+            throw ValidationException::withMessages([
+                'nodes' => 'Ключи шагов должны быть уникальными.',
+            ]);
+        }
+
+        $entryNodeKey = $validated['entry_node_key'] ?? null;
+        if ($entryNodeKey !== null && $entryNodeKey !== '' && ! $nodeKeys->contains($entryNodeKey)) {
+            throw ValidationException::withMessages([
+                'entry_node_key' => 'Стартовый ключ должен совпадать с ключом одного из шагов.',
+            ]);
+        }
+
+        $invalidTransition = $transitionsPayload->first(function (array $transition) use ($nodeKeys): bool {
+            return ! $nodeKeys->contains($transition['from_client_key']) || ! $nodeKeys->contains($transition['to_client_key']);
+        });
+        if ($invalidTransition !== null) {
+            throw ValidationException::withMessages([
+                'transitions' => 'Каждый переход должен ссылаться на существующие шаги.',
+            ]);
+        }
+
+        DB::transaction(function () use ($version, $nodesPayload, $transitionsPayload, $entryNodeKey): void {
+            $existingByKey = $version->nodes()->get()->keyBy('client_key');
+            $seenKeys = [];
+            $nodesByKey = [];
+
+            foreach ($nodesPayload as $index => $nodeData) {
+                $clientKey = (string) $nodeData['client_key'];
+                $seenKeys[] = $clientKey;
+
+                /** @var SalesScriptNode|null $node */
+                $node = $existingByKey->get($clientKey);
+                $attributes = [
+                    'kind' => $nodeData['kind'],
+                    'body' => $nodeData['body'],
+                    'hint' => $nodeData['hint'] ?? null,
+                    'sort_order' => $nodeData['sort_order'] ?? $index,
+                    'canvas_x' => $nodeData['canvas_x'] ?? null,
+                    'canvas_y' => $nodeData['canvas_y'] ?? null,
+                ];
+
+                if ($node === null) {
+                    $node = $version->nodes()->create([
+                        'client_key' => $clientKey,
+                        ...$attributes,
+                    ]);
+                } else {
+                    $node->update($attributes);
+                }
+
+                $nodesByKey[$clientKey] = $node;
+            }
+
+            $version->nodes()
+                ->whereNotIn('client_key', $seenKeys)
+                ->delete();
+
+            $version->transitions()->delete();
+
+            foreach ($transitionsPayload as $index => $transitionData) {
+                $version->transitions()->create([
+                    'from_node_id' => $nodesByKey[$transitionData['from_client_key']]->id,
+                    'to_node_id' => $nodesByKey[$transitionData['to_client_key']]->id,
+                    'sales_script_reaction_class_id' => $transitionData['sales_script_reaction_class_id'] ?? null,
+                    'sort_order' => $transitionData['sort_order'] ?? $index,
+                ]);
+            }
+
+            $version->update([
+                'entry_node_key' => $entryNodeKey === '' ? null : $entryNodeKey,
+            ]);
+        });
+
+        return to_route('scripts.editor.versions.graph', $version)->with('flash', [
+            'type' => 'success',
+            'message' => 'Граф сценария сохранён.',
+        ]);
+    }
+
+    public function updateVersion(UpdateVersionRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse
+    {
+        $version = $sales_script_version;
         $this->authorize('update', $version);
 
         $version->update($request->validated());
@@ -154,8 +267,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function publishVersion(SalesScriptVersion $version): RedirectResponse
+    public function publishVersion(SalesScriptVersion $sales_script_version): RedirectResponse
     {
+        $version = $sales_script_version;
         $this->authorize('update', $version);
 
         $keys = $version->nodes()->pluck('client_key')->filter()->values()->all();
@@ -189,8 +303,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function unpublishVersion(SalesScriptVersion $version): RedirectResponse
+    public function unpublishVersion(SalesScriptVersion $sales_script_version): RedirectResponse
     {
+        $version = $sales_script_version;
         $this->authorize('update', $version);
 
         $version->update([
@@ -203,8 +318,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function storeNode(StoreNodeRequest $request, SalesScriptVersion $version): RedirectResponse
+    public function storeNode(StoreNodeRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse
     {
+        $version = $sales_script_version;
         $this->authorize('update', $version);
 
         $version->nodes()->create($request->validated());
@@ -215,8 +331,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function updateNode(UpdateNodeRequest $request, SalesScriptNode $node): RedirectResponse
+    public function updateNode(UpdateNodeRequest $request, SalesScriptNode $sales_script_node): RedirectResponse
     {
+        $node = $sales_script_node;
         $this->authorize('update', $node);
 
         $node->update($request->validated());
@@ -227,8 +344,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function destroyNode(SalesScriptNode $node): RedirectResponse
+    public function destroyNode(SalesScriptNode $sales_script_node): RedirectResponse
     {
+        $node = $sales_script_node;
         $this->authorize('delete', $node);
 
         $node->delete();
@@ -239,8 +357,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function storeTransition(StoreTransitionRequest $request, SalesScriptVersion $version): RedirectResponse
+    public function storeTransition(StoreTransitionRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse
     {
+        $version = $sales_script_version;
         $this->authorize('update', $version);
 
         $data = $request->validated();
@@ -254,8 +373,11 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function updateTransition(UpdateTransitionRequest $request, SalesScriptTransition $transition): RedirectResponse
-    {
+    public function updateTransition(
+        UpdateTransitionRequest $request,
+        SalesScriptTransition $sales_script_transition,
+    ): RedirectResponse {
+        $transition = $sales_script_transition;
         $this->authorize('update', $transition);
 
         $data = $request->validated();
@@ -270,8 +392,9 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
-    public function destroyTransition(SalesScriptTransition $transition): RedirectResponse
+    public function destroyTransition(SalesScriptTransition $sales_script_transition): RedirectResponse
     {
+        $transition = $sales_script_transition;
         $this->authorize('delete', $transition);
 
         $transition->delete();
@@ -333,6 +456,8 @@ class SalesScriptEditorController extends Controller
                 'body' => $n->body,
                 'hint' => $n->hint,
                 'sort_order' => $n->sort_order,
+                'canvas_x' => $n->canvas_x,
+                'canvas_y' => $n->canvas_y,
             ]),
             'transitions' => $version->transitions->sortBy(['sort_order', 'id'])->values()->map(fn (SalesScriptTransition $t): array => [
                 'id' => $t->id,

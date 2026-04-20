@@ -36,8 +36,8 @@ $showcaseDomain = (string) config('app.showcase_domain');
 $sameShowcaseAndCrmHost = $crmDomain !== '' && strcasecmp($crmDomain, $showcaseDomain) === 0;
 
 if ($sameShowcaseAndCrmHost) {
-    // Один хост: публичные страницы и кабинет на одном домене (без редиректа на другой origin).
-    // Иначе Inertia/Vite на v5.local получают 302 на crm.* и CORS блокирует XHR.
+    // ���� ����: ��������� �������� � ������� �� ����� ������ (��� ��������� �� ������ origin).
+    // ����� Inertia/Vite �� v5.local �������� 302 �� crm.* � CORS ��������� XHR.
     Route::domain($showcaseDomain)->group(function () {
         Route::get('/', function () {
             if (auth()->check()) {
@@ -115,6 +115,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::controller(SalesAssistantController::class)->prefix('sales-assistant')->name('sales-assistant.')->group(function () {
             Route::get('/book', 'book')->name('book');
+            Route::post('/book/articles', 'storeBookArticle')->name('book.articles.store');
+            Route::patch('/book/articles/{salesBookArticle}', 'updateBookArticle')->name('book.articles.update');
+            Route::delete('/book/articles/{salesBookArticle}', 'destroyBookArticle')->name('book.articles.destroy');
+            Route::post('/book/import', 'importBookArticle')->name('book.import');
+            Route::post('/book/assets', 'uploadBookAsset')->name('book.assets.upload');
+            Route::get('/book/assets', 'showBookAsset')->name('book.assets.show');
             Route::get('/trainer', 'trainer')->name('trainer');
         });
     });
@@ -129,7 +135,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/scripts/{sales_script}', [SalesScriptEditorController::class, 'destroyScript'])->name('scripts.destroy');
             Route::post('/scripts/{sales_script}/versions', [SalesScriptEditorController::class, 'storeVersion'])->name('scripts.versions.store');
             Route::get('/versions/{sales_script_version}', [SalesScriptEditorController::class, 'showVersion'])->name('versions.show');
+            Route::get('/versions/{sales_script_version}/graph', [SalesScriptEditorController::class, 'showGraph'])->name('versions.graph');
             Route::patch('/versions/{sales_script_version}', [SalesScriptEditorController::class, 'updateVersion'])->name('versions.update');
+            Route::put('/versions/{sales_script_version}/graph', [SalesScriptEditorController::class, 'updateGraph'])->name('versions.graph.update');
             Route::post('/versions/{sales_script_version}/publish', [SalesScriptEditorController::class, 'publishVersion'])->name('versions.publish');
             Route::post('/versions/{sales_script_version}/unpublish', [SalesScriptEditorController::class, 'unpublishVersion'])->name('versions.unpublish');
             Route::post('/versions/{sales_script_version}/nodes', [SalesScriptEditorController::class, 'storeNode'])->name('versions.nodes.store');

@@ -28,6 +28,9 @@ class RoleAccess
             ['key' => 'archive_documents', 'label' => 'Архив документов', 'description' => 'Архивирование и восстановление документов'],
             ['key' => 'manage_modules', 'label' => 'Модули', 'description' => 'Настройка доступных модулей'],
             ['key' => 'manage_settings', 'label' => 'Настройки', 'description' => 'Изменение системных настроек'],
+            ['key' => 'sales_book_read', 'label' => 'Книга продаж: чтение', 'description' => 'Просмотр статей в книге продаж'],
+            ['key' => 'sales_book_comment', 'label' => 'Книга продаж: комментарии', 'description' => 'Добавление комментариев в книге продаж'],
+            ['key' => 'sales_book_write', 'label' => 'Книга продаж: редактирование', 'description' => 'Создание, редактирование и удаление статей в книге продаж'],
         ];
     }
 
@@ -408,5 +411,80 @@ class RoleAccess
         }
 
         return static::hasVisibilityArea(static::userVisibilityAreas($user), 'finance_salary');
+    }
+
+    public static function canReadSalesBook(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'scripts')) {
+            return false;
+        }
+
+        if (! static::hasAnySalesBookPermission($user)) {
+            return true;
+        }
+
+        return static::userHasPermission($user, 'sales_book_read')
+            || static::userHasPermission($user, 'sales_book_comment')
+            || static::userHasPermission($user, 'sales_book_write');
+    }
+
+    public static function canCommentSalesBook(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'scripts')) {
+            return false;
+        }
+
+        if (! static::hasAnySalesBookPermission($user)) {
+            return true;
+        }
+
+        return static::userHasPermission($user, 'sales_book_comment')
+            || static::userHasPermission($user, 'sales_book_write');
+    }
+
+    public static function canWriteSalesBook(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'scripts')) {
+            return false;
+        }
+
+        if (! static::hasAnySalesBookPermission($user)) {
+            return true;
+        }
+
+        return static::userHasPermission($user, 'sales_book_write');
+    }
+
+    private static function hasAnySalesBookPermission(User $user): bool
+    {
+        $permissions = static::userPermissions($user);
+
+        return in_array('sales_book_read', $permissions, true)
+            || in_array('sales_book_comment', $permissions, true)
+            || in_array('sales_book_write', $permissions, true);
     }
 }
