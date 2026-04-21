@@ -136,10 +136,20 @@
                     <li
                         v-for="doc in selectedDriver.documents || []"
                         :key="doc.id"
-                        class="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
+                        class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
                     >
-                        <a :href="doc.download_url" class="truncate text-sky-700 underline dark:text-sky-300">{{ doc.original_name }}</a>
-                        <span class="shrink-0 text-xs text-zinc-500">{{ doc.document_type }}</span>
+                        <a :href="doc.download_url" class="min-w-0 flex-1 truncate text-sky-700 underline dark:text-sky-300">{{ doc.original_name }}</a>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <span class="text-xs text-zinc-500">{{ doc.document_type }}</span>
+                            <button
+                                type="button"
+                                class="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950"
+                                :disabled="deletingDocId === doc.id"
+                                @click="destroyDriverDocument(doc)"
+                            >
+                                Удалить
+                            </button>
+                        </div>
                     </li>
                 </ul>
             </div>
@@ -149,7 +159,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
-import { useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 
 const props = defineProps({
@@ -168,6 +178,7 @@ const carrierDropdownOpen = ref(false);
 const carrierPickedLabel = ref('');
 let carrierTimer = null;
 const docFile = ref(null);
+const deletingDocId = ref(null);
 
 const form = useForm({
     carrier_contractor_id: null,
@@ -285,6 +296,22 @@ function submitDoc() {
             docFile.value = null;
             docForm.document_type = 'passport';
             emit('saved');
+        },
+    });
+}
+
+function destroyDriverDocument(doc) {
+    if (!props.selectedDriver?.id || !doc?.id) {
+        return;
+    }
+    if (!window.confirm(`Удалить файл «${doc.original_name}»?`)) {
+        return;
+    }
+    deletingDocId.value = doc.id;
+    router.delete(route('fleet.drivers.documents.destroy', [props.selectedDriver.id, doc.id]), {
+        preserveScroll: true,
+        onFinish: () => {
+            deletingDocId.value = null;
         },
     });
 }

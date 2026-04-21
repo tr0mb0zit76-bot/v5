@@ -1,9 +1,9 @@
 <template>
     <div
-        class="flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
+        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-zinc-100 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
     >
         <header class="shrink-0 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+            <div class="mx-auto flex w-full max-w-screen-2xl min-w-0 flex-wrap items-center justify-between gap-3">
                 <div>
                     <div class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Предпросмотр наложений шаблона</div>
                     <h1 class="text-lg font-semibold">{{ templateName }}</h1>
@@ -17,7 +17,7 @@
             </div>
         </header>
 
-        <main class="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 overflow-hidden p-3">
+        <main class="mx-auto flex min-h-0 w-full max-w-screen-2xl min-w-0 flex-1 flex-col gap-3 p-2 sm:p-4">
             <div
                 v-if="!documentPreview.pdf_preview_available"
                 class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
@@ -59,9 +59,9 @@
             </div>
 
             <div
-                class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                class="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             >
-                <div ref="overlayCanvas" class="relative mx-auto w-full max-w-[980px]" :style="canvasStyle">
+                <div ref="overlayCanvas" class="relative mx-auto w-full min-w-0 max-w-none" :style="canvasStyle">
                     <iframe
                         :src="embedUrl"
                         :class="overlayPositioningEnabled ? 'pointer-events-none' : ''"

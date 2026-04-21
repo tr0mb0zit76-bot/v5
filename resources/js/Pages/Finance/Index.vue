@@ -228,6 +228,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    can_access_payment_schedules: {
+        type: Boolean,
+        default: false,
+    },
     can_manage_payment_schedule: {
         type: Boolean,
         default: false,
@@ -251,8 +255,10 @@ const cashFlowStats = computed(() => {
 const todaysCashFlow = computed(() => props.todays_cash_flow);
 
 const submoduleTiles = computed(() => {
-    const tiles = [
-        {
+    const tiles = [];
+
+    if (props.can_access_payment_schedules) {
+        tiles.push({
             key: 'cashflow',
             title: 'График оплат',
             description: 'План и факт по строкам графика заказов',
@@ -260,8 +266,8 @@ const submoduleTiles = computed(() => {
             accent: 'sky',
             group: 'Платежи',
             href: '/finance?section=cashflow',
-        },
-    ];
+        });
+    }
 
     if (props.can_access_salary_module) {
         tiles.push({

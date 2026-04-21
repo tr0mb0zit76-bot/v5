@@ -18,7 +18,7 @@ class PaymentScheduleController extends Controller
      */
     public function recordPayment(Request $request, PaymentSchedule $paymentSchedule): JsonResponse
     {
-        $this->ensureCanManagePaymentSchedule($request);
+        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
 
         if (! Schema::hasColumn('payment_schedules', 'paid_amount')
             || ! Schema::hasColumn('payment_schedules', 'remaining_amount')) {
@@ -165,7 +165,7 @@ class PaymentScheduleController extends Controller
      */
     public function updateInvoiceNumber(Request $request, PaymentSchedule $paymentSchedule): JsonResponse
     {
-        $this->ensureCanManagePaymentSchedule($request);
+        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
 
         if (! Schema::hasColumn('payment_schedules', 'invoice_number')) {
             return response()->json([
@@ -192,8 +192,10 @@ class PaymentScheduleController extends Controller
     /**
      * Get partial payments for a payment schedule item.
      */
-    public function getPartialPayments(PaymentSchedule $paymentSchedule): JsonResponse
+    public function getPartialPayments(Request $request, PaymentSchedule $paymentSchedule): JsonResponse
     {
+        $this->ensureCanViewPaymentSchedule($request, $paymentSchedule);
+
         if (! Schema::hasColumn('payment_schedules', 'parent_payment_id')
             || ! Schema::hasColumn('payment_schedules', 'is_partial')) {
             return response()->json([
@@ -246,7 +248,7 @@ class PaymentScheduleController extends Controller
      */
     public function cancel(Request $request, PaymentSchedule $paymentSchedule)
     {
-        $this->ensureCanManagePaymentSchedule($request);
+        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
 
         $paymentSchedule->status = 'cancelled';
         $paymentSchedule->save();
@@ -269,7 +271,7 @@ class PaymentScheduleController extends Controller
      */
     public function restore(Request $request, PaymentSchedule $paymentSchedule)
     {
-        $this->ensureCanManagePaymentSchedule($request);
+        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
 
         if ($paymentSchedule->status !== 'cancelled') {
             if ($request->expectsJson() || $request->wantsJson()) {
@@ -298,8 +300,39 @@ class PaymentScheduleController extends Controller
         return back()->with('success', 'Платеж восстановлен');
     }
 
-    private function ensureCanManagePaymentSchedule(Request $request): void
+    private function ensureCanViewPaymentSchedule(Request $request, ?PaymentSchedule $paymentSchedule = null): void
     {
-        abort_unless(RoleAccess::canAccessFinanceSalary($request->user()), 403);
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(RoleAccess::canViewPaymentSchedules($user), 403);
+        if ($paymentSchedule !== null) {
+            $this->ensurePaymentScheduleInUserDataScope($request, $paymentSchedule);
+        }
+    }
+
+    private function ensureCanManagePaymentSchedule(Request $request, ?PaymentSchedule $paymentSchedule = null): void
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(RoleAccess::canManagePaymentSchedules($user), 403);
+        if ($paymentSchedule !== null) {
+            $this->ensurePaymentScheduleInUserDataScope($request, $paymentSchedule);
+        }
+    }
+
+    private function ensurePaymentScheduleInUserDataScope(Request $request, PaymentSchedule $paymentSchedule): void
+    {
+        $user = $request->user();
+        if ($user === null || $user->isAdmin()) {
+            return;
+        }
+
+        if (RoleAccess::resolvePaymentScheduleDataScopeForUser($user) === 'all') {
+            return;
+        }
+
+        $order = Order::query()->find((int) $paymentSchedule->order_id);
+        abort_if($order === null, 403);
+        abort_unless((int) $order->manager_id === (int) $user->id, 403);
     }
 }

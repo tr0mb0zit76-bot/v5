@@ -21,17 +21,21 @@ class FinanceIndexController extends Controller
 
         $user = $request->user();
         $role = $financeOverview->resolveRole($user?->role_id);
-        $ordersScope = RoleAccess::resolveVisibilityScopeForRolePayload($role['name'], $role['visibility_scopes'], 'orders');
+        $paymentScheduleScope = RoleAccess::resolvePaymentScheduleDataScopeForUser($user);
 
         $activeSubmodule = match ($request->query('section')) {
             'dds', 'cashflow' => 'cashflow',
             default => 'overview',
         };
 
-        PaymentScheduleAutomaticStatus::refreshForOrdersScope($user?->id, $role['name'], $ordersScope);
+        if ($activeSubmodule === 'cashflow' && ! RoleAccess::canViewPaymentSchedules($user)) {
+            return redirect()->route('finance.index');
+        }
 
-        $cashFlow = $financeOverview->cashFlowJournal($user?->id, $role['name'], $ordersScope);
-        $cashFlowStats = $financeOverview->cashFlowStats($user?->id, $role['name'], $ordersScope);
+        PaymentScheduleAutomaticStatus::refreshForOrdersScope($user?->id, $role['name'], $paymentScheduleScope);
+
+        $cashFlow = $financeOverview->cashFlowJournal($user?->id, $role['name'], $paymentScheduleScope);
+        $cashFlowStats = $financeOverview->cashFlowStats($user?->id, $role['name'], $paymentScheduleScope);
 
         return Inertia::render('Finance/Index', [
             'summary' => [
@@ -43,7 +47,8 @@ class FinanceIndexController extends Controller
             'todays_cash_flow' => $cashFlowStats['periods']['today'],
             'cash_flow_stats' => $cashFlowStats,
             'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
-            'can_manage_payment_schedule' => RoleAccess::canAccessFinanceSalary($user),
+            'can_access_payment_schedules' => RoleAccess::canViewPaymentSchedules($user),
+            'can_manage_payment_schedule' => RoleAccess::canManagePaymentSchedules($user),
             'paymentScheduleColumns' => PaymentScheduleTableColumns::options(),
         ]);
     }

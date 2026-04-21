@@ -21,6 +21,7 @@ class RoleAccess
             ['key' => 'edit_orders', 'label' => 'Редактирование заказов', 'description' => 'Изменение карточек заказов'],
             ['key' => 'assign_drivers', 'label' => 'Назначение водителей', 'description' => 'Привязка водителей и координация рейсов'],
             ['key' => 'view_finance', 'label' => 'Финансы', 'description' => 'Просмотр финансовых показателей'],
+            ['key' => 'manage_payment_schedules', 'label' => 'График оплат: действия', 'description' => 'Регистрация оплат, отмена/восстановление строк, правка номера счёта в графике'],
             ['key' => 'create_invoices', 'label' => 'Счета', 'description' => 'Создание счетов и финансовых документов'],
             ['key' => 'view_documents', 'label' => 'Документы', 'description' => 'Просмотр реестров документов'],
             ['key' => 'create_documents', 'label' => 'Создание документов', 'description' => 'Создание документов и шаблонов'],
@@ -52,6 +53,7 @@ class RoleAccess
             ['key' => 'drivers', 'label' => 'Водители', 'description' => 'Реестр водителей и перевозчиков'],
             ['key' => 'documents', 'label' => 'Документы', 'description' => 'Реестр документов'],
             ['key' => 'finance_salary', 'label' => 'Финансы: зарплата', 'description' => 'Зарплатные периоды, начисления и выплаты'],
+            ['key' => 'payment_schedules', 'label' => 'График оплат', 'description' => 'Плановые и фактические платежи по заказам (ДДС, график)'],
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
@@ -97,11 +99,11 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'tasks', 'kanban'],
-            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'tasks', 'kanban'],
-            'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'tasks', 'kanban', 'reports'],
-            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'documents', 'contractors', 'tasks', 'kanban'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
+            'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports'],
+            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
             default => ['dashboard'],
         };
@@ -120,6 +122,7 @@ class RoleAccess
                 'kanban' => 'all',
                 'contractors' => 'all',
                 'documents' => 'all',
+                'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -131,6 +134,7 @@ class RoleAccess
                 'kanban' => 'all',
                 'contractors' => 'all',
                 'documents' => 'all',
+                'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -142,6 +146,7 @@ class RoleAccess
                 'kanban' => 'own',
                 'contractors' => 'own',
                 'documents' => 'own',
+                'payment_schedules' => 'own',
                 'dashboard_tiles' => 'own',
                 'dashboard_widgets' => 'own',
                 'dashboard_reports' => 'own',
@@ -150,6 +155,7 @@ class RoleAccess
                 'orders' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
+                'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -159,6 +165,7 @@ class RoleAccess
                 'tasks' => 'all',
                 'kanban' => 'all',
                 'documents' => 'all',
+                'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -169,6 +176,7 @@ class RoleAccess
                 'kanban' => 'all',
                 'contractors' => 'all',
                 'documents' => 'all',
+                'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
                 'dashboard_widgets' => 'all',
                 'dashboard_reports' => 'all',
@@ -411,6 +419,103 @@ class RoleAccess
         }
 
         return static::hasVisibilityArea(static::userVisibilityAreas($user), 'finance_salary');
+    }
+
+    /**
+     * Просмотр раздела «График оплат» (страница финансов / API чтения).
+     */
+    public static function canViewPaymentSchedules(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $areas = static::userVisibilityAreas($user);
+
+        return static::hasVisibilityArea($areas, 'payment_schedules')
+            || static::hasVisibilityArea($areas, 'documents')
+            || static::hasVisibilityArea($areas, 'finance_salary');
+    }
+
+    /**
+     * Объём строк графика оплат: при включённой области «График оплат» — её scope, иначе как у заказов.
+     *
+     * @return 'own'|'all'
+     */
+    public static function resolvePaymentScheduleDataScopeForUser(?User $user): string
+    {
+        if ($user === null) {
+            return 'own';
+        }
+
+        $areas = static::userVisibilityAreas($user);
+        if (static::hasVisibilityArea($areas, 'payment_schedules')) {
+            return static::resolveVisibilityScopeForUser($user, 'payment_schedules');
+        }
+
+        return static::resolveVisibilityScopeForUser($user, 'orders');
+    }
+
+    /**
+     * Действия в графике оплат (платежи, отмена, номер счёта и т.д.).
+     * Явное право manage_payment_schedules обязательно, если в роли есть только область «График оплат».
+     * Сочетание с «Финансы: зарплата» сохраняет прежнее поведение без отдельной галки права.
+     */
+    public static function canManagePaymentSchedules(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $areas = static::userVisibilityAreas($user);
+        $hasPs = static::hasVisibilityArea($areas, 'payment_schedules');
+        $hasFs = static::hasVisibilityArea($areas, 'finance_salary');
+
+        if (! $hasPs && ! $hasFs) {
+            return false;
+        }
+
+        if (static::userHasPermission($user, 'manage_payment_schedules')) {
+            return true;
+        }
+
+        if ($hasPs && $hasFs) {
+            return true;
+        }
+
+        return ! $hasPs && $hasFs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function userPermissions(?User $user): array
+    {
+        if ($user === null) {
+            return [];
+        }
+
+        $user->loadMissing('role');
+        $raw = $user->role?->permissions;
+
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        return array_values(array_filter($raw, static fn (mixed $p): bool => is_string($p) && $p !== ''));
+    }
+
+    public static function userHasPermission(?User $user, string $permission): bool
+    {
+        return in_array($permission, static::userPermissions($user), true);
     }
 
     public static function canReadSalesBook(?User $user): bool

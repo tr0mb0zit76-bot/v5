@@ -281,7 +281,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:orders')
         ->name('fleet.options.drivers');
 
-    Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area:documents')->name('finance.index');
+    Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->name('finance.index');
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area:documents')->name('documents.index');
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area:documents')->name('documents.store');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area:documents')->name('documents.update');
@@ -346,7 +346,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // Payment Schedule Routes
-    Route::prefix('payment-schedules')->name('payment-schedules.')->group(function () {
+    Route::prefix('payment-schedules')->name('payment-schedules.')->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->group(function () {
         Route::post('/{paymentSchedule}/record-payment', [PaymentScheduleController::class, 'recordPayment'])->name('record-payment');
         Route::patch('/{paymentSchedule}/invoice-number', [PaymentScheduleController::class, 'updateInvoiceNumber'])->name('invoice-number');
         Route::get('/{paymentSchedule}/partial-payments', [PaymentScheduleController::class, 'getPartialPayments'])->name('partial-payments');

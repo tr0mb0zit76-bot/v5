@@ -391,6 +391,7 @@ const scopeAreaKeys = [
     'kanban',
     'contractors',
     'documents',
+    'payment_schedules',
     'dashboard_tiles',
     'dashboard_widgets',
     'dashboard_reports',
@@ -398,7 +399,7 @@ const scopeAreaKeys = [
 const visibilityGroupDefinitions = [
     { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'orders', 'tasks', 'kanban'] },
     { id: 'directories', label: 'Реестры и справочники', description: 'Списки и карточки', keys: ['contractors', 'drivers', 'documents', 'users', 'roles'] },
-    { id: 'analytics', label: 'Финансы и аналитика', description: 'Отчёты и сводные показатели', keys: ['finance_salary', 'reports'] },
+    { id: 'analytics', label: 'Финансы и аналитика', description: 'Отчёты и сводные показатели', keys: ['finance_salary', 'payment_schedules', 'reports'] },
     { id: 'system', label: 'Администрирование', description: 'Системные разделы', keys: ['modules', 'settings'] },
 ];
 
@@ -723,6 +724,10 @@ function scopeHint(areaKey) {
 
     if (areaKey === 'documents') {
         return 'Все документы или только свои';
+    }
+
+    if (areaKey === 'payment_schedules') {
+        return 'Все строки графика оплат по заказам или только по своим заказам';
     }
 
     if (areaKey === 'dashboard_tiles') {

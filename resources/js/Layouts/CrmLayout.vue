@@ -348,7 +348,7 @@
             </header>
 
             <main
-                class="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-[110px] md:px-4 md:pt-1.5 md:pb-[130px] lg:flex lg:flex-col lg:overflow-hidden"
+                class="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-[110px] md:px-4 md:pt-1.5 md:pb-[130px] lg:flex lg:flex-col lg:overflow-hidden"
             >
                 <slot />
             </main>
@@ -676,7 +676,7 @@ const menuItems = computed(() => {
             children: (() => {
                 const children = [];
 
-                if (visibleAreas.value.includes('documents')) {
+                if (visibleAreas.value.includes('documents') || visibleAreas.value.includes('payment_schedules')) {
                     children.push({ key: 'finance-cashflow', label: 'График оплат' });
                 }
 
