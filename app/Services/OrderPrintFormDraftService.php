@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
+use App\Support\CarrierPaymentTermResolver;
+use App\Support\PaymentFormCodeLabel;
+use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -223,6 +226,8 @@ class OrderPrintFormDraftService
         $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume ?? 0));
         $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? $cargo->pallet_count ?? 0));
 
+        $paymentTermsPayload = $this->decodeOrderPaymentTermsPayload($order);
+
         return [
             'order' => [
                 'id' => $order->id,
@@ -233,10 +238,10 @@ class OrderPrintFormDraftService
                 'status' => $order->status,
                 'customer_rate' => $this->formatMoney($order->customer_rate),
                 'carrier_rate' => $this->formatMoney($order->carrier_rate),
-                'customer_payment_form' => $order->customer_payment_form,
-                'customer_payment_term' => $order->customer_payment_term,
-                'carrier_payment_form' => $order->carrier_payment_form,
-                'carrier_payment_term' => $order->carrier_payment_term,
+                'customer_payment_form' => $this->resolveCustomerPaymentFormDisplay($order, $paymentTermsPayload),
+                'customer_payment_term' => $this->resolveCustomerPaymentTermDisplay($order, $paymentTermsPayload),
+                'carrier_payment_form' => $this->resolveCarrierPaymentFormDisplay($order, $paymentTermsPayload),
+                'carrier_payment_term' => $this->resolveCarrierPaymentTermDisplay($order, $paymentTermsPayload),
                 'invoice_number' => $order->invoice_number,
                 'waybill_number' => $order->waybill_number,
                 'special_notes' => $order->special_notes,
@@ -316,6 +321,93 @@ class OrderPrintFormDraftService
                 'total_packages' => (string) $cargoTotalPackages,
             ], $this->cargoPerLinePlaceholderMap($cargoItems)),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function decodeOrderPaymentTermsPayload(Order $order): ?array
+    {
+        $raw = $order->getAttribute('payment_terms');
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     */
+    private function resolveCustomerPaymentFormDisplay(Order $order, ?array $paymentTermsPayload): ?string
+    {
+        $fromPayload = data_get($paymentTermsPayload, 'client.payment_form');
+
+        $code = is_string($fromPayload) && $fromPayload !== ''
+            ? $fromPayload
+            : $order->customer_payment_form;
+
+        return PaymentFormCodeLabel::toDisplay(is_string($code) ? $code : null);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     */
+    private function resolveCustomerPaymentTermDisplay(Order $order, ?array $paymentTermsPayload): ?string
+    {
+        $schedule = data_get($paymentTermsPayload, 'client.payment_schedule');
+        if (is_array($schedule) && $schedule !== []) {
+            return PaymentScheduleSummaryFormatter::format($schedule);
+        }
+
+        return PaymentScheduleSummaryFormatter::humanizeStoredSummary($order->customer_payment_term);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     */
+    private function resolveCarrierPaymentFormDisplay(Order $order, ?array $paymentTermsPayload): ?string
+    {
+        $carriers = data_get($paymentTermsPayload, 'carriers');
+        if (is_array($carriers) && $carriers !== []) {
+            $forms = collect($carriers)
+                ->pluck('payment_form')
+                ->filter(fn (mixed $v): bool => is_string($v) && $v !== '')
+                ->unique()
+                ->values();
+
+            if ($forms->count() === 1) {
+                return PaymentFormCodeLabel::toDisplay((string) $forms->first());
+            }
+
+            if ($forms->count() > 1) {
+                return PaymentFormCodeLabel::toDisplay('mixed');
+            }
+        }
+
+        return PaymentFormCodeLabel::toDisplay($order->carrier_payment_form);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     */
+    private function resolveCarrierPaymentTermDisplay(Order $order, ?array $paymentTermsPayload): ?string
+    {
+        $carriers = data_get($paymentTermsPayload, 'carriers');
+        if (is_array($carriers) && $carriers !== []) {
+            $fromCosts = CarrierPaymentTermResolver::fromContractorsCostsArray($carriers);
+            if ($fromCosts !== null && $fromCosts !== '') {
+                return $fromCosts;
+            }
+        }
+
+        return PaymentScheduleSummaryFormatter::humanizeStoredSummary($order->carrier_payment_term);
     }
 
     public function loadOrderContext(Order $order): Order

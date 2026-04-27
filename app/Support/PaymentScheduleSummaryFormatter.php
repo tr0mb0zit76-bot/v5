@@ -11,12 +11,37 @@ final class PaymentScheduleSummaryFormatter
 {
     /** @var array<string, string> */
     private const MODE_LABELS = [
-        'fttn' => 'ФТТН',
-        'fttn_receipt' => 'ФТТН + квиток',
-        'ottn' => 'ОТТН',
-        'loading' => 'На загрузке',
-        'unloading' => 'На выгрузке',
+        'fttn' => 'по сканам',
+        'fttn_receipt' => 'по сканам + квиток',
+        'ottn' => 'по оригиналам',
+        'loading' => 'при погрузке',
+        'unloading' => 'при выгрузке',
     ];
+
+    /**
+     * Подмена устаревших подписей в уже сохранённых строках условий оплаты (до обновления {@see self::MODE_LABELS}).
+     */
+    public static function humanizeStoredSummary(?string $summary): ?string
+    {
+        if ($summary === null) {
+            return null;
+        }
+
+        $trimmed = trim($summary);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $replacements = [
+            'ФТТН + квиток' => self::MODE_LABELS['fttn_receipt'],
+            'ФТТН' => self::MODE_LABELS['fttn'],
+            'ОТТН' => self::MODE_LABELS['ottn'],
+            'На загрузке' => self::MODE_LABELS['loading'],
+            'На выгрузке' => self::MODE_LABELS['unloading'],
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $trimmed);
+    }
 
     /**
      * @param  array<string, mixed>  $schedule

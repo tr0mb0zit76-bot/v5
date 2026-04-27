@@ -1605,11 +1605,11 @@ const clientRequestModeOptions = [
     { value: 'split_by_leg', label: 'Разбить по плечам', description: 'Для каждого плеча оформляется отдельная клиентская заявка.' },
 ];
 const paymentBasisOptions = [
-    { value: 'fttn', label: 'ФТТН' },
-    { value: 'fttn_receipt', label: 'ФТТН + квиток' },
-    { value: 'ottn', label: 'ОТТН' },
-    { value: 'loading', label: 'На загрузке' },
-    { value: 'unloading', label: 'На выгрузке' },
+    { value: 'fttn', label: 'По сканам' },
+    { value: 'fttn_receipt', label: 'По сканам + квиток' },
+    { value: 'ottn', label: 'По оригиналам' },
+    { value: 'loading', label: 'При погрузке' },
+    { value: 'unloading', label: 'При выгрузке' },
 ];
 const loadingTypeOptions = [
     { value: 'top', label: 'Верх' },
