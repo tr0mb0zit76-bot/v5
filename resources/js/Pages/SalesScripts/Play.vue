@@ -84,27 +84,35 @@
             </ol>
         </div>
 
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-3">
             <Link
-                :href="route('scripts.index')"
+                :href="backListHref"
                 class="text-sm font-medium text-zinc-600 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
-                ← К списку сценариев
+                {{ backListLabel }}
             </Link>
         </div>
     </div>
 </template>
 
 <script setup>
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),
+    layout: (h, page) =>
+        h(CrmLayout, {
+            activeKey: 'sales-assistant',
+            activeSubKey: page.props?.playContext?.return === 'trainer' ? 'sales-assistant-trainer' : 'sales-assistant-scripts',
+        }, () => page),
 });
 
 const props = defineProps({
+    playContext: {
+        type: Object,
+        default: () => ({ return: null }),
+    },
     session: { type: Object, required: true },
     currentNode: { type: Object, default: null },
     outgoingTransitions: { type: Array, default: () => [] },
@@ -113,6 +121,12 @@ const props = defineProps({
     outcomeOptions: { type: Array, default: () => [] },
     reactionClasses: { type: Array, default: () => [] },
 });
+
+const isTrainer = computed(() => props.playContext?.return === 'trainer');
+
+const backListHref = computed(() => (isTrainer.value ? route('sales-assistant.trainer') : route('scripts.index')));
+
+const backListLabel = computed(() => (isTrainer.value ? '← К тренажёру' : '← К списку сценариев'));
 
 const completeForm = reactive({
     outcome: '',

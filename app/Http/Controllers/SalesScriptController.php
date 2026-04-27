@@ -73,6 +73,12 @@ class SalesScriptController extends Controller
             return back()->withErrors(['session' => $e->getMessage()]);
         }
 
+        if (($validated['return_to'] ?? null) === 'trainer') {
+            $request->session()->put('sales_script_play_return', 'trainer');
+        } else {
+            $request->session()->forget('sales_script_play_return');
+        }
+
         return to_route('scripts.sessions.show', $session);
     }
 
@@ -110,6 +116,9 @@ class SalesScriptController extends Controller
         $reactionClasses = SalesScriptReactionClass::query()->orderBy('sort_order')->orderBy('label')->get(['id', 'key', 'label']);
 
         return Inertia::render('SalesScripts/Play', [
+            'playContext' => [
+                'return' => $request->session()->get('sales_script_play_return'),
+            ],
             'session' => [
                 'id' => $session->id,
                 'completed_at' => $session->completed_at?->toIso8601String(),
@@ -266,9 +275,15 @@ class SalesScriptController extends Controller
             return back()->withErrors(['complete' => $e->getMessage()]);
         }
 
-        return to_route('scripts.index')->with('flash', [
+        $flash = [
             'type' => 'success',
             'message' => 'Сессия сохранена. Спасибо за разметку — это улучшает подсказки для команды.',
-        ]);
+        ];
+
+        if ($request->session()->pull('sales_script_play_return') === 'trainer') {
+            return to_route('sales-assistant.trainer')->with('flash', $flash);
+        }
+
+        return to_route('scripts.index')->with('flash', $flash);
     }
 }

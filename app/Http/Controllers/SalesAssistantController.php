@@ -7,6 +7,7 @@ use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
 use App\Http\Requests\UploadSalesBookAssetRequest;
 use App\Models\SalesBookArticle;
+use App\Models\SalesScript;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -193,7 +194,32 @@ class SalesAssistantController extends Controller
 
     public function trainer(): Response
     {
-        return Inertia::render('SalesAssistant/Trainer');
+        $scripts = SalesScript::query()
+            ->with(['versions' => function ($q): void {
+                $q->where('is_active', true)->whereNotNull('published_at')->orderByDesc('version_number');
+            }])
+            ->orderBy('title')
+            ->get()
+            ->map(function (SalesScript $script): array {
+                $version = $script->versions->first();
+
+                return [
+                    'id' => $script->id,
+                    'title' => $script->title,
+                    'description' => $script->description,
+                    'channel' => $script->channel,
+                    'tags' => $script->tags ?? [],
+                    'active_version' => $version ? [
+                        'id' => $version->id,
+                        'version_number' => $version->version_number,
+                        'published_at' => $version->published_at?->toIso8601String(),
+                    ] : null,
+                ];
+            });
+
+        return Inertia::render('SalesAssistant/Trainer', [
+            'scripts' => $scripts,
+        ]);
     }
 
     /**
