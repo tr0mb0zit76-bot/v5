@@ -49,6 +49,9 @@ class FinanceIndexController extends Controller
             'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
             'can_access_payment_schedules' => RoleAccess::canViewPaymentSchedules($user),
             'can_manage_payment_schedule' => RoleAccess::canManagePaymentSchedules($user),
+            'can_show_payment_schedule_actions' => RoleAccess::canShowPaymentScheduleActionsColumn($user),
+            'can_payment_schedule_record_payment' => RoleAccess::canRecordPaymentOnPaymentSchedule($user),
+            'can_payment_schedule_cancel_row' => RoleAccess::canCancelPaymentScheduleRow($user),
             'paymentScheduleColumns' => PaymentScheduleTableColumns::options(),
         ]);
     }

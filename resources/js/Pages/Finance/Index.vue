@@ -159,6 +159,9 @@
                     :available-columns="paymentScheduleColumns"
                     :role-columns-config="roleColumnsConfig"
                     :can-manage-actions="canManagePaymentSchedule"
+                    :can-show-actions-column="canShowPaymentScheduleActions"
+                    :can-record-payment="canPaymentScheduleRecordPayment"
+                    :can-cancel-payment-row="canPaymentScheduleCancelRow"
                 />
             </section>
         </div>
@@ -236,6 +239,18 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    can_show_payment_schedule_actions: {
+        type: Boolean,
+        default: false,
+    },
+    can_payment_schedule_record_payment: {
+        type: Boolean,
+        default: false,
+    },
+    can_payment_schedule_cancel_row: {
+        type: Boolean,
+        default: false,
+    },
     paymentScheduleColumns: {
         type: Array,
         default: () => [],
@@ -244,6 +259,9 @@ const props = defineProps({
 
 const activeSubmodule = computed(() => props.active_submodule);
 const canManagePaymentSchedule = computed(() => props.can_manage_payment_schedule);
+const canShowPaymentScheduleActions = computed(() => props.can_show_payment_schedule_actions);
+const canPaymentScheduleRecordPayment = computed(() => props.can_payment_schedule_record_payment);
+const canPaymentScheduleCancelRow = computed(() => props.can_payment_schedule_cancel_row);
 
 const cashFlowStats = computed(() => {
     if (Object.keys(props.cash_flow_stats).length === 0) {

@@ -104,6 +104,18 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    canShowActionsColumn: {
+        type: Boolean,
+        default: false,
+    },
+    canRecordPayment: {
+        type: Boolean,
+        default: false,
+    },
+    canCancelPaymentRow: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const quickSearch = ref('');
@@ -206,7 +218,11 @@ class PaymentScheduleCell {
     init(params) {
         this.eGui = document.createElement('div');
         this.eGui.className = 'flex items-center';
-        const vnode = createVNode(PaymentScheduleActions, { payment: params.data });
+        const vnode = createVNode(PaymentScheduleActions, {
+            payment: params.data,
+            canRecordPayment: params.canRecordPayment !== false,
+            canCancelPaymentRow: params.canCancelPaymentRow !== false,
+        });
         render(vnode, this.eGui);
         this.vnode = vnode;
     }
@@ -215,8 +231,18 @@ class PaymentScheduleCell {
         return this.eGui;
     }
 
-    refresh() {
-        return false;
+    refresh(params) {
+        if (this.eGui && params?.data) {
+            const vnode = createVNode(PaymentScheduleActions, {
+                payment: params.data,
+                canRecordPayment: params.canRecordPayment !== false,
+                canCancelPaymentRow: params.canCancelPaymentRow !== false,
+            });
+            render(vnode, this.eGui);
+            this.vnode = vnode;
+        }
+
+        return true;
     }
 
     destroy() {
@@ -353,8 +379,15 @@ const dynamicColumnDefs = computed(() => {
     }
 
     return ordered.map((column) => {
-        if (column.colId === 'actions' && !props.canManageActions) {
-            return { ...column, hide: true };
+        if (column.colId === 'actions') {
+            return {
+                ...column,
+                hide: Boolean(column.hide) || !props.canShowActionsColumn,
+                cellRendererParams: {
+                    canRecordPayment: props.canRecordPayment,
+                    canCancelPaymentRow: props.canCancelPaymentRow,
+                },
+            };
         }
 
         return column;

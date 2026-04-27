@@ -78,7 +78,16 @@
 
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="space-y-2">
-                        <label class="label">Контрагент</label>
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="label">Контрагент</label>
+                            <button
+                                type="button"
+                                class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                @click.stop="openLeadCounterpartyModal"
+                            >
+                                Новый контрагент
+                            </button>
+                        </div>
                         <div class="relative">
                             <input
                                 v-model="counterpartySearch"
@@ -97,9 +106,10 @@
                                 <X class="h-4 w-4" />
                             </button>
                             <div
-                                v-if="showCounterpartyResults && combinedCounterpartyResults.length > 0"
+                                v-if="showCounterpartyResults && (combinedCounterpartyResults.length > 0 || counterpartySearch.trim().length >= MIN_CONTRACTOR_QUERY_LENGTH)"
                                 class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
                             >
+                                <div v-if="isSearchingCounterparties" class="px-3 py-2 text-center text-xs text-zinc-500">Поиск…</div>
                                 <button
                                     v-for="contractor in combinedCounterpartyResults"
                                     :key="contractor.id"
@@ -109,6 +119,14 @@
                                 >
                                     <span class="text-sm font-medium">{{ contractor.name }}</span>
                                     <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                </button>
+                                <button
+                                    v-if="counterpartySearch.trim().length >= MIN_CONTRACTOR_QUERY_LENGTH && combinedCounterpartyResults.length === 0 && !isSearchingCounterparties"
+                                    type="button"
+                                    class="w-full border-t border-zinc-100 px-3 py-2 text-left text-sm font-medium text-sky-700 hover:bg-sky-50 dark:border-zinc-800 dark:text-sky-300 dark:hover:bg-sky-950/30"
+                                    @mousedown.prevent="openLeadCounterpartyModal"
+                                >
+                                    Не найдено — создать «{{ counterpartySearch.trim() }}»
                                 </button>
                             </div>
                         </div>
@@ -284,10 +302,59 @@
             <button type="button" class="danger-button" @click="destroyLead"><Trash2 class="h-4 w-4" />Удалить</button>
         </div>
     </div>
+
+    <Teleport to="body">
+        <div
+            v-show="showCounterpartyModal"
+            class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+            @click.self="closeLeadCounterpartyModal"
+        >
+            <div class="w-full max-w-xl rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900" @click.stop>
+                <div class="mb-4 flex items-center justify-between">
+                    <div>
+                        <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Новый контрагент</div>
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                            Запись появится в справочнике контрагентов и будет выбрана в этом лиде.
+                        </div>
+                    </div>
+                    <button type="button" class="rounded-xl p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800" @click="closeLeadCounterpartyModal">×</button>
+                </div>
+
+                <div class="grid gap-3 md:grid-cols-2">
+                    <input
+                        ref="counterpartyNameInput"
+                        v-model="counterpartyForm.name"
+                        type="text"
+                        placeholder="Название"
+                        class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2"
+                    />
+                    <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
+                    <input v-model="counterpartyForm.phone" type="text" placeholder="Телефон" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <input v-model="counterpartyForm.email" type="email" placeholder="Email" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    <input v-model="counterpartyForm.contact_person" type="text" placeholder="Контактное лицо" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
+                </div>
+                <p v-if="inlineContractorError" class="mt-2 text-xs text-rose-600 dark:text-rose-400">{{ inlineContractorError }}</p>
+
+                <div class="mt-5 flex justify-end gap-3">
+                    <button type="button" class="secondary-button" @click="closeLeadCounterpartyModal">Отмена</button>
+                    <button
+                        type="button"
+                        class="primary-button"
+                        :disabled="inlineContractorSaving || !counterpartyForm.name?.trim()"
+                        @click="createInlineLeadCounterparty"
+                    >
+                        {{ inlineContractorSaving ? 'Создание…' : 'Создать' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -414,6 +481,22 @@ const serverCounterpartyResults = ref([]);
 const counterpartySearchTimer = ref(null);
 const counterpartyAbortController = ref(null);
 const counterpartyFetchSeq = ref(0);
+
+const showCounterpartyModal = ref(false);
+const counterpartyNameInput = ref(null);
+const inlineContractorSaving = ref(false);
+const inlineContractorError = ref('');
+
+const counterpartyForm = useForm({
+    name: '',
+    inn: '',
+    kpp: '',
+    address: '',
+    phone: '',
+    email: '',
+    contact_person: '',
+    type: 'customer',
+});
 
 const filteredCounterparties = computed(() => {
     const query = counterpartySearch.value.trim().toLowerCase();
@@ -544,6 +627,71 @@ function hideCounterpartyResultsWithDelay() {
     setTimeout(() => {
         showCounterpartyResults.value = false;
     }, 150);
+}
+
+async function openLeadCounterpartyModal() {
+    inlineContractorError.value = '';
+    counterpartyForm.clearErrors();
+    counterpartyForm.reset();
+    counterpartyForm.type = 'customer';
+    counterpartyForm.name = counterpartySearch.value.trim();
+    showCounterpartyModal.value = true;
+    showCounterpartyResults.value = false;
+    await nextTick();
+    counterpartyNameInput.value?.focus?.();
+}
+
+function closeLeadCounterpartyModal() {
+    showCounterpartyModal.value = false;
+    inlineContractorError.value = '';
+    counterpartyForm.clearErrors();
+}
+
+async function createInlineLeadCounterparty() {
+    inlineContractorError.value = '';
+    counterpartyForm.clearErrors();
+    inlineContractorSaving.value = true;
+
+    try {
+        const response = await fetch(route('leads.contractors.store'), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            body: JSON.stringify(counterpartyForm.data()),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            if (response.status === 422 && payload.errors) {
+                const first = Object.values(payload.errors).flat()[0];
+                inlineContractorError.value = first || 'Проверьте введённые данные.';
+            } else {
+                inlineContractorError.value = payload.message || 'Не удалось создать контрагента.';
+            }
+
+            return;
+        }
+
+        const contractor = payload.contractor;
+        if (contractor?.id) {
+            ensureCounterpartyInLocalList(contractor);
+            selectCounterparty(contractor);
+        }
+
+        counterpartyForm.reset();
+        counterpartyForm.type = 'customer';
+        closeLeadCounterpartyModal();
+    } catch (e) {
+        inlineContractorError.value = 'Ошибка сети при создании контрагента.';
+        console.error(e);
+    } finally {
+        inlineContractorSaving.value = false;
+    }
 }
 
 function addRoutePoint(type = 'loading') { form.route_points.push({ type, sequence: form.route_points.length + 1, address: '', normalized_data: {}, planned_date: '', contact_person: '', contact_phone: '' }); }

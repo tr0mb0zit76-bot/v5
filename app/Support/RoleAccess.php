@@ -21,7 +21,9 @@ class RoleAccess
             ['key' => 'edit_orders', 'label' => 'Редактирование заказов', 'description' => 'Изменение карточек заказов'],
             ['key' => 'assign_drivers', 'label' => 'Назначение водителей', 'description' => 'Привязка водителей и координация рейсов'],
             ['key' => 'view_finance', 'label' => 'Финансы', 'description' => 'Просмотр финансовых показателей'],
-            ['key' => 'manage_payment_schedules', 'label' => 'График оплат: действия', 'description' => 'Регистрация оплат, отмена/восстановление строк, правка номера счёта в графике'],
+            ['key' => 'manage_payment_schedules', 'label' => 'График оплат: полные действия', 'description' => 'Фиксация оплат, отмена/восстановление строк, правка номера счёта. Либо включите это право, либо отдельные пункты «Зафиксировать платёж» и «Отмена» ниже'],
+            ['key' => 'payment_schedule_record_payment', 'label' => 'График оплат: зафиксировать платёж', 'description' => 'Кнопка «Зафиксировать платёж» и сохранение фактической оплаты по строке графика'],
+            ['key' => 'payment_schedule_cancel_row', 'label' => 'График оплат: отмена и восстановление', 'description' => 'Кнопки «Отменить» и «Восстановить» по строке графика'],
             ['key' => 'create_invoices', 'label' => 'Счета', 'description' => 'Создание счетов и финансовых документов'],
             ['key' => 'view_documents', 'label' => 'Документы', 'description' => 'Просмотр реестров документов'],
             ['key' => 'create_documents', 'label' => 'Создание документов', 'description' => 'Создание документов и шаблонов'],
@@ -461,9 +463,26 @@ class RoleAccess
     }
 
     /**
-     * Действия в графике оплат (платежи, отмена, номер счёта и т.д.).
+     * @return array{hasPs: bool, hasFs: bool}
+     */
+    private static function userPaymentScheduleFinanceAreas(?User $user): array
+    {
+        if ($user === null) {
+            return ['hasPs' => false, 'hasFs' => false];
+        }
+
+        $areas = static::userVisibilityAreas($user);
+
+        return [
+            'hasPs' => static::hasVisibilityArea($areas, 'payment_schedules'),
+            'hasFs' => static::hasVisibilityArea($areas, 'finance_salary'),
+        ];
+    }
+
+    /**
+     * Правка номера счёта в графике и прочие «полные» действия, кроме отдельно настраиваемых кнопок.
      * Явное право manage_payment_schedules обязательно, если в роли есть только область «График оплат».
-     * Сочетание с «Финансы: зарплата» сохраняет прежнее поведение без отдельной галки права.
+     * Сочетание областей «График оплат» + «Финансы: зарплата» сохраняет прежнее поведение без отдельной галки.
      */
     public static function canManagePaymentSchedules(?User $user): bool
     {
@@ -475,11 +494,9 @@ class RoleAccess
             return true;
         }
 
-        $areas = static::userVisibilityAreas($user);
-        $hasPs = static::hasVisibilityArea($areas, 'payment_schedules');
-        $hasFs = static::hasVisibilityArea($areas, 'finance_salary');
+        $ctx = static::userPaymentScheduleFinanceAreas($user);
 
-        if (! $hasPs && ! $hasFs) {
+        if (! $ctx['hasPs'] && ! $ctx['hasFs']) {
             return false;
         }
 
@@ -487,11 +504,88 @@ class RoleAccess
             return true;
         }
 
-        if ($hasPs && $hasFs) {
+        if ($ctx['hasPs'] && $ctx['hasFs']) {
             return true;
         }
 
-        return ! $hasPs && $hasFs;
+        return ! $ctx['hasPs'] && $ctx['hasFs'];
+    }
+
+    /**
+     * Кнопка «Зафиксировать платёж» (и сохранение фактической оплаты).
+     * Доступно при полном праве manage_payment_schedules, устаревших сочетаниях областей или явной галке.
+     */
+    public static function canRecordPaymentOnPaymentSchedule(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $ctx = static::userPaymentScheduleFinanceAreas($user);
+        if (! $ctx['hasPs'] && ! $ctx['hasFs']) {
+            return false;
+        }
+
+        if (static::userHasPermission($user, 'manage_payment_schedules')) {
+            return true;
+        }
+
+        if ($ctx['hasPs'] && $ctx['hasFs']) {
+            return true;
+        }
+
+        if (! $ctx['hasPs'] && $ctx['hasFs']) {
+            return true;
+        }
+
+        return static::userHasPermission($user, 'payment_schedule_record_payment');
+    }
+
+    /**
+     * Кнопки «Отменить» и «Восстановить» по строке графика.
+     */
+    public static function canCancelPaymentScheduleRow(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $ctx = static::userPaymentScheduleFinanceAreas($user);
+        if (! $ctx['hasPs'] && ! $ctx['hasFs']) {
+            return false;
+        }
+
+        if (static::userHasPermission($user, 'manage_payment_schedules')) {
+            return true;
+        }
+
+        if ($ctx['hasPs'] && $ctx['hasFs']) {
+            return true;
+        }
+
+        if (! $ctx['hasPs'] && $ctx['hasFs']) {
+            return true;
+        }
+
+        return static::userHasPermission($user, 'payment_schedule_cancel_row');
+    }
+
+    /**
+     * Показывать колонку «Действия» (частично может быть доступна без полного manage).
+     */
+    public static function canShowPaymentScheduleActionsColumn(?User $user): bool
+    {
+        return static::canManagePaymentSchedules($user)
+            || static::canRecordPaymentOnPaymentSchedule($user)
+            || static::canCancelPaymentScheduleRow($user);
     }
 
     /**

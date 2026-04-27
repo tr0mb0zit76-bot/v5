@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ConvertLeadRequest;
+use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreLeadNextStepRequest;
 use App\Http\Requests\StoreLeadRequest;
 use App\Http\Requests\UpdateLeadRequest;
@@ -97,6 +98,48 @@ class LeadController extends Controller
         });
 
         return to_route('leads.show', $lead);
+    }
+
+    /**
+     * Быстрое создание контрагента из карточки лида (без отдельного доступа к разделу «Контрагенты»).
+     */
+    public function storeInlineContractor(StoreInlineOrderContractorRequest $request): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+
+        $attributes = [
+            'type' => $request->input('type', 'customer'),
+            'name' => $request->string('name')->toString(),
+            'inn' => $request->string('inn')->toString() ?: null,
+            'kpp' => $request->string('kpp')->toString() ?: null,
+            'legal_address' => $request->string('address')->toString() ?: null,
+            'actual_address' => $request->string('address')->toString() ?: null,
+            'phone' => $request->string('phone')->toString() ?: null,
+            'email' => $request->string('email')->toString() ?: null,
+            'contact_person' => $request->string('contact_person')->toString() ?: null,
+            'is_active' => true,
+            'is_verified' => false,
+            'created_by' => $request->user()?->id,
+            'updated_by' => $request->user()?->id,
+        ];
+
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $attributes['is_own_company'] = false;
+        }
+
+        $contractor = Contractor::query()->create($attributes);
+
+        return response()->json([
+            'contractor' => [
+                'id' => $contractor->id,
+                'name' => $contractor->name,
+                'inn' => $contractor->inn,
+                'phone' => $contractor->phone,
+                'email' => $contractor->email,
+                'type' => $contractor->type,
+                'is_own_company' => $contractor->is_own_company ?? false,
+            ],
+        ], 201);
     }
 
     public function update(UpdateLeadRequest $request, Lead $lead): RedirectResponse

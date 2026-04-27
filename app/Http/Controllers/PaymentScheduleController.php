@@ -18,7 +18,7 @@ class PaymentScheduleController extends Controller
      */
     public function recordPayment(Request $request, PaymentSchedule $paymentSchedule): JsonResponse
     {
-        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
+        $this->ensureCanRecordPayment($request, $paymentSchedule);
 
         if (! Schema::hasColumn('payment_schedules', 'paid_amount')
             || ! Schema::hasColumn('payment_schedules', 'remaining_amount')) {
@@ -248,7 +248,7 @@ class PaymentScheduleController extends Controller
      */
     public function cancel(Request $request, PaymentSchedule $paymentSchedule)
     {
-        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
+        $this->ensureCanCancelPaymentScheduleRow($request, $paymentSchedule);
 
         $paymentSchedule->status = 'cancelled';
         $paymentSchedule->save();
@@ -271,7 +271,7 @@ class PaymentScheduleController extends Controller
      */
     public function restore(Request $request, PaymentSchedule $paymentSchedule)
     {
-        $this->ensureCanManagePaymentSchedule($request, $paymentSchedule);
+        $this->ensureCanCancelPaymentScheduleRow($request, $paymentSchedule);
 
         if ($paymentSchedule->status !== 'cancelled') {
             if ($request->expectsJson() || $request->wantsJson()) {
@@ -315,6 +315,26 @@ class PaymentScheduleController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
         abort_unless(RoleAccess::canManagePaymentSchedules($user), 403);
+        if ($paymentSchedule !== null) {
+            $this->ensurePaymentScheduleInUserDataScope($request, $paymentSchedule);
+        }
+    }
+
+    private function ensureCanRecordPayment(Request $request, ?PaymentSchedule $paymentSchedule = null): void
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(RoleAccess::canRecordPaymentOnPaymentSchedule($user), 403);
+        if ($paymentSchedule !== null) {
+            $this->ensurePaymentScheduleInUserDataScope($request, $paymentSchedule);
+        }
+    }
+
+    private function ensureCanCancelPaymentScheduleRow(Request $request, ?PaymentSchedule $paymentSchedule = null): void
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(RoleAccess::canCancelPaymentScheduleRow($user), 403);
         if ($paymentSchedule !== null) {
             $this->ensurePaymentScheduleInUserDataScope($request, $paymentSchedule);
         }

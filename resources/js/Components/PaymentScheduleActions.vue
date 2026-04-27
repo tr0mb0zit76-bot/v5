@@ -2,7 +2,7 @@
     <div class="flex items-center gap-1.5">
         <!-- Кнопка "Зафиксировать платеж" (иконка плюс) -->
         <button
-            v-if="!payment.is_partial && payment.status !== 'paid' && payment.status !== 'cancelled'"
+            v-if="canRecordPayment && !payment.is_partial && payment.status !== 'paid' && payment.status !== 'cancelled'"
             @click="showRecordPaymentModal = true"
             class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
             title="Зафиксировать платеж"
@@ -32,7 +32,7 @@
 
         <!-- Кнопка "Восстановить" (иконка восстановления) -->
         <button
-            v-if="payment.status === 'cancelled'"
+            v-if="canCancelPaymentRow && payment.status === 'cancelled'"
             @click="restorePayment"
             class="inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 p-1.5 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
             title="Восстановить платеж"
@@ -216,6 +216,14 @@ const props = defineProps({
     payment: {
         type: Object,
         required: true,
+    },
+    canRecordPayment: {
+        type: Boolean,
+        default: true,
+    },
+    canCancelPaymentRow: {
+        type: Boolean,
+        default: true,
     },
 });
 
