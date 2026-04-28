@@ -10,10 +10,9 @@
           class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
         />
       </div>
-      <button type="button" class="toolbar-button" @click="$emit('create')">
-        <Plus class="h-4 w-4" />
-        Добавить водителя
-      </button>
+      <div class="text-xs text-zinc-500 dark:text-zinc-400">
+        Используйте фильтры в заголовках колонок для точного поиска
+      </div>
     </div>
 
     <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -44,7 +43,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Plus, Search } from 'lucide-vue-next';
+import { Search } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -58,7 +57,7 @@ const props = defineProps({
   userId: { type: [String, Number], default: 'guest' },
 });
 
-const emit = defineEmits(['create', 'row-dblclick']);
+const emit = defineEmits(['row-dblclick']);
 
 const agGrid = ref(null);
 const gridApi = ref(null);
@@ -100,13 +99,13 @@ const defaultColDef = {
   sortable: true,
   filter: true,
   resizable: true,
-  floatingFilter: false,
+  floatingFilter: true,
   minWidth: 80,
   suppressSizeToFit: true,
 };
 
 const columnDefs = [
-  { field: 'id', headerName: 'ID', width: 72, maxWidth: 90 },
+  { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: 'agNumberColumnFilter' },
   { field: 'carrier_name', headerName: 'Перевозчик', flex: 1, minWidth: 160 },
   { field: 'full_name', headerName: 'ФИО', width: 200, minWidth: 140 },
   { field: 'phone', headerName: 'Телефон', width: 130 },
@@ -115,7 +114,7 @@ const columnDefs = [
     width: 140,
     valueGetter: (p) => [p.data?.passport_series, p.data?.passport_number].filter(Boolean).join(' ') || '—',
   },
-  { field: 'documents_count', headerName: 'Док.', width: 72 },
+  { field: 'documents_count', headerName: 'Док.', width: 72, filter: 'agNumberColumnFilter' },
 ];
 
 function onGridReady(params) {

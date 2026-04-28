@@ -98,16 +98,20 @@
                     </div>
                     <div class="space-y-1">
                         <label class="text-xs text-zinc-500">Файл</label>
-                        <input type="file" class="text-sm" required @change="onDocFile" />
+                        <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-900">
+                            <span>Выбрать файл</span>
+                            <span class="max-w-48 truncate text-xs text-zinc-500">{{ docFileName || 'Файл не выбран' }}</span>
+                            <input type="file" class="hidden" required @change="onDocFile" />
+                        </label>
                         <p v-if="docForm.errors.file" class="text-xs text-rose-600 dark:text-rose-400">{{ docForm.errors.file }}</p>
                         <p v-if="docForm.errors.document_type" class="text-xs text-rose-600 dark:text-rose-400">{{ docForm.errors.document_type }}</p>
                     </div>
                     <button
                         type="submit"
-                        class="rounded-xl border border-zinc-900 px-4 py-2 text-sm dark:border-zinc-50"
+                        class="rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
                         :disabled="docForm.processing || !docFile"
                     >
-                        Загрузить
+                        Добавить документ
                     </button>
                 </form>
 
@@ -137,7 +141,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 
@@ -158,6 +162,7 @@ const ownerPickedLabel = ref('');
 let ownerTimer = null;
 const docFile = ref(null);
 const deletingDocId = ref(null);
+const docFileName = computed(() => docFile.value?.name ?? '');
 
 const form = useForm({
     owner_contractor_id: null,
@@ -189,7 +194,7 @@ function syncFromSelected() {
     form.tractor_plate = v.tractor_plate ?? '';
     form.trailer_plate = v.trailer_plate ?? '';
     form.notes = v.notes ?? '';
-    ownerPickedLabel.value = v.owner_name ? `${v.owner_name}${v.owner_inn ? ' · ИНН '.$v.owner_inn : ''}` : '';
+    ownerPickedLabel.value = v.owner_name ? `${v.owner_name}${v.owner_inn ? ' · ИНН ' + v.owner_inn : ''}` : '';
     ownerSearch.value = v.owner_name ?? '';
 }
 

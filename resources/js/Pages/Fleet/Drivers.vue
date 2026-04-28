@@ -5,13 +5,20 @@
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Водители</h1>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">Контрагент-перевозчик, паспортные данные, документы.</p>
             </div>
+            <button
+                type="button"
+                class="inline-flex shrink-0 items-center gap-2 rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                @click="openCreate"
+            >
+                <Plus class="h-4 w-4" />
+                Добавить водителя
+            </button>
         </div>
 
         <div class="min-h-0 flex-1 overflow-hidden">
             <FleetDriversGrid
                 :rows="rows"
                 :user-id="userId"
-                @create="openCreate"
                 @row-dblclick="handleRowDblClick"
             />
         </div>
@@ -31,6 +38,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
+import { Plus } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import FleetDriversGrid from '@/Components/Fleet/FleetDriversGrid.vue';
