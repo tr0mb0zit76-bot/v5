@@ -969,6 +969,10 @@ class OrderWizardController extends Controller
         if (! is_array($costRows)) {
             $costRows = [];
         }
+        $savedPerformers = is_array($order->performers) ? $order->performers : [];
+        $savedPerformersByStage = collect($savedPerformers)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->keyBy(fn (array $row): string => $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1')));
 
         $costsByNormalizedStage = collect($costRows)
             ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? 'leg_1')));
@@ -988,6 +992,9 @@ class OrderWizardController extends Controller
                 ->map(function ($leg, int $index) use ($costsByNormalizedStage, $order): array {
                     $normalized = $this->normalizeStageIdentifierForWizard((string) ($leg->description ?? 'leg_1'));
                     $contractorId = null;
+                    $metadataPerformer = is_array($leg->metadata ?? null)
+                        ? (is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : [])
+                        : [];
 
                     if (Schema::hasTable('leg_contractor_assignments')) {
                         $contractorId = $leg->contractorAssignment?->contractor_id;
@@ -1005,6 +1012,12 @@ class OrderWizardController extends Controller
                     return [
                         'stage' => $leg->description,
                         'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
+                        'fleet_vehicle_id' => isset($metadataPerformer['fleet_vehicle_id']) && $metadataPerformer['fleet_vehicle_id'] !== null
+                            ? (int) $metadataPerformer['fleet_vehicle_id']
+                            : null,
+                        'fleet_driver_id' => isset($metadataPerformer['fleet_driver_id']) && $metadataPerformer['fleet_driver_id'] !== null
+                            ? (int) $metadataPerformer['fleet_driver_id']
+                            : null,
                     ];
                 })
                 ->all()
@@ -1016,10 +1029,17 @@ class OrderWizardController extends Controller
 
         if ($costRows !== []) {
             $fromCosts = collect($costRows)
-                ->map(fn (array $cost): array => [
-                    'stage' => $cost['stage'] ?? 'leg_1',
-                    'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
-                ])
+                ->map(function (array $cost) use ($savedPerformersByStage): array {
+                    $stage = (string) ($cost['stage'] ?? 'leg_1');
+                    $saved = $savedPerformersByStage->get($this->normalizeStageIdentifierForWizard($stage));
+
+                    return [
+                        'stage' => $stage,
+                        'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
+                        'fleet_vehicle_id' => isset($saved['fleet_vehicle_id']) && $saved['fleet_vehicle_id'] !== null ? (int) $saved['fleet_vehicle_id'] : null,
+                        'fleet_driver_id' => isset($saved['fleet_driver_id']) && $saved['fleet_driver_id'] !== null ? (int) $saved['fleet_driver_id'] : null,
+                    ];
+                })
                 ->values()
                 ->all();
 

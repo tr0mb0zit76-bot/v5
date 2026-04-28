@@ -396,7 +396,7 @@ class OrderIndexTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->has('rows', 1, fn (Assert $row) => $row
                 ->where('order_number', 'GRID-CPT')
-                ->where('carrier_payment_term', '40% 2 дн ФТТН / 60% 10 дн ОТТН')
+                ->where('carrier_payment_term', '40% 2 дн по сканам / 60% 10 дн по оригиналам')
                 ->etc()
             )
         );

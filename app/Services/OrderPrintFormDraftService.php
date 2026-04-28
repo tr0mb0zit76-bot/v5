@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\FleetDriver;
+use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
 use App\Support\CarrierPaymentTermResolver;
@@ -48,7 +50,7 @@ class OrderPrintFormDraftService
                 continue;
             }
 
-            $mappedPath = $this->resolveMappedPath($placeholder, $mapping);
+            $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
             $processor->setValue($placeholder, $replacement);
@@ -64,7 +66,7 @@ class OrderPrintFormDraftService
                     continue;
                 }
 
-                $mappedPath = $this->resolveMappedPath($placeholder, $mapping);
+                $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
                 $processor->setValue($placeholder, $replacement);
@@ -213,8 +215,9 @@ class OrderPrintFormDraftService
 
         $loadingPoints = $routePoints->where('type', 'loading')->values();
         $unloadingPoints = $routePoints->where('type', 'unloading')->values();
-        $driver = $this->driverPayload((int) ($order->driver_id ?? 0));
-        $vehicle = $this->vehiclePayload($order, $driver);
+        $fleetSelection = $this->resolvePrimaryFleetSelection($order);
+        $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id']);
+        $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id']);
         $loadingMethod = $this->resolveLoadingMethod($loadingPoints->first(), $order);
 
         $cargoNames = $cargoItems
@@ -237,7 +240,7 @@ class OrderPrintFormDraftService
                 'unloading_date' => $this->formatDate($order->unloading_date),
                 'status' => $order->status,
                 'customer_rate' => $this->formatMoney($order->customer_rate),
-                'carrier_rate' => $this->formatMoney($order->carrier_rate),
+                'carrier_rate' => $this->formatMoney($this->resolveCarrierRateValue($order)),
                 'customer_payment_form' => $this->resolveCustomerPaymentFormDisplay($order, $paymentTermsPayload),
                 'customer_payment_term' => $this->resolveCustomerPaymentTermDisplay($order, $paymentTermsPayload),
                 'carrier_payment_form' => $this->resolveCarrierPaymentFormDisplay($order, $paymentTermsPayload),
@@ -321,6 +324,85 @@ class OrderPrintFormDraftService
                 'total_packages' => (string) $cargoTotalPackages,
             ], $this->cargoPerLinePlaceholderMap($cargoItems)),
         ];
+    }
+
+    /**
+     * @return array{fleet_vehicle_id:int|null,fleet_driver_id:int|null}
+     */
+    private function resolvePrimaryFleetSelection(Order $order): array
+    {
+        if ($order->relationLoaded('legs')) {
+            foreach ($order->legs->sortBy('sequence') as $leg) {
+                $performer = is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : [];
+                $vehicleId = isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null
+                    ? (int) $performer['fleet_vehicle_id']
+                    : null;
+                $driverId = isset($performer['fleet_driver_id']) && $performer['fleet_driver_id'] !== null
+                    ? (int) $performer['fleet_driver_id']
+                    : null;
+
+                if ($vehicleId !== null || $driverId !== null) {
+                    return [
+                        'fleet_vehicle_id' => $vehicleId,
+                        'fleet_driver_id' => $driverId,
+                    ];
+                }
+            }
+        }
+
+        $performers = is_array($order->performers) ? $order->performers : [];
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            $vehicleId = isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null
+                ? (int) $performer['fleet_vehicle_id']
+                : null;
+            $driverId = isset($performer['fleet_driver_id']) && $performer['fleet_driver_id'] !== null
+                ? (int) $performer['fleet_driver_id']
+                : null;
+
+            if ($vehicleId !== null || $driverId !== null) {
+                return [
+                    'fleet_vehicle_id' => $vehicleId,
+                    'fleet_driver_id' => $driverId,
+                ];
+            }
+        }
+
+        return [
+            'fleet_vehicle_id' => null,
+            'fleet_driver_id' => null,
+        ];
+    }
+
+    private function resolveCarrierRateValue(Order $order): ?float
+    {
+        if ($order->carrier_rate !== null && $order->carrier_rate !== '') {
+            return (float) $order->carrier_rate;
+        }
+
+        if ($order->relationLoaded('legs') && Schema::hasTable('leg_costs')) {
+            $sumFromLegs = $order->legs
+                ->map(fn ($leg): float => (float) ($leg->cost?->amount ?? 0))
+                ->sum();
+            if ($sumFromLegs > 0) {
+                return $sumFromLegs;
+            }
+        }
+
+        if ($order->relationLoaded('financialTerms')) {
+            $costs = $order->financialTerms->first()?->contractors_costs;
+            if (is_array($costs)) {
+                $sumFromCosts = collect($costs)->sum(fn (array $cost): float => (float) ($cost['amount'] ?? 0));
+                if ($sumFromCosts > 0) {
+                    return $sumFromCosts;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -422,6 +504,18 @@ class OrderPrintFormDraftService
             $relations[] = 'cargoItems';
         }
 
+        if (Schema::hasTable('order_legs')) {
+            $relations[] = 'legs';
+
+            if (Schema::hasTable('leg_costs')) {
+                $relations[] = 'legs.cost';
+            }
+        }
+
+        if (Schema::hasTable('financial_terms')) {
+            $relations[] = 'financialTerms';
+        }
+
         return $order->loadMissing($relations);
     }
 
@@ -455,8 +549,27 @@ class OrderPrintFormDraftService
     /**
      * @return array<string, string|null>
      */
-    private function driverPayload(int $driverId): array
+    private function driverPayload(int $driverId, ?int $fleetDriverId = null): array
     {
+        if ($fleetDriverId !== null && Schema::hasTable('fleet_drivers')) {
+            /** @var FleetDriver|null $fleetDriver */
+            $fleetDriver = FleetDriver::query()->find($fleetDriverId);
+            if ($fleetDriver !== null) {
+                $passportParts = array_filter([
+                    $fleetDriver->passport_series,
+                    $fleetDriver->passport_number,
+                    $fleetDriver->passport_issued_by,
+                    $fleetDriver->passport_issued_at?->format('d.m.Y'),
+                ]);
+
+                return [
+                    'full_name' => $fleetDriver->full_name,
+                    'phone' => $fleetDriver->phone,
+                    'passport_data' => $passportParts !== [] ? implode(', ', $passportParts) : null,
+                ];
+            }
+        }
+
         if ($driverId <= 0 || ! Schema::hasTable('drivers')) {
             return [
                 'full_name' => null,
@@ -496,8 +609,25 @@ class OrderPrintFormDraftService
      * @param  array<string, string|null>  $driver
      * @return array{brand: ?string, number: ?string, transport_type: ?string}
      */
-    private function vehiclePayload(Order $order, array $driver): array
+    private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId = null): array
     {
+        if ($fleetVehicleId !== null && Schema::hasTable('fleet_vehicles')) {
+            /** @var FleetVehicle|null $fleetVehicle */
+            $fleetVehicle = FleetVehicle::query()->find($fleetVehicleId);
+            if ($fleetVehicle !== null) {
+                return [
+                    'brand' => $this->firstFilledValue([$fleetVehicle->tractor_brand, $fleetVehicle->trailer_brand]),
+                    'number' => $this->firstFilledValue([
+                        $fleetVehicle->tractor_plate,
+                        $fleetVehicle->trailer_plate,
+                    ]),
+                    'transport_type' => $this->firstFilledValue([
+                        $fleetVehicle->trailer_brand !== null ? 'тягач + полуприцеп' : 'тягач',
+                    ]),
+                ];
+            }
+        }
+
         $orderMetadata = is_array($order->metadata) ? $order->metadata : [];
         $orderWizardState = is_array($order->wizard_state) ? $order->wizard_state : [];
 
@@ -986,9 +1116,16 @@ class OrderPrintFormDraftService
         return '';
     }
 
-    private function resolveMappedPath(string $placeholder, Collection $mapping): string
+    private function resolveMappedPath(string $placeholder, Collection $mapping, PrintFormTemplate $template): string
     {
-        return $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'order');
+        $resolved = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'order');
+
+        // Легаси-плейсхолдер stoimost в шаблоне перевозчика должен брать ставку перевозчика.
+        if (mb_strtolower(trim($placeholder)) === 'stoimost' && $template->party === 'carrier') {
+            return 'order.carrier_rate';
+        }
+
+        return $resolved;
     }
 
     private function formatDate(mixed $value): ?string
