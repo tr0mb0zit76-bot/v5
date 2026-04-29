@@ -1,5 +1,9 @@
 * text=auto eol=lf
 
+# Локали витрины: не использовать стандартное автослияние JSON (иначе легко «съесть» ключи/строки).
+# При конфликте merge нужно разрешить вручную — файл не исчезнет незаметно.
+/public/locales/*.json merge=binary
+
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html

@@ -9,6 +9,11 @@ if ($showcaseHosts === []) {
     $showcaseHosts = ['v5.local'];
 }
 
+$crmDomainFromEnv = env('CRM_DOMAIN');
+$crmDomain = ($crmDomainFromEnv !== null && $crmDomainFromEnv !== '')
+    ? strtolower(trim((string) $crmDomainFromEnv))
+    : strtolower(trim((string) (parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost')));
+
 return [
 
     /*
@@ -67,7 +72,7 @@ return [
     | Домены витрины и кабинета (разные хосты в проде: log-sol.ru vs crm.log-sol.ru).
     | Локально по умолчанию: витрина v5.local, кабинет из CRM_DOMAIN (например crm.log-sol.local).
     */
-    'crm_domain' => env('CRM_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost'),
+    'crm_domain' => $crmDomain,
 
     /*
     | Несколько хостов витрины через запятую в SHOWCASE_DOMAIN (например domen.ru,www.domen.ru).
