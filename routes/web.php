@@ -411,12 +411,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-// При раздельных доменах привязываем гостевую авторизацию к CRM_HOST, чтобы /login на crm.* не зависел
-// от «глобальных» маршрутов без домена (редкие сбои route:cache / окружения).
-if ($sameShowcaseAndCrmHost) {
-    require __DIR__.'/auth.php';
-} else {
-    Route::domain($crmDomain)->group(function () {
-        require __DIR__.'/auth.php';
-    });
-}
+require __DIR__.'/auth.php';
