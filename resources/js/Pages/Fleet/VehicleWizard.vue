@@ -1,15 +1,28 @@
 <template>
-    <div class="flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden">
-        <div class="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-            <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                {{ isCreating ? 'Новое ТС' : 'Карточка ТС' }}
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+            <div class="flex items-center gap-3">
+                <button
+                    type="button"
+                    class="inline-flex h-11 w-11 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                    title="Назад"
+                    @click="$emit('close')"
+                >
+                    <X class="h-5 w-5" />
+                    <span class="sr-only">Назад</span>
+                </button>
+                <div class="min-w-0">
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                        {{ isCreating ? 'Новое ТС' : 'Карточка ТС' }}
+                    </div>
+                    <h2 class="mt-1 truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                        {{ isCreating ? 'Добавление' : `ТС #${selectedVehicle?.id}` }}
+                    </h2>
+                </div>
             </div>
-            <h2 class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                {{ isCreating ? 'Добавление' : `ТС #${selectedVehicle?.id}` }}
-            </h2>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
             <form class="space-y-5" @submit.prevent="submitMain">
                 <div class="space-y-2">
                     <label class="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">Владелец (контрагент)</label>
@@ -35,14 +48,14 @@
                             class="absolute left-0 top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
                         >
                             <button
-                                v-for="c in ownerResults"
-                                :key="c.id"
+                                v-for="contractor in ownerResults"
+                                :key="contractor.id"
                                 type="button"
                                 class="flex w-full flex-col items-start px-4 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                @click="pickOwner(c)"
+                                @click="pickOwner(contractor)"
                             >
-                                <span class="font-medium">{{ c.name }}</span>
-                                <span class="text-xs text-zinc-500">{{ c.inn || '—' }}</span>
+                                <span class="font-medium">{{ contractor.name }}</span>
+                                <span class="text-xs text-zinc-500">{{ contractor.inn || '—' }}</span>
                             </button>
                         </div>
                     </div>
@@ -86,19 +99,31 @@
             </form>
 
             <div v-if="!isCreating && selectedVehicle" class="mt-10 space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-                <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Документы</div>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400">ПТС, договор аренды, страховка и др.</p>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Документы</div>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">ПТС, договор аренды, страховка и др.</p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                        @click="triggerDocPicker"
+                    >
+                        Добавить документ
+                    </button>
+                </div>
 
                 <form class="flex flex-wrap items-end gap-3" @submit.prevent="submitDoc">
                     <div class="space-y-1">
                         <label class="text-xs text-zinc-500">Тип</label>
                         <select v-model="docForm.document_type" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" required>
-                            <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                     <div class="space-y-1">
                         <label class="text-xs text-zinc-500">Файл</label>
-                        <input type="file" class="text-sm" required @change="onDocFile" />
+                        <input ref="docInput" type="file" class="text-sm" required @change="onDocFile" />
                         <p v-if="docForm.errors.file" class="text-xs text-rose-600 dark:text-rose-400">{{ docForm.errors.file }}</p>
                         <p v-if="docForm.errors.document_type" class="text-xs text-rose-600 dark:text-rose-400">{{ docForm.errors.document_type }}</p>
                     </div>
@@ -113,18 +138,18 @@
 
                 <ul class="space-y-2">
                     <li
-                        v-for="doc in selectedVehicle.documents || []"
-                        :key="doc.id"
+                        v-for="document in selectedVehicle.documents || []"
+                        :key="document.id"
                         class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
                     >
-                        <a :href="doc.download_url" class="min-w-0 flex-1 truncate text-sky-700 underline dark:text-sky-300">{{ doc.original_name }}</a>
+                        <a :href="document.download_url" class="min-w-0 flex-1 truncate text-sky-700 underline dark:text-sky-300">{{ document.original_name }}</a>
                         <div class="flex shrink-0 items-center gap-2">
-                            <span class="text-xs text-zinc-500">{{ doc.document_type }}</span>
+                            <span class="text-xs text-zinc-500">{{ document.document_type }}</span>
                             <button
                                 type="button"
                                 class="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950"
-                                :disabled="deletingDocId === doc.id"
-                                @click="destroyVehicleDocument(doc)"
+                                :disabled="deletingDocId === document.id"
+                                @click="destroyVehicleDocument(document)"
                             >
                                 Удалить
                             </button>
@@ -139,6 +164,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
+import { X } from 'lucide-vue-next';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 
 const props = defineProps({
@@ -155,9 +181,10 @@ const ownerSearch = ref('');
 const ownerResults = ref([]);
 const ownerDropdownOpen = ref(false);
 const ownerPickedLabel = ref('');
-let ownerTimer = null;
+const docInput = ref(null);
 const docFile = ref(null);
 const deletingDocId = ref(null);
+let ownerTimer = null;
 
 const form = useForm({
     owner_contractor_id: null,
@@ -174,8 +201,9 @@ const docForm = useForm({
 });
 
 function syncFromSelected() {
-    const v = props.selectedVehicle;
-    if (!v || props.isCreating) {
+    const vehicle = props.selectedVehicle;
+
+    if (!vehicle || props.isCreating) {
         form.reset();
         form.owner_contractor_id = null;
         ownerPickedLabel.value = '';
@@ -183,36 +211,45 @@ function syncFromSelected() {
 
         return;
     }
-    form.owner_contractor_id = v.owner_contractor_id;
-    form.tractor_brand = v.tractor_brand ?? '';
-    form.trailer_brand = v.trailer_brand ?? '';
-    form.tractor_plate = v.tractor_plate ?? '';
-    form.trailer_plate = v.trailer_plate ?? '';
-    form.notes = v.notes ?? '';
-    ownerPickedLabel.value = v.owner_name ? `${v.owner_name}${v.owner_inn ? ' · ИНН '.$v.owner_inn : ''}` : '';
-    ownerSearch.value = v.owner_name ?? '';
+
+    form.owner_contractor_id = vehicle.owner_contractor_id;
+    form.tractor_brand = vehicle.tractor_brand ?? '';
+    form.trailer_brand = vehicle.trailer_brand ?? '';
+    form.tractor_plate = vehicle.tractor_plate ?? '';
+    form.trailer_plate = vehicle.trailer_plate ?? '';
+    form.notes = vehicle.notes ?? '';
+    ownerPickedLabel.value = vehicle.owner_name ? `${vehicle.owner_name}${vehicle.owner_inn ? ` · ИНН ${vehicle.owner_inn}` : ''}` : '';
+    ownerSearch.value = vehicle.owner_name ?? '';
 }
 
 watch(() => [props.selectedVehicle, props.isCreating], syncFromSelected, { immediate: true });
 
+function triggerDocPicker() {
+    docInput.value?.click();
+}
+
 function onOwnerInput() {
     ownerDropdownOpen.value = true;
+
     if (ownerTimer) {
         clearTimeout(ownerTimer);
     }
+
     ownerTimer = setTimeout(async () => {
-        const q = ownerSearch.value.trim();
-        if (q.length < 2) {
+        const query = ownerSearch.value.trim();
+
+        if (query.length < 2) {
             ownerResults.value = [];
 
             return;
         }
+
         try {
-            const r = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(q)}&type=carrier&limit=40`, {
+            const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=carrier&limit=40`, {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'include',
             });
-            const data = await r.json();
+            const data = await response.json();
             ownerResults.value = data.contractors ?? [];
         } catch {
             ownerResults.value = [];
@@ -220,10 +257,10 @@ function onOwnerInput() {
     }, 350);
 }
 
-function pickOwner(c) {
-    form.owner_contractor_id = c.id;
-    ownerPickedLabel.value = c.name;
-    ownerSearch.value = c.name;
+function pickOwner(contractor) {
+    form.owner_contractor_id = contractor.id;
+    ownerPickedLabel.value = contractor.name;
+    ownerSearch.value = contractor.name;
     ownerResults.value = [];
     ownerDropdownOpen.value = false;
 }
@@ -235,30 +272,35 @@ function clearOwner() {
 }
 
 function submitMain() {
-    const opts = { preserveScroll: true, onSuccess: () => emit('saved') };
+    const options = { preserveScroll: true, onSuccess: () => emit('saved') };
+
     if (props.isCreating) {
-        form.post(route('fleet.vehicles.store'), opts);
+        form.post(route('fleet.vehicles.store'), options);
 
         return;
     }
+
     if (props.selectedVehicle?.id) {
-        form.patch(route('fleet.vehicles.update', props.selectedVehicle.id), opts);
+        form.patch(route('fleet.vehicles.update', props.selectedVehicle.id), options);
     }
 }
 
-async function onDocFile(e) {
-    const f = e.target?.files?.[0];
-    if (f) {
-        await warnIfDocumentExceedsBudget(f, page.props.document_upload_limits ?? {});
+async function onDocFile(event) {
+    const file = event.target?.files?.[0];
+
+    if (file) {
+        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
     }
-    docFile.value = f ?? null;
-    docForm.file = f ?? null;
+
+    docFile.value = file ?? null;
+    docForm.file = file ?? null;
 }
 
 function submitDoc() {
     if (!props.selectedVehicle?.id || !docFile.value) {
         return;
     }
+
     docForm.post(route('fleet.vehicles.documents.store', props.selectedVehicle.id), {
         preserveScroll: true,
         forceFormData: true,
@@ -271,15 +313,17 @@ function submitDoc() {
     });
 }
 
-function destroyVehicleDocument(doc) {
-    if (!props.selectedVehicle?.id || !doc?.id) {
+function destroyVehicleDocument(document) {
+    if (!props.selectedVehicle?.id || !document?.id) {
         return;
     }
-    if (!window.confirm(`Удалить файл «${doc.original_name}»?`)) {
+
+    if (!window.confirm(`Удалить файл «${document.original_name}»?`)) {
         return;
     }
-    deletingDocId.value = doc.id;
-    router.delete(route('fleet.vehicles.documents.destroy', [props.selectedVehicle.id, doc.id]), {
+
+    deletingDocId.value = document.id;
+    router.delete(route('fleet.vehicles.documents.destroy', [props.selectedVehicle.id, document.id]), {
         preserveScroll: true,
         onFinish: () => {
             deletingDocId.value = null;

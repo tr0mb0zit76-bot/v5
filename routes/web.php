@@ -30,54 +30,90 @@ use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Keep CRM and showcase hosts independent per-environment.
+// Витрина и CRM на разных хостах: SHOWCASE_DOMAIN (можно несколько через запятую) и CRM_DOMAIN.
+// Nextcloud (nc.*) — отдельный vhost, не Laravel.
 $crmDomain = (string) config('app.crm_domain');
-$showcaseDomain = (string) config('app.showcase_domain');
-$sameShowcaseAndCrmHost = $crmDomain !== '' && strcasecmp($crmDomain, $showcaseDomain) === 0;
+/** @var list<string> $showcaseHosts */
+$showcaseHosts = config('app.showcase_hosts', []);
+$sameShowcaseAndCrmHost = $crmDomain !== ''
+    && count($showcaseHosts) === 1
+    && strcasecmp($crmDomain, $showcaseHosts[0]) === 0;
 
 if ($sameShowcaseAndCrmHost) {
-    // ���� ����: ��������� �������� � ������� �� ����� ������ (��� ��������� �� ������ origin).
-    // ����� Inertia/Vite �� v5.local �������� 302 �� crm.* � CORS ��������� XHR.
-    Route::domain($showcaseDomain)->group(function () {
-        Route::get('/', function () {
-            if (auth()->check()) {
-                return redirect('/dashboard');
+    // Один хост: лендинг и кабинет на одном origin (без редиректа витрина→CRM).
+    foreach ($showcaseHosts as $index => $showcaseDomain) {
+        $namePublicRoutes = $index === 0;
+
+        Route::domain($showcaseDomain)->group(function () use ($namePublicRoutes) {
+            $home = Route::get('/', function () {
+                if (auth()->check()) {
+                    return redirect('/dashboard');
+                }
+
+                return app(PublicSiteController::class)->home();
+            });
+            if ($namePublicRoutes) {
+                $home->name('public.home');
             }
 
-            return app(PublicSiteController::class)->home();
-        })->name('public.home');
+            Route::controller(PublicSiteController::class)->group(function () use ($namePublicRoutes) {
+                $about = Route::get('/about', 'about');
+                $services = Route::get('/services', 'services');
+                $cases = Route::get('/cases', 'cases');
+                $contacts = Route::get('/contacts', 'contacts');
+                if ($namePublicRoutes) {
+                    $about->name('public.about');
+                    $services->name('public.services');
+                    $cases->name('public.cases');
+                    $contacts->name('public.contacts');
+                }
+            });
 
-        Route::controller(PublicSiteController::class)->group(function () {
-            Route::get('/about', 'about')->name('public.about');
-            Route::get('/services', 'services')->name('public.services');
-            Route::get('/cases', 'cases')->name('public.cases');
-            Route::get('/contacts', 'contacts')->name('public.contacts');
+            $boost = Route::any('/_boost/browser-logs', fn () => response()->noContent());
+            if ($namePublicRoutes) {
+                $boost->name('public.boost.browser-logs');
+            }
         });
-
-        Route::any('/_boost/browser-logs', fn () => response()->noContent())->name('public.boost.browser-logs');
-    });
+    }
 } else {
-    Route::domain($showcaseDomain)->controller(PublicSiteController::class)->group(function () {
-        Route::get('/', 'home')->name('public.home');
-        Route::get('/about', 'about')->name('public.about');
-        Route::get('/services', 'services')->name('public.services');
-        Route::get('/cases', 'cases')->name('public.cases');
-        Route::get('/contacts', 'contacts')->name('public.contacts');
-        Route::any('/_boost/browser-logs', fn () => response()->noContent())->name('public.boost.browser-logs');
-    });
+    foreach ($showcaseHosts as $index => $showcaseDomain) {
+        $namePublicRoutes = $index === 0;
 
-    Route::domain($showcaseDomain)->any('/{any}', function () use ($crmDomain) {
-        $scheme = request()->isSecure() ? 'https' : 'http';
-        $path = ltrim((string) request()->path(), '/');
-        $queryString = request()->getQueryString();
-        $target = sprintf('%s://%s/%s', $scheme, $crmDomain, $path);
+        Route::domain($showcaseDomain)->group(function () use ($crmDomain, $namePublicRoutes) {
+            Route::controller(PublicSiteController::class)->group(function () use ($namePublicRoutes) {
+                $home = Route::get('/', 'home');
+                $about = Route::get('/about', 'about');
+                $services = Route::get('/services', 'services');
+                $cases = Route::get('/cases', 'cases');
+                $contacts = Route::get('/contacts', 'contacts');
+                if ($namePublicRoutes) {
+                    $home->name('public.home');
+                    $about->name('public.about');
+                    $services->name('public.services');
+                    $cases->name('public.cases');
+                    $contacts->name('public.contacts');
+                }
+            });
 
-        if (is_string($queryString) && $queryString !== '') {
-            $target .= '?'.$queryString;
-        }
+            $boost = Route::any('/_boost/browser-logs', fn () => response()->noContent());
+            if ($namePublicRoutes) {
+                $boost->name('public.boost.browser-logs');
+            }
 
-        return redirect()->to($target);
-    })->where('any', '.*');
+            Route::any('/{any}', function () use ($crmDomain) {
+                $scheme = request()->isSecure() ? 'https' : 'http';
+                $path = ltrim((string) request()->path(), '/');
+                $queryString = request()->getQueryString();
+                $target = sprintf('%s://%s/%s', $scheme, $crmDomain, $path);
+
+                if (is_string($queryString) && $queryString !== '') {
+                    $target .= '?'.$queryString;
+                }
+
+                return redirect()->to($target);
+            })->where('any', '.*');
+        });
+    }
 
     Route::domain($crmDomain)->get('/', function () {
         if (auth()->check()) {

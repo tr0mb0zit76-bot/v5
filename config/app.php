@@ -1,5 +1,14 @@
 <?php
 
+$showcaseHosts = array_values(array_unique(array_filter(array_map(
+    static fn (string $host): string => strtolower(trim($host)),
+    explode(',', (string) env('SHOWCASE_DOMAIN', 'v5.local'))
+))));
+
+if ($showcaseHosts === []) {
+    $showcaseHosts = ['v5.local'];
+}
+
 return [
 
     /*
@@ -60,7 +69,12 @@ return [
     */
     'crm_domain' => env('CRM_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost'),
 
-    'showcase_domain' => env('SHOWCASE_DOMAIN', 'v5.local'),
+    /*
+    | Несколько хостов витрины через запятую в SHOWCASE_DOMAIN (например domen.ru,www.domen.ru).
+    | showcase_domain — первый хост (обратная совместимость).
+    */
+    'showcase_hosts' => $showcaseHosts,
+    'showcase_domain' => $showcaseHosts[0],
 
     /*
     |--------------------------------------------------------------------------

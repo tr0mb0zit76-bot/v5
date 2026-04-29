@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FleetVehicleController extends Controller
 {
@@ -82,7 +83,7 @@ class FleetVehicleController extends Controller
         return to_route('fleet.vehicles.show', $fleetVehicle);
     }
 
-    public function downloadDocument(Request $request, FleetVehicle $fleetVehicle, FleetVehicleDocument $fleetVehicleDocument): BinaryFileResponse
+    public function downloadDocument(Request $request, FleetVehicle $fleetVehicle, FleetVehicleDocument $fleetVehicleDocument): BinaryFileResponse|StreamedResponse
     {
         abort_unless(Schema::hasTable('fleet_vehicle_documents'), 404);
         abort_unless($fleetVehicleDocument->fleet_vehicle_id === $fleetVehicle->id, 404);
