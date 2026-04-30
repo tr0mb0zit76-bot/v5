@@ -23,6 +23,7 @@ import {
 import Modal from '@/Components/Modal.vue';
 import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'contractors' }, () => page),
@@ -1240,14 +1241,22 @@ function handleMobileNavSelect(key) {
         </nav>
     </div>
 
-    <div v-else class="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+    <div v-else class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
                 <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
                     Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы.
                 </p>
             </div>
+            <button
+                type="button"
+                :class="crmBtnCreate"
+                @click="openCreateForm"
+            >
+                <Plus class="h-4 w-4" />
+                Добавить
+            </button>
         </div>
 
         <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -1256,7 +1265,6 @@ function handleMobileNavSelect(key) {
                 :available-columns="availableColumns"
                 :role-columns-config="roleColumnsConfig"
                 :user-id="userId"
-                @create="openCreateForm"
                 @row-select="openContractor"
             />
         </div>

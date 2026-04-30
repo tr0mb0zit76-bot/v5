@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SalesPlaySessionOutcome;
 use App\Http\Requests\ImportSalesBookArticleRequest;
 use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
 use App\Http\Requests\UploadSalesBookAssetRequest;
 use App\Models\SalesBookArticle;
 use App\Models\SalesScript;
+use App\Models\SalesScriptPlaySession;
+use App\Models\User;
 use App\Support\RoleAccess;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -194,6 +199,23 @@ class SalesAssistantController extends Controller
 
     public function trainer(): Response
     {
+        $userId = request()->user()?->id;
+        $from = CarbonImmutable::now()->subDays(30);
+
+        $trainerQuery = SalesScriptPlaySession::query()
+            ->where('is_trainer', true)
+            ->where('user_id', $userId)
+            ->where('created_at', '>=', $from);
+
+        $summary = [
+            'window_days' => 30,
+            'total_sessions' => (clone $trainerQuery)->count(),
+            'completed_sessions' => (clone $trainerQuery)->whereNotNull('completed_at')->count(),
+            'avg_score' => round((float) ((clone $trainerQuery)->whereNotNull('trainer_score')->avg('trainer_score') ?? 0), 1),
+            'won_sessions' => (clone $trainerQuery)->where('outcome', 'won')->count(),
+            'quote_sessions' => (clone $trainerQuery)->where('outcome', 'quote_sent')->count(),
+        ];
+
         $scripts = SalesScript::query()
             ->with(['versions' => function ($q): void {
                 $q->where('is_active', true)->whereNotNull('published_at')->orderByDesc('version_number');
@@ -219,7 +241,258 @@ class SalesAssistantController extends Controller
 
         return Inertia::render('SalesAssistant/Trainer', [
             'scripts' => $scripts,
+            'trainerSummary' => $summary,
         ]);
+    }
+
+    public function trainerAnalytics(Request $request): Response
+    {
+        $auth = $request->user();
+        abort_if($auth === null, 403);
+
+        $canViewAll = $auth->hasRole('admin') || $auth->hasRole('supervisor');
+
+        $daysInput = (int) $request->query('days', '30');
+        $allowedDays = [7, 30, 90, 180];
+        $days = in_array($daysInput, $allowedDays, true) ? $daysInput : 30;
+
+        $from = CarbonImmutable::now()->startOfDay()->subDays($days);
+
+        $baseQuery = SalesScriptPlaySession::query()
+            ->where('is_trainer', true)
+            ->where('created_at', '>=', $from);
+
+        if ($canViewAll && $request->filled('user_id')) {
+            $filterUserId = $request->integer('user_id');
+            if ($filterUserId > 0) {
+                $baseQuery->where('user_id', $filterUserId);
+            }
+        } elseif (! $canViewAll) {
+            $baseQuery->where('user_id', $auth->id);
+        }
+
+        $profileKeyFilter = $request->filled('trainer_profile_key')
+            ? $request->string('trainer_profile_key')->toString()
+            : null;
+        if ($profileKeyFilter !== null && $profileKeyFilter !== '') {
+            $baseQuery->where('trainer_profile_key', $profileKeyFilter);
+        }
+
+        if ($request->filled('sales_script_version_id')) {
+            $baseQuery->where(
+                'sales_script_version_id',
+                $request->integer('sales_script_version_id')
+            );
+        }
+
+        if ($request->filled('outcome')) {
+            $raw = $request->string('outcome')->toString();
+            $cases = array_column(SalesPlaySessionOutcome::cases(), 'value');
+            if (in_array($raw, $cases, true)) {
+                $baseQuery->where('outcome', $raw);
+            }
+        }
+
+        $summary = [
+            'window_days' => $days,
+            'total_sessions' => (clone $baseQuery)->count(),
+            'completed_sessions' => (clone $baseQuery)->whereNotNull('completed_at')->count(),
+            'avg_score' => round(
+                (float) ((clone $baseQuery)->whereNotNull('trainer_score')->avg('trainer_score') ?? 0),
+                1
+            ),
+            'won_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::Won)->count(),
+            'quote_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::QuoteSent)->count(),
+            'lost_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::Lost)->count(),
+            'progress_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::Progress)->count(),
+        ];
+
+        $dateExpr = match ($baseQuery->getConnection()->getDriverName()) {
+            'sqlite' => 'date(created_at)',
+            'pgsql' => 'CAST(created_at AS date)',
+            default => 'DATE(created_at)',
+        };
+
+        /** @var Collection<int, object{d: string, total: int|string|null, completed: int|string|null, avg_score: float|string|null}> */
+        $dailyRaw = (clone $baseQuery)
+            ->toBase()
+            ->selectRaw("{$dateExpr} as d, COUNT(*) as total, SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed, AVG(trainer_score) as avg_score")
+            ->groupBy(DB::raw($dateExpr))
+            ->orderBy('d')
+            ->get();
+
+        $daily = $dailyRaw->map(fn (object $row): array => [
+            'date' => (string) $row->d,
+            'total' => (int) $row->total,
+            'completed' => (int) $row->completed,
+            'avg_score' => round((float) ($row->avg_score ?? 0), 1),
+        ])->values()->all();
+
+        $byProfileRows = (clone $baseQuery)
+            ->toBase()
+            ->selectRaw('trainer_profile_key as profile_key')
+            ->selectRaw('MAX(trainer_profile_title) as profile_title')
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('AVG(trainer_score) as avg_score')
+            ->groupBy('trainer_profile_key')
+            ->orderByDesc('total')
+            ->get();
+
+        $by_profile = $byProfileRows->map(fn (object $row): array => [
+            'profile_key' => $row->profile_key ? (string) $row->profile_key : null,
+            'profile_title' => $row->profile_title ? (string) $row->profile_title : '—',
+            'total' => (int) $row->total,
+            'avg_score' => round((float) ($row->avg_score ?? 0), 1),
+        ])->values()->all();
+
+        /** @var Collection<int, SalesScriptPlaySession> */
+        $recentSessions = (clone $baseQuery)
+            ->with(['user:id,name', 'version:id,version_number,sales_script_id'])
+            ->with('version.script:id,title')
+            ->orderByDesc('created_at')
+            ->limit(80)
+            ->get()
+            ->map(function (SalesScriptPlaySession $session): array {
+                $version = $session->version;
+                $scriptTitle = $version?->script?->title;
+
+                return [
+                    'id' => $session->id,
+                    'created_at' => $session->created_at?->toIso8601String(),
+                    'completed_at' => $session->completed_at?->toIso8601String(),
+                    'user_id' => $session->user_id,
+                    'user_name' => $session->user?->name,
+                    'trainer_profile_title' => $session->trainer_profile_title,
+                    'outcome' => $session->outcome?->value,
+                    'trainer_score' => $session->trainer_score,
+                    'script_label' => $scriptTitle
+                        ? "{$scriptTitle} · v{$version?->version_number}"
+                        : ($version ? "v{$version->version_number}" : '—'),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $by_user = [];
+        $filterUsers = [];
+
+        if ($canViewAll) {
+            $fromUsers = CarbonImmutable::now()->startOfDay()->subYear();
+            $participantIds = SalesScriptPlaySession::query()
+                ->where('is_trainer', true)
+                ->where('created_at', '>=', $fromUsers)
+                ->distinct()
+                ->pluck('user_id');
+
+            $filterUsers = User::query()
+                ->whereIn('id', $participantIds)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (User $u): array => ['id' => $u->id, 'name' => $u->name])
+                ->values()
+                ->all();
+
+            $byUserRows = (clone $baseQuery)
+                ->toBase()
+                ->selectRaw('user_id')
+                ->selectRaw('COUNT(*) as total')
+                ->selectRaw('SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed')
+                ->selectRaw('AVG(trainer_score) as avg_score')
+                ->groupBy('user_id')
+                ->orderByDesc('total')
+                ->get();
+
+            $userNames = User::query()
+                ->whereIn('id', $byUserRows->pluck('user_id'))
+                ->pluck('name', 'id');
+
+            $by_user = $byUserRows->map(function (object $row) use ($userNames): array {
+                $uid = (int) $row->user_id;
+
+                return [
+                    'user_id' => $uid,
+                    'name' => (string) ($userNames[$uid] ?? '—'),
+                    'total' => (int) $row->total,
+                    'completed' => (int) $row->completed,
+                    'avg_score' => round((float) ($row->avg_score ?? 0), 1),
+                ];
+            })->values()->all();
+        }
+
+        $profileOptionRows = SalesScriptPlaySession::query()
+            ->where('is_trainer', true)
+            ->whereNotNull('trainer_profile_key')
+            ->toBase()
+            ->selectRaw('trainer_profile_key as k, MAX(trainer_profile_title) as t')
+            ->groupBy('trainer_profile_key')
+            ->orderBy('k')
+            ->get();
+
+        $profileOptions = $profileOptionRows->map(function (object $row): array {
+            $k = (string) $row->k;
+
+            return [
+                'key' => $k,
+                'title' => (string) ($row->t !== null && $row->t !== '' ? $row->t : $k),
+            ];
+        })->values()->all();
+
+        $scripts = SalesScript::query()
+            ->with(['versions' => function ($q): void {
+                $q->where('is_active', true)->whereNotNull('published_at')->orderByDesc('version_number');
+            }])
+            ->orderBy('title')
+            ->get();
+
+        $versionOptions = [];
+        foreach ($scripts as $script) {
+            $version = $script->versions->first();
+            if ($version) {
+                $versionOptions[] = [
+                    'id' => $version->id,
+                    'label' => "{$script->title} · v{$version->version_number}",
+                ];
+            }
+        }
+
+        return Inertia::render('SalesAssistant/TrainerAnalytics', [
+            'filters' => [
+                'days' => $days,
+                'user_id' => $canViewAll && $request->filled('user_id') ? $request->integer('user_id') : null,
+                'trainer_profile_key' => $profileKeyFilter ?: null,
+                'sales_script_version_id' => $request->filled('sales_script_version_id')
+                    ? $request->integer('sales_script_version_id')
+                    : null,
+                'outcome' => $request->filled('outcome')
+                    ? $request->string('outcome')->toString()
+                    : null,
+                'can_view_all' => $canViewAll,
+            ],
+            'outcomeOptions' => collect(SalesPlaySessionOutcome::cases())
+                ->map(fn (SalesPlaySessionOutcome $o): array => ['value' => $o->value, 'label' => $this->trainerOutcomeLabel($o)])
+                ->values()
+                ->all(),
+            'summary' => $summary,
+            'daily' => $daily,
+            'by_profile' => $by_profile,
+            'by_user' => $by_user,
+            'recent_sessions' => $recentSessions,
+            'filterUsers' => $filterUsers,
+            'profile_options' => $profileOptions,
+            'version_options' => $versionOptions,
+        ]);
+    }
+
+    private function trainerOutcomeLabel(SalesPlaySessionOutcome $o): string
+    {
+        return match ($o) {
+            SalesPlaySessionOutcome::Won => 'Успех',
+            SalesPlaySessionOutcome::QuoteSent => 'Отправлено КП',
+            SalesPlaySessionOutcome::Lost => 'Потерян',
+            SalesPlaySessionOutcome::Progress => 'В процессе',
+            SalesPlaySessionOutcome::Postponed => 'Отложен',
+            SalesPlaySessionOutcome::NoContact => 'Нет контакта',
+        };
     }
 
     /**

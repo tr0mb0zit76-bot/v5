@@ -370,6 +370,7 @@ import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
+    CalendarRange,
     ChevronDown,
     ClipboardList,
     Download,
@@ -467,6 +468,9 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
     if (activeKey === 'fleet') {
         keys.push('fleet');
     }
+    if (activeKey === 'planning') {
+        keys.push('planning');
+    }
     if (activeKey === 'sales-assistant') {
         keys.push('sales-assistant');
     }
@@ -498,7 +502,7 @@ function menuBadgeFor(key) {
     if (key === 'orders') {
         return cabinetBadges.value.orders ?? 0;
     }
-    if (key === 'tasks') {
+    if (key === 'tasks' || key === 'planning') {
         return cabinetBadges.value.tasks ?? 0;
     }
 
@@ -640,6 +644,25 @@ const showMobileAppShell = computed(() => isMobileViewport.value && isStandalone
 const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
 
 const menuItems = computed(() => {
+    const areas = visibleAreas.value;
+    const isAdmin = authUser.value?.role?.name === 'admin';
+    const planningChildren = [];
+    if (isAdmin || areas.includes('tasks')) {
+        planningChildren.push({ key: 'tasks', label: 'Задачи' });
+    }
+    if (isAdmin || areas.includes('kanban') || areas.includes('tasks')) {
+        planningChildren.push({ key: 'kanban', label: 'Канбан' });
+    }
+    const planningItem =
+        planningChildren.length > 0
+            ? {
+                key: 'planning',
+                label: 'Планирование',
+                icon: CalendarRange,
+                children: planningChildren,
+            }
+            : null;
+
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
@@ -652,6 +675,7 @@ const menuItems = computed(() => {
                 { key: 'sales-assistant-scripts', label: 'Скрипты' },
                 { key: 'sales-assistant-book', label: 'Книга продаж' },
                 { key: 'sales-assistant-trainer', label: 'Тренажёр' },
+                { key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
             ],
         },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
@@ -687,8 +711,7 @@ const menuItems = computed(() => {
                 return children;
             })(),
         },
-        { key: 'tasks', label: 'Задачи', icon: ClipboardList, visibilityArea: 'tasks' },
-        { key: 'kanban', label: 'Канбан', icon: Kanban, visibilityArea: 'kanban' },
+        ...(planningItem ? [planningItem] : []),
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
         { key: 'modules', label: 'Модули', icon: Puzzle, visibilityArea: 'modules' },
         {
@@ -754,8 +777,8 @@ const menuItems = computed(() => {
             return visibleAreas.value.includes('drivers');
         }
 
-        if (item.key === 'kanban') {
-            return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
+        if (item.key === 'planning') {
+            return (item.children?.length ?? 0) > 0;
         }
 
         if (!item.visibilityArea) {
@@ -890,6 +913,7 @@ function handleMenuSelect(key) {
         'sales-assistant-scripts': '/scripts',
         'sales-assistant-book': '/sales-assistant/book',
         'sales-assistant-trainer': '/sales-assistant/trainer',
+        'sales-assistant-trainer-analytics': '/sales-assistant/trainer/analytics',
         settings: '/settings',
         users: '/settings/users',
         roles: '/settings/roles',
@@ -901,7 +925,7 @@ function handleMenuSelect(key) {
         'salary-settings': '/settings/motivation/salary',
     };
 
-    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning'].includes(key)) {
         toggleMenuGroup(key);
     }
 

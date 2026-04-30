@@ -4,6 +4,12 @@
             <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Скрипт</div>
             <h1 class="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-50">{{ session.script_title }}</h1>
             <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Версия {{ session.version_number }} · сессия #{{ session.id }}</p>
+            <div
+                v-if="playContext?.return === 'trainer' && playContext?.trainer_profile?.title"
+                class="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-100"
+            >
+                Тренажер: клиент «{{ playContext.trainer_profile.title }}»
+            </div>
         </div>
 
         <div
@@ -32,6 +38,68 @@
                     {{ t.label }}
                 </button>
             </div>
+        </div>
+
+        <div
+            v-if="isTrainer && !session.completed_at"
+            class="space-y-3 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        >
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Диалог с клиентом</h3>
+                    <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                        Пишите как менеджер. Модель отвечает в роли клиента.
+                    </p>
+                </div>
+                <span
+                    v-if="playContext?.trainer_profile?.title"
+                    class="rounded-full border border-zinc-200 px-2 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-300"
+                >
+                    {{ playContext.trainer_profile.title }}
+                </span>
+            </div>
+
+            <div class="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+                <div
+                    v-for="(message, index) in trainerChatHistory"
+                    :key="`${message.role}-${index}-${message.at || ''}`"
+                    class="rounded-xl px-3 py-2 text-sm"
+                    :class="message.role === 'assistant'
+                        ? 'border border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100'
+                        : 'border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'"
+                >
+                    <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                        {{ message.role === 'assistant' ? 'Клиент' : 'Менеджер' }}
+                    </div>
+                    <div class="whitespace-pre-wrap">{{ message.content }}</div>
+                </div>
+
+                <div v-if="trainerChatHistory.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Диалог пока не начат.
+                </div>
+            </div>
+
+            <form class="space-y-2" @submit.prevent="sendTrainerMessage">
+                <textarea
+                    v-model="trainerDraft"
+                    rows="3"
+                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    placeholder="Напишите реплику менеджера..."
+                    :disabled="trainerSending"
+                />
+                <div class="flex items-center justify-between gap-2">
+                    <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Ответы сохраняются в сессии тренажера.
+                    </div>
+                    <button
+                        type="submit"
+                        class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        :disabled="trainerSending || trainerDraft.trim().length === 0"
+                    >
+                        {{ trainerSending ? 'Отправка...' : 'Отправить' }}
+                    </button>
+                </div>
+            </form>
         </div>
 
         <div
@@ -96,7 +164,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -111,7 +179,7 @@ defineOptions({
 const props = defineProps({
     playContext: {
         type: Object,
-        default: () => ({ return: null }),
+        default: () => ({ return: null, trainer_profile: null }),
     },
     session: { type: Object, required: true },
     currentNode: { type: Object, default: null },
@@ -123,6 +191,9 @@ const props = defineProps({
 });
 
 const isTrainer = computed(() => props.playContext?.return === 'trainer');
+const trainerDraft = ref('');
+const trainerSending = ref(false);
+const trainerChatHistory = ref(Array.isArray(props.playContext?.trainer_chat) ? [...props.playContext.trainer_chat] : []);
 
 const backListHref = computed(() => (isTrainer.value ? route('sales-assistant.trainer') : route('scripts.index')));
 
@@ -151,5 +222,51 @@ function submitComplete() {
         primary_reaction_class_id: completeForm.primary_reaction_class_id,
         notes: completeForm.notes || null,
     });
+}
+
+async function sendTrainerMessage() {
+    const text = trainerDraft.value.trim();
+    if (!isTrainer.value || text.length === 0 || trainerSending.value) {
+        return;
+    }
+
+    trainerSending.value = true;
+
+    const optimisticHistory = [
+        ...trainerChatHistory.value,
+        { role: 'user', content: text, at: new Date().toISOString() },
+    ];
+    trainerChatHistory.value = optimisticHistory;
+    trainerDraft.value = '';
+
+    try {
+        const response = await fetch(route('scripts.sessions.trainer-message', props.session.id), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({ message: text }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload?.message || 'Ошибка отправки');
+        }
+
+        trainerChatHistory.value = Array.isArray(payload?.history) ? payload.history : optimisticHistory;
+    } catch (error) {
+        trainerChatHistory.value = [
+            ...optimisticHistory,
+            {
+                role: 'assistant',
+                content: error instanceof Error ? error.message : 'Не удалось получить ответ клиента.',
+                at: new Date().toISOString(),
+            },
+        ];
+    } finally {
+        trainerSending.value = false;
+    }
 }
 </script>

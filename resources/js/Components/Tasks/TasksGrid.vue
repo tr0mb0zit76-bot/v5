@@ -1,7 +1,6 @@
 <template>
   <div ref="gridSection" class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-    <div class="flex shrink-0 flex-wrap items-center justify-between gap-2">
-      <div class="flex flex-wrap items-center gap-2">
+    <div class="flex shrink-0 flex-wrap items-center gap-2">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
@@ -38,12 +37,6 @@
             </button>
           </div>
         </div>
-      </div>
-
-      <button type="button" class="toolbar-button" @click="$emit('create')">
-        <Plus class="h-4 w-4" />
-        Создать задачу
-      </button>
     </div>
 
     <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -86,7 +79,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Plus, Rows3, Search } from 'lucide-vue-next';
+import { Rows3, Search } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -106,7 +99,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['create', 'row-dblclick', 'selection-changed']);
+const emit = defineEmits(['row-dblclick', 'selection-changed']);
 
 const agGrid = ref(null);
 const gridApi = ref(null);

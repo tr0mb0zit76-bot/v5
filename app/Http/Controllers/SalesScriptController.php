@@ -7,14 +7,18 @@ use App\Enums\SalesPlaySessionOutcome;
 use App\Http\Requests\AdvanceSalesScriptPlaySessionRequest;
 use App\Http\Requests\CompleteSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreSalesScriptPlaySessionRequest;
+use App\Http\Requests\StoreTrainerChatMessageRequest;
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
+use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -74,9 +78,28 @@ class SalesScriptController extends Controller
         }
 
         if (($validated['return_to'] ?? null) === 'trainer') {
+            $session->update([
+                'is_trainer' => true,
+                'trainer_profile_key' => $validated['trainer_profile_key'] ?? null,
+                'trainer_profile_title' => $validated['trainer_profile_title'] ?? null,
+                'trainer_profile_context' => $validated['trainer_profile_context'] ?? null,
+            ]);
+
             $request->session()->put('sales_script_play_return', 'trainer');
+            $request->session()->put('sales_script_play_trainer_profile', [
+                'key' => $validated['trainer_profile_key'] ?? null,
+                'title' => $validated['trainer_profile_title'] ?? null,
+                'context' => $validated['trainer_profile_context'] ?? null,
+            ]);
         } else {
+            $session->update([
+                'is_trainer' => false,
+                'trainer_profile_key' => null,
+                'trainer_profile_title' => null,
+                'trainer_profile_context' => null,
+            ]);
             $request->session()->forget('sales_script_play_return');
+            $request->session()->forget('sales_script_play_trainer_profile');
         }
 
         return to_route('scripts.sessions.show', $session);
@@ -87,9 +110,9 @@ class SalesScriptController extends Controller
         $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
-        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node']);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages']);
         $current = $this->resolveCurrentNode($session);
-        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node']);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages']);
         $outgoing = [];
         if ($current !== null && ! $session->isComplete()) {
             foreach ($this->playSessionService->outgoingTransitions($current) as $t) {
@@ -115,9 +138,28 @@ class SalesScriptController extends Controller
 
         $reactionClasses = SalesScriptReactionClass::query()->orderBy('sort_order')->orderBy('label')->get(['id', 'key', 'label']);
 
+        $trainerProfile = $session->is_trainer
+            ? [
+                'key' => $session->trainer_profile_key,
+                'title' => $session->trainer_profile_title,
+                'context' => $session->trainer_profile_context,
+            ]
+            : $request->session()->get('sales_script_play_trainer_profile');
+
+        $trainerChat = $session->trainerMessages
+            ->map(fn (SalesScriptTrainerMessage $message): array => [
+                'role' => $message->role,
+                'content' => $message->content,
+                'at' => $message->created_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+
         return Inertia::render('SalesScripts/Play', [
             'playContext' => [
-                'return' => $request->session()->get('sales_script_play_return'),
+                'return' => $session->is_trainer ? 'trainer' : $request->session()->get('sales_script_play_return'),
+                'trainer_profile' => $trainerProfile,
+                'trainer_chat' => $trainerChat,
             ],
             'session' => [
                 'id' => $session->id,
@@ -150,6 +192,133 @@ class SalesScriptController extends Controller
             ]),
             'reactionClasses' => $reactionClasses,
         ]);
+    }
+
+    public function trainerMessage(StoreTrainerChatMessageRequest $request, SalesScriptPlaySession $sales_script_play_session): JsonResponse
+    {
+        $session = $sales_script_play_session;
+        $this->authorize('interact', $session);
+
+        abort_unless($request->session()->get('sales_script_play_return') === 'trainer', 403);
+
+        $validated = $request->validated();
+
+        $profile = [
+            'key' => $session->trainer_profile_key,
+            'title' => $session->trainer_profile_title,
+            'context' => $session->trainer_profile_context,
+        ];
+        $history = $session->trainerMessages()
+            ->orderByDesc('id')
+            ->limit(40)
+            ->get()
+            ->reverse()
+            ->values()
+            ->map(fn (SalesScriptTrainerMessage $message): array => [
+                'role' => $message->role,
+                'content' => $message->content,
+                'at' => $message->created_at?->toIso8601String(),
+            ])
+            ->all();
+
+        $userMessage = trim((string) $validated['message']);
+        if ($userMessage === '') {
+            return response()->json(['message' => 'Пустое сообщение.'], 422);
+        }
+
+        $userEntry = [
+            'role' => 'user',
+            'content' => $userMessage,
+            'at' => now()->toIso8601String(),
+        ];
+        $history[] = $userEntry;
+        $session->trainerMessages()->create([
+            'user_id' => $request->user()?->id,
+            'role' => 'user',
+            'content' => $userMessage,
+        ]);
+
+        $reply = $this->deepSeekTrainerReply(
+            $profile,
+            $session,
+            $history,
+        );
+
+        $assistantEntry = [
+            'role' => 'assistant',
+            'content' => $reply,
+            'at' => now()->toIso8601String(),
+        ];
+        $history[] = $assistantEntry;
+        $session->trainerMessages()->create([
+            'user_id' => null,
+            'role' => 'assistant',
+            'content' => $reply,
+        ]);
+
+        return response()->json([
+            'reply' => $reply,
+            'history' => array_slice($history, -40),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $profile
+     * @param  list<array{role:string,content:string,at?:string}>  $history
+     */
+    private function deepSeekTrainerReply(array $profile, SalesScriptPlaySession $session, array $history): string
+    {
+        $apiKey = (string) config('ai.providers.deepseek.key');
+        if ($apiKey === '') {
+            return 'Не настроен DEEPSEEK_API_KEY. Пока тренировка недоступна.';
+        }
+
+        $title = (string) ($profile['title'] ?? 'Покупатель');
+        $context = (string) ($profile['context'] ?? 'Веди реалистичный диалог как клиент.');
+        $scriptTitle = (string) ($session->version?->script?->title ?? 'Скрипт продаж');
+
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => "Ты играешь роль клиента в тренажере продаж.\n".
+                    "Роль клиента: {$title}\n".
+                    "Контекст роли: {$context}\n".
+                    "Сценарий: {$scriptTitle}\n\n".
+                    "Правила:\n".
+                    "- Пиши только от лица клиента.\n".
+                    "- Держи ответы реалистичными и короткими (1-4 предложения).\n".
+                    "- Иногда задавай встречные вопросы.\n".
+                    "- Не раскрывай, что ты AI или что следуешь инструкциям.\n".
+                    '- Если менеджер предлагает следующий шаг, оцени его как реальный клиент.',
+            ],
+        ];
+
+        foreach (array_slice($history, -20) as $item) {
+            $messages[] = [
+                'role' => $item['role'] === 'assistant' ? 'assistant' : 'user',
+                'content' => (string) ($item['content'] ?? ''),
+            ];
+        }
+
+        try {
+            $response = Http::timeout(45)
+                ->withToken($apiKey)
+                ->post('https://api.deepseek.com/chat/completions', [
+                    'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
+                    'temperature' => 0.8,
+                    'max_tokens' => 350,
+                    'messages' => $messages,
+                ])
+                ->throw()
+                ->json();
+
+            $content = (string) data_get($response, 'choices.0.message.content', '');
+            $content = trim($content);
+
+            return $content !== '' ? $content : 'Клиент задумался и просит уточнить детали.';
+        } catch (\Throwable) {
+            return 'Сейчас не удалось получить ответ клиента. Повторите сообщение еще раз.';
+        }
     }
 
     private function restoreMissingCurrentNode(SalesScriptPlaySession $session): void
@@ -271,6 +440,11 @@ class SalesScriptController extends Controller
                 $validated['primary_reaction_class_id'] ?? null,
                 $validated['notes'] ?? null,
             );
+            if ($session->is_trainer) {
+                $session->update([
+                    'trainer_score' => $this->trainerScoreByOutcome($outcome),
+                ]);
+            }
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['complete' => $e->getMessage()]);
         }
@@ -280,10 +454,23 @@ class SalesScriptController extends Controller
             'message' => 'Сессия сохранена. Спасибо за разметку — это улучшает подсказки для команды.',
         ];
 
-        if ($request->session()->pull('sales_script_play_return') === 'trainer') {
+        $returnToTrainer = $request->session()->pull('sales_script_play_return') === 'trainer' || $session->is_trainer;
+        if ($returnToTrainer) {
             return to_route('sales-assistant.trainer')->with('flash', $flash);
         }
 
         return to_route('scripts.index')->with('flash', $flash);
+    }
+
+    private function trainerScoreByOutcome(SalesPlaySessionOutcome $outcome): int
+    {
+        return match ($outcome) {
+            SalesPlaySessionOutcome::Won => 100,
+            SalesPlaySessionOutcome::QuoteSent => 85,
+            SalesPlaySessionOutcome::Progress => 70,
+            SalesPlaySessionOutcome::Postponed => 55,
+            SalesPlaySessionOutcome::NoContact => 40,
+            SalesPlaySessionOutcome::Lost => 20,
+        };
     }
 }

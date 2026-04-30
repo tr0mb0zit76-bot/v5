@@ -12,7 +12,7 @@
 
             <button
                 type="button"
-                class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                :class="crmBtnCreate"
                 @click="openCreateLead"
             >
                 <Plus class="h-4 w-4" />
@@ -59,6 +59,7 @@
 import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
+import { crmBtnCreate } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import Modal from '@/Components/Modal.vue';

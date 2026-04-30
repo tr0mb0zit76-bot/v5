@@ -1,5 +1,5 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-3">
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
         <div class="flex shrink-0 items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Авто</h1>
@@ -7,7 +7,7 @@
             </div>
             <button
                 type="button"
-                class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                class="inline-flex items-center gap-2 rounded-xl border border-emerald-200/90 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/45"
                 @click="openCreate"
             >
                 <Plus class="h-4 w-4" />

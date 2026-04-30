@@ -17,6 +17,11 @@ class SalesScriptPlaySession extends Model
         'current_node_id',
         'contractor_id',
         'order_id',
+        'is_trainer',
+        'trainer_profile_key',
+        'trainer_profile_title',
+        'trainer_profile_context',
+        'trainer_score',
         'outcome',
         'primary_reaction_class_id',
         'notes',
@@ -80,6 +85,14 @@ class SalesScriptPlaySession extends Model
         return $this->hasMany(SalesScriptPlayEvent::class, 'sales_script_play_session_id')->orderBy('id');
     }
 
+    /**
+     * @return HasMany<SalesScriptTrainerMessage, $this>
+     */
+    public function trainerMessages(): HasMany
+    {
+        return $this->hasMany(SalesScriptTrainerMessage::class, 'sales_script_play_session_id')->orderBy('id');
+    }
+
     public function isComplete(): bool
     {
         return $this->completed_at !== null;
@@ -89,6 +102,8 @@ class SalesScriptPlaySession extends Model
     {
         return [
             'outcome' => SalesPlaySessionOutcome::class,
+            'is_trainer' => 'boolean',
+            'trainer_score' => 'integer',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

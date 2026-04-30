@@ -1,71 +1,77 @@
 ﻿<template>
-    <div class="flex min-h-0 flex-1 flex-col gap-4">
-        <section class="shrink-0 border border-zinc-200 bg-white p-6 shadow-sm transition dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Модуль задач</div>
-                    <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Контроль задач менеджеров</h1>
-                    <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        Единое рабочее место: задачи, чеклисты, комментарии, вложения и история действий.
-                    </p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                    <button
-                        v-if="selectedTaskIds.length > 0"
-                        type="button"
-                        class="inline-flex items-center justify-center rounded-xl border border-rose-700 px-4 py-2 text-rose-800 transition hover:bg-rose-50 dark:border-rose-400 dark:text-rose-200 dark:hover:bg-rose-950/40"
-                        @click="bulkCloseSelected"
-                    >
-                        Закрыть выбранные ({{ selectedTaskIds.length }})
-                    </button>
-                    <template v-if="canBulkMutateTasks && selectedTaskIds.length > 0">
-                        <select
-                            v-model="bulkAssignUserId"
-                            class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                        >
-                            <option :value="null" disabled>Назначить на…</option>
-                            <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
-                        </select>
-                        <button
-                            type="button"
-                            class="inline-flex items-center justify-center rounded-xl border border-zinc-900 px-4 py-2 text-zinc-900 dark:border-zinc-50 dark:text-zinc-50"
-                            :disabled="!bulkAssignUserId"
-                            @click="bulkAssignSelected"
-                        >
-                            Назначить выбранные
-                        </button>
-                    </template>
-                    <Link
-                        class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-white transition hover:bg-zinc-800 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        :href="route('kanban.index')"
-                    >
-                        Перейти в Канбан
-                    </Link>
-                </div>
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
+        <div class="flex shrink-0 flex-wrap items-start justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Задачи</h1>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Контроль задач менеджеров. Всего: {{ (tasks ?? []).length }}
+                </p>
             </div>
-
-            <div class="mt-5 flex flex-wrap gap-3">
-                <button
-                    v-for="filter in quickFilters"
-                    :key="filter.label"
-                    type="button"
-                    class="rounded-xl border px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] transition"
-                    :class="activeFilter === filter.label
-                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                        : 'border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-50 dark:hover:text-zinc-50'"
-                    @click="activeFilter = filter.label"
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <Link
+                    :class="crmBtnSecondaryOutline"
+                    :href="route('kanban.index')"
                 >
-                    {{ filter.label }} · {{ filter.count }}
+                    Канбан
+                </Link>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreateModal"
+                >
+                    <Plus class="h-4 w-4" />
+                    Создать задачу
                 </button>
             </div>
-        </section>
+        </div>
+
+        <div v-if="selectedTaskIds.length > 0" class="flex shrink-0 flex-wrap items-center gap-2">
+            <button
+                v-if="selectedTaskIds.length > 0"
+                type="button"
+                :class="crmBtnDangerMuted"
+                @click="bulkCloseSelected"
+            >
+                Закрыть выбранные ({{ selectedTaskIds.length }})
+            </button>
+            <template v-if="canBulkMutateTasks && selectedTaskIds.length > 0">
+                <select
+                    v-model="bulkAssignUserId"
+                    class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                >
+                    <option :value="null" disabled>Назначить на…</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                </select>
+                <button
+                    type="button"
+                    :class="crmBtnNeutral"
+                    :disabled="!bulkAssignUserId"
+                    @click="bulkAssignSelected"
+                >
+                    Назначить выбранные
+                </button>
+            </template>
+        </div>
+
+        <div class="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+            <button
+                v-for="filter in quickFilters"
+                :key="filter.label"
+                type="button"
+                class="rounded-xl border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition"
+                :class="activeFilter === filter.label
+                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                    : 'border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-50 dark:hover:text-zinc-50'"
+                @click="activeFilter = filter.label"
+            >
+                {{ filter.label }} · {{ filter.count }}
+            </button>
+        </div>
 
         <div class="min-h-0 flex-1 overflow-hidden">
             <TasksGrid
                 :rows="visibleTasks"
                 :user-id="userId"
-                @create="openCreateModal"
                 @row-dblclick="handleRowDblClick"
                 @selection-changed="onTaskSelectionChanged"
             />
@@ -73,16 +79,19 @@
 
         <Modal :show="isTaskDetailModalOpen" max-width="5xl" @close="closeTaskDetailModal">
             <section class="flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden bg-white dark:bg-zinc-900">
-                <div class="flex items-start justify-between gap-3 border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-                    <div>
-                        <div class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Детали задачи</div>
-                        <h3 class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ selectedTask?.title }}</h3>
-                        <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">#{{ selectedTask?.number }}</div>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
+                <CrmModalHeader
+                    eyebrow="Детали задачи"
+                    :title="selectedTask?.title ?? ''"
+                    @close="closeTaskDetailModal"
+                >
+                    <template v-if="selectedTask">
+                        #{{ selectedTask.number }}
+                    </template>
+                    <template #actions>
                         <button
                             type="button"
-                            class="rounded-xl border border-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-900 dark:border-zinc-50 dark:text-zinc-50"
+                            :class="crmBtnNeutral"
+                            class="!px-3 !py-2 text-xs"
                             @click="openEditFromDetail"
                         >
                             Редактировать
@@ -90,13 +99,14 @@
                         <button
                             v-if="selectedTask && selectedTask.status !== 'done'"
                             type="button"
-                            class="rounded-xl border border-emerald-600 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-400 dark:text-emerald-200"
+                            :class="crmBtnCreate"
+                            class="!px-3 !py-2 text-xs"
                             @click="markDone(selectedTask)"
                         >
                             Завершить
                         </button>
-                    </div>
-                </div>
+                    </template>
+                </CrmModalHeader>
 
                 <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                     <template v-if="selectedTask">
@@ -174,16 +184,14 @@
         </Modal>
 
         <Modal :show="isFormOpen" max-width="xl" @close="closeFormModal">
-            <div class="overflow-y-auto bg-white p-6 dark:bg-zinc-900">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">{{ editingTask ? 'Редактирование задачи' : 'Новая задача' }}</div>
-                        <h3 class="mt-2 text-xl font-semibold text-zinc-900 dark:text-zinc-50">{{ editingTask ? `#${editingTask.number}` : 'Создание' }}</h3>
-                    </div>
-                    <button type="button" class="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900" @click="closeFormModal">Закрыть</button>
-                </div>
+            <div class="overflow-y-auto bg-white dark:bg-zinc-900">
+                <CrmModalHeader
+                    :eyebrow="editingTask ? 'Редактирование задачи' : 'Новая задача'"
+                    :title="editingTask ? `#${editingTask.number}` : 'Создание задачи'"
+                    @close="closeFormModal"
+                />
 
-                <form class="mt-6 space-y-4" @submit.prevent="submitForm">
+                <form class="space-y-4 px-6 pb-6 pt-2" @submit.prevent="submitForm">
                     <div>
                         <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Название</label>
                         <input v-model="form.title" type="text" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required />
@@ -239,8 +247,12 @@
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2">
-                        <button type="button" class="inline-flex items-center justify-center rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900" @click="closeFormModal">Отмена</button>
-                        <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200" :disabled="form.processing">Сохранить</button>
+                        <button type="button" :class="crmBtnNeutral" @click="closeFormModal">
+                            Отмена
+                        </button>
+                        <button type="submit" :class="crmBtnCreate" :disabled="form.processing">
+                            Сохранить
+                        </button>
                     </div>
                 </form>
             </div>
@@ -253,11 +265,14 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline } from '@/support/crmUi.js';
+import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';
+import { Plus } from 'lucide-vue-next';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'tasks' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'tasks' }, () => page),
 });
 
 const modalPropKeys = ['selectedTask', 'tasks', 'quickFilters'];

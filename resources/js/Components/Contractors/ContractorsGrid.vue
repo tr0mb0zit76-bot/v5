@@ -57,11 +57,6 @@
           Сбросить
         </button>
       </div>
-
-      <button type="button" class="toolbar-button" @click="$emit('create')">
-        <Plus class="h-4 w-4" />
-        Новый контрагент
-      </button>
     </div>
 
     <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -193,7 +188,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Plus, RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
+import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -221,7 +216,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['create', 'row-select', 'columns-changed']);
+const emit = defineEmits(['row-select', 'columns-changed']);
 
 const fallbackColumns = [
   { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },

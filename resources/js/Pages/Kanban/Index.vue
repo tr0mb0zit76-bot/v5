@@ -1,5 +1,5 @@
 <template>
-    <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
         <div
             v-if="featureUnavailable"
             class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200"
@@ -14,43 +14,38 @@
             Режим просмотра: у вас нет права менять статусы задач (нужна область «Задачи»).
         </div>
 
-        <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Визуальный Канбан</div>
-                    <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Задачи по статусам</h1>
-                    <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                        Перетаскивайте карточки между статусами; те же данные отображаются в разделе «Задачи».
-                    </p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2 text-sm">
-                    <Link
-                        class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-white transition hover:bg-zinc-800 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        :href="route('tasks.index')"
-                    >
-                        Перейти в задачи
-                    </Link>
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center rounded-xl border border-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-50 dark:text-zinc-50 dark:hover:bg-zinc-800"
-                        :disabled="featureUnavailable || !canMutateTasks"
-                        @click="createTask"
-                    >
-                        Создать задачу
-                    </button>
-                </div>
+        <div class="flex shrink-0 flex-wrap items-start justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Канбан</h1>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Задачи по статусам. Колонки можно растягивать; те же записи что в списке «Задачи».
+                </p>
             </div>
-        </section>
-
-        <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="flex items-center justify-between">
-                <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Рабочий Канбан</div>
-                <div class="text-xs text-zinc-500 dark:text-zinc-400">Колонки можно растягивать, горизонтальный скрол остаётся</div>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <Link
+                    :class="crmBtnSecondaryOutline"
+                    :href="route('tasks.index')"
+                >
+                    Задачи
+                </Link>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    :disabled="featureUnavailable || !canMutateTasks"
+                    @click="createTask"
+                >
+                    <Plus class="h-4 w-4" />
+                    Создать задачу
+                </button>
             </div>
+        </div>
 
-            <div class="mt-4 overflow-x-auto">
-                <div class="flex gap-4 border-t border-zinc-200 pt-4 pb-3" style="min-height: 70vh;">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                Колонки можно растягивать справа, горизонтальный скролл сохраняется.
+            </div>
+            <div class="min-h-0 flex-1 overflow-x-auto overflow-y-hidden p-4">
+                <div class="flex gap-4 pb-1" style="min-height: min(70vh, calc(100dvh - 18rem));">
                     <div
                         v-for="column in columns"
                         :key="column.status"
@@ -123,14 +118,16 @@
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
     </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
+import { Plus } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate, crmBtnSecondaryOutline } from '@/support/crmUi.js';
 
 const page = usePage();
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
@@ -328,6 +325,6 @@ function createTask() {
 }
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'kanban' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'kanban' }, () => page),
 });
 </script>

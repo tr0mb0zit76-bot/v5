@@ -147,6 +147,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/scripts/sessions', 'storeSession')->name('scripts.sessions.store');
             Route::get('/scripts/sessions/{sales_script_play_session}', 'showSession')->name('scripts.sessions.show');
             Route::post('/scripts/sessions/{sales_script_play_session}/advance', 'advance')->name('scripts.sessions.advance');
+            Route::post('/scripts/sessions/{sales_script_play_session}/trainer-message', 'trainerMessage')->name('scripts.sessions.trainer-message');
             Route::post('/scripts/sessions/{sales_script_play_session}/complete', 'complete')->name('scripts.sessions.complete');
         });
 
@@ -159,6 +160,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/book/assets', 'uploadBookAsset')->name('book.assets.upload');
             Route::get('/book/assets', 'showBookAsset')->name('book.assets.show');
             Route::get('/trainer', 'trainer')->name('trainer');
+            Route::get('/trainer/analytics', 'trainerAnalytics')->name('trainer.analytics');
         });
     });
 

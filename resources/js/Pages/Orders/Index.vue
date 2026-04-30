@@ -11,7 +11,7 @@
 
                     <button
                         type="button"
-                        class="inline-flex h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                        class="inline-flex h-11 items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50 px-4 text-sm font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/45"
                         @click="openCreateOrder"
                     >
                         <Plus class="h-4 w-4" />
@@ -140,7 +140,7 @@
 
                 <button
                     type="button"
-                    class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    :class="crmBtnCreate"
                     @click="openCreateOrder"
                 >
                     <Plus class="h-4 w-4" />
@@ -178,6 +178,7 @@ const MOBILE_SORT_OPTIONS = [
 ];
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
+import { crmBtnCreate } from '@/support/crmUi.js';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
 
