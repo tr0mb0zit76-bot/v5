@@ -2,10 +2,12 @@
 
 namespace Tests\Unit;
 
+use App\Models\Cargo;
 use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Services\DocxPlaceholderExtractor;
 use App\Services\OrderPrintFormDraftService;
+use App\Services\PrintFormVariableCatalog;
 use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
@@ -100,5 +102,85 @@ class OrderPrintFormDraftServiceTest extends TestCase
             'Сидоров, +79991111111; Смирнов, +79992222222',
             data_get($snapshot, 'cargo_sender.all_contact_phones')
         );
+    }
+
+    public function test_route_city_falls_back_to_address_and_time_range_is_exposed(): void
+    {
+        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $order = new Order;
+
+        $order->setRelation('routePoints', new Collection([
+            new RoutePoint([
+                'type' => 'loading',
+                'address' => 'Тольятти, Южное шоссе, 12',
+                'planned_time_from' => '09:00:00',
+                'planned_time_to' => '11:30:00',
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'address' => 'г. Казань, ул. Баумана, 1',
+                'planned_time_from' => '15:00:00',
+                'planned_time_to' => '17:00:00',
+            ]),
+        ]));
+        $order->setRelation('cargoItems', new Collection);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+
+        $this->assertSame('Тольятти', data_get($snapshot, 'route.loading_first_city'));
+        $this->assertSame('Казань', data_get($snapshot, 'route.unloading_first_city'));
+        $this->assertSame('09:00-11:30', data_get($snapshot, 'route.loading_time_range'));
+        $this->assertSame('15:00-17:00', data_get($snapshot, 'route.unloading_time_range'));
+        $this->assertArrayNotHasKey('loading_time_from', $snapshot['route']);
+        $this->assertArrayNotHasKey('loading_time_to', $snapshot['route']);
+        $this->assertArrayNotHasKey('unloading_time_from', $snapshot['route']);
+        $this->assertArrayNotHasKey('unloading_time_to', $snapshot['route']);
+    }
+
+    public function test_cargo_transport_requirement_values_are_exposed_for_print_forms(): void
+    {
+        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $order = new Order;
+
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection([
+            new Cargo([
+                'cargo_type_label' => 'Стройматериалы',
+                'pack_type_label' => 'Паллеты',
+                'loading_type_items' => [
+                    ['label' => 'Боковая'],
+                    ['label' => 'Верхняя'],
+                ],
+                'truck_body_type_items' => [
+                    ['label' => 'Тентованный'],
+                ],
+                'trailer_type_items' => [
+                    ['label' => 'Полуприцеп'],
+                ],
+            ]),
+            new Cargo([
+                'cargo_type_label' => 'Оборудование',
+                'pack_type_label' => 'Ящики',
+                'loading_type_label' => 'Задняя',
+                'truck_body_type_label' => 'Открытая',
+                'trailer_type_label' => 'Прицеп',
+            ]),
+        ]));
+
+        $snapshot = $this->buildSnapshot($service, $order);
+        $catalogValues = collect((new PrintFormVariableCatalog)->orderOptions())
+            ->pluck('value')
+            ->all();
+
+        $this->assertSame('Стройматериалы, Оборудование', data_get($snapshot, 'cargo.cargo_types'));
+        $this->assertSame('Паллеты, Ящики', data_get($snapshot, 'cargo.pack_types'));
+        $this->assertSame('Боковая, Верхняя, Задняя', data_get($snapshot, 'cargo.loading_types'));
+        $this->assertSame('Тентованный, Открытая', data_get($snapshot, 'cargo.truck_body_types'));
+        $this->assertSame('Полуприцеп, Прицеп', data_get($snapshot, 'cargo.trailer_types'));
+        $this->assertContains('cargo.loading_types', $catalogValues);
+        $this->assertContains('cargo.truck_body_types', $catalogValues);
+        $this->assertContains('cargo.trailer_types', $catalogValues);
+        $this->assertContains('cargo.cargo_types', $catalogValues);
+        $this->assertContains('cargo.pack_types', $catalogValues);
     }
 }

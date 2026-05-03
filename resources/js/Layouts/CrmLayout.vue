@@ -285,7 +285,7 @@
                                     v-for="grandChild in child.children"
                                     :key="grandChild.key"
                                     class="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors"
-                                    :class="activeLeafKey === grandChild.key
+                                    :class="(activeSubKey === grandChild.key || activeLeafKey === grandChild.key)
                                         ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                                         : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
                                     @click="handleMenuSelect(grandChild.key)"
@@ -662,22 +662,22 @@ const menuItems = computed(() => {
                 children: planningChildren,
             }
             : null;
+    const salesAssistantItem = {
+        key: 'sales-assistant',
+        label: 'Помощник продаж',
+        icon: WandSparkles,
+        visibilityArea: 'scripts',
+        children: [
+            { key: 'sales-assistant-scripts', label: 'Скрипты' },
+            { key: 'sales-assistant-book', label: 'Книга продаж' },
+            { key: 'sales-assistant-trainer', label: 'Тренажёр' },
+            { key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
+        ],
+    };
 
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
-        {
-            key: 'sales-assistant',
-            label: 'Помощник продаж',
-            icon: WandSparkles,
-            visibilityArea: 'scripts',
-            children: [
-                { key: 'sales-assistant-scripts', label: 'Скрипты' },
-                { key: 'sales-assistant-book', label: 'Книга продаж' },
-                { key: 'sales-assistant-trainer', label: 'Тренажёр' },
-                { key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
-            ],
-        },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
         {
@@ -712,6 +712,7 @@ const menuItems = computed(() => {
             })(),
         },
         ...(planningItem ? [planningItem] : []),
+        salesAssistantItem,
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
         { key: 'modules', label: 'Модули', icon: Puzzle, visibilityArea: 'modules' },
         {
@@ -889,7 +890,7 @@ function isSettingsChildActive(child) {
         return true;
     }
 
-    return child.children?.some((grandChild) => grandChild.key === props.activeLeafKey) ?? false;
+    return child.children?.some((grandChild) => grandChild.key === props.activeSubKey || grandChild.key === props.activeLeafKey) ?? false;
 }
 
 function handleMenuSelect(key) {

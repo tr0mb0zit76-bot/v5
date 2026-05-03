@@ -289,19 +289,17 @@ class OrderPrintFormDraftService
             ],
             'route' => [
                 'loading_addresses' => $this->resolvePartyAddressList($loadingPoints),
-                'loading_cities' => $loadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
+                'loading_cities' => $this->resolvePointCityList($loadingPoints),
                 'loading_first_address' => $this->resolvePointAddress($loadingPoints->first()),
-                'loading_first_city' => data_get($loadingPoints->first()?->normalized_data, 'city'),
-                'loading_time_from' => $this->resolvePointTimeValue($loadingPoints->first(), 'planned_time_from'),
-                'loading_time_to' => $this->resolvePointTimeValue($loadingPoints->first(), 'planned_time_to'),
+                'loading_first_city' => $this->resolvePointCity($loadingPoints->first()),
+                'loading_time_range' => $this->resolvePointTimeRange($loadingPoints->first()),
                 'loading_method' => $loadingMethod,
                 'loading_types' => $this->resolveLoadingTypes($loadingPoints, $order),
                 'unloading_addresses' => $this->resolvePartyAddressList($unloadingPoints),
-                'unloading_cities' => $unloadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
+                'unloading_cities' => $this->resolvePointCityList($unloadingPoints),
                 'unloading_first_address' => $this->resolvePointAddress($unloadingPoints->first()),
-                'unloading_first_city' => data_get($unloadingPoints->first()?->normalized_data, 'city'),
-                'unloading_time_from' => $this->resolvePointTimeValue($unloadingPoints->first(), 'planned_time_from'),
-                'unloading_time_to' => $this->resolvePointTimeValue($unloadingPoints->first(), 'planned_time_to'),
+                'unloading_first_city' => $this->resolvePointCity($unloadingPoints->first()),
+                'unloading_time_range' => $this->resolvePointTimeRange($unloadingPoints->first()),
             ],
             'cargo' => array_merge([
                 'summary' => $cargoItems
@@ -322,6 +320,11 @@ class OrderPrintFormDraftService
                 'total_weight_tons' => $this->formatNumber($cargoTotalWeight / 1000),
                 'total_volume' => $this->formatNumber($cargoTotalVolume),
                 'total_packages' => (string) $cargoTotalPackages,
+                'cargo_types' => $this->resolveCargoScalarList($cargoItems, ['cargo_type_label', 'cargo_type']),
+                'pack_types' => $this->resolveCargoScalarList($cargoItems, ['pack_type_label', 'packing_type']),
+                'loading_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'loading_type_items', 'loading_type_label'),
+                'truck_body_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'truck_body_type_items', 'truck_body_type_label'),
+                'trailer_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'trailer_type_items', 'trailer_type_label'),
             ], $this->cargoPerLinePlaceholderMap($cargoItems)),
         ];
     }
@@ -938,6 +941,44 @@ class OrderPrintFormDraftService
         return $address;
     }
 
+    private function resolvePointCityList(Collection $points): ?string
+    {
+        $cities = $points
+            ->map(fn (mixed $point): ?string => $this->resolvePointCity($point))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $cities->isEmpty() ? null : $cities->implode('; ');
+    }
+
+    private function resolvePointCity(mixed $point): ?string
+    {
+        if ($point === null) {
+            return null;
+        }
+
+        $city = $this->firstFilledValue([
+            data_get($point, 'normalized_data.city'),
+            data_get($point, 'normalized_data.settlement'),
+            data_get($point, 'metadata.city'),
+            data_get($point, 'metadata.settlement'),
+        ]);
+
+        if ($city !== null) {
+            return $city;
+        }
+
+        $address = $this->resolvePointAddress($point);
+        if ($address === null) {
+            return null;
+        }
+
+        $firstPart = trim((string) preg_replace('/^(?:г\.?|город|с\.?|село|д\.?|деревня|пгт)\s+/iu', '', strtok($address, ',') ?: ''));
+
+        return $firstPart !== '' ? $firstPart : null;
+    }
+
     private function resolvePointTimeValue(mixed $point, string $key): ?string
     {
         if ($point === null) {
@@ -955,6 +996,19 @@ class OrderPrintFormDraftService
         }
 
         return mb_substr($trimmed, 0, 5, 'UTF-8');
+    }
+
+    private function resolvePointTimeRange(mixed $point): ?string
+    {
+        $from = $this->resolvePointTimeValue($point, 'planned_time_from');
+        $to = $this->resolvePointTimeValue($point, 'planned_time_to');
+
+        return match (true) {
+            $from !== null && $to !== null => $from.'-'.$to,
+            $from !== null => $from,
+            $to !== null => 'до '.$to,
+            default => null,
+        };
     }
 
     private function resolveLoadingTypes(Collection $loadingPoints, Order $order): ?string
@@ -1041,6 +1095,70 @@ class OrderPrintFormDraftService
         }
 
         return null;
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     * @param  list<string>  $fields
+     */
+    private function resolveCargoScalarList(Collection $cargoItems, array $fields): ?string
+    {
+        $values = $cargoItems
+            ->map(fn (mixed $cargo): ?string => is_object($cargo)
+                ? $this->firstFilledValue(array_map(fn (string $field): mixed => data_get($cargo, $field), $fields))
+                : null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $values->isEmpty() ? null : $values->implode(', ');
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     */
+    private function resolveCargoDictionaryItemLabels(Collection $cargoItems, string $itemsField, string $labelField): ?string
+    {
+        $values = $cargoItems
+            ->flatMap(fn (mixed $cargo): array => $this->dictionaryLabelsForCargo($cargo, $itemsField, $labelField))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $values->isEmpty() ? null : $values->implode(', ');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function dictionaryLabelsForCargo(mixed $cargo, string $itemsField, string $labelField): array
+    {
+        if (! is_object($cargo)) {
+            return [];
+        }
+
+        $labels = [];
+        $items = data_get($cargo, $itemsField);
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                $label = $this->firstFilledValue([
+                    data_get($item, 'label'),
+                    data_get($item, 'code'),
+                    is_scalar($item) ? $item : null,
+                ]);
+
+                if ($label !== null) {
+                    $labels[] = $label;
+                }
+            }
+        }
+
+        $fallbackLabel = $this->firstFilledValue([data_get($cargo, $labelField)]);
+        if ($fallbackLabel !== null) {
+            $labels[] = $fallbackLabel;
+        }
+
+        return $labels;
     }
 
     /**

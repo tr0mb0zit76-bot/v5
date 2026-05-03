@@ -441,7 +441,7 @@
                                 </div>
                             </div>
 
-                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_10.5rem] lg:items-end">
+                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_14rem] lg:items-end">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
                                     <div class="relative">
@@ -481,7 +481,10 @@
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">{{ item.point.type === 'loading' ? 'Время загрузки' : 'Время выгрузки' }}</label>
-                                    <input v-model="item.point.planned_time_from" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input v-model="item.point.planned_time_from" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Время с" />
+                                        <input v-model="item.point.planned_time_to" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Время до" />
+                                    </div>
                                 </div>
                             </div>
 
