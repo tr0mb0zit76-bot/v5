@@ -3908,22 +3908,24 @@ function buildSubmitPayload() {
         },
 
         // Documents
-        documents: form.documents.map((document) => ({
-            type: document.type,
-            flow: document.flow,
-            party: document.party,
-            stage: document.stage,
-            requirement_key: document.requirement_key,
-            number: document.number,
-            document_date: document.document_date && String(document.document_date).trim() !== ''
-                ? document.document_date
-                : null,
-            status: document.status,
-            template_id: document.template_id,
-            file: document.file instanceof File ? document.file : null,
-            original_name: document.original_name,
-            generated_pdf_path: document.generated_pdf_path,
-        })),
+        documents: form.documents
+            .filter((document) => !document.is_print_workflow && document.flow !== 'print_template_workflow')
+            .map((document) => ({
+                type: document.type,
+                flow: document.flow,
+                party: document.party,
+                stage: document.stage,
+                requirement_key: document.requirement_key,
+                number: document.number,
+                document_date: document.document_date && String(document.document_date).trim() !== ''
+                    ? document.document_date
+                    : null,
+                status: document.status,
+                template_id: document.template_id,
+                file: document.file instanceof File ? document.file : null,
+                original_name: document.original_name,
+                generated_pdf_path: document.generated_pdf_path,
+            })),
     };
 }
 

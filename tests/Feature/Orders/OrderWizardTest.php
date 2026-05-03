@@ -1158,6 +1158,175 @@ class OrderWizardTest extends TestCase
         ]);
     }
 
+    public function test_updating_order_preserves_print_workflow_documents_and_does_not_recreate_stale_drafts(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'ООО Перевозчик',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-2026-011',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $printDocumentId = DB::table('order_documents')->insertGetId([
+            'order_id' => $orderId,
+            'type' => 'request',
+            'source' => 'print_template',
+            'original_name' => 'Заявка.docx',
+            'file_path' => 'order_documents/'.$orderId.'/draft.docx',
+            'template_id' => 10,
+            'status' => 'draft',
+            'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+            'signature_status' => 'not_requested',
+            'metadata' => json_encode(['flow' => 'print_template_workflow'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_documents')->insert([
+            'order_id' => $orderId,
+            'type' => 'other',
+            'source' => 'uploaded',
+            'number' => 'OLD-UPLOAD',
+            'status' => 'draft',
+            'metadata' => json_encode(['flow' => 'uploaded', 'party' => 'customer'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $artifactDocumentId = DB::table('order_documents')->insertGetId([
+            'order_id' => $orderId,
+            'type' => 'request',
+            'source' => 'print_template',
+            'template_id' => 10,
+            'status' => 'draft',
+            'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+            'signature_status' => 'not_requested',
+            'metadata' => json_encode(['flow' => 'print_template_workflow'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('orders.update', $orderId), [
+            'status' => 'new',
+            'own_company_id' => null,
+            'client_id' => $clientId,
+            'order_date' => '2026-04-11',
+            'order_number' => 'ORD-2026-011',
+            'special_notes' => '',
+            'performers' => [
+                ['stage' => 'leg_1', 'contractor_id' => $carrierId],
+            ],
+            'route_points' => [
+                ['type' => 'loading', 'sequence' => 1, 'address' => 'Самара', 'normalized_data' => []],
+                ['type' => 'unloading', 'sequence' => 2, 'address' => 'Уфа', 'normalized_data' => []],
+            ],
+            'cargo_items' => [],
+            'financial_term' => [
+                'client_price' => 110000,
+                'client_currency' => 'RUB',
+                'client_payment_form' => 'vat',
+                'client_payment_schedule' => [
+                    'has_prepayment' => false,
+                    'postpayment_days' => 7,
+                    'postpayment_mode' => 'ottn',
+                ],
+                'kpi_percent' => 0,
+                'contractors_costs' => [
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => $carrierId,
+                        'amount' => 90000,
+                        'currency' => 'RUB',
+                        'payment_form' => 'no_vat',
+                        'payment_schedule' => [],
+                    ],
+                ],
+                'additional_costs' => [],
+            ],
+            'documents' => [
+                [
+                    'type' => 'request',
+                    'flow' => 'print_template_workflow',
+                    'party' => 'carrier',
+                    'number' => null,
+                    'document_date' => null,
+                    'status' => 'draft',
+                    'template_id' => 10,
+                ],
+                [
+                    'type' => 'other',
+                    'flow' => 'uploaded',
+                    'party' => 'customer',
+                    'number' => 'NEW-UPLOAD',
+                    'document_date' => null,
+                    'status' => 'draft',
+                    'template_id' => null,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('orders.edit', $orderId));
+
+        $this->assertDatabaseHas('order_documents', [
+            'id' => $printDocumentId,
+            'order_id' => $orderId,
+            'source' => 'print_template',
+            'file_path' => 'order_documents/'.$orderId.'/draft.docx',
+            'signature_status' => 'not_requested',
+        ]);
+        $this->assertDatabaseMissing('order_documents', [
+            'order_id' => $orderId,
+            'source' => 'uploaded',
+            'number' => 'OLD-UPLOAD',
+        ]);
+        $this->assertDatabaseMissing('order_documents', [
+            'id' => $artifactDocumentId,
+        ]);
+        $this->assertDatabaseHas('order_documents', [
+            'order_id' => $orderId,
+            'source' => 'uploaded',
+            'number' => 'NEW-UPLOAD',
+        ]);
+        $this->assertSame(1, DB::table('order_documents')
+            ->where('order_id', $orderId)
+            ->where('source', 'print_template')
+            ->count());
+    }
+
     public function test_order_with_two_legs_persists_route_points_per_leg_and_restores_client_request_mode(): void
     {
         $admin = $this->createAdminUser();

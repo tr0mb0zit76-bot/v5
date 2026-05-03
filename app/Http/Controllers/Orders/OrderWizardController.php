@@ -469,7 +469,11 @@ class OrderWizardController extends Controller
         $routePointHasAddressColumn = Schema::hasColumn('route_points', 'address');
         $routePointHasMetadataColumn = Schema::hasColumn('route_points', 'metadata');
         $cargoItems = $this->orderCargoItems($order);
-        $documents = Schema::hasTable('order_documents') ? $order->documents : collect();
+        $documents = Schema::hasTable('order_documents')
+            ? $order->documents
+                ->reject(fn (OrderDocument $document): bool => $this->isEmptyPrintWorkflowArtifact($document))
+                ->values()
+            : collect();
         $templateIds = $documents->pluck('template_id')->filter()->unique()->values()->all();
         /** @var Collection<int, PrintFormTemplate> $templatesById */
         $templatesById = collect();
@@ -792,6 +796,17 @@ class OrderWizardController extends Controller
         $template = PrintFormTemplate::query()->find($document->template_id);
 
         return (bool) ($template?->requires_counterparty_signature ?? false);
+    }
+
+    private function isEmptyPrintWorkflowArtifact(OrderDocument $document): bool
+    {
+        $isPrintWorkflow = (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template')
+            || data_get($document->metadata, 'flow') === 'print_template_workflow';
+
+        return $isPrintWorkflow
+            && blank($document->file_path)
+            && blank($document->generated_pdf_path)
+            && blank($document->original_name);
     }
 
     private function canDiscardPrintWorkflowDocument(

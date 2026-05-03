@@ -340,7 +340,13 @@ class OrderWizardService
         $this->deleteExistingCargoItems($order);
 
         if (Schema::hasTable('order_documents')) {
-            $order->documents()->delete();
+            $order->documents()
+                ->get()
+                ->each(function (OrderDocument $document): void {
+                    if (! $this->isPrintWorkflowDocument($document) || $this->isEmptyPrintWorkflowArtifact($document)) {
+                        $document->delete();
+                    }
+                });
         }
 
         foreach ($routePoints as $index => $routePoint) {
@@ -580,6 +586,10 @@ class OrderWizardService
 
         if (Schema::hasTable('order_documents')) {
             foreach ($validated['documents'] ?? [] as $document) {
+                if (($document['flow'] ?? null) === 'print_template_workflow') {
+                    continue;
+                }
+
                 $storedFile = $this->storeDocumentFile($document['file'] ?? null);
                 $documentAttributes = [
                     'order_id' => $order->id,
@@ -858,6 +868,23 @@ class OrderWizardService
         }
 
         return strlen($trimmed) >= 10 ? substr($trimmed, 0, 10) : $trimmed;
+    }
+
+    private function isPrintWorkflowDocument(OrderDocument $document): bool
+    {
+        if (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template') {
+            return true;
+        }
+
+        return data_get($document->metadata, 'flow') === 'print_template_workflow';
+    }
+
+    private function isEmptyPrintWorkflowArtifact(OrderDocument $document): bool
+    {
+        return $this->isPrintWorkflowDocument($document)
+            && blank($document->file_path)
+            && blank($document->generated_pdf_path)
+            && blank($document->original_name);
     }
 
     private function nullIfTrimmedEmpty(mixed $value): ?string
