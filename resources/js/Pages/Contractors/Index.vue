@@ -1358,7 +1358,7 @@ function handleMobileNavSelect(key) {
                             <div class="space-y-4">
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Краткое название</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое название</label>
                                         <input
                                             v-model="form.name"
                                             type="text"
@@ -1368,7 +1368,7 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Полное название</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Полное название</label>
                                         <input
                                             v-model="form.full_name"
                                             type="text"
@@ -1380,14 +1380,14 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                     <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                         <div>
-                                            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Профиль контрагента</div>
+                                            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Профиль контрагента</div>
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                                 Роль компании в работе и внутренние признаки карточки.
                                             </div>
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Тип контрагента</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тип контрагента</label>
                                             <select
                                                 v-model="form.type"
                                                 class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
@@ -1399,15 +1399,15 @@ function handleMobileNavSelect(key) {
                                         </div>
 
                                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                                 <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
                                                 Активен
                                             </label>
-                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                                 <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
                                                 Проверен
                                             </label>
-                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60 sm:col-span-2">
+                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100 sm:col-span-2">
                                                 <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
                                                 Своя компания
                                             </label>
@@ -1418,7 +1418,7 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4">
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">ИНН</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ИНН</label>
                                             <input
                                                 v-model="form.inn"
                                                 type="text"
@@ -1430,7 +1430,7 @@ function handleMobileNavSelect(key) {
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Основной телефон</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основной телефон</label>
                                             <input
                                                 v-model="form.phone"
                                                 type="text"
@@ -1446,7 +1446,7 @@ function handleMobileNavSelect(key) {
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Email</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
                                         <input
                                             v-model="form.email"
                                             type="email"
@@ -1455,7 +1455,7 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Сайт</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сайт</label>
                                         <input
                                             v-model="form.website"
                                             type="text"
@@ -1465,7 +1465,7 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Краткое описание контрагента</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое описание контрагента</label>
                                     <textarea
                                         v-model="form.short_description"
                                         rows="4"
@@ -1476,10 +1476,10 @@ function handleMobileNavSelect(key) {
                             </div>
 
                             <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Основной контакт</div>
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основной контакт</div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Контактное лицо</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контактное лицо</label>
                                     <input
                                         v-model="form.contact_person"
                                         type="text"
@@ -1488,7 +1488,7 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Должность</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность</label>
                                     <input
                                         v-model="form.contact_person_position"
                                         type="text"
@@ -1497,7 +1497,7 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Телефон</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Телефон</label>
                                     <input
                                         v-model="form.contact_person_phone"
                                         type="text"
@@ -1506,7 +1506,7 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Email</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
                                     <input
                                         v-model="form.contact_person_email"
                                         type="email"
@@ -1524,7 +1524,7 @@ function handleMobileNavSelect(key) {
                             <div class="space-y-4">
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Краткое название</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое название</label>
                                         <input
                                             v-model="form.name"
                                             type="text"
@@ -1534,7 +1534,7 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Полное название</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Полное название</label>
                                         <input
                                             v-model="form.full_name"
                                             type="text"
@@ -1545,7 +1545,7 @@ function handleMobileNavSelect(key) {
 
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
                                     <div class="mb-4">
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Карточка компании</div>
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Карточка компании</div>
                                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                             Основные данные контрагента для повседневной работы менеджера.
                                         </div>
@@ -1553,7 +1553,7 @@ function handleMobileNavSelect(key) {
 
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">ИНН</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ИНН</label>
                                             <input
                                                 v-model="form.inn"
                                                 type="text"
@@ -1565,7 +1565,7 @@ function handleMobileNavSelect(key) {
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Основной телефон</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основной телефон</label>
                                             <input
                                                 v-model="form.phone"
                                                 type="text"
@@ -1574,7 +1574,7 @@ function handleMobileNavSelect(key) {
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Email</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
                                             <input
                                                 v-model="form.email"
                                                 type="email"
@@ -1583,7 +1583,7 @@ function handleMobileNavSelect(key) {
                                         </div>
 
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Сайт</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сайт</label>
                                             <input
                                                 v-model="form.website"
                                                 type="text"
@@ -1599,7 +1599,7 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="space-y-2 border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Краткое описание</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое описание</label>
                                     <textarea
                                         v-model="form.short_description"
                                         rows="4"
@@ -1612,14 +1612,14 @@ function handleMobileNavSelect(key) {
                             <div class="space-y-4">
                                 <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                     <div>
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Профиль контрагента</div>
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Профиль контрагента</div>
                                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                             Роль компании в работе и внутренние признаки карточки.
                                         </div>
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Тип контрагента</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тип контрагента</label>
                                         <select
                                             v-model="form.type"
                                             class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
@@ -1631,7 +1631,7 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">ATI ID</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ATI ID</label>
                                         <input
                                             v-model="form.ati_id"
                                             type="text"
@@ -1640,7 +1640,7 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Владелец</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Владелец</label>
                                         <select
                                             v-model="form.owner_id"
                                             class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
@@ -1653,15 +1653,15 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="grid grid-cols-1 gap-3">
-                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                             <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
                                             Активен
                                         </label>
-                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                             <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
                                             Проверен
                                         </label>
-                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                             <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
                                             Своя компания
                                         </label>
@@ -1670,7 +1670,7 @@ function handleMobileNavSelect(key) {
 
                                 <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                                     <div>
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Виды деятельности</div>
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Виды деятельности</div>
                                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                             Выбор из глобального справочника для сегментации и отчётности.
                                         </div>
@@ -1715,24 +1715,24 @@ function handleMobileNavSelect(key) {
                             <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Финансовые условия по умолчанию</div>
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Финансовые условия по умолчанию</div>
                                         <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                             Эти значения подставляются в заказ при выборе контрагента.
                                         </div>
                                     </div>
-                                    <label class="flex items-center gap-2 text-sm">
-                                        <input v-model="form.stop_on_limit" type="checkbox" class="rounded border-zinc-300" />
+                                    <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                        <input v-model="form.stop_on_limit" type="checkbox" class="rounded border-zinc-300 dark:border-zinc-600" />
                                         Стоп-работа по лимиту
                                     </label>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                     <div class="space-y-2 md:col-span-2">
-                                        <label class="text-sm font-medium">Лимит задолженности</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Лимит задолженности</label>
                                         <input v-model="form.debt_limit" type="number" min="0" step="0.01" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Валюта</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Валюта</label>
                                         <select v-model="form.debt_limit_currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                             <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
                                         </select>
@@ -1742,51 +1742,51 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div v-if="form.type === 'customer' || form.type === 'both'" class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Форма оплаты заказчика</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты заказчика</label>
                                             <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                 <option value="">Не задана</option>
                                                 <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                             </select>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Условия оплаты</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия оплаты</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
                                                 {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_customer_payment_schedule)) || 'Не заданы' }}
                                             </p>
                                         </div>
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Срок, дней</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок, дней</label>
                                                 <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Оплата по</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
                                                 <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
-                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
                                                 <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
                                                 Предоплата
                                             </label>
                                         </div>
                                         <div v-if="form.default_customer_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Предоплата, %</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Предоплата, %</label>
                                                 <input v-model="form.default_customer_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Срок предоплаты, дней</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок предоплаты, дней</label>
                                                 <input v-model="form.default_customer_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Оплата по</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
                                                 <select v-model="form.default_customer_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Постоплата, %</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Постоплата, %</label>
                                                 <input :value="100 - Number(form.default_customer_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
                                             </div>
                                         </div>
@@ -1794,51 +1794,51 @@ function handleMobileNavSelect(key) {
 
                                     <div v-if="form.type === 'carrier' || form.type === 'both'" class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Форма оплаты перевозчика</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты перевозчика</label>
                                             <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                 <option value="">Не задана</option>
                                                 <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                             </select>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Условия оплаты</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия оплаты</label>
                                             <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
                                                 {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_carrier_payment_schedule)) || 'Не заданы' }}
                                             </p>
                                         </div>
                                         <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Срок, дней</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок, дней</label>
                                                 <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Оплата по</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
                                                 <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
-                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
                                                 <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
                                                 Предоплата
                                             </label>
                                         </div>
                                         <div v-if="form.default_carrier_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Предоплата, %</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Предоплата, %</label>
                                                 <input v-model="form.default_carrier_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Срок предоплаты, дней</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок предоплаты, дней</label>
                                                 <input v-model="form.default_carrier_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Оплата по</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
                                                 <select v-model="form.default_carrier_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
                                                 </select>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Постоплата, %</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Постоплата, %</label>
                                                 <input :value="100 - Number(form.default_carrier_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
                                             </div>
                                         </div>
@@ -1846,12 +1846,12 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Условия сотрудничества</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия сотрудничества</label>
                                     <textarea v-model="form.cooperation_terms_notes" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
                                 </div>
 
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">Требования к перевозке</label>
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Требования к перевозке</label>
                                     <textarea
                                         v-model="transportRequirementsText"
                                         rows="6"
@@ -1862,7 +1862,7 @@ function handleMobileNavSelect(key) {
                             </div>
 
                             <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Кредитный статус</div>
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Кредитный статус</div>
                                 <div class="space-y-2 text-sm">
                                     <div class="flex items-center justify-between gap-3">
                                         <span class="text-zinc-500 dark:text-zinc-400">Текущая задолженность</span>
@@ -1884,7 +1884,7 @@ function handleMobileNavSelect(key) {
 
                                 <div class="border-t border-zinc-200 pt-3 dark:border-zinc-800">
                                     <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Скоринг контрагента (Checko)</div>
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Скоринг контрагента (Checko)</div>
                                         <button
                                             type="button"
                                             class="text-xs font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
@@ -1944,7 +1944,7 @@ function handleMobileNavSelect(key) {
                             <div class="space-y-4">
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Орг.-правовая форма</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Орг.-правовая форма</label>
                                         <select
                                             v-model="form.legal_form"
                                             class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
@@ -1957,7 +1957,7 @@ function handleMobileNavSelect(key) {
                                     </div>
 
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">КПП</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">КПП</label>
                                         <input
                                             v-model="form.kpp"
                                             type="text"
@@ -1969,7 +1969,7 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
                                     <div class="min-w-0 space-y-4">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">ОГРН</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ОГРН</label>
                                             <input
                                                 v-model="form.ogrn"
                                                 type="text"
@@ -1977,7 +1977,7 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">ОКПО</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ОКПО</label>
                                             <input
                                                 v-model="form.okpo"
                                                 type="text"
@@ -1987,7 +1987,7 @@ function handleMobileNavSelect(key) {
                                     </div>
                                     <div class="min-w-0 space-y-3">
                                         <div class="relative space-y-2">
-                                            <label class="text-sm font-medium">Юридический адрес</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Юридический адрес</label>
                                             <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
                                             <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                                 <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
@@ -1996,7 +1996,7 @@ function handleMobileNavSelect(key) {
                                             </div>
                                         </div>
                                         <div class="relative space-y-2">
-                                            <label class="text-sm font-medium">Фактический адрес</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Фактический адрес</label>
                                             <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
                                             <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                                 <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
@@ -2005,7 +2005,7 @@ function handleMobileNavSelect(key) {
                                             </div>
                                         </div>
                                         <div class="relative space-y-2">
-                                            <label class="text-sm font-medium">Почтовый адрес</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Почтовый адрес</label>
                                             <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
                                             <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                                 <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
@@ -2017,10 +2017,10 @@ function handleMobileNavSelect(key) {
                                 </div>
 
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-3 text-sm font-medium">Подписант</div>
+                                    <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант</div>
                                     <div class="max-w-xl space-y-4">
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">ФИО, именительный падеж</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ФИО, именительный падеж</label>
                                             <input
                                                 v-model="form.signer_name_nominative"
                                                 type="text"
@@ -2028,7 +2028,7 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">ФИО, родительный падеж</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ФИО, родительный падеж</label>
                                             <input
                                                 v-model="form.signer_name_prepositional"
                                                 type="text"
@@ -2036,7 +2036,7 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Должность</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность</label>
                                             <input
                                                 v-model="form.signer_position"
                                                 type="text"
@@ -2044,7 +2044,7 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Основание права подписи</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основание права подписи</label>
                                             <input
                                                 v-model="form.signer_authority_basis"
                                                 type="text"
@@ -2056,13 +2056,13 @@ function handleMobileNavSelect(key) {
                             </div>
 
                             <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="mb-3 text-sm font-medium">Банковские реквизиты</div>
+                                <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">Банковские реквизиты</div>
                                 <div class="mb-3 flex flex-wrap items-center gap-3">
                                     <label class="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                                         <input v-model="form.is_non_resident" type="checkbox" class="rounded border-zinc-300" />
                                         Нерезидент
                                     </label>
-                                    <button type="button" class="inline-flex items-center gap-1 border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addBankAccount">
+                                    <button type="button" class="inline-flex items-center gap-1 border border-zinc-300 px-2 py-1 text-xs text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addBankAccount">
                                         <Plus class="h-3.5 w-3.5" />
                                         Добавить счёт
                                     </button>
@@ -2084,47 +2084,47 @@ function handleMobileNavSelect(key) {
                                         </div>
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Метка счёта</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Метка счёта</label>
                                                 <input v-model="account.label" type="text" placeholder="Основной / EUR" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Страна банка</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Страна банка</label>
                                                 <input v-model="account.country_code" type="text" maxlength="2" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.country_code = String(account.country_code || '').toUpperCase().slice(0, 2)" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Валюта</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Валюта</label>
                                                 <select v-model="account.currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                                     <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
                                                 </select>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">SWIFT</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">SWIFT</label>
                                                 <input v-model="account.swift" type="text" maxlength="11" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium">Банк</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Банк</label>
                                             <input v-model="account.bank_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                         </div>
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">БИК</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">БИК</label>
                                                 <input v-model="account.bik" type="text" maxlength="9" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.bik = String(account.bik || '').replace(/\\D/g, ''); scheduleBankLookup(bankIndex)" />
-                                                <div v-if="bankLookupLoading[bankIndex]" class="text-xs text-zinc-500">Поиск банка по БИК...</div>
+                                                <div v-if="bankLookupLoading[bankIndex]" class="text-xs text-zinc-500 dark:text-zinc-400">Поиск банка по БИК...</div>
                                                 <div v-if="bankLookupErrors[bankIndex]" class="text-xs text-rose-600">{{ bankLookupErrors[bankIndex] }}</div>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Расчётный счёт / Account</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Расчётный счёт / Account</label>
                                                 <input v-model="account.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.account_number = String(account.account_number || '').replace(/\\s+/g, '')" />
                                             </div>
                                         </div>
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">Корр. счёт</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Корр. счёт</label>
                                                 <input v-model="account.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium">IBAN</label>
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">IBAN</label>
                                                 <input v-model="account.iban" type="text" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.iban = String(account.iban || '').toUpperCase().replace(/\\s+/g, '')" />
                                             </div>
                                         </div>
@@ -2138,7 +2138,7 @@ function handleMobileNavSelect(key) {
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
                                 Отдельные контакты удобно хранить отдельно от основной карточки компании.
                             </div>
-                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addContact">
+                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addContact">
                                 <Plus class="h-4 w-4" />
                                 Добавить контакт
                             </button>
@@ -2147,39 +2147,41 @@ function handleMobileNavSelect(key) {
                         <div class="space-y-3">
                             <div v-for="(contact, index) in form.contacts" :key="`contact-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium">Контакт #{{ index + 1 }}</div>
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контакт #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.contacts, index)">
                                         Удалить
                                     </button>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">ФИО</label>
+                                    <div class="space-y-2 xl:col-start-1 xl:row-start-1">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ФИО</label>
                                         <input v-model="contact.full_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Должность</label>
+                                    <div class="space-y-2 xl:col-start-2 xl:row-start-1">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность</label>
                                         <input v-model="contact.position" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
-                                    <label class="flex items-center gap-2 pt-8 text-sm">
-                                        <input v-model="contact.is_primary" type="checkbox" class="rounded border-zinc-300" />
-                                        Основной контакт
-                                    </label>
-                                    <label class="flex items-center gap-2 pt-8 text-sm">
-                                        <input v-model="contact.is_decision_maker" type="checkbox" class="rounded border-zinc-300" />
-                                        ЛПР
-                                    </label>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Телефон</label>
+                                    <div class="flex flex-col gap-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:row-span-2">
+                                        <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                            <input v-model="contact.is_primary" type="checkbox" class="rounded border-zinc-300 dark:border-zinc-600" />
+                                            Основной контакт
+                                        </label>
+                                        <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                            <input v-model="contact.is_decision_maker" type="checkbox" class="rounded border-zinc-300 dark:border-zinc-600" />
+                                            ЛПР
+                                        </label>
+                                    </div>
+                                    <div class="space-y-2 xl:col-start-1 xl:row-start-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Телефон</label>
                                         <input v-model="contact.phone" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Email</label>
+                                    <div class="space-y-2 xl:col-start-2 xl:row-start-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
                                         <input v-model="contact.email" type="email" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
-                                    <div class="space-y-2 md:col-span-2 xl:col-span-1">
-                                        <label class="text-sm font-medium">Комментарий</label>
+                                    <div class="col-span-full space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Комментарий</label>
                                         <input v-model="contact.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
@@ -2196,7 +2198,7 @@ function handleMobileNavSelect(key) {
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
                                 История звонков, писем, встреч и результатов коммуникации.
                             </div>
-                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addInteraction">
+                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addInteraction">
                                 <Plus class="h-4 w-4" />
                                 Добавить запись
                             </button>
@@ -2205,7 +2207,7 @@ function handleMobileNavSelect(key) {
                         <div class="space-y-3">
                             <div v-for="(interaction, index) in form.interactions" :key="`interaction-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium">Событие #{{ index + 1 }}</div>
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Событие #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.interactions, index)">
                                         Удалить
                                     </button>
@@ -2213,11 +2215,11 @@ function handleMobileNavSelect(key) {
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Дата и время</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата и время</label>
                                         <input v-model="interaction.contacted_at" type="datetime-local" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Канал</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Канал</label>
                                         <select v-model="interaction.channel" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
                                             <option value="">Не указан</option>
                                             <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
@@ -2226,18 +2228,18 @@ function handleMobileNavSelect(key) {
                                         </select>
                                     </div>
                                     <div class="space-y-2 md:col-span-2">
-                                        <label class="text-sm font-medium">Тема</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тема</label>
                                         <input v-model="interaction.subject" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
 
                                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Краткое содержание</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое содержание</label>
                                         <textarea v-model="interaction.summary" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Результат</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Результат</label>
                                         <input v-model="interaction.result" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
@@ -2289,7 +2291,7 @@ function handleMobileNavSelect(key) {
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
                                 Карточка хранит метаданные по документам контрагента. Файловое хранилище можно подключить отдельным шагом.
                             </div>
-                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocument">
+                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addDocument">
                                 <Plus class="h-4 w-4" />
                                 Добавить документ
                             </button>
@@ -2298,7 +2300,7 @@ function handleMobileNavSelect(key) {
                         <div class="space-y-3">
                             <div v-for="(document, index) in form.documents" :key="`document-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium">Документ #{{ index + 1 }}</div>
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Документ #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.documents, index)">
                                         Удалить
                                     </button>
@@ -2306,27 +2308,27 @@ function handleMobileNavSelect(key) {
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Тип</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тип</label>
                                         <input v-model="document.type" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Наименование</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Наименование</label>
                                         <input v-model="document.title" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Номер</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Номер</label>
                                         <input v-model="document.number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Дата документа</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата документа</label>
                                         <input v-model="document.document_date" type="date" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Статус</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Статус</label>
                                         <input v-model="document.status" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                     <div class="space-y-2 md:col-span-2 xl:col-span-1">
-                                        <label class="text-sm font-medium">Комментарий</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Комментарий</label>
                                         <input v-model="document.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
