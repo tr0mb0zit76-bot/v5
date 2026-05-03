@@ -8,7 +8,7 @@
                 v-if="playContext?.return === 'trainer' && playContext?.trainer_profile?.title"
                 class="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-100"
             >
-                Тренажер: клиент «{{ playContext.trainer_profile.title }}»
+                Тренажер: {{ trainingRoleLabel }} · профиль «{{ playContext.trainer_profile.title }}»
             </div>
         </div>
 
@@ -48,7 +48,7 @@
                 <div>
                     <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Диалог с клиентом</h3>
                     <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                        Пишите как менеджер. Модель отвечает в роли клиента.
+                        {{ trainerModeHint }}
                     </p>
                 </div>
                 <span
@@ -69,7 +69,7 @@
                         : 'border border-zinc-200 bg-white text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100'"
                 >
                     <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                        {{ message.role === 'assistant' ? 'Клиент' : 'Менеджер' }}
+                        {{ trainerMessageRoleLabel(message.role) }}
                     </div>
                     <div class="whitespace-pre-wrap">{{ message.content }}</div>
                 </div>
@@ -84,7 +84,7 @@
                     v-model="trainerDraft"
                     rows="3"
                     class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                    placeholder="Напишите реплику менеджера..."
+                    :placeholder="trainerDraftPlaceholder"
                     :disabled="trainerSending"
                 />
                 <div class="flex items-center justify-between gap-2">
@@ -179,7 +179,7 @@ defineOptions({
 const props = defineProps({
     playContext: {
         type: Object,
-        default: () => ({ return: null, trainer_profile: null }),
+        default: () => ({ return: null, trainer_profile: null, training_role_mode: 'manager_seller' }),
     },
     session: { type: Object, required: true },
     currentNode: { type: Object, default: null },
@@ -191,9 +191,29 @@ const props = defineProps({
 });
 
 const isTrainer = computed(() => props.playContext?.return === 'trainer');
+const trainingRoleMode = computed(() => props.playContext?.training_role_mode || 'manager_seller');
+const isManagerBuyerMode = computed(() => trainingRoleMode.value === 'manager_buyer');
 const trainerDraft = ref('');
 const trainerSending = ref(false);
 const trainerChatHistory = ref(Array.isArray(props.playContext?.trainer_chat) ? [...props.playContext.trainer_chat] : []);
+
+const trainingRoleLabel = computed(() =>
+    isManagerBuyerMode.value
+        ? 'вы покупатель, ассистент продавец'
+        : 'вы продавец, ассистент покупатель',
+);
+
+const trainerModeHint = computed(() =>
+    isManagerBuyerMode.value
+        ? 'Пишите как покупатель. Модель отвечает в роли менеджера-продавца.'
+        : 'Пишите как менеджер. Модель отвечает в роли клиента.',
+);
+
+const trainerDraftPlaceholder = computed(() =>
+    isManagerBuyerMode.value
+        ? 'Напишите реплику покупателя...'
+        : 'Напишите реплику менеджера...',
+);
 
 const backListHref = computed(() => (isTrainer.value ? route('sales-assistant.trainer') : route('scripts.index')));
 
@@ -206,8 +226,23 @@ const completeForm = reactive({
 });
 
 function kindLabel(kind) {
-    const map = { say: 'Что сказать', ask: 'Вопрос', branch: 'Ветвление по реакции клиента' };
+    const map = isManagerBuyerMode.value
+        ? {
+            say: 'Реплика ассистента-продавца',
+            ask: 'Вопрос ассистента-продавца',
+            branch: 'Ваша реакция как покупателя',
+        }
+        : { say: 'Что сказать', ask: 'Вопрос', branch: 'Ветвление по реакции клиента' };
+
     return map[kind] || kind;
+}
+
+function trainerMessageRoleLabel(role) {
+    if (isManagerBuyerMode.value) {
+        return role === 'assistant' ? 'Продавец' : 'Покупатель';
+    }
+
+    return role === 'assistant' ? 'Клиент' : 'Менеджер';
 }
 
 function advance(reactionClassId) {

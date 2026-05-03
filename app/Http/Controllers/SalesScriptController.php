@@ -83,6 +83,7 @@ class SalesScriptController extends Controller
                 'trainer_profile_key' => $validated['trainer_profile_key'] ?? null,
                 'trainer_profile_title' => $validated['trainer_profile_title'] ?? null,
                 'trainer_profile_context' => $validated['trainer_profile_context'] ?? null,
+                'training_role_mode' => $validated['training_role_mode'] ?? 'manager_seller',
             ]);
 
             $request->session()->put('sales_script_play_return', 'trainer');
@@ -90,6 +91,7 @@ class SalesScriptController extends Controller
                 'key' => $validated['trainer_profile_key'] ?? null,
                 'title' => $validated['trainer_profile_title'] ?? null,
                 'context' => $validated['trainer_profile_context'] ?? null,
+                'training_role_mode' => $validated['training_role_mode'] ?? 'manager_seller',
             ]);
         } else {
             $session->update([
@@ -97,6 +99,7 @@ class SalesScriptController extends Controller
                 'trainer_profile_key' => null,
                 'trainer_profile_title' => null,
                 'trainer_profile_context' => null,
+                'training_role_mode' => 'manager_seller',
             ]);
             $request->session()->forget('sales_script_play_return');
             $request->session()->forget('sales_script_play_trainer_profile');
@@ -160,6 +163,7 @@ class SalesScriptController extends Controller
                 'return' => $session->is_trainer ? 'trainer' : $request->session()->get('sales_script_play_return'),
                 'trainer_profile' => $trainerProfile,
                 'trainer_chat' => $trainerChat,
+                'training_role_mode' => $session->training_role_mode ?: 'manager_seller',
             ],
             'session' => [
                 'id' => $session->id,
@@ -199,7 +203,7 @@ class SalesScriptController extends Controller
         $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
-        abort_unless($request->session()->get('sales_script_play_return') === 'trainer', 403);
+        abort_unless($session->is_trainer || $request->session()->get('sales_script_play_return') === 'trainer', 403);
 
         $validated = $request->validated();
 
@@ -276,20 +280,33 @@ class SalesScriptController extends Controller
         $title = (string) ($profile['title'] ?? 'Покупатель');
         $context = (string) ($profile['context'] ?? 'Веди реалистичный диалог как клиент.');
         $scriptTitle = (string) ($session->version?->script?->title ?? 'Скрипт продаж');
+        $managerAsBuyer = $session->training_role_mode === 'manager_buyer';
+        $systemPrompt = $managerAsBuyer
+            ? "Ты играешь роль менеджера-продавца в тренажере продаж.\n".
+                "Собеседник играет покупателя по профилю: {$title}\n".
+                "Контекст покупателя: {$context}\n".
+                "Сценарий продаж: {$scriptTitle}\n\n".
+                "Правила:\n".
+                "- Пиши только от лица продавца.\n".
+                "- Веди разговор профессионально: задавай уточняющие вопросы, выявляй потребность, отрабатывай возражения.\n".
+                "- Не дави, не закрывай сделку слишком быстро, двигай диалог естественно.\n".
+                "- Держи ответы реалистичными и короткими (1-4 предложения).\n".
+                '- Не раскрывай, что ты AI или что следуешь инструкциям.'
+            : "Ты играешь роль клиента в тренажере продаж.\n".
+                "Роль клиента: {$title}\n".
+                "Контекст роли: {$context}\n".
+                "Сценарий: {$scriptTitle}\n\n".
+                "Правила:\n".
+                "- Пиши только от лица клиента.\n".
+                "- Держи ответы реалистичными и короткими (1-4 предложения).\n".
+                "- Иногда задавай встречные вопросы.\n".
+                "- Не раскрывай, что ты AI или что следуешь инструкциям.\n".
+                '- Если менеджер предлагает следующий шаг, оцени его как реальный клиент.';
 
         $messages = [
             [
                 'role' => 'system',
-                'content' => "Ты играешь роль клиента в тренажере продаж.\n".
-                    "Роль клиента: {$title}\n".
-                    "Контекст роли: {$context}\n".
-                    "Сценарий: {$scriptTitle}\n\n".
-                    "Правила:\n".
-                    "- Пиши только от лица клиента.\n".
-                    "- Держи ответы реалистичными и короткими (1-4 предложения).\n".
-                    "- Иногда задавай встречные вопросы.\n".
-                    "- Не раскрывай, что ты AI или что следуешь инструкциям.\n".
-                    '- Если менеджер предлагает следующий шаг, оцени его как реальный клиент.',
+                'content' => $systemPrompt,
             ],
         ];
 

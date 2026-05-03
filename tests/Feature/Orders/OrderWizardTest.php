@@ -224,16 +224,46 @@ class OrderWizardTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('order_id')->nullable();
             $table->string('title')->nullable();
+            $table->string('ati_cargo_name')->nullable();
             $table->text('description')->nullable();
             $table->decimal('weight', 10, 2)->nullable();
+            $table->decimal('weight_value', 12, 3)->nullable();
+            $table->string('weight_unit', 10)->default('kg');
             $table->decimal('volume', 10, 2)->nullable();
             $table->string('cargo_type')->nullable();
+            $table->unsignedInteger('cargo_type_id')->nullable();
+            $table->string('cargo_type_label')->nullable();
             $table->string('packing_type')->nullable();
+            $table->unsignedInteger('pack_type_id')->nullable();
+            $table->string('pack_type_label')->nullable();
+            $table->unsignedInteger('loading_type_id')->nullable();
+            $table->string('loading_type_code')->nullable();
+            $table->string('loading_type_label')->nullable();
+            $table->json('loading_type_items')->nullable();
+            $table->unsignedInteger('truck_body_type_id')->nullable();
+            $table->string('truck_body_type_code')->nullable();
+            $table->string('truck_body_type_label')->nullable();
+            $table->json('truck_body_type_items')->nullable();
+            $table->unsignedInteger('trailer_type_id')->nullable();
+            $table->string('trailer_type_code')->nullable();
+            $table->string('trailer_type_label')->nullable();
+            $table->json('trailer_type_items')->nullable();
             $table->unsignedInteger('package_count')->nullable();
+            $table->decimal('length', 10, 2)->nullable();
+            $table->decimal('width', 10, 2)->nullable();
+            $table->decimal('height', 10, 2)->nullable();
+            $table->decimal('diameter', 10, 2)->nullable();
             $table->boolean('is_hazardous')->default(false);
             $table->string('hazard_class')->nullable();
             $table->string('hs_code')->nullable();
             $table->boolean('needs_temperature')->default(false);
+            $table->decimal('temp_min', 5, 2)->nullable();
+            $table->decimal('temp_max', 5, 2)->nullable();
+            $table->boolean('needs_hydraulic')->default(false);
+            $table->boolean('needs_manipulator')->default(false);
+            $table->boolean('is_oversized')->default(false);
+            $table->boolean('is_fragile')->default(false);
+            $table->json('ati_cargo_payload')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
@@ -394,6 +424,31 @@ class OrderWizardTest extends TestCase
         $this->assertFalse($validator->fails(), (string) $validator->errors());
     }
 
+    public function test_ati_cargo_backfill_migrates_legacy_columns(): void
+    {
+        $cargoId = DB::table('cargos')->insertGetId([
+            'title' => 'Станок',
+            'weight' => 1250,
+            'cargo_type' => 'oversized',
+            'packing_type' => 'crate',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_05_03_090135_backfill_ati_cargo_fields_from_legacy_columns.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('cargos', [
+            'id' => $cargoId,
+            'ati_cargo_name' => 'Станок',
+            'weight_value' => '1250.000',
+            'weight_unit' => 'kg',
+            'cargo_type_label' => 'oversized',
+            'pack_type_label' => 'crate',
+            'is_oversized' => true,
+        ]);
+    }
+
     public function test_admin_can_create_order_with_nested_data(): void
     {
         $admin = $this->createAdminUser();
@@ -460,6 +515,7 @@ class OrderWizardTest extends TestCase
             'performers' => [
                 ['stage' => 'leg_1', 'contractor_id' => $carrierId],
             ],
+            'loading_types' => ['tail_lift'],
             'route_points' => [
                 [
                     'type' => 'loading',
@@ -490,14 +546,42 @@ class OrderWizardTest extends TestCase
                 [
                     'name' => 'Бытовая техника',
                     'description' => 'Партия холодильников',
-                    'weight_kg' => 1200,
+                    'weight_value' => 1.2,
+                    'weight_unit' => 't',
                     'volume_m3' => 16.5,
+                    'length_m' => 2.5,
+                    'width_m' => 2,
+                    'height_m' => 1.5,
                     'package_type' => 'pallet',
+                    'pack_type_id' => 1,
+                    'pack_type_label' => 'Паллета',
+                    'loading_type_id' => 5,
+                    'loading_type_code' => 'tail_lift',
+                    'loading_type_label' => 'Гидроборт',
+                    'loading_type_items' => [
+                        ['id' => 5, 'code' => 'tail_lift', 'label' => 'Гидроборт'],
+                        ['id' => 6, 'code' => 'crane', 'label' => 'Манипулятор'],
+                    ],
+                    'truck_body_type_id' => 1,
+                    'truck_body_type_code' => 'all_closed',
+                    'truck_body_type_label' => 'Все закрытые',
+                    'truck_body_type_items' => [
+                        ['id' => 1, 'code' => 'all_closed', 'label' => 'Все закрытые'],
+                        ['id' => 2, 'code' => 'all_open', 'label' => 'Все открытые'],
+                    ],
+                    'trailer_type_id' => 1,
+                    'trailer_type_code' => 'semi_trailer',
+                    'trailer_type_label' => 'Полуприцеп',
+                    'trailer_type_items' => [
+                        ['id' => 1, 'code' => 'semi_trailer', 'label' => 'Полуприцеп'],
+                    ],
                     'package_count' => 10,
                     'dangerous_goods' => false,
                     'dangerous_class' => null,
                     'hs_code' => '841810',
                     'cargo_type' => 'general',
+                    'cargo_type_id' => 1,
+                    'cargo_type_label' => 'Общий груз',
                 ],
             ],
             'financial_term' => [
@@ -570,7 +654,36 @@ class OrderWizardTest extends TestCase
         $this->assertDatabaseHas('cargos', [
             'order_id' => $orderId,
             'title' => 'Бытовая техника',
+            'ati_cargo_name' => 'Бытовая техника',
+            'weight' => '1200.00',
+            'weight_value' => '1.200',
+            'weight_unit' => 't',
+            'volume' => '7.50',
+            'cargo_type_id' => 1,
+            'cargo_type_label' => 'Общий груз',
+            'pack_type_id' => 1,
+            'pack_type_label' => 'Паллета',
+            'loading_type_id' => 5,
+            'loading_type_code' => 'tail_lift',
+            'loading_type_label' => 'Гидроборт',
+            'truck_body_type_id' => 1,
+            'truck_body_type_code' => 'all_closed',
+            'truck_body_type_label' => 'Все закрытые',
+            'trailer_type_id' => 1,
+            'trailer_type_code' => 'semi_trailer',
+            'trailer_type_label' => 'Полуприцеп',
+            'needs_hydraulic' => true,
+            'needs_manipulator' => true,
+            'length' => '2.50',
+            'width' => '2.00',
+            'height' => '1.50',
         ]);
+        $cargo = DB::table('cargos')->where('order_id', $orderId)->first();
+        $this->assertNotNull($cargo);
+        $loadingTypeItems = json_decode((string) $cargo->loading_type_items, true);
+        $truckBodyTypeItems = json_decode((string) $cargo->truck_body_type_items, true);
+        $this->assertSame('crane', $loadingTypeItems[1]['code'] ?? null);
+        $this->assertSame('all_open', $truckBodyTypeItems[1]['code'] ?? null);
         $this->assertDatabaseHas('financial_terms', [
             'order_id' => $orderId,
             'client_price' => 120000,

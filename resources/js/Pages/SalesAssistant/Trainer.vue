@@ -59,7 +59,7 @@
         </section>
 
         <section>
-            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">1. Выберите клиента</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">1. Выберите профиль покупателя</h2>
             <div class="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <button
                     v-for="profile in customerProfiles"
@@ -89,7 +89,34 @@
         </section>
 
         <section>
-            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">2. Запустите сценарий</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">2. Выберите роли</h2>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
+                <label
+                    v-for="mode in trainingRoleModes"
+                    :key="mode.value"
+                    class="cursor-pointer rounded-2xl border p-4 transition"
+                    :class="selectedTrainingRoleMode === mode.value
+                        ? 'border-sky-500 bg-sky-50 text-sky-950 dark:border-sky-400 dark:bg-sky-950/30 dark:text-sky-100'
+                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900'"
+                >
+                    <span class="flex items-start gap-3">
+                        <input
+                            v-model="selectedTrainingRoleMode"
+                            :value="mode.value"
+                            type="radio"
+                            class="mt-1 shrink-0 border-zinc-300"
+                        />
+                        <span>
+                            <span class="block text-sm font-semibold">{{ mode.label }}</span>
+                            <span class="mt-1 block text-xs leading-5 opacity-80">{{ mode.description }}</span>
+                        </span>
+                    </span>
+                </label>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">3. Запустите сценарий</h2>
             <div class="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <article
                     v-for="script in scripts"
@@ -160,7 +187,21 @@ const props = defineProps({
 
 const page = usePage();
 const selectedProfile = ref(null);
+const selectedTrainingRoleMode = ref('manager_seller');
 const trainerSummary = props.trainerSummary;
+
+const trainingRoleModes = [
+    {
+        value: 'manager_seller',
+        label: 'Я продавец, ассистент — покупатель',
+        description: 'Классический режим: вы ведёте продажу, DeepSeek отвечает в роли выбранного покупателя.',
+    },
+    {
+        value: 'manager_buyer',
+        label: 'Я покупатель, ассистент — продавец',
+        description: 'Режим наоборот: вы отвечаете как выбранный покупатель, DeepSeek тренирует вас примером продавца.',
+    },
+];
 
 const customerProfiles = [
     {
@@ -206,6 +247,7 @@ function startTraining(versionId) {
         trainer_profile_key: selectedProfile.value.key,
         trainer_profile_title: selectedProfile.value.title,
         trainer_profile_context: selectedProfile.value.context,
+        training_role_mode: selectedTrainingRoleMode.value,
     });
 }
 </script>

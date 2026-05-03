@@ -25,6 +25,7 @@ class StoreSalesScriptPlaySessionRequest extends FormRequest
             'trainer_profile_key' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],
             'trainer_profile_title' => ['nullable', 'string', 'max:160', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],
             'trainer_profile_context' => ['nullable', 'string', 'max:4000', Rule::requiredIf(fn (): bool => $this->input('return_to') === 'trainer')],
+            'training_role_mode' => ['nullable', 'string', Rule::in(['manager_seller', 'manager_buyer'])],
         ];
     }
 }

@@ -21,6 +21,7 @@ class SalesScriptPlaySession extends Model
         'trainer_profile_key',
         'trainer_profile_title',
         'trainer_profile_context',
+        'training_role_mode',
         'trainer_score',
         'outcome',
         'primary_reaction_class_id',

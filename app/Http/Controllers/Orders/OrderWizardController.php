@@ -7,6 +7,7 @@ use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateInlineOrderFieldRequest;
 use App\Http\Requests\UpdateOrderRequest;
+use App\Models\AtiDictionaryItem;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
@@ -333,20 +334,11 @@ class OrderWizardController extends Controller
             'ownCompanies' => Schema::hasColumn('contractors', 'is_own_company')
                 ? $contractors->where('is_own_company', true)->values()
                 : collect(),
-            'cargoTypeOptions' => [
-                ['value' => 'general', 'label' => 'Общий груз'],
-                ['value' => 'dangerous', 'label' => 'Опасный груз'],
-                ['value' => 'temperature_controlled', 'label' => 'Температурный режим'],
-                ['value' => 'oversized', 'label' => 'Негабаритный груз'],
-                ['value' => 'fragile', 'label' => 'Хрупкий груз'],
-            ],
-            'packageTypeOptions' => [
-                ['value' => 'pallet', 'label' => 'Паллета'],
-                ['value' => 'box', 'label' => 'Короб'],
-                ['value' => 'crate', 'label' => 'Ящик'],
-                ['value' => 'roll', 'label' => 'Рулон'],
-                ['value' => 'bag', 'label' => 'Мешок'],
-            ],
+            'cargoTypeOptions' => $this->atiDictionaryOptions('cargo_type', $this->fallbackCargoTypeOptions()),
+            'packageTypeOptions' => $this->atiDictionaryOptions('pack_type', $this->fallbackPackageTypeOptions()),
+            'loadingTypeOptions' => $this->atiDictionaryOptions('loading_type', $this->fallbackLoadingTypeOptions()),
+            'truckBodyTypeOptions' => $this->atiDictionaryOptions('truck_body_type', $this->fallbackTruckBodyTypeOptions()),
+            'trailerTypeOptions' => $this->atiDictionaryOptions('trailer_type', $this->fallbackTrailerTypeOptions()),
             'currencyOptions' => [
                 ['value' => 'RUB', 'label' => 'RUB'],
                 ['value' => 'USD', 'label' => 'USD'],
@@ -593,20 +585,41 @@ class OrderWizardController extends Controller
             'route_points' => $routePoints,
             'cargo_items' => $cargoItems->map(fn ($cargo): array => [
                 'id' => $cargo->id,
-                'name' => $cargo->title,
+                'name' => $cargo->ati_cargo_name ?: $cargo->title,
                 'description' => $cargo->description,
-                'weight_kg' => $cargo->weight,
-                'weight_unit' => 'kg',
+                'weight_value' => $cargo->weight_value ?? $cargo->weight,
+                'weight_kg' => $cargo->weight_value ?? $cargo->weight,
+                'weight_unit' => $cargo->weight_unit ?: 'kg',
                 'volume_m3' => $cargo->volume,
                 'length_m' => $cargo->length,
                 'width_m' => $cargo->width,
                 'height_m' => $cargo->height,
+                'diameter_m' => $cargo->diameter,
                 'package_type' => $cargo->packing_type,
+                'pack_type_id' => $cargo->pack_type_id,
+                'pack_type_label' => $cargo->pack_type_label,
+                'loading_type_id' => $cargo->loading_type_id,
+                'loading_type_code' => $cargo->loading_type_code,
+                'loading_type_label' => $cargo->loading_type_label,
+                'loading_type_items' => $cargo->loading_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'loading_type'),
+                'truck_body_type_id' => $cargo->truck_body_type_id,
+                'truck_body_type_code' => $cargo->truck_body_type_code,
+                'truck_body_type_label' => $cargo->truck_body_type_label,
+                'truck_body_type_items' => $cargo->truck_body_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'truck_body_type'),
+                'trailer_type_id' => $cargo->trailer_type_id,
+                'trailer_type_code' => $cargo->trailer_type_code,
+                'trailer_type_label' => $cargo->trailer_type_label,
+                'trailer_type_items' => $cargo->trailer_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'trailer_type'),
                 'package_count' => $cargo->package_count ?? $cargo->pallet_count,
                 'dangerous_goods' => $cargo->is_hazardous,
                 'dangerous_class' => $cargo->hazard_class,
                 'hs_code' => $cargo->hs_code,
                 'cargo_type' => $cargo->cargo_type ?: 'general',
+                'cargo_type_id' => $cargo->cargo_type_id,
+                'cargo_type_label' => $cargo->cargo_type_label,
+                'is_oversized' => $cargo->is_oversized,
+                'is_fragile' => $cargo->is_fragile,
+                'ati_cargo_payload' => $cargo->ati_cargo_payload ?? [],
             ])->values()->all(),
             'financial_term' => [
                 'client_price' => $useWizardState
@@ -1281,6 +1294,140 @@ class OrderWizardController extends Controller
     }
 
     /**
+     * @return list<array{id:int|null, code:string|null, label:string|null}>
+     */
+    private function dictionaryItemsFromFlatCargo(Cargo $cargo, string $prefix): array
+    {
+        $item = [
+            'id' => $cargo->{$prefix.'_id'} ?? null,
+            'code' => $cargo->{$prefix.'_code'} ?? null,
+            'label' => $cargo->{$prefix.'_label'} ?? null,
+        ];
+
+        return $item['id'] !== null || $item['code'] !== null || $item['label'] !== null ? [$item] : [];
+    }
+
+    /**
+     * @param  list<array{value:int, code:string, label:string}>  $fallback
+     * @return list<array{value:int, code:string|null, label:string, ati_id:int|null}>
+     */
+    private function atiDictionaryOptions(string $dictionary, array $fallback): array
+    {
+        if (! Schema::hasTable('ati_dictionary_items')) {
+            return array_map(
+                fn (array $item): array => [
+                    'value' => $item['value'],
+                    'code' => $item['code'],
+                    'label' => $item['label'],
+                    'ati_id' => $item['value'],
+                ],
+                $fallback
+            );
+        }
+
+        $items = AtiDictionaryItem::query()
+            ->where('dictionary', $dictionary)
+            ->where('is_active', true)
+            ->orderBy('label')
+            ->get(['id', 'ati_id', 'code', 'label']);
+
+        if ($items->isEmpty()) {
+            return array_map(
+                fn (array $item): array => [
+                    'value' => $item['value'],
+                    'code' => $item['code'],
+                    'label' => $item['label'],
+                    'ati_id' => $item['value'],
+                ],
+                $fallback
+            );
+        }
+
+        return $items
+            ->map(fn (AtiDictionaryItem $item): array => [
+                'value' => $item->ati_id ?? $item->id,
+                'code' => $item->code,
+                'label' => $item->label,
+                'ati_id' => $item->ati_id,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{value:int, code:string, label:string}>
+     */
+    private function fallbackCargoTypeOptions(): array
+    {
+        return [
+            ['value' => 1, 'code' => 'general', 'label' => 'Общий груз'],
+            ['value' => 2, 'code' => 'dangerous', 'label' => 'Опасный груз'],
+            ['value' => 3, 'code' => 'temperature_controlled', 'label' => 'Температурный режим'],
+            ['value' => 4, 'code' => 'oversized', 'label' => 'Негабаритный груз'],
+            ['value' => 5, 'code' => 'fragile', 'label' => 'Хрупкий груз'],
+        ];
+    }
+
+    /**
+     * @return list<array{value:int, code:string, label:string}>
+     */
+    private function fallbackPackageTypeOptions(): array
+    {
+        return [
+            ['value' => 1, 'code' => 'pallet', 'label' => 'Паллета'],
+            ['value' => 2, 'code' => 'box', 'label' => 'Короб'],
+            ['value' => 3, 'code' => 'crate', 'label' => 'Ящик'],
+            ['value' => 4, 'code' => 'roll', 'label' => 'Рулон'],
+            ['value' => 5, 'code' => 'bag', 'label' => 'Мешок'],
+        ];
+    }
+
+    /**
+     * @return list<array{value:int, code:string, label:string}>
+     */
+    private function fallbackLoadingTypeOptions(): array
+    {
+        return [
+            ['value' => 1, 'code' => 'rear', 'label' => 'Задняя'],
+            ['value' => 2, 'code' => 'side', 'label' => 'Боковая'],
+            ['value' => 3, 'code' => 'top', 'label' => 'Верхняя'],
+            ['value' => 4, 'code' => 'full', 'label' => 'Полная растентовка'],
+            ['value' => 5, 'code' => 'tail_lift', 'label' => 'Гидроборт'],
+            ['value' => 6, 'code' => 'crane', 'label' => 'Манипулятор'],
+        ];
+    }
+
+    /**
+     * @return list<array{value:int, code:string, label:string}>
+     */
+    private function fallbackTruckBodyTypeOptions(): array
+    {
+        return [
+            ['value' => 1, 'code' => 'all_closed', 'label' => 'Все закрытые'],
+            ['value' => 2, 'code' => 'all_open', 'label' => 'Все открытые'],
+            ['value' => 3, 'code' => 'tent', 'label' => 'Тент'],
+            ['value' => 4, 'code' => 'isothermal', 'label' => 'Изотерм'],
+            ['value' => 5, 'code' => 'refrigerator', 'label' => 'Рефрижератор'],
+            ['value' => 6, 'code' => 'container', 'label' => 'Контейнеровоз'],
+            ['value' => 7, 'code' => 'flatbed', 'label' => 'Бортовой'],
+            ['value' => 8, 'code' => 'all_metal', 'label' => 'Цельнометаллический'],
+        ];
+    }
+
+    /**
+     * @return list<array{value:int, code:string, label:string}>
+     */
+    private function fallbackTrailerTypeOptions(): array
+    {
+        return [
+            ['value' => 1, 'code' => 'semi_trailer', 'label' => 'Полуприцеп'],
+            ['value' => 2, 'code' => 'trailer', 'label' => 'Прицеп'],
+            ['value' => 3, 'code' => 'road_train', 'label' => 'Автопоезд'],
+            ['value' => 4, 'code' => 'solo', 'label' => 'Одиночная машина'],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private function resolveLoadingTypesForOrder(Order $order): array
@@ -1338,6 +1485,9 @@ class OrderWizardController extends Controller
             'top', 'верх' => 'top',
             'side', 'бок' => 'side',
             'rear', 'зад' => 'rear',
+            'full', 'растентовка', 'полная растентовка' => 'full',
+            'tail_lift', 'hydraulic', 'гидроборт' => 'tail_lift',
+            'crane', 'manipulator', 'манипулятор' => 'crane',
             default => null,
         };
     }

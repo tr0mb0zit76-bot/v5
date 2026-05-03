@@ -424,27 +424,129 @@ class OrderWizardService
                 continue;
             }
 
-            $weightKg = isset($cargoItem['weight_kg']) && $cargoItem['weight_kg'] !== null && $cargoItem['weight_kg'] !== ''
-                ? (float) $cargoItem['weight_kg']
-                : null;
-            if ($weightKg !== null && (($cargoItem['weight_unit'] ?? 'kg') === 't')) {
+            $weightValue = $this->normalizeNullableFloat($cargoItem['weight_value'] ?? $cargoItem['weight_kg'] ?? null);
+            $weightUnit = ($cargoItem['weight_unit'] ?? 'kg') === 't' ? 't' : 'kg';
+            $weightKg = $weightValue;
+            if ($weightKg !== null && $weightUnit === 't') {
                 $weightKg = $weightKg * 1000;
             }
+
+            $length = $this->normalizeNullableFloat($cargoItem['length_m'] ?? null);
+            $width = $this->normalizeNullableFloat($cargoItem['width_m'] ?? null);
+            $height = $this->normalizeNullableFloat($cargoItem['height_m'] ?? null);
+            $volume = $length !== null && $width !== null && $height !== null && $length > 0 && $width > 0 && $height > 0
+                ? round($length * $width * $height, 3)
+                : $this->normalizeNullableFloat($cargoItem['volume_m3'] ?? null);
+            $cargoType = $this->nullIfTrimmedEmpty($cargoType);
+            $packType = $this->nullIfTrimmedEmpty($cargoItem['package_type'] ?? null);
+            $dictionaryItems = [
+                'loading_type' => $this->normalizeDictionaryItems($cargoItem['loading_type_items'] ?? null),
+                'truck_body_type' => $this->normalizeDictionaryItems($cargoItem['truck_body_type_items'] ?? null),
+                'trailer_type' => $this->normalizeDictionaryItems($cargoItem['trailer_type_items'] ?? null),
+            ];
+            $primaryDictionaryItems = [
+                'loading_type' => $dictionaryItems['loading_type'][0] ?? $this->dictionaryItemFromFlatFields($cargoItem, 'loading_type'),
+                'truck_body_type' => $dictionaryItems['truck_body_type'][0] ?? $this->dictionaryItemFromFlatFields($cargoItem, 'truck_body_type'),
+                'trailer_type' => $dictionaryItems['trailer_type'][0] ?? $this->dictionaryItemFromFlatFields($cargoItem, 'trailer_type'),
+            ];
+            $loadingTypeCodes = collect($dictionaryItems['loading_type'])
+                ->pluck('code')
+                ->map(fn (mixed $value): ?string => $this->normalizeLoadingType($value))
+                ->filter()
+                ->values()
+                ->all();
+            $primaryLoadingCode = $this->normalizeLoadingType($primaryDictionaryItems['loading_type']['code'] ?? null);
 
             $cargoAttributes = [
                 'title' => $cargoTitle,
                 'description' => $cargoItem['description'] ?? null,
                 'weight' => $weightKg,
-                'volume' => $cargoItem['volume_m3'] ?? null,
+                'volume' => $volume,
                 'cargo_type' => $cargoType,
-                'packing_type' => $cargoItem['package_type'] ?? null,
+                'packing_type' => $packType,
                 'is_hazardous' => (bool) ($cargoItem['dangerous_goods'] ?? false),
                 'hazard_class' => $cargoItem['dangerous_class'] ?? null,
                 'hs_code' => $cargoItem['hs_code'] ?? null,
                 'needs_temperature' => $cargoType === 'temperature_controlled',
+                'needs_hydraulic' => in_array('tail_lift', $loadingTypeCodes, true) || $primaryLoadingCode === 'tail_lift',
+                'needs_manipulator' => in_array('crane', $loadingTypeCodes, true) || $primaryLoadingCode === 'crane',
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ];
+
+            if (Schema::hasColumn('cargos', 'ati_cargo_name')) {
+                $cargoAttributes['ati_cargo_name'] = $cargoTitle;
+            }
+
+            if (Schema::hasColumn('cargos', 'weight_value')) {
+                $cargoAttributes['weight_value'] = $weightValue;
+            }
+
+            if (Schema::hasColumn('cargos', 'weight_unit')) {
+                $cargoAttributes['weight_unit'] = $weightUnit;
+            }
+
+            if (Schema::hasColumn('cargos', 'cargo_type_id')) {
+                $cargoAttributes['cargo_type_id'] = $this->normalizeNullableInteger($cargoItem['cargo_type_id'] ?? null);
+            }
+
+            if (Schema::hasColumn('cargos', 'cargo_type_label')) {
+                $cargoAttributes['cargo_type_label'] = $this->nullIfTrimmedEmpty($cargoItem['cargo_type_label'] ?? null);
+            }
+
+            if (Schema::hasColumn('cargos', 'pack_type_id')) {
+                $cargoAttributes['pack_type_id'] = $this->normalizeNullableInteger($cargoItem['pack_type_id'] ?? null);
+            }
+
+            if (Schema::hasColumn('cargos', 'pack_type_label')) {
+                $cargoAttributes['pack_type_label'] = $this->nullIfTrimmedEmpty($cargoItem['pack_type_label'] ?? null);
+            }
+
+            foreach (['loading_type', 'truck_body_type', 'trailer_type'] as $dictionaryField) {
+                $idColumn = $dictionaryField.'_id';
+                $codeColumn = $dictionaryField.'_code';
+                $labelColumn = $dictionaryField.'_label';
+                $itemsColumn = $dictionaryField.'_items';
+                $primaryItem = $primaryDictionaryItems[$dictionaryField] ?? null;
+
+                if (Schema::hasColumn('cargos', $idColumn)) {
+                    $cargoAttributes[$idColumn] = $this->normalizeNullableInteger($primaryItem['id'] ?? null);
+                }
+
+                if (Schema::hasColumn('cargos', $codeColumn)) {
+                    $cargoAttributes[$codeColumn] = $dictionaryField === 'loading_type'
+                        ? $primaryLoadingCode
+                        : $this->nullIfTrimmedEmpty($primaryItem['code'] ?? null);
+                }
+
+                if (Schema::hasColumn('cargos', $labelColumn)) {
+                    $cargoAttributes[$labelColumn] = $this->nullIfTrimmedEmpty($primaryItem['label'] ?? null);
+                }
+
+                if (Schema::hasColumn('cargos', $itemsColumn)) {
+                    $cargoAttributes[$itemsColumn] = $dictionaryItems[$dictionaryField] !== []
+                        ? $dictionaryItems[$dictionaryField]
+                        : ($primaryItem !== null ? [$primaryItem] : null);
+                }
+            }
+
+            if (Schema::hasColumn('cargos', 'diameter')) {
+                $cargoAttributes['diameter'] = $this->normalizeNullableFloat($cargoItem['diameter_m'] ?? null);
+            }
+
+            if (Schema::hasColumn('cargos', 'is_oversized')) {
+                $cargoAttributes['is_oversized'] = (bool) ($cargoItem['is_oversized'] ?? $cargoType === 'oversized');
+            }
+
+            if (Schema::hasColumn('cargos', 'is_fragile')) {
+                $cargoAttributes['is_fragile'] = (bool) ($cargoItem['is_fragile'] ?? $cargoType === 'fragile');
+            }
+
+            if (Schema::hasColumn('cargos', 'ati_cargo_payload')) {
+                $cargoAttributes['ati_cargo_payload'] = is_array($cargoItem['ati_cargo_payload'] ?? null)
+                    ? $cargoItem['ati_cargo_payload']
+                    : null;
+            }
 
             if (Schema::hasColumn('cargos', 'order_id')) {
                 $cargoAttributes['order_id'] = $order->id;
@@ -452,14 +554,13 @@ class OrderWizardService
 
             if (Schema::hasColumn('cargos', 'package_count')) {
                 $cargoAttributes['package_count'] = $cargoItem['package_count'] ?? null;
-            } elseif (Schema::hasColumn('cargos', 'pallet_count') && ($cargoItem['package_type'] ?? null) === 'pallet') {
+            } elseif (Schema::hasColumn('cargos', 'pallet_count') && $packType === 'pallet') {
                 $cargoAttributes['pallet_count'] = $cargoItem['package_count'] ?? null;
             }
 
-            foreach (['length' => 'length_m', 'width' => 'width_m', 'height' => 'height_m'] as $column => $payloadKey) {
-                if (Schema::hasColumn('cargos', $column) && array_key_exists($payloadKey, $cargoItem)) {
-                    $val = $cargoItem[$payloadKey];
-                    $cargoAttributes[$column] = $val !== null && $val !== '' ? (float) $val : null;
+            foreach (['length' => $length, 'width' => $width, 'height' => $height] as $column => $value) {
+                if (Schema::hasColumn('cargos', $column)) {
+                    $cargoAttributes[$column] = $value;
                 }
             }
 
@@ -770,6 +871,63 @@ class OrderWizardService
         return $trimmed === '' ? null : $trimmed;
     }
 
+    private function normalizeNullableFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (float) $value : null;
+    }
+
+    private function normalizeNullableInteger(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    /**
+     * @return list<array{id:int|null, code:string|null, label:string|null}>
+     */
+    private function normalizeDictionaryItems(mixed $items): array
+    {
+        if (! is_array($items)) {
+            return [];
+        }
+
+        return collect($items)
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->map(function (array $item): array {
+                return [
+                    'id' => $this->normalizeNullableInteger($item['id'] ?? null),
+                    'code' => $this->nullIfTrimmedEmpty($item['code'] ?? null),
+                    'label' => $this->nullIfTrimmedEmpty($item['label'] ?? null),
+                ];
+            })
+            ->filter(fn (array $item): bool => $item['id'] !== null || $item['code'] !== null || $item['label'] !== null)
+            ->unique(fn (array $item): string => (string) ($item['id'] ?? $item['code'] ?? $item['label']))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{id:int|null, code:string|null, label:string|null}|null
+     */
+    private function dictionaryItemFromFlatFields(array $payload, string $prefix): ?array
+    {
+        $item = [
+            'id' => $this->normalizeNullableInteger($payload[$prefix.'_id'] ?? null),
+            'code' => $this->nullIfTrimmedEmpty($payload[$prefix.'_code'] ?? null),
+            'label' => $this->nullIfTrimmedEmpty($payload[$prefix.'_label'] ?? null),
+        ];
+
+        return $item['id'] !== null || $item['code'] !== null || $item['label'] !== null ? $item : null;
+    }
+
     /**
      * @return array<string, mixed>|null
      */
@@ -1022,6 +1180,9 @@ class OrderWizardService
             'top', 'верх' => 'top',
             'side', 'бок' => 'side',
             'rear', 'зад' => 'rear',
+            'full', 'растентовка', 'полная растентовка' => 'full',
+            'tail_lift', 'hydraulic', 'гидроборт' => 'tail_lift',
+            'crane', 'manipulator', 'манипулятор' => 'crane',
             default => null,
         };
     }

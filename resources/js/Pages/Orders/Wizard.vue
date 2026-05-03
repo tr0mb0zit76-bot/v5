@@ -561,7 +561,11 @@
                             </div>
                             <div class="space-y-1 lg:col-span-2">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип груза</label>
-                                <select v-model="item.cargo_type" :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_type_' + index, item.cargo_type)]">
+                                <select
+                                    v-model.number="item.cargo_type_id"
+                                    :class="['w-full rounded-lg border px-2 py-1.5 text-sm dark:bg-zinc-950', highlightRequiredField('cargo_type_' + index, item.cargo_type_id)]"
+                                    @change="applyCargoTypeOption(item)"
+                                >
                                     <option v-for="option in cargoTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
@@ -569,7 +573,7 @@
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Вес</label>
                                 <div class="flex gap-1.5">
                                     <input
-                                        v-model="item.weight_kg"
+                                        v-model="item.weight_value"
                                         type="number"
                                         min="0"
                                         step="0.001"
@@ -587,7 +591,7 @@
                             </div>
                             <div class="space-y-1 lg:col-span-1">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Упаковка</label>
-                                <select v-model="item.package_type" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <select v-model="item.pack_type_id" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="applyPackageTypeOption(item)">
                                     <option :value="null">—</option>
                                     <option v-for="option in packageTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
@@ -603,62 +607,99 @@
                         </div>
 
                         <div class="flex flex-wrap items-end gap-x-2 gap-y-2">
-                            <div
-                                v-if="index === 0"
-                                class="flex max-w-full shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-zinc-200 pr-3 sm:border-r sm:pr-5 dark:border-zinc-700"
-                            >
-                                <span class="shrink-0 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-400">Погрузка</span>
-                                <div class="flex flex-wrap gap-2">
-                                    <label
-                                        v-for="option in loadingTypeOptions"
-                                        :key="option.value"
-                                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium leading-snug shadow-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                    >
-                                        <input v-model="form.loading_types" :value="option.value" type="checkbox" class="h-4 w-4 shrink-0 rounded border-zinc-300" />
-                                        {{ option.label }}
-                                    </label>
+                            <div class="grid min-w-[17rem] flex-1 gap-2 sm:grid-cols-3">
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Погрузка</label>
+                                    <details class="relative">
+                                        <summary class="flex h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950">
+                                            <span class="truncate">{{ dictionarySelectionLabel(item.loading_type_items) }}</span>
+                                            <span class="text-zinc-400">▾</span>
+                                        </summary>
+                                        <div class="absolute z-30 mt-1 max-h-44 w-full space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
+                                            <label v-for="option in loadingTypeOptions" :key="option.value" class="flex cursor-pointer items-center gap-1.5">
+                                                <input v-model="item.loading_type_ids" :value="option.value" type="checkbox" class="h-3.5 w-3.5 rounded border-zinc-300" @change="applyLoadingTypeOption(item)" />
+                                                <span class="leading-tight">{{ option.label }}</span>
+                                            </label>
+                                        </div>
+                                    </details>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Кузов</label>
+                                    <details class="relative">
+                                        <summary class="flex h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950">
+                                            <span class="truncate">{{ dictionarySelectionLabel(item.truck_body_type_items) }}</span>
+                                            <span class="text-zinc-400">▾</span>
+                                        </summary>
+                                        <div class="absolute z-30 mt-1 max-h-44 w-full space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
+                                            <label v-for="option in truckBodyTypeOptions" :key="option.value" class="flex cursor-pointer items-center gap-1.5">
+                                                <input v-model="item.truck_body_type_ids" :value="option.value" type="checkbox" class="h-3.5 w-3.5 rounded border-zinc-300" @change="applyTruckBodyTypeOption(item)" />
+                                                <span class="leading-tight">{{ option.label }}</span>
+                                            </label>
+                                        </div>
+                                    </details>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Прицеп</label>
+                                    <details class="relative">
+                                        <summary class="flex h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-950">
+                                            <span class="truncate">{{ dictionarySelectionLabel(item.trailer_type_items) }}</span>
+                                            <span class="text-zinc-400">▾</span>
+                                        </summary>
+                                        <div class="absolute z-30 mt-1 max-h-44 w-full space-y-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-950">
+                                            <label v-for="option in trailerTypeOptions" :key="option.value" class="flex cursor-pointer items-center gap-1.5">
+                                                <input v-model="item.trailer_type_ids" :value="option.value" type="checkbox" class="h-3.5 w-3.5 rounded border-zinc-300" @change="applyTrailerTypeOption(item)" />
+                                                <span class="leading-tight">{{ option.label }}</span>
+                                            </label>
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
                             <div class="flex min-w-0 flex-1 flex-wrap items-end gap-x-1.5 gap-y-1">
-                                <div class="w-[3.5rem] shrink-0 space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Д, м</label>
+                                <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
+                                    <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Д</label>
                                     <input
                                         v-model="item.length_m"
                                         type="number"
                                         min="0"
                                         step="0.01"
-                                        class="h-7 w-full rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                        class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
                                     />
                                 </div>
-                                <div class="w-[3.5rem] shrink-0 space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш, м</label>
+                                <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
+                                    <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Ш</label>
                                     <input
                                         v-model="item.width_m"
                                         type="number"
                                         min="0"
                                         step="0.01"
-                                        class="h-7 w-full rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                        class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
                                     />
                                 </div>
-                                <div class="w-[3.5rem] shrink-0 space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">В, м</label>
+                                <div class="flex w-[5.5rem] shrink-0 items-center gap-1">
+                                    <label class="w-5 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">В</label>
                                     <input
                                         v-model="item.height_m"
                                         type="number"
                                         min="0"
                                         step="0.01"
-                                        class="h-7 w-full rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                        class="h-8 min-w-0 flex-1 rounded border border-zinc-200 bg-white px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
                                     />
                                 </div>
-                                <div class="w-[4rem] shrink-0 space-y-1">
-                                    <label class="block text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
+                                <div class="flex w-[8.25rem] shrink-0 items-center gap-1">
+                                    <label class="w-12 shrink-0 text-xs font-medium text-zinc-600 dark:text-zinc-400">Объём</label>
                                     <input
-                                        type="text"
-                                        readonly
-                                        tabindex="-1"
-                                        :value="cargoVolumeDisplay(item)"
+                                        v-model="item.volume_m3"
+                                        type="number"
+                                        min="0"
+                                        step="0.001"
+                                        :readonly="cargoComputedVolumeM3(item) !== null"
                                         placeholder="—"
-                                        class="h-7 w-full cursor-default rounded border border-dashed border-zinc-200 bg-zinc-50 px-1 text-xs tabular-nums text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100"
+                                        :class="[
+                                            'h-8 min-w-0 flex-1 rounded px-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950',
+                                            cargoComputedVolumeM3(item) !== null
+                                                ? 'cursor-default border border-dashed border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900/60 dark:text-zinc-100'
+                                                : 'border border-zinc-200 bg-white dark:border-zinc-700',
+                                        ]"
                                     />
                                 </div>
                             </div>
@@ -1381,6 +1422,9 @@ const props = defineProps({
     ownCompanies: { type: Array, default: () => [] },
     cargoTypeOptions: { type: Array, default: () => [] },
     packageTypeOptions: { type: Array, default: () => [] },
+    loadingTypeOptions: { type: Array, default: () => [] },
+    truckBodyTypeOptions: { type: Array, default: () => [] },
+    trailerTypeOptions: { type: Array, default: () => [] },
     currencyOptions: { type: Array, default: () => [] },
     documentTypeOptions: { type: Array, default: () => [] },
     documentPartyOptions: { type: Array, default: () => [] },
@@ -1611,12 +1655,6 @@ const paymentBasisOptions = [
     { value: 'loading', label: 'При погрузке' },
     { value: 'unloading', label: 'При выгрузке' },
 ];
-const loadingTypeOptions = [
-    { value: 'top', label: 'Верх' },
-    { value: 'side', label: 'Бок' },
-    { value: 'rear', label: 'Зад' },
-];
-
 const counterpartyForm = useForm({
     name: '',
     inn: '',
@@ -1812,18 +1850,42 @@ function blankOrder() {
             {
                 name: '',
                 description: '',
+                weight_value: null,
                 weight_kg: null,
                 weight_unit: 'kg',
                 volume_m3: null,
                 length_m: null,
                 width_m: null,
                 height_m: null,
+                diameter_m: null,
+                pack_type_id: null,
+                pack_type_label: '',
                 package_type: null,
+                loading_type_id: null,
+                loading_type_ids: [],
+                loading_type_code: null,
+                loading_type_label: '',
+                loading_type_items: [],
+                truck_body_type_id: null,
+                truck_body_type_ids: [],
+                truck_body_type_code: null,
+                truck_body_type_label: '',
+                truck_body_type_items: [],
+                trailer_type_id: null,
+                trailer_type_ids: [],
+                trailer_type_code: null,
+                trailer_type_label: '',
+                trailer_type_items: [],
                 package_count: null,
                 dangerous_goods: false,
                 dangerous_class: '',
                 hs_code: '',
-                cargo_type: 'general',
+                cargo_type_id: defaultCargoTypeOption()?.value ?? 1,
+                cargo_type_label: defaultCargoTypeOption()?.label ?? 'Общий груз',
+                cargo_type: defaultCargoTypeOption()?.code ?? 'general',
+                is_oversized: false,
+                is_fragile: false,
+                ati_cargo_payload: {},
             },
         ],
         financial_term: {
@@ -1852,32 +1914,204 @@ function normalizeNullableNumber(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function dictionaryOptionByValue(options, value) {
+    const normalized = normalizeNullableNumber(value);
+    if (normalized === null) {
+        return null;
+    }
+
+    return options.find((option) => Number(option.value) === normalized) ?? null;
+}
+
+function dictionaryOptionByCode(options, code) {
+    const normalized = code ? String(code).trim() : '';
+    if (normalized === '') {
+        return null;
+    }
+
+    return options.find((option) => option.code === normalized) ?? null;
+}
+
+function defaultCargoTypeOption() {
+    return props.cargoTypeOptions[0] ?? { value: 1, code: 'general', label: 'Общий груз' };
+}
+
+function applyCargoTypeOption(item) {
+    const option = dictionaryOptionByValue(props.cargoTypeOptions, item.cargo_type_id) ?? defaultCargoTypeOption();
+    item.cargo_type_id = normalizeNullableNumber(option.value);
+    item.cargo_type = option.code ?? item.cargo_type ?? 'general';
+    item.cargo_type_label = option.label ?? '';
+    item.dangerous_goods = item.cargo_type === 'dangerous';
+    item.is_oversized = item.cargo_type === 'oversized';
+    item.is_fragile = item.cargo_type === 'fragile';
+}
+
+function applyPackageTypeOption(item) {
+    const option = dictionaryOptionByValue(props.packageTypeOptions, item.pack_type_id);
+    item.pack_type_id = option ? normalizeNullableNumber(option.value) : null;
+    item.package_type = option?.code ?? null;
+    item.pack_type_label = option?.label ?? '';
+}
+
+function applyDictionaryOption(item, options, idKey, codeKey, labelKey) {
+    const option = dictionaryOptionByValue(options, item[idKey]);
+    item[idKey] = option ? normalizeNullableNumber(option.value) : null;
+    item[codeKey] = option?.code ?? null;
+    item[labelKey] = option?.label ?? '';
+}
+
+function selectedDictionaryItems(options, ids) {
+    if (!Array.isArray(ids)) {
+        return [];
+    }
+
+    return ids
+        .map((id) => dictionaryOptionByValue(options, id))
+        .filter(Boolean)
+        .map((option) => ({
+            id: normalizeNullableNumber(option.value),
+            code: option.code ?? null,
+            label: option.label ?? '',
+        }));
+}
+
+function dictionarySelectionLabel(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+        return 'Выберите';
+    }
+
+    const labels = items
+        .map((item) => item?.label)
+        .filter((label) => label !== null && label !== undefined && String(label).trim() !== '')
+        .map((label) => String(label).trim());
+
+    if (labels.length === 0) {
+        return 'Выбрано: ' + items.length;
+    }
+
+    return labels.length <= 2 ? labels.join(', ') : `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`;
+}
+
+function normalizeDictionaryItems(rawItems, options, fallbackOption) {
+    const items = Array.isArray(rawItems) ? rawItems : [];
+    const normalized = items
+        .map((item) => {
+            if (!item || typeof item !== 'object') {
+                return null;
+            }
+
+            const option = dictionaryOptionByValue(options, item.id) ?? dictionaryOptionByCode(options, item.code);
+
+            return {
+                id: normalizeNullableNumber(option?.value ?? item.id),
+                code: option?.code ?? item.code ?? null,
+                label: option?.label ?? item.label ?? '',
+            };
+        })
+        .filter((item) => item && (item.id !== null || item.code || item.label));
+
+    if (normalized.length > 0) {
+        return normalized;
+    }
+
+    return fallbackOption
+        ? [{
+            id: normalizeNullableNumber(fallbackOption.value),
+            code: fallbackOption.code ?? null,
+            label: fallbackOption.label ?? '',
+        }]
+        : [];
+}
+
+function applyDictionaryItems(item, options, idsKey, idKey, codeKey, labelKey, itemsKey) {
+    const selected = selectedDictionaryItems(options, item[idsKey]);
+    const first = selected[0] ?? null;
+    item[itemsKey] = selected;
+    item[idKey] = first?.id ?? null;
+    item[codeKey] = first?.code ?? null;
+    item[labelKey] = first?.label ?? '';
+}
+
+function applyLoadingTypeOption(item) {
+    applyDictionaryItems(item, props.loadingTypeOptions, 'loading_type_ids', 'loading_type_id', 'loading_type_code', 'loading_type_label', 'loading_type_items');
+}
+
+function applyTruckBodyTypeOption(item) {
+    applyDictionaryItems(item, props.truckBodyTypeOptions, 'truck_body_type_ids', 'truck_body_type_id', 'truck_body_type_code', 'truck_body_type_label', 'truck_body_type_items');
+}
+
+function applyTrailerTypeOption(item) {
+    applyDictionaryItems(item, props.trailerTypeOptions, 'trailer_type_ids', 'trailer_type_id', 'trailer_type_code', 'trailer_type_label', 'trailer_type_items');
+}
+
 function normalizeCargoItem(raw = {}) {
-    let cargoType = raw.cargo_type && String(raw.cargo_type).trim() !== '' ? raw.cargo_type : 'general';
+    const selectedCargoType = dictionaryOptionByValue(props.cargoTypeOptions, raw.cargo_type_id)
+        ?? dictionaryOptionByCode(props.cargoTypeOptions, raw.cargo_type)
+        ?? defaultCargoTypeOption();
+    let cargoType = selectedCargoType.code ?? (raw.cargo_type && String(raw.cargo_type).trim() !== '' ? raw.cargo_type : 'general');
     if (cargoType === 'general' && Boolean(raw.dangerous_goods)) {
         cargoType = 'dangerous';
     }
+    const effectiveCargoType = dictionaryOptionByCode(props.cargoTypeOptions, cargoType) ?? selectedCargoType;
+    const selectedPackageType = dictionaryOptionByValue(props.packageTypeOptions, raw.pack_type_id)
+        ?? dictionaryOptionByCode(props.packageTypeOptions, raw.package_type);
+    const selectedLoadingType = dictionaryOptionByValue(props.loadingTypeOptions, raw.loading_type_id)
+        ?? dictionaryOptionByCode(props.loadingTypeOptions, raw.loading_type_code)
+        ?? dictionaryOptionByCode(props.loadingTypeOptions, Array.isArray(raw.loading_types) ? raw.loading_types[0] : null)
+        ?? dictionaryOptionByCode(props.loadingTypeOptions, Array.isArray(props.order?.loading_types) ? props.order.loading_types[0] : null);
+    const selectedTruckBodyType = dictionaryOptionByValue(props.truckBodyTypeOptions, raw.truck_body_type_id)
+        ?? dictionaryOptionByCode(props.truckBodyTypeOptions, raw.truck_body_type_code);
+    const selectedTrailerType = dictionaryOptionByValue(props.trailerTypeOptions, raw.trailer_type_id)
+        ?? dictionaryOptionByCode(props.trailerTypeOptions, raw.trailer_type_code);
+    const loadingTypeItems = normalizeDictionaryItems(raw.loading_type_items, props.loadingTypeOptions, selectedLoadingType);
+    const truckBodyTypeItems = normalizeDictionaryItems(raw.truck_body_type_items, props.truckBodyTypeOptions, selectedTruckBodyType);
+    const trailerTypeItems = normalizeDictionaryItems(raw.trailer_type_items, props.trailerTypeOptions, selectedTrailerType);
+    const weightValue = raw.weight_value ?? raw.weight_kg ?? null;
 
     return {
         name: raw.name ?? '',
         description: raw.description ?? '',
-        weight_kg: raw.weight_kg ?? null,
+        weight_value: weightValue,
+        weight_kg: weightValue,
         weight_unit: raw.weight_unit === 't' ? 't' : 'kg',
         volume_m3: raw.volume_m3 ?? null,
         length_m: raw.length_m ?? null,
         width_m: raw.width_m ?? null,
         height_m: raw.height_m ?? null,
-        package_type: raw.package_type ?? null,
+        diameter_m: raw.diameter_m ?? null,
+        pack_type_id: selectedPackageType ? normalizeNullableNumber(selectedPackageType.value) : normalizeNullableNumber(raw.pack_type_id),
+        pack_type_label: raw.pack_type_label ?? selectedPackageType?.label ?? '',
+        package_type: raw.package_type ?? selectedPackageType?.code ?? null,
+        loading_type_id: loadingTypeItems[0]?.id ?? normalizeNullableNumber(raw.loading_type_id),
+        loading_type_ids: loadingTypeItems.map((item) => item.id).filter((id) => id !== null),
+        loading_type_code: loadingTypeItems[0]?.code ?? raw.loading_type_code ?? null,
+        loading_type_label: loadingTypeItems[0]?.label ?? raw.loading_type_label ?? '',
+        loading_type_items: loadingTypeItems,
+        truck_body_type_id: truckBodyTypeItems[0]?.id ?? normalizeNullableNumber(raw.truck_body_type_id),
+        truck_body_type_ids: truckBodyTypeItems.map((item) => item.id).filter((id) => id !== null),
+        truck_body_type_code: truckBodyTypeItems[0]?.code ?? raw.truck_body_type_code ?? null,
+        truck_body_type_label: truckBodyTypeItems[0]?.label ?? raw.truck_body_type_label ?? '',
+        truck_body_type_items: truckBodyTypeItems,
+        trailer_type_id: trailerTypeItems[0]?.id ?? normalizeNullableNumber(raw.trailer_type_id),
+        trailer_type_ids: trailerTypeItems.map((item) => item.id).filter((id) => id !== null),
+        trailer_type_code: trailerTypeItems[0]?.code ?? raw.trailer_type_code ?? null,
+        trailer_type_label: trailerTypeItems[0]?.label ?? raw.trailer_type_label ?? '',
+        trailer_type_items: trailerTypeItems,
         package_count: raw.package_count ?? null,
         dangerous_goods: cargoType === 'dangerous',
         dangerous_class: raw.dangerous_class ?? '',
         hs_code: raw.hs_code ?? '',
+        cargo_type_id: effectiveCargoType ? normalizeNullableNumber(effectiveCargoType.value) : normalizeNullableNumber(raw.cargo_type_id),
+        cargo_type_label: raw.cargo_type_label ?? effectiveCargoType?.label ?? '',
         cargo_type: cargoType,
+        is_oversized: Boolean(raw.is_oversized ?? cargoType === 'oversized'),
+        is_fragile: Boolean(raw.is_fragile ?? cargoType === 'fragile'),
+        ati_cargo_payload: raw.ati_cargo_payload && typeof raw.ati_cargo_payload === 'object' ? raw.ati_cargo_payload : {},
     };
 }
 
 function cargoWeightInKg(item) {
-    const v = Number(item.weight_kg || 0);
+    const v = Number(item.weight_value ?? item.weight_kg ?? 0);
     if (item.weight_unit === 't') {
         return v * 1000;
     }
@@ -1933,6 +2167,17 @@ function cargoVolumeDisplay(item) {
     }
 
     return '';
+}
+
+function selectedLoadingTypeCodes() {
+    const fromCargo = form.cargo_items
+        .flatMap((item) => Array.isArray(item.loading_type_items) && item.loading_type_items.length > 0
+            ? item.loading_type_items.map((selected) => selected.code)
+            : [item.loading_type_code])
+        .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
+        .map((value) => String(value).trim());
+
+    return [...new Set(fromCargo.length > 0 ? fromCargo : (Array.isArray(form.loading_types) ? form.loading_types : []))];
 }
 
 const form = useForm({
@@ -3599,24 +3844,45 @@ function buildSubmitPayload() {
             recipient_contact: point.recipient_contact,
             recipient_phone: point.recipient_phone,
         })),
-        loading_types: Array.isArray(form.loading_types) ? form.loading_types : [],
+        loading_types: selectedLoadingTypeCodes(),
 
         // Cargo items
         cargo_items: form.cargo_items.map((item) => ({
             name: item.name,
             description: item.description,
-            weight_kg: item.weight_kg,
+            weight_value: item.weight_value ?? item.weight_kg,
+            weight_kg: item.weight_value ?? item.weight_kg,
             weight_unit: item.weight_unit === 't' ? 't' : 'kg',
             volume_m3: item.volume_m3,
             length_m: item.length_m,
             width_m: item.width_m,
             height_m: item.height_m,
+            diameter_m: item.diameter_m,
             package_type: item.package_type,
+            pack_type_id: normalizeNullableNumber(item.pack_type_id),
+            pack_type_label: item.pack_type_label,
+            loading_type_id: normalizeNullableNumber(item.loading_type_id),
+            loading_type_code: item.loading_type_code,
+            loading_type_label: item.loading_type_label,
+            loading_type_items: item.loading_type_items || [],
+            truck_body_type_id: normalizeNullableNumber(item.truck_body_type_id),
+            truck_body_type_code: item.truck_body_type_code,
+            truck_body_type_label: item.truck_body_type_label,
+            truck_body_type_items: item.truck_body_type_items || [],
+            trailer_type_id: normalizeNullableNumber(item.trailer_type_id),
+            trailer_type_code: item.trailer_type_code,
+            trailer_type_label: item.trailer_type_label,
+            trailer_type_items: item.trailer_type_items || [],
             package_count: item.package_count,
             dangerous_goods: item.dangerous_goods,
             dangerous_class: item.dangerous_class,
             hs_code: item.hs_code,
             cargo_type: item.cargo_type,
+            cargo_type_id: normalizeNullableNumber(item.cargo_type_id),
+            cargo_type_label: item.cargo_type_label,
+            is_oversized: item.is_oversized,
+            is_fragile: item.is_fragile,
+            ati_cargo_payload: item.ati_cargo_payload || {},
         })),
 
         // Financial term

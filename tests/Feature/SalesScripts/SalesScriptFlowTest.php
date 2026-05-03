@@ -11,6 +11,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class SalesScriptFlowTest extends TestCase
@@ -120,6 +121,50 @@ class SalesScriptFlowTest extends TestCase
         $this->assertNotNull($session->completed_at);
         $this->assertSame('progress', $session->outcome->value);
         $this->assertGreaterThanOrEqual(6, $session->events()->count());
+    }
+
+    public function test_trainer_can_start_session_with_manager_as_buyer(): void
+    {
+        $this->seed(SalesScriptsDemoSeeder::class);
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager_trainer',
+            'display_name' => 'Manager Trainer',
+            'visibility_areas' => json_encode(['dashboard', 'scripts'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $versionId = (int) SalesScriptVersion::query()->value('id');
+
+        $this->actingAs($user)
+            ->post(route('scripts.sessions.store'), [
+                'sales_script_version_id' => $versionId,
+                'return_to' => 'trainer',
+                'trainer_profile_key' => 'procurement-formal',
+                'trainer_profile_title' => 'Закупщик',
+                'trainer_profile_context' => 'Покупатель требует факты и KPI.',
+                'training_role_mode' => 'manager_buyer',
+            ])
+            ->assertRedirect();
+
+        $session = SalesScriptPlaySession::query()->first();
+        $this->assertNotNull($session);
+        $this->assertSame('manager_buyer', $session->training_role_mode);
+
+        $this->actingAs($user)
+            ->get(route('scripts.sessions.show', $session))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesScripts/Play')
+                ->where('playContext.return', 'trainer')
+                ->where('playContext.training_role_mode', 'manager_buyer')
+            );
     }
 
     public function test_user_cannot_advance_foreign_session(): void
