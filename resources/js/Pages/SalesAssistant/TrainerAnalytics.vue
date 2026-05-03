@@ -72,6 +72,16 @@
                         <option v-for="o in outcomeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                     </select>
                 </label>
+                <label class="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    <span class="font-medium">Оценка тренировки</span>
+                    <select
+                        v-model="localDialogQuality"
+                        class="min-w-[12rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                    >
+                        <option value="">Любая</option>
+                        <option v-for="q in trainerDialogQualityOptions" :key="q.value" :value="q.value">{{ q.label }}</option>
+                    </select>
+                </label>
                 <button
                     type="button"
                     class="rounded-xl border border-sky-800 bg-sky-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-800 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
@@ -82,7 +92,7 @@
             </div>
         </section>
 
-        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
                     Сессии ({{ summary.window_days }}д)
@@ -101,6 +111,12 @@
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Успех / КП / потеря</div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
                     {{ summary.won_sessions }} / {{ summary.quote_sessions }} / {{ summary.lost_sessions }}
+                </div>
+            </article>
+            <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:col-span-2 xl:col-span-1">
+                <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Оценки тренировки (успех / неудача / тупик)</div>
+                <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+                    {{ summary.trainer_dialog_success }} / {{ summary.trainer_dialog_failure }} / {{ summary.trainer_dialog_stuck }}
                 </div>
             </article>
         </section>
@@ -183,7 +199,7 @@
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Последние сессии</h2>
             <div v-if="recent_sessions.length === 0" class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Нет данных.</div>
             <div v-else class="mt-4 overflow-x-auto">
-                <table class="min-w-[42rem] w-full text-left text-sm">
+                <table class="min-w-[48rem] w-full text-left text-sm">
                     <thead>
                         <tr class="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
                             <th v-if="filters.can_view_all" class="pb-2 pr-2 font-medium">Менеджер</th>
@@ -191,6 +207,7 @@
                             <th class="pb-2 pr-2 font-medium">Профиль</th>
                             <th class="pb-2 pr-2 font-medium">Сценарий</th>
                             <th class="pb-2 pr-2 font-medium">Исход</th>
+                            <th class="pb-2 pr-2 font-medium">Тренировка</th>
                             <th class="pb-2 font-medium">Score</th>
                         </tr>
                     </thead>
@@ -214,6 +231,9 @@
                             </td>
                             <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">
                                 {{ outcomeLabel(s.outcome) }}
+                            </td>
+                            <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">
+                                {{ trainerDialogQualityLabel(s.trainer_dialog_quality) }}
                             </td>
                             <td class="py-2 text-zinc-600 dark:text-zinc-300">{{ s.trainer_score ?? '—' }}</td>
                         </tr>
@@ -240,6 +260,10 @@ const props = defineProps({
         required: true,
     },
     outcomeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    trainerDialogQualityOptions: {
         type: Array,
         default: () => [],
     },
@@ -284,6 +308,7 @@ const localVersionId = ref(
     props.filters.sales_script_version_id != null ? String(props.filters.sales_script_version_id) : '',
 );
 const localOutcome = ref(props.filters.outcome ?? '');
+const localDialogQuality = ref(props.filters.trainer_dialog_quality ?? '');
 
 watch(
     () => props.filters,
@@ -293,6 +318,7 @@ watch(
         localProfileKey.value = f.trainer_profile_key ?? '';
         localVersionId.value = f.sales_script_version_id != null ? String(f.sales_script_version_id) : '';
         localOutcome.value = f.outcome ?? '';
+        localDialogQuality.value = f.trainer_dialog_quality ?? '';
     },
     { deep: true },
 );
@@ -304,6 +330,15 @@ function outcomeLabel(value) {
         return '—';
     }
     const row = props.outcomeOptions.find((o) => o.value === value);
+
+    return row?.label ?? value;
+}
+
+function trainerDialogQualityLabel(value) {
+    if (value == null || value === '') {
+        return '—';
+    }
+    const row = props.trainerDialogQualityOptions.find((o) => o.value === value);
 
     return row?.label ?? value;
 }
@@ -338,6 +373,9 @@ function applyFilters() {
     }
     if (localOutcome.value) {
         q.outcome = localOutcome.value;
+    }
+    if (localDialogQuality.value) {
+        q.trainer_dialog_quality = localDialogQuality.value;
     }
 
     router.get(route('sales-assistant.trainer.analytics'), q, {

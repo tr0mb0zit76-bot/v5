@@ -33,6 +33,6 @@ class ModulesTableSeeder extends Seeder
             );
         }
 
-        $this->command->info('Modules seeded successfully!');
+        $this->command?->info('Modules seeded successfully!');
     }
 }

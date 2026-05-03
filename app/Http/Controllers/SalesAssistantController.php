@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SalesPlaySessionOutcome;
+use App\Enums\SalesTrainerDialogQuality;
 use App\Http\Requests\ImportSalesBookArticleRequest;
 use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
@@ -293,6 +294,14 @@ class SalesAssistantController extends Controller
             }
         }
 
+        if ($request->filled('trainer_dialog_quality')) {
+            $rawQ = $request->string('trainer_dialog_quality')->toString();
+            $qualityCases = array_column(SalesTrainerDialogQuality::cases(), 'value');
+            if (in_array($rawQ, $qualityCases, true)) {
+                $baseQuery->where('trainer_dialog_quality', $rawQ);
+            }
+        }
+
         $summary = [
             'window_days' => $days,
             'total_sessions' => (clone $baseQuery)->count(),
@@ -305,6 +314,9 @@ class SalesAssistantController extends Controller
             'quote_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::QuoteSent)->count(),
             'lost_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::Lost)->count(),
             'progress_sessions' => (clone $baseQuery)->where('outcome', SalesPlaySessionOutcome::Progress)->count(),
+            'trainer_dialog_success' => (clone $baseQuery)->where('trainer_dialog_quality', SalesTrainerDialogQuality::Success->value)->count(),
+            'trainer_dialog_failure' => (clone $baseQuery)->where('trainer_dialog_quality', SalesTrainerDialogQuality::Failure->value)->count(),
+            'trainer_dialog_stuck' => (clone $baseQuery)->where('trainer_dialog_quality', SalesTrainerDialogQuality::Stuck->value)->count(),
         ];
 
         $dateExpr = match ($baseQuery->getConnection()->getDriverName()) {
@@ -364,6 +376,7 @@ class SalesAssistantController extends Controller
                     'user_name' => $session->user?->name,
                     'trainer_profile_title' => $session->trainer_profile_title,
                     'outcome' => $session->outcome?->value,
+                    'trainer_dialog_quality' => $session->trainer_dialog_quality?->value,
                     'trainer_score' => $session->trainer_score,
                     'script_label' => $scriptTitle
                         ? "{$scriptTitle} · v{$version?->version_number}"
@@ -466,10 +479,17 @@ class SalesAssistantController extends Controller
                 'outcome' => $request->filled('outcome')
                     ? $request->string('outcome')->toString()
                     : null,
+                'trainer_dialog_quality' => $request->filled('trainer_dialog_quality')
+                    ? $request->string('trainer_dialog_quality')->toString()
+                    : null,
                 'can_view_all' => $canViewAll,
             ],
             'outcomeOptions' => collect(SalesPlaySessionOutcome::cases())
                 ->map(fn (SalesPlaySessionOutcome $o): array => ['value' => $o->value, 'label' => $this->trainerOutcomeLabel($o)])
+                ->values()
+                ->all(),
+            'trainerDialogQualityOptions' => collect(SalesTrainerDialogQuality::cases())
+                ->map(fn (SalesTrainerDialogQuality $q): array => ['value' => $q->value, 'label' => $q->label()])
                 ->values()
                 ->all(),
             'summary' => $summary,

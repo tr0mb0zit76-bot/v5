@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\SalesPlaySessionOutcome;
+use App\Enums\SalesTrainerDialogQuality;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -22,6 +23,8 @@ class SalesScriptPlaySession extends Model
         'trainer_profile_title',
         'trainer_profile_context',
         'training_role_mode',
+        'trainer_assistant_instructions',
+        'trainer_dialog_quality',
         'trainer_score',
         'outcome',
         'primary_reaction_class_id',
@@ -104,6 +107,7 @@ class SalesScriptPlaySession extends Model
         return [
             'outcome' => SalesPlaySessionOutcome::class,
             'is_trainer' => 'boolean',
+            'trainer_dialog_quality' => SalesTrainerDialogQuality::class,
             'trainer_score' => 'integer',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',

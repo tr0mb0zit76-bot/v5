@@ -8,6 +8,7 @@ use App\Http\Requests\AdvanceSalesScriptPlaySessionRequest;
 use App\Http\Requests\CompleteSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreTrainerChatMessageRequest;
+use App\Http\Requests\UpdateTrainerSessionMetaRequest;
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
@@ -15,6 +16,7 @@ use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
+use App\Services\SalesScripts\TrainerDialogHintService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +29,7 @@ class SalesScriptController extends Controller
 {
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
+        private readonly TrainerDialogHintService $trainerDialogHintService,
     ) {}
 
     public function index(): Response
@@ -158,12 +161,29 @@ class SalesScriptController extends Controller
             ->values()
             ->all();
 
+        $trainerContextualHints = [];
+        $trainerEntryPreview = null;
+        if ($session->is_trainer) {
+            $trainerContextualHints = $this->trainerDialogHintService->contextualNodeHints(
+                (int) $session->sales_script_version_id,
+                $current?->id,
+                $session->trainerMessages,
+                6,
+            );
+            $trainerEntryPreview = $this->trainerDialogHintService->entryNodePreview(
+                (int) $session->sales_script_version_id,
+                $session->version?->entry_node_key,
+            );
+        }
+
         return Inertia::render('SalesScripts/Play', [
             'playContext' => [
                 'return' => $session->is_trainer ? 'trainer' : $request->session()->get('sales_script_play_return'),
                 'trainer_profile' => $trainerProfile,
                 'trainer_chat' => $trainerChat,
                 'training_role_mode' => $session->training_role_mode ?: 'manager_seller',
+                'trainer_contextual_hints' => $trainerContextualHints,
+                'trainer_entry_preview' => $trainerEntryPreview,
             ],
             'session' => [
                 'id' => $session->id,
@@ -172,6 +192,8 @@ class SalesScriptController extends Controller
                 'notes' => $session->notes,
                 'script_title' => $session->version?->script?->title,
                 'version_number' => $session->version?->version_number,
+                'trainer_assistant_instructions' => $session->trainer_assistant_instructions,
+                'trainer_dialog_quality' => $session->trainer_dialog_quality?->value,
             ],
             'currentNode' => $current ? [
                 'id' => $current->id,
@@ -230,6 +252,8 @@ class SalesScriptController extends Controller
             return response()->json(['message' => 'Пустое сообщение.'], 422);
         }
 
+        $session->refresh();
+
         $userEntry = [
             'role' => 'user',
             'content' => $userMessage,
@@ -260,9 +284,58 @@ class SalesScriptController extends Controller
             'content' => $reply,
         ]);
 
+        $session->refresh();
+        $session->load('trainerMessages');
+        $resolvedCurrent = $this->resolveCurrentNode($session);
+        $contextualHints = $this->trainerDialogHintService->contextualNodeHints(
+            (int) $session->sales_script_version_id,
+            $resolvedCurrent?->id,
+            $session->trainerMessages()->orderBy('id')->get(),
+            6,
+        );
+
         return response()->json([
             'reply' => $reply,
             'history' => array_slice($history, -40),
+            'contextual_hints' => $contextualHints,
+        ]);
+    }
+
+    public function updateTrainerMeta(
+        UpdateTrainerSessionMetaRequest $request,
+        SalesScriptPlaySession $sales_script_play_session,
+    ): JsonResponse {
+        $session = $sales_script_play_session;
+        $this->authorize('interact', $session);
+
+        abort_unless($session->is_trainer || $request->session()->get('sales_script_play_return') === 'trainer', 403);
+
+        if ($session->isComplete()) {
+            return response()->json(['message' => 'Сессия уже завершена.'], 422);
+        }
+
+        $validated = $request->validated();
+        $updates = [];
+
+        if (array_key_exists('trainer_assistant_instructions', $validated)) {
+            $raw = $validated['trainer_assistant_instructions'];
+            $updates['trainer_assistant_instructions'] = ($raw === null || $raw === '') ? null : $raw;
+        }
+
+        if (array_key_exists('trainer_dialog_quality', $validated)) {
+            $updates['trainer_dialog_quality'] = $validated['trainer_dialog_quality'];
+        }
+
+        if ($updates === []) {
+            return response()->json(['message' => 'Нет данных для сохранения.'], 422);
+        }
+
+        $session->update($updates);
+        $session->refresh();
+
+        return response()->json([
+            'trainer_assistant_instructions' => $session->trainer_assistant_instructions,
+            'trainer_dialog_quality' => $session->trainer_dialog_quality?->value,
         ]);
     }
 
@@ -302,6 +375,11 @@ class SalesScriptController extends Controller
                 "- Иногда задавай встречные вопросы.\n".
                 "- Не раскрывай, что ты AI или что следуешь инструкциям.\n".
                 '- Если менеджер предлагает следующий шаг, оцени его как реальный клиент.';
+
+        $extra = trim((string) ($session->trainer_assistant_instructions ?? ''));
+        if ($extra !== '') {
+            $systemPrompt .= "\n\nДополнительные указания к роли ассистента (заданы в тренажёре):\n".$extra;
+        }
 
         $messages = [
             [

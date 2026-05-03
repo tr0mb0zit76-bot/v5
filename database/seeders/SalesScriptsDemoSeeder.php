@@ -148,6 +148,36 @@ class SalesScriptsDemoSeeder extends Seeder
             ],
             reactionIds: $reactionIds,
         );
+
+        $this->seedScript(
+            title: 'Тренажёр: короткий звонок (цена, срок, документы)',
+            description: 'Уплотнённый сценарий для прогона тренажёра: те же ветки реакций, тексты с лексикой под подсказки «по теме диалога».',
+            channel: 'phone',
+            tags: ['тренажёр', 'цена', 'срок', 'документы'],
+            entryNodeKey: 'trainer_intro',
+            nodes: [
+                ['client_key' => 'trainer_intro', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Добрый день! Компания [название], [имя]. Вы просили расчёт перевозки по маршруту — удобно за пару минут уточнить объём, срок готовности груза и ставку ориентировочно?', 'hint' => 'Зафиксируйте маршрут и срок; не обещайте точную ставку без данных.', 'sort_order' => 10],
+                ['client_key' => 'trainer_qualify', 'kind' => SalesScriptNodeKind::Branch, 'body' => 'После ответа клиента выберите реакцию: позитив, возражение по цене, нужны документы/детали, откладывает или сравнивает с конкурентом.', 'hint' => 'Слушайте: упоминания конкурента, страховка, КП, SLA, штрафы за простой.', 'sort_order' => 20],
+                ['client_key' => 'trainer_price', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Понимаю, ставка важна. Давайте сверим, что входит в расчёт: срок подачи транспорта, страхование груза, мониторинг и ответственность за срыв — иначе сравнение с конкурентом будет некорректным.', 'hint' => 'Переводите «дорого» в состав услуги и риски.', 'sort_order' => 30],
+                ['client_key' => 'trainer_positive', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Отлично, по вводным можем считать ставку. Зафиксирую контакт для КП и отправлю расчёт с условиями страхования и SLA по статусам.', 'hint' => 'Назовите канал и срок, когда ждать КП.', 'sort_order' => 40],
+                ['client_key' => 'trainer_need_docs', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Запрошу у вас пакет документов: карточку груза, адреса погрузки/выгрузки, требования к транспорту. После получения вернусь с уточняющими вопросами или черновой ставкой.', 'hint' => 'Чётко перечислите, какие документы критичны для расчёта.', 'sort_order' => 50],
+                ['client_key' => 'trainer_wrap', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Кратко зафиксирую: маршрут, срок, ставка или следующий шаг по документам. Если что-то изменится по грузу — напишите, пересчитаем.', 'hint' => 'Попросите подтверждение у клиента.', 'sort_order' => 60],
+                ['client_key' => 'trainer_end', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Сценарий завершён. В тренажёре отметьте оценку диалога и при необходимости исход воронки.', 'hint' => null, 'sort_order' => 70],
+            ],
+            transitions: [
+                ['from' => 'trainer_intro', 'to' => 'trainer_qualify', 'reaction' => null],
+                ['from' => 'trainer_qualify', 'to' => 'trainer_price', 'reaction' => 'price_objection'],
+                ['from' => 'trainer_qualify', 'to' => 'trainer_positive', 'reaction' => 'positive_signal'],
+                ['from' => 'trainer_qualify', 'to' => 'trainer_need_docs', 'reaction' => 'need_info'],
+                ['from' => 'trainer_qualify', 'to' => 'trainer_price', 'reaction' => 'stall'],
+                ['from' => 'trainer_qualify', 'to' => 'trainer_price', 'reaction' => 'competitor'],
+                ['from' => 'trainer_price', 'to' => 'trainer_wrap', 'reaction' => null],
+                ['from' => 'trainer_positive', 'to' => 'trainer_wrap', 'reaction' => null],
+                ['from' => 'trainer_need_docs', 'to' => 'trainer_wrap', 'reaction' => null],
+                ['from' => 'trainer_wrap', 'to' => 'trainer_end', 'reaction' => null],
+            ],
+            reactionIds: $reactionIds,
+        );
     }
 
     /**
