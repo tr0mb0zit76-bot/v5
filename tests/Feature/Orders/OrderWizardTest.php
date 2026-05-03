@@ -1327,6 +1327,94 @@ class OrderWizardTest extends TestCase
             ->count());
     }
 
+    public function test_order_edit_print_workflow_documents_expose_template_name_for_display(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Клиент',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-2026-012',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-10',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'carrier_request_code',
+            'name' => 'Заявка перевозчику',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => false,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => 'print-form-templates/carrier/request.docx',
+            'original_filename' => 'request.docx',
+            'settings' => json_encode(['variables' => []], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_documents')->insert([
+            'order_id' => $orderId,
+            'type' => 'contract_request',
+            'source' => 'print_template',
+            'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+            'file_path' => 'order_documents/'.$orderId.'/draft.docx',
+            'template_id' => $templateId,
+            'original_name' => 'carrier_request_code.docx',
+            'status' => 'draft',
+            'metadata' => json_encode([
+                'flow' => 'print_template_workflow',
+                'template_code' => 'carrier_request_code',
+                'template_name' => 'Старое название из snapshot',
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $orderId))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('order.documents.0.print_template_name', 'Заявка перевозчику')
+                ->where('order.documents.0.print_template_code', 'carrier_request_code')
+                ->where('order.documents.0.original_name', 'carrier_request_code.docx')
+            );
+    }
+
     public function test_order_with_two_legs_persists_route_points_per_leg_and_restores_client_request_mode(): void
     {
         $admin = $this->createAdminUser();

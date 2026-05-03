@@ -726,6 +726,8 @@ class OrderWizardController extends Controller
         $isFinalized = $workflowStatus === OrderDocumentWorkflowStatus::FINALIZED;
 
         $printPartyLabel = null;
+        $printTemplateName = $this->printTemplateName($document, $templatesById);
+        $printTemplateCode = $this->printTemplateCode($document, $templatesById);
         if ($document->template_id !== null && $templatesById->has($document->template_id)) {
             /** @var PrintFormTemplate $tpl */
             $tpl = $templatesById->get($document->template_id);
@@ -738,6 +740,8 @@ class OrderWizardController extends Controller
             'workflow_status' => $workflowStatus,
             'workflow_status_label' => $workflowStatus ? OrderDocumentWorkflowStatus::label($workflowStatus) : null,
             'print_party_label' => $printPartyLabel,
+            'print_template_name' => $printTemplateName,
+            'print_template_code' => $printTemplateCode,
             'approval_requested_at' => Schema::hasColumn('order_documents', 'approval_requested_at')
                 ? optional($document->approval_requested_at)?->toIso8601String()
                 : null,
@@ -850,6 +854,40 @@ class OrderWizardController extends Controller
             'internal' => 'Внутренняя',
             default => (string) $template->party,
         };
+    }
+
+    /**
+     * @param  Collection<int, PrintFormTemplate>  $templatesById
+     */
+    private function printTemplateName(OrderDocument $document, Collection $templatesById): ?string
+    {
+        if ($document->template_id !== null && $templatesById->has($document->template_id)) {
+            /** @var PrintFormTemplate $template */
+            $template = $templatesById->get($document->template_id);
+
+            return $template->name;
+        }
+
+        $name = data_get($document->metadata, 'template_name');
+
+        return is_string($name) && trim($name) !== '' ? trim($name) : null;
+    }
+
+    /**
+     * @param  Collection<int, PrintFormTemplate>  $templatesById
+     */
+    private function printTemplateCode(OrderDocument $document, Collection $templatesById): ?string
+    {
+        if ($document->template_id !== null && $templatesById->has($document->template_id)) {
+            /** @var PrintFormTemplate $template */
+            $template = $templatesById->get($document->template_id);
+
+            return $template->code;
+        }
+
+        $code = data_get($document->metadata, 'template_code');
+
+        return is_string($code) && trim($code) !== '' ? trim($code) : null;
     }
 
     /**

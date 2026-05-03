@@ -1022,7 +1022,7 @@
                             <div v-for="doc in printWorkflowDocuments" :key="`print-wf-${doc.id}`" class="space-y-3 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <div class="text-sm font-medium">
-                                        {{ doc.original_name || 'Документ' }}
+                                        {{ printWorkflowDocumentTitle(doc) }}
                                         <span
                                             v-if="doc.print_party_label"
                                             class="ml-2 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-normal text-sky-900 dark:bg-sky-950/50 dark:text-sky-200"
@@ -1716,6 +1716,10 @@ function templateOptionLabel(template) {
     }
 
     return suffix.length > 0 ? `${template.name} (${suffix.join(', ')})` : template.name;
+}
+
+function printWorkflowDocumentTitle(document) {
+    return document?.print_template_name || document?.original_name || 'Документ';
 }
 
 function normalizeDocument(document = {}) {
