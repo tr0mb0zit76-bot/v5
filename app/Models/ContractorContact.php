@@ -17,6 +17,7 @@ class ContractorContact extends Model
         'phone',
         'email',
         'is_primary',
+        'is_decision_maker',
         'notes',
     ];
 
@@ -27,6 +28,7 @@ class ContractorContact extends Model
     {
         return [
             'is_primary' => 'boolean',
+            'is_decision_maker' => 'boolean',
         ];
     }
 

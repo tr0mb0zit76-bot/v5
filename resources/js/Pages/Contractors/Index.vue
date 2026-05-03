@@ -274,6 +274,7 @@ function blankForm() {
         contact_person_position: '',
         signer_name_nominative: '',
         signer_name_prepositional: '',
+        signer_position: '',
         signer_authority_basis: '',
         bank_name: '',
         bik: '',
@@ -416,6 +417,7 @@ function contractorToForm(contractor) {
         contact_person_position: contractor.contact_person_position ?? '',
         signer_name_nominative: contractor.signer_name_nominative ?? '',
         signer_name_prepositional: contractor.signer_name_prepositional ?? '',
+        signer_position: contractor.signer_position ?? '',
         signer_authority_basis: contractor.signer_authority_basis ?? '',
         bank_name: contractor.bank_name ?? '',
         bik: contractor.bik ?? '',
@@ -448,6 +450,7 @@ function contractorToForm(contractor) {
                 phone: contact.phone ?? '',
                 email: contact.email ?? '',
                 is_primary: Boolean(contact.is_primary),
+                is_decision_maker: Boolean(contact.is_decision_maker),
                 notes: contact.notes ?? '',
             }))
             : [],
@@ -734,6 +737,11 @@ function submit() {
     form.default_carrier_payment_term = paymentScheduleSummary(form.default_carrier_payment_schedule) || '';
     form.bank_accounts = normalizeBankAccounts(form.bank_accounts);
     form.is_non_resident = Boolean(form.is_non_resident);
+    form.contacts = (form.contacts ?? []).map((contact) => ({
+        ...contact,
+        is_primary: Boolean(contact.is_primary),
+        is_decision_maker: Boolean(contact.is_decision_maker),
+    }));
 
     const primaryBankAccount = form.bank_accounts.find((account) => account.is_primary) ?? form.bank_accounts[0] ?? null;
     const existingHadLegacy = Boolean(
@@ -799,6 +807,7 @@ function addContact() {
         phone: '',
         email: '',
         is_primary: form.contacts.length === 0,
+        is_decision_maker: false,
         notes: '',
     });
 }
@@ -2027,6 +2036,14 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                         <div class="space-y-2">
+                                            <label class="text-sm font-medium">Должность</label>
+                                            <input
+                                                v-model="form.signer_position"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
                                             <label class="text-sm font-medium">Основание права подписи</label>
                                             <input
                                                 v-model="form.signer_authority_basis"
@@ -2148,6 +2165,10 @@ function handleMobileNavSelect(key) {
                                     <label class="flex items-center gap-2 pt-8 text-sm">
                                         <input v-model="contact.is_primary" type="checkbox" class="rounded border-zinc-300" />
                                         Основной контакт
+                                    </label>
+                                    <label class="flex items-center gap-2 pt-8 text-sm">
+                                        <input v-model="contact.is_decision_maker" type="checkbox" class="rounded border-zinc-300" />
+                                        ЛПР
                                     </label>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Телефон</label>

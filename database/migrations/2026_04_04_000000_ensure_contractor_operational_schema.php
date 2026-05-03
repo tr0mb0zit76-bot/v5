@@ -55,6 +55,7 @@ return new class extends Migration
                 $table->string('phone', 50)->nullable();
                 $table->string('email')->nullable();
                 $table->boolean('is_primary')->default(false);
+                $table->boolean('is_decision_maker')->default(false);
                 $table->text('notes')->nullable();
                 $table->timestamps();
             });

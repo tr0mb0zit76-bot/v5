@@ -535,6 +535,7 @@ class OrderPrintFormDraftService
             'ogrn' => $contractor?->ogrn,
             'legal_address' => $contractor?->legal_address,
             'actual_address' => $contractor?->actual_address,
+            'postal_address' => $contractor?->postal_address,
             'phone' => $contractor?->phone,
             'email' => $contractor?->email,
             'contact_person' => $contractor?->contact_person,
@@ -544,7 +545,7 @@ class OrderPrintFormDraftService
             'correspondent_account' => $contractor?->correspondent_account,
             'signer_name_nominative' => $contractor?->signer_name_nominative,
             'signer_name_prepositional' => $contractor?->signer_name_prepositional,
-            'signer_position' => $contractor?->contact_person_position,
+            'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
             'signer_authority_basis' => $contractor?->signer_authority_basis,
         ];
     }

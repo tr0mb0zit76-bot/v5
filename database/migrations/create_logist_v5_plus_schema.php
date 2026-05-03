@@ -135,6 +135,7 @@ return new class extends Migration
             $table->string('contact_person_phone', 50)->nullable();
             $table->string('contact_person_email')->nullable();
             $table->string('contact_person_position')->nullable();
+            $table->string('signer_position')->nullable();
 
             $table->string('bank_name')->nullable();
             $table->string('bik', 9)->nullable();

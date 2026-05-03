@@ -483,6 +483,9 @@ class ContractorController extends Controller
                     'phone' => $contact->phone,
                     'email' => $contact->email,
                     'is_primary' => $contact->is_primary,
+                    'is_decision_maker' => Schema::hasColumn('contractor_contacts', 'is_decision_maker')
+                        ? $contact->is_decision_maker
+                        : false,
                     'notes' => $contact->notes,
                 ])->values() : collect(),
                 'interactions' => $hasInteractionsTable ? $selectedContractor->interactions->map(fn ($interaction): array => [
@@ -543,6 +546,7 @@ class ContractorController extends Controller
             'short_description',
             'signer_name_nominative',
             'signer_name_prepositional',
+            'signer_position',
             'signer_authority_basis',
             'default_customer_payment_form',
             'default_customer_payment_term',
@@ -629,6 +633,7 @@ class ContractorController extends Controller
             'activity_types',
             'signer_name_nominative',
             'signer_name_prepositional',
+            'signer_position',
             'signer_authority_basis',
             'default_customer_payment_form',
             'default_customer_payment_term',
@@ -950,6 +955,10 @@ class ContractorController extends Controller
             $contractor->contacts()->delete();
 
             foreach ($validated['contacts'] as $contact) {
+                if (! Schema::hasColumn('contractor_contacts', 'is_decision_maker')) {
+                    unset($contact['is_decision_maker']);
+                }
+
                 $contractor->contacts()->create($contact);
             }
         }

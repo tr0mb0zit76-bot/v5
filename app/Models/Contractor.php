@@ -36,6 +36,7 @@ class Contractor extends Model
         'contact_person_position',
         'signer_name_nominative',
         'signer_name_prepositional',
+        'signer_position',
         'signer_authority_basis',
         'bank_name',
         'bik',

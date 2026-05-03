@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\Cargo;
+use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Services\DocxPlaceholderExtractor;
@@ -182,5 +183,45 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $this->assertContains('cargo.trailer_types', $catalogValues);
         $this->assertContains('cargo.cargo_types', $catalogValues);
         $this->assertContains('cargo.pack_types', $catalogValues);
+    }
+
+    public function test_contractor_postal_address_and_signer_position_are_exposed_for_print_forms(): void
+    {
+        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $order = new Order;
+        $customer = new Contractor([
+            'name' => 'ООО Клиент',
+            'postal_address' => '443000, Самара, а/я 15',
+            'contact_person_position' => 'Коммерческий директор',
+            'signer_position' => 'Генеральный директор',
+        ]);
+        $carrier = new Contractor([
+            'name' => 'ООО Перевозчик',
+            'postal_address' => '420000, Казань, а/я 7',
+            'contact_person_position' => 'Директор по логистике',
+        ]);
+
+        $order->setRelation('client', $customer);
+        $order->setRelation('carrier', $carrier);
+        $order->setRelation('ownCompany', null);
+        $order->setRelation('manager', null);
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+        $catalogValues = collect((new PrintFormVariableCatalog)->orderOptions())
+            ->pluck('value')
+            ->all();
+
+        $this->assertSame('443000, Самара, а/я 15', data_get($snapshot, 'customer.postal_address'));
+        $this->assertSame('Генеральный директор', data_get($snapshot, 'customer.signer_position'));
+        $this->assertSame('420000, Казань, а/я 7', data_get($snapshot, 'carrier.postal_address'));
+        $this->assertSame('Директор по логистике', data_get($snapshot, 'carrier.signer_position'));
+        $this->assertContains('customer.postal_address', $catalogValues);
+        $this->assertContains('customer.signer_position', $catalogValues);
+        $this->assertContains('carrier.postal_address', $catalogValues);
+        $this->assertContains('carrier.signer_position', $catalogValues);
+        $this->assertContains('own_company.postal_address', $catalogValues);
+        $this->assertContains('own_company.signer_position', $catalogValues);
     }
 }

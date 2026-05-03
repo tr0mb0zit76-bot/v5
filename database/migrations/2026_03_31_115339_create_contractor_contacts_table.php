@@ -26,6 +26,7 @@ return new class extends Migration
                 $table->string('phone', 50)->nullable();
                 $table->string('email')->nullable();
                 $table->boolean('is_primary')->default(false);
+                $table->boolean('is_decision_maker')->default(false);
                 $table->text('notes')->nullable();
                 $table->timestamps();
             });
@@ -73,9 +74,17 @@ return new class extends Migration
                     $table->boolean('is_primary')->default(false)->after('email');
                 }
 
+                if (! Schema::hasColumn('contractor_contacts', 'is_decision_maker')) {
+                    $column = $table->boolean('is_decision_maker')->default(false);
+
+                    if (Schema::hasColumn('contractor_contacts', 'is_primary')) {
+                        $column->after('is_primary');
+                    }
+                }
+
                 // Проверяем и добавляем notes
                 if (! Schema::hasColumn('contractor_contacts', 'notes')) {
-                    $table->text('notes')->nullable()->after('is_primary');
+                    $table->text('notes')->nullable()->after(Schema::hasColumn('contractor_contacts', 'is_decision_maker') ? 'is_decision_maker' : 'is_primary');
                 }
 
                 // Проверяем наличие полей timestamps (created_at, updated_at)
