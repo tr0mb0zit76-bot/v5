@@ -40,6 +40,20 @@
                         </span>
                     </div>
 
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            v-if="!session.completed_at"
+                            type="button"
+                            class="rounded-xl border border-sky-600 bg-sky-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400"
+                            @click="trainerEndIntent = true"
+                        >
+                            Завершить тренировку
+                        </button>
+                        <span v-if="trainerEndIntent && !session.completed_at" class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Ниже заполните исход и сохраните.
+                        </span>
+                    </div>
+
                     <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/30">
                         <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Как прошла тренировка</div>
                         <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -124,7 +138,7 @@
                     >
                         <div
                             v-for="(message, index) in trainerChatHistory"
-                            :key="`${message.role}-${index}-${message.at || ''}`"
+                            :key="message.id ?? `${message.role}-${index}-${message.at || ''}`"
                             class="rounded-xl px-3 py-2 text-sm"
                             :class="message.role === 'assistant'
                                 ? 'border border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100'
@@ -134,6 +148,41 @@
                                 {{ trainerMessageRoleLabel(message.role) }}
                             </div>
                             <div class="whitespace-pre-wrap">{{ message.content }}</div>
+                            <div
+                                v-if="message.role === 'assistant' && message.id && message.auto_peer_reaction"
+                                class="mt-1.5 text-[10px] text-zinc-500 dark:text-zinc-400"
+                            >
+                                Авто:
+                                <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ peerReactionLabel(message.auto_peer_reaction) }}</span>
+                            </div>
+                            <div
+                                v-if="message.role === 'assistant' && message.id && !session.completed_at"
+                                class="mt-2 flex flex-wrap items-center gap-1 border-t border-sky-200/80 pt-2 dark:border-sky-800/60"
+                            >
+                                <span class="mr-1 text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Оценка реплики</span>
+                                <button
+                                    v-for="opt in peerReactionOptions"
+                                    :key="opt.value"
+                                    type="button"
+                                    class="rounded-lg border px-2 py-1 text-[11px] font-medium transition disabled:opacity-50"
+                                    :class="message.peer_reaction === opt.value
+                                        ? opt.activeClass
+                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                                    :disabled="peerReactionBusyId === message.id"
+                                    @click="setPeerReaction(message.id, opt.value)"
+                                >
+                                    {{ opt.label }}
+                                </button>
+                                <button
+                                    v-if="message.peer_reaction"
+                                    type="button"
+                                    class="ml-1 text-[10px] text-zinc-500 underline dark:text-zinc-400"
+                                    :disabled="peerReactionBusyId === message.id"
+                                    @click="setPeerReaction(message.id, null)"
+                                >
+                                    Снять
+                                </button>
+                            </div>
                         </div>
 
                         <div v-if="trainerChatHistory.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
@@ -166,7 +215,7 @@
                 </div>
 
                 <div
-                    v-if="!session.completed_at && mustComplete"
+                    v-if="!session.completed_at && (mustComplete || trainerEndIntent)"
                     class="space-y-4 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
                 >
                     <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Зафиксируйте исход</h2>
@@ -224,36 +273,24 @@
                 class="w-full shrink-0 space-y-5 border-zinc-200 xl:sticky xl:top-4 xl:max-h-[calc(100vh-5rem)] xl:w-[min(100%,24rem)] xl:overflow-y-auto xl:border-l xl:pl-6 dark:border-zinc-800"
             >
                 <div>
-                    <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Сценарий — активный шаг</h3>
-                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Кнопки ниже двигают узел графа; чат с моделью идёт отдельно.</p>
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Подсказки из сценария</h3>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Не шаг графа и не прогресс по сценарию: по совпадению слов из чата с текстом узлов (лексический поиск). Игра по узлам — только в режиме скрипта.
+                    </p>
                 </div>
 
-                <div v-if="currentNode" class="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-950">
-                    <div class="text-xs font-medium text-zinc-500 dark:text-zinc-400">{{ kindLabel(currentNode.kind) }}</div>
-                    <div class="whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-50">{{ currentNode.body }}</div>
-                    <p v-if="currentNode.hint" class="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                        <span class="font-medium">Подсказка:</span> {{ currentNode.hint }}
+                <div v-if="trainerSuggestedFocus" class="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
+                    <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Ближайший узел по теме</div>
+                    <p class="whitespace-pre-wrap leading-relaxed">{{ trainerSuggestedFocus.excerpt }}</p>
+                    <p v-if="trainerSuggestedFocus.hint" class="border-t border-emerald-200/80 pt-2 text-[11px] dark:border-emerald-800/60">
+                        {{ trainerSuggestedFocus.hint }}
                     </p>
-                    <div v-if="!mustComplete && outgoingTransitions.length > 0" class="flex flex-col gap-2 pt-1">
-                        <button
-                            v-for="(t, idx) in outgoingTransitions"
-                            :key="`${t.transition_id}-${idx}`"
-                            type="button"
-                            class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left text-xs font-medium text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
-                            @click="advance(t.sales_script_reaction_class_id)"
-                        >
-                            {{ t.label }}
-                        </button>
-                    </div>
-                </div>
-                <div v-else class="rounded-xl border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-                    Нет активного узла сценария.
                 </div>
 
                 <div v-if="trainerContextualHints.length > 0" class="space-y-3">
                     <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По теме диалога</h3>
                     <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                        Подбор по словам из последних реплик (MySQL, без векторов). Узлы из вашего сценария / сидов.
+                        Подбор по словам из последних реплик (MySQL, без векторов). Фрагменты узлов из редактора / сидов.
                     </p>
                     <ul class="space-y-3">
                         <li
@@ -272,18 +309,11 @@
                         </li>
                     </ul>
                 </div>
-                <div
-                    v-else-if="trainerChatHistory.length === 0 && trainerEntryPreview && !entryPreviewDuplicatesActiveStep"
-                    class="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-900/30"
-                >
-                    <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Точка входа сценария</h3>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400">Первый узел из графа (данные редактора / сидов).</p>
-                    <p v-if="trainerEntryPreview.client_key" class="font-mono text-[10px] text-zinc-500">{{ trainerEntryPreview.client_key }}</p>
-                    <p class="whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">{{ trainerEntryPreview.excerpt }}</p>
-                    <p v-if="trainerEntryPreview.hint" class="text-xs text-amber-900 dark:text-amber-100">{{ trainerEntryPreview.hint }}</p>
-                </div>
                 <div v-else-if="trainerChatHistory.length > 0" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-                    Нет других узлов с заметным пересечением по словам. Попробуйте конкретные термины из сценария (цена, срок, документы…).
+                    Нет узлов с заметным пересечением по словам. Попробуйте термины из сценария (цена, срок, документы…).
+                </div>
+                <div v-else class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                    Напишите сообщение в чат — здесь появятся подсказки по словам из узлов сценария.
                 </div>
             </aside>
         </div>
@@ -391,7 +421,6 @@ const props = defineProps({
             trainer_profile: null,
             training_role_mode: 'manager_seller',
             trainer_contextual_hints: [],
-            trainer_entry_preview: null,
         }),
     },
     session: { type: Object, required: true },
@@ -405,16 +434,6 @@ const props = defineProps({
 
 const isTrainer = computed(() => props.playContext?.return === 'trainer');
 const isTrainerActive = computed(() => isTrainer.value && !props.session.completed_at);
-
-const entryPreviewDuplicatesActiveStep = computed(() => {
-    const ep = trainerEntryPreview.value;
-    const node = props.currentNode;
-    if (!ep?.client_key || !node?.client_key) {
-        return false;
-    }
-
-    return ep.client_key === node.client_key;
-});
 
 const pageRootClass = computed(() =>
     isTrainerActive.value
@@ -435,7 +454,41 @@ const promptSaveHint = ref('');
 const trainerContextualHints = ref(
     Array.isArray(props.playContext?.trainer_contextual_hints) ? [...props.playContext.trainer_contextual_hints] : [],
 );
-const trainerEntryPreview = ref(props.playContext?.trainer_entry_preview ?? null);
+const trainerEndIntent = ref(false);
+const peerReactionBusyId = ref(null);
+
+const peerReactionOptions = [
+    {
+        value: 'positive',
+        label: 'Плюс',
+        activeClass: 'border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-600',
+    },
+    {
+        value: 'neutral',
+        label: 'Нейтрально',
+        activeClass: 'border-zinc-400 bg-zinc-200 text-zinc-900 dark:border-zinc-500 dark:bg-zinc-600 dark:text-zinc-50',
+    },
+    {
+        value: 'negative',
+        label: 'Минус',
+        activeClass: 'border-rose-600 bg-rose-600 text-white dark:border-rose-500 dark:bg-rose-600',
+    },
+];
+
+function peerReactionLabel(value) {
+    if (!value) {
+        return '';
+    }
+    const opt = peerReactionOptions.find((o) => o.value === value);
+
+    return opt ? opt.label : value;
+}
+
+const trainerSuggestedFocus = computed(() => {
+    const h = trainerContextualHints.value;
+
+    return Array.isArray(h) && h.length > 0 ? h[0] : null;
+});
 
 const trainingRoleLabel = computed(() =>
     isManagerBuyerMode.value
@@ -488,11 +541,22 @@ watch(
 );
 
 watch(
-    () => props.playContext?.trainer_entry_preview,
+    () => props.playContext?.trainer_chat,
     (v) => {
-        trainerEntryPreview.value = v ?? null;
+        if (Array.isArray(v)) {
+            trainerChatHistory.value = [...v];
+        }
     },
     { deep: true },
+);
+
+watch(
+    () => props.session.completed_at,
+    (v) => {
+        if (v) {
+            trainerEndIntent.value = false;
+        }
+    },
 );
 
 function trainerJsonHeaders() {
@@ -604,6 +668,40 @@ async function saveTrainerAssistantInstructions() {
         promptSaveHint.value = e instanceof Error ? e.message : 'Ошибка сохранения';
     } finally {
         trainerMetaBusy.value = false;
+    }
+}
+
+async function setPeerReaction(messageId, value) {
+    if (!isTrainer.value || !messageId) {
+        return;
+    }
+    peerReactionBusyId.value = messageId;
+    try {
+        const response = await fetch(
+            route('scripts.sessions.trainer-message.peer-reaction', {
+                sales_script_play_session: props.session.id,
+                trainer_message: messageId,
+            }),
+            {
+                method: 'PATCH',
+                headers: trainerJsonHeaders(),
+                body: JSON.stringify({ peer_reaction: value }),
+            },
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(typeof payload?.message === 'string' ? payload.message : 'Не удалось сохранить оценку');
+        }
+        const pr = payload?.peer_reaction ?? null;
+        trainerChatHistory.value = trainerChatHistory.value.map((m) =>
+            m.id === messageId
+                ? { ...m, peer_reaction: pr, auto_peer_reaction: payload?.auto_peer_reaction ?? m.auto_peer_reaction }
+                : m,
+        );
+    } catch {
+        /* остаёмся на локальном состоянии */
+    } finally {
+        peerReactionBusyId.value = null;
     }
 }
 

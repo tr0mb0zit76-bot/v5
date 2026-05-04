@@ -129,4 +129,12 @@ return [
         ],
     ],
 
+    'inference' => [
+        'deepseek' => [
+            'completions_url' => env('DEEPSEEK_COMPLETIONS_URL', 'https://api.deepseek.com/chat/completions'),
+            'timeout_seconds' => (int) env('DEEPSEEK_TIMEOUT', 45),
+            'default_model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
+        ],
+    ],
+
 ];

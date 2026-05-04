@@ -217,7 +217,7 @@ class OrderPrintFormDraftService
         $unloadingPoints = $routePoints->where('type', 'unloading')->values();
         $fleetSelection = $this->resolvePrimaryFleetSelection($order);
         $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id']);
-        $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id']);
+        $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id'], $cargoItems);
         $loadingMethod = $this->resolveLoadingMethod($loadingPoints->first(), $order);
 
         $cargoNames = $cargoItems
@@ -613,8 +613,13 @@ class OrderPrintFormDraftService
      * @param  array<string, string|null>  $driver
      * @return array{brand: ?string, number: ?string, transport_type: ?string}
      */
-    private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId = null): array
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     */
+    private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId, Collection $cargoItems): array
     {
+        $cargoTruckBody = $this->resolveCargoDictionaryItemLabels($cargoItems, 'truck_body_type_items', 'truck_body_type_label');
+
         if ($fleetVehicleId !== null && Schema::hasTable('fleet_vehicles')) {
             /** @var FleetVehicle|null $fleetVehicle */
             $fleetVehicle = FleetVehicle::query()->find($fleetVehicleId);
@@ -628,6 +633,7 @@ class OrderPrintFormDraftService
                     'transport_type' => $this->firstFilledValue([
                         $fleetVehicle->trailer_brand !== null ? 'тягач + полуприцеп' : 'тягач',
                     ]),
+                    'trailer_type' => $cargoTruckBody,
                 ];
             }
         }
@@ -661,6 +667,7 @@ class OrderPrintFormDraftService
                 data_get($orderMetadata, 'vehicle.transport_type'),
                 data_get($orderMetadata, 'transport_type'),
             ]),
+            'trailer_type' => $cargoTruckBody,
         ];
     }
 

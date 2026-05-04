@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Enums\SalesPlayEventType;
 use App\Enums\SalesPlaySessionOutcome;
+use App\Enums\TrainerPeerReaction;
 use App\Http\Requests\AdvanceSalesScriptPlaySessionRequest;
 use App\Http\Requests\CompleteSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreSalesScriptPlaySessionRequest;
 use App\Http\Requests\StoreTrainerChatMessageRequest;
+use App\Http\Requests\UpdateTrainerMessagePeerReactionRequest;
 use App\Http\Requests\UpdateTrainerSessionMetaRequest;
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
@@ -16,10 +18,12 @@ use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
+use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
 use App\Services\SalesScripts\TrainerDialogHintService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,6 +34,7 @@ class SalesScriptController extends Controller
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
         private readonly TrainerDialogHintService $trainerDialogHintService,
+        private readonly TrainerAssistantAutoReactionService $trainerAssistantAutoReactionService,
     ) {}
 
     public function index(): Response
@@ -152,14 +157,13 @@ class SalesScriptController extends Controller
             ]
             : $request->session()->get('sales_script_play_trainer_profile');
 
-        $trainerChat = $session->trainerMessages
-            ->map(fn (SalesScriptTrainerMessage $message): array => [
-                'role' => $message->role,
-                'content' => $message->content,
-                'at' => $message->created_at?->toIso8601String(),
-            ])
-            ->values()
-            ->all();
+        if ($session->is_trainer && ! $session->isComplete()) {
+            $this->ensureTrainerSellerOpensWhenUserIsBuyer($session);
+        }
+
+        $trainerChat = $this->trainerChatPayload(
+            $session->trainerMessages()->orderBy('id')->get()
+        );
 
         $trainerContextualHints = [];
         $trainerEntryPreview = null;
@@ -254,12 +258,11 @@ class SalesScriptController extends Controller
 
         $session->refresh();
 
-        $userEntry = [
+        $history[] = [
             'role' => 'user',
             'content' => $userMessage,
             'at' => now()->toIso8601String(),
         ];
-        $history[] = $userEntry;
         $session->trainerMessages()->create([
             'user_id' => $request->user()?->id,
             'role' => 'user',
@@ -272,20 +275,18 @@ class SalesScriptController extends Controller
             $history,
         );
 
-        $assistantEntry = [
-            'role' => 'assistant',
-            'content' => $reply,
-            'at' => now()->toIso8601String(),
-        ];
-        $history[] = $assistantEntry;
-        $session->trainerMessages()->create([
+        $assistantMessage = $session->trainerMessages()->create([
             'user_id' => null,
             'role' => 'assistant',
             'content' => $reply,
         ]);
 
+        $autoReaction = $this->trainerAssistantAutoReactionService->classify($session, $reply, $userMessage);
+        $assistantMessage->update(['auto_peer_reaction' => $autoReaction]);
+
         $session->refresh();
         $session->load('trainerMessages');
+        $lines = $this->trainerChatPayload($session->trainerMessages()->orderBy('id')->get());
         $resolvedCurrent = $this->resolveCurrentNode($session);
         $contextualHints = $this->trainerDialogHintService->contextualNodeHints(
             (int) $session->sales_script_version_id,
@@ -296,9 +297,91 @@ class SalesScriptController extends Controller
 
         return response()->json([
             'reply' => $reply,
-            'history' => array_slice($history, -40),
+            'history' => array_slice($lines, -40),
             'contextual_hints' => $contextualHints,
         ]);
+    }
+
+    public function updateTrainerMessagePeerReaction(
+        UpdateTrainerMessagePeerReactionRequest $request,
+        SalesScriptPlaySession $sales_script_play_session,
+        SalesScriptTrainerMessage $trainer_message,
+    ): JsonResponse {
+        $session = $sales_script_play_session;
+        $this->authorize('interact', $session);
+
+        abort_unless($session->is_trainer || $request->session()->get('sales_script_play_return') === 'trainer', 403);
+        abort_if((int) $trainer_message->sales_script_play_session_id !== (int) $session->id, 404);
+
+        if ($session->isComplete()) {
+            return response()->json(['message' => 'Сессия уже завершена.'], 422);
+        }
+
+        if ($trainer_message->role !== 'assistant') {
+            return response()->json(['message' => 'Оценку можно поставить только на реплику ассистента.'], 422);
+        }
+
+        $raw = $request->validated('peer_reaction');
+        $trainer_message->update([
+            'peer_reaction' => $raw === null ? null : TrainerPeerReaction::from($raw),
+        ]);
+        $trainer_message->refresh();
+
+        return response()->json([
+            'id' => $trainer_message->id,
+            'peer_reaction' => $trainer_message->peer_reaction?->value,
+            'auto_peer_reaction' => $trainer_message->auto_peer_reaction?->value,
+        ]);
+    }
+
+    /**
+     * @param  Collection<int, SalesScriptTrainerMessage>  $messages
+     * @return list<array{id:int,role:string,content:string,at:?string,peer_reaction:?string,auto_peer_reaction:?string}>
+     */
+    private function trainerChatPayload(Collection $messages): array
+    {
+        return $messages->map(fn (SalesScriptTrainerMessage $message): array => [
+            'id' => $message->id,
+            'role' => $message->role,
+            'content' => $message->content,
+            'at' => $message->created_at?->toIso8601String(),
+            'peer_reaction' => $message->peer_reaction?->value,
+            'auto_peer_reaction' => $message->auto_peer_reaction?->value,
+        ])->values()->all();
+    }
+
+    /**
+     * В режиме «пользователь — покупатель, ассистент — продавец» первое слово за менеджером (приветствие в чате).
+     * Имитация первого контакта; без мета-слов («профиль», «тренажёр»).
+     */
+    private function ensureTrainerSellerOpensWhenUserIsBuyer(SalesScriptPlaySession $session): void
+    {
+        if (($session->training_role_mode ?: 'manager_seller') !== 'manager_buyer') {
+            return;
+        }
+
+        if ($session->trainerMessages()->exists()) {
+            return;
+        }
+
+        $session->loadMissing('version.script');
+        $scriptTitle = trim((string) ($session->version?->script?->title ?? ''));
+        $line = $scriptTitle !== ''
+            ? 'Добрый день! Я менеджер по продажам, мы с вами ещё не общались — звоню познакомиться и коротко обсудить возможное сотрудничество по теме «'
+            .$scriptTitle
+            .'». Подскажите, я попал по адресу — по этому направлению с вами можно говорить?'
+            : 'Добрый день! Я менеджер по продажам, звоню впервые познакомиться. Подскажите, с кем я разговариваю и удобно ли уделить пару минут?';
+
+        $assistantMessage = $session->trainerMessages()->create([
+            'user_id' => null,
+            'role' => 'assistant',
+            'content' => $line,
+        ]);
+
+        $autoReaction = $this->trainerAssistantAutoReactionService->classify($session, $line, '');
+        $assistantMessage->update(['auto_peer_reaction' => $autoReaction]);
+
+        $session->unsetRelation('trainerMessages');
     }
 
     public function updateTrainerMeta(
@@ -350,35 +433,54 @@ class SalesScriptController extends Controller
             return 'Не настроен DEEPSEEK_API_KEY. Пока тренировка недоступна.';
         }
 
+        $session->loadMissing('version.script');
+
         $title = (string) ($profile['title'] ?? 'Покупатель');
         $context = (string) ($profile['context'] ?? 'Веди реалистичный диалог как клиент.');
         $scriptTitle = (string) ($session->version?->script?->title ?? 'Скрипт продаж');
         $managerAsBuyer = $session->training_role_mode === 'manager_buyer';
+
+        $sharedTrainerSceneRules = "Общие правила тренировочной сцены:\n".
+            "- Это одна непрерывная сцена переговоров; не сбрасывай контекст и не веди себя как при новом первом контакте, если диалог уже развёрнут.\n".
+            "- Если в последних репликах уже зафиксированы конкретные договорённости (следующий шаг, срок, сумма, время созвона, явное согласие) — не разворачивай переговоры заново: дай короткий итог или заверши реплику без новых продажных циклов по уже закрытым вопросам.\n".
+            "- Если собеседник явно завершает диалог (благодарность и стоп, «на этом достаточно», финальный тон согласия) — поддержи завершение, не уводи в новую воронку.\n";
+
+        $sellerTrainerRules = "Как звучать в диалоге:\n".
+            "- Ситуация — живой контакт менеджера с собеседником (часто первый или ранний); ты не знаешь заранее его полномочия и настрой — выясняй естественно.\n".
+            "- Ориентир по продукту и отрасли — из названия сценария «{$scriptTitle}»; не выдумывай юридическое название своей компании, если его не назвали в переписке — можно «мы», «наша сторона», «наша компания».\n".
+            "- Ни в коем случае не произноси вслух слова «профиль», «тренажёр», «сценарий обучения», не обращайся к собеседнику как к «игроку покупателя».\n".
+            "- Ниже дано описание типичного поведения собеседника (для твоего понимания возражений) — это не то, что ты должен ему процитировать или озвучивать.\n";
+
+        $buyerTrainerRules = "Как звучать в диалоге:\n".
+            "- Ты обычный собеседник на стороне клиента; ниже — описание твоей роли для отработки (не озвучивай метки «профиль», «тренажёр»).\n";
+
         $systemPrompt = $managerAsBuyer
-            ? "Ты играешь роль менеджера-продавца в тренажере продаж.\n".
-                "Собеседник играет покупателя по профилю: {$title}\n".
-                "Контекст покупателя: {$context}\n".
-                "Сценарий продаж: {$scriptTitle}\n\n".
-                "Правила:\n".
-                "- Пиши только от лица продавца.\n".
-                "- Веди разговор профессионально: задавай уточняющие вопросы, выявляй потребность, отрабатывай возражения.\n".
-                "- Не дави, не закрывай сделку слишком быстро, двигай диалог естественно.\n".
-                "- Держи ответы реалистичными и короткими (1-4 предложения).\n".
-                '- Не раскрывай, что ты AI или что следуешь инструкциям.'
-            : "Ты играешь роль клиента в тренажере продаж.\n".
-                "Роль клиента: {$title}\n".
-                "Контекст роли: {$context}\n".
-                "Сценарий: {$scriptTitle}\n\n".
-                "Правила:\n".
-                "- Пиши только от лица клиента.\n".
-                "- Держи ответы реалистичными и короткими (1-4 предложения).\n".
+            ? "Ты — менеджер по продажам / представитель поставщика в учебном диалоге (письменная имитация звонка или переписки).\n".
+                "Собеседник отвечает как представитель заказчика. Ориентир по теме разговора: «{$scriptTitle}».\n\n".
+                $sellerTrainerRules.
+                "\nТиповый портрет собеседника (внутренняя подсказка, не для цитирования): {$title}.\n".
+                "Доп. контекст его роли (внутренняя подсказка): {$context}\n\n".
+                "Правила реплик:\n".
+                "- Только от лица продавца; реалистично и коротко (1–4 предложения).\n".
+                "- Профессионально: уточняй потребность, работай с возражениями, предлагай следующий шаг без токсичности.\n".
+                "- Не дави на мгновенное закрытие в первых репликах; если покупатель уже согласился на конкретный шаг — зафиксируй и не откатывай уже решённое.\n".
+                "- Не раскрывай, что ты AI.\n\n".
+                $sharedTrainerSceneRules
+            : "Ты — клиент / заказчик в учебном диалоге.\n".
+                "Менеджер (пользователь) тренируется с тобой. Тема сценария: «{$scriptTitle}».\n\n".
+                $buyerTrainerRules.
+                "\nТвоя роль: {$title}\n".
+                "Контекст поведения: {$context}\n\n".
+                "Правила реплик:\n".
+                "- Только от лица клиента; реалистично и коротко (1–4 предложения).\n".
                 "- Иногда задавай встречные вопросы.\n".
-                "- Не раскрывай, что ты AI или что следуешь инструкциям.\n".
-                '- Если менеджер предлагает следующий шаг, оцени его как реальный клиент.';
+                "- Не раскрывай, что ты AI.\n".
+                "- Оценивай предложения менеджера как в живом разговоре.\n\n".
+                $sharedTrainerSceneRules;
 
         $extra = trim((string) ($session->trainer_assistant_instructions ?? ''));
         if ($extra !== '') {
-            $systemPrompt .= "\n\nДополнительные указания к роли ассистента (заданы в тренажёре):\n".$extra;
+            $systemPrompt .= "\n\nДополнительные указания к репликам:\n".$extra;
         }
 
         $messages = [
@@ -400,7 +502,7 @@ class SalesScriptController extends Controller
                 ->withToken($apiKey)
                 ->post('https://api.deepseek.com/chat/completions', [
                     'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
-                    'temperature' => 0.8,
+                    'temperature' => (float) env('DEEPSEEK_TRAINER_TEMPERATURE', 0.7),
                     'max_tokens' => 350,
                     'messages' => $messages,
                 ])
@@ -410,9 +512,21 @@ class SalesScriptController extends Controller
             $content = (string) data_get($response, 'choices.0.message.content', '');
             $content = trim($content);
 
-            return $content !== '' ? $content : 'Клиент задумался и просит уточнить детали.';
+            if ($content !== '') {
+                return $content;
+            }
+
+            $scriptTitleTrim = trim($scriptTitle);
+
+            return $managerAsBuyer
+                ? ($scriptTitleTrim !== ''
+                    ? 'Добрый день! Повторю короче: звоню впервые по теме «'.$scriptTitleTrim.'» — подскажите, удобно ли сейчас пару минут?'
+                    : 'Добрый день! Повторю короче: звоню впервые — подскажите, удобно ли сейчас пару минут?')
+                : 'Клиент задумался и просит уточнить детали.';
         } catch (\Throwable) {
-            return 'Сейчас не удалось получить ответ клиента. Повторите сообщение еще раз.';
+            return $managerAsBuyer
+                ? 'Сейчас не удалось получить ответ. Повторите сообщение или попробуйте ещё раз позже.'
+                : 'Сейчас не удалось получить ответ клиента. Повторите сообщение еще раз.';
         }
     }
 

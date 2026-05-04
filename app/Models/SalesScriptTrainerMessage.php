@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TrainerPeerReaction;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -12,6 +13,8 @@ class SalesScriptTrainerMessage extends Model
         'user_id',
         'role',
         'content',
+        'peer_reaction',
+        'auto_peer_reaction',
     ];
 
     /**
@@ -28,5 +31,13 @@ class SalesScriptTrainerMessage extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'peer_reaction' => TrainerPeerReaction::class,
+            'auto_peer_reaction' => TrainerPeerReaction::class,
+        ];
     }
 }

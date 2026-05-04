@@ -102,7 +102,8 @@ class PrintFormVariableCatalog
             ['value' => 'driver.passport_data', 'label' => 'Водитель: Паспортные данные'],
             ['value' => 'vehicle.brand', 'label' => 'Транспорт: Марка'],
             ['value' => 'vehicle.number', 'label' => 'Транспорт: Номер'],
-            ['value' => 'vehicle.transport_type', 'label' => 'Транспорт: Тип транспортного средства'],
+            ['value' => 'vehicle.transport_type', 'label' => 'Транспорт: Тип транспортного средства (часто тягач / карточка ТС)'],
+            ['value' => 'vehicle.trailer_type', 'label' => 'Транспорт: тип прицепа (кузов из груза)'],
 
             ['value' => 'contacts.customer_name', 'label' => 'Контакты: Имя заказчика'],
             ['value' => 'contacts.customer_phone', 'label' => 'Контакты: Телефон заказчика'],

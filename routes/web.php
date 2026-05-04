@@ -148,6 +148,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/scripts/sessions/{sales_script_play_session}', 'showSession')->name('scripts.sessions.show');
             Route::post('/scripts/sessions/{sales_script_play_session}/advance', 'advance')->name('scripts.sessions.advance');
             Route::post('/scripts/sessions/{sales_script_play_session}/trainer-message', 'trainerMessage')->name('scripts.sessions.trainer-message');
+            Route::patch('/scripts/sessions/{sales_script_play_session}/trainer-messages/{trainer_message}/peer-reaction', 'updateTrainerMessagePeerReaction')->name('scripts.sessions.trainer-message.peer-reaction');
             Route::patch('/scripts/sessions/{sales_script_play_session}/trainer-meta', 'updateTrainerMeta')->name('scripts.sessions.trainer-meta');
             Route::post('/scripts/sessions/{sales_script_play_session}/complete', 'complete')->name('scripts.sessions.complete');
         });
