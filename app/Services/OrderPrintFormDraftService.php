@@ -610,11 +610,12 @@ class OrderPrintFormDraftService
     }
 
     /**
+     * Марка/номер — из исполнителя и метаданных; «кузов» — только из позиций груза (как на вкладке «Груз»).
+     * Поле типа ТС / «тягач» в снимок не включаем — оно путалось с кузовом в печатных формах.
+     *
      * @param  array<string, string|null>  $driver
-     * @return array{brand: ?string, number: ?string, transport_type: ?string}
-     */
-    /**
      * @param  Collection<int, mixed>  $cargoItems
+     * @return array{brand: ?string, number: ?string, cargo_body_type: ?string, trailer_type: ?string}
      */
     private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId, Collection $cargoItems): array
     {
@@ -630,9 +631,7 @@ class OrderPrintFormDraftService
                         $fleetVehicle->tractor_plate,
                         $fleetVehicle->trailer_plate,
                     ]),
-                    'transport_type' => $this->firstFilledValue([
-                        $fleetVehicle->trailer_brand !== null ? 'тягач + полуприцеп' : 'тягач',
-                    ]),
+                    'cargo_body_type' => $cargoTruckBody,
                     'trailer_type' => $cargoTruckBody,
                 ];
             }
@@ -659,14 +658,7 @@ class OrderPrintFormDraftService
                 data_get($orderMetadata, 'vehicle_number'),
                 data_get($orderMetadata, 'gosnomer'),
             ]),
-            'transport_type' => $this->firstFilledValue([
-                data_get($driver, 'transport_type'),
-                data_get($driver, 'vehicle_type'),
-                data_get($orderWizardState, 'vehicle.transport_type'),
-                data_get($orderWizardState, 'transport.type'),
-                data_get($orderMetadata, 'vehicle.transport_type'),
-                data_get($orderMetadata, 'transport_type'),
-            ]),
+            'cargo_body_type' => $cargoTruckBody,
             'trailer_type' => $cargoTruckBody,
         ];
     }
@@ -1249,6 +1241,11 @@ class OrderPrintFormDraftService
         // Легаси-плейсхолдер stoimost в шаблоне перевозчика должен брать ставку перевозчика.
         if (mb_strtolower(trim($placeholder)) === 'stoimost' && $template->party === 'carrier') {
             return 'order.carrier_rate';
+        }
+
+        // В заказе «тип ТС» не используем; раньше давало «тягач» из флота. Нужен кузов из груза.
+        if ($resolved === 'vehicle.transport_type') {
+            return 'vehicle.cargo_body_type';
         }
 
         return $resolved;

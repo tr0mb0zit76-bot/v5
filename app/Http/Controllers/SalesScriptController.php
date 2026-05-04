@@ -167,7 +167,7 @@ class SalesScriptController extends Controller
 
         $trainerContextualHints = [];
         $trainerEntryPreview = null;
-        if ($session->is_trainer) {
+        if ($session->is_trainer && $this->includeTrainerScenarioLexicalHints($session)) {
             $trainerContextualHints = $this->trainerDialogHintService->contextualNodeHints(
                 (int) $session->sales_script_version_id,
                 $current?->id,
@@ -288,12 +288,14 @@ class SalesScriptController extends Controller
         $session->load('trainerMessages');
         $lines = $this->trainerChatPayload($session->trainerMessages()->orderBy('id')->get());
         $resolvedCurrent = $this->resolveCurrentNode($session);
-        $contextualHints = $this->trainerDialogHintService->contextualNodeHints(
-            (int) $session->sales_script_version_id,
-            $resolvedCurrent?->id,
-            $session->trainerMessages()->orderBy('id')->get(),
-            6,
-        );
+        $contextualHints = $this->includeTrainerScenarioLexicalHints($session)
+            ? $this->trainerDialogHintService->contextualNodeHints(
+                (int) $session->sales_script_version_id,
+                $resolvedCurrent?->id,
+                $session->trainerMessages()->orderBy('id')->get(),
+                6,
+            )
+            : [];
 
         return response()->json([
             'reply' => $reply,
@@ -528,6 +530,14 @@ class SalesScriptController extends Controller
                 ? 'Сейчас не удалось получить ответ. Повторите сообщение или попробуйте ещё раз позже.'
                 : 'Сейчас не удалось получить ответ клиента. Повторите сообщение еще раз.';
         }
+    }
+
+    /**
+     * Подсказки по узлам сценария (текст продавца) не показываем, когда пользователь в роли покупателя.
+     */
+    private function includeTrainerScenarioLexicalHints(SalesScriptPlaySession $session): bool
+    {
+        return ($session->training_role_mode ?: 'manager_seller') !== 'manager_buyer';
     }
 
     private function restoreMissingCurrentNode(SalesScriptPlaySession $session): void

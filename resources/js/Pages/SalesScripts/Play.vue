@@ -272,49 +272,58 @@
             <aside
                 class="w-full shrink-0 space-y-5 border-zinc-200 xl:sticky xl:top-4 xl:max-h-[calc(100vh-5rem)] xl:w-[min(100%,24rem)] xl:overflow-y-auto xl:border-l xl:pl-6 dark:border-zinc-800"
             >
-                <div>
-                    <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Подсказки из сценария</h3>
-                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        Не шаг графа и не прогресс по сценарию: по совпадению слов из чата с текстом узлов (лексический поиск). Игра по узлам — только в режиме скрипта.
+                <div v-if="isManagerBuyerMode" class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-4 text-xs leading-relaxed text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-300">
+                    <div class="font-semibold text-zinc-800 dark:text-zinc-100">Подсказки по сценарию отключены</div>
+                    <p class="mt-2">
+                        Вы отрабатываете роль покупателя; фрагменты узлов в данных сценария сформулированы как реплики продавца, поэтому лексические подсказки здесь не показываются.
                     </p>
                 </div>
 
-                <div v-if="trainerSuggestedFocus" class="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
-                    <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Ближайший узел по теме</div>
-                    <p class="whitespace-pre-wrap leading-relaxed">{{ trainerSuggestedFocus.excerpt }}</p>
-                    <p v-if="trainerSuggestedFocus.hint" class="border-t border-emerald-200/80 pt-2 text-[11px] dark:border-emerald-800/60">
-                        {{ trainerSuggestedFocus.hint }}
-                    </p>
-                </div>
+                <template v-else>
+                    <div>
+                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Подсказки из сценария</h3>
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            Не шаг графа и не прогресс по сценарию: по совпадению слов из чата с текстом узлов (лексический поиск). Игра по узлам — только в режиме скрипта.
+                        </p>
+                    </div>
 
-                <div v-if="trainerContextualHints.length > 0" class="space-y-3">
-                    <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По теме диалога</h3>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                        Подбор по словам из последних реплик (MySQL, без векторов). Фрагменты узлов из редактора / сидов.
-                    </p>
-                    <ul class="space-y-3">
-                        <li
-                            v-for="h in trainerContextualHints"
-                            :key="h.node_id"
-                            class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-200"
-                        >
-                            <div v-if="h.client_key" class="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{{ h.client_key }}</div>
-                            <p class="mt-1 whitespace-pre-wrap leading-relaxed">{{ h.excerpt }}</p>
-                            <p v-if="h.hint" class="mt-2 border-t border-zinc-200 pt-2 text-[11px] text-amber-900 dark:border-zinc-600 dark:text-amber-100">
-                                {{ h.hint }}
-                            </p>
-                            <p v-if="h.matched_terms?.length" class="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
-                                Совпадения: {{ h.matched_terms.join(', ') }}
-                            </p>
-                        </li>
-                    </ul>
-                </div>
-                <div v-else-if="trainerChatHistory.length > 0" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-                    Нет узлов с заметным пересечением по словам. Попробуйте термины из сценария (цена, срок, документы…).
-                </div>
-                <div v-else class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-                    Напишите сообщение в чат — здесь появятся подсказки по словам из узлов сценария.
-                </div>
+                    <div v-if="trainerSuggestedFocus" class="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
+                        <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Ближайший узел по теме</div>
+                        <p class="whitespace-pre-wrap leading-relaxed">{{ trainerSuggestedFocus.excerpt }}</p>
+                        <p v-if="trainerSuggestedFocus.hint" class="border-t border-emerald-200/80 pt-2 text-[11px] dark:border-emerald-800/60">
+                            {{ trainerSuggestedFocus.hint }}
+                        </p>
+                    </div>
+
+                    <div v-if="trainerContextualHints.length > 0" class="space-y-3">
+                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По теме диалога</h3>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Подбор по словам из последних реплик (MySQL, без векторов). Фрагменты узлов из редактора / сидов.
+                        </p>
+                        <ul class="space-y-3">
+                            <li
+                                v-for="h in trainerContextualHints"
+                                :key="h.node_id"
+                                class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-200"
+                            >
+                                <div v-if="h.client_key" class="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{{ h.client_key }}</div>
+                                <p class="mt-1 whitespace-pre-wrap leading-relaxed">{{ h.excerpt }}</p>
+                                <p v-if="h.hint" class="mt-2 border-t border-zinc-200 pt-2 text-[11px] text-amber-900 dark:border-zinc-600 dark:text-amber-100">
+                                    {{ h.hint }}
+                                </p>
+                                <p v-if="h.matched_terms?.length" class="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400">
+                                    Совпадения: {{ h.matched_terms.join(', ') }}
+                                </p>
+                            </li>
+                        </ul>
+                    </div>
+                    <div v-else-if="trainerChatHistory.length > 0" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                        Нет узлов с заметным пересечением по словам. Попробуйте термины из сценария (цена, срок, документы…).
+                    </div>
+                    <div v-else class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                        Напишите сообщение в чат — здесь появятся подсказки по словам из узлов сценария.
+                    </div>
+                </template>
             </aside>
         </div>
 
