@@ -60,7 +60,11 @@ class RoleAccess
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
-            ['key' => 'scripts', 'label' => 'Помощник продаж', 'description' => 'Скрипты, база знаний и тренажёр; сценарии диалогов и материалы для менеджеров'],
+            ['key' => 'scripts', 'label' => 'Помощник продавца', 'description' => 'Общий доступ к модулю; при выборе компонентов уточните строки ниже'],
+            ['key' => 'sales_assistant_scripts', 'label' => 'Помощник продавца: скрипты', 'description' => 'Список сценариев и прохождение шагов (в т.ч. из тренажёра)'],
+            ['key' => 'sales_assistant_book', 'label' => 'Помощник продавца: книга продаж', 'description' => 'База знаний и статьи'],
+            ['key' => 'sales_assistant_trainer', 'label' => 'Помощник продавца: тренажёр', 'description' => 'Запуск тренировок по сценариям'],
+            ['key' => 'sales_assistant_trainer_analytics', 'label' => 'Помощник продавца: аналитика тренажёра', 'description' => 'Сводки и отчёты по тренировкам'],
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
             ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI и персональные условия (коэффициенты). Учёт зарплатных периодов — в модуле «Финансы»'],
@@ -273,10 +277,57 @@ class RoleAccess
     /**
      * @param  list<string>  $areas
      */
+    /**
+     * @return list<string>
+     */
+    public static function salesAssistantComponentKeys(): array
+    {
+        return [
+            'sales_assistant_scripts',
+            'sales_assistant_book',
+            'sales_assistant_trainer',
+            'sales_assistant_trainer_analytics',
+        ];
+    }
+
+    /**
+     * Для UI ролей: легаси-только «scripts» раскрываем во все подмодули, чтобы чекбоксы совпадали с фактическим доступом.
+     *
+     * @param  list<string>  $areas
+     * @return list<string>
+     */
+    public static function expandLegacySalesAssistantVisibilityAreas(array $areas): array
+    {
+        if (! in_array('scripts', $areas, true)) {
+            return array_values(array_unique($areas));
+        }
+
+        foreach (static::salesAssistantComponentKeys() as $key) {
+            if (in_array($key, $areas, true)) {
+                return array_values(array_unique($areas));
+            }
+        }
+
+        return array_values(array_unique([...$areas, ...static::salesAssistantComponentKeys()]));
+    }
+
     public static function hasVisibilityArea(array $areas, string $required): bool
     {
         if (in_array($required, $areas, true)) {
             return true;
+        }
+
+        $assistantKeys = static::salesAssistantComponentKeys();
+        if (in_array($required, $assistantKeys, true) && in_array('scripts', $areas, true)) {
+            return true;
+        }
+
+        if ($required === 'scripts') {
+            foreach ($assistantKeys as $key) {
+                if (in_array($key, $areas, true)) {
+                    return true;
+                }
+            }
         }
 
         if ($required === 'settings') {
@@ -622,7 +673,7 @@ class RoleAccess
             return true;
         }
 
-        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'scripts')) {
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_book')) {
             return false;
         }
 
@@ -645,7 +696,7 @@ class RoleAccess
             return true;
         }
 
-        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'scripts')) {
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_book')) {
             return false;
         }
 
@@ -667,7 +718,7 @@ class RoleAccess
             return true;
         }
 
-        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'scripts')) {
+        if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_book')) {
             return false;
         }
 

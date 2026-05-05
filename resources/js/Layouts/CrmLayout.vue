@@ -662,18 +662,24 @@ const menuItems = computed(() => {
                 children: planningChildren,
             }
             : null;
-    const salesAssistantItem = {
-        key: 'sales-assistant',
-        label: 'Помощник продаж',
-        icon: WandSparkles,
-        visibilityArea: 'scripts',
-        children: [
-            { key: 'sales-assistant-scripts', label: 'Скрипты' },
-            { key: 'sales-assistant-book', label: 'Книга продаж' },
-            { key: 'sales-assistant-trainer', label: 'Тренажёр' },
-            { key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
-        ],
-    };
+    const assistantParts = [
+        { area: 'sales_assistant_scripts', key: 'sales-assistant-scripts', label: 'Скрипты' },
+        { area: 'sales_assistant_book', key: 'sales-assistant-book', label: 'Книга продаж' },
+        { area: 'sales_assistant_trainer', key: 'sales-assistant-trainer', label: 'Тренажёр' },
+        { area: 'sales_assistant_trainer_analytics', key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
+    ];
+    const salesAssistantChildren = assistantParts.filter(
+        (p) => isAdmin || areas.includes('scripts') || areas.includes(p.area),
+    );
+    const salesAssistantItem =
+        salesAssistantChildren.length > 0
+            ? {
+                key: 'sales-assistant',
+                label: 'Помощник продавца',
+                icon: WandSparkles,
+                children: salesAssistantChildren.map(({ key, label }) => ({ key, label })),
+            }
+            : null;
 
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
@@ -712,7 +718,7 @@ const menuItems = computed(() => {
             })(),
         },
         ...(planningItem ? [planningItem] : []),
-        salesAssistantItem,
+        ...(salesAssistantItem ? [salesAssistantItem] : []),
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
         { key: 'modules', label: 'Модули', icon: Puzzle, visibilityArea: 'modules' },
         {
@@ -779,6 +785,10 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'planning') {
+            return (item.children?.length ?? 0) > 0;
+        }
+
+        if (item.key === 'sales-assistant') {
             return (item.children?.length ?? 0) > 0;
         }
 

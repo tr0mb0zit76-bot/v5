@@ -383,6 +383,12 @@ const savingRoleId = ref(null);
 const childAreaMap = {
     dashboard: ['dashboard_tiles', 'dashboard_widgets', 'dashboard_reports'],
     settings: ['settings_system', 'settings_motivation'],
+    scripts: [
+        'sales_assistant_scripts',
+        'sales_assistant_book',
+        'sales_assistant_trainer',
+        'sales_assistant_trainer_analytics',
+    ],
 };
 const scopeAreaKeys = [
     'orders',
@@ -400,6 +406,7 @@ const visibilityGroupDefinitions = [
     { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'orders', 'tasks', 'kanban'] },
     { id: 'directories', label: 'Реестры и справочники', description: 'Списки и карточки', keys: ['contractors', 'drivers', 'documents', 'users', 'roles'] },
     { id: 'analytics', label: 'Финансы и аналитика', description: 'Отчёты и сводные показатели', keys: ['finance_salary', 'payment_schedules', 'reports'] },
+    { id: 'sales_assistant', label: 'Помощник продавца', description: 'Скрипты, книга продаж, тренажёр и аналитика', keys: ['scripts'] },
     { id: 'system', label: 'Администрирование', description: 'Системные разделы', keys: ['modules', 'settings'] },
 ];
 
@@ -418,6 +425,26 @@ const roleColumns = ref(props.roles.map(cloneRole));
 const visibilityAreaOptionsByKey = computed(() => Object.fromEntries(
     props.visibilityAreaOptions.map((area) => [area.key, area]),
 ));
+
+function deriveModuleModes(visibilityAreas) {
+    const areas = visibilityAreas ?? [];
+
+    return Object.fromEntries(
+        Object.entries(childAreaMap).map(([areaKey, childKeys]) => {
+            if ((childKeys ?? []).length === 0) {
+                return [areaKey, 'all'];
+            }
+
+            const legacyScriptsFull =
+                areaKey === 'scripts' &&
+                areas.includes('scripts') &&
+                !childKeys.some((k) => areas.includes(k));
+            const allChildren = childKeys.every((k) => areas.includes(k));
+
+            return [areaKey, legacyScriptsFull || allChildren ? 'all' : 'selective'];
+        }),
+    );
+}
 
 const visibilityMatrix = computed(() => visibilityGroupDefinitions.map((group) => {
     const rows = [];
@@ -506,12 +533,7 @@ function cloneRole(role) {
         visibility_scopes: normalizeScopes(role.visibility_scopes || {}),
         has_signing_authority: Boolean(role.default_has_signing_authority),
         default_mobile_nav_keys: Array.isArray(role.default_mobile_nav_keys) ? [...role.default_mobile_nav_keys] : null,
-        module_modes: Object.fromEntries(
-            Object.entries(childAreaMap).map(([areaKey, childKeys]) => [
-                areaKey,
-                childKeys.every((childKey) => visibilityAreas.includes(childKey)) ? 'all' : 'selective',
-            ]),
-        ),
+        module_modes: deriveModuleModes(visibilityAreas),
     };
 }
 

@@ -141,7 +141,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
     });
 
-    Route::middleware('visibility.area:scripts')->group(function () {
+    Route::middleware('visibility.area:sales_assistant_scripts')->group(function () {
         Route::controller(SalesScriptController::class)->group(function () {
             Route::get('/scripts', 'index')->name('scripts.index');
             Route::post('/scripts/sessions', 'storeSession')->name('scripts.sessions.store');
@@ -152,23 +152,37 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('/scripts/sessions/{sales_script_play_session}/trainer-meta', 'updateTrainerMeta')->name('scripts.sessions.trainer-meta');
             Route::post('/scripts/sessions/{sales_script_play_session}/complete', 'complete')->name('scripts.sessions.complete');
         });
+    });
 
-        Route::controller(SalesAssistantController::class)->prefix('sales-assistant')->name('sales-assistant.')->group(function () {
-            Route::get('/book', 'book')->name('book');
-            Route::post('/book/articles', 'storeBookArticle')->name('book.articles.store');
-            Route::patch('/book/articles/{salesBookArticle}', 'updateBookArticle')->name('book.articles.update');
-            Route::delete('/book/articles/{salesBookArticle}', 'destroyBookArticle')->name('book.articles.destroy');
-            Route::post('/book/import', 'importBookArticle')->name('book.import');
-            Route::post('/book/assets', 'uploadBookAsset')->name('book.assets.upload');
-            Route::get('/book/assets', 'showBookAsset')->name('book.assets.show');
-            Route::get('/trainer', 'trainer')->name('trainer');
-            Route::get('/trainer/analytics', 'trainerAnalytics')->name('trainer.analytics');
+    Route::prefix('sales-assistant')->name('sales-assistant.')->group(function () {
+        Route::middleware('visibility.area:sales_assistant_book')->group(function () {
+            Route::controller(SalesAssistantController::class)->group(function () {
+                Route::get('/book', 'book')->name('book');
+                Route::post('/book/articles', 'storeBookArticle')->name('book.articles.store');
+                Route::patch('/book/articles/{salesBookArticle}', 'updateBookArticle')->name('book.articles.update');
+                Route::delete('/book/articles/{salesBookArticle}', 'destroyBookArticle')->name('book.articles.destroy');
+                Route::post('/book/import', 'importBookArticle')->name('book.import');
+                Route::post('/book/assets', 'uploadBookAsset')->name('book.assets.upload');
+                Route::get('/book/assets', 'showBookAsset')->name('book.assets.show');
+            });
+        });
+
+        Route::middleware('visibility.area:sales_assistant_trainer')->group(function () {
+            Route::controller(SalesAssistantController::class)->group(function () {
+                Route::get('/trainer', 'trainer')->name('trainer');
+            });
+        });
+
+        Route::middleware('visibility.area:sales_assistant_trainer_analytics')->group(function () {
+            Route::controller(SalesAssistantController::class)->group(function () {
+                Route::get('/trainer/analytics', 'trainerAnalytics')->name('trainer.analytics');
+            });
         });
     });
 
     Route::prefix('scripts/editor')
         ->name('scripts.editor.')
-        ->middleware(['visibility.area:scripts', 'can.manage.sales.scripts'])
+        ->middleware(['visibility.area:sales_assistant_scripts', 'can.manage.sales.scripts'])
         ->group(function () {
             Route::get('/', [SalesScriptEditorController::class, 'index'])->name('index');
             Route::post('/scripts', [SalesScriptEditorController::class, 'storeScript'])->name('scripts.store');

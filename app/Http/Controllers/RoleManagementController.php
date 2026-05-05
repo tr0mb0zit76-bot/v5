@@ -32,7 +32,9 @@ class RoleManagementController extends Controller
                     'display_name' => $role->display_name,
                     'description' => $role->description,
                     'permissions' => $role->permissions ?? [],
-                    'visibility_areas' => $role->visibility_areas ?? RoleAccess::defaultVisibilityAreas($role->name),
+                    'visibility_areas' => RoleAccess::expandLegacySalesAssistantVisibilityAreas(
+                        $role->visibility_areas ?? RoleAccess::defaultVisibilityAreas($role->name),
+                    ),
                     'visibility_scopes' => Schema::hasColumn('roles', 'visibility_scopes')
                         ? ($role->visibility_scopes ?? RoleAccess::defaultVisibilityScopes($role->name))
                         : RoleAccess::defaultVisibilityScopes($role->name),
