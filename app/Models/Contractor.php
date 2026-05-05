@@ -223,4 +223,54 @@ class Contractor extends Model
             }
         });
     }
+
+    /**
+     * Банковские реквизиты из основного (или первого) счёта в bank_accounts.
+     * Нужны для печати, если плоские поля contractors.bank_name / bik / счета пусты.
+     *
+     * @return array{bank_name: ?string, bik: ?string, account_number: ?string, correspondent_account: ?string}
+     */
+    public function bankDetailsFromAccountsFallback(): array
+    {
+        $empty = [
+            'bank_name' => null,
+            'bik' => null,
+            'account_number' => null,
+            'correspondent_account' => null,
+        ];
+
+        $accounts = $this->bank_accounts;
+        if (! is_array($accounts) || $accounts === []) {
+            return $empty;
+        }
+
+        $primary = collect($accounts)->first(
+            fn (mixed $row): bool => is_array($row) && filter_var($row['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN)
+        );
+
+        if (! is_array($primary)) {
+            $first = $accounts[0] ?? null;
+            $primary = is_array($first) ? $first : null;
+        }
+
+        if (! is_array($primary)) {
+            return $empty;
+        }
+
+        $pick = static function (mixed $v): ?string {
+            if (! is_string($v)) {
+                return null;
+            }
+            $t = trim($v);
+
+            return $t === '' ? null : $t;
+        };
+
+        return [
+            'bank_name' => $pick($primary['bank_name'] ?? null),
+            'bik' => $pick($primary['bik'] ?? null),
+            'account_number' => $pick($primary['account_number'] ?? null),
+            'correspondent_account' => $pick($primary['correspondent_account'] ?? null),
+        ];
+    }
 }

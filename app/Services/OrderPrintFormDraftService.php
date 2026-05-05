@@ -10,6 +10,7 @@ use App\Models\PrintFormTemplate;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -54,9 +55,9 @@ class OrderPrintFormDraftService
             $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
-            $processor->setValue($placeholder, $replacement);
-            // Some DOCX templates keep `${ placeholder }` with inner spaces.
-            $processor->setValue(' '.$placeholder.' ', $replacement);
+            foreach (PrintFormPlaceholderMacroVariants::innerPartsForSetValue($placeholder) as $inner) {
+                $processor->setValue($inner, $replacement);
+            }
         }
 
         if ($placeholders->isNotEmpty()) {
@@ -70,8 +71,9 @@ class OrderPrintFormDraftService
                 $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
-                $processor->setValue($placeholder, $replacement);
-                $processor->setValue(' '.$placeholder.' ', $replacement);
+                foreach (PrintFormPlaceholderMacroVariants::innerPartsForSetValue($placeholder) as $inner) {
+                    $processor->setValue($inner, $replacement);
+                }
             }
         }
 
@@ -623,6 +625,13 @@ class OrderPrintFormDraftService
      */
     private function contractorPayload(mixed $contractor): array
     {
+        $acct = $contractor instanceof Contractor ? $contractor->bankDetailsFromAccountsFallback() : [
+            'bank_name' => null,
+            'bik' => null,
+            'account_number' => null,
+            'correspondent_account' => null,
+        ];
+
         return [
             'name' => $contractor?->name,
             'full_name' => $contractor?->full_name,
@@ -635,10 +644,10 @@ class OrderPrintFormDraftService
             'phone' => $contractor?->phone,
             'email' => $contractor?->email,
             'contact_person' => $contractor?->contact_person,
-            'bank_name' => $contractor?->bank_name,
-            'bik' => $contractor?->bik,
-            'account_number' => $contractor?->account_number,
-            'correspondent_account' => $contractor?->correspondent_account,
+            'bank_name' => $this->firstFilledValue([$contractor?->bank_name, $acct['bank_name']]),
+            'bik' => $this->firstFilledValue([$contractor?->bik, $acct['bik']]),
+            'account_number' => $this->firstFilledValue([$contractor?->account_number, $acct['account_number']]),
+            'correspondent_account' => $this->firstFilledValue([$contractor?->correspondent_account, $acct['correspondent_account']]),
             'signer_name_nominative' => $contractor?->signer_name_nominative,
             'signer_name_prepositional' => $contractor?->signer_name_prepositional,
             'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
@@ -1330,12 +1339,22 @@ class OrderPrintFormDraftService
         return '';
     }
 
+    /**
+     * Плейсхолдеры вида stoimost, stoimost'_zak, stoimost'_perevoz (типографский апостроф допускается).
+     */
+    private function normalizedPlaceholderIsCarrierContractValue(string $placeholder): bool
+    {
+        $squashed = str_replace(["\u{2019}", "\u{2018}", "\u{00B4}", "'", '`', '´', ' ', '_'], '', mb_strtolower(trim($placeholder), 'UTF-8'));
+
+        return in_array($squashed, ['stoimost', 'stoimostzak', 'stoimostperevoz'], true);
+    }
+
     private function resolveMappedPath(string $placeholder, Collection $mapping, PrintFormTemplate $template): string
     {
         $resolved = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'order', $template->party);
 
-        // Легаси-плейсхолдер stoimost в шаблоне перевозчика должен брать ставку перевозчика.
-        if (mb_strtolower(trim($placeholder)) === 'stoimost' && $template->party === 'carrier') {
+        // Шаблон перевозчика: «стоимость» — ставка перевозчика (в т.ч. stoimost'_zak в DOCX).
+        if ($template->party === 'carrier' && $this->normalizedPlaceholderIsCarrierContractValue($placeholder)) {
             return 'order.carrier_rate';
         }
 

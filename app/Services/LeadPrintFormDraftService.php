@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
+use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -46,9 +48,9 @@ class LeadPrintFormDraftService
             $mappedPath = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'lead');
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
-            $processor->setValue($placeholder, $replacement);
-            // Some DOCX templates keep `${ placeholder }` with inner spaces.
-            $processor->setValue(' '.$placeholder.' ', $replacement);
+            foreach (PrintFormPlaceholderMacroVariants::innerPartsForSetValue($placeholder) as $inner) {
+                $processor->setValue($inner, $replacement);
+            }
         }
 
         if ($placeholders->isNotEmpty()) {
@@ -62,8 +64,9 @@ class LeadPrintFormDraftService
                 $mappedPath = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'lead');
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
-                $processor->setValue($placeholder, $replacement);
-                $processor->setValue(' '.$placeholder.' ', $replacement);
+                foreach (PrintFormPlaceholderMacroVariants::innerPartsForSetValue($placeholder) as $inner) {
+                    $processor->setValue($inner, $replacement);
+                }
             }
         }
 
@@ -285,6 +288,13 @@ class LeadPrintFormDraftService
      */
     private function contractorPayload(mixed $contractor): array
     {
+        $acct = $contractor instanceof Contractor ? $contractor->bankDetailsFromAccountsFallback() : [
+            'bank_name' => null,
+            'bik' => null,
+            'account_number' => null,
+            'correspondent_account' => null,
+        ];
+
         return [
             'name' => $contractor?->name,
             'full_name' => $contractor?->full_name,
@@ -297,15 +307,33 @@ class LeadPrintFormDraftService
             'phone' => $contractor?->phone,
             'email' => $contractor?->email,
             'contact_person' => $contractor?->contact_person,
-            'bank_name' => $contractor?->bank_name,
-            'bik' => $contractor?->bik,
-            'account_number' => $contractor?->account_number,
-            'correspondent_account' => $contractor?->correspondent_account,
+            'bank_name' => $this->firstNonEmptyString([$contractor?->bank_name, $acct['bank_name']]),
+            'bik' => $this->firstNonEmptyString([$contractor?->bik, $acct['bik']]),
+            'account_number' => $this->firstNonEmptyString([$contractor?->account_number, $acct['account_number']]),
+            'correspondent_account' => $this->firstNonEmptyString([$contractor?->correspondent_account, $acct['correspondent_account']]),
             'signer_name_nominative' => $contractor?->signer_name_nominative,
             'signer_name_prepositional' => $contractor?->signer_name_prepositional,
             'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
             'signer_authority_basis' => $contractor?->signer_authority_basis,
         ];
+    }
+
+    /**
+     * @param  list<string|null>  $candidates
+     */
+    private function firstNonEmptyString(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            if (! is_string($candidate)) {
+                continue;
+            }
+            $trimmed = trim($candidate);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return null;
     }
 
     private function stringifyValue(mixed $value): string

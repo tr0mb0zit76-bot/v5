@@ -27,6 +27,7 @@ class PrintFormPlaceholderPathResolver
         'r/s',
         'k/s',
         'fio_podpisant',
+        'fio_podpisant_im',
         'fio_podpisant_rod',
         'dolzhn_podpisant',
     ];
@@ -83,8 +84,8 @@ class PrintFormPlaceholderPathResolver
 
     private function normalizeLegacyPlaceholderKey(string $placeholder): string
     {
-        $value = mb_strtolower(trim($placeholder), 'UTF-8');
-        $value = str_replace(['’', '`', '´'], '', $value);
+        $value = str_replace(["\u{2019}", "\u{2018}", "\u{00B4}", '’', '`', '´'], "'", trim($placeholder));
+        $value = mb_strtolower($value, 'UTF-8');
 
         return $value;
     }
@@ -106,11 +107,15 @@ class PrintFormPlaceholderPathResolver
             'gorod_zagruzki' => 'route.loading_first_city',
             'gorod_vygruzki' => 'route.unloading_first_city',
             'gruzootpav' => 'cargo_sender.name',
+            'gruzootpavitel' => 'cargo_sender.name',
             'gruzopoluchatel' => 'cargo_recipient.name',
+            'sposob_pogruzki' => 'route.loading_method',
             'kontakt_na_zagruzke' => 'cargo_sender.contact_phone',
             'kontakt_na_vygruzke' => 'cargo_recipient.contact_phone',
             'cargo_summary' => 'cargo.summary',
             'stoimost' => 'order.customer_rate',
+            'stoimost\'_zak' => 'order.customer_rate',
+            'stoimost\'_perevoz' => 'order.carrier_rate',
             'forma_oplaty' => 'order.customer_payment_form',
             'usloviya_oplaty' => 'order.customer_payment_term',
             'primechanya' => 'order.special_notes',
@@ -133,8 +138,23 @@ class PrintFormPlaceholderPathResolver
             'r/s' => 'customer.account_number',
             'k/s' => 'customer.correspondent_account',
             'fio_podpisant' => 'customer.signer_name_nominative',
+            'fio_podpisant_im' => 'customer.signer_name_nominative',
             'fio_podpisant_rod' => 'customer.signer_name_prepositional',
             'dolzhn_podpisant' => 'customer.signer_position',
+            'poln_nazv_perevoz' => 'carrier.full_name',
+            'kratk_nazv_perev' => 'carrier.name',
+            'inn_perev' => 'carrier.inn',
+            'kpp_perev' => 'carrier.kpp',
+            'ogrn_perev' => 'carrier.ogrn',
+            'yur_address_per' => 'carrier.legal_address',
+            'pocht_address_perev' => 'carrier.actual_address',
+            'bank_perev' => 'carrier.bank_name',
+            'bik_perev' => 'carrier.bik',
+            'r/s_perev' => 'carrier.account_number',
+            'k/s_perev' => 'carrier.correspondent_account',
+            'fio_podpisant_perevoz_im' => 'carrier.signer_name_nominative',
+            'fio_podpisant_perevoz_rod' => 'carrier.signer_name_prepositional',
+            'podpisant_perevoz' => 'carrier.signer_position',
         ];
     }
 }
