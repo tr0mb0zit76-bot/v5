@@ -1332,7 +1332,7 @@ class OrderPrintFormDraftService
 
     private function resolveMappedPath(string $placeholder, Collection $mapping, PrintFormTemplate $template): string
     {
-        $resolved = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'order');
+        $resolved = $this->placeholderPathResolver->resolve($placeholder, $mapping->all(), 'order', $template->party);
 
         // Легаси-плейсхолдер stoimost в шаблоне перевозчика должен брать ставку перевозчика.
         if (mb_strtolower(trim($placeholder)) === 'stoimost' && $template->party === 'carrier') {

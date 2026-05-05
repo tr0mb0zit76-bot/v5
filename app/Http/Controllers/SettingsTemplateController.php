@@ -76,6 +76,7 @@ class SettingsTemplateController extends Controller
                         is_array(data_get($template->settings, 'variables')) ? data_get($template->settings, 'variables') : [],
                         is_array(data_get($template->settings, 'variable_mapping')) ? data_get($template->settings, 'variable_mapping') : [],
                         (string) ($template->entity_type ?? 'order'),
+                        ($template->entity_type ?? 'order') === 'order' ? $template->party : null,
                     ),
                     'internal_signature_placeholder' => data_get($template->settings, 'image_overlays.internal_signature.placeholder', 'internal_signature_image'),
                     'internal_stamp_placeholder' => data_get($template->settings, 'image_overlays.internal_stamp.placeholder', 'internal_stamp_image'),

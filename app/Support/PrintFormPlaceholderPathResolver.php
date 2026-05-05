@@ -9,9 +9,33 @@ namespace App\Support;
 class PrintFormPlaceholderPathResolver
 {
     /**
-     * @param  array<string, mixed>  $variableMapping
+     * Короткие плейсхолдеры из старых макетов, которые в legacy-карте ведут на customer.*.
+     * Для шаблона заказа со стороной «перевозчик» подставляем реквизиты перевозчика (carrier.*).
+     *
+     * @var list<string>
      */
-    public function resolve(string $placeholder, array $variableMapping, string $entityType): string
+    private const LEGACY_ORDER_CUSTOMER_CONTRACTOR_KEYS = [
+        'poln_nazv_zak',
+        'kratk_nazv_zak',
+        'inn',
+        'kpp',
+        'ogrn',
+        'yur_address',
+        'pocht_address',
+        'bank',
+        'bik',
+        'r/s',
+        'k/s',
+        'fio_podpisant',
+        'fio_podpisant_rod',
+        'dolzhn_podpisant',
+    ];
+
+    /**
+     * @param  array<string, mixed>  $variableMapping
+     * @param  string|null  $orderParty  Сторона шаблона заказа (customer|carrier|internal); учитывается только для entityType order.
+     */
+    public function resolve(string $placeholder, array $variableMapping, string $entityType, ?string $orderParty = null): string
     {
         $explicit = $variableMapping[$placeholder] ?? null;
         if (is_string($explicit) && $explicit !== '') {
@@ -24,8 +48,19 @@ class PrintFormPlaceholderPathResolver
 
         $legacy = $this->legacyPlaceholderMappings();
         $normalized = $this->normalizeLegacyPlaceholderKey($placeholder);
+        $fromLegacy = $legacy[$normalized] ?? null;
 
-        return $legacy[$normalized] ?? $placeholder;
+        if ($fromLegacy !== null) {
+            if ($entityType === 'order' && $orderParty === 'carrier' && in_array($normalized, self::LEGACY_ORDER_CUSTOMER_CONTRACTOR_KEYS, true)) {
+                if (str_starts_with($fromLegacy, 'customer.')) {
+                    return 'carrier.'.substr($fromLegacy, strlen('customer.'));
+                }
+            }
+
+            return $fromLegacy;
+        }
+
+        return $placeholder;
     }
 
     /**
@@ -33,14 +68,14 @@ class PrintFormPlaceholderPathResolver
      * @param  array<string, mixed>  $variableMapping
      * @return array<string, string>
      */
-    public function effectiveVariableMapping(array $placeholders, array $variableMapping, string $entityType): array
+    public function effectiveVariableMapping(array $placeholders, array $variableMapping, string $entityType, ?string $orderParty = null): array
     {
         $out = [];
         foreach ($placeholders as $placeholder) {
             if (! is_string($placeholder) || $placeholder === '') {
                 continue;
             }
-            $out[$placeholder] = $this->resolve($placeholder, $variableMapping, $entityType);
+            $out[$placeholder] = $this->resolve($placeholder, $variableMapping, $entityType, $orderParty);
         }
 
         return $out;
