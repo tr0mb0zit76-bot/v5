@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
 
@@ -253,13 +254,9 @@ class RoleAccess
             return static::resolveVisibilityScope(null, null, $area);
         }
 
-        $user->loadMissing('role');
+        $role = $user->role_id ? Role::query()->find($user->role_id) : null;
 
-        return static::resolveVisibilityScopeForRolePayload(
-            $user->role?->name,
-            $user->role?->visibility_scopes,
-            $area
-        );
+        return static::resolveVisibilityScopeForRolePayload($role?->name, $role?->visibility_scopes, $area);
     }
 
     /**
@@ -267,12 +264,9 @@ class RoleAccess
      */
     public static function userVisibilityAreas(User $user): array
     {
-        $user->loadMissing('role');
+        $role = $user->role_id ? Role::query()->find($user->role_id) : null;
 
-        return static::effectiveVisibilityAreasFromRolePayload(
-            $user->role?->name,
-            $user->role?->visibility_areas,
-        );
+        return static::effectiveVisibilityAreasFromRolePayload($role?->name, $role?->visibility_areas);
     }
 
     /**
@@ -350,6 +344,11 @@ class RoleAccess
     public static function hasVisibilityArea(array $areas, string $required): bool
     {
         if (in_array($required, $areas, true)) {
+            return true;
+        }
+
+        // Тренажёр запускает сессии через тот же pipeline, что «Скрипты» (POST /scripts/sessions, advance, trainer-meta…).
+        if ($required === 'sales_assistant_scripts' && in_array('sales_assistant_trainer', $areas, true)) {
             return true;
         }
 

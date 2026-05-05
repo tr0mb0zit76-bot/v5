@@ -65,8 +65,16 @@ final class MobileNavCatalog
 
         $out = [];
         foreach (self::ORDER as $key) {
-            if ($isAdmin || $key === 'dashboard') {
+            if ($isAdmin) {
                 $out[] = $key;
+
+                continue;
+            }
+
+            if ($key === 'dashboard') {
+                if (isset($areaSet['dashboard'])) {
+                    $out[] = $key;
+                }
 
                 continue;
             }

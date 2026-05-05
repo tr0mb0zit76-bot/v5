@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
 use App\Support\MobileNavCatalog;
 use App\Support\RoleAccess;
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -54,62 +55,14 @@ class RoleManagementController extends Controller
 
     public function store(StoreRoleRequest $request): RedirectResponse
     {
-        $attributes = [
-            ...Arr::except($request->validated(), ['visibility_scopes']),
-            'permissions' => $request->validated('permissions', []),
-        ];
-
-        if (Schema::hasColumn('roles', 'visibility_scopes')) {
-            $attributes['visibility_scopes'] = $this->normalizeVisibilityScopes(
-                $request->validated('visibility_scopes', []),
-                $request->validated('visibility_areas', [])
-            );
-        }
-
-        if (Schema::hasColumn('roles', 'has_signing_authority')) {
-            $attributes['has_signing_authority'] = (bool) $request->validated('has_signing_authority', false);
-        }
-
-        if (Schema::hasColumn('roles', 'default_mobile_nav_keys')) {
-            $validated = $request->validated();
-            if (array_key_exists('default_mobile_nav_keys', $validated)) {
-                $keys = $validated['default_mobile_nav_keys'];
-                $attributes['default_mobile_nav_keys'] = is_array($keys) && $keys !== [] ? array_values($keys) : null;
-            }
-        }
-
-        Role::query()->create($attributes);
+        Role::query()->create($this->rolePersistAttributesFromFormRequest($request));
 
         return to_route('settings.roles.index');
     }
 
     public function update(UpdateRoleRequest $request, Role $role): RedirectResponse
     {
-        $attributes = [
-            ...Arr::except($request->validated(), ['visibility_scopes']),
-            'permissions' => $request->validated('permissions', []),
-        ];
-
-        if (Schema::hasColumn('roles', 'visibility_scopes')) {
-            $attributes['visibility_scopes'] = $this->normalizeVisibilityScopes(
-                $request->validated('visibility_scopes', []),
-                $request->validated('visibility_areas', [])
-            );
-        }
-
-        if (Schema::hasColumn('roles', 'has_signing_authority')) {
-            $attributes['has_signing_authority'] = (bool) $request->validated('has_signing_authority', false);
-        }
-
-        if (Schema::hasColumn('roles', 'default_mobile_nav_keys')) {
-            $validated = $request->validated();
-            if (array_key_exists('default_mobile_nav_keys', $validated)) {
-                $keys = $validated['default_mobile_nav_keys'];
-                $attributes['default_mobile_nav_keys'] = is_array($keys) && $keys !== [] ? array_values($keys) : null;
-            }
-        }
-
-        $role->update($attributes);
+        $role->update($this->rolePersistAttributesFromFormRequest($request));
 
         return to_route('settings.roles.index');
     }
@@ -143,5 +96,43 @@ class RoleManagementController extends Controller
                 return [$area => $mode];
             })
             ->all();
+    }
+
+    /**
+     * Явное сопоставление полей после валидации (без spread по validated()), чтобы области видимости и права точно попадали в БД.
+     *
+     * @return array<string, mixed>
+     */
+    private function rolePersistAttributesFromFormRequest(FormRequest $request): array
+    {
+        $validated = $request->validated();
+
+        $visibilityAreas = array_values(array_unique($validated['visibility_areas'] ?? []));
+
+        $attributes = [
+            'name' => $validated['name'],
+            'display_name' => $validated['display_name'],
+            'description' => $validated['description'] ?? null,
+            'permissions' => is_array($validated['permissions'] ?? null) ? $validated['permissions'] : [],
+            'visibility_areas' => $visibilityAreas,
+        ];
+
+        if (Schema::hasColumn('roles', 'visibility_scopes')) {
+            $attributes['visibility_scopes'] = $this->normalizeVisibilityScopes(
+                is_array($validated['visibility_scopes'] ?? null) ? $validated['visibility_scopes'] : [],
+                $visibilityAreas,
+            );
+        }
+
+        if (Schema::hasColumn('roles', 'has_signing_authority')) {
+            $attributes['has_signing_authority'] = (bool) ($validated['has_signing_authority'] ?? false);
+        }
+
+        if (Schema::hasColumn('roles', 'default_mobile_nav_keys') && array_key_exists('default_mobile_nav_keys', $validated)) {
+            $keys = $validated['default_mobile_nav_keys'];
+            $attributes['default_mobile_nav_keys'] = is_array($keys) && $keys !== [] ? array_values($keys) : null;
+        }
+
+        return $attributes;
     }
 }

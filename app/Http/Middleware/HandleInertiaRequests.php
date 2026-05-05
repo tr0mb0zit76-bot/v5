@@ -2,13 +2,15 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Role;
 use App\Support\CabinetNotificationBadges;
 use App\Support\DocumentUploadLimits;
 use App\Support\MobileNavResolver;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -35,75 +37,65 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        return [
+            ...parent::share($request),
+            'can_manage_sales_scripts' => Inertia::always(fn () => $request->user() !== null && RoleAccess::canManageSalesScripts($request->user())),
+            'flash' => fn () => $request->session()->get('flash'),
+            'cabinet_notification_badges' => Inertia::always(fn () => $request->user() === null
+                ? ['total' => 0, 'orders' => 0, 'tasks' => 0]
+                : CabinetNotificationBadges::unreadFor($request->user())),
+            'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
+            'auth' => Inertia::always(fn () => $this->sharedAuth($request)),
+        ];
+    }
+
+    /**
+     * @return array{user: ?array<string, mixed>}
+     */
+    private function sharedAuth(Request $request): array
+    {
         $user = $request->user();
         $hasRolesTable = Schema::hasTable('roles');
         $hasVisibilityAreasColumn = $hasRolesTable && Schema::hasColumn('roles', 'visibility_areas');
         $hasVisibilityScopesColumn = $hasRolesTable && Schema::hasColumn('roles', 'visibility_scopes');
 
+        if ($user === null) {
+            return ['user' => null];
+        }
+
         return [
-            ...parent::share($request),
-            'can_manage_sales_scripts' => fn () => $user !== null && RoleAccess::canManageSalesScripts($user),
-            'flash' => fn () => $request->session()->get('flash'),
-            'cabinet_notification_badges' => $user === null
-                ? ['total' => 0, 'orders' => 0, 'tasks' => 0]
-                : CabinetNotificationBadges::unreadFor($user),
-            'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
-            'auth' => [
-                'user' => $user === null ? null : [
-                    ...$user->toArray(),
-                    'mobile_nav' => MobileNavResolver::forInertiaUser($user),
-                    'role' => $user->role_id === null || ! $hasRolesTable ? null : (function () use ($user, $hasVisibilityAreasColumn, $hasVisibilityScopesColumn) {
-                        $columns = ['id', 'name', 'display_name', 'permissions', 'columns_config'];
+            'user' => [
+                ...Arr::except($user->toArray(), ['role']),
+                'mobile_nav' => MobileNavResolver::forInertiaUser($user),
+                'role' => $user->role_id === null || ! $hasRolesTable ? null : (function () use ($user, $hasVisibilityAreasColumn, $hasVisibilityScopesColumn): ?array {
+                    $roleModel = Role::query()->find($user->role_id);
 
-                        if ($hasVisibilityAreasColumn) {
-                            $columns[] = 'visibility_areas';
-                        }
+                    if ($roleModel === null) {
+                        return null;
+                    }
 
-                        if ($hasVisibilityScopesColumn) {
-                            $columns[] = 'visibility_scopes';
-                        }
+                    $rawVisibilityAreas = $hasVisibilityAreasColumn ? ($roleModel->visibility_areas ?? null) : null;
+                    $rawVisibilityScopes = $hasVisibilityScopesColumn ? ($roleModel->visibility_scopes ?? null) : null;
 
-                        $role = DB::table('roles')
-                            ->where('id', $user->role_id)
-                            ->select($columns)
-                            ->first();
+                    $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload(
+                        $roleModel->name,
+                        $rawVisibilityAreas,
+                    );
 
-                        if ($role === null) {
-                            return null;
-                        }
+                    $visibilityScopes = RoleAccess::coerceVisibilityScopes($rawVisibilityScopes);
 
-                        $rawPermissions = property_exists($role, 'permissions') ? $role->permissions : null;
-                        $rawVisibilityAreas = property_exists($role, 'visibility_areas') ? $role->visibility_areas : null;
-                        $rawVisibilityScopes = property_exists($role, 'visibility_scopes') ? $role->visibility_scopes : null;
-                        $rawColumnsConfig = property_exists($role, 'columns_config') ? $role->columns_config : null;
-
-                        $permissions = is_string($rawPermissions)
-                            ? json_decode($rawPermissions, true)
-                            : $rawPermissions;
-
-                        $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload(
-                            is_string($role->name ?? null) ? $role->name : null,
-                            $rawVisibilityAreas,
-                        );
-
-                        $columnsConfig = is_string($rawColumnsConfig)
-                            ? json_decode($rawColumnsConfig, true)
-                            : $rawColumnsConfig;
-                        $visibilityScopes = RoleAccess::coerceVisibilityScopes($rawVisibilityScopes);
-
-                        return [
-                            'id' => $role->id,
-                            'name' => $role->name,
-                            'display_name' => $role->display_name,
-                            'permissions' => is_array($permissions) ? $permissions : [],
-                            'visibility_areas' => $visibilityAreas,
-                            'visibility_scopes' => is_array($visibilityScopes)
-                                ? $visibilityScopes
-                                : RoleAccess::defaultVisibilityScopes($role->name),
-                            'columns_config' => is_array($columnsConfig) ? $columnsConfig : [],
-                        ];
-                    })(),
-                ],
+                    return [
+                        'id' => $roleModel->id,
+                        'name' => $roleModel->name,
+                        'display_name' => $roleModel->display_name,
+                        'permissions' => is_array($roleModel->permissions ?? null) ? $roleModel->permissions : [],
+                        'visibility_areas' => $visibilityAreas,
+                        'visibility_scopes' => is_array($visibilityScopes)
+                            ? $visibilityScopes
+                            : RoleAccess::defaultVisibilityScopes($roleModel->name),
+                        'columns_config' => is_array($roleModel->columns_config ?? null) ? $roleModel->columns_config : [],
+                    ];
+                })(),
             ],
         ];
     }

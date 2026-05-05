@@ -420,6 +420,20 @@ const createForm = useForm({
     visibility_scopes: {},
 });
 
+const visibilityAreaOptionsByKey = computed(() => Object.fromEntries(
+    props.visibilityAreaOptions.map((area) => [area.key, area]),
+));
+const allowedVisibilityAreaKeys = computed(() => new Set(props.visibilityAreaOptions.map((area) => area.key)));
+
+function sanitizeVisibilityAreas(areas) {
+    if (!Array.isArray(areas)) {
+        return [];
+    }
+
+    const allowed = allowedVisibilityAreaKeys.value;
+    return [...new Set(areas.filter((key) => typeof key === 'string' && allowed.has(key)))];
+}
+
 const roleColumns = ref(props.roles.map(cloneRole));
 
 /** Обновить таблицу из ответа Inertia (редирект после store/update/destroy), не из «тихих» перерисовок props. */
@@ -427,10 +441,6 @@ function replaceRoleColumnsFromInertiaPage(page) {
     const incoming = page?.props?.roles;
     roleColumns.value = Array.isArray(incoming) ? incoming.map(cloneRole) : [];
 }
-
-const visibilityAreaOptionsByKey = computed(() => Object.fromEntries(
-    props.visibilityAreaOptions.map((area) => [area.key, area]),
-));
 
 function deriveModuleModes(visibilityAreas) {
     const areas = visibilityAreas ?? [];
@@ -526,7 +536,7 @@ const visibilityMatrix = computed(() => visibilityGroupDefinitions.map((group) =
 }));
 
 function cloneRole(role) {
-    const visibilityAreas = Array.isArray(role.visibility_areas) ? [...role.visibility_areas] : [];
+    const visibilityAreas = sanitizeVisibilityAreas(role.visibility_areas);
 
     return {
         id: role.id,
@@ -608,7 +618,7 @@ function serializeRole(role) {
         display_name: role.display_name,
         description: role.description ?? '',
         permissions: Array.isArray(role.permissions) ? [...role.permissions] : [],
-        visibility_areas: Array.isArray(role.visibility_areas) ? [...role.visibility_areas] : [],
+        visibility_areas: sanitizeVisibilityAreas(role.visibility_areas),
         visibility_scopes: scopes,
         has_signing_authority: Boolean(role.has_signing_authority),
         default_mobile_nav_keys: Array.isArray(role.default_mobile_nav_keys)

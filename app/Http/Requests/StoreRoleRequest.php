@@ -26,7 +26,7 @@ class StoreRoleRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', Rule::in(RoleAccess::permissionKeys())],
-            'visibility_areas' => ['required', 'array'],
+            'visibility_areas' => ['required', 'array', 'min:1'],
             'visibility_areas.*' => ['string', Rule::in(RoleAccess::visibilityAreaKeys())],
             'visibility_scopes' => ['nullable', 'array'],
             'visibility_scopes.*' => ['array'],
@@ -34,6 +34,16 @@ class StoreRoleRequest extends FormRequest
             'has_signing_authority' => ['nullable', 'boolean'],
             'default_mobile_nav_keys' => ['sometimes', 'nullable', 'array', 'max:'.MobileNavCatalog::MAX_SELECTABLE],
             'default_mobile_nav_keys.*' => ['string', Rule::in(MobileNavCatalog::validKeys())],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'visibility_areas.min' => 'Нужно оставить хотя бы одну область видимости.',
         ];
     }
 }

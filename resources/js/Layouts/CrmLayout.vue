@@ -508,7 +508,7 @@ function menuBadgeFor(key) {
 
     return 0;
 }
-const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? ['dashboard']);
+const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? []);
 const hasLegacyAllSettingsAccess = computed(() => {
     const areas = visibleAreas.value;
     return areas.includes('settings') && !areas.includes('settings_system') && !areas.includes('settings_motivation');
@@ -563,8 +563,12 @@ function mobileNavItemsLegacy() {
     const items = MOBILE_NAV_DEF.filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports'].includes(item.key));
 
     return items.filter((item) => {
-        if (authUser.value?.role?.name === 'admin' || item.key === 'dashboard') {
+        if (authUser.value?.role?.name === 'admin') {
             return true;
+        }
+
+        if (item.key === 'dashboard') {
+            return visibleAreas.value.includes('dashboard');
         }
 
         if (item.key === 'kanban') {
@@ -682,7 +686,7 @@ const menuItems = computed(() => {
             : null;
 
     const items = [
-        { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
+        { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard, visibilityArea: 'dashboard' },
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Role;
 use App\Support\RoleAccess;
 use Closure;
 use Illuminate\Http\Request;
@@ -24,8 +25,8 @@ class EnsureVisibilityAreaAccess
             return $next($request);
         }
 
-        $user->loadMissing('role');
-        $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload($user->role?->name, $user->role?->visibility_areas);
+        $role = $user->role_id ? Role::query()->find($user->role_id) : null;
+        $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload($role?->name, $role?->visibility_areas);
 
         abort_unless(RoleAccess::hasVisibilityArea($visibilityAreas, $area), 403);
 
