@@ -24,10 +24,8 @@ class EnsureVisibilityAreaAccess
             return $next($request);
         }
 
-        $role = $user->role;
-        $visibilityAreas = is_array($role?->visibility_areas)
-            ? $role->visibility_areas
-            : RoleAccess::defaultVisibilityAreas($role?->name);
+        $user->loadMissing('role');
+        $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload($user->role?->name, $user->role?->visibility_areas);
 
         abort_unless(RoleAccess::hasVisibilityArea($visibilityAreas, $area), 403);
 

@@ -39,13 +39,10 @@ final class MobileNavResolver
 
             if ($role !== null) {
                 $roleName = $role->name;
-                $rawAreas = property_exists($role, 'visibility_areas') ? $role->visibility_areas : null;
-                if (is_string($rawAreas)) {
-                    $rawAreas = json_decode($rawAreas, true);
-                }
-                $visibleAreas = is_array($rawAreas)
-                    ? $rawAreas
-                    : RoleAccess::defaultVisibilityAreas($roleName);
+                $visibleAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload(
+                    $roleName,
+                    property_exists($role, 'visibility_areas') ? $role->visibility_areas : null,
+                );
 
                 if (Schema::hasColumn('roles', 'default_mobile_nav_keys') && property_exists($role, 'default_mobile_nav_keys')) {
                     $rawDefaults = $role->default_mobile_nav_keys;

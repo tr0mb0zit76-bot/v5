@@ -81,9 +81,10 @@ class HandleInertiaRequests extends Middleware
                             ? json_decode($rawPermissions, true)
                             : $rawPermissions;
 
-                        $visibilityAreas = is_string($rawVisibilityAreas)
-                            ? json_decode($rawVisibilityAreas, true)
-                            : $rawVisibilityAreas;
+                        $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload(
+                            is_string($role->name ?? null) ? $role->name : null,
+                            $rawVisibilityAreas,
+                        );
 
                         $columnsConfig = is_string($rawColumnsConfig)
                             ? json_decode($rawColumnsConfig, true)
@@ -95,9 +96,7 @@ class HandleInertiaRequests extends Middleware
                             'name' => $role->name,
                             'display_name' => $role->display_name,
                             'permissions' => is_array($permissions) ? $permissions : [],
-                            'visibility_areas' => is_array($visibilityAreas)
-                                ? $visibilityAreas
-                                : RoleAccess::defaultVisibilityAreas($role->name),
+                            'visibility_areas' => $visibilityAreas,
                             'visibility_scopes' => is_array($visibilityScopes)
                                 ? $visibilityScopes
                                 : RoleAccess::defaultVisibilityScopes($role->name),

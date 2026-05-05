@@ -27,10 +27,8 @@ class EnsureVisibilityAnyAreaAccess
         // Use "|" so Laravel does not treat "," as a delimiter between middleware parameters.
         $required = array_values(array_filter(array_map('trim', explode('|', $areasList))));
 
-        $role = $user->role;
-        $visibilityAreas = is_array($role?->visibility_areas)
-            ? $role->visibility_areas
-            : RoleAccess::defaultVisibilityAreas($role?->name);
+        $user->loadMissing('role');
+        $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload($user->role?->name, $user->role?->visibility_areas);
 
         foreach ($required as $area) {
             if (RoleAccess::hasVisibilityArea($visibilityAreas, $area)) {

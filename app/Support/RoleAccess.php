@@ -267,16 +267,52 @@ class RoleAccess
      */
     public static function userVisibilityAreas(User $user): array
     {
-        $role = $user->role;
+        $user->loadMissing('role');
 
-        return is_array($role?->visibility_areas)
-            ? $role->visibility_areas
-            : static::defaultVisibilityAreas($role?->name);
+        return static::effectiveVisibilityAreasFromRolePayload(
+            $user->role?->name,
+            $user->role?->visibility_areas,
+        );
     }
 
     /**
-     * @param  list<string>  $areas
+     * Единые правила: null / не-массив / пустой массив в БД → дефолты по коду роли;
+     * легаси «только scripts» раскрывается в подмодули для согласованности с каналом авторизации и меню.
+     *
+     * @return list<string>
      */
+    public static function effectiveVisibilityAreasFromRolePayload(?string $roleName, mixed $raw): array
+    {
+        $areas = $raw;
+
+        if (is_string($areas)) {
+            $decoded = json_decode($areas, true);
+            $areas = is_array($decoded) ? $decoded : null;
+        }
+
+        if (! is_array($areas) || $areas === []) {
+            $areas = static::defaultVisibilityAreas($roleName);
+        }
+
+        $filtered = [];
+
+        foreach ($areas as $key) {
+            if (is_string($key) && $key !== '') {
+                $filtered[] = $key;
+            }
+        }
+
+        if ($filtered === []) {
+            return static::defaultVisibilityAreas($roleName);
+        }
+
+        $expanded = static::expandLegacySalesAssistantVisibilityAreas(array_values(array_unique($filtered)));
+
+        return $expanded !== []
+            ? $expanded
+            : static::defaultVisibilityAreas($roleName);
+    }
+
     /**
      * @return list<string>
      */

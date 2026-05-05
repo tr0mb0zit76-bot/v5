@@ -422,6 +422,12 @@ const createForm = useForm({
 
 const roleColumns = ref(props.roles.map(cloneRole));
 
+/** Обновить таблицу из ответа Inertia (редирект после store/update/destroy), не из «тихих» перерисовок props. */
+function replaceRoleColumnsFromInertiaPage(page) {
+    const incoming = page?.props?.roles;
+    roleColumns.value = Array.isArray(incoming) ? incoming.map(cloneRole) : [];
+}
+
 const visibilityAreaOptionsByKey = computed(() => Object.fromEntries(
     props.visibilityAreaOptions.map((area) => [area.key, area]),
 ));
@@ -520,7 +526,7 @@ const visibilityMatrix = computed(() => visibilityGroupDefinitions.map((group) =
 }));
 
 function cloneRole(role) {
-    const visibilityAreas = [...role.visibility_areas];
+    const visibilityAreas = Array.isArray(role.visibility_areas) ? [...role.visibility_areas] : [];
 
     return {
         id: role.id,
@@ -528,7 +534,7 @@ function cloneRole(role) {
         display_name: role.display_name,
         description: role.description || '',
         users_count: role.users_count,
-        permissions: [...role.permissions],
+        permissions: Array.isArray(role.permissions) ? [...role.permissions] : [],
         visibility_areas: visibilityAreas,
         visibility_scopes: normalizeScopes(role.visibility_scopes || {}),
         has_signing_authority: Boolean(role.default_has_signing_authority),
@@ -563,9 +569,11 @@ function indentClass(level) {
 function createRole() {
     createForm.post(route('roles.store'), {
         preserveScroll: true,
-        onSuccess: () => {
+        preserveState: true,
+        onSuccess: (page) => {
             createForm.reset();
             showCreateForm.value = false;
+            replaceRoleColumnsFromInertiaPage(page);
         },
     });
 }
@@ -576,6 +584,9 @@ function saveRole(role) {
     router.patch(route('roles.update', role.id), serializeRole(role), {
         preserveScroll: true,
         preserveState: true,
+        onSuccess: (page) => {
+            replaceRoleColumnsFromInertiaPage(page);
+        },
         onFinish: () => {
             savingRoleId.value = null;
         },
@@ -583,17 +594,26 @@ function saveRole(role) {
 }
 
 function serializeRole(role) {
+    const scopes = {};
+
+    for (const [key, value] of Object.entries(role.visibility_scopes ?? {})) {
+        const mode = value?.mode;
+        if (mode === 'own' || mode === 'all') {
+            scopes[key] = { mode };
+        }
+    }
+
     return {
         name: role.name,
         display_name: role.display_name,
-        description: role.description,
-        permissions: role.permissions,
-        visibility_areas: role.visibility_areas,
-        visibility_scopes: Object.fromEntries(
-            Object.entries(role.visibility_scopes).map(([key, value]) => [key, { mode: value.mode }]),
-        ),
-        has_signing_authority: role.has_signing_authority,
-        default_mobile_nav_keys: role.default_mobile_nav_keys,
+        description: role.description ?? '',
+        permissions: Array.isArray(role.permissions) ? [...role.permissions] : [],
+        visibility_areas: Array.isArray(role.visibility_areas) ? [...role.visibility_areas] : [],
+        visibility_scopes: scopes,
+        has_signing_authority: Boolean(role.has_signing_authority),
+        default_mobile_nav_keys: Array.isArray(role.default_mobile_nav_keys)
+            ? [...role.default_mobile_nav_keys]
+            : role.default_mobile_nav_keys,
     };
 }
 
@@ -615,6 +635,10 @@ function removeRole(role) {
 
     router.delete(route('roles.destroy', role.id), {
         preserveScroll: true,
+        preserveState: true,
+        onSuccess: (page) => {
+            replaceRoleColumnsFromInertiaPage(page);
+        },
     });
 }
 
