@@ -113,9 +113,9 @@ class PrintFormPlaceholderPathResolver
             'kontakt_na_zagruzke' => 'cargo_sender.contact_phone',
             'kontakt_na_vygruzke' => 'cargo_recipient.contact_phone',
             'cargo_summary' => 'cargo.summary',
-            'stoimost' => 'order.customer_rate',
-            'stoimost\'_zak' => 'order.customer_rate',
-            'stoimost\'_perevoz' => 'order.carrier_rate',
+            'stoimost' => 'order.customer_rate_with_currency',
+            'stoimost\'_zak' => 'order.customer_rate_with_currency',
+            'stoimost\'_perevoz' => 'order.carrier_rate_with_currency',
             'forma_oplaty' => 'order.customer_payment_form',
             'usloviya_oplaty' => 'order.customer_payment_term',
             'primechanya' => 'order.special_notes',
@@ -141,6 +141,7 @@ class PrintFormPlaceholderPathResolver
             'fio_podpisant_im' => 'customer.signer_name_nominative',
             'fio_podpisant_rod' => 'customer.signer_name_prepositional',
             'dolzhn_podpisant' => 'customer.signer_position',
+            'dolzhn_podpisant_rod' => 'customer.signer_position_genitive_auto',
             'poln_nazv_perevoz' => 'carrier.full_name',
             'kratk_nazv_perev' => 'carrier.name',
             'inn_perev' => 'carrier.inn',
@@ -155,6 +156,7 @@ class PrintFormPlaceholderPathResolver
             'fio_podpisant_perevoz_im' => 'carrier.signer_name_nominative',
             'fio_podpisant_perevoz_rod' => 'carrier.signer_name_prepositional',
             'podpisant_perevoz' => 'carrier.signer_position',
+            'podpisant_perevoz_rod' => 'carrier.signer_position_genitive_auto',
         ];
     }
 }

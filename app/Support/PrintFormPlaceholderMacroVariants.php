@@ -23,11 +23,6 @@ final class PrintFormPlaceholderMacroVariants
             return [];
         }
 
-        return array_values(array_unique([
-            $t,
-            ' '.$t,
-            $t.' ',
-            ' '.$t.' ',
-        ]));
+        return [$t];
     }
 }

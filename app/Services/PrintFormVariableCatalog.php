@@ -18,6 +18,8 @@ class PrintFormVariableCatalog
             ['value' => 'order.status', 'label' => 'Заказ: Статус'],
             ['value' => 'order.customer_rate', 'label' => 'Заказ: Ставка клиента'],
             ['value' => 'order.carrier_rate', 'label' => 'Заказ: Ставка перевозчика'],
+            ['value' => 'order.customer_rate_with_currency', 'label' => 'Заказ: Ставка клиента (с валютой)'],
+            ['value' => 'order.carrier_rate_with_currency', 'label' => 'Заказ: Ставка перевозчика (с валютой)'],
             ['value' => 'order.customer_payment_form', 'label' => 'Заказ: Форма оплаты клиента'],
             ['value' => 'order.customer_payment_term', 'label' => 'Заказ: Оплата по клиенту'],
             ['value' => 'order.carrier_payment_form', 'label' => 'Заказ: Форма оплаты перевозчику'],
@@ -56,6 +58,7 @@ class PrintFormVariableCatalog
             ['value' => 'customer.signer_name_nominative', 'label' => 'Заказчик: Подписант, именительный'],
             ['value' => 'customer.signer_name_prepositional', 'label' => 'Заказчик: Подписант, родительный'],
             ['value' => 'customer.signer_position', 'label' => 'Заказчик: Должность подписанта'],
+            ['value' => 'customer.signer_position_genitive_auto', 'label' => 'Заказчик: Должность подписанта (авто, родительный)'],
             ['value' => 'customer.signer_authority_basis', 'label' => 'Заказчик: Основание подписи'],
 
             ['value' => 'carrier.name', 'label' => 'Перевозчик: Наименование'],
@@ -76,6 +79,7 @@ class PrintFormVariableCatalog
             ['value' => 'carrier.signer_name_nominative', 'label' => 'Перевозчик: Подписант, именительный'],
             ['value' => 'carrier.signer_name_prepositional', 'label' => 'Перевозчик: Подписант, предложный'],
             ['value' => 'carrier.signer_position', 'label' => 'Перевозчик: Должность подписанта'],
+            ['value' => 'carrier.signer_position_genitive_auto', 'label' => 'Перевозчик: Должность подписанта (авто, родительный)'],
             ['value' => 'carrier.signer_authority_basis', 'label' => 'Перевозчик: Основание подписи'],
 
             ['value' => 'own_company.name', 'label' => 'Своя компания: Наименование'],
@@ -93,6 +97,7 @@ class PrintFormVariableCatalog
             ['value' => 'own_company.signer_name_nominative', 'label' => 'Своя компания: Подписант, именительный'],
             ['value' => 'own_company.signer_name_prepositional', 'label' => 'Своя компания: Подписант, предложный'],
             ['value' => 'own_company.signer_position', 'label' => 'Своя компания: Должность подписанта'],
+            ['value' => 'own_company.signer_position_genitive_auto', 'label' => 'Своя компания: Должность подписанта (авто, родительный)'],
             ['value' => 'own_company.signer_authority_basis', 'label' => 'Своя компания: Основание подписи'],
 
             ['value' => 'manager.name', 'label' => 'Менеджер: Имя'],
@@ -189,6 +194,7 @@ class PrintFormVariableCatalog
             ['value' => 'counterparty.signer_name_nominative', 'label' => 'Контрагент: Подписант, именительный'],
             ['value' => 'counterparty.signer_name_prepositional', 'label' => 'Контрагент: Подписант, предложный'],
             ['value' => 'counterparty.signer_position', 'label' => 'Контрагент: Должность подписанта'],
+            ['value' => 'counterparty.signer_position_genitive_auto', 'label' => 'Контрагент: Должность подписанта (авто, родительный)'],
             ['value' => 'counterparty.signer_authority_basis', 'label' => 'Контрагент: Основание подписи'],
             ['value' => 'manager.name', 'label' => 'Менеджер: Имя'],
             ['value' => 'manager.email', 'label' => 'Менеджер: Email'],

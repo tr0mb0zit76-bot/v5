@@ -12,6 +12,7 @@ use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
+use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -244,6 +245,14 @@ class OrderPrintFormDraftService
                 'status' => $order->status,
                 'customer_rate' => $this->formatMoney($order->customer_rate),
                 'carrier_rate' => $this->formatMoney($this->resolveCarrierRateValue($order)),
+                'customer_rate_with_currency' => $this->formatMoneyWithCurrency(
+                    $order->customer_rate,
+                    $this->resolveCustomerCurrencyCode($order, $paymentTermsPayload),
+                ),
+                'carrier_rate_with_currency' => $this->formatMoneyWithCurrency(
+                    $this->resolveCarrierRateValue($order),
+                    $this->resolveCarrierCurrencyCode($order, $paymentTermsPayload),
+                ),
                 'customer_payment_form' => $this->resolveCustomerPaymentFormDisplay($order, $paymentTermsPayload),
                 'customer_payment_term' => $this->resolveCustomerPaymentTermDisplay($order, $paymentTermsPayload),
                 'carrier_payment_form' => $this->resolveCarrierPaymentFormDisplay($order, $paymentTermsPayload),
@@ -478,6 +487,7 @@ class OrderPrintFormDraftService
                     'stage' => $c['stage'] ?? null,
                     'contractor_id' => isset($c['contractor_id']) && $c['contractor_id'] !== null ? (int) $c['contractor_id'] : null,
                     'payment_form' => $c['payment_form'] ?? null,
+                    'currency' => $c['currency'] ?? null,
                     'payment_schedule' => $schedule,
                 ];
             })
@@ -593,6 +603,44 @@ class OrderPrintFormDraftService
         return PaymentScheduleSummaryFormatter::humanizeStoredSummary($order->carrier_payment_term);
     }
 
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     */
+    private function resolveCustomerCurrencyCode(Order $order, ?array $paymentTermsPayload): string
+    {
+        $fromPayload = data_get($paymentTermsPayload, 'client.currency')
+            ?? data_get($paymentTermsPayload, 'client.client_currency')
+            ?? data_get($paymentTermsPayload, 'client_currency');
+
+        $currency = is_string($fromPayload) && trim($fromPayload) !== ''
+            ? strtoupper(trim($fromPayload))
+            : 'RUB';
+
+        return $currency;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     */
+    private function resolveCarrierCurrencyCode(Order $order, ?array $paymentTermsPayload): string
+    {
+        $carriers = data_get($paymentTermsPayload, 'carriers');
+        if (is_array($carriers) && $carriers !== []) {
+            $currencies = collect($carriers)
+                ->pluck('currency')
+                ->filter(fn (mixed $v): bool => is_string($v) && trim($v) !== '')
+                ->map(fn (string $v): string => strtoupper(trim($v)))
+                ->unique()
+                ->values();
+
+            if ($currencies->count() === 1) {
+                return (string) $currencies->first();
+            }
+        }
+
+        return 'RUB';
+    }
+
     public function loadOrderContext(Order $order): Order
     {
         $relations = ['client', 'carrier', 'ownCompany', 'manager'];
@@ -651,6 +699,7 @@ class OrderPrintFormDraftService
             'signer_name_nominative' => $contractor?->signer_name_nominative,
             'signer_name_prepositional' => $contractor?->signer_name_prepositional,
             'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
+            'signer_position_genitive_auto' => RussianPositionInflector::toGenitive($contractor?->signer_position ?? $contractor?->contact_person_position),
             'signer_authority_basis' => $contractor?->signer_authority_basis,
         ];
     }
@@ -1355,7 +1404,7 @@ class OrderPrintFormDraftService
 
         // Шаблон перевозчика: «стоимость» — ставка перевозчика (в т.ч. stoimost'_zak в DOCX).
         if ($template->party === 'carrier' && $this->normalizedPlaceholderIsCarrierContractValue($placeholder)) {
-            return 'order.carrier_rate';
+            return 'order.carrier_rate_with_currency';
         }
 
         // В заказе «тип ТС» не используем; раньше давало «тягач» из флота. Нужен кузов из груза.
@@ -1382,6 +1431,20 @@ class OrderPrintFormDraftService
         }
 
         return number_format((float) $value, 2, ',', ' ');
+    }
+
+    private function formatMoneyWithCurrency(mixed $value, ?string $currencyCode): ?string
+    {
+        $money = $this->formatMoney($value);
+        if ($money === null) {
+            return null;
+        }
+
+        $currency = is_string($currencyCode) && trim($currencyCode) !== ''
+            ? strtoupper(trim($currencyCode))
+            : 'RUB';
+
+        return $money.' '.$currency;
     }
 
     private function formatNumber(mixed $value): string

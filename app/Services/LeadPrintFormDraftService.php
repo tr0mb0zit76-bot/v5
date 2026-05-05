@@ -7,6 +7,7 @@ use App\Models\Lead;
 use App\Models\PrintFormTemplate;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
+use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -314,6 +315,7 @@ class LeadPrintFormDraftService
             'signer_name_nominative' => $contractor?->signer_name_nominative,
             'signer_name_prepositional' => $contractor?->signer_name_prepositional,
             'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
+            'signer_position_genitive_auto' => RussianPositionInflector::toGenitive($contractor?->signer_position ?? $contractor?->contact_person_position),
             'signer_authority_basis' => $contractor?->signer_authority_basis,
         ];
     }
