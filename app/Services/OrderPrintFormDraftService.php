@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Contractor;
 use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
 use App\Models\Order;
@@ -272,7 +273,7 @@ class OrderPrintFormDraftService
                 'all_contact_phones' => $this->resolvePartyContactPhoneList($unloadingPoints, 'recipient_contact', 'recipient_phone'),
             ],
             'customer' => $this->contractorPayload($order->client),
-            'carrier' => $this->contractorPayload($order->carrier),
+            'carrier' => $this->contractorPayload($this->resolveCarrierContractorForPrint($order)),
             'own_company' => $this->contractorPayload($order->ownCompany),
             'manager' => [
                 'name' => $order->manager?->name,
@@ -414,17 +415,112 @@ class OrderPrintFormDraftService
     private function decodeOrderPaymentTermsPayload(Order $order): ?array
     {
         $raw = $order->getAttribute('payment_terms');
+        if (($raw === null || $raw === '') && Schema::hasTable('financial_terms')) {
+            $ft = $order->financialTerms->first();
+            if ($ft !== null && Schema::hasColumn($ft->getTable(), 'payment_terms_snapshot')) {
+                $snap = $ft->getAttribute('payment_terms_snapshot');
+                if (filled($snap)) {
+                    $raw = $snap;
+                }
+            }
+        }
+
         if ($raw === null || $raw === '') {
-            return null;
+            $fromCostsOnly = $this->mergeCarriersFromFinancialTermsIfMissing($order, []);
+
+            return isset($fromCostsOnly['carriers']) && $fromCostsOnly['carriers'] !== []
+                ? $fromCostsOnly
+                : null;
         }
 
         if (is_array($raw)) {
-            return $raw;
+            return $this->mergeCarriersFromFinancialTermsIfMissing($order, $raw);
         }
 
         $decoded = json_decode((string) $raw, true);
 
-        return is_array($decoded) ? $decoded : null;
+        return is_array($decoded) ? $this->mergeCarriersFromFinancialTermsIfMissing($order, $decoded) : null;
+    }
+
+    /**
+     * В печатной форме нужен тот же блок «перевозчики», что в мастере: он может жить только в {@see FinancialTerm::contractors_costs}.
+     *
+     * @param  array<string, mixed>  $decoded
+     * @return array<string, mixed>
+     */
+    private function mergeCarriersFromFinancialTermsIfMissing(Order $order, array $decoded): array
+    {
+        $carriers = $decoded['carriers'] ?? null;
+        if (is_array($carriers) && $carriers !== []) {
+            return $decoded;
+        }
+
+        if (! $order->relationLoaded('financialTerms')) {
+            return $decoded;
+        }
+
+        $ft = $order->financialTerms->first();
+        $costs = is_array($ft?->contractors_costs) ? $ft->contractors_costs : [];
+        if ($costs === []) {
+            return $decoded;
+        }
+
+        $decoded['carriers'] = collect($costs)
+            ->map(function (array $c): array {
+                $schedule = $c['payment_schedule'] ?? [];
+                if (! is_array($schedule)) {
+                    $schedule = [];
+                }
+
+                return [
+                    'stage' => $c['stage'] ?? null,
+                    'contractor_id' => isset($c['contractor_id']) && $c['contractor_id'] !== null ? (int) $c['contractor_id'] : null,
+                    'payment_form' => $c['payment_form'] ?? null,
+                    'payment_schedule' => $schedule,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return $decoded;
+    }
+
+    /**
+     * Реквизиты перевозчика: при пустом {@see Order::$carrier_id} берём контрагента из первой строки затрат по плечу.
+     */
+    private function resolveCarrierContractorForPrint(Order $order): mixed
+    {
+        if ($order->carrier) {
+            return $order->carrier;
+        }
+
+        $contractorId = $this->firstCarrierContractorIdFromFinancialTerms($order);
+        if ($contractorId !== null) {
+            return Contractor::query()->find($contractorId) ?? $order->carrier;
+        }
+
+        return $order->carrier;
+    }
+
+    private function firstCarrierContractorIdFromFinancialTerms(Order $order): ?int
+    {
+        if (! $order->relationLoaded('financialTerms')) {
+            return null;
+        }
+
+        $ft = $order->financialTerms->first();
+        $costs = is_array($ft?->contractors_costs) ? $ft->contractors_costs : [];
+        foreach ($costs as $c) {
+            if (! is_array($c)) {
+                continue;
+            }
+            $id = $c['contractor_id'] ?? null;
+            if ($id !== null && (int) $id > 0) {
+                return (int) $id;
+            }
+        }
+
+        return null;
     }
 
     /**
