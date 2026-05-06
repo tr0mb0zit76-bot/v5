@@ -10,34 +10,58 @@
             </div>
             <button
                 type="button"
-                class="inline-flex items-center gap-2 rounded-xl border border-emerald-200/90 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/45"
+                :class="crmBtnCreate"
                 @click="openCreateModal()"
             >
                 Добавить документ
             </button>
         </div>
 
-        <DocumentsGrid :rows="props.rows" :user-id="userId" @open-create="openCreateModal" />
+        <div class="flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                class="inline-flex items-center rounded-xl border px-3 py-1.5 text-sm transition"
+                :class="viewMode === 'all'
+                    ? 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                @click="viewMode = 'all'"
+            >
+                Все документы ({{ props.rows.length }})
+            </button>
+            <button
+                type="button"
+                class="inline-flex items-center rounded-xl border px-3 py-1.5 text-sm transition"
+                :class="viewMode === 'etrn'
+                    ? 'border-emerald-800 bg-emerald-900 text-white dark:border-emerald-200 dark:bg-emerald-200 dark:text-emerald-950'
+                    : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                @click="viewMode = 'etrn'"
+            >
+                Журнал ЭТрН ({{ etrnRows.length }})
+            </button>
+        </div>
 
-        <Modal :show="showDocumentModal" max-width="2xl" @close="closeDocumentModal">
-            <section class="bg-white dark:bg-zinc-900">
+        <DocumentsGrid :rows="visibleRows" :user-id="userId" @open-create="openCreateModal" />
+
+        <Modal :show="showDocumentModal" max-width="xl" @close="closeDocumentModal">
+            <section class="overflow-y-auto bg-white dark:bg-zinc-900">
                 <CrmModalHeader
+                    :eyebrow="modalMode === 'create' ? 'Новый документ' : 'Редактирование документа'"
                     :title="modalMode === 'create' ? 'Добавить документ' : 'Редактировать документ'"
                     @close="closeDocumentModal"
                 />
-                <form class="space-y-3 px-5 pb-5 pt-2 dark:bg-zinc-900" @submit.prevent="submitDocument">
-                    <div class="grid gap-3 md:grid-cols-2">
+                <form class="space-y-4 px-6 pb-6 pt-2" @submit.prevent="submitDocument">
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div>
-                            <label class="text-xs text-zinc-500">Заказ</label>
-                            <select v-model="documentForm.order_id" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" required>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Заказ</label>
+                            <select v-model="documentForm.order_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
                                 <option :value="null" disabled>Выберите заказ</option>
                                 <option v-for="order in props.orders" :key="`ord-${order.id}`" :value="order.id">{{ orderLabel(order) }}</option>
                             </select>
                             <p v-if="documentForm.errors.order_id" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.order_id }}</p>
                         </div>
                         <div>
-                            <label class="text-xs text-zinc-500">Сторона</label>
-                            <select v-model="documentForm.party" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" required>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Сторона</label>
+                            <select v-model="documentForm.party" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
                                 <option value="customer">Заказчик</option>
                                 <option value="carrier">Перевозчик</option>
                                 <option value="internal">Внутренний</option>
@@ -45,17 +69,17 @@
                             <p v-if="documentForm.errors.party" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.party }}</p>
                         </div>
                     </div>
-                    <div class="grid gap-3 md:grid-cols-2">
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div>
-                            <label class="text-xs text-zinc-500">Тип документа</label>
-                            <select v-model="documentForm.type" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" required>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Тип документа</label>
+                            <select v-model="documentForm.type" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
                                 <option v-for="type in documentTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                             </select>
                             <p v-if="documentForm.errors.type" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.type }}</p>
                         </div>
                         <div>
-                            <label class="text-xs text-zinc-500">Статус</label>
-                            <select v-model="documentForm.status" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" required>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Статус</label>
+                            <select v-model="documentForm.status" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
                                 <option value="draft">Черновик</option>
                                 <option value="pending">Ожидает</option>
                                 <option value="signed">Подписан</option>
@@ -64,35 +88,35 @@
                             <p v-if="documentForm.errors.status" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.status }}</p>
                         </div>
                     </div>
-                    <div class="grid gap-3 md:grid-cols-2">
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div>
-                            <label class="text-xs text-zinc-500">Номер документа</label>
-                            <input v-model="documentForm.number" type="text" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Номер документа</label>
+                            <input v-model="documentForm.number" type="text" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
                             <p v-if="documentForm.errors.number" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.number }}</p>
                         </div>
                         <div>
-                            <label class="text-xs text-zinc-500">Дата документа</label>
-                            <input v-model="documentForm.document_date" type="date" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Дата документа</label>
+                            <input v-model="documentForm.document_date" type="date" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
                             <p v-if="documentForm.errors.document_date" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.document_date }}</p>
                         </div>
                     </div>
                     <div>
-                        <label class="text-xs text-zinc-500">Файл</label>
+                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Файл</label>
                         <p v-if="documentUploadHint" class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
-                        <input type="file" class="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" @change="onFilePicked">
+                        <input type="file" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" @change="onFilePicked">
                         <p v-if="documentForm.errors.file" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.file }}</p>
                     </div>
-                    <div class="flex justify-end gap-2 pt-1">
+                    <div class="flex justify-end gap-2 pt-2">
                         <button
                             type="button"
-                            class="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            :class="crmBtnNeutral"
                             @click="closeDocumentModal"
                         >
                             Отмена
                         </button>
                         <button
                             type="submit"
-                            class="inline-flex items-center rounded-xl border border-emerald-200/90 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900 shadow-sm hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/45"
+                            :class="crmBtnCreate"
                             :disabled="documentForm.processing"
                         >
                             {{ modalMode === 'create' ? 'Добавить' : 'Сохранить' }}
@@ -112,6 +136,7 @@ import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import DocumentsGrid from '@/Components/Documents/DocumentsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'documents' }, () => page),
@@ -128,6 +153,14 @@ const documentUploadHint = computed(() => page.props.document_upload_limits?.hin
 const showDocumentModal = ref(false);
 const modalMode = ref('create');
 const editingDocumentId = ref(null);
+const viewMode = ref('all');
+
+const etrnRows = computed(() => {
+    return props.rows.filter((row) => Array.isArray(row.transport_docs)
+        && row.transport_docs.some((document) => document?.type === 'etrn'));
+});
+
+const visibleRows = computed(() => (viewMode.value === 'etrn' ? etrnRows.value : props.rows));
 
 const documentTypes = [
     { value: 'invoice', label: 'Счёт' },
@@ -136,6 +169,7 @@ const documentTypes = [
     { value: 'invoice_factura', label: 'Счёт-фактура' },
     { value: 'contract_request', label: 'Договор' },
     { value: 'waybill', label: 'Транспортная накладная' },
+    { value: 'etrn', label: 'ЭТрН' },
     { value: 'cmr', label: 'CMR' },
     { value: 'packing_list', label: 'Упаковочный лист' },
     { value: 'customs_declaration', label: 'Таможенная декларация' },

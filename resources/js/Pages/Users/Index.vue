@@ -10,7 +10,7 @@
 
             <button
                 type="button"
-                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                :class="crmBtnCreate"
                 @click="openCreateModal"
             >
                 <Plus class="h-4 w-4" />
@@ -119,142 +119,157 @@
             </div>
         </div>
 
-        <Teleport to="body">
-            <div
-                v-if="showModal"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-                @click.self="closeModal"
-            >
-                <div class="w-full max-w-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
-                    <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-                        <div>
-                            <div class="text-lg font-semibold">
-                                {{ editingUser === null ? 'Новый пользователь' : 'Редактирование пользователя' }}
-                            </div>
-                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                {{ editingUser === null ? 'Создание учетной записи и назначение роли' : 'Изменение роли, статуса и базовых данных' }}
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            class="rounded-xl p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                            @click="closeModal"
-                        >
-                            <X class="h-5 w-5" />
-                        </button>
+        <Modal :show="showModal" max-width="xl" @close="closeModal">
+            <section class="max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900">
+                <CrmModalHeader
+                    eyebrow="Пользователи"
+                    :title="editingUser === null ? 'Новый пользователь' : 'Редактирование пользователя'"
+                    @close="closeModal"
+                >
+                    {{ editingUser === null ? 'Создание учётной записи и назначение роли' : 'Изменение роли, статуса и базовых данных' }}
+                </CrmModalHeader>
+
+                <form class="space-y-4 px-6 py-5" @submit.prevent="submit">
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Имя</label>
+                        <input
+                            v-model="form.name"
+                            type="text"
+                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                        />
+                        <div v-if="form.errors.name" class="mt-1 text-sm text-rose-600">{{ form.errors.name }}</div>
                     </div>
 
-                    <form class="space-y-4 px-5 py-5" @submit.prevent="submit">
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Имя</label>
-                            <input
-                                v-model="form.name"
-                                type="text"
-                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
-                            />
-                            <div v-if="form.errors.name" class="text-sm text-rose-600">{{ form.errors.name }}</div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Email</label>
+                        <input
+                            v-model="form.email"
+                            type="email"
+                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                        />
+                        <div v-if="form.errors.email" class="mt-1 text-sm text-rose-600">{{ form.errors.email }}</div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Роль</label>
+                            <select
+                                v-model="form.role_id"
+                                class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                            >
+                                <option :value="null">Без роли</option>
+                                <option v-for="role in roles" :key="role.id" :value="role.id">
+                                    {{ role.display_name || role.name }}
+                                </option>
+                            </select>
+                            <div v-if="form.errors.role_id" class="mt-1 text-sm text-rose-600">{{ form.errors.role_id }}</div>
                         </div>
 
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Email</label>
+                        <label class="flex items-center gap-3 pt-8 text-sm text-zinc-700 dark:text-zinc-200">
                             <input
-                                v-model="form.email"
-                                type="email"
-                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
-                            />
-                            <div v-if="form.errors.email" class="text-sm text-rose-600">{{ form.errors.email }}</div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Роль</label>
-                                <select
-                                    v-model="form.role_id"
-                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
-                                >
-                                    <option :value="null">Без роли</option>
-                                    <option v-for="role in roles" :key="role.id" :value="role.id">
-                                        {{ role.display_name || role.name }}
-                                    </option>
-                                </select>
-                                <div v-if="form.errors.role_id" class="text-sm text-rose-600">{{ form.errors.role_id }}</div>
-                            </div>
-
-                            <label class="flex items-center gap-3 pt-8 text-sm">
-                                <input
-                                    v-model="form.is_active"
-                                    type="checkbox"
-                                    class="rounded border-zinc-300"
-                                />
-                                Активный пользователь
-                            </label>
-                        </div>
-
-                        <label class="flex items-start gap-3 border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
-                            <input
-                                v-model="form.has_signing_authority"
+                                v-model="form.is_active"
                                 type="checkbox"
-                                class="mt-1 rounded border-zinc-300"
+                                class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
                             />
-                            <div>
-                                <div class="font-medium">Имеет право подписи (согласование заявок)</div>
-                                <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                    Не зависит от роли: при включении пользователь видит в заказе кнопки «Подписать» / «Отказать» для документов по шаблону, отправленных на согласование.
-                                </div>
-                            </div>
+                            Активный пользователь
                         </label>
+                    </div>
 
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">
-                                    {{ editingUser === null ? 'Пароль' : 'Новый пароль' }}
-                                </label>
+                    <label class="flex items-start gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
+                        <input
+                            v-model="form.has_signing_authority"
+                            type="checkbox"
+                            class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                        />
+                        <div>
+                            <div class="font-medium text-zinc-900 dark:text-zinc-50">Имеет право подписи (согласование заявок)</div>
+                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                Не зависит от роли: при включении пользователь видит в заказе кнопки «Подписать» / «Отказать» для документов по шаблону, отправленных на согласование.
+                            </div>
+                        </div>
+                    </label>
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                {{ editingUser === null ? 'Пароль' : 'Новый пароль' }}
+                            </label>
+                            <div class="relative mt-2">
                                 <input
                                     v-model="form.password"
-                                    type="password"
-                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
+                                    :type="passwordVisible ? 'text' : 'password'"
+                                    autocomplete="new-password"
+                                    class="w-full rounded-xl border border-zinc-200 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
                                 />
-                                <div v-if="form.errors.password" class="text-sm text-rose-600">{{ form.errors.password }}</div>
+                                <button
+                                    type="button"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    :aria-pressed="passwordVisible"
+                                    :title="passwordVisible ? 'Скрыть пароль' : 'Показать пароль'"
+                                    aria-label="Показать или скрыть пароль"
+                                    @click="passwordVisible = !passwordVisible"
+                                >
+                                    <EyeOff v-if="passwordVisible" class="h-4 w-4" />
+                                    <Eye v-else class="h-4 w-4" />
+                                </button>
                             </div>
+                            <div v-if="form.errors.password" class="mt-1 text-sm text-rose-600">{{ form.errors.password }}</div>
+                        </div>
 
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium">Подтверждение пароля</label>
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Подтверждение пароля</label>
+                            <div class="relative mt-2">
                                 <input
                                     v-model="form.password_confirmation"
-                                    type="password"
-                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
+                                    :type="passwordConfirmVisible ? 'text' : 'password'"
+                                    autocomplete="new-password"
+                                    class="w-full rounded-xl border border-zinc-200 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
                                 />
+                                <button
+                                    type="button"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    :aria-pressed="passwordConfirmVisible"
+                                    :title="passwordConfirmVisible ? 'Скрыть пароль' : 'Показать пароль'"
+                                    aria-label="Показать или скрыть подтверждение пароля"
+                                    @click="passwordConfirmVisible = !passwordConfirmVisible"
+                                >
+                                    <EyeOff v-if="passwordConfirmVisible" class="h-4 w-4" />
+                                    <Eye v-else class="h-4 w-4" />
+                                </button>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-                            <button
-                                type="button"
-                                class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                @click="closeModal"
-                            >
-                                Отмена
-                            </button>
-                            <button
-                                type="submit"
-                                class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                                :disabled="form.processing"
-                            >
-                                {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </Teleport>
+                    <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                        <button
+                            type="button"
+                            :class="crmBtnNeutral"
+                            @click="closeModal"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="submit"
+                            :class="crmBtnCreate"
+                            :disabled="form.processing"
+                        >
+                            {{ form.processing ? 'Сохранение...' : 'Сохранить' }}
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </Modal>
     </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
-import { Pencil, Plus, Power, Trash2, X } from 'lucide-vue-next';
+import { Eye, EyeOff, Pencil, Plus, Power, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import Modal from '@/Components/Modal.vue';
+import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'users' }, () => page),
@@ -276,6 +291,8 @@ const currentUserId = computed(() => page.props.auth?.user?.id ?? null);
 const showModal = ref(false);
 const editingUser = ref(null);
 const activeTab = ref('active');
+const passwordVisible = ref(false);
+const passwordConfirmVisible = ref(false);
 
 const activeUsers = computed(() => props.users.filter((user) => user.is_active));
 const inactiveUsers = computed(() => props.users.filter((user) => !user.is_active));
@@ -304,6 +321,11 @@ function formatDate(value) {
     return new Date(value).toLocaleDateString('ru-RU');
 }
 
+function resetPasswordVisibility() {
+    passwordVisible.value = false;
+    passwordConfirmVisible.value = false;
+}
+
 function resetForm() {
     form.reset();
     form.clearErrors();
@@ -314,6 +336,7 @@ function resetForm() {
     form.has_signing_authority = false;
     form.password = '';
     form.password_confirmation = '';
+    resetPasswordVisibility();
 }
 
 function openCreateModal() {
@@ -324,6 +347,7 @@ function openCreateModal() {
 
 function openEditModal(user) {
     editingUser.value = user;
+    resetPasswordVisibility();
     form.clearErrors();
     form.name = user.name;
     form.email = user.email;

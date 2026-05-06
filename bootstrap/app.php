@@ -10,6 +10,8 @@ use App\Http\Middleware\EnsureVisibilityAnyAreaAccess;
 use App\Http\Middleware\EnsureVisibilityAreaAccess;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
+use App\Http\Middleware\VerifyAstralEpdWebhookSignature;
+use App\Http\Middleware\VerifyOneCFreshToken;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -30,6 +32,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'visibility.area.any' => EnsureVisibilityAnyAreaAccess::class,
             'visibility.settings' => EnsureSettingsVisibilityAccess::class,
             'can.manage.sales.scripts' => EnsureCanManageSalesScripts::class,
+            'verify.astral.epd.signature' => VerifyAstralEpdWebhookSignature::class,
+            'verify.onec.token' => VerifyOneCFreshToken::class,
         ]);
 
         $middleware->web(append: [
@@ -40,6 +44,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Добавляем глобальный middleware для обработки ошибки 1615 Prepared statement
         $middleware->appendToGroup('web', ReconnectOnPreparedStatementError::class);
         $middleware->appendToGroup('api', ReconnectOnPreparedStatementError::class);
+        $middleware->validateCsrfTokens(except: [
+            'integrations/astral/epd/webhook',
+            'integrations/1c-fresh/etrn-status',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->renderable(function (PostTooLargeException $e, Request $request): ?Response {

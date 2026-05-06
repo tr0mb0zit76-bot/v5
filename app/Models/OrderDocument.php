@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * For electronic transport waybills (`type` = etrn), `metadata` may include an `epd` key:
+ * `external_id`, `operator_code`, `gis_status`, `registered_at` (ISO 8601).
+ */
 class OrderDocument extends Model
 {
     /** @use HasFactory<OrderDocumentFactory> */

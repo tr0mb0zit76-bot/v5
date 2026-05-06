@@ -78,6 +78,7 @@ import { Search } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 
@@ -135,6 +136,7 @@ const filterModelStorageKey = computed(() => `cashflow_grid_filter_model_v1_${pr
 
 const gridOptions = {
     theme: 'legacy',
+    localeText: agGridLocaleRu,
 };
 
 const gridContainerStyle = computed(() => ({

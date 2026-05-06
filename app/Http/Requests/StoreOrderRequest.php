@@ -8,6 +8,7 @@ use App\Models\FleetVehicle;
 use App\Rules\DocumentWithinPageBudget;
 use App\Services\ContractorCreditService;
 use App\Support\DocumentUploadBudget;
+use App\Support\OrderDocumentRegistryTypes;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -321,7 +322,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.additional_costs.*.currency' => ['nullable', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
 
             'documents' => ['nullable', 'array'],
-            'documents.*.type' => ['required', Rule::in(['request', 'contract', 'contract_request', 'waybill', 'cmr', 'upd', 'invoice', 'invoice_factura', 'act', 'packing_list', 'customs_declaration', 'other'])],
+            'documents.*.type' => ['required', Rule::in(OrderDocumentRegistryTypes::values())],
             'documents.*.flow' => ['nullable', Rule::in(['uploaded', 'generated', 'print_template_workflow'])],
             'documents.*.party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],
             'documents.*.stage' => ['nullable', 'string', 'max:50'],

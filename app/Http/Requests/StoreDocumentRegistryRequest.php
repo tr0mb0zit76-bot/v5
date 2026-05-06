@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Rules\DocumentWithinPageBudget;
 use App\Support\DocumentUploadBudget;
+use App\Support\OrderDocumentRegistryTypes;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,21 +12,6 @@ use Illuminate\Validation\Rules\File;
 
 class StoreDocumentRegistryRequest extends FormRequest
 {
-    private const ALLOWED_TYPES = [
-        'request',
-        'contract',
-        'contract_request',
-        'waybill',
-        'cmr',
-        'upd',
-        'invoice',
-        'invoice_factura',
-        'act',
-        'packing_list',
-        'customs_declaration',
-        'other',
-    ];
-
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -43,7 +29,7 @@ class StoreDocumentRegistryRequest extends FormRequest
     {
         return [
             'order_id' => ['required', 'integer', 'exists:orders,id'],
-            'type' => ['required', Rule::in(self::ALLOWED_TYPES)],
+            'type' => ['required', Rule::in(OrderDocumentRegistryTypes::values())],
             'party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],
             'number' => ['nullable', 'string', 'max:255'],
             'document_date' => ['nullable', 'date'],

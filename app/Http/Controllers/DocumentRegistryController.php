@@ -159,6 +159,7 @@ class DocumentRegistryController extends Controller
     private function serializeRow(Order $order): array
     {
         $documents = $order->documents ?? collect();
+        $etrn = $this->serializeEtrnSummary($documents);
 
         return [
             'order_id' => $order->id,
@@ -177,6 +178,8 @@ class DocumentRegistryController extends Controller
             'carrier_request' => $this->serializeColumnDocs($documents, 'request', 'carrier'),
             'carrier_contract_request' => $this->serializeColumnDocs($documents, 'contract_request', 'carrier'),
             'transport_docs' => $this->serializeTransportDocs($documents),
+            'etrn_status' => $etrn['status'],
+            'etrn_external_id' => $etrn['external_id'],
             'other_docs' => $this->serializeOtherDocs($documents),
         ];
     }
@@ -204,16 +207,17 @@ class DocumentRegistryController extends Controller
 
     /**
      * @param  Collection<int, OrderDocument>  $documents
-     * @return list<array{id: int, label: string, order_url: string}>
+     * @return list<array{id: int, type: string, label: string, order_url: string}>
      */
     private function serializeTransportDocs($documents): array
     {
-        $transportTypes = ['waybill', 'cmr', 'packing_list', 'customs_declaration'];
+        $transportTypes = ['waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration'];
 
         return $documents
             ->filter(fn (OrderDocument $doc): bool => in_array($doc->type, $transportTypes, true))
             ->map(fn (OrderDocument $doc): array => [
                 'id' => $doc->id,
+                'type' => (string) $doc->type,
                 'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
                 'order_url' => route('orders.edit', (int) $doc->order_id).'?tab=documents',
             ])
@@ -227,7 +231,7 @@ class DocumentRegistryController extends Controller
      */
     private function serializeOtherDocs($documents): array
     {
-        $structuredTypes = ['invoice', 'upd', 'act', 'invoice_factura', 'waybill', 'cmr', 'packing_list', 'customs_declaration'];
+        $structuredTypes = ['invoice', 'upd', 'act', 'invoice_factura', 'waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration'];
         $partySplitTypes = ['request', 'contract_request'];
 
         return $documents
@@ -248,6 +252,47 @@ class DocumentRegistryController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  Collection<int, OrderDocument>  $documents
+     * @return array{status: string, external_id: string}
+     */
+    private function serializeEtrnSummary($documents): array
+    {
+        $etrn = $documents
+            ->first(fn (OrderDocument $document): bool => $document->type === 'etrn');
+
+        if (! $etrn instanceof OrderDocument) {
+            return [
+                'status' => '—',
+                'external_id' => '—',
+            ];
+        }
+
+        $metadata = is_array($etrn->metadata) ? $etrn->metadata : [];
+        $epd = is_array($metadata['epd'] ?? null) ? $metadata['epd'] : [];
+        $status = (string) ($epd['gis_status'] ?? $etrn->status ?? '');
+        $externalId = (string) ($epd['external_id'] ?? '');
+
+        return [
+            'status' => $this->etrnStatusLabel($status),
+            'external_id' => $externalId !== '' ? $externalId : '—',
+        ];
+    }
+
+    private function etrnStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'draft', 'draft_incomplete' => 'Черновик',
+            'ready_for_1c' => 'Готов к 1С',
+            'pending' => 'Ожидает',
+            'sent', 'sent_to_epd' => 'Отправлен',
+            'signed', 'completed', 'done' => 'Подписан',
+            'rejected' => 'Отклонен',
+            'cancelled' => 'Отменен',
+            default => $status !== '' ? $status : '—',
+        };
     }
 
     private function ensureCanManageOrder(Request $request, Order $order): void

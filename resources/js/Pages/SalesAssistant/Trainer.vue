@@ -4,8 +4,9 @@
             <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Помощник продаж</div>
             <h1 class="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Тренажер переговоров</h1>
             <p class="mt-2 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-                Выберите <span class="font-medium text-zinc-700 dark:text-zinc-300">профиль собеседника</span> — это пресет роли для чата с моделью (тон, цели, возражения). Затем сценарий: справа на шаге тренировки вы увидите узлы графа и подсказки по словам из диалога.
-                Связка с карточкой контрагента из CRM позже; сейчас контекст задаётся только выбранным профилем.
+                Тренажер работает в три шага: сначала выберите <span class="font-medium text-zinc-700 dark:text-zinc-300">вашу роль</span>, затем
+                <span class="font-medium text-zinc-700 dark:text-zinc-300">профиль покупателя</span>, после этого — <span class="font-medium text-zinc-700 dark:text-zinc-300">сценарий</span>.
+                На каждом шаге справа отображается контекст и подсказки, чтобы быстрее подготовиться к запуску диалога.
             </p>
             <p class="mt-2 text-sm">
                 <Link
@@ -59,96 +60,118 @@
             </article>
         </section>
 
-        <section>
-            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">1. Выберите профиль покупателя</h2>
-            <div class="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <section class="space-y-3">
+            <div class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                        Прогресс настройки
+                    </div>
+                    <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ currentStep }}/3</div>
+                </div>
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                    <div class="h-full rounded-full bg-sky-600 transition-all duration-500" :style="{ width: `${(currentStep / 3) * 100}%` }" />
+                </div>
+            </div>
+
+            <div class="grid gap-4 xl:grid-cols-3">
+            <article class="border border-zinc-200 bg-white p-4 shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">1. Роль пользователя</h2>
+                <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Сначала выберите, кого играете вы, а кого — ассистент.</p>
+                <div class="mt-3 space-y-2">
+                    <button
+                        v-for="mode in trainingRoleModes"
+                        :key="mode.value"
+                        type="button"
+                        class="w-full rounded-xl border px-3 py-2 text-left text-sm transition"
+                        :class="selectedTrainingRoleMode === mode.value
+                            ? 'border-sky-500 bg-sky-50 text-sky-950 dark:border-sky-400 dark:bg-sky-950/30 dark:text-sky-100'
+                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900'"
+                        @click="selectedTrainingRoleMode = mode.value"
+                    >
+                        {{ mode.label }}
+                    </button>
+                </div>
+                <div class="mt-4 rounded-xl border border-zinc-200 p-3 text-xs leading-5 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+                    {{ selectedRoleMode?.description ?? 'Выберите роль слева.' }}
+                </div>
+            </article>
+
+            <article ref="profileStepRef" class="border border-zinc-200 bg-white p-4 shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950" :class="{ 'opacity-60': !selectedTrainingRoleMode, 'translate-y-1': !selectedTrainingRoleMode }">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">2. Профиль покупателя</h2>
+                <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">После роли выберите, с каким типом собеседника тренируемся.</p>
+                <div class="mt-3 max-h-64 space-y-2 overflow-auto pr-1">
+                    <button
+                        v-for="profile in customerProfiles"
+                        :key="profile.key"
+                        type="button"
+                        class="w-full rounded-xl border px-3 py-2 text-left text-sm transition"
+                        :disabled="!selectedTrainingRoleMode"
+                        :class="selectedProfile?.key === profile.key
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100'
+                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900'"
+                        @click="selectedProfile = profile"
+                    >
+                        <div class="font-medium">{{ profile.title }}</div>
+                        <div class="text-xs opacity-80">{{ profile.segment }}</div>
+                    </button>
+                </div>
+                <div class="mt-4 rounded-xl border border-zinc-200 p-3 text-xs leading-5 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+                    <template v-if="selectedProfile">
+                        <p><span class="font-semibold">Суть:</span> {{ selectedProfile.summary }}</p>
+                        <p class="mt-1"><span class="font-semibold">Цель:</span> {{ selectedProfile.goal }}</p>
+                        <p class="mt-1"><span class="font-semibold">Возражение:</span> {{ selectedProfile.objection }}</p>
+                    </template>
+                    <template v-else>
+                        Выберите профиль слева.
+                    </template>
+                </div>
+            </article>
+
+            <article ref="scenarioStepRef" class="border border-zinc-200 bg-white p-4 shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950" :class="{ 'opacity-60': !selectedProfile, 'translate-y-1': !selectedProfile }">
+                <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">3. Сценарий</h2>
+                <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Финальный шаг — выбрать сценарий и запустить тренировку.</p>
+                <div class="mt-3 max-h-64 space-y-2 overflow-auto pr-1">
+                    <button
+                        v-for="script in scripts"
+                        :key="script.id"
+                        type="button"
+                        class="w-full rounded-xl border px-3 py-2 text-left text-sm transition"
+                        :disabled="!selectedProfile"
+                        :class="selectedScriptId === script.id
+                            ? 'border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-100 dark:bg-zinc-800 dark:text-zinc-50'
+                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900'"
+                        @click="selectedScriptId = script.id"
+                    >
+                        {{ script.title }}
+                    </button>
+                </div>
+                <div class="mt-4 rounded-xl border border-zinc-200 p-3 text-xs leading-5 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
+                    <template v-if="selectedScript">
+                        <p class="font-semibold text-zinc-800 dark:text-zinc-100">{{ selectedScript.title }}</p>
+                        <p v-if="selectedScript.description" class="mt-1">{{ selectedScript.description }}</p>
+                        <p class="mt-2"><span class="font-semibold">Канал:</span> {{ selectedScript.channel || '—' }}</p>
+                        <p class="mt-1">
+                            <span class="font-semibold">Теги:</span>
+                            {{ (selectedScript.tags || []).length ? selectedScript.tags.join(', ') : '—' }}
+                        </p>
+                    </template>
+                    <template v-else>
+                        Выберите сценарий слева.
+                    </template>
+                </div>
                 <button
-                    v-for="profile in customerProfiles"
-                    :key="profile.key"
                     type="button"
-                    class="rounded-2xl border p-5 text-left shadow-sm transition"
-                    :class="selectedProfile?.key === profile.key
-                        ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/40'
-                        : 'border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700'"
-                    @click="selectedProfile = profile"
+                    class="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-sky-800 bg-sky-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
+                    :disabled="!selectedScript?.active_version || !selectedProfile || !selectedTrainingRoleMode"
+                    @click="startTraining(selectedScript?.active_version?.id)"
                 >
-                    <div class="flex items-center justify-between gap-2">
-                        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ profile.title }}</h3>
-                        <span class="rounded-full border border-zinc-200 px-2 py-0.5 text-[11px] text-zinc-500 dark:border-zinc-700 dark:text-zinc-300">
-                            {{ profile.segment }}
-                        </span>
-                    </div>
-                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{{ profile.summary }}</p>
-                    <p class="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                        <span class="font-medium">Цель:</span> {{ profile.goal }}
-                    </p>
-                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        <span class="font-medium">Возражение:</span> {{ profile.objection }}
-                    </p>
+                    {{ !selectedTrainingRoleMode ? 'Выберите роль'
+                        : !selectedProfile ? 'Выберите профиль'
+                            : !selectedScript ? 'Выберите сценарий'
+                                : !selectedScript.active_version ? 'Нет активной версии'
+                                    : 'Начать тренировку' }}
                 </button>
-            </div>
-        </section>
-
-        <section>
-            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">2. Выберите роли</h2>
-            <div class="mt-3 grid gap-3 md:grid-cols-2">
-                <label
-                    v-for="mode in trainingRoleModes"
-                    :key="mode.value"
-                    class="cursor-pointer rounded-2xl border p-4 transition"
-                    :class="selectedTrainingRoleMode === mode.value
-                        ? 'border-sky-500 bg-sky-50 text-sky-950 dark:border-sky-400 dark:bg-sky-950/30 dark:text-sky-100'
-                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900'"
-                >
-                    <span class="flex items-start gap-3">
-                        <input
-                            v-model="selectedTrainingRoleMode"
-                            :value="mode.value"
-                            type="radio"
-                            class="mt-1 shrink-0 border-zinc-300"
-                        />
-                        <span>
-                            <span class="block text-sm font-semibold">{{ mode.label }}</span>
-                            <span class="mt-1 block text-xs leading-5 opacity-80">{{ mode.description }}</span>
-                        </span>
-                    </span>
-                </label>
-            </div>
-        </section>
-
-        <section>
-            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">3. Запустите сценарий</h2>
-            <div class="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <article
-                    v-for="script in scripts"
-                    :key="script.id"
-                    class="flex flex-col border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
-                >
-                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ script.title }}</h2>
-                    <p v-if="script.description" class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ script.description }}</p>
-                    <div class="mt-3 flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        <span v-if="script.channel" class="rounded-full border border-zinc-200 px-2 py-0.5 dark:border-zinc-700">{{ script.channel }}</span>
-                        <span
-                            v-for="tag in script.tags || []"
-                            :key="tag"
-                            class="rounded-full border border-zinc-200 px-2 py-0.5 dark:border-zinc-700"
-                        >
-                            {{ tag }}
-                        </span>
-                    </div>
-                    <div class="mt-4 flex flex-1 flex-col justify-end">
-                        <button
-                            v-if="script.active_version"
-                            type="button"
-                            class="inline-flex w-full items-center justify-center rounded-xl border border-sky-800 bg-sky-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
-                            :disabled="selectedProfile === null"
-                            @click="startTraining(script.active_version.id)"
-                        >
-                            {{ selectedProfile ? 'Начать тренировку' : 'Сначала выберите профиль' }}
-                        </button>
-                        <p v-else class="text-sm text-amber-700 dark:text-amber-300">Нет опубликованной версии сценария.</p>
-                    </div>
-                </article>
+            </article>
             </div>
         </section>
 
@@ -161,7 +184,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
@@ -188,7 +211,10 @@ const props = defineProps({
 
 const page = usePage();
 const selectedProfile = ref(null);
-const selectedTrainingRoleMode = ref('manager_seller');
+const selectedTrainingRoleMode = ref(null);
+const selectedScriptId = ref(null);
+const profileStepRef = ref(null);
+const scenarioStepRef = ref(null);
 const trainerSummary = props.trainerSummary;
 
 const trainingRoleModes = [
@@ -267,8 +293,44 @@ const customerProfiles = [
     },
 ];
 
-function startTraining(versionId) {
+const selectedRoleMode = computed(() => (
+    trainingRoleModes.find((mode) => mode.value === selectedTrainingRoleMode.value) ?? null
+));
+
+const selectedScript = computed(() => (
+    props.scripts.find((script) => script.id === selectedScriptId.value) ?? null
+));
+
+const currentStep = computed(() => {
+    if (!selectedTrainingRoleMode.value) {
+        return 0;
+    }
     if (!selectedProfile.value) {
+        return 1;
+    }
+    if (!selectedScript.value) {
+        return 2;
+    }
+
+    return 3;
+});
+
+watch(selectedTrainingRoleMode, async (value, previous) => {
+    if (value && !previous) {
+        await nextTick();
+        profileStepRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+});
+
+watch(selectedProfile, async (value, previous) => {
+    if (value && !previous) {
+        await nextTick();
+        scenarioStepRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+});
+
+function startTraining(versionId) {
+    if (!selectedProfile.value || !selectedTrainingRoleMode.value || !versionId) {
         return;
     }
 

@@ -84,6 +84,7 @@ import { Rows3, Search } from 'lucide-vue-next';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
+import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -133,6 +134,7 @@ const priorityLabels = {
 
 const gridOptions = {
   theme: 'legacy',
+  localeText: agGridLocaleRu,
   getRowId: (params) => String(params.data?.id ?? ''),
   rowSelection: {
     mode: 'multiRow',

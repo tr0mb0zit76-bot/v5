@@ -40,10 +40,10 @@ class OrderDocumentRequirementService
             ],
             [
                 'key' => 'waybill',
-                'label' => 'ТН',
-                'description' => 'Транспортная накладная: статус «Отправлен» или «Подписан».',
+                'label' => 'ТН / ЭТрН',
+                'description' => 'Бумажная ТН, CMR или электронная транспортная накладная (ЭТрН): статус «Отправлен» или «Подписан».',
                 'party' => 'internal',
-                'accepted_types' => ['waybill', 'cmr'],
+                'accepted_types' => ['waybill', 'cmr', 'etrn'],
             ],
             [
                 'key' => 'customer_closing_document',
@@ -72,6 +72,7 @@ class OrderDocumentRequirementService
             ['value' => 'contract', 'label' => 'Договор'],
             ['value' => 'request', 'label' => 'Заявка'],
             ['value' => 'waybill', 'label' => 'ТН'],
+            ['value' => 'etrn', 'label' => 'ЭТрН'],
             ['value' => 'cmr', 'label' => 'CMR'],
             ['value' => 'upd', 'label' => 'УПД'],
             ['value' => 'invoice', 'label' => 'Счет'],
@@ -121,7 +122,7 @@ class OrderDocumentRequirementService
             ? $order->documents
             : $order->documents()->get();
 
-        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['waybill', 'cmr']));
+        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['waybill', 'cmr', 'etrn']));
         if ($transportDocuments->isEmpty()) {
             return null;
         }

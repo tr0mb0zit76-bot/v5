@@ -225,7 +225,7 @@ class BackfillOrderOperationalData extends Command
     {
         return match ($type) {
             'request' => 'request',
-            'waybill', 'cmr', 'packing_list', 'customs_declaration' => 'transport',
+            'waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration' => 'transport',
             'upd', 'invoice_factura', 'act' => 'closing',
             'invoice' => 'primary',
             default => 'other',

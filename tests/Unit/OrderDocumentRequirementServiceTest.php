@@ -23,4 +23,15 @@ class OrderDocumentRequirementServiceTest extends TestCase
 
         $this->assertTrue(collect($complete)->firstWhere('key', 'customer_request')['completed']);
     }
+
+    public function test_etrn_fulfills_internal_transport_requirement_when_sent(): void
+    {
+        $service = app(OrderDocumentRequirementService::class);
+
+        $rows = $service->checklistForDocuments([
+            ['type' => 'etrn', 'party' => 'internal', 'status' => 'sent'],
+        ]);
+
+        $this->assertTrue(collect($rows)->firstWhere('key', 'waybill')['completed']);
+    }
 }

@@ -151,6 +151,7 @@ import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
+import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -177,6 +178,8 @@ const fallbackColumns = [
     { field: 'carrier_request', headerName: 'Заявка перевозчика', width: 220, minWidth: 180 },
     { field: 'carrier_contract_request', headerName: 'Договор с перевозчиком', width: 240, minWidth: 200 },
     { field: 'transport_docs', headerName: 'Транспортные документы', width: 250, minWidth: 200 },
+    { field: 'etrn_status', headerName: 'Статус ЭТрН', width: 170, minWidth: 150, kind: 'etrn-status' },
+    { field: 'etrn_external_id', headerName: 'External ID ЭТрН', width: 220, minWidth: 190, kind: 'text' },
     { field: 'other_docs', headerName: 'Прочее', width: 220, minWidth: 180 },
 ];
 
@@ -199,7 +202,10 @@ let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
-const gridOptions = { theme: 'legacy' };
+const gridOptions = {
+    theme: 'legacy',
+    localeText: agGridLocaleRu,
+};
 
 const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
 const densityStorageKey = computed(() => `documents_grid_density_${props.userId}`);
@@ -241,6 +247,15 @@ const columnDefs = computed(() => {
             return colDef;
         }
 
+        if (column.kind === 'text') {
+            colDef.cellRenderer = (params) => textCellRenderer(params.data, column.field);
+            return colDef;
+        }
+        if (column.kind === 'etrn-status') {
+            colDef.cellRenderer = (params) => etrnStatusCellRenderer(params.data, column.field);
+            return colDef;
+        }
+
         colDef.cellRenderer = (params) => documentsCellRenderer(params.data, column.field);
 
         return colDef;
@@ -275,12 +290,48 @@ function valueForQuickFilter(row, field) {
         return row.order_number ?? '—';
     }
 
+    const rawValue = row[field];
+    if (typeof rawValue === 'string' || typeof rawValue === 'number') {
+        return String(rawValue);
+    }
+
     const items = normalizeItems(row[field]);
     if (items.length === 0) {
         return '—';
     }
 
     return items.map((item) => item.label).join(', ');
+}
+
+function textCellRenderer(row, field) {
+    const value = row?.[field];
+    const span = document.createElement('span');
+    span.className = 'text-xs text-zinc-700 dark:text-zinc-200';
+    span.textContent = (typeof value === 'string' || typeof value === 'number') && String(value) !== ''
+        ? String(value)
+        : '—';
+
+    return span;
+}
+
+function etrnStatusCellRenderer(row, field) {
+    const value = row?.[field];
+    const normalized = (typeof value === 'string' ? value : '').toLowerCase();
+    const span = document.createElement('span');
+    span.className = 'inline-flex rounded-full px-2 py-0.5 text-xs font-medium';
+    span.textContent = value && String(value) !== '' ? String(value) : '—';
+
+    if (normalized.includes('подписан')) {
+        span.className += ' bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300';
+    } else if (normalized.includes('отправлен') || normalized.includes('ожидает') || normalized.includes('готов')) {
+        span.className += ' bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300';
+    } else if (normalized.includes('отклон') || normalized.includes('отмен')) {
+        span.className += ' bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300';
+    } else {
+        span.className += ' bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+    }
+
+    return span;
 }
 
 function documentsCellRenderer(row, field) {
