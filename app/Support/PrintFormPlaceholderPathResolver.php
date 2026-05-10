@@ -30,6 +30,11 @@ class PrintFormPlaceholderPathResolver
         'fio_podpisant_im',
         'fio_podpisant_rod',
         'dolzhn_podpisant',
+        'bank_korresp',
+        'swift_korresp',
+        'cnaps_kod',
+        'rs_banka_korresp',
+        'schet_v_banku_korresp',
     ];
 
     /**
@@ -157,6 +162,16 @@ class PrintFormPlaceholderPathResolver
             'fio_podpisant_perevoz_rod' => 'carrier.signer_name_prepositional',
             'podpisant_perevoz' => 'carrier.signer_position',
             'podpisant_perevoz_rod' => 'carrier.signer_position_genitive_auto',
+            'bank_korresp' => 'customer.non_resident_corr_bank_name',
+            'swift_korresp' => 'customer.non_resident_corr_bank_swift',
+            'cnaps_kod' => 'customer.cnaps_code',
+            'rs_banka_korresp' => 'customer.non_resident_corr_settlement_account',
+            'schet_v_banku_korresp' => 'customer.non_resident_corr_bank_account',
+            'bank_korresp_perev' => 'carrier.non_resident_corr_bank_name',
+            'swift_korresp_perev' => 'carrier.non_resident_corr_bank_swift',
+            'cnaps_kod_perev' => 'carrier.cnaps_code',
+            'rs_banka_korresp_perev' => 'carrier.non_resident_corr_settlement_account',
+            'schet_v_banku_korresp_perev' => 'carrier.non_resident_corr_bank_account',
         ];
     }
 }

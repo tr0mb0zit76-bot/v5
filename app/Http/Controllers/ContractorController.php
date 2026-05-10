@@ -565,6 +565,7 @@ class ContractorController extends Controller
             'cooperation_terms_notes',
             'non_resident_corr_bank_name',
             'non_resident_corr_bank_swift',
+            'non_resident_corr_settlement_account',
             'non_resident_corr_bank_account',
             'cnaps_code',
         ] as $nullableField) {
@@ -634,7 +635,7 @@ class ContractorController extends Controller
         }
 
         if (! (bool) ($validated['is_non_resident'] ?? false)) {
-            foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_bank_account', 'cnaps_code'] as $column) {
+            foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_settlement_account', 'non_resident_corr_bank_account', 'cnaps_code'] as $column) {
                 if (Schema::hasColumn('contractors', $column)) {
                     $validated[$column] = null;
                 }
@@ -666,6 +667,7 @@ class ContractorController extends Controller
             'is_non_resident',
             'non_resident_corr_bank_name',
             'non_resident_corr_bank_swift',
+            'non_resident_corr_settlement_account',
             'non_resident_corr_bank_account',
             'cnaps_code',
         ] as $column) {

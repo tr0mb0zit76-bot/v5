@@ -669,7 +669,7 @@ class OrderPrintFormDraftService
     }
 
     /**
-     * @return array<string, string|null>
+     * @return array<string, mixed>
      */
     private function contractorPayload(mixed $contractor): array
     {
@@ -678,6 +678,15 @@ class OrderPrintFormDraftService
             'bik' => null,
             'account_number' => null,
             'correspondent_account' => null,
+        ];
+
+        $nonResident = $contractor instanceof Contractor ? $contractor->nonResidentPrintPayload() : [
+            'is_non_resident' => 'Нет',
+            'non_resident_corr_bank_name' => null,
+            'non_resident_corr_bank_swift' => null,
+            'non_resident_corr_settlement_account' => null,
+            'non_resident_corr_bank_account' => null,
+            'cnaps_code' => null,
         ];
 
         return [
@@ -701,6 +710,7 @@ class OrderPrintFormDraftService
             'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
             'signer_position_genitive_auto' => RussianPositionInflector::toGenitive($contractor?->signer_position ?? $contractor?->contact_person_position),
             'signer_authority_basis' => $contractor?->signer_authority_basis,
+            ...$nonResident,
         ];
     }
 

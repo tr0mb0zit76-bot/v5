@@ -326,6 +326,7 @@ function blankForm() {
         is_non_resident: false,
         non_resident_corr_bank_name: '',
         non_resident_corr_bank_swift: '',
+        non_resident_corr_settlement_account: '',
         non_resident_corr_bank_account: '',
         cnaps_code: '',
         owner_id: null,
@@ -378,7 +379,6 @@ function normalizeBankAccount(row, index = 0) {
 
     if (normalized.country_code !== 'RU') {
         normalized.bik = '';
-        normalized.correspondent_account = '';
     }
 
     return normalized;
@@ -485,6 +485,7 @@ function contractorToForm(contractor) {
         is_non_resident: Boolean(contractor.is_non_resident),
         non_resident_corr_bank_name: contractor.non_resident_corr_bank_name ?? '',
         non_resident_corr_bank_swift: contractor.non_resident_corr_bank_swift ?? '',
+        non_resident_corr_settlement_account: contractor.non_resident_corr_settlement_account ?? '',
         non_resident_corr_bank_account: contractor.non_resident_corr_bank_account ?? '',
         cnaps_code: contractor.cnaps_code ?? '',
         owner_id: contractor.owner_id ?? null,
@@ -668,6 +669,7 @@ watch(() => form.is_non_resident, (isNonResident) => {
     if (!isNonResident) {
         form.non_resident_corr_bank_name = '';
         form.non_resident_corr_bank_swift = '';
+        form.non_resident_corr_settlement_account = '';
         form.non_resident_corr_bank_account = '';
         form.cnaps_code = '';
     }
@@ -2285,18 +2287,15 @@ function handleMobileNavSelect(key) {
                                     class="mb-4 space-y-3 rounded border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/50"
                                 >
                                     <div class="text-xs font-medium text-zinc-800 dark:text-zinc-200">Банк-корреспондент</div>
-                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                                        Для нерезидентов: промежуточный банк (correspondent bank) для валютных платежей.
-                                    </p>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Наименование банка-корреспондента</label>
+                                        <input
+                                            v-model="form.non_resident_corr_bank_name"
+                                            type="text"
+                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        />
+                                    </div>
                                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                        <div class="space-y-2 md:col-span-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Наименование банка-корреспондента</label>
-                                            <input
-                                                v-model="form.non_resident_corr_bank_name"
-                                                type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                            />
-                                        </div>
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">SWIFT / BIC</label>
                                             <input
@@ -2308,16 +2307,7 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Счёт в банке-корреспонденте</label>
-                                            <input
-                                                v-model="form.non_resident_corr_bank_account"
-                                                type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                            />
-                                        </div>
-                                        <div class="space-y-2 md:col-span-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">CNAPS CODE</label>
-                                            <p class="text-xs text-zinc-500 dark:text-zinc-400">Код банка в системе CNAPS (Китай), 12 цифр — для китайских контрагентов.</p>
                                             <input
                                                 v-model="form.cnaps_code"
                                                 type="text"
@@ -2329,8 +2319,31 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                     </div>
+                                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Расчётный счёт</label>
+                                            <input
+                                                v-model="form.non_resident_corr_settlement_account"
+                                                type="text"
+                                                maxlength="34"
+                                                inputmode="numeric"
+                                                autocomplete="off"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                @input="form.non_resident_corr_settlement_account = String(form.non_resident_corr_settlement_account || '').replace(/\D/g, '')"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Счёт в банке-корреспонденте</label>
+                                            <input
+                                                v-model="form.non_resident_corr_bank_account"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                    </div>
                                     <p v-if="form.errors.non_resident_corr_bank_name" class="text-xs text-rose-600">{{ form.errors.non_resident_corr_bank_name }}</p>
                                     <p v-if="form.errors.non_resident_corr_bank_swift" class="text-xs text-rose-600">{{ form.errors.non_resident_corr_bank_swift }}</p>
+                                    <p v-if="form.errors.non_resident_corr_settlement_account" class="text-xs text-rose-600">{{ form.errors.non_resident_corr_settlement_account }}</p>
                                     <p v-if="form.errors.non_resident_corr_bank_account" class="text-xs text-rose-600">{{ form.errors.non_resident_corr_bank_account }}</p>
                                     <p v-if="form.errors.cnaps_code" class="text-xs text-rose-600">{{ form.errors.cnaps_code }}</p>
                                 </div>

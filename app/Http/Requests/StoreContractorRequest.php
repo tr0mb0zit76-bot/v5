@@ -37,7 +37,7 @@ class StoreContractorRequest extends FormRequest
             }
         }
 
-        foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_bank_account', 'cnaps_code'] as $key) {
+        foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_settlement_account', 'non_resident_corr_bank_account', 'cnaps_code'] as $key) {
             if (! $this->has($key)) {
                 continue;
             }
@@ -55,6 +55,12 @@ class StoreContractorRequest extends FormRequest
             }
 
             if ($key === 'cnaps_code') {
+                $this->merge([$key => preg_replace('/\D/u', '', (string) $value)]);
+
+                continue;
+            }
+
+            if ($key === 'non_resident_corr_settlement_account') {
                 $this->merge([$key => preg_replace('/\D/u', '', (string) $value)]);
 
                 continue;
@@ -180,6 +186,7 @@ class StoreContractorRequest extends FormRequest
             'is_non_resident' => ['nullable', 'boolean'],
             'non_resident_corr_bank_name' => ['nullable', 'string', 'max:255'],
             'non_resident_corr_bank_swift' => ['nullable', 'string', 'max:11', 'regex:/^[A-Za-z0-9]*$/u'],
+            'non_resident_corr_settlement_account' => ['nullable', 'string', 'max:34', 'regex:/^[0-9]*$/u'],
             'non_resident_corr_bank_account' => ['nullable', 'string', 'max:64'],
             'cnaps_code' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]*$/u'],
             'owner_id' => $this->ownerIdRules(),

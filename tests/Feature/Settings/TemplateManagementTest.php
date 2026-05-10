@@ -233,7 +233,9 @@ class TemplateManagementTest extends TestCase
             ])->count() === 11)
             ->where('leadVariableOptions.0.value', 'lead.id')
             ->where('leadVariableOptions.20.value', 'counterparty.name')
-            ->where('leadVariableOptions.47.value', 'cargo.summary')
+            ->where('leadVariableOptions', fn ($options): bool => collect($options)->contains(
+                fn ($row): bool => ($row['value'] ?? '') === 'cargo.summary'
+            ))
             ->has('contractorOptions', 1)
         );
     }

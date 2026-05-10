@@ -67,6 +67,7 @@ class Contractor extends Model
         'is_non_resident',
         'non_resident_corr_bank_name',
         'non_resident_corr_bank_swift',
+        'non_resident_corr_settlement_account',
         'non_resident_corr_bank_account',
         'cnaps_code',
         'owner_id',
@@ -275,6 +276,30 @@ class Contractor extends Model
             'bik' => $pick($primary['bik'] ?? null),
             'account_number' => $pick($primary['account_number'] ?? null),
             'correspondent_account' => $pick($primary['correspondent_account'] ?? null),
+        ];
+    }
+
+    /**
+     * Нерезидентские реквизиты банка-корреспондента и CNAPS для печатных форм (ключи в снимке customer / carrier / …).
+     *
+     * @return array{
+     *     is_non_resident: string,
+     *     non_resident_corr_bank_name: ?string,
+     *     non_resident_corr_bank_swift: ?string,
+     *     non_resident_corr_settlement_account: ?string,
+     *     non_resident_corr_bank_account: ?string,
+     *     cnaps_code: ?string
+     * }
+     */
+    public function nonResidentPrintPayload(): array
+    {
+        return [
+            'is_non_resident' => $this->is_non_resident ? 'Да' : 'Нет',
+            'non_resident_corr_bank_name' => blank($this->non_resident_corr_bank_name) ? null : trim((string) $this->non_resident_corr_bank_name),
+            'non_resident_corr_bank_swift' => blank($this->non_resident_corr_bank_swift) ? null : trim((string) $this->non_resident_corr_bank_swift),
+            'non_resident_corr_settlement_account' => blank($this->non_resident_corr_settlement_account) ? null : trim((string) $this->non_resident_corr_settlement_account),
+            'non_resident_corr_bank_account' => blank($this->non_resident_corr_bank_account) ? null : trim((string) $this->non_resident_corr_bank_account),
+            'cnaps_code' => blank($this->cnaps_code) ? null : trim((string) $this->cnaps_code),
         ];
     }
 }

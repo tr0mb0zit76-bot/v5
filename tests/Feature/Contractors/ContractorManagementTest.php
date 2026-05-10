@@ -99,6 +99,7 @@ class ContractorManagementTest extends TestCase
             $table->boolean('is_non_resident')->default(false);
             $table->string('non_resident_corr_bank_name')->nullable();
             $table->string('non_resident_corr_bank_swift', 11)->nullable();
+            $table->string('non_resident_corr_settlement_account', 34)->nullable();
             $table->string('non_resident_corr_bank_account', 64)->nullable();
             $table->string('cnaps_code', 20)->nullable();
             $table->unsignedBigInteger('owner_id')->nullable();
@@ -253,6 +254,11 @@ class ContractorManagementTest extends TestCase
             'is_verified' => true,
             'is_own_company' => true,
             'is_non_resident' => true,
+            'non_resident_corr_bank_name' => 'Bank of China',
+            'non_resident_corr_bank_swift' => 'BKCHCNBJ',
+            'non_resident_corr_settlement_account' => '11122233344455566',
+            'non_resident_corr_bank_account' => '99887766554433221100',
+            'cnaps_code' => '123456789012',
             'bank_accounts' => [
                 [
                     'label' => 'Основной RUB',
@@ -271,6 +277,7 @@ class ContractorManagementTest extends TestCase
                     'currency' => 'USD',
                     'bank_name' => 'Halyk Bank',
                     'account_number' => '12345678901234567890',
+                    'correspondent_account' => '40111122233344455566',
                     'swift' => 'HSBKKZKX',
                     'iban' => 'KZ86125KZT5004100100',
                     'is_primary' => false,
@@ -327,6 +334,11 @@ class ContractorManagementTest extends TestCase
             'created_by' => $admin->id,
             'is_own_company' => true,
             'is_non_resident' => true,
+            'non_resident_corr_bank_name' => 'Bank of China',
+            'non_resident_corr_bank_swift' => 'BKCHCNBJ',
+            'non_resident_corr_settlement_account' => '11122233344455566',
+            'non_resident_corr_bank_account' => '99887766554433221100',
+            'cnaps_code' => '123456789012',
             'debt_limit' => '250000.00',
             'stop_on_limit' => true,
             'default_customer_payment_form' => 'vat',
@@ -336,6 +348,7 @@ class ContractorManagementTest extends TestCase
         $this->assertCount(2, $storedBankAccounts);
         $this->assertSame('ПАО Сбербанк', $storedBankAccounts[0]['bank_name']);
         $this->assertTrue((bool) ($storedBankAccounts[0]['is_primary'] ?? false));
+        $this->assertSame('40111122233344455566', $storedBankAccounts[1]['correspondent_account'] ?? null);
         $this->assertSame(
             ['Экспедирование', 'Международные перевозки'],
             json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('activity_types'), true, 512, JSON_THROW_ON_ERROR)
