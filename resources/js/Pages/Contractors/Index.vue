@@ -578,6 +578,7 @@ function toggleActualMatchesLegal(event) {
     actualMatchesLegal.value = Boolean(input?.checked);
     if (actualMatchesLegal.value) {
         form.actual_address = form.legal_address ?? '';
+        addressSuggestions.value = { ...addressSuggestions.value, actual_address: [] };
     }
     syncAddressLinkTargets();
 }
@@ -588,6 +589,7 @@ function togglePostalMatchesLegal(event) {
     postalMatchesLegal.value = checked;
     if (checked) {
         postalMatchesActual.value = false;
+        addressSuggestions.value = { ...addressSuggestions.value, postal_address: [] };
     }
     syncAddressLinkTargets();
 }
@@ -598,6 +600,7 @@ function togglePostalMatchesActual(event) {
     postalMatchesActual.value = checked;
     if (checked) {
         postalMatchesLegal.value = false;
+        addressSuggestions.value = { ...addressSuggestions.value, postal_address: [] };
     }
     syncAddressLinkTargets();
 }
@@ -2176,19 +2179,19 @@ function handleMobileNavSelect(key) {
                                                     Совпадает с юридическим
                                                 </label>
                                             </div>
-                                            <textarea
-                                                v-model="form.actual_address"
-                                                rows="2"
-                                                :readonly="actualMatchesLegal"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                                :class="actualMatchesLegal ? 'cursor-not-allowed bg-zinc-50 text-zinc-600 dark:bg-zinc-900/50 dark:text-zinc-400' : ''"
-                                                @input="!actualMatchesLegal && queueAddressLookup('actual_address')"
-                                            ></textarea>
-                                            <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                                <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
-                                                    {{ suggestion.value }}
-                                                </button>
-                                            </div>
+                                            <template v-if="!actualMatchesLegal">
+                                                <textarea
+                                                    v-model="form.actual_address"
+                                                    rows="2"
+                                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                    @input="queueAddressLookup('actual_address')"
+                                                ></textarea>
+                                                <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                                    <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
+                                                        {{ suggestion.value }}
+                                                    </button>
+                                                </div>
+                                            </template>
                                         </div>
                                         <div class="relative space-y-2">
                                             <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
@@ -2214,19 +2217,19 @@ function handleMobileNavSelect(key) {
                                                     </label>
                                                 </div>
                                             </div>
-                                            <textarea
-                                                v-model="form.postal_address"
-                                                rows="2"
-                                                :readonly="postalMatchesLegal || postalMatchesActual"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                                :class="(postalMatchesLegal || postalMatchesActual) ? 'cursor-not-allowed bg-zinc-50 text-zinc-600 dark:bg-zinc-900/50 dark:text-zinc-400' : ''"
-                                                @input="!postalMatchesLegal && !postalMatchesActual && queueAddressLookup('postal_address')"
-                                            ></textarea>
-                                            <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-                                                <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
-                                                    {{ suggestion.value }}
-                                                </button>
-                                            </div>
+                                            <template v-if="!postalMatchesLegal && !postalMatchesActual">
+                                                <textarea
+                                                    v-model="form.postal_address"
+                                                    rows="2"
+                                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                    @input="queueAddressLookup('postal_address')"
+                                                ></textarea>
+                                                <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+                                                    <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
+                                                        {{ suggestion.value }}
+                                                    </button>
+                                                </div>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -2394,18 +2397,18 @@ function handleMobileNavSelect(key) {
                                                 <div v-if="bankLookupErrors[bankIndex]" class="text-xs text-rose-600">{{ bankLookupErrors[bankIndex] }}</div>
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Расчётный счёт / Account</label>
-                                                <input v-model="account.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.account_number = String(account.account_number || '').replace(/\\s+/g, '')" />
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">IBAN</label>
+                                                <input v-model="account.iban" type="text" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.iban = String(account.iban || '').toUpperCase().replace(/\\s+/g, '')" />
                                             </div>
                                         </div>
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Корр. счёт</label>
-                                                <input v-model="account.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Расчётный счёт / Account</label>
+                                                <input v-model="account.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.account_number = String(account.account_number || '').replace(/\\s+/g, '')" />
                                             </div>
                                             <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">IBAN</label>
-                                                <input v-model="account.iban" type="text" class="w-full uppercase border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.iban = String(account.iban || '').toUpperCase().replace(/\\s+/g, '')" />
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Корр. счёт</label>
+                                                <input v-model="account.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
                                             </div>
                                         </div>
                                     </div>
