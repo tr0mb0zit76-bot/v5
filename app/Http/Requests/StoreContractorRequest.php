@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class StoreContractorRequest extends FormRequest
@@ -33,6 +34,32 @@ class StoreContractorRequest extends FormRequest
             if (! is_string($value)) {
                 $this->merge([$key => (string) $value]);
             }
+        }
+
+        foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_bank_account', 'cnaps_code'] as $key) {
+            if (! $this->has($key)) {
+                continue;
+            }
+
+            $value = $this->input($key);
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            if ($key === 'non_resident_corr_bank_swift') {
+                $this->merge([$key => strtoupper(preg_replace('/\s+/u', '', (string) $value))]);
+
+                continue;
+            }
+
+            if ($key === 'cnaps_code') {
+                $this->merge([$key => preg_replace('/\D/u', '', (string) $value)]);
+
+                continue;
+            }
+
+            $this->merge([$key => trim((string) $value)]);
         }
 
         $bankAccounts = $this->input('bank_accounts');
@@ -150,7 +177,11 @@ class StoreContractorRequest extends FormRequest
             'is_verified' => ['required', 'boolean'],
             'is_own_company' => ['required', 'boolean'],
             'is_non_resident' => ['nullable', 'boolean'],
-            'owner_id' => ['nullable', 'integer', 'exists:users,id'],
+            'non_resident_corr_bank_name' => ['nullable', 'string', 'max:255'],
+            'non_resident_corr_bank_swift' => ['nullable', 'string', 'max:11', 'regex:/^[A-Za-z0-9]*$/u'],
+            'non_resident_corr_bank_account' => ['nullable', 'string', 'max:64'],
+            'cnaps_code' => ['nullable', 'string', 'max:20', 'regex:/^[0-9]*$/u'],
+            'owner_id' => $this->ownerIdRules(),
             'contacts' => ['nullable', 'array'],
             'contacts.*.full_name' => ['required', 'string', 'max:255'],
             'contacts.*.position' => ['nullable', 'string', 'max:255'],
@@ -172,6 +203,22 @@ class StoreContractorRequest extends FormRequest
             'documents.*.document_date' => ['nullable', 'date'],
             'documents.*.status' => ['nullable', 'string', 'max:255'],
             'documents.*.notes' => ['nullable', 'string'],
+        ];
+    }
+
+    /**
+     * @return array<int, ValidationRule|string>
+     */
+    protected function ownerIdRules(): array
+    {
+        if (! Schema::hasColumn('users', 'is_active')) {
+            return ['nullable', 'integer', 'exists:users,id'];
+        }
+
+        return [
+            'nullable',
+            'integer',
+            Rule::exists('users', 'id')->where('is_active', true),
         ];
     }
 }

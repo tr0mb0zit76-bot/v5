@@ -355,7 +355,7 @@ class OrderWizardController extends Controller
                 ['value' => 'in_progress', 'label' => 'Выполняется'],
                 ['value' => 'documents', 'label' => 'Документы'],
                 ['value' => 'payment', 'label' => 'Оплата'],
-                ['value' => 'closed', 'label' => 'Закрыта'],
+                ['value' => 'closed', 'label' => 'Завершено'],
                 ['value' => 'draft', 'label' => 'Черновик (legacy)'],
                 ['value' => 'pending', 'label' => 'На согласовании (legacy)'],
                 ['value' => 'confirmed', 'label' => 'Подтвержден (legacy)'],

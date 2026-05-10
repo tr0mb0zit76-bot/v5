@@ -342,11 +342,50 @@ let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
+function ordersGridStaleRowClass(data) {
+  if (!data) {
+    return '';
+  }
+
+  const status = data.manual_status || data.status || '';
+  if (['closed', 'cancelled'].includes(status)) {
+    return '';
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const day = (v) => (v == null || v === '' ? '' : String(v).slice(0, 10));
+
+  if (status === 'new') {
+    const ld = day(data.loading_date);
+    if (ld && ld < today) {
+      return 'ag-row-orders-stale';
+    }
+
+    return '';
+  }
+
+  if (status === 'in_progress') {
+    const ud = day(data.unloading_date);
+    if (!ud || ud >= today) {
+      return '';
+    }
+    const uk = data.unloading_date_route_kind ?? 'none';
+    if (uk === 'actual') {
+      return '';
+    }
+
+    return 'ag-row-orders-stale';
+  }
+
+  return '';
+}
+
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
   /** Стабильные id строк — быстрее обновление rowData и меньше лишних перерисовок. */
   getRowId: (params) => String(params.data?.id ?? ''),
+  getRowClass: (params) => ordersGridStaleRowClass(params.data),
 };
 
 const gridContainerStyle = computed(() => ({
@@ -724,7 +763,7 @@ const ORDER_STATUS_ICON_META = {
     ],
   },
   closed: {
-    label: 'Закрыта',
+    label: 'Завершено',
     colorClass: 'text-green-700 dark:text-green-400',
     paths: [
       'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
@@ -1117,7 +1156,7 @@ const dynamicColumnDefs = computed(() => {
         in_progress: 'Выполняется',
         documents: 'Документы',
         payment: 'Оплата',
-        closed: 'Закрыта',
+        closed: 'Завершено',
         cancelled: 'Отменена',
         draft: 'Черновик (legacy)',
         pending: 'На согласовании (legacy)',
@@ -1564,3 +1603,13 @@ defineExpose({
   resetToRoleDefaults,
 });
 </script>
+
+<style scoped>
+:deep(.ag-row.ag-row-orders-stale) {
+  background-color: rgb(254 242 242 / 0.65) !important;
+}
+
+.dark :deep(.ag-row.ag-row-orders-stale) {
+  background-color: rgb(127 29 29 / 0.18) !important;
+}
+</style>

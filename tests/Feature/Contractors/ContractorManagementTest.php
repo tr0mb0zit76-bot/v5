@@ -41,6 +41,7 @@ class ContractorManagementTest extends TestCase
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->boolean('is_active')->default(true);
             $table->rememberToken();
             $table->timestamps();
         });
@@ -96,6 +97,10 @@ class ContractorManagementTest extends TestCase
             $table->boolean('is_verified')->default(false);
             $table->boolean('is_own_company')->default(false);
             $table->boolean('is_non_resident')->default(false);
+            $table->string('non_resident_corr_bank_name')->nullable();
+            $table->string('non_resident_corr_bank_swift', 11)->nullable();
+            $table->string('non_resident_corr_bank_account', 64)->nullable();
+            $table->string('cnaps_code', 20)->nullable();
             $table->unsignedBigInteger('owner_id')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
@@ -945,6 +950,83 @@ class ContractorManagementTest extends TestCase
 
         $response->assertOk();
         $this->assertGreaterThan(0, count($response->json('contractors') ?? []));
+    }
+
+    public function test_update_contractor_rejects_inactive_user_as_new_owner(): void
+    {
+        $admin = $this->createAdminUser();
+        $activeOwner = User::factory()->create([
+            'role_id' => $admin->role_id,
+            'is_active' => true,
+        ]);
+        $inactiveUser = User::factory()->create([
+            'role_id' => $admin->role_id,
+            'is_active' => false,
+        ]);
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Старый владелец',
+            'owner_id' => $activeOwner->id,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', $contractorId), [
+            'type' => 'customer',
+            'name' => 'ООО Старый владелец',
+            'stop_on_limit' => false,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'owner_id' => $inactiveUser->id,
+        ]);
+
+        $response->assertSessionHasErrors('owner_id');
+    }
+
+    public function test_update_contractor_allows_keeping_existing_inactive_owner(): void
+    {
+        $admin = $this->createAdminUser();
+        $inactiveOwner = User::factory()->create([
+            'role_id' => $admin->role_id,
+            'is_active' => false,
+        ]);
+
+        $contractorId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Неактивный владелец',
+            'owner_id' => $inactiveOwner->id,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', $contractorId), [
+            'type' => 'customer',
+            'name' => 'ООО Переименовано',
+            'stop_on_limit' => false,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'owner_id' => $inactiveOwner->id,
+        ]);
+
+        $response->assertSessionDoesntHaveErrors();
+        $this->assertDatabaseHas('contractors', [
+            'id' => $contractorId,
+            'name' => 'ООО Переименовано',
+            'owner_id' => $inactiveOwner->id,
+        ]);
     }
 
     public function test_scoring_route_returns_json_payload_for_contractor(): void

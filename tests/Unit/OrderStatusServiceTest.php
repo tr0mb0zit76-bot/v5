@@ -3,71 +3,200 @@
 namespace Tests\Unit;
 
 use App\Models\Order;
-use App\Models\OrderDocument;
+use App\Models\OrderLeg;
+use App\Models\RoutePoint;
+use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderStatusService;
-use Illuminate\Support\Collection;
+use Carbon\Carbon;
+use Mockery;
 use Tests\TestCase;
 
 class OrderStatusServiceTest extends TestCase
 {
-    public function test_it_marks_order_as_documents_when_unloading_exists_but_required_documents_are_incomplete(): void
+    protected function tearDown(): void
     {
-        $order = $this->makeOrder([
-            'loading_date' => '2026-04-01',
-            'unloading_date' => '2026-04-02',
-            'payment_statuses' => [],
-            'salary_paid' => 0,
-        ], [
-            ['type' => 'request', 'metadata' => ['party' => 'customer'], 'status' => 'draft'],
-            ['type' => 'request', 'metadata' => ['party' => 'carrier'], 'status' => 'draft'],
-        ]);
+        Mockery::close();
 
-        $status = app(OrderStatusService::class)->describe($order);
-
-        $this->assertSame('documents', $status['status']);
-        $this->assertSame('Документы', $status['label']);
-        $this->assertFalse($status['required_documents_completed']);
-        $this->assertNotEmpty($status['messages']);
-    }
-
-    public function test_it_marks_order_as_closed_when_documents_and_payments_are_complete(): void
-    {
-        $order = $this->makeOrder([
-            'loading_date' => '2026-04-01',
-            'unloading_date' => '2026-04-02',
-            'payment_statuses' => [
-                'customer' => ['status' => 'paid'],
-                'carrier' => ['paid' => true],
-            ],
-            'salary_paid' => 15000,
-        ], [
-            ['type' => 'request', 'metadata' => ['party' => 'customer'], 'status' => 'sent'],
-            ['type' => 'request', 'metadata' => ['party' => 'carrier'], 'status' => 'sent'],
-            ['type' => 'waybill', 'metadata' => ['party' => 'internal'], 'status' => 'sent'],
-            ['type' => 'upd', 'metadata' => ['party' => 'customer'], 'status' => 'sent'],
-            ['type' => 'act', 'metadata' => ['party' => 'carrier'], 'status' => 'sent'],
-        ]);
-
-        $status = app(OrderStatusService::class)->describe($order);
-
-        $this->assertSame('closed', $status['status']);
-        $this->assertTrue($status['required_documents_completed']);
-        $this->assertTrue($status['customer_paid']);
-        $this->assertTrue($status['carrier_paid']);
-        $this->assertTrue($status['manager_paid']);
+        parent::tearDown();
     }
 
     /**
-     * @param  array<string, mixed>  $attributes
-     * @param  list<array<string, mixed>>  $documents
+     * @param  list<array{key: string, label: string, completed: bool}>  $checklist
      */
-    private function makeOrder(array $attributes, array $documents): Order
+    private function serviceWithChecklist(array $checklist): OrderStatusService
     {
-        $order = new Order($attributes);
-        $order->setRelation('documents', new Collection(
-            array_map(fn (array $document): OrderDocument => new OrderDocument($document), $documents)
-        ));
+        $mock = Mockery::mock(OrderDocumentRequirementService::class);
+        $mock->shouldReceive('checklistForOrder')->andReturn($checklist);
+
+        $this->instance(OrderDocumentRequirementService::class, $mock);
+
+        return new OrderStatusService($mock);
+    }
+
+    /**
+     * @param  list<RoutePoint>  $points
+     */
+    private function orderWithLegPoints(array $points, ?Carbon $aggregateLoading = null, ?Carbon $aggregateUnloading = null): Order
+    {
+        $leg = new OrderLeg;
+        $leg->setRelation('routePoints', collect($points));
+
+        $order = new Order;
+        $order->loading_date = $aggregateLoading;
+        $order->unloading_date = $aggregateUnloading;
+        $order->payment_statuses = [];
+        $order->salary_paid = 0;
+        $order->setRelation('legs', collect([$leg]));
 
         return $order;
+    }
+
+    public function test_planned_route_dates_only_stays_new_even_if_order_aggregate_dates_set(): void
+    {
+        $order = $this->orderWithLegPoints(
+            [
+                new RoutePoint([
+                    'type' => 'loading',
+                    'sequence' => 1,
+                    'planned_date' => Carbon::today(),
+                    'actual_date' => null,
+                ]),
+                new RoutePoint([
+                    'type' => 'unloading',
+                    'sequence' => 2,
+                    'planned_date' => Carbon::tomorrow(),
+                    'actual_date' => null,
+                ]),
+            ],
+            Carbon::today(),
+            Carbon::tomorrow(),
+        );
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => false],
+        ]);
+
+        $this->assertSame('new', $service->resolve($order));
+    }
+
+    public function test_actual_loading_without_unloading_is_in_progress(): void
+    {
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::today(),
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'planned_date' => Carbon::tomorrow(),
+                'actual_date' => null,
+            ]),
+        ]);
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => false],
+        ]);
+
+        $this->assertSame('in_progress', $service->resolve($order));
+    }
+
+    public function test_actual_unloading_with_incomplete_documents_is_documents(): void
+    {
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::yesterday(),
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'actual_date' => Carbon::today(),
+            ]),
+        ]);
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => false],
+        ]);
+
+        $this->assertSame('documents', $service->resolve($order));
+    }
+
+    public function test_actual_unloading_with_complete_documents_and_unpaid_is_payment(): void
+    {
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::yesterday(),
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'actual_date' => Carbon::today(),
+            ]),
+        ]);
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => true],
+        ]);
+
+        $this->assertSame('payment', $service->resolve($order));
+    }
+
+    public function test_all_paid_with_documents_complete_is_closed(): void
+    {
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::yesterday(),
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'actual_date' => Carbon::today(),
+            ]),
+        ]);
+        $order->payment_statuses = [
+            'customer' => ['paid' => true],
+            'carrier' => ['paid' => true],
+        ];
+        $order->salary_paid = 100;
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => true],
+        ]);
+
+        $this->assertSame('closed', $service->resolve($order));
+    }
+
+    public function test_requested_cancelled_wins(): void
+    {
+        $order = new Order;
+        $order->setRelation('legs', collect());
+        $service = $this->serviceWithChecklist([]);
+
+        $this->assertSame('cancelled', $service->resolve($order, 'cancelled'));
+    }
+
+    public function test_legacy_order_without_route_points_uses_order_date_columns(): void
+    {
+        $order = new Order;
+        $order->loading_date = Carbon::today();
+        $order->unloading_date = Carbon::tomorrow();
+        $order->payment_statuses = [];
+        $order->salary_paid = 0;
+        $order->setRelation('legs', collect([new OrderLeg]));
+
+        $order->legs->first()->setRelation('routePoints', collect());
+
+        $service = $this->serviceWithChecklist([
+            ['key' => 'a', 'label' => 'Документ', 'completed' => false],
+        ]);
+
+        $this->assertSame('documents', $service->resolve($order));
     }
 }

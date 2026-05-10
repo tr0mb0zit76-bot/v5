@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -156,10 +157,15 @@ class ContractorController extends Controller
 
     public function massUpdateOwner(Request $request): JsonResponse
     {
+        $ownerIdRules = ['nullable', 'integer'];
+        $ownerIdRules[] = Schema::hasColumn('users', 'is_active')
+            ? Rule::exists('users', 'id')->where('is_active', true)
+            : 'exists:users,id';
+
         $validated = $request->validate([
             'contractor_ids' => ['required', 'array', 'min:1'],
             'contractor_ids.*' => ['integer', 'exists:contractors,id'],
-            'owner_id' => ['nullable', 'integer', 'exists:users,id'],
+            'owner_id' => $ownerIdRules,
         ]);
 
         $contractorIds = $validated['contractor_ids'];
@@ -524,7 +530,7 @@ class ContractorController extends Controller
                 ['value' => 'samozanyaty', 'label' => 'Самозанятый'],
                 ['value' => 'other', 'label' => 'Другое'],
             ],
-            'users' => User::select('id', 'name')->orderBy('name')->get(),
+            'users' => $this->ownerUserOptionsForContractorForm($selectedContractor?->owner_id),
             'contractorColumns' => ContractorTableColumns::options(),
             'filters' => [
                 'search' => $search,
@@ -555,6 +561,10 @@ class ContractorController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'non_resident_corr_bank_name',
+            'non_resident_corr_bank_swift',
+            'non_resident_corr_bank_account',
+            'cnaps_code',
         ] as $nullableField) {
             if (($validated[$nullableField] ?? null) === '') {
                 $validated[$nullableField] = null;
@@ -621,6 +631,14 @@ class ContractorController extends Controller
             $validated = $this->applyLegacyBankFields($validated, $existingContractor);
         }
 
+        if (! (bool) ($validated['is_non_resident'] ?? false)) {
+            foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_bank_account', 'cnaps_code'] as $column) {
+                if (Schema::hasColumn('contractors', $column)) {
+                    $validated[$column] = null;
+                }
+            }
+        }
+
         if (! Schema::hasColumn('contractors', 'is_own_company')) {
             unset($validated['is_own_company']);
         }
@@ -644,6 +662,10 @@ class ContractorController extends Controller
             'cooperation_terms_notes',
             'bank_accounts',
             'is_non_resident',
+            'non_resident_corr_bank_name',
+            'non_resident_corr_bank_swift',
+            'non_resident_corr_bank_account',
+            'cnaps_code',
         ] as $column) {
             if (! Schema::hasColumn('contractors', $column)) {
                 unset($validated[$column]);
@@ -1080,5 +1102,56 @@ class ContractorController extends Controller
         }
 
         return '—';
+    }
+
+    /**
+     * Пользователи для поля «Владелец»: только активные; текущий владелец карточки
+     * добавляется, если он неактивен (чтобы значение не «терялось» в select).
+     *
+     * @return list<array{id: int, name: string}>
+     */
+    private function ownerUserOptionsForContractorForm(?int $retainOwnerId): array
+    {
+        $query = User::query()->select('id', 'name')->orderBy('name');
+
+        if (Schema::hasColumn('users', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        $rows = $query->get()
+            ->map(fn (User $user): array => [
+                'id' => (int) $user->id,
+                'name' => (string) $user->name,
+            ])
+            ->all();
+
+        if ($retainOwnerId === null || ! Schema::hasColumn('users', 'is_active')) {
+            return $rows;
+        }
+
+        $retainId = (int) $retainOwnerId;
+        $alreadyListed = collect($rows)->contains(fn (array $row): bool => (int) $row['id'] === $retainId);
+
+        if ($alreadyListed) {
+            return $rows;
+        }
+
+        $retained = User::query()->select('id', 'name', 'is_active')->find($retainId);
+
+        if ($retained === null) {
+            return $rows;
+        }
+
+        $name = (string) $retained->name;
+        if (! $retained->is_active) {
+            $name .= ' (не активен)';
+        }
+
+        array_unshift($rows, [
+            'id' => (int) $retained->id,
+            'name' => $name,
+        ]);
+
+        return $rows;
     }
 }

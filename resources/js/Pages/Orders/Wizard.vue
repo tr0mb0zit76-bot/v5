@@ -21,6 +21,15 @@
                         <h1 class="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                             {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
                         </h1>
+                        <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус</span>
+                            <span
+                                class="inline-flex max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
+                                title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
+                            >
+                                {{ orderStatusBadgeLabel }}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -92,20 +101,31 @@
                 </div>
             </div>
 
-            <div class="flex flex-wrap gap-2 border border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                <button
-                    v-for="tab in tabs"
-                    :key="tab.key"
-                    type="button"
-                    class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
-                    :class="activeTab === tab.key
-                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                        : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'"
-                    @click="activeTab = tab.key"
-                >
-                    <component :is="tab.icon" class="h-4 w-4" />
-                    {{ tab.label }}
-                </button>
+            <div class="flex flex-col gap-3 border border-zinc-200 bg-white px-5 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="flex min-w-0 flex-1 flex-wrap gap-2">
+                    <button
+                        v-for="tab in tabs"
+                        :key="tab.key"
+                        type="button"
+                        class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
+                        :class="activeTab === tab.key
+                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                            : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'"
+                        @click="activeTab = tab.key"
+                    >
+                        <component :is="tab.icon" class="h-4 w-4" />
+                        {{ tab.label }}
+                    </button>
+                </div>
+                <div class="flex shrink-0 flex-col gap-1 border-t border-zinc-200 pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-zinc-700">
+                    <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус заказа</span>
+                    <span
+                        class="inline-flex w-fit max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
+                        title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
+                    >
+                        {{ orderStatusBadgeLabel }}
+                    </span>
+                </div>
             </div>
         </template>
 
@@ -120,13 +140,11 @@
             >
                 Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Данные можно просматривать; изменения не сохраняются.
             </p>
-            <p class="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-                Обязательные поля для сохранения: заказчик, дата заказа, перевозчик и цена клиента. Остальные данные можно заполнять постепенно.
-            </p>
             <p v-if="saveAttempted && coreValidationIssues.length > 0" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
                 Не удалось сохранить: заполните {{ coreValidationIssues.join(', ') }}.
             </p>
-            <div v-if="activeTab === 'main'" class="grid gap-6 lg:grid-cols-2">
+            <div v-if="activeTab === 'main'" class="space-y-6">
+                <div class="grid gap-6 lg:grid-cols-2">
                 <div class="space-y-4">
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Своя компания</label>
@@ -185,9 +203,6 @@
                                 </button>
                             </div>
                         </div>
-                        <p v-if="selectedClient" class="text-xs text-zinc-500">
-                            Выбран: {{ selectedClient.name }}{{ selectedClient.inn ? `, ИНН ${selectedClient.inn}` : '' }}
-                        </p>
                         <p v-if="customerDebtBlocked" class="text-xs text-rose-500">
                             Лимит задолженности контрагента достигнут: {{ selectedClient?.current_debt ?? 0 }} {{ selectedClient?.debt_limit_currency || 'RUB' }}. Новый заказ сохранить нельзя.
                         </p>
@@ -203,21 +218,6 @@
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Номер</label>
                             <input v-model="form.order_number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сгенерируется автоматически" />
-                        </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Статус заказа</label>
-                            <select v-model="form.status" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800">
-                                <option v-for="option in orderStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                            </select>
-                            <p class="text-xs text-zinc-500">Статус рассчитывается автоматически по датам, документам и оплатам.</p>
-                            <p v-if="missingRequiredDocumentsSummary" class="text-xs text-amber-600 dark:text-amber-300">{{ missingRequiredDocumentsSummary }}</p>
-                        </div>
-                        <div class="space-y-2">
-                            <label class="text-sm font-medium">Ответственный</label>
-                            <input :value="responsibleDisplayName" type="text" disabled class="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800" />
                         </div>
                     </div>
 
@@ -242,11 +242,6 @@
                         </div>
                     </div>
 
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Особые отметки</label>
-                        <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    </div>
-
                 </div>
 
                 <div class="space-y-4">
@@ -260,29 +255,36 @@
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-sm dark:border-zinc-800 dark:bg-zinc-900/50">
-                        <div class="mb-1 text-sm font-semibold">Предварительная сводка по финансам</div>
-                        <p class="mb-3 text-xs text-zinc-500">Итоговые KPI, дельта и начисление пересчитываются на сервере после сохранения заказа.</p>
-                        <div class="grid gap-3 md:grid-cols-3">
-                            <div>Дельта: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
-                            <div>Маржинальность: <span class="font-medium">{{ financialMarginPercent.toFixed(2) }}%</span></div>
-                            <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
-                        </div>
-                        <div
-                            v-if="showPaymentSettlementBlock"
-                            class="mt-4 space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-700"
-                        >
-                            <div class="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Расчёты по графику оплат</div>
-                            <p class="text-xs text-zinc-500">Оплаченные строки не показываются в журнале «Финансы → График оплат»; здесь — итог по клиенту и перевозчикам.</p>
-                            <div class="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200">
-                                <div>
-                                    Клиент рассчитался с нами:
-                                    <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.customer) }}</span>
-                                </div>
-                                <div>
-                                    Мы рассчитались с перевозчиками:
-                                    <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.carrier) }}</span>
-                                </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Особые отметки</label>
+                        <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                    </div>
+                </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h2 class="text-base font-semibold">Финансовая сводка</h2>
+                    <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-5">
+                        <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
+                        <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
+                        <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
+                        <div>Доп. расходы: <span class="font-medium">{{ financialSummary.additionalCosts.toFixed(2) }}</span></div>
+                        <div>KPI: <span class="font-medium">{{ Number(form.financial_term.kpi_percent || 0).toFixed(2) }}%</span></div>
+                    </div>
+
+                    <div
+                        v-if="showPaymentSettlementBlock"
+                        class="space-y-2 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800"
+                    >
+                        <div class="font-semibold text-zinc-800 dark:text-zinc-100">Расчёты по графику оплат</div>
+                        <div class="space-y-1.5 text-zinc-700 dark:text-zinc-200">
+                            <div>
+                                Клиент рассчитался с нами:
+                                <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.customer) }}</span>
+                            </div>
+                            <div>
+                                Мы рассчитались с перевозчиками:
+                                <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.carrier) }}</span>
                             </div>
                         </div>
                     </div>
@@ -335,7 +337,7 @@
                                     <input
                                         :value="carrierSearchValue('performer', legIndex)"
                                         type="text"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 pr-10 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField('performer_carrier', performer.contractor_id)]"
                                         placeholder="Поиск перевозчика"
                                         @focus="setCarrierResultsVisible('performer', legIndex, true)"
                                         @input="onPerformerCarrierInput(legIndex, $event.target.value)"
@@ -750,7 +752,13 @@
                         <div class="grid gap-3 lg:grid-cols-5">
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Цена клиента</label>
-                                <input v-model="form.financial_term.client_price" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <input
+                                    v-model="form.financial_term.client_price"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_price', form.financial_term.client_price)]"
+                                />
                                 <p v-if="form.errors['financial_term.client_price']" class="text-xs text-rose-500">{{ form.errors['financial_term.client_price'] }}</p>
                             </div>
                             <div class="space-y-2">
@@ -924,13 +932,6 @@
                 </div>
             </div>
 
-            <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-5">
-                <div>Цена клиента: <span class="font-medium">{{ financialSummary.clientPrice.toFixed(2) }}</span></div>
-                <div>Себестоимость: <span class="font-medium">{{ financialSummary.totalCost.toFixed(2) }}</span></div>
-                <div>Маржа: <span class="font-medium">{{ financialSummary.margin.toFixed(2) }}</span></div>
-                <div>Доп. расходы: <span class="font-medium">{{ financialSummary.additionalCosts.toFixed(2) }}</span></div>
-                <div>KPI: <span class="font-medium">{{ Number(form.financial_term.kpi_percent || 0).toFixed(2) }}%</span></div>
-            </div>
             </div>
 
             <div v-else-if="activeTab === 'documents'" class="space-y-4">
@@ -957,7 +958,7 @@
                         v-if="documentChecklist.length > 0"
                         class="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
                     >
-                        <div class="font-medium text-amber-950 dark:text-amber-100">Обязательные документы для этапов «Оплата» и «Закрыта»</div>
+                        <div class="font-medium text-amber-950 dark:text-amber-100">Обязательные документы для этапов «Оплата» и «Завершено»</div>
                         <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
                             Пока не выполнены все пункты, после выгрузки статус заказа останется «Документы». Для загружаемых файлов — прикрепите файл и поставьте статус «Отправлен» или «Подписан». Для печатных форм — завершите цепочку документа (финальный PDF и подписи по шаблону).
                         </p>
@@ -2317,6 +2318,14 @@ watch(
 );
 
 const isEditing = computed(() => props.order !== null);
+
+const orderStatusBadgeLabel = computed(() => {
+    const code = form.status;
+    const opt = props.orderStatusOptions.find((o) => o.value === code);
+
+    return opt?.label ?? code ?? '—';
+});
+
 /** Ложь, когда владелец заказа не может менять карточку (все печатные заявки финализированы). */
 const isOrderFormEditable = computed(() => {
     if (!isEditing.value) {
@@ -2325,7 +2334,6 @@ const isOrderFormEditable = computed(() => {
 
     return props.order?.can_edit_order !== false;
 });
-const responsibleDisplayName = computed(() => props.order?.responsible_name ?? props.currentUser?.name ?? '—');
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
         return false;
@@ -2376,24 +2384,49 @@ const mandatoryWizardFields = new Set([
     'order_date',
 ]);
 
-// Подсветка только безусловно обязательных полей
+const coreRequiredHighlightClass = 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30';
+const defaultFieldBorderClass = 'border-zinc-200 dark:border-zinc-700';
+
+/** Подсветка полей, обязательных для сохранения заказа (см. coreValidationIssues). */
 const highlightRequiredField = (fieldName, value, conditionValue = null) => {
-    // Для поля client_currency проверяем, заполнена ли цена клиента
     if (fieldName === 'client_currency') {
         if (conditionValue && (!value || value === '' || value === null)) {
-            return 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30';
+            return coreRequiredHighlightClass;
         }
-        return 'border-zinc-200 dark:border-zinc-700';
+
+        return defaultFieldBorderClass;
+    }
+
+    if (fieldName === 'client_price') {
+        const price = Number(value);
+        if (!value || value === '' || Number.isNaN(price) || price <= 0) {
+            return coreRequiredHighlightClass;
+        }
+
+        return defaultFieldBorderClass;
+    }
+
+    if (fieldName === 'performer_carrier') {
+        if (hasSelectedCarrier.value) {
+            return defaultFieldBorderClass;
+        }
+
+        if (normalizeNullableNumber(value) === null) {
+            return coreRequiredHighlightClass;
+        }
+
+        return defaultFieldBorderClass;
     }
 
     if (!mandatoryWizardFields.has(fieldName)) {
-        return 'border-zinc-200 dark:border-zinc-700';
+        return defaultFieldBorderClass;
     }
 
     if (!value || value === '' || value === null) {
-        return 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30';
+        return coreRequiredHighlightClass;
     }
-    return 'border-zinc-200 dark:border-zinc-700';
+
+    return defaultFieldBorderClass;
 };
 const orderPeriodPreview = computed(() => {
     if (!form.order_date) {
@@ -3252,16 +3285,6 @@ const financialSummary = computed(() => {
     };
 });
 
-const financialMarginPercent = computed(() => {
-    const clientPrice = Number(form.financial_term.client_price || 0);
-
-    if (clientPrice <= 0) {
-        return 0;
-    }
-
-    return (financialSummary.value.margin / clientPrice) * 100;
-});
-
 const orderPaymentSettlement = computed(() => props.order?.payment_settlement ?? null);
 
 const showPaymentSettlementBlock = computed(() => {
@@ -3324,36 +3347,6 @@ const documentChecklist = computed(() => {
             matched_document_id: matchedDocument?.id ?? null,
         };
     });
-});
-
-const completedRequiredDocumentsCount = computed(() => {
-    return documentChecklist.value.filter((item) => item.completed).length;
-});
-
-const missingRequiredDocumentsSummary = computed(() => {
-    const missingItems = documentChecklist.value.filter((item) => !item.completed);
-
-    if (missingItems.length === 0) {
-        return '';
-    }
-
-    const groupedItems = missingItems.reduce((carry, item) => {
-        const key = item.party;
-
-        if (!carry[key]) {
-            carry[key] = [];
-        }
-
-        carry[key].push(item.label);
-
-        return carry;
-    }, {});
-
-    const summary = Object.entries(groupedItems)
-        .map(([party, labels]) => `${partyLabel(party)}: ${labels.join(', ')}`)
-        .join('; ');
-
-    return `Не хватает документов. ${summary}`;
 });
 
 const customerDocuments = computed(() => {
@@ -3685,10 +3678,6 @@ async function onDocumentFileChange(index, event) {
 
 function documentTypeLabel(type) {
     return props.documentTypeOptions.find((option) => option.value === type)?.label ?? type;
-}
-
-function partyLabel(party) {
-    return props.documentPartyOptions.find((option) => option.value === party)?.label ?? party;
 }
 
 function documentRequirementLabel(key) {

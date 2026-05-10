@@ -812,6 +812,11 @@ class OrderWizardService
             $order->setRelation('documents', collect());
         }
 
+        $order->loadMissing([
+            'legs' => fn ($q) => $q->orderBy('sequence'),
+            'legs.routePoints' => fn ($q) => $q->orderBy('sequence'),
+        ]);
+
         $derivedStatus = $this->orderStatusService->resolve($order, $validated['status'] ?? null);
 
         $order->forceFill([

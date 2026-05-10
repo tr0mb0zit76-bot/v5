@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use Carbon\CarbonInterface;
 
 class OrderStatusService
 {
@@ -23,6 +24,10 @@ class OrderStatusService
      */
     public function describe(Order $order, ?string $requestedStatus = null): array
     {
+        $milestones = $this->routeActualMilestones($order);
+        $actualLoadingAt = $milestones['actual_loading'];
+        $actualUnloadingAt = $milestones['actual_unloading'];
+
         $checklist = $this->orderDocumentRequirementService->checklistForOrder($order);
         $requiredDocumentsCompleted = collect($checklist)->every(
             fn (array $item): bool => (bool) ($item['completed'] ?? false)
@@ -31,8 +36,9 @@ class OrderStatusService
         $carrierPaid = $this->isPaid($order, 'carrier');
         $managerPaid = $this->isPaid($order, 'manager');
         $status = $this->resolveStatus(
-            $order,
             $requestedStatus,
+            $actualLoadingAt,
+            $actualUnloadingAt,
             $requiredDocumentsCompleted,
             $customerPaid,
             $carrierPaid,
@@ -42,7 +48,7 @@ class OrderStatusService
         return [
             'status' => $status,
             'label' => $this->label($status),
-            'messages' => $this->messages($order, $checklist, $customerPaid, $carrierPaid, $managerPaid),
+            'messages' => $this->messages($checklist, $actualUnloadingAt, $customerPaid, $carrierPaid, $managerPaid),
             'required_documents_completed' => $requiredDocumentsCompleted,
             'customer_paid' => $customerPaid,
             'carrier_paid' => $carrierPaid,
@@ -62,10 +68,63 @@ class OrderStatusService
             'in_progress' => 'Выполняется',
             'documents' => 'Документы',
             'payment' => 'Оплата',
-            'closed' => 'Закрыта',
+            'closed' => 'Завершено',
             'cancelled' => 'Отменена',
             default => 'Новый заказ',
         };
+    }
+
+    /**
+     * Первая фактическая погрузка и последняя фактическая выгрузка по точкам маршрута.
+     * Плановые даты не учитываются. Без точек маршрута — колонки заказа (legacy).
+     *
+     * @return array{actual_loading: ?CarbonInterface, actual_unloading: ?CarbonInterface}
+     */
+    private function routeActualMilestones(Order $order): array
+    {
+        if (! $order->relationLoaded('legs')) {
+            $order->loadMissing([
+                'legs' => fn ($q) => $q->orderBy('sequence'),
+                'legs.routePoints' => fn ($q) => $q->orderBy('sequence'),
+            ]);
+        }
+
+        $hasRoutePoints = $order->legs->contains(
+            fn ($leg): bool => $leg->routePoints->isNotEmpty()
+        );
+
+        if (! $hasRoutePoints) {
+            return [
+                'actual_loading' => $order->loading_date,
+                'actual_unloading' => $order->unloading_date,
+            ];
+        }
+
+        $firstActualLoading = null;
+        $lastActualUnloading = null;
+
+        foreach ($order->legs as $leg) {
+            foreach ($leg->routePoints as $point) {
+                if ($point->type === 'loading' && $point->actual_date !== null) {
+                    $firstActualLoading = $point->actual_date;
+
+                    break 2;
+                }
+            }
+        }
+
+        foreach ($order->legs as $leg) {
+            foreach ($leg->routePoints as $point) {
+                if ($point->type === 'unloading' && $point->actual_date !== null) {
+                    $lastActualUnloading = $point->actual_date;
+                }
+            }
+        }
+
+        return [
+            'actual_loading' => $firstActualLoading,
+            'actual_unloading' => $lastActualUnloading,
+        ];
     }
 
     /**
@@ -77,8 +136,8 @@ class OrderStatusService
      * @return list<string>
      */
     private function messages(
-        Order $order,
         array $checklist,
+        ?CarbonInterface $actualUnloadingAt,
         bool $customerPaid,
         bool $carrierPaid,
         bool $managerPaid
@@ -96,11 +155,11 @@ class OrderStatusService
             $messages[] = 'Не хватает документов: '.implode(', ', $missingDocuments);
         }
 
-        if ($order->unloading_date !== null && ! $customerPaid) {
+        if ($actualUnloadingAt !== null && ! $customerPaid) {
             $messages[] = 'Нет отметки об оплате от заказчика.';
         }
 
-        if ($order->unloading_date !== null && ! $carrierPaid) {
+        if ($actualUnloadingAt !== null && ! $carrierPaid) {
             $messages[] = 'Нет отметки об оплате перевозчику.';
         }
 
@@ -112,8 +171,9 @@ class OrderStatusService
     }
 
     private function resolveStatus(
-        Order $order,
         ?string $requestedStatus,
+        ?CarbonInterface $actualLoadingAt,
+        ?CarbonInterface $actualUnloadingAt,
         bool $requiredDocumentsCompleted,
         bool $customerPaid,
         bool $carrierPaid,
@@ -124,7 +184,7 @@ class OrderStatusService
         }
 
         if (
-            $order->unloading_date !== null
+            $actualUnloadingAt !== null
             && $requiredDocumentsCompleted
             && $customerPaid
             && $carrierPaid
@@ -133,28 +193,19 @@ class OrderStatusService
             return 'closed';
         }
 
-        if ($order->unloading_date !== null && $requiredDocumentsCompleted) {
+        if ($actualUnloadingAt !== null && $requiredDocumentsCompleted) {
             return 'payment';
         }
 
-        if ($order->unloading_date !== null) {
+        if ($actualUnloadingAt !== null) {
             return 'documents';
         }
 
-        if ($order->loading_date !== null && $this->hasExecutionRequests($order)) {
+        if ($actualLoadingAt !== null) {
             return 'in_progress';
         }
 
         return 'new';
-    }
-
-    private function hasExecutionRequests(Order $order): bool
-    {
-        $checklist = collect($this->orderDocumentRequirementService->checklistForOrder($order))
-            ->keyBy('key');
-
-        return (bool) data_get($checklist->get('customer_request'), 'completed', false)
-            && (bool) data_get($checklist->get('carrier_request'), 'completed', false);
     }
 
     private function isPaid(Order $order, string $party): bool
