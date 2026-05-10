@@ -16,6 +16,7 @@ class ContractorTableColumns
             ['field' => 'type_label', 'label' => 'Тип', 'width' => 160, 'minWidth' => 140, 'type' => null],
             ['field' => 'inn', 'label' => 'ИНН', 'width' => 140, 'minWidth' => 120, 'type' => null],
             ['field' => 'primary_contact', 'label' => 'Основной контакт', 'width' => 220, 'minWidth' => 180, 'type' => null],
+            ['field' => 'owner_name', 'label' => 'Владелец', 'width' => 180, 'minWidth' => 140, 'type' => null],
             ['field' => 'phone', 'label' => 'Телефон', 'width' => 170, 'minWidth' => 140, 'type' => null],
             ['field' => 'email', 'label' => 'Email', 'width' => 200, 'minWidth' => 170, 'type' => null],
             ['field' => 'contacts_count', 'label' => 'Контакты', 'width' => 110, 'minWidth' => 95, 'type' => 'numeric'],

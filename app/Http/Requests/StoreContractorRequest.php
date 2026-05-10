@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -96,6 +97,14 @@ class StoreContractorRequest extends FormRequest
 
             $this->merge(['bank_accounts' => $normalized]);
         }
+
+        if ($this->has('name')) {
+            $this->merge(['name' => ContractorIdentity::normalizeName($this->input('name'))]);
+        }
+
+        if ($this->has('inn')) {
+            $this->merge(['inn' => ContractorIdentity::normalizeInn($this->input('inn'))]);
+        }
     }
 
     /**
@@ -113,10 +122,10 @@ class StoreContractorRequest extends FormRequest
     {
         return [
             'type' => ['required', Rule::in(['customer', 'carrier', 'both'])],
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255', Rule::unique('contractors', 'name')],
             'full_name' => ['nullable', 'string', 'max:255'],
             'short_description' => ['nullable', 'string', 'max:1000'],
-            'inn' => ['nullable', 'string', 'max:20'],
+            'inn' => ['nullable', 'string', 'max:20', Rule::unique('contractors', 'inn')],
             'kpp' => ['nullable', 'string', 'max:20'],
             'ogrn' => ['nullable', 'string', 'max:20'],
             'okpo' => ['nullable', 'string', 'max:20'],

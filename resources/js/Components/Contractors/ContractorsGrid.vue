@@ -225,6 +225,7 @@ const fallbackColumns = [
   { field: 'activity_types_label', label: 'Вид деятельности', width: 220, minWidth: 180, type: null },
   { field: 'inn', label: 'ИНН', width: 140, minWidth: 120, type: null },
   { field: 'primary_contact', label: 'Основной контакт', width: 220, minWidth: 180, type: null },
+  { field: 'owner_name', label: 'Владелец', width: 180, minWidth: 140, type: null },
 ];
 
 const defaultVisibleFields = [
@@ -242,6 +243,7 @@ const defaultVisibleFields = [
 /** Без плавающей строки фильтра (как в реестре заказов — меньше DOM). */
 const CONTRACTORS_NO_FLOATING_FILTER = new Set([
   'primary_contact',
+  'owner_name',
   'phone',
   'email',
   'orders_count',

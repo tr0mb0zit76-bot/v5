@@ -6,6 +6,7 @@ use App\Models\Contractor;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class UpdateContractorRequest extends StoreContractorRequest
 {
@@ -16,12 +17,26 @@ class UpdateContractorRequest extends StoreContractorRequest
     {
         $rules = parent::rules();
 
+        /** @var Contractor $contractor */
+        $contractor = $this->route('contractor');
+
+        $rules['name'] = [
+            'required',
+            'string',
+            'max:255',
+            Rule::unique('contractors', 'name')->ignore($contractor->id),
+        ];
+
+        $rules['inn'] = [
+            'nullable',
+            'string',
+            'max:20',
+            Rule::unique('contractors', 'inn')->ignore($contractor->id),
+        ];
+
         if (! Schema::hasColumn('users', 'is_active')) {
             return $rules;
         }
-
-        /** @var Contractor $contractor */
-        $contractor = $this->route('contractor');
 
         $rules['owner_id'] = [
             'nullable',

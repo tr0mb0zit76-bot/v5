@@ -1042,6 +1042,103 @@ class ContractorManagementTest extends TestCase
         ]);
     }
 
+    public function test_store_contractor_rejects_duplicate_company_name(): void
+    {
+        $admin = $this->createAdminUser();
+
+        DB::table('contractors')->insert([
+            'type' => 'customer',
+            'name' => 'ООО Дубликат имени',
+            'inn' => '1111111111',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('contractors.store'), $this->minimalContractorCreatePayload([
+            'name' => 'ООО Дубликат имени',
+            'inn' => '2222222222',
+        ]));
+
+        $response->assertSessionHasErrors('name');
+    }
+
+    public function test_store_contractor_rejects_duplicate_inn_after_normalization(): void
+    {
+        $admin = $this->createAdminUser();
+
+        DB::table('contractors')->insert([
+            'type' => 'customer',
+            'name' => 'ООО Первая запись',
+            'inn' => '7707083893',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('contractors.store'), $this->minimalContractorCreatePayload([
+            'name' => 'ООО Вторая запись',
+            'inn' => '77 07 083893',
+        ]));
+
+        $response->assertSessionHasErrors('inn');
+    }
+
+    public function test_update_contractor_rejects_name_taken_by_another_record(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $otherId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Чужое имя',
+            'inn' => '3333333333',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $subjectId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Редактируемый',
+            'inn' => '4444444444',
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+            'stop_on_limit' => false,
+            'debt_limit_currency' => 'RUB',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('contractors.update', $subjectId), [
+            'type' => 'customer',
+            'name' => 'ООО Чужое имя',
+            'inn' => '4444444444',
+            'stop_on_limit' => false,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+        ]);
+
+        $response->assertSessionHasErrors('name');
+        $this->assertDatabaseHas('contractors', [
+            'id' => $subjectId,
+            'name' => 'ООО Редактируемый',
+        ]);
+    }
+
     public function test_scoring_route_returns_json_payload_for_contractor(): void
     {
         Config::set('checko.api_key', '');
@@ -1065,6 +1162,23 @@ class ContractorManagementTest extends TestCase
             ->assertJson([
                 'ok' => false,
             ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function minimalContractorCreatePayload(array $overrides = []): array
+    {
+        return array_merge([
+            'type' => 'customer',
+            'name' => 'ООО Уникальное название',
+            'inn' => '5408231001',
+            'stop_on_limit' => false,
+            'is_active' => true,
+            'is_verified' => false,
+            'is_own_company' => false,
+        ], $overrides);
     }
 
     private function createAdminUser(): User

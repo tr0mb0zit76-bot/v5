@@ -283,6 +283,12 @@ class ContractorController extends Controller
                     ->orWhere('inn', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%");
+
+                if (Schema::hasColumn('contractors', 'owner_id')) {
+                    $query->orWhereHas('owner', function ($ownerQuery) use ($search): void {
+                        $ownerQuery->where('name', 'like', "%{$search}%");
+                    });
+                }
             });
         }
 
@@ -295,6 +301,10 @@ class ContractorController extends Controller
 
         $contractorsQuery->withCount(['customerOrders', 'carrierOrders']);
 
+        if (Schema::hasColumn('contractors', 'owner_id')) {
+            $contractorsQuery->with('owner:id,name');
+        }
+
         try {
             $contractorsCollection = $contractorsQuery
                 ->orderByDesc('is_active')
@@ -302,8 +312,14 @@ class ContractorController extends Controller
                 ->get();
         } catch (QueryException $exception) {
             if ($this->isMissingTableException($exception, 'contractor_contacts')) {
-                $contractorsCollection = Contractor::query()
-                    ->withCount(['customerOrders', 'carrierOrders'])
+                $fallbackQuery = Contractor::query()
+                    ->withCount(['customerOrders', 'carrierOrders']);
+
+                if (Schema::hasColumn('contractors', 'owner_id')) {
+                    $fallbackQuery->with('owner:id,name');
+                }
+
+                $contractorsCollection = $fallbackQuery
                     ->orderByDesc('is_active')
                     ->orderBy('name')
                     ->get();
@@ -330,6 +346,9 @@ class ContractorController extends Controller
                 'status_text' => $contractor->is_active ? 'Активен' : 'Архив',
                 'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
                 'primary_contact' => $this->resolvePrimaryContact($contractor),
+                'owner_name' => Schema::hasColumn('contractors', 'owner_id')
+                    ? ($contractor->owner?->name ?? '')
+                    : '',
                 'debt_limit' => $contractor->debt_limit,
                 'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
                 'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),

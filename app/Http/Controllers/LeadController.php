@@ -15,6 +15,7 @@ use App\Models\Task;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
+use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\LeadStatus;
 use App\Support\LeadTableColumns;
@@ -110,8 +111,8 @@ class LeadController extends Controller
 
         $attributes = [
             'type' => $request->input('type', 'customer'),
-            'name' => $request->string('name')->toString(),
-            'inn' => $request->string('inn')->toString() ?: null,
+            'name' => ContractorIdentity::normalizeName($request->input('name')),
+            'inn' => ContractorIdentity::normalizeInn($request->input('inn')),
             'kpp' => $request->string('kpp')->toString() ?: null,
             'legal_address' => $request->string('address')->toString() ?: null,
             'actual_address' => $request->string('address')->toString() ?: null,

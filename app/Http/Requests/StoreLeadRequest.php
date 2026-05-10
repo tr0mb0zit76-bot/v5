@@ -6,6 +6,7 @@ use App\Support\CurrencyDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class StoreLeadRequest extends FormRequest
@@ -22,6 +23,10 @@ class StoreLeadRequest extends FormRequest
 
         if ($scope === 'own') {
             $this->merge(['responsible_id' => $user->id]);
+        }
+
+        if ($this->has('title')) {
+            $this->merge(['title' => trim((string) $this->input('title'))]);
         }
     }
 
@@ -48,7 +53,7 @@ class StoreLeadRequest extends FormRequest
             'source' => ['nullable', 'string', 'max:100'],
             'counterparty_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'responsible_id' => ['required', 'integer', 'exists:users,id'],
-            'title' => ['required', 'string', 'max:255'],
+            'title' => $this->leadTitleRules(),
             'description' => ['nullable', 'string'],
             'transport_type' => ['nullable', 'string', 'max:100'],
             'loading_location' => ['nullable', 'string', 'max:255'],
@@ -93,5 +98,25 @@ class StoreLeadRequest extends FormRequest
             'activities.*.content' => ['nullable', 'string'],
             'activities.*.next_action_at' => ['nullable', 'date'],
         ];
+    }
+
+    /**
+     * @return list<string|ValidationRule>
+     */
+    protected function leadTitleRules(): array
+    {
+        $rules = ['required', 'string', 'max:255'];
+
+        if (! Schema::hasTable('leads')) {
+            return $rules;
+        }
+
+        $unique = Rule::unique('leads', 'title');
+        if (Schema::hasColumn('leads', 'deleted_at')) {
+            $unique = $unique->whereNull('deleted_at');
+        }
+        $rules[] = $unique;
+
+        return $rules;
     }
 }
