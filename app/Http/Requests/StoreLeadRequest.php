@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CurrencyDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -54,7 +55,7 @@ class StoreLeadRequest extends FormRequest
             'unloading_location' => ['nullable', 'string', 'max:255'],
             'planned_shipping_date' => ['nullable', 'date'],
             'target_price' => ['nullable', 'numeric', 'min:0'],
-            'target_currency' => ['required_with:target_price', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'target_currency' => ['required_with:target_price', Rule::in(CurrencyDictionary::allowedCodes())],
             'calculated_cost' => ['nullable', 'numeric', 'min:0'],
             'expected_margin' => ['nullable', 'numeric'],
             'next_contact_at' => ['nullable', 'date'],

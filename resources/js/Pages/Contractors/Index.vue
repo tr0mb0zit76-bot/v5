@@ -69,6 +69,10 @@ const props = defineProps({
             type: '',
         }),
     },
+    currencyOptions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -139,7 +143,28 @@ const paymentBasisOptions = [
     { value: 'unloading', label: 'На выгрузке' },
 ];
 
-const currencyOptions = ['RUB', 'USD', 'CNY', 'EUR'];
+const defaultCurrencySelectOptions = [
+    { value: 'RUB', label: 'RUB' },
+    { value: 'USD', label: 'USD' },
+    { value: 'CNY', label: 'CNY' },
+    { value: 'EUR', label: 'EUR' },
+];
+
+const currencySelectOptions = computed(() => {
+    const raw = props.currencyOptions;
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return defaultCurrencySelectOptions;
+    }
+    const first = raw[0];
+    if (typeof first === 'string') {
+        return raw.map((code) => ({ value: code, label: code }));
+    }
+    if (first && typeof first === 'object' && 'value' in first && 'label' in first) {
+        return raw;
+    }
+
+    return defaultCurrencySelectOptions;
+});
 
 const mobileNavItems = [
     { key: 'dashboard', label: 'Главная', icon: House },
@@ -310,8 +335,10 @@ function blankForm() {
     };
 }
 
+const PRIMARY_BANK_LABEL = 'Основной';
+
 function blankBankAccount(overrides = {}) {
-    return {
+    const merged = {
         id: `bank-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         label: '',
         country_code: 'RU',
@@ -325,9 +352,16 @@ function blankBankAccount(overrides = {}) {
         is_primary: false,
         ...overrides,
     };
+
+    if (merged.is_primary && !String(merged.label ?? '').trim()) {
+        merged.label = PRIMARY_BANK_LABEL;
+    }
+
+    return merged;
 }
 
 function normalizeBankAccount(row, index = 0) {
+    const isPrimary = Boolean(row?.is_primary);
     const normalized = blankBankAccount({
         id: row?.id ?? `bank-${Date.now()}-${index}`,
         label: row?.label ?? '',
@@ -339,7 +373,7 @@ function normalizeBankAccount(row, index = 0) {
         correspondent_account: String(row?.correspondent_account ?? '').replace(/\D/g, ''),
         swift: String(row?.swift ?? '').toUpperCase().trim(),
         iban: String(row?.iban ?? '').toUpperCase().replace(/\s+/g, ''),
-        is_primary: Boolean(row?.is_primary),
+        is_primary: isPrimary,
     });
 
     if (normalized.country_code !== 'RU') {
@@ -373,6 +407,9 @@ function normalizeBankAccounts(rows) {
     const hasPrimary = normalized.some((row) => row.is_primary);
     if (!hasPrimary) {
         normalized[0].is_primary = true;
+        if (!String(normalized[0].label ?? '').trim()) {
+            normalized[0].label = PRIMARY_BANK_LABEL;
+        }
     }
 
     return normalized.map((row, index) => ({
@@ -485,6 +522,85 @@ function contractorToForm(contractor) {
 }
 
 const form = useForm(contractorToForm(props.selectedContractor));
+
+/** Синхронизация адресов на закладке «Реквизиты» (не уходят на сервер отдельно). */
+const actualMatchesLegal = ref(false);
+const postalMatchesLegal = ref(false);
+const postalMatchesActual = ref(false);
+
+function syncAddressLinkTargets() {
+    if (actualMatchesLegal.value) {
+        form.actual_address = form.legal_address ?? '';
+    }
+
+    if (postalMatchesLegal.value) {
+        form.postal_address = form.legal_address ?? '';
+    } else if (postalMatchesActual.value) {
+        form.postal_address = form.actual_address ?? '';
+    }
+}
+
+function inferAddressLinkFlagsFromForm() {
+    const legal = String(form.legal_address ?? '').trim();
+    const actual = String(form.actual_address ?? '').trim();
+    const postal = String(form.postal_address ?? '').trim();
+
+    actualMatchesLegal.value = legal !== '' && actual === legal;
+
+    if (postal === '') {
+        postalMatchesLegal.value = false;
+        postalMatchesActual.value = false;
+
+        return;
+    }
+
+    if (legal !== '' && postal === legal) {
+        postalMatchesLegal.value = true;
+        postalMatchesActual.value = false;
+
+        return;
+    }
+
+    if (actual !== '' && postal === actual) {
+        postalMatchesActual.value = true;
+        postalMatchesLegal.value = false;
+
+        return;
+    }
+
+    postalMatchesLegal.value = false;
+    postalMatchesActual.value = false;
+}
+
+function toggleActualMatchesLegal(event) {
+    const input = event?.target;
+    actualMatchesLegal.value = Boolean(input?.checked);
+    if (actualMatchesLegal.value) {
+        form.actual_address = form.legal_address ?? '';
+    }
+    syncAddressLinkTargets();
+}
+
+function togglePostalMatchesLegal(event) {
+    const input = event?.target;
+    const checked = Boolean(input?.checked);
+    postalMatchesLegal.value = checked;
+    if (checked) {
+        postalMatchesActual.value = false;
+    }
+    syncAddressLinkTargets();
+}
+
+function togglePostalMatchesActual(event) {
+    const input = event?.target;
+    const checked = Boolean(input?.checked);
+    postalMatchesActual.value = checked;
+    if (checked) {
+        postalMatchesLegal.value = false;
+    }
+    syncAddressLinkTargets();
+}
+
 const transportRequirementsText = ref('');
 const globalActivityTypeOptions = ref(
     [...new Set((props.activityTypeOptions ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru'))
@@ -538,6 +654,8 @@ function applyFormState(contractor) {
         actual_address: [],
         postal_address: [],
     };
+
+    inferAddressLinkFlagsFromForm();
 }
 
 applyFormState(props.selectedContractor);
@@ -558,6 +676,16 @@ watch(() => form.is_non_resident, (isNonResident) => {
 watch(() => props.activityTypeOptions, (options) => {
     globalActivityTypeOptions.value = [...new Set((options ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))]
         .sort((left, right) => left.localeCompare(right, 'ru'));
+});
+
+watch(() => form.legal_address, () => {
+    syncAddressLinkTargets();
+});
+
+watch(() => form.actual_address, () => {
+    if (postalMatchesActual.value && !postalMatchesLegal.value) {
+        form.postal_address = form.actual_address ?? '';
+    }
 });
 
 function currentPagePath(url) {
@@ -872,6 +1000,9 @@ function removeBankAccount(index) {
 
     if (wasPrimary && form.bank_accounts.length > 0) {
         form.bank_accounts[0].is_primary = true;
+        if (!String(form.bank_accounts[0].label ?? '').trim()) {
+            form.bank_accounts[0].label = PRIMARY_BANK_LABEL;
+        }
     }
 }
 
@@ -880,10 +1011,24 @@ function setPrimaryBankAccount(index) {
         return;
     }
 
-    form.bank_accounts = form.bank_accounts.map((row, rowIndex) => ({
-        ...row,
-        is_primary: rowIndex === index,
-    }));
+    form.bank_accounts = form.bank_accounts.map((row, rowIndex) => {
+        const nextPrimary = rowIndex === index;
+        let label = row.label;
+
+        if (row.is_primary && !nextPrimary && String(label ?? '').trim() === PRIMARY_BANK_LABEL) {
+            label = '';
+        }
+
+        if (nextPrimary) {
+            label = PRIMARY_BANK_LABEL;
+        }
+
+        return {
+            ...row,
+            is_primary: nextPrimary,
+            label,
+        };
+    });
 }
 
 function scheduleBankLookup(index) {
@@ -997,6 +1142,9 @@ function applyPartySuggestion(suggestion) {
     if (party.type === 'INDIVIDUAL') {
         form.legal_form = 'ip';
     }
+
+    inferAddressLinkFlagsFromForm();
+    syncAddressLinkTargets();
 }
 
 async function fetchAddressSuggestions(field, value) {
@@ -1032,6 +1180,7 @@ function queueAddressLookup(field) {
 function selectAddress(field, suggestion) {
     form[field] = suggestion.value ?? '';
     addressSuggestions.value[field] = [];
+    syncAddressLinkTargets();
 }
 
 function formatDate(value) {
@@ -1751,7 +1900,7 @@ function handleMobileNavSelect(key) {
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Валюта</label>
                                         <select v-model="form.debt_limit_currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                            <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
+                                            <option v-for="option in currencySelectOptions" :key="option.value" :value="option.value">{{ option.value }}</option>
                                         </select>
                                     </div>
                                 </div>
@@ -2013,8 +2162,26 @@ function handleMobileNavSelect(key) {
                                             </div>
                                         </div>
                                         <div class="relative space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Фактический адрес</label>
-                                            <textarea v-model="form.actual_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('actual_address')"></textarea>
+                                            <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Фактический адрес</label>
+                                                <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                                    <input
+                                                        type="checkbox"
+                                                        class="rounded border-zinc-300 dark:border-zinc-600"
+                                                        :checked="actualMatchesLegal"
+                                                        @change="toggleActualMatchesLegal"
+                                                    />
+                                                    Совпадает с юридическим
+                                                </label>
+                                            </div>
+                                            <textarea
+                                                v-model="form.actual_address"
+                                                rows="2"
+                                                :readonly="actualMatchesLegal"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="actualMatchesLegal ? 'cursor-not-allowed bg-zinc-50 text-zinc-600 dark:bg-zinc-900/50 dark:text-zinc-400' : ''"
+                                                @input="!actualMatchesLegal && queueAddressLookup('actual_address')"
+                                            ></textarea>
                                             <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                                 <button v-for="suggestion in addressSuggestions.actual_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('actual_address', suggestion)">
                                                     {{ suggestion.value }}
@@ -2022,8 +2189,37 @@ function handleMobileNavSelect(key) {
                                             </div>
                                         </div>
                                         <div class="relative space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Почтовый адрес</label>
-                                            <textarea v-model="form.postal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('postal_address')"></textarea>
+                                            <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Почтовый адрес</label>
+                                                <div class="flex flex-wrap gap-x-4 gap-y-1">
+                                                    <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                                        <input
+                                                            type="checkbox"
+                                                            class="rounded border-zinc-300 dark:border-zinc-600"
+                                                            :checked="postalMatchesLegal"
+                                                            @change="togglePostalMatchesLegal"
+                                                        />
+                                                        Совпадает с юридическим
+                                                    </label>
+                                                    <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                                        <input
+                                                            type="checkbox"
+                                                            class="rounded border-zinc-300 dark:border-zinc-600"
+                                                            :checked="postalMatchesActual"
+                                                            @change="togglePostalMatchesActual"
+                                                        />
+                                                        Совпадает с фактическим
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <textarea
+                                                v-model="form.postal_address"
+                                                rows="2"
+                                                :readonly="postalMatchesLegal || postalMatchesActual"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="(postalMatchesLegal || postalMatchesActual) ? 'cursor-not-allowed bg-zinc-50 text-zinc-600 dark:bg-zinc-900/50 dark:text-zinc-400' : ''"
+                                                @input="!postalMatchesLegal && !postalMatchesActual && queueAddressLookup('postal_address')"
+                                            ></textarea>
                                             <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                                 <button v-for="suggestion in addressSuggestions.postal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('postal_address', suggestion)">
                                                     {{ suggestion.value }}
@@ -2156,7 +2352,7 @@ function handleMobileNavSelect(key) {
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Метка счёта</label>
-                                                <input v-model="account.label" type="text" placeholder="Основной / EUR" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                <input v-model="account.label" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                             </div>
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Страна банка</label>
@@ -2165,7 +2361,7 @@ function handleMobileNavSelect(key) {
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Валюта</label>
                                                 <select v-model="account.currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="currency in currencyOptions" :key="currency" :value="currency">{{ currency }}</option>
+                                                    <option v-for="option in currencySelectOptions" :key="option.value" :value="option.value">{{ option.value }}</option>
                                                 </select>
                                             </div>
                                             <div class="space-y-2">

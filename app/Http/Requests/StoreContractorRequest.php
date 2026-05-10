@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CurrencyDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Schema;
@@ -136,7 +137,7 @@ class StoreContractorRequest extends FormRequest
             'bank_accounts.*.id' => ['nullable', 'string', 'max:100'],
             'bank_accounts.*.label' => ['nullable', 'string', 'max:255'],
             'bank_accounts.*.country_code' => ['nullable', 'string', 'size:2'],
-            'bank_accounts.*.currency' => ['nullable', 'string', 'size:3'],
+            'bank_accounts.*.currency' => ['nullable', 'string', 'size:3', Rule::in(CurrencyDictionary::allowedCodes())],
             'bank_accounts.*.bank_name' => ['nullable', 'string', 'max:255'],
             'bank_accounts.*.bik' => ['nullable', 'digits:9'],
             'bank_accounts.*.account_number' => ['nullable', 'digits_between:5,34'],
@@ -152,7 +153,7 @@ class StoreContractorRequest extends FormRequest
             'transport_requirements' => ['nullable', 'array'],
             'transport_requirements.*' => ['string', 'max:255'],
             'debt_limit' => ['nullable', 'numeric', 'min:0'],
-            'debt_limit_currency' => ['nullable', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'debt_limit_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'stop_on_limit' => ['required', 'boolean'],
             'default_customer_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
             'default_customer_payment_term' => ['nullable', 'string', 'max:255'],

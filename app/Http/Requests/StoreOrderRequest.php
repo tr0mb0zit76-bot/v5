@@ -7,6 +7,7 @@ use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
 use App\Rules\DocumentWithinPageBudget;
 use App\Services\ContractorCreditService;
+use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentRegistryTypes;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -292,7 +293,7 @@ class StoreOrderRequest extends FormRequest
 
             'financial_term' => ['nullable', 'array'],
             'financial_term.client_price' => ['nullable', 'numeric', 'min:0'],
-            'financial_term.client_currency' => ['required_with:financial_term', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.client_currency' => ['required_with:financial_term', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.client_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
             'financial_term.client_request_mode' => ['nullable', Rule::in(['single_request', 'split_by_leg'])],
             'financial_term.client_payment_schedule' => ['nullable', 'array'],
@@ -307,7 +308,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.stage' => ['nullable', 'string', 'max:50'],
             'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
-            'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.contractors_costs.*.payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
             'financial_term.contractors_costs.*.payment_schedule' => ['nullable', 'array'],
             'financial_term.contractors_costs.*.payment_schedule.has_prepayment' => ['nullable', 'boolean'],
@@ -319,7 +320,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.additional_costs' => ['nullable', 'array'],
             'financial_term.additional_costs.*.label' => ['nullable', 'string', 'max:100'],
             'financial_term.additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
-            'financial_term.additional_costs.*.currency' => ['nullable', Rule::in(['RUB', 'USD', 'CNY', 'EUR'])],
+            'financial_term.additional_costs.*.currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
 
             'documents' => ['nullable', 'array'],
             'documents.*.type' => ['required', Rule::in(OrderDocumentRegistryTypes::values())],

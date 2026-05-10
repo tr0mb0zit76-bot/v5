@@ -20,6 +20,7 @@ class SettingsManagementTest extends TestCase
         Schema::dropIfExists('kpi_thresholds');
         Schema::dropIfExists('kpi_settings');
         Schema::dropIfExists('contractor_activity_types');
+        Schema::dropIfExists('currencies');
         Schema::dropIfExists('users');
         Schema::dropIfExists('roles');
 
@@ -100,6 +101,14 @@ class SettingsManagementTest extends TestCase
             $table->string('name')->unique();
             $table->timestamps();
         });
+
+        Schema::create('currencies', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 3)->unique();
+            $table->string('name');
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->timestamps();
+        });
     }
 
     public function test_admin_can_open_settings_hub(): void
@@ -148,9 +157,11 @@ class SettingsManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Settings/Dictionaries')
-            ->has('dictionaries', 1)
+            ->has('dictionaries', 2)
             ->where('dictionaries.0.key', 'contractor-activity-types')
             ->where('dictionaries.0.items.0.name', 'Экспедирование')
+            ->where('dictionaries.1.key', 'currencies')
+            ->has('dictionaries.1.items', 0)
         );
     }
 
@@ -179,6 +190,36 @@ class SettingsManagementTest extends TestCase
 
         $this->assertDatabaseMissing('contractor_activity_types', [
             'id' => $activityTypeId,
+        ]);
+    }
+
+    public function test_admin_can_manage_currency_dictionary(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $createResponse = $this->actingAs($admin)->post(route('settings.dictionaries.currencies.store'), [
+            'code' => 'gbp',
+            'name' => 'Фунт стерлингов',
+        ]);
+
+        $createResponse->assertRedirect(route('settings.dictionaries.index'));
+
+        $this->assertDatabaseHas('currencies', [
+            'code' => 'GBP',
+            'name' => 'Фунт стерлингов',
+        ]);
+
+        $currencyId = DB::table('currencies')
+            ->where('code', 'GBP')
+            ->value('id');
+
+        $deleteResponse = $this->actingAs($admin)->delete(route('settings.dictionaries.currencies.destroy', $currencyId));
+
+        $deleteResponse->assertRedirect(route('settings.dictionaries.index'));
+
+        $this->assertDatabaseMissing('currencies', [
+            'id' => $currencyId,
         ]);
     }
 

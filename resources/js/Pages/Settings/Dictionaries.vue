@@ -37,7 +37,11 @@
                             <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ activeDictionary.description }}</p>
                         </div>
 
-                        <form class="flex w-full gap-2 md:max-w-md" @submit.prevent="submitActivityType">
+                        <form
+                            v-if="activeDictionary.key === 'contractor-activity-types'"
+                            class="flex w-full gap-2 md:max-w-md"
+                            @submit.prevent="submitActivityType"
+                        >
                             <input
                                 v-model="activityTypeForm.name"
                                 type="text"
@@ -52,10 +56,48 @@
                                 {{ activityTypeForm.processing ? 'Сохранение...' : 'Добавить' }}
                             </button>
                         </form>
+
+                        <form
+                            v-else-if="activeDictionary.key === 'currencies'"
+                            class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end md:max-w-xl"
+                            @submit.prevent="submitCurrency"
+                        >
+                            <div class="flex w-full flex-1 flex-col gap-1 sm:max-w-[7rem]">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Код ISO</label>
+                                <input
+                                    v-model="currencyForm.code"
+                                    type="text"
+                                    maxlength="3"
+                                    placeholder="USD"
+                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm uppercase outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                    @input="currencyForm.code = String(currencyForm.code || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)"
+                                />
+                            </div>
+                            <div class="flex w-full flex-1 min-w-[12rem] flex-col gap-1">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Название</label>
+                                <input
+                                    v-model="currencyForm.name"
+                                    type="text"
+                                    placeholder="Доллар США"
+                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                class="inline-flex h-[38px] shrink-0 items-center justify-center border border-zinc-200 px-3 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :disabled="currencyForm.processing"
+                            >
+                                {{ currencyForm.processing ? 'Сохранение...' : 'Добавить' }}
+                            </button>
+                        </form>
                     </div>
 
-                    <div v-if="activityTypeForm.errors.name" class="text-sm text-rose-600">
+                    <div v-if="activeDictionary.key === 'contractor-activity-types' && activityTypeForm.errors.name" class="text-sm text-rose-600">
                         {{ activityTypeForm.errors.name }}
+                    </div>
+                    <div v-if="activeDictionary.key === 'currencies'" class="space-y-1">
+                        <div v-if="currencyForm.errors.code" class="text-sm text-rose-600">{{ currencyForm.errors.code }}</div>
+                        <div v-if="currencyForm.errors.name" class="text-sm text-rose-600">{{ currencyForm.errors.name }}</div>
                     </div>
 
                     <div class="mt-4 min-h-0 flex-1 overflow-auto border border-zinc-200 dark:border-zinc-800">
@@ -69,11 +111,19 @@
                                 :key="item.id"
                                 class="flex items-center justify-between gap-3 px-4 py-3"
                             >
-                                <div class="text-sm text-zinc-900 dark:text-zinc-100">{{ item.name }}</div>
+                                <div class="text-sm text-zinc-900 dark:text-zinc-100">
+                                    <template v-if="activeDictionary.key === 'currencies'">
+                                        <span class="font-mono font-medium">{{ item.code }}</span>
+                                        <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.name }}</span>
+                                    </template>
+                                    <template v-else>
+                                        {{ item.name }}
+                                    </template>
+                                </div>
                                 <button
                                     type="button"
                                     class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                    @click="removeActivityType(item)"
+                                    @click="activeDictionary.key === 'currencies' ? removeCurrency(item) : removeActivityType(item)"
                                 >
                                     Удалить
                                 </button>
@@ -112,11 +162,25 @@ const activityTypeForm = useForm({
     name: '',
 });
 
+const currencyForm = useForm({
+    code: '',
+    name: '',
+});
+
 function submitActivityType() {
     activityTypeForm.post(route('settings.dictionaries.activity-types.store'), {
         preserveScroll: true,
         onSuccess: () => {
             activityTypeForm.reset();
+        },
+    });
+}
+
+function submitCurrency() {
+    currencyForm.post(route('settings.dictionaries.currencies.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            currencyForm.reset();
         },
     });
 }
@@ -127,6 +191,16 @@ function removeActivityType(item) {
     }
 
     router.delete(route('settings.dictionaries.activity-types.destroy', item.id), {
+        preserveScroll: true,
+    });
+}
+
+function removeCurrency(item) {
+    if (!window.confirm(`Удалить валюту ${item.code} из справочника?`)) {
+        return;
+    }
+
+    router.delete(route('settings.dictionaries.currencies.destroy', item.id), {
         preserveScroll: true,
     });
 }

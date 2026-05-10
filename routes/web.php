@@ -273,6 +273,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/settings/dictionaries', 'index')->name('settings.dictionaries.index');
         Route::post('/settings/dictionaries/activity-types', 'storeActivityType')->name('settings.dictionaries.activity-types.store');
         Route::delete('/settings/dictionaries/activity-types/{contractorActivityType}', 'destroyActivityType')->name('settings.dictionaries.activity-types.destroy');
+        Route::post('/settings/dictionaries/currencies', 'storeCurrency')->name('settings.dictionaries.currencies.store');
+        Route::delete('/settings/dictionaries/currencies/{currency}', 'destroyCurrency')->name('settings.dictionaries.currencies.destroy');
     });
 
     Route::controller(SettingsKpiController::class)->middleware('visibility.area:settings')->group(function () {

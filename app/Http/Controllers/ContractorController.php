@@ -12,6 +12,7 @@ use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
+use App\Support\CurrencyDictionary;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -536,6 +537,7 @@ class ContractorController extends Controller
                 'search' => $search,
                 'type' => $type,
             ],
+            'currencyOptions' => CurrencyDictionary::options(),
         ]);
     }
 

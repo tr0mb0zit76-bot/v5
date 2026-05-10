@@ -26,6 +26,7 @@ use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\CurrencyDictionary;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -339,12 +340,7 @@ class OrderWizardController extends Controller
             'loadingTypeOptions' => $this->atiDictionaryOptions('loading_type', $this->fallbackLoadingTypeOptions()),
             'truckBodyTypeOptions' => $this->atiDictionaryOptions('truck_body_type', $this->fallbackTruckBodyTypeOptions()),
             'trailerTypeOptions' => $this->atiDictionaryOptions('trailer_type', $this->fallbackTrailerTypeOptions()),
-            'currencyOptions' => [
-                ['value' => 'RUB', 'label' => 'RUB'],
-                ['value' => 'USD', 'label' => 'USD'],
-                ['value' => 'CNY', 'label' => 'CNY'],
-                ['value' => 'EUR', 'label' => 'EUR'],
-            ],
+            'currencyOptions' => CurrencyDictionary::options(),
             'documentTypeOptions' => $documentRequirementService->documentTypeOptions(),
             'documentPartyOptions' => $documentRequirementService->partyOptions(),
             'requiredDocumentRules' => $documentRequirementService->requirementRules(),

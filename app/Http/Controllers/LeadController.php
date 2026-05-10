@@ -15,6 +15,7 @@ use App\Models\Task;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
+use App\Support\CurrencyDictionary;
 use App\Support\LeadStatus;
 use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
@@ -407,12 +408,7 @@ class LeadController extends Controller
                 ['value' => 'air', 'label' => 'Авиа'],
                 ['value' => 'rail', 'label' => 'Ж/д'],
             ],
-            'currencyOptions' => [
-                ['value' => 'RUB', 'label' => 'RUB'],
-                ['value' => 'USD', 'label' => 'USD'],
-                ['value' => 'CNY', 'label' => 'CNY'],
-                ['value' => 'EUR', 'label' => 'EUR'],
-            ],
+            'currencyOptions' => CurrencyDictionary::options(),
             'printFormTemplateOptions' => $this->availableCommercialTemplates($selectedLead)->values(),
         ];
     }
