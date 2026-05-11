@@ -34,6 +34,7 @@ class OrderWizardTest extends TestCase
         Schema::dropIfExists('salary_coefficients');
         Schema::dropIfExists('kpi_thresholds');
         Schema::dropIfExists('kpi_settings');
+        Schema::dropIfExists('vat_rates');
         Schema::dropIfExists('orders');
         Schema::dropIfExists('print_form_templates');
         Schema::dropIfExists('contractors');
@@ -378,6 +379,22 @@ class OrderWizardTest extends TestCase
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+
+        Schema::create('vat_rates', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 50)->unique();
+            $table->string('label');
+            $table->decimal('rate_percent', 5, 2);
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->timestamps();
+        });
+
+        $now = now();
+        DB::table('vat_rates')->insert([
+            ['code' => 'vat_22', 'label' => 'С НДС 22%', 'rate_percent' => 22, 'sort_order' => 10, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'vat_5', 'label' => 'С НДС 5%', 'rate_percent' => 5, 'sort_order' => 20, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'vat_0', 'label' => 'С НДС 0%', 'rate_percent' => 0, 'sort_order' => 30, 'created_at' => $now, 'updated_at' => $now],
+        ]);
     }
 
     public function test_admin_can_open_order_wizard_create_page(): void
@@ -390,6 +407,8 @@ class OrderWizardTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Orders/Wizard')
             ->has('currencyOptions')
+            ->has('paymentFormOptions')
+            ->has('defaultClientPaymentFormCode')
             ->has('orderStatusOptions')
             ->has('documentPartyOptions', 3)
             ->has('printFormTemplateOptions')
@@ -587,7 +606,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 120000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => true,
                     'prepayment_ratio' => 30,
@@ -635,8 +654,8 @@ class OrderWizardTest extends TestCase
             'customer_id' => $clientId,
             'own_company_id' => $ownCompanyId,
             'manager_id' => $admin->id,
-            'status' => 'documents',
-            'customer_payment_form' => 'vat',
+            'status' => 'new',
+            'customer_payment_form' => 'vat_22',
             'carrier_payment_form' => 'no_vat',
         ]);
         $this->assertDatabaseHas('route_points', [
@@ -734,7 +753,7 @@ class OrderWizardTest extends TestCase
         $this->assertStringContainsString('"requirement_key":"customer_request"', $documentMetadata);
         $this->assertDatabaseHas('order_status_logs', [
             'order_id' => $orderId,
-            'status_to' => 'documents',
+            'status_to' => 'new',
         ]);
     }
 
@@ -847,7 +866,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 50000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_request_mode' => 'single_request',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
@@ -1009,7 +1028,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 150000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 7,
@@ -1127,7 +1146,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 110000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 7,
@@ -1258,7 +1277,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 110000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 7,
@@ -1463,7 +1482,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 180000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_request_mode' => 'split_by_leg',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
@@ -1477,7 +1496,7 @@ class OrderWizardTest extends TestCase
                         'contractor_id' => $carrierOneId,
                         'amount' => 70000,
                         'currency' => 'RUB',
-                        'payment_form' => 'vat',
+                        'payment_form' => 'vat_22',
                         'payment_schedule' => [
                             'has_prepayment' => false,
                             'postpayment_days' => 5,
@@ -1647,11 +1666,11 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 100000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn'],
                 'kpi_percent' => 0,
                 'contractors_costs' => [
-                    ['stage' => 'leg_1', 'contractor_id' => $directCarrierId, 'amount' => 70000, 'currency' => 'RUB', 'payment_form' => 'vat', 'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn']],
+                    ['stage' => 'leg_1', 'contractor_id' => $directCarrierId, 'amount' => 70000, 'currency' => 'RUB', 'payment_form' => 'vat_22', 'payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn']],
                 ],
                 'additional_costs' => [],
             ],
@@ -1687,7 +1706,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 100000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => ['has_prepayment' => false, 'postpayment_days' => 5, 'postpayment_mode' => 'fttn'],
                 'kpi_percent' => 0,
                 'contractors_costs' => [
@@ -2670,7 +2689,7 @@ class OrderWizardTest extends TestCase
                 'postpayment_days' => 7,
                 'postpayment_mode' => 'ottn',
             ], JSON_UNESCAPED_UNICODE),
-            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_form' => 'vat_22',
             'default_customer_payment_term' => '7 дн OTTN',
             'is_active' => true,
             'created_at' => now(),
@@ -2700,7 +2719,7 @@ class OrderWizardTest extends TestCase
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->where('contractors.0.default_customer_payment_form', 'vat')
+            ->where('contractors.0.default_customer_payment_form', 'vat_22')
             ->where('contractors.0.default_customer_payment_term', '7 дн OTTN')
             ->where('contractors.0.default_customer_payment_schedule.postpayment_days', 7)
             ->where('contractors.0.default_customer_payment_schedule.postpayment_mode', 'ottn')
@@ -2736,7 +2755,7 @@ class OrderWizardTest extends TestCase
                 'postpayment_days' => 7,
                 'postpayment_mode' => 'ottn',
             ], JSON_UNESCAPED_UNICODE),
-            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_form' => 'vat_22',
             'default_customer_payment_term' => '7 дн OTTN',
             'is_active' => true,
             'created_at' => now(),
@@ -2796,7 +2815,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 1000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 7,
@@ -2884,15 +2903,15 @@ class OrderWizardTest extends TestCase
         ];
 
         $this->actingAs($admin)->postJson(route('orders.calculate-compensation'), array_merge($basePayload, [
-            'customer_payment_form' => 'vat',
+            'customer_payment_form' => 'vat_22',
             'contractors_costs' => [
-                ['payment_form' => 'vat', 'amount' => 400],
+                ['payment_form' => 'vat_22', 'amount' => 400],
             ],
         ]))->assertOk()
             ->assertJson(['deal_type' => 'direct']);
 
         $this->actingAs($admin)->postJson(route('orders.calculate-compensation'), array_merge($basePayload, [
-            'customer_payment_form' => 'vat',
+            'customer_payment_form' => 'vat_22',
             'contractors_costs' => [
                 ['payment_form' => 'no_vat', 'amount' => 400],
             ],
@@ -3016,7 +3035,7 @@ class OrderWizardTest extends TestCase
             'customer_id' => $clientId,
             'carrier_id' => $carrierId,
             'customer_rate' => 100000,
-            'customer_payment_form' => 'vat',
+            'customer_payment_form' => 'vat_22',
             'carrier_rate' => 50000,
             'carrier_payment_form' => 'no_vat',
             'status' => 'new',
@@ -3105,7 +3124,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 95000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 5,
@@ -3117,7 +3136,7 @@ class OrderWizardTest extends TestCase
                         'contractor_id' => $carrierId,
                         'amount' => 70000,
                         'currency' => 'RUB',
-                        'payment_form' => 'vat',
+                        'payment_form' => 'vat_22',
                         'payment_schedule' => [
                             'has_prepayment' => false,
                             'postpayment_days' => 5,
@@ -3329,7 +3348,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 150000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 7,
@@ -3557,7 +3576,7 @@ class OrderWizardTest extends TestCase
             'financial_term' => [
                 'client_price' => 150000,
                 'client_currency' => 'RUB',
-                'client_payment_form' => 'vat',
+                'client_payment_form' => 'vat_22',
                 'client_payment_schedule' => [
                     'has_prepayment' => false,
                     'postpayment_days' => 7,

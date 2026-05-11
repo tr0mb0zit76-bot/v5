@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Support\PaymentFormDictionary;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateInlineOrderFieldRequest extends FormRequest
 {
@@ -47,6 +49,26 @@ class UpdateInlineOrderFieldRequest extends FormRequest
         ];
     }
 
+    public function withValidator($validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $field = $this->input('field');
+            if (! in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
+                return;
+            }
+
+            $value = $this->input('value');
+            if ($value === null || $value === '' || $value === 'null') {
+                return;
+            }
+
+            $codes = PaymentFormDictionary::allowedCodesForValidation();
+            if (! in_array((string) $value, $codes, true)) {
+                $validator->errors()->add('value', 'Недопустимая форма оплаты.');
+            }
+        });
+    }
+
     /**
      * @return array{field: string, value: mixed}
      */
@@ -81,7 +103,15 @@ class UpdateInlineOrderFieldRequest extends FormRequest
             return blank($value) ? null : $value;
         }
 
-        if (in_array($field, ['customer_payment_form', 'carrier_payment_form', 'manual_status'], true)) {
+        if (in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
+            if (blank($value)) {
+                return null;
+            }
+
+            return PaymentFormDictionary::normalizeForStorage((string) $value) ?? (string) $value;
+        }
+
+        if ($field === 'manual_status') {
             return blank($value) ? null : (string) $value;
         }
 

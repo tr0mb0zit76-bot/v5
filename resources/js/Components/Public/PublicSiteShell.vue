@@ -3,6 +3,8 @@ import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { publicNavigation } from './publicPages';
+/** Дублирует resources/locales/public/ru.json — если с сервера пришёл пустой publicSite.texts, витрина не остаётся без текста. */
+import publicSiteRuFallbacks from './publicSiteRuFallbacks.json';
 
 const props = defineProps({
     page: {
@@ -27,7 +29,31 @@ const isReady = ref(false);
 const logoUrl = '/assets/logo.png';
 const modalLogoUrl = '/assets/logo_black.png';
 
-const texts = computed(() => page.props.publicSite?.texts ?? {});
+const isNonEmptyTextMap = (value) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+
+const texts = computed(() => {
+    const fromServer = page.props.publicSite?.texts;
+    if (isNonEmptyTextMap(fromServer)) {
+        return fromServer;
+    }
+
+    return publicSiteRuFallbacks;
+});
+
+const activeLocale = computed(() => String(page.props.publicSite?.active_locale ?? 'ru').toLowerCase());
+
+const availableLocales = computed(
+    () =>
+        page.props.publicSite?.available_locales ?? [
+            { code: 'ru', label: 'RU' },
+            { code: 'en', label: 'EN' },
+            { code: 'cn', label: '中文' },
+        ],
+);
+
+const localeSwitchHref = (code) => route('public.locale.switch', { locale: code });
+
 const crmLoginUrl = computed(() => page.props.publicSite?.crm_login_url ?? '/login');
 /** URL дашборда на том же хосте, что и страница входа в кабинет (для витрины ≠ CRM). */
 const crmDashboardUrl = computed(() => {
@@ -65,7 +91,14 @@ const loginForm = useForm('PublicSiteLoginModal', {
     remember: false,
 }).dontRemember('password');
 
-const t = (key, fallback = '') => texts.value[key] ?? fallback;
+const t = (key, fallback = '') => {
+    const raw = texts.value[key];
+    if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+        return raw;
+    }
+
+    return fallback;
+};
 
 const switchSection = (index) => {
     if (!sections.value.length) {
@@ -448,9 +481,27 @@ onBeforeUnmount(() => {
                     <p>{{ t('footer_email') }}</p>
                 </div>
 
-                <a title='ООО "ЛОГИСТИЧЕСКИЕ РЕШЕНИЯ" на портале "Чекко"' href="https://checko.ru/company/logisticheskie-resheniya-1226300040889">
-                    <img width="150" height="50" src="https://checko.ru/cdn/widget/300x100_white.png" alt="Checko">
-                </a>
+                <div class="footer-end">
+                    <a
+                        class="footer-checko"
+                        title='ООО "ЛОГИСТИЧЕСКИЕ РЕШЕНИЯ" на портале "Чекко"'
+                        href="https://checko.ru/company/logisticheskie-resheniya-1226300040889"
+                    >
+                        <img width="150" height="50" src="https://checko.ru/cdn/widget/300x100_white.png" alt="Checko">
+                    </a>
+
+                    <nav class="footer-lang" aria-label="Язык интерфейса">
+                        <a
+                            v-for="loc in availableLocales"
+                            :key="loc.code"
+                            class="footer-lang-link"
+                            :class="{ active: loc.code === activeLocale }"
+                            :href="localeSwitchHref(loc.code)"
+                        >
+                            {{ loc.label }}
+                        </a>
+                    </nav>
+                </div>
             </div>
         </footer>
 
@@ -568,6 +619,18 @@ onBeforeUnmount(() => {
 
 .nav {
   display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.logo-link {
+  flex-shrink: 0;
+}
+
+.mobile-nav-toggle {
+  flex-shrink: 0;
 }
 
 .mobile-nav-toggle,
@@ -1026,6 +1089,65 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
+  gap: 16px;
+}
+
+.footer-end {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.footer-checko {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.footer-checko img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.footer-lang {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.footer-lang-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #ccc;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.footer-lang-link:hover {
+  color: #ff8c5a;
+  border-color: rgba(255, 87, 34, 0.45);
+  background: rgba(255, 87, 34, 0.1);
+}
+
+.footer-lang-link.active {
+  color: #ff5722;
+  border-color: rgba(255, 87, 34, 0.55);
+  background: rgba(255, 87, 34, 0.16);
 }
 
 .footer-info p {
@@ -1385,7 +1507,27 @@ onBeforeUnmount(() => {
   }
 
   .footer {
+    padding: 10px 12px;
+  }
+
+  .footer .footer-info {
     display: none;
+  }
+
+  .footer .footer-content {
+    justify-content: flex-end;
+    padding: 0 8px;
+  }
+
+  .footer .footer-end {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .footer .footer-checko img {
+    width: 120px;
+    height: auto;
   }
 }
 </style>

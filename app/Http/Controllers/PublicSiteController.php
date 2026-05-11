@@ -2,21 +2,66 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PublicSiteController extends Controller
 {
+    private const COOKIE_NAME = 'public_site_locale';
+
+    private const COOKIE_MINUTES = 60 * 24 * 365;
+
+    /** @var list<string> */
+    private const SUPPORTED_LOCALES = ['ru', 'en', 'cn'];
+
     /**
+     * Каноническая русская локаль: resources/locales/public/ru.json (не затирается типичным rsync/clean public/).
+     * Дубли: public/locales/ru.json (если нужен прямой доступ по URL), publicSiteRuFallbacks.json во фронте.
+     *
      * @return list<string>
      */
-    protected function translationPaths(): array
+    protected function translationPathsForLocale(string $locale): array
     {
-        return [
-            public_path('locales/ru.json'),
-            public_path('assets/locales/ru.json'),
-            public_path('change/locales/ru.json'),
-        ];
+        return match ($locale) {
+            'ru' => [
+                public_path('locales/ru.json'),
+                public_path('assets/locales/ru.json'),
+                public_path('change/locales/ru.json'),
+                resource_path('locales/public/ru.json'),
+                public_path('locales/en.json'),
+            ],
+            'cn' => [
+                public_path('locales/cn.json'),
+                public_path('locales/en.json'),
+            ],
+            default => [
+                public_path('locales/en.json'),
+            ],
+        };
+    }
+
+    public function switchLocale(Request $request, string $locale): RedirectResponse
+    {
+        $normalized = strtolower($locale);
+        if (! in_array($normalized, self::SUPPORTED_LOCALES, true)) {
+            abort(404);
+        }
+
+        $fallback = \Route::has('public.home') ? route('public.home') : '/';
+
+        return redirect()->back(fallback: $fallback)->withCookie(cookie(
+            self::COOKIE_NAME,
+            $normalized,
+            self::COOKIE_MINUTES,
+            '/',
+            null,
+            $request->isSecure(),
+            true,
+            false,
+            'lax',
+        ));
     }
 
     /**
@@ -24,6 +69,7 @@ class PublicSiteController extends Controller
      */
     protected function sharedProps(): array
     {
+        $locale = $this->resolvePublicLocale();
         $translations = [];
         $crmHost = trim((string) config('app.crm_domain'));
         if ($crmHost === '') {
@@ -31,7 +77,7 @@ class PublicSiteController extends Controller
         }
         $crmScheme = request()->isSecure() ? 'https' : 'http';
 
-        foreach ($this->translationPaths() as $translationsPath) {
+        foreach ($this->translationPathsForLocale($locale) as $translationsPath) {
             if (! is_file($translationsPath)) {
                 continue;
             }
@@ -50,8 +96,27 @@ class PublicSiteController extends Controller
             'publicSite' => [
                 'texts' => $translations,
                 'crm_login_url' => sprintf('%s://%s/login', $crmScheme, $crmHost),
+                'active_locale' => $locale,
+                'available_locales' => [
+                    ['code' => 'ru', 'label' => 'RU'],
+                    ['code' => 'en', 'label' => 'EN'],
+                    ['code' => 'cn', 'label' => '中文'],
+                ],
             ],
         ];
+    }
+
+    protected function resolvePublicLocale(): string
+    {
+        $fromCookie = request()->cookie(self::COOKIE_NAME);
+        if (is_string($fromCookie)) {
+            $candidate = strtolower(trim($fromCookie));
+            if (in_array($candidate, self::SUPPORTED_LOCALES, true)) {
+                return $candidate;
+            }
+        }
+
+        return 'ru';
     }
 
     public function home(): Response

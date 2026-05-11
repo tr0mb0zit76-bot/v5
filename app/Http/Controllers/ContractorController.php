@@ -13,6 +13,7 @@ use App\Services\DaDataService;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
 use App\Support\CurrencyDictionary;
+use App\Support\PaymentFormDictionary;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -557,6 +558,7 @@ class ContractorController extends Controller
                 'type' => $type,
             ],
             'currencyOptions' => CurrencyDictionary::options(),
+            'paymentFormOptions' => PaymentFormDictionary::options(),
         ]);
     }
 
@@ -913,6 +915,17 @@ class ContractorController extends Controller
 
         $normalized = mb_strtoupper(trim($term));
 
+        if (preg_match('/^(\d{1,2})%\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)\s*\/\s*(\d{1,2})%\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)$/u', $normalized, $matches) === 1) {
+            return $this->normalizePaymentSchedule([
+                'has_prepayment' => true,
+                'prepayment_ratio' => (int) $matches[1],
+                'prepayment_days' => (int) $matches[2],
+                'prepayment_mode' => mb_strtolower($matches[3]),
+                'postpayment_days' => (int) $matches[5],
+                'postpayment_mode' => mb_strtolower($matches[6]),
+            ]);
+        }
+
         if (preg_match('/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)\s*\/\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN)$/u', $normalized, $matches) === 1) {
             return $this->normalizePaymentSchedule([
                 'has_prepayment' => true,
@@ -964,11 +977,11 @@ class ContractorController extends Controller
             $postpaymentRatio = max(0, 100 - $prepaymentRatio);
 
             return sprintf(
-                '%d/%d, %d дн %s / %d дн %s',
+                '%d%% %d дн %s / %d%% %d дн %s',
                 $prepaymentRatio,
-                $postpaymentRatio,
                 (int) ($schedule['prepayment_days'] ?? 0),
                 $this->paymentModeSummaryToken((string) ($schedule['prepayment_mode'] ?? 'fttn')),
+                $postpaymentRatio,
                 (int) ($schedule['postpayment_days'] ?? 0),
                 $this->paymentModeSummaryToken((string) ($schedule['postpayment_mode'] ?? 'ottn')),
             );

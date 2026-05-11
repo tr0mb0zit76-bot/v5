@@ -58,6 +58,41 @@
                         </form>
 
                         <form
+                            v-else-if="activeDictionary.key === 'vat-rates'"
+                            class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end md:max-w-xl"
+                            @submit.prevent="submitVatRate"
+                        >
+                            <div class="flex w-full flex-1 flex-col gap-1 sm:max-w-[8rem]">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Ставка, %</label>
+                                <input
+                                    v-model="vatRateForm.rate_percent"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    placeholder="22"
+                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                />
+                            </div>
+                            <div class="flex w-full flex-1 min-w-[12rem] flex-col gap-1">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись (необязательно)</label>
+                                <input
+                                    v-model="vatRateForm.label"
+                                    type="text"
+                                    placeholder="Напр. С НДС 7%"
+                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                class="inline-flex h-[38px] shrink-0 items-center justify-center border border-zinc-200 px-3 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :disabled="vatRateForm.processing"
+                            >
+                                {{ vatRateForm.processing ? 'Сохранение...' : 'Добавить' }}
+                            </button>
+                        </form>
+
+                        <form
                             v-else-if="activeDictionary.key === 'currencies'"
                             class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end md:max-w-xl"
                             @submit.prevent="submitCurrency"
@@ -99,6 +134,10 @@
                         <div v-if="currencyForm.errors.code" class="text-sm text-rose-600">{{ currencyForm.errors.code }}</div>
                         <div v-if="currencyForm.errors.name" class="text-sm text-rose-600">{{ currencyForm.errors.name }}</div>
                     </div>
+                    <div v-if="activeDictionary.key === 'vat-rates'" class="space-y-1">
+                        <div v-if="vatRateForm.errors.rate_percent" class="text-sm text-rose-600">{{ vatRateForm.errors.rate_percent }}</div>
+                        <div v-if="vatRateForm.errors.label" class="text-sm text-rose-600">{{ vatRateForm.errors.label }}</div>
+                    </div>
 
                     <div class="mt-4 min-h-0 flex-1 overflow-auto border border-zinc-200 dark:border-zinc-800">
                         <div v-if="activeDictionary.items.length === 0" class="px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400">
@@ -116,6 +155,11 @@
                                         <span class="font-mono font-medium">{{ item.code }}</span>
                                         <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.name }}</span>
                                     </template>
+                                    <template v-else-if="activeDictionary.key === 'vat-rates'">
+                                        <span class="font-medium">{{ item.label }}</span>
+                                        <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.rate_percent }}%</span>
+                                        <span class="ml-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">{{ item.code }}</span>
+                                    </template>
                                     <template v-else>
                                         {{ item.name }}
                                     </template>
@@ -123,7 +167,7 @@
                                 <button
                                     type="button"
                                     class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                    @click="activeDictionary.key === 'currencies' ? removeCurrency(item) : removeActivityType(item)"
+                                    @click="removeDictionaryItem(item)"
                                 >
                                     Удалить
                                 </button>
@@ -167,6 +211,11 @@ const currencyForm = useForm({
     name: '',
 });
 
+const vatRateForm = useForm({
+    rate_percent: '',
+    label: '',
+});
+
 function submitActivityType() {
     activityTypeForm.post(route('settings.dictionaries.activity-types.store'), {
         preserveScroll: true,
@@ -181,6 +230,15 @@ function submitCurrency() {
         preserveScroll: true,
         onSuccess: () => {
             currencyForm.reset();
+        },
+    });
+}
+
+function submitVatRate() {
+    vatRateForm.post(route('settings.dictionaries.vat-rates.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            vatRateForm.reset();
         },
     });
 }
@@ -203,5 +261,28 @@ function removeCurrency(item) {
     router.delete(route('settings.dictionaries.currencies.destroy', item.id), {
         preserveScroll: true,
     });
+}
+
+function removeVatRate(item) {
+    if (!window.confirm(`Удалить ставку «${item.label}» из справочника?`)) {
+        return;
+    }
+
+    router.delete(route('settings.dictionaries.vat-rates.destroy', item.id), {
+        preserveScroll: true,
+    });
+}
+
+function removeDictionaryItem(item) {
+    const key = activeDictionary.value?.key;
+    if (key === 'currencies') {
+        removeCurrency(item);
+        return;
+    }
+    if (key === 'vat-rates') {
+        removeVatRate(item);
+        return;
+    }
+    removeActivityType(item);
 }
 </script>

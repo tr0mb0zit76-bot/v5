@@ -73,6 +73,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    paymentFormOptions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -130,11 +134,20 @@ const interactionChannels = [
     { value: 'meeting', label: 'Встреча' },
 ];
 
-const paymentFormOptions = [
-    { value: 'vat', label: 'С НДС' },
-    { value: 'no_vat', label: 'Без НДС' },
-    { value: 'cash', label: 'Наличные' },
-];
+const paymentFormOptions = computed(() => {
+    const raw = props.paymentFormOptions;
+    if (Array.isArray(raw) && raw.length > 0) {
+        return raw;
+    }
+
+    return [
+        { value: 'vat_22', label: 'С НДС 22%' },
+        { value: 'vat_5', label: 'С НДС 5%' },
+        { value: 'vat_0', label: 'С НДС 0%' },
+        { value: 'no_vat', label: 'Без НДС' },
+        { value: 'cash', label: 'Наличные' },
+    ];
+});
 
 const paymentBasisOptions = [
     { value: 'fttn', label: 'ФТТН' },
@@ -221,7 +234,7 @@ function paymentScheduleSummary(schedule) {
         const prepaymentRatio = Number(normalized.prepayment_ratio || 0);
         const postpaymentRatio = Math.max(0, 100 - prepaymentRatio);
 
-        return `${prepaymentRatio}/${postpaymentRatio}, ${Number(normalized.prepayment_days || 0)} дн ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+        return `${prepaymentRatio}% ${Number(normalized.prepayment_days || 0)} дн ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${postpaymentRatio}% ${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
     }
 
     return `${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
@@ -250,7 +263,20 @@ function parsePaymentTermPreset(term) {
     }
 
     const normalized = String(term).trim().toUpperCase();
-    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)\s*\/\s*(\d+)\s+ДН\s+(FTTN|OTTN|LOADING|UNLOADING)$/u);
+    const prepaymentPercentMatch = normalized.match(/^(\d{1,2})%\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)\s*\/\s*(\d{1,2})%\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)$/u);
+
+    if (prepaymentPercentMatch) {
+        return normalizePaymentSchedule({
+            has_prepayment: true,
+            prepayment_ratio: Number(prepaymentPercentMatch[1]),
+            prepayment_days: Number(prepaymentPercentMatch[2]),
+            prepayment_mode: prepaymentPercentMatch[3].toLowerCase(),
+            postpayment_days: Number(prepaymentPercentMatch[5]),
+            postpayment_mode: prepaymentPercentMatch[6].toLowerCase(),
+        });
+    }
+
+    const prepaymentMatch = normalized.match(/^(\d{1,2})\/(\d{1,2}),\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)\s*\/\s*(\d+)\s+ДН\s+(FTTN(?:_RECEIPT)?|OTTN|LOADING|UNLOADING)$/u);
 
     if (prepaymentMatch) {
         return normalizePaymentSchedule({
@@ -1212,7 +1238,7 @@ function contractorTypeLabel(value) {
 }
 
 function paymentFormLabel(value) {
-    return paymentFormOptions.find((item) => item.value === value)?.label ?? 'Не задано';
+    return paymentFormOptions.value.find((item) => item.value === value)?.label ?? 'Не задано';
 }
 
 watch(() => form.inn, (inn) => {
@@ -1882,8 +1908,8 @@ function handleMobileNavSelect(key) {
                     </div>
 
                     <div v-else-if="activeTab === 'cooperation'" class="space-y-4">
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                            <div class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,18rem)]">
+                            <div class="min-w-0 space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
                                         <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Финансовые условия по умолчанию</div>
@@ -1910,107 +1936,171 @@ function handleMobileNavSelect(key) {
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div v-if="form.type === 'customer' || form.type === 'both'" class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-                                        <div class="space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты заказчика</label>
-                                            <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                <option value="">Не задана</option>
-                                                <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                            </select>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия оплаты</label>
-                                            <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_customer_payment_schedule)) || 'Не заданы' }}
-                                            </p>
-                                        </div>
-                                        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок, дней</label>
-                                                <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                <div class="grid w-full min-w-0 grid-cols-1 gap-4">
+                                    <div
+                                        v-if="form.type === 'customer' || form.type === 'both'"
+                                        class="min-w-0 w-full space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40"
+                                    >
+                                        <div class="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 md:items-start">
+                                            <div class="min-w-0 space-y-3">
+                                                <div class="space-y-2">
+                                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты заказчика</label>
+                                                    <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                        <option value="">Не задана</option>
+                                                        <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия оплаты</label>
+                                                    <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                                                        {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_customer_payment_schedule)) || 'Не заданы' }}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                                                <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
-                                                <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                                Предоплата
-                                            </label>
-                                        </div>
-                                        <div v-if="form.default_customer_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Предоплата, %</label>
-                                                <input v-model="form.default_customer_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок предоплаты, дней</label>
-                                                <input v-model="form.default_customer_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                                                <select v-model="form.default_customer_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Постоплата, %</label>
-                                                <input :value="100 - Number(form.default_customer_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                                            <div class="min-w-0 w-full space-y-3 border-t border-zinc-200 pt-4 md:border-l md:border-t-0 md:pl-6 md:pt-0 dark:border-zinc-700">
+                                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
+                                                    <label class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
+                                                        <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="h-3.5 w-3.5 shrink-0 rounded border-zinc-300" />
+                                                        Предоплата
+                                                    </label>
+                                                </div>
+                                                <div v-if="!form.default_customer_payment_schedule.has_prepayment" class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(4.5rem,5.5rem)_minmax(0,1fr)] sm:items-end">
+                                                    <div class="min-w-0 space-y-1.5">
+                                                        <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Срок, дней</label>
+                                                        <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                    </div>
+                                                    <div class="min-w-0 space-y-1.5">
+                                                        <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
+                                                        <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full min-w-0 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                            <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div v-else class="space-y-4">
+                                                    <div>
+                                                        <div class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Предоплата</div>
+                                                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(4.5rem,5.5rem)_minmax(4.5rem,5.5rem)_minmax(0,1fr)] sm:items-end">
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Предоплата, %</label>
+                                                                <input v-model="form.default_customer_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Срок, дней</label>
+                                                                <input v-model="form.default_customer_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
+                                                                <select v-model="form.default_customer_payment_schedule.prepayment_mode" class="w-full min-w-0 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Постоплата</div>
+                                                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(4.5rem,5.5rem)_minmax(4.5rem,5.5rem)_minmax(0,1fr)] sm:items-end">
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Постоплата, %</label>
+                                                                <input :value="100 - Number(form.default_customer_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-2 py-2 text-center text-sm tabular-nums outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Срок, дней</label>
+                                                                <input v-model="form.default_customer_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
+                                                                <select v-model="form.default_customer_payment_schedule.postpayment_mode" class="w-full min-w-0 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div v-if="form.type === 'carrier' || form.type === 'both'" class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
-                                        <div class="space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты перевозчика</label>
-                                            <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                <option value="">Не задана</option>
-                                                <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                            </select>
-                                        </div>
-                                        <div class="space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия оплаты</label>
-                                            <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                                                {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_carrier_payment_schedule)) || 'Не заданы' }}
-                                            </p>
-                                        </div>
-                                        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок, дней</label>
-                                                <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    <div
+                                        v-if="form.type === 'carrier' || form.type === 'both'"
+                                        class="min-w-0 w-full space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40"
+                                    >
+                                        <div class="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 md:items-start">
+                                            <div class="min-w-0 space-y-3">
+                                                <div class="space-y-2">
+                                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты перевозчика</label>
+                                                    <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                        <option value="">Не задана</option>
+                                                        <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия оплаты</label>
+                                                    <p class="border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
+                                                        {{ formatPaymentTermsForDisplay(paymentScheduleSummary(form.default_carrier_payment_schedule)) || 'Не заданы' }}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                                                <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <label class="inline-flex items-center gap-2 border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
-                                                <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="rounded border-zinc-300" />
-                                                Предоплата
-                                            </label>
-                                        </div>
-                                        <div v-if="form.default_carrier_payment_schedule.has_prepayment" class="grid gap-3 md:grid-cols-4">
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Предоплата, %</label>
-                                                <input v-model="form.default_carrier_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Срок предоплаты, дней</label>
-                                                <input v-model="form.default_carrier_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                                                <select v-model="form.default_carrier_payment_schedule.prepayment_mode" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
-                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
-                                                </select>
-                                            </div>
-                                            <div class="space-y-2">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Постоплата, %</label>
-                                                <input :value="100 - Number(form.default_carrier_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-3 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                                            <div class="min-w-0 w-full space-y-3 border-t border-zinc-200 pt-4 md:border-l md:border-t-0 md:pl-6 md:pt-0 dark:border-zinc-700">
+                                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
+                                                    <label class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
+                                                        <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="h-3.5 w-3.5 shrink-0 rounded border-zinc-300" />
+                                                        Предоплата
+                                                    </label>
+                                                </div>
+                                                <div v-if="!form.default_carrier_payment_schedule.has_prepayment" class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(4.5rem,5.5rem)_minmax(0,1fr)] sm:items-end">
+                                                    <div class="min-w-0 space-y-1.5">
+                                                        <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Срок, дней</label>
+                                                        <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                    </div>
+                                                    <div class="min-w-0 space-y-1.5">
+                                                        <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
+                                                        <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full min-w-0 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                            <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div v-else class="space-y-4">
+                                                    <div>
+                                                        <div class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Предоплата</div>
+                                                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(4.5rem,5.5rem)_minmax(4.5rem,5.5rem)_minmax(0,1fr)] sm:items-end">
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Предоплата, %</label>
+                                                                <input v-model="form.default_carrier_payment_schedule.prepayment_ratio" type="number" min="1" max="99" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Срок, дней</label>
+                                                                <input v-model="form.default_carrier_payment_schedule.prepayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
+                                                                <select v-model="form.default_carrier_payment_schedule.prepayment_mode" class="w-full min-w-0 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Постоплата</div>
+                                                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(4.5rem,5.5rem)_minmax(4.5rem,5.5rem)_minmax(0,1fr)] sm:items-end">
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Постоплата, %</label>
+                                                                <input :value="100 - Number(form.default_carrier_payment_schedule.prepayment_ratio || 0)" type="number" disabled class="w-full border border-zinc-300 bg-zinc-100 px-2 py-2 text-center text-sm tabular-nums outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Срок, дней</label>
+                                                                <input v-model="form.default_carrier_payment_schedule.postpayment_days" type="number" min="0" step="1" class="w-full border border-zinc-300 bg-white px-2 py-2 text-center text-sm tabular-nums outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                            </div>
+                                                            <div class="min-w-0 space-y-1.5">
+                                                                <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
+                                                                <select v-model="form.default_carrier_payment_schedule.postpayment_mode" class="w-full min-w-0 border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                                    <option v-for="option in paymentBasisOptions" :key="`${option.value}-${option.label}`" :value="option.value">{{ option.label }}</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -2032,7 +2122,7 @@ function handleMobileNavSelect(key) {
                                 </div>
                             </div>
 
-                            <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="min-w-0 space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Кредитный статус</div>
                                 <div class="space-y-2 text-sm">
                                     <div class="flex items-center justify-between gap-3">

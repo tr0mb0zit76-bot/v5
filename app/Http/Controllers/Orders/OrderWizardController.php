@@ -30,6 +30,7 @@ use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
+use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -39,6 +40,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use JsonException;
@@ -261,10 +263,10 @@ class OrderWizardController extends Controller
             'order_date' => ['nullable', 'date'],
             'client_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'carrier_id' => ['nullable', 'integer', 'exists:contractors,id'],
-            'customer_payment_form' => ['nullable', 'string', 'max:50'],
-            'carrier_payment_form' => ['nullable', 'string', 'max:50'],
+            'customer_payment_form' => ['nullable', 'string', 'max:50', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
+            'carrier_payment_form' => ['nullable', 'string', 'max:50', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'contractors_costs' => ['nullable', 'array'],
-            'contractors_costs.*.payment_form' => ['nullable', 'string', 'max:50'],
+            'contractors_costs.*.payment_form' => ['nullable', 'string', 'max:50', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
         ]);
 
         $calculation = $orderCompensationService->calculateRealtime($request->all());
@@ -342,6 +344,8 @@ class OrderWizardController extends Controller
             'truckBodyTypeOptions' => $this->atiDictionaryOptions('truck_body_type', $this->fallbackTruckBodyTypeOptions()),
             'trailerTypeOptions' => $this->atiDictionaryOptions('trailer_type', $this->fallbackTrailerTypeOptions()),
             'currencyOptions' => CurrencyDictionary::options(),
+            'paymentFormOptions' => PaymentFormDictionary::options(),
+            'defaultClientPaymentFormCode' => PaymentFormDictionary::defaultClientVatCode(),
             'documentTypeOptions' => $documentRequirementService->documentTypeOptions(),
             'documentPartyOptions' => $documentRequirementService->partyOptions(),
             'requiredDocumentRules' => $documentRequirementService->requirementRules(),
@@ -635,7 +639,7 @@ class OrderWizardController extends Controller
                     $useWizardState
                         ? ($wizardFt['client_payment_form'] ?? $order->customer_payment_form)
                         : $order->customer_payment_form,
-                    'vat',
+                    PaymentFormDictionary::defaultClientVatCode(),
                 ),
                 'client_request_mode' => data_get($paymentTermsConfig, 'client.request_mode', 'single_request'),
                 'client_payment_schedule' => $paymentTermsConfig['client']['payment_schedule'] ?? [],
@@ -934,15 +938,18 @@ class OrderWizardController extends Controller
      *
      * @param  'vat'|'no_vat'|'cash'  $default
      */
-    private function normalizePaymentFormCodeForWizard(?string $value, string $default = 'vat'): string
+    private function normalizePaymentFormCodeForWizard(?string $value, string $default = 'no_vat'): string
     {
         if ($value === null || $value === '') {
             return $default;
         }
 
         $trimmed = trim($value);
-        if (in_array($trimmed, ['vat', 'no_vat', 'cash'], true)) {
-            return $trimmed;
+        $allowed = PaymentFormDictionary::allowedCodesForValidation();
+        if (in_array($trimmed, $allowed, true)) {
+            $normalized = PaymentFormDictionary::normalizeForStorage($trimmed);
+
+            return $normalized ?? $default;
         }
 
         $lower = mb_strtolower($trimmed, 'UTF-8');
@@ -955,7 +962,7 @@ class OrderWizardController extends Controller
         }
 
         if (str_contains($lower, 'ндс')) {
-            return 'vat';
+            return PaymentFormDictionary::defaultClientVatCode();
         }
 
         return $default;

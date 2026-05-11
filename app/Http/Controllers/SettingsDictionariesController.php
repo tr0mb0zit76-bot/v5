@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ContractorActivityType;
 use App\Models\Currency;
+use App\Models\VatRate;
 use App\Support\RoleAccess;
+use App\Support\VatRateCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -46,6 +48,24 @@ class SettingsDictionariesController extends Controller
                                 'id' => $item->id,
                                 'code' => $item->code,
                                 'name' => $item->name,
+                            ])
+                            ->all()
+                        : [],
+                ],
+                [
+                    'key' => 'vat-rates',
+                    'title' => 'Ставки НДС',
+                    'description' => 'Варианты «С НДС …%» для формы оплаты в заказах, контрагентах и таблице заказов.',
+                    'items' => Schema::hasTable('vat_rates')
+                        ? VatRate::query()
+                            ->orderBy('sort_order')
+                            ->orderByDesc('rate_percent')
+                            ->get(['id', 'code', 'label', 'rate_percent'])
+                            ->map(fn (VatRate $item): array => [
+                                'id' => $item->id,
+                                'code' => $item->code,
+                                'label' => $item->label,
+                                'rate_percent' => (float) $item->rate_percent,
                             ])
                             ->all()
                         : [],
@@ -109,6 +129,51 @@ class SettingsDictionariesController extends Controller
         abort_unless(Schema::hasTable('currencies'), 404, 'Справочник валют недоступен.');
 
         $currency->delete();
+
+        return to_route('settings.dictionaries.index');
+    }
+
+    public function storeVatRate(Request $request): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+        abort_unless(Schema::hasTable('vat_rates'), 404, 'Справочник ставок НДС недоступен.');
+
+        $validated = $request->validate([
+            'rate_percent' => ['required', 'numeric', 'min:0', 'max:100', Rule::unique('vat_rates', 'rate_percent')],
+            'label' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $rate = round((float) $validated['rate_percent'], 4);
+        $code = VatRateCode::fromRate($rate);
+
+        abort_if(
+            VatRate::query()->where('code', $code)->exists(),
+            422,
+            'Для этой ставки уже существует код. Измените ставку или удалите дубликат.'
+        );
+
+        $label = isset($validated['label']) && trim((string) $validated['label']) !== ''
+            ? trim((string) $validated['label'])
+            : 'С НДС '.rtrim(rtrim(number_format($rate, 4, '.', ''), '0'), '.').'%';
+
+        $nextOrder = (int) (VatRate::query()->max('sort_order') ?? 0) + 10;
+
+        VatRate::query()->create([
+            'code' => $code,
+            'label' => $label,
+            'rate_percent' => $rate,
+            'sort_order' => $nextOrder,
+        ]);
+
+        return to_route('settings.dictionaries.index');
+    }
+
+    public function destroyVatRate(Request $request, VatRate $vatRate): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+        abort_unless(Schema::hasTable('vat_rates'), 404, 'Справочник ставок НДС недоступен.');
+
+        $vatRate->delete();
 
         return to_route('settings.dictionaries.index');
     }

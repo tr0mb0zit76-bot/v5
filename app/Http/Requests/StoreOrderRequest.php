@@ -10,6 +10,7 @@ use App\Services\ContractorCreditService;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentRegistryTypes;
+use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -294,7 +295,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term' => ['nullable', 'array'],
             'financial_term.client_price' => ['nullable', 'numeric', 'min:0'],
             'financial_term.client_currency' => ['required_with:financial_term', Rule::in(CurrencyDictionary::allowedCodes())],
-            'financial_term.client_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'financial_term.client_payment_form' => ['nullable', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'financial_term.client_request_mode' => ['nullable', Rule::in(['single_request', 'split_by_leg'])],
             'financial_term.client_payment_schedule' => ['nullable', 'array'],
             'financial_term.client_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
@@ -309,7 +310,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
-            'financial_term.contractors_costs.*.payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'financial_term.contractors_costs.*.payment_form' => ['nullable', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'financial_term.contractors_costs.*.payment_schedule' => ['nullable', 'array'],
             'financial_term.contractors_costs.*.payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'financial_term.contractors_costs.*.payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],

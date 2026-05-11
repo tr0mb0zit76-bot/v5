@@ -15,6 +15,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->unsignedTinyInteger('site_id')->nullable();
+            $table->unsignedBigInteger('role_id')->nullable();
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
@@ -25,6 +26,12 @@ return new class extends Migration
             $table->boolean('ai_learning_enabled')->default(true);
             $table->rememberToken();
             $table->timestamps();
+
+            $table->foreign('role_id')->references('id')->on('roles')->nullOnDelete();
+
+            $table->index('site_id');
+            $table->index('role_id');
+            $table->index(['site_id', 'role_id']);
         });
     }
 

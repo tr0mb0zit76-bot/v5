@@ -238,9 +238,38 @@ const props = defineProps({
     type: [String, Number],
     default: 'guest',
   },
+  paymentFormSelectOptions: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed']);
+
+const paymentFormEditorValues = computed(() => {
+    if (Array.isArray(props.paymentFormSelectOptions) && props.paymentFormSelectOptions.length > 0) {
+        return props.paymentFormSelectOptions.map((o) => o.value);
+    }
+
+    return ['vat_22', 'vat_5', 'vat_0', 'no_vat', 'cash'];
+});
+
+const paymentFormValueLabels = computed(() => {
+    const map = {
+        vat: 'С НДС',
+        no_vat: 'Без НДС',
+        cash: 'Нал',
+    };
+    if (Array.isArray(props.paymentFormSelectOptions)) {
+        for (const o of props.paymentFormSelectOptions) {
+            if (o && o.value !== undefined && o.value !== null) {
+                map[o.value] = o.label ?? o.value;
+            }
+        }
+    }
+
+    return map;
+});
 
 const fallbackColumns = [
   { field: 'order_number', label: '№ заказа', width: 110, minWidth: 95, type: null },
@@ -1113,13 +1142,9 @@ const dynamicColumnDefs = computed(() => {
     if (['customer_payment_form', 'carrier_payment_form'].includes(column.field)) {
       columnDefinition.cellEditor = 'agSelectCellEditor';
       columnDefinition.cellEditorParams = {
-        values: ['vat', 'no_vat', 'cash'],
+        values: paymentFormEditorValues.value,
       };
-      columnDefinition.valueFormatter = (params) => ({
-        vat: 'С НДС',
-        no_vat: 'Без НДС',
-        cash: 'Нал',
-      }[params.value] ?? formatEmpty(params.value));
+      columnDefinition.valueFormatter = (params) => paymentFormValueLabels.value[params.value] ?? formatEmpty(params.value);
     }
 
     if (['customer_payment_term', 'carrier_payment_term'].includes(column.field)) {

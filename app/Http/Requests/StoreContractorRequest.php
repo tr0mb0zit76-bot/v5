@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Schema;
@@ -105,6 +106,22 @@ class StoreContractorRequest extends FormRequest
         if ($this->has('inn')) {
             $this->merge(['inn' => ContractorIdentity::normalizeInn($this->input('inn'))]);
         }
+
+        foreach (['default_customer_payment_form', 'default_carrier_payment_form'] as $paymentFormKey) {
+            if (! $this->has($paymentFormKey)) {
+                continue;
+            }
+
+            $raw = $this->input($paymentFormKey);
+            if (! is_string($raw) || trim($raw) === '') {
+                continue;
+            }
+
+            $normalized = PaymentFormDictionary::normalizeForStorage($raw);
+            if ($normalized !== null) {
+                $this->merge([$paymentFormKey => $normalized]);
+            }
+        }
     }
 
     /**
@@ -170,7 +187,7 @@ class StoreContractorRequest extends FormRequest
             'debt_limit' => ['nullable', 'numeric', 'min:0'],
             'debt_limit_currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'stop_on_limit' => ['required', 'boolean'],
-            'default_customer_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'default_customer_payment_form' => ['nullable', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'default_customer_payment_term' => ['nullable', 'string', 'max:255'],
             'default_customer_payment_schedule' => ['nullable', 'array'],
             'default_customer_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
@@ -179,7 +196,7 @@ class StoreContractorRequest extends FormRequest
             'default_customer_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn'])],
             'default_customer_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
             'default_customer_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn'])],
-            'default_carrier_payment_form' => ['nullable', Rule::in(['vat', 'no_vat', 'cash'])],
+            'default_carrier_payment_form' => ['nullable', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'default_carrier_payment_term' => ['nullable', 'string', 'max:255'],
             'default_carrier_payment_schedule' => ['nullable', 'array'],
             'default_carrier_payment_schedule.has_prepayment' => ['nullable', 'boolean'],

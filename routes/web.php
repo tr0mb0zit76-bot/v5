@@ -71,6 +71,11 @@ if ($sameShowcaseAndCrmHost) {
                 }
             });
 
+            $localeSwitch = Route::get('/locale/{locale}', [PublicSiteController::class, 'switchLocale']);
+            if ($namePublicRoutes) {
+                $localeSwitch->name('public.locale.switch');
+            }
+
             $boost = Route::any('/_boost/browser-logs', fn () => response()->noContent());
             if ($namePublicRoutes) {
                 $boost->name('public.boost.browser-logs');
@@ -96,6 +101,11 @@ if ($sameShowcaseAndCrmHost) {
                     $contacts->name('public.contacts');
                 }
             });
+
+            $localeSwitch = Route::get('/locale/{locale}', [PublicSiteController::class, 'switchLocale']);
+            if ($namePublicRoutes) {
+                $localeSwitch->name('public.locale.switch');
+            }
 
             $boost = Route::any('/_boost/browser-logs', fn () => response()->noContent());
             if ($namePublicRoutes) {
@@ -275,6 +285,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/settings/dictionaries/activity-types/{contractorActivityType}', 'destroyActivityType')->name('settings.dictionaries.activity-types.destroy');
         Route::post('/settings/dictionaries/currencies', 'storeCurrency')->name('settings.dictionaries.currencies.store');
         Route::delete('/settings/dictionaries/currencies/{currency}', 'destroyCurrency')->name('settings.dictionaries.currencies.destroy');
+        Route::post('/settings/dictionaries/vat-rates', 'storeVatRate')->name('settings.dictionaries.vat-rates.store');
+        Route::delete('/settings/dictionaries/vat-rates/{vatRate}', 'destroyVatRate')->name('settings.dictionaries.vat-rates.destroy');
     });
 
     Route::controller(SettingsKpiController::class)->middleware('visibility.area:settings')->group(function () {

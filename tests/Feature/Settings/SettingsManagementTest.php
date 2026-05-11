@@ -19,6 +19,7 @@ class SettingsManagementTest extends TestCase
         Schema::dropIfExists('salary_coefficients');
         Schema::dropIfExists('kpi_thresholds');
         Schema::dropIfExists('kpi_settings');
+        Schema::dropIfExists('vat_rates');
         Schema::dropIfExists('contractor_activity_types');
         Schema::dropIfExists('currencies');
         Schema::dropIfExists('users');
@@ -109,6 +110,15 @@ class SettingsManagementTest extends TestCase
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
+
+        Schema::create('vat_rates', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 50)->unique();
+            $table->string('label');
+            $table->decimal('rate_percent', 5, 2);
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->timestamps();
+        });
     }
 
     public function test_admin_can_open_settings_hub(): void
@@ -157,11 +167,13 @@ class SettingsManagementTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Settings/Dictionaries')
-            ->has('dictionaries', 2)
+            ->has('dictionaries', 3)
             ->where('dictionaries.0.key', 'contractor-activity-types')
             ->where('dictionaries.0.items.0.name', 'Экспедирование')
             ->where('dictionaries.1.key', 'currencies')
             ->has('dictionaries.1.items', 0)
+            ->where('dictionaries.2.key', 'vat-rates')
+            ->has('dictionaries.2.items', 0)
         );
     }
 
@@ -220,6 +232,36 @@ class SettingsManagementTest extends TestCase
 
         $this->assertDatabaseMissing('currencies', [
             'id' => $currencyId,
+        ]);
+    }
+
+    public function test_admin_can_manage_vat_rate_dictionary(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $createResponse = $this->actingAs($admin)->post(route('settings.dictionaries.vat-rates.store'), [
+            'rate_percent' => 7,
+            'label' => 'С НДС 7% (тест)',
+        ]);
+
+        $createResponse->assertRedirect(route('settings.dictionaries.index'));
+
+        $this->assertDatabaseHas('vat_rates', [
+            'code' => 'vat_7',
+            'label' => 'С НДС 7% (тест)',
+        ]);
+
+        $vatRateId = DB::table('vat_rates')
+            ->where('code', 'vat_7')
+            ->value('id');
+
+        $deleteResponse = $this->actingAs($admin)->delete(route('settings.dictionaries.vat-rates.destroy', $vatRateId));
+
+        $deleteResponse->assertRedirect(route('settings.dictionaries.index'));
+
+        $this->assertDatabaseMissing('vat_rates', [
+            'id' => $vatRateId,
         ]);
     }
 

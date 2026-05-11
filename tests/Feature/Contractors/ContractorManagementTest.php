@@ -20,6 +20,7 @@ class ContractorManagementTest extends TestCase
         Schema::dropIfExists('contractor_documents');
         Schema::dropIfExists('contractor_interactions');
         Schema::dropIfExists('contractor_contacts');
+        Schema::dropIfExists('vat_rates');
         Schema::dropIfExists('orders');
         Schema::dropIfExists('contractor_activity_types');
         Schema::dropIfExists('contractors');
@@ -175,6 +176,22 @@ class ContractorManagementTest extends TestCase
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('vat_rates', function (Blueprint $table) {
+            $table->id();
+            $table->string('code', 50)->unique();
+            $table->string('label');
+            $table->decimal('rate_percent', 5, 2);
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->timestamps();
+        });
+
+        $now = now();
+        DB::table('vat_rates')->insert([
+            ['code' => 'vat_22', 'label' => 'С НДС 22%', 'rate_percent' => 22, 'sort_order' => 10, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'vat_5', 'label' => 'С НДС 5%', 'rate_percent' => 5, 'sort_order' => 20, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'vat_0', 'label' => 'С НДС 0%', 'rate_percent' => 0, 'sort_order' => 30, 'created_at' => $now, 'updated_at' => $now],
+        ]);
     }
 
     public function test_admin_can_open_contractors_page(): void
@@ -196,7 +213,7 @@ class ContractorManagementTest extends TestCase
                 'postpayment_days' => 7,
                 'postpayment_mode' => 'ottn',
             ], JSON_THROW_ON_ERROR),
-            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_form' => 'vat_22',
             'default_customer_payment_term' => '7 дн OTTN',
             'default_carrier_payment_schedule' => json_encode([
                 'has_prepayment' => true,
@@ -227,6 +244,7 @@ class ContractorManagementTest extends TestCase
             ->where('contractors.0.primary_contact', '—')
             ->has('legalFormOptions')
             ->where('legalFormOptions.0.label', 'ООО')
+            ->has('paymentFormOptions')
         );
     }
 
@@ -286,7 +304,7 @@ class ContractorManagementTest extends TestCase
             'debt_limit' => 250000,
             'debt_limit_currency' => 'RUB',
             'stop_on_limit' => true,
-            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_form' => 'vat_22',
             'default_customer_payment_term' => '7 дн OTTN',
             'default_carrier_payment_form' => 'no_vat',
             'default_carrier_payment_term' => '50/50, 1 дн FTTN / 5 дн OTTN',
@@ -341,7 +359,7 @@ class ContractorManagementTest extends TestCase
             'cnaps_code' => '123456789012',
             'debt_limit' => '250000.00',
             'stop_on_limit' => true,
-            'default_customer_payment_form' => 'vat',
+            'default_customer_payment_form' => 'vat_22',
             'short_description' => 'Международная логистика и проектные перевозки.',
         ]);
         $storedBankAccounts = json_decode((string) DB::table('contractors')->where('id', $contractorId)->value('bank_accounts'), true, 512, JSON_THROW_ON_ERROR);

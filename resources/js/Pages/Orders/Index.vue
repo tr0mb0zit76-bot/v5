@@ -155,6 +155,7 @@
                     :role-key="roleKey"
                     :role-columns-config="roleColumnsConfig"
                     :user-id="userId"
+                    :payment-form-select-options="paymentFormOptions"
                     :editable="true"
                     @cell-save="handleCellSave"
                     @row-dblclick="handleRowDblClick"
@@ -196,6 +197,7 @@ const roleKey = computed(() => page.props.roleKey ?? page.props.auth?.user?.role
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const availableColumns = computed(() => page.props.orderColumns ?? []);
 const rows = computed(() => page.props.rows ?? []);
+const paymentFormOptions = computed(() => page.props.paymentFormOptions ?? []);
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
         return false;

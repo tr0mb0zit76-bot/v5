@@ -7,6 +7,7 @@ use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\OrderTableColumns;
+use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use App\Support\RoutePointDatesDisplay;
 use Illuminate\Http\Request;
@@ -209,6 +210,7 @@ class OrderIndexController extends Controller
             'rows' => $rows,
             'roleKey' => $roleName ?? 'manager',
             'orderColumns' => OrderTableColumns::options(),
+            'paymentFormOptions' => PaymentFormDictionary::options(),
         ]);
     }
 

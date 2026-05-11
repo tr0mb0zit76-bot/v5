@@ -15,6 +15,7 @@ use App\Models\RoutePoint;
 use App\Models\User;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleSummaryFormatter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -38,6 +39,7 @@ class OrderWizardService
     public function create(array $validated, User $user): Order
     {
         return DB::transaction(function () use ($validated, $user): Order {
+            $validated = $this->normalizeValidatedPaymentForms($validated);
             $ownCompany = $this->resolveOwnCompany($validated);
             $generatedNumber = blank($validated['order_number'] ?? null)
                 ? $this->orderNumberGenerator->generate($ownCompany)
@@ -61,6 +63,7 @@ class OrderWizardService
     public function update(Order $order, array $validated, User $user): Order
     {
         return DB::transaction(function () use ($order, $validated, $user): Order {
+            $validated = $this->normalizeValidatedPaymentForms($validated);
             $previousStatus = $order->status;
             $previousOrderDate = optional($order->order_date)?->toDateString();
             $previousManagerId = $order->manager_id;
@@ -977,6 +980,58 @@ class OrderWizardService
             'file_size' => $file->getSize(),
             'mime_type' => $file->getMimeType(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function normalizeValidatedPaymentForms(array $validated): array
+    {
+        $financialTerm = Arr::get($validated, 'financial_term');
+        if (! is_array($financialTerm) || $financialTerm === []) {
+            return $validated;
+        }
+
+        $validated['financial_term'] = $this->normalizeFinancialTermPaymentForms($financialTerm);
+
+        return $validated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $financialTerm
+     * @return array<string, mixed>
+     */
+    private function normalizeFinancialTermPaymentForms(array $financialTerm): array
+    {
+        $out = $financialTerm;
+        $clientForm = Arr::get($out, 'client_payment_form');
+        if (is_string($clientForm) && trim($clientForm) !== '') {
+            $normalized = PaymentFormDictionary::normalizeForStorage($clientForm);
+            if ($normalized !== null) {
+                $out['client_payment_form'] = $normalized;
+            }
+        }
+
+        $costs = Arr::get($out, 'contractors_costs', []);
+        if (! is_array($costs)) {
+            return $out;
+        }
+
+        foreach ($costs as $i => $cost) {
+            if (! is_array($cost)) {
+                continue;
+            }
+            $pf = $cost['payment_form'] ?? null;
+            if (is_string($pf) && trim($pf) !== '') {
+                $normalized = PaymentFormDictionary::normalizeForStorage($pf);
+                if ($normalized !== null) {
+                    $out['contractors_costs'][$i]['payment_form'] = $normalized;
+                }
+            }
+        }
+
+        return $out;
     }
 
     /**
