@@ -29,6 +29,7 @@
                 :allow-create="!featureUnavailable"
                 @create="openCreateLead"
                 @row-dblclick="handleRowDblClick"
+                @delete-request="handleLeadDeleteRequest"
             />
         </div>
 
@@ -125,6 +126,21 @@ function handleRowDblClick(row) {
             only: modalPropKeys,
         });
     }
+}
+
+function handleLeadDeleteRequest(row) {
+    if (featureUnavailable.value || !row?.id) {
+        return;
+    }
+
+    const label = row.number ? `лид ${row.number}` : `лид #${row.id}`;
+    if (!window.confirm(`Удалить ${label}? Это действие необратимо.`)) {
+        return;
+    }
+
+    router.delete(route('leads.destroy', row.id), {
+        preserveScroll: true,
+    });
 }
 
 function closeLeadModal() {

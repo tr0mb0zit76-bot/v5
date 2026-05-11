@@ -59,7 +59,11 @@
       </div>
     </div>
 
-    <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div
+      ref="gridPanel"
+      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      @contextmenu.capture="suppressNativeContextMenuCapture"
+    >
       <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
@@ -180,11 +184,19 @@
         </div>
       </div>
     </Teleport>
+
+    <GridContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @close="closeRowContextMenu"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -195,6 +207,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -217,7 +230,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['row-select', 'columns-changed']);
+const emit = defineEmits(['row-select', 'columns-changed', 'create-request']);
 
 const fallbackColumns = [
   { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },
@@ -269,11 +282,59 @@ let removeCenterViewportListener = null;
 /** Снять подписки AG Grid на пересчёт нижнего скролла (gridSizeChanged и т.д.) */
 let removeGridScrollbarSyncListeners = null;
 
+const contextMenu = reactive({
+  open: false,
+  x: 0,
+  y: 0,
+  items: [],
+});
+
+function closeRowContextMenu() {
+  contextMenu.open = false;
+  contextMenu.items = [];
+}
+
+function onCellContextMenu(params) {
+  const ev = params.event;
+  if (ev?.preventDefault) {
+    ev.preventDefault();
+  }
+
+  const row = params.node?.data;
+  if (!row?.id) {
+    closeRowContextMenu();
+
+    return;
+  }
+
+  const items = [
+    {
+      label: 'Открыть карточку',
+      run: () => {
+        emit('row-select', row.id);
+      },
+    },
+    {
+      label: 'Новый контрагент',
+      run: () => {
+        emit('create-request');
+      },
+    },
+  ];
+
+  contextMenu.x = ev.clientX;
+  contextMenu.y = ev.clientY;
+  contextMenu.items = items;
+  contextMenu.open = true;
+}
+
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
   animateRows: false,
+  preventDefaultOnContextMenu: true,
   getRowId: (params) => String(params.data?.id ?? ''),
+  onCellContextMenu,
 };
 
 const storageKey = computed(() => `contractors_grid_state_v1_${props.userId}`);
@@ -890,6 +951,6 @@ function formatValue(value, type) {
 
 <style scoped>
 .toolbar-button {
-  @apply inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+  @apply inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
 </style>

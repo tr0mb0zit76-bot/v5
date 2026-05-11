@@ -1,7 +1,7 @@
 <template>
   <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
-    <div class="flex shrink-0 items-center justify-between gap-2">
-      <div class="flex items-center gap-2">
+    <div class="flex shrink-0 items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
@@ -14,7 +14,7 @@
 
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          class="inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
           @click="openColumnModal"
         >
           <Settings2 class="h-4 w-4" />
@@ -24,7 +24,7 @@
         <div class="relative">
           <button
             type="button"
-            class="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white p-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+            class="inline-flex items-center justify-center rounded-none border border-zinc-200 bg-white p-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             :title="`Плотность таблицы: ${currentDensityLabel}`"
             @click="toggleDensityMenu"
           >
@@ -50,21 +50,25 @@
 
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          class="inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
           @click="resetToRoleDefaults"
         >
           <RotateCcw class="h-4 w-4" />
           Сбросить
         </button>
       </div>
-
-      <div class="text-xs text-zinc-500 dark:text-zinc-400">
-        Перетаскивай элементы в модалке, чтобы менять порядок колонок
-      </div>
     </div>
 
-    <div ref="gridPanel" class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
+    <div
+      ref="gridPanel"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      @contextmenu.capture="suppressNativeContextMenuCapture"
+    >
+      <div
+        class="ag-theme-alpine orders-grid-theme"
+        :class="densityClass"
+        :style="gridContainerStyle"
+      >
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
@@ -188,11 +192,19 @@
         </div>
       </div>
     </Teleport>
+
+    <GridContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @close="closeRowContextMenu"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -203,6 +215,8 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -245,7 +259,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed']);
+const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed', 'create-request', 'open-order-documents']);
 
 const paymentFormEditorValues = computed(() => {
     if (Array.isArray(props.paymentFormSelectOptions) && props.paymentFormSelectOptions.length > 0) {
@@ -410,13 +424,78 @@ function ordersGridStaleRowClass(data) {
   return '';
 }
 
+const contextMenu = reactive({
+  open: false,
+  x: 0,
+  y: 0,
+  items: [],
+});
+
+function closeRowContextMenu() {
+  contextMenu.open = false;
+  contextMenu.items = [];
+}
+
+function onCellContextMenu(params) {
+  const ev = params.event;
+  if (ev?.preventDefault) {
+    ev.preventDefault();
+  }
+
+  const row = params.node?.data;
+  if (!row?.id) {
+    closeRowContextMenu();
+
+    return;
+  }
+
+  const items = [
+    {
+      label: 'Открыть заказ',
+      run: () => {
+        emit('row-dblclick', row);
+      },
+    },
+    {
+      label: 'Документы и печатные формы…',
+      run: () => {
+        emit('open-order-documents', row);
+      },
+    },
+    {
+      label: 'Новый заказ',
+      run: () => {
+        emit('create-request');
+      },
+    },
+  ];
+
+  if (row.can_delete) {
+    items.push({
+      label: 'Удалить заказ',
+      danger: true,
+      run: () => {
+        emit('row-delete', row);
+      },
+    });
+  }
+
+  contextMenu.x = ev.clientX;
+  contextMenu.y = ev.clientY;
+  contextMenu.items = items;
+  contextMenu.open = true;
+}
+
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
   animateRows: false,
+  /** Системное меню ПКМ: AG Grid сам вызывает preventDefault в теле таблицы (см. onBodyViewportContextMenu). */
+  preventDefaultOnContextMenu: true,
   /** Стабильные id строк — быстрее обновление rowData и меньше лишних перерисовок. */
   getRowId: (params) => String(params.data?.id ?? ''),
   getRowClass: (params) => ordersGridStaleRowClass(params.data),
+  onCellContextMenu,
 };
 
 const gridContainerStyle = computed(() => ({

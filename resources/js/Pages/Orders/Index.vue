@@ -160,6 +160,8 @@
                     @cell-save="handleCellSave"
                     @row-dblclick="handleRowDblClick"
                     @row-delete="handleRowDelete"
+                    @create-request="openCreateOrder"
+                    @open-order-documents="handleOpenOrderDocuments"
                 />
             </div>
         </template>
@@ -283,6 +285,14 @@ const handleRowDblClick = (row) => {
     if (row?.id) {
         router.get(route('orders.edit', row.id), {}, { preserveScroll: true });
     }
+};
+
+const handleOpenOrderDocuments = (row) => {
+    if (!row?.id) {
+        return;
+    }
+
+    router.get(route('orders.edit', row.id), { tab: 'documents' }, { preserveScroll: true });
 };
 
 const openCreateOrder = () => {

@@ -1,7 +1,7 @@
 <template>
   <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
-    <div class="flex shrink-0 items-center justify-between gap-2">
-      <div class="flex items-center gap-2">
+    <div class="flex shrink-0 items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <div class="relative">
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
@@ -57,14 +57,18 @@
           Сбросить
         </button>
       </div>
-
-      <div class="text-xs text-zinc-500 dark:text-zinc-400">
-        Перетаскивай элементы в модалке, чтобы менять порядок колонок
-      </div>
     </div>
 
-    <div ref="gridPanel" class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
+    <div
+      ref="gridPanel"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      @contextmenu.capture="suppressNativeContextMenuCapture"
+    >
+      <div
+        class="ag-theme-alpine orders-grid-theme"
+        :class="densityClass"
+        :style="gridContainerStyle"
+      >
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
@@ -183,11 +187,19 @@
         </div>
       </div>
     </Teleport>
+
+    <GridContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @close="closeRowContextMenu"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -198,6 +210,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -224,7 +237,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['create', 'row-dblclick', 'columns-changed']);
+const emit = defineEmits(['create', 'row-dblclick', 'columns-changed', 'delete-request']);
 
 const statusLabels = {
   new: 'Новый',
@@ -293,11 +306,70 @@ let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
+const contextMenu = reactive({
+  open: false,
+  x: 0,
+  y: 0,
+  items: [],
+});
+
+function closeRowContextMenu() {
+  contextMenu.open = false;
+  contextMenu.items = [];
+}
+
+function onCellContextMenu(params) {
+  const ev = params.event;
+  if (ev?.preventDefault) {
+    ev.preventDefault();
+  }
+
+  const row = params.node?.data;
+  if (!row?.id) {
+    closeRowContextMenu();
+
+    return;
+  }
+
+  const items = [
+    {
+      label: 'Открыть лид',
+      run: () => {
+        emit('row-dblclick', row);
+      },
+    },
+  ];
+
+  if (props.allowCreate) {
+    items.push({
+      label: 'Новый лид',
+      run: () => {
+        emit('create');
+      },
+    });
+  }
+
+  items.push({
+    label: 'Удалить лид',
+    danger: true,
+    run: () => {
+      emit('delete-request', row);
+    },
+  });
+
+  contextMenu.x = ev.clientX;
+  contextMenu.y = ev.clientY;
+  contextMenu.items = items;
+  contextMenu.open = true;
+}
+
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
   animateRows: false,
+  preventDefaultOnContextMenu: true,
   getRowId: (params) => String(params.data?.id ?? ''),
+  onCellContextMenu,
 };
 
 const storageKey = computed(() => `leads_grid_state_v1_${props.userId}`);
@@ -952,6 +1024,6 @@ function formatValue(value, type, field, row) {
 }
 
 .toolbar-button {
-  @apply inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+  @apply inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
 </style>

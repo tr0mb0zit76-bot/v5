@@ -55,7 +55,11 @@
             </div>
         </div>
 
-        <div ref="gridPanel" class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div
+            ref="gridPanel"
+            class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            @contextmenu.capture="suppressNativeContextMenuCapture"
+        >
             <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
                 <AgGridVue
                     ref="agGrid"
@@ -138,11 +142,19 @@
                 </div>
             </div>
         </Teleport>
+
+        <GridContextMenu
+            :open="contextMenu.open"
+            :x="contextMenu.x"
+            :y="contextMenu.y"
+            :items="contextMenu.items"
+            @close="closeRowContextMenu"
+        />
     </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -154,6 +166,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -203,10 +216,70 @@ let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
+const contextMenu = reactive({
+    open: false,
+    x: 0,
+    y: 0,
+    items: [],
+});
+
+function closeRowContextMenu() {
+    contextMenu.open = false;
+    contextMenu.items = [];
+}
+
+function onCellContextMenu(params) {
+    const ev = params.event;
+    if (ev?.preventDefault) {
+        ev.preventDefault();
+    }
+
+    const row = params.node?.data;
+    if (!row) {
+        closeRowContextMenu();
+
+        return;
+    }
+
+    const items = [];
+
+    if (row.order_id) {
+        items.push(
+            {
+                label: 'Открыть заказ',
+                run: () => {
+                    emit('row-dblclick', row);
+                    router.visit(route('orders.edit', row.order_id));
+                },
+            },
+            {
+                label: 'Документы и печатные формы…',
+                run: () => {
+                    router.get(route('orders.edit', row.order_id), { tab: 'documents' }, { preserveScroll: true });
+                },
+            },
+        );
+    }
+
+    items.push({
+        label: 'Добавить документ',
+        run: () => {
+            emit('open-create');
+        },
+    });
+
+    contextMenu.x = ev.clientX;
+    contextMenu.y = ev.clientY;
+    contextMenu.items = items;
+    contextMenu.open = true;
+}
+
 const gridOptions = {
     theme: 'legacy',
     localeText: agGridLocaleRu,
     animateRows: false,
+    preventDefaultOnContextMenu: true,
+    onCellContextMenu,
 };
 
 const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
@@ -734,6 +807,6 @@ onUnmounted(() => {
 
 <style scoped>
 .toolbar-button {
-    @apply inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+    @apply inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
 </style>

@@ -1472,6 +1472,7 @@ function handleMobileNavSelect(key) {
                 :role-columns-config="roleColumnsConfig"
                 :user-id="userId"
                 @row-select="openContractor"
+                @create-request="openCreateForm"
             />
         </div>
 
