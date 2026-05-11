@@ -23,7 +23,6 @@ class Order extends Model
         'order_number',
         'company_code',
         'manager_id',
-        'site_id',
         'order_date',
         'loading_date',
         'unloading_date',

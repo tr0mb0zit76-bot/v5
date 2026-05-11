@@ -204,7 +204,6 @@ const groupMap = {
     company_code: 'identity',
     manager_id: 'identity',
     manager_name: 'identity',
-    site_id: 'identity',
     loading_point: 'routing',
     unloading_point: 'routing',
     loading_date: 'routing',

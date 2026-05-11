@@ -34,7 +34,6 @@ class OrderIndexController extends Controller
             'orders.company_code',
             'orders.manager_id',
             'managers.name as manager_name',
-            'orders.site_id',
             'orders.order_date',
             'orders.loading_date',
             'orders.unloading_date',

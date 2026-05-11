@@ -15,7 +15,6 @@ class OrderTableColumns
             ['field' => 'company_code', 'label' => 'Компания', 'width' => 110, 'minWidth' => 80, 'type' => null],
             ['field' => 'manager_id', 'label' => 'ID менеджера', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'manager_name', 'label' => 'Менеджер', 'width' => 150, 'minWidth' => 140, 'type' => null],
-            ['field' => 'site_id', 'label' => 'ID площадки', 'width' => 110, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'order_date', 'label' => 'Дата заявки', 'width' => 130, 'minWidth' => 110, 'type' => 'date'],
             ['field' => 'loading_date', 'label' => 'Дата погрузки', 'width' => 140, 'minWidth' => 120, 'type' => 'date'],
             ['field' => 'unloading_date', 'label' => 'Дата выгрузки', 'width' => 140, 'minWidth' => 120, 'type' => 'date'],
