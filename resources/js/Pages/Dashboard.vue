@@ -70,14 +70,11 @@
         </div>
 
         <div v-else class="space-y-6">
-            <section class="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <section class="rounded-none border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div class="space-y-2">
-                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Личный дашборд</div>
-                        <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Показатели менеджера</h1>
-                        <p class="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-                            Доля прямых сделок и суммарная дельта считаются по выбранному периоду (по умолчанию — календарный год). Ниже — фактические доход / расход / маржа по закрытым заказам по месяцам.
-                        </p>
+                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Дашборд</div>
+                        <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Ключевые показатели</h1>
                     </div>
 
                     <form class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" @submit.prevent="applyFilters">
@@ -108,18 +105,17 @@
             </section>
 
             <section
-                v-if="financeChart.length"
-                class="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                v-if="showFinanceFlowSection"
+                class="rounded-none border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             >
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="space-y-1">
-                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Факт по закрытым заказам</div>
-                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Доход, расход и маржа по месяцам</h2>
-                        <p class="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-                            Только статусы «Завершено» и legacy «completed». В период попадает дата закрытия или, если её нет, дата заказа. Расход — ставка перевозчика и доп. расходы по строке заказа.
-                        </p>
+                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Денежный поток</h2>
                     </div>
-                    <div class="flex flex-wrap gap-1 rounded-2xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+                    <div
+                        v-if="financeFlowMode === 'full'"
+                        class="flex flex-wrap gap-1 rounded-2xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950"
+                    >
                         <button
                             v-for="opt in chartMetricOptions"
                             :key="opt.key"
@@ -156,31 +152,10 @@
                 </div>
             </section>
 
-            <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Сделок за период</div>
                     <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.total_orders }}</div>
-                </article>
-
-                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <div class="text-sm text-zinc-500 dark:text-zinc-400">Прямых сделок</div>
-                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.direct_orders }}</div>
-                </article>
-
-                <article class="rounded-none border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
-                    <div class="text-sm text-emerald-700 dark:text-emerald-300">Доля прямых сделок</div>
-                    <div class="mt-3 text-3xl font-semibold text-emerald-900 dark:text-emerald-100">{{ formatPercent(metrics.direct_share_percent) }}</div>
-                </article>
-
-                <article class="rounded-none border border-sky-200 bg-sky-50/70 p-5 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/20">
-                    <div class="text-sm text-sky-700 dark:text-sky-300">Дельта за период</div>
-                    <div class="mt-3 text-3xl font-semibold text-sky-900 dark:text-sky-100">{{ formatCurrency(metrics.period_delta) }}</div>
-                </article>
-
-                <article class="rounded-none border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
-                    <div class="text-sm text-rose-700 dark:text-rose-300">Ожидаемые поступления от клиентов на этой неделе</div>
-                    <div class="mt-2 text-sm text-rose-600 dark:text-rose-300">по графику оплат в заказах (не оплачено)</div>
-                    <div class="mt-3 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
                 </article>
 
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -198,9 +173,10 @@
                     <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">В срок (закрытые за период): {{ formatPercent(metrics.tasks_on_time_percent) }}</div>
                 </article>
 
-                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <div class="text-sm text-zinc-500 dark:text-zinc-400">Ты на месте по марже</div>
-                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.margin_rank }}</div>
+                <article class="rounded-none border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
+                    <div class="text-sm font-medium text-rose-800 dark:text-rose-200">На этой неделе надо вернуть от клиентов</div>
+                    <div class="mt-3 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
+                    <div class="mt-2 text-xs text-rose-700 dark:text-rose-300">из них просрочено: {{ formatCurrency(metrics.weekly_client_returns_overdue) }}</div>
                 </article>
             </section>
         </div>
@@ -208,7 +184,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import { BarChart3, Bot, Building2, FileText, Package, SquarePen } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -225,10 +201,9 @@ const props = defineProps({
         type: Object,
         default: () => ({
             total_orders: 0,
-            direct_orders: 0,
-            direct_share_percent: 0,
             period_delta: 0,
             weekly_client_returns: 0,
+            weekly_client_returns_overdue: 0,
             tasks_today: 0,
             tasks_overdue: 0,
             plan_completion_percent: 0,
@@ -236,19 +211,40 @@ const props = defineProps({
             tasks_sla_breached_open: 0,
             margin_rank: '—',
             finance_chart: [],
+            finance_flow_mode: 'hidden',
         }),
     },
 });
 
-const chartMetric = ref('income');
-
-const chartMetricOptions = [
-    { key: 'income', label: 'Доход' },
-    { key: 'expense', label: 'Расход' },
-    { key: 'margin', label: 'Маржа' },
-];
+const financeFlowMode = computed(() => props.metrics?.finance_flow_mode ?? 'hidden');
 
 const financeChart = computed(() => props.metrics?.finance_chart ?? []);
+
+const showFinanceFlowSection = computed(() => financeFlowMode.value !== 'hidden' && financeChart.value.length > 0);
+
+const chartMetric = ref('income');
+
+watch(
+    financeFlowMode,
+    (mode) => {
+        if (mode === 'margin_own') {
+            chartMetric.value = 'margin';
+        }
+    },
+    { immediate: true },
+);
+
+const chartMetricOptions = computed(() => {
+    if (financeFlowMode.value !== 'full') {
+        return [];
+    }
+
+    return [
+        { key: 'income', label: 'Доход' },
+        { key: 'expense', label: 'Расход' },
+        { key: 'margin', label: 'Маржа' },
+    ];
+});
 
 const chartMaxAbs = computed(() => {
     const key = chartMetric.value;

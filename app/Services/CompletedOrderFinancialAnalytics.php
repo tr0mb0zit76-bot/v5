@@ -16,16 +16,32 @@ class CompletedOrderFinancialAnalytics
 
     public function completionDateSql(): string
     {
-        return DB::getDriverName() === 'sqlite'
-            ? 'date(COALESCE(orders.status_updated_at, orders.order_date))'
-            : 'COALESCE(DATE(orders.status_updated_at), orders.order_date)';
+        $driver = DB::getDriverName();
+
+        if (Schema::hasColumn('orders', 'status_updated_at')) {
+            return $driver === 'sqlite'
+                ? 'date(COALESCE(orders.status_updated_at, orders.order_date))'
+                : 'COALESCE(DATE(orders.status_updated_at), orders.order_date)';
+        }
+
+        return $driver === 'sqlite'
+            ? 'date(orders.order_date)'
+            : 'DATE(orders.order_date)';
     }
 
     public function monthBucketSql(): string
     {
-        return DB::getDriverName() === 'sqlite'
-            ? "strftime('%Y-%m', COALESCE(orders.status_updated_at, orders.order_date))"
-            : "DATE_FORMAT(COALESCE(orders.status_updated_at, orders.order_date), '%Y-%m')";
+        $driver = DB::getDriverName();
+
+        if (Schema::hasColumn('orders', 'status_updated_at')) {
+            return $driver === 'sqlite'
+                ? "strftime('%Y-%m', COALESCE(orders.status_updated_at, orders.order_date))"
+                : "DATE_FORMAT(COALESCE(orders.status_updated_at, orders.order_date), '%Y-%m')";
+        }
+
+        return $driver === 'sqlite'
+            ? "strftime('%Y-%m', orders.order_date)"
+            : "DATE_FORMAT(orders.order_date, '%Y-%m')";
     }
 
     /**
@@ -36,6 +52,10 @@ class CompletedOrderFinancialAnalytics
     public function monthlyBucketsForManager(int $managerId, Carbon $from, Carbon $to): array
     {
         if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'manager_id')) {
+            return [];
+        }
+
+        if (! Schema::hasColumn('orders', 'status') || ! Schema::hasColumn('orders', 'order_date')) {
             return [];
         }
 
@@ -97,6 +117,77 @@ class CompletedOrderFinancialAnalytics
     }
 
     /**
+     * Помесячные суммы по всем закрытым заказам (без фильтра по менеджеру) — для дашборда руководителя / админа / бухгалтера.
+     *
+     * @return list<array{ym: string, label: string, income: float, expense: float, margin: float}>
+     */
+    public function monthlyBucketsAggregate(Carbon $from, Carbon $to): array
+    {
+        if (! Schema::hasTable('orders')) {
+            return [];
+        }
+
+        if (! Schema::hasColumn('orders', 'status') || ! Schema::hasColumn('orders', 'order_date')) {
+            return [];
+        }
+
+        $fromDate = $from->copy()->startOfDay()->toDateString();
+        $toDate = $to->copy()->endOfDay()->toDateString();
+
+        $dateCol = $this->completionDateSql();
+        $monthExpr = $this->monthBucketSql();
+
+        $query = DB::table('orders')
+            ->whereIn('orders.status', self::COMPLETED_STATUSES)
+            ->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $query->whereNull('orders.deleted_at');
+        }
+
+        $incomeExpr = Schema::hasColumn('orders', 'customer_rate')
+            ? 'SUM(COALESCE(orders.customer_rate, 0))'
+            : 'SUM(0)';
+
+        $expenseInner = $this->expensePerRowSql();
+        $expenseExpr = $expenseInner === '0' ? 'SUM(0)' : "SUM({$expenseInner})";
+
+        $marginExpr = Schema::hasColumn('orders', 'delta')
+            ? 'SUM(COALESCE(orders.delta, 0))'
+            : 'SUM(0)';
+
+        $rows = $query
+            ->select([
+                DB::raw("{$monthExpr} as ym"),
+                DB::raw("{$incomeExpr} as income"),
+                DB::raw("{$expenseExpr} as expense"),
+                DB::raw("{$marginExpr} as margin"),
+            ])
+            ->groupBy(DB::raw($monthExpr))
+            ->get()
+            ->keyBy('ym');
+
+        $out = [];
+        $cursor = $from->copy()->startOfMonth();
+        $end = $to->copy()->endOfMonth();
+
+        while ($cursor->lte($end)) {
+            $ym = $cursor->format('Y-m');
+            $row = $rows->get($ym);
+            $out[] = [
+                'ym' => $ym,
+                'label' => $cursor->copy()->locale('ru')->translatedFormat('M Y'),
+                'income' => round((float) ($row->income ?? 0), 2),
+                'expense' => round((float) ($row->expense ?? 0), 2),
+                'margin' => round((float) ($row->margin ?? 0), 2),
+            ];
+            $cursor->addMonth();
+        }
+
+        return $out;
+    }
+
+    /**
      * Сводка по менеджерам за период (для отчётов).
      *
      * @return list<array{manager_id: int, manager_name: string, orders_count: int, margin: float, avg_check: float}>
@@ -104,6 +195,10 @@ class CompletedOrderFinancialAnalytics
     public function statsByManagers(Carbon $from, Carbon $to, ?int $restrictToManagerId): array
     {
         if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'manager_id')) {
+            return [];
+        }
+
+        if (! Schema::hasColumn('orders', 'status') || ! Schema::hasColumn('orders', 'order_date')) {
             return [];
         }
 

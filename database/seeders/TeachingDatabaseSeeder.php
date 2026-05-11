@@ -15,11 +15,11 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Демо-данные для учебной БД (например u_tromb): роли, пользователи, контрагенты, заказы, лиды.
+ * Опциональные фикстуры для **тестовой** БД из `.env.testing` (например u_tromb), а не для вашей рабочей `.env`.
+ * Нужны, чтобы после `migrate` в тестовой схеме было что открыть вручную или не падали интеграционные проверки.
  *
- * После пустой схемы:
- *   php artisan migrate
- *   php artisan db:seed --class=TeachingDatabaseSeeder
+ *   php artisan migrate --env=testing
+ *   php artisan db:seed --class=TeachingDatabaseSeeder --env=testing
  *
  * Вход: admin@u-tromb.local / password  |  manager@u-tromb.local / password
  */

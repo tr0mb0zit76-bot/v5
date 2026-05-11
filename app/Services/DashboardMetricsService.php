@@ -4,36 +4,43 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\Task;
-use App\Support\CarrierPaymentFormResolver;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardMetricsService
 {
     public function __construct(
-        private readonly DealTypeClassifier $dealTypeClassifier,
         private readonly CompletedOrderFinancialAnalytics $completedOrderFinancialAnalytics,
     ) {}
 
     /**
      * @return array{
      *     total_orders:int,
-     *     direct_orders:int,
-     *     direct_share_percent:float,
      *     period_delta:float,
      *     weekly_client_returns:float,
+     *     weekly_client_returns_overdue:float,
      *     tasks_today:int,
      *     tasks_overdue:int,
      *     plan_completion_percent:float,
      *     tasks_on_time_percent:float,
      *     tasks_sla_breached_open:int,
      *     margin_rank:string,
-     *     finance_chart: list<array{ym: string, label: string, income: float, expense: float, margin: float}>
+     *     finance_chart: list<array{ym: string, label: string, income: float, expense: float, margin: float}>,
+     *     finance_flow_mode: 'hidden'|'margin_own'|'full'
      * }
      */
-    public function forManager(int $managerId, string $dateFrom, string $dateTo): array
+    public function forDashboard(User $user, string $dateFrom, string $dateTo): array
     {
+        $user->loadMissing('role');
+        $managerId = $user->id;
+        $orderColumns = array_values(array_filter(
+            ['id', 'delta'],
+            fn (string $column): bool => Schema::hasColumn('orders', $column)
+        ));
+
         $query = Order::query()
             ->where('manager_id', $managerId)
             ->whereBetween('order_date', [$dateFrom, $dateTo])
@@ -42,59 +49,49 @@ class DashboardMetricsService
                 fn ($query) => $query->whereNull('deleted_at')
             );
 
-        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
-            $eager = [];
-            if (Schema::hasTable('leg_costs')) {
-                $eager[] = 'legs.cost';
-            }
-            if (Schema::hasTable('financial_terms')) {
-                $eager[] = 'financialTerms';
-            }
-            if ($eager !== []) {
-                $query->with($eager);
-            }
-        }
-
-        $orders = $query->get($this->orderSelectColumnsForMetrics());
-
-        // Частичный select ломает eager-load ног/стоимостей для подстановки формы оплаты перевозчика.
-        if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
-            $orders->loadMissing(array_filter([
-                Schema::hasTable('leg_costs') ? 'legs.cost' : null,
-                Schema::hasTable('financial_terms') ? 'financialTerms' : null,
-            ]));
-        }
-
-        $orders->each(function (Order $order): void {
-            if (! Schema::hasColumn('orders', 'carrier_payment_form')) {
-                $order->setAttribute('carrier_payment_form', CarrierPaymentFormResolver::forOrder($order));
-            }
-        });
+        $select = $orderColumns === [] ? ['*'] : $orderColumns;
+        $orders = $query->get($select);
 
         $totalOrders = $orders->count();
-        $directOrders = $orders
-            ->filter(fn (Order $order): bool => $this->dealTypeClassifier->classify($order) === 'direct')
-            ->count();
 
-        $weeklyClientReturns = $this->weeklyExpectedCustomerIncomingFromSchedule($managerId);
+        $weeklyReturns = $this->weeklyCustomerReturnDueTotals($managerId);
         $taskMetrics = $this->taskMetricsForManager($managerId, $dateFrom, $dateTo);
 
         $from = Carbon::parse($dateFrom)->startOfDay();
         $to = Carbon::parse($dateTo)->endOfDay();
 
+        $roleName = $user->role?->name;
+        $financeFlowMode = 'hidden';
+        $financeChart = [];
+
+        if (in_array($roleName, ['admin', 'supervisor', 'accountant'], true)) {
+            $financeFlowMode = 'full';
+            $financeChart = $this->completedOrderFinancialAnalytics->monthlyBucketsAggregate($from, $to);
+        } elseif ($roleName === 'manager') {
+            $financeFlowMode = 'margin_own';
+            $raw = $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to);
+            $financeChart = array_map(static function (array $row): array {
+                return [
+                    ...$row,
+                    'income' => 0.0,
+                    'expense' => 0.0,
+                ];
+            }, $raw);
+        }
+
         return [
             'total_orders' => $totalOrders,
-            'direct_orders' => $directOrders,
-            'direct_share_percent' => $totalOrders > 0 ? round(($directOrders / $totalOrders) * 100, 2) : 0.0,
             'period_delta' => round($orders->sum(fn (Order $order): float => (float) ($order->delta ?? 0)), 2),
-            'weekly_client_returns' => round($weeklyClientReturns, 2),
+            'weekly_client_returns' => round($weeklyReturns['total'], 2),
+            'weekly_client_returns_overdue' => round($weeklyReturns['overdue'], 2),
             'tasks_today' => $taskMetrics['tasks_today'],
             'tasks_overdue' => $taskMetrics['tasks_overdue'],
             'plan_completion_percent' => $taskMetrics['plan_completion_percent'],
             'tasks_on_time_percent' => $taskMetrics['tasks_on_time_percent'],
             'tasks_sla_breached_open' => $taskMetrics['tasks_sla_breached_open'],
             'margin_rank' => '—',
-            'finance_chart' => $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to),
+            'finance_chart' => $financeChart,
+            'finance_flow_mode' => $financeFlowMode,
         ];
     }
 
@@ -211,45 +208,66 @@ class DashboardMetricsService
     }
 
     /**
-     * @return list<string>
+     * @return array{total: float, overdue: float}
      */
-    private function orderSelectColumnsForMetrics(): array
+    private function weeklyCustomerReturnDueTotals(int $managerId): array
     {
-        $candidates = [
-            'id',
-            'customer_payment_form',
-            'carrier_payment_form',
-            'delta',
-            'order_customer_date',
-            'customer_rate',
-        ];
-
-        return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn('orders', $column)));
-    }
-
-    /**
-     * Сумма ожидаемых поступлений от клиентов на текущей календарной неделе по графику оплат (payment_schedules).
-     */
-    private function weeklyExpectedCustomerIncomingFromSchedule(int $managerId): float
-    {
-        if (! Schema::hasTable('payment_schedules')) {
-            return 0.0;
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('payment_schedules', 'planned_date')) {
+            return ['total' => 0.0, 'overdue' => 0.0];
         }
 
-        $weekStart = Carbon::now()->startOfWeek();
+        $today = Carbon::today();
         $weekEnd = Carbon::now()->endOfWeek();
+        $amountExpr = $this->paymentScheduleOutstandingAmountExpression();
 
+        $base = $this->customerScheduleDueBaseQuery($managerId);
+
+        $overdue = (float) (clone $base)
+            ->whereDate('payment_schedules.planned_date', '<', $today)
+            ->sum(DB::raw($amountExpr));
+
+        $total = (float) (clone $base)
+            ->where(function ($query) use ($today, $weekEnd): void {
+                $query->whereDate('payment_schedules.planned_date', '<', $today)
+                    ->orWhereBetween('payment_schedules.planned_date', [$today->toDateString(), $weekEnd->toDateString()]);
+            })
+            ->sum(DB::raw($amountExpr));
+
+        return ['total' => $total, 'overdue' => $overdue];
+    }
+
+    private function customerScheduleDueBaseQuery(int $managerId): Builder
+    {
         $query = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
             ->where('orders.manager_id', $managerId)
             ->where('payment_schedules.party', 'customer')
-            ->whereBetween('payment_schedules.planned_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
             ->whereIn('payment_schedules.status', ['pending', 'overdue']);
+
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $query->whereNull('payment_schedules.parent_payment_id');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $query->where(function ($q): void {
+                $q->whereNull('payment_schedules.is_partial')
+                    ->orWhere('payment_schedules.is_partial', false);
+            });
+        }
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('orders.deleted_at');
         }
 
-        return round((float) $query->sum('payment_schedules.amount'), 2);
+        return $query;
+    }
+
+    private function paymentScheduleOutstandingAmountExpression(): string
+    {
+        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+            return 'CASE WHEN payment_schedules.remaining_amount IS NULL THEN payment_schedules.amount ELSE payment_schedules.remaining_amount END';
+        }
+
+        return 'payment_schedules.amount';
     }
 }

@@ -35,10 +35,9 @@ class DashboardController extends Controller
             'metrics' => $request->user() === null
                 ? [
                     'total_orders' => 0,
-                    'direct_orders' => 0,
-                    'direct_share_percent' => 0,
                     'period_delta' => 0,
                     'weekly_client_returns' => 0,
+                    'weekly_client_returns_overdue' => 0,
                     'tasks_today' => 0,
                     'tasks_overdue' => 0,
                     'plan_completion_percent' => 0.0,
@@ -46,8 +45,9 @@ class DashboardController extends Controller
                     'tasks_sla_breached_open' => 0,
                     'margin_rank' => '—',
                     'finance_chart' => [],
+                    'finance_flow_mode' => 'hidden',
                 ]
-                : $dashboardMetricsService->forManager($request->user()->id, $dateFrom, $dateTo),
+                : $dashboardMetricsService->forDashboard($request->user(), $dateFrom, $dateTo),
         ]);
     }
 }

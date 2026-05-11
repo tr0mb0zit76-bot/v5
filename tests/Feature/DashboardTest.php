@@ -15,7 +15,7 @@ class DashboardTest extends TestCase
     {
         parent::setUp();
 
-        $this->schemaDropMany(['orders', 'users', 'roles']);
+        $this->schemaDropMany(['leg_costs', 'order_legs', 'orders', 'users', 'roles']);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
@@ -118,9 +118,8 @@ class DashboardTest extends TestCase
             ->where('filters.date_from', '2026-04-01')
             ->where('filters.date_to', '2026-04-30')
             ->where('metrics.total_orders', 2)
-            ->where('metrics.direct_orders', 1)
-            ->where('metrics.direct_share_percent', 50)
             ->where('metrics.period_delta', 20000)
+            ->has('metrics.weekly_client_returns_overdue')
         );
     }
 
@@ -193,8 +192,7 @@ class DashboardTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Dashboard')
             ->where('metrics.total_orders', 1)
-            ->where('metrics.direct_orders', 1)
-            ->where('metrics.direct_share_percent', 100)
+            ->has('metrics.weekly_client_returns_overdue')
         );
     }
 }

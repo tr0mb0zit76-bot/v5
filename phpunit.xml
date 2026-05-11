@@ -18,8 +18,8 @@
         </include>
     </source>
     <!--
-        БД для тестов: из .env.testing (рекомендуется MySQL — см. .env.example).
-        Для быстрого прогона без .env.testing можно временно вернуть сюда DB_CONNECTION=sqlite и DB_DATABASE=:memory:.
+        БД для тестов: только из `.env.testing` (не из `.env`). Шаблон переменных — `u_tromb.env.example`
+        (отдельная схема, например u_tromb, чтобы тесты не стирали вашу рабочую базу).
     -->
     <php>
         <env name="APP_ENV" value="testing"/>
