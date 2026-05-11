@@ -16,7 +16,7 @@ class ContractorCreditService
     {
         $contractorIds = array_values(array_unique(array_filter($contractorIds, static fn (mixed $id): bool => is_numeric($id))));
 
-        if ($contractorIds === [] || ! $this->canCalculateDebt()) {
+        if ($contractorIds === []) {
             return [];
         }
 
@@ -66,18 +66,6 @@ class ContractorCreditService
 
     public function supportsDebtLimit(): bool
     {
-        return Schema::hasColumn('contractors', 'debt_limit')
-            && Schema::hasColumn('contractors', 'stop_on_limit');
-    }
-
-    private function canCalculateDebt(): bool
-    {
-        return Schema::hasTable('payment_schedules')
-            && Schema::hasColumn('payment_schedules', 'order_id')
-            && Schema::hasColumn('payment_schedules', 'party')
-            && Schema::hasColumn('payment_schedules', 'amount')
-            && Schema::hasColumn('payment_schedules', 'status')
-            && Schema::hasTable('orders')
-            && Schema::hasColumn('orders', 'customer_id');
+        return true;
     }
 }

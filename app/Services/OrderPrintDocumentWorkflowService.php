@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -41,6 +40,17 @@ class OrderPrintDocumentWorkflowService
             'file_path' => $permanentPath,
             'template_id' => $template->id,
             'uploaded_by' => $user->id,
+            'document_group' => $template->document_group,
+            'source' => 'print_template',
+            'workflow_status' => OrderDocumentWorkflowStatus::DRAFT,
+            'status' => 'draft',
+            'signature_status' => 'not_requested',
+            'requires_counterparty_signature' => (bool) $template->requires_counterparty_signature,
+            'file_size' => $this->documentStorage->size(
+                $permanentPath,
+                knownContents: $docxContents
+            ),
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'metadata' => [
                 'flow' => 'print_template_workflow',
                 'party' => $this->resolveMetadataParty($template),
@@ -49,41 +59,6 @@ class OrderPrintDocumentWorkflowService
                 'storage_driver' => $this->documentStorage->configuredDriver(),
             ],
         ];
-
-        if (Schema::hasColumn('order_documents', 'document_group')) {
-            $attributes['document_group'] = $template->document_group;
-        }
-
-        if (Schema::hasColumn('order_documents', 'source')) {
-            $attributes['source'] = 'print_template';
-        }
-
-        if (Schema::hasColumn('order_documents', 'workflow_status')) {
-            $attributes['workflow_status'] = OrderDocumentWorkflowStatus::DRAFT;
-        }
-
-        if (Schema::hasColumn('order_documents', 'status')) {
-            $attributes['status'] = 'draft';
-        }
-
-        if (Schema::hasColumn('order_documents', 'signature_status')) {
-            $attributes['signature_status'] = 'not_requested';
-        }
-
-        if (Schema::hasColumn('order_documents', 'requires_counterparty_signature')) {
-            $attributes['requires_counterparty_signature'] = (bool) $template->requires_counterparty_signature;
-        }
-
-        if (Schema::hasColumn('order_documents', 'file_size')) {
-            $attributes['file_size'] = $this->documentStorage->size(
-                $permanentPath,
-                knownContents: $docxContents
-            );
-        }
-
-        if (Schema::hasColumn('order_documents', 'mime_type')) {
-            $attributes['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        }
 
         /** @var OrderDocument $document */
         $document = OrderDocument::query()->create($attributes);
@@ -102,45 +77,17 @@ class OrderPrintDocumentWorkflowService
             throw new \InvalidArgumentException('Отправка на согласование доступна только для черновика или после отклонения.');
         }
 
-        $updates = [];
-
-        if (Schema::hasColumn('order_documents', 'workflow_status')) {
-            $updates['workflow_status'] = OrderDocumentWorkflowStatus::PENDING_APPROVAL;
-        }
-
-        if (Schema::hasColumn('order_documents', 'approval_requested_at')) {
-            $updates['approval_requested_at'] = now();
-        }
-
-        if (Schema::hasColumn('order_documents', 'approval_requested_by')) {
-            $updates['approval_requested_by'] = $user->id;
-        }
-
-        if (Schema::hasColumn('order_documents', 'rejected_at')) {
-            $updates['rejected_at'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'rejected_by')) {
-            $updates['rejected_by'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'rejection_reason')) {
-            $updates['rejection_reason'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'approved_at')) {
-            $updates['approved_at'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'approved_by')) {
-            $updates['approved_by'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'status')) {
-            $updates['status'] = 'pending';
-        }
-
-        $document->update($updates);
+        $document->update([
+            'workflow_status' => OrderDocumentWorkflowStatus::PENDING_APPROVAL,
+            'approval_requested_at' => now(),
+            'approval_requested_by' => $user->id,
+            'rejected_at' => null,
+            'rejected_by' => null,
+            'rejection_reason' => null,
+            'approved_at' => null,
+            'approved_by' => null,
+            'status' => 'pending',
+        ]);
     }
 
     public function approve(OrderDocument $document, User $user): void
@@ -151,25 +98,12 @@ class OrderPrintDocumentWorkflowService
             throw new \InvalidArgumentException('Согласовать можно только документ в статусе «На согласовании».');
         }
 
-        $updates = [];
-
-        if (Schema::hasColumn('order_documents', 'workflow_status')) {
-            $updates['workflow_status'] = OrderDocumentWorkflowStatus::APPROVED;
-        }
-
-        if (Schema::hasColumn('order_documents', 'approved_at')) {
-            $updates['approved_at'] = now();
-        }
-
-        if (Schema::hasColumn('order_documents', 'approved_by')) {
-            $updates['approved_by'] = $user->id;
-        }
-
-        if (Schema::hasColumn('order_documents', 'status')) {
-            $updates['status'] = 'pending';
-        }
-
-        $document->update($updates);
+        $document->update([
+            'workflow_status' => OrderDocumentWorkflowStatus::APPROVED,
+            'approved_at' => now(),
+            'approved_by' => $user->id,
+            'status' => 'pending',
+        ]);
 
         $document->refresh();
         $this->materializeSignedPrintArtifacts($document);
@@ -183,37 +117,15 @@ class OrderPrintDocumentWorkflowService
             throw new \InvalidArgumentException('Отклонить можно только документ в статусе «На согласовании».');
         }
 
-        $updates = [];
-
-        if (Schema::hasColumn('order_documents', 'workflow_status')) {
-            $updates['workflow_status'] = OrderDocumentWorkflowStatus::REJECTED;
-        }
-
-        if (Schema::hasColumn('order_documents', 'rejected_at')) {
-            $updates['rejected_at'] = now();
-        }
-
-        if (Schema::hasColumn('order_documents', 'rejected_by')) {
-            $updates['rejected_by'] = $user->id;
-        }
-
-        if (Schema::hasColumn('order_documents', 'rejection_reason')) {
-            $updates['rejection_reason'] = $reason;
-        }
-
-        if (Schema::hasColumn('order_documents', 'approved_at')) {
-            $updates['approved_at'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'approved_by')) {
-            $updates['approved_by'] = null;
-        }
-
-        if (Schema::hasColumn('order_documents', 'status')) {
-            $updates['status'] = 'draft';
-        }
-
-        $document->update($updates);
+        $document->update([
+            'workflow_status' => OrderDocumentWorkflowStatus::REJECTED,
+            'rejected_at' => now(),
+            'rejected_by' => $user->id,
+            'rejection_reason' => $reason,
+            'approved_at' => null,
+            'approved_by' => null,
+            'status' => 'draft',
+        ]);
     }
 
     /**
@@ -238,39 +150,15 @@ class OrderPrintDocumentWorkflowService
 
         $updates = [
             'generated_pdf_path' => $path,
+            'workflow_status' => OrderDocumentWorkflowStatus::FINALIZED,
+            'status' => 'signed',
+            'signature_status' => 'signed_internal',
+            'internal_signed_at' => now(),
+            'internal_signed_by' => $user->id,
+            'mime_type' => 'application/pdf',
+            'file_size' => $file->getSize() ?: strlen($pdfContents),
+            'original_name' => $file->getClientOriginalName(),
         ];
-
-        if (Schema::hasColumn('order_documents', 'workflow_status')) {
-            $updates['workflow_status'] = OrderDocumentWorkflowStatus::FINALIZED;
-        }
-
-        if (Schema::hasColumn('order_documents', 'status')) {
-            $updates['status'] = 'signed';
-        }
-
-        if (Schema::hasColumn('order_documents', 'signature_status')) {
-            $updates['signature_status'] = 'signed_internal';
-        }
-
-        if (Schema::hasColumn('order_documents', 'internal_signed_at')) {
-            $updates['internal_signed_at'] = now();
-        }
-
-        if (Schema::hasColumn('order_documents', 'internal_signed_by')) {
-            $updates['internal_signed_by'] = $user->id;
-        }
-
-        if (Schema::hasColumn('order_documents', 'mime_type')) {
-            $updates['mime_type'] = 'application/pdf';
-        }
-
-        if (Schema::hasColumn('order_documents', 'file_size')) {
-            $updates['file_size'] = $file->getSize() ?: strlen($pdfContents);
-        }
-
-        if (Schema::hasColumn('order_documents', 'original_name')) {
-            $updates['original_name'] = $file->getClientOriginalName();
-        }
 
         $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['generated_pdf_storage_driver'] = $this->documentStorage->configuredDriver();
@@ -315,18 +203,12 @@ class OrderPrintDocumentWorkflowService
         $updates = [
             'file_path' => $permanentPath,
             'uploaded_by' => $user->id,
-        ];
-
-        if (Schema::hasColumn('order_documents', 'file_size')) {
-            $updates['file_size'] = $this->documentStorage->size(
+            'file_size' => $this->documentStorage->size(
                 $permanentPath,
                 knownContents: $docxContents
-            );
-        }
-
-        if (Schema::hasColumn('order_documents', 'mime_type')) {
-            $updates['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        }
+            ),
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
 
         $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
@@ -345,8 +227,7 @@ class OrderPrintDocumentWorkflowService
             return;
         }
 
-        if (! Schema::hasColumn('order_documents', 'workflow_status')
-            || $document->workflow_status !== OrderDocumentWorkflowStatus::APPROVED) {
+        if ($document->workflow_status !== OrderDocumentWorkflowStatus::APPROVED) {
             return;
         }
 
@@ -395,20 +276,12 @@ class OrderPrintDocumentWorkflowService
             $updates['generated_pdf_path'] = $pdfPath;
         }
 
-        if (Schema::hasColumn('order_documents', 'file_size')) {
-            $updates['file_size'] = $this->documentStorage->size(
-                $permanentPath,
-                knownContents: $docxContents
-            );
-        }
-
-        if (Schema::hasColumn('order_documents', 'mime_type')) {
-            $updates['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        }
-
-        if (Schema::hasColumn('order_documents', 'original_name')) {
-            $updates['original_name'] = $generated['download_name'];
-        }
+        $updates['file_size'] = $this->documentStorage->size(
+            $permanentPath,
+            knownContents: $docxContents
+        );
+        $updates['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        $updates['original_name'] = $generated['download_name'];
 
         $document->update($updates);
     }
@@ -445,13 +318,11 @@ class OrderPrintDocumentWorkflowService
     {
         $this->assertWorkflowDocument($document);
 
-        if (Schema::hasColumn('order_documents', 'workflow_status')
-            && $document->workflow_status === OrderDocumentWorkflowStatus::FINALIZED) {
+        if ($document->workflow_status === OrderDocumentWorkflowStatus::FINALIZED) {
             throw new \InvalidArgumentException('Нельзя удалить зафиксированный документ.');
         }
 
-        if (Schema::hasColumn('order_documents', 'signature_status')
-            && ($document->signature_status ?? '') === 'signed_both_sides') {
+        if (($document->signature_status ?? '') === 'signed_both_sides') {
             throw new \InvalidArgumentException('Нельзя удалить документ после подписания с двух сторон.');
         }
 
@@ -477,7 +348,7 @@ class OrderPrintDocumentWorkflowService
 
     private function assertWorkflowDocument(OrderDocument $document): void
     {
-        if (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template') {
+        if ($document->source === 'print_template') {
             return;
         }
 

@@ -10,7 +10,7 @@ class PaymentScheduleSummaryFormatterTest extends TestCase
     public function test_formats_postpayment_only_like_wizard(): void
     {
         $this->assertSame(
-            '100% 5 дн ОТТН',
+            '100% 5 дн по оригиналам',
             PaymentScheduleSummaryFormatter::format([
                 'has_prepayment' => false,
                 'postpayment_days' => 5,
@@ -22,7 +22,7 @@ class PaymentScheduleSummaryFormatterTest extends TestCase
     public function test_formats_prepayment_and_postpayment_like_wizard(): void
     {
         $this->assertSame(
-            '30% 1 дн ФТТН / 70% 5 дн ОТТН',
+            '30% 1 дн по сканам / 70% 5 дн по оригиналам',
             PaymentScheduleSummaryFormatter::format([
                 'has_prepayment' => true,
                 'prepayment_ratio' => 30,
@@ -37,7 +37,7 @@ class PaymentScheduleSummaryFormatterTest extends TestCase
     public function test_basis_labels_match_wizard_options(): void
     {
         $this->assertSame(
-            '100% 0 дн На выгрузке',
+            '100% 0 дн при выгрузке',
             PaymentScheduleSummaryFormatter::format([
                 'has_prepayment' => false,
                 'postpayment_days' => 0,

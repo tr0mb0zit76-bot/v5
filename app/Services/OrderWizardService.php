@@ -26,6 +26,13 @@ use JsonException;
 
 class OrderWizardService
 {
+    /**
+     * Кэш имён колонок таблицы `orders` на время жизни экземпляра (запрос / джоба), вместо N вызовов Schema::hasColumn.
+     *
+     * @var array<string, true>|null
+     */
+    private ?array $ordersColumnLookup = null;
+
     public function __construct(
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly OrderStatusService $orderStatusService,
@@ -165,23 +172,21 @@ class OrderWizardService
             ...($isCreating ? ['created_by' => $user->id] : []),
         ];
 
-        if (Schema::hasColumn('orders', 'metadata')) {
-            $metadata = is_array($existingMetadata) ? $existingMetadata : [];
-            $loadingTypes = array_values(array_filter(
-                array_map(
-                    fn (mixed $value): ?string => $this->normalizeLoadingType($value),
-                    is_array($validated['loading_types'] ?? null) ? $validated['loading_types'] : []
-                )
-            ));
+        $metadata = is_array($existingMetadata) ? $existingMetadata : [];
+        $loadingTypes = array_values(array_filter(
+            array_map(
+                fn (mixed $value): ?string => $this->normalizeLoadingType($value),
+                is_array($validated['loading_types'] ?? null) ? $validated['loading_types'] : []
+            )
+        ));
 
-            if ($loadingTypes === []) {
-                unset($metadata['loading_types']);
-            } else {
-                $metadata['loading_types'] = array_values(array_unique($loadingTypes));
-            }
-
-            $attributes['metadata'] = $metadata;
+        if ($loadingTypes === []) {
+            unset($metadata['loading_types']);
+        } else {
+            $metadata['loading_types'] = array_values(array_unique($loadingTypes));
         }
+
+        $attributes['metadata'] = $metadata;
 
         foreach (['additional_expenses', 'insurance', 'bonus'] as $key) {
             if (! $isCreating && ! array_key_exists($key, $validated)) {
@@ -309,6 +314,8 @@ class OrderWizardService
      */
     private function syncNestedData(Order $order, array $validated, User $user): void
     {
+        $hasOrderDocuments = Schema::hasTable('order_documents');
+
         $order->loadMissing($this->relationsForNestedSync());
 
         $performers = $this->resolvedPerformers($validated);
@@ -342,7 +349,7 @@ class OrderWizardService
 
         $this->deleteExistingCargoItems($order);
 
-        if (Schema::hasTable('order_documents')) {
+        if ($hasOrderDocuments) {
             $order->documents()
                 ->get()
                 ->each(function (OrderDocument $document): void {
@@ -481,80 +488,45 @@ class OrderWizardService
                 'needs_manipulator' => in_array('crane', $loadingTypeCodes, true) || $primaryLoadingCode === 'crane',
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
+                'length' => $length,
+                'width' => $width,
+                'height' => $height,
             ];
 
             if (Schema::hasColumn('cargos', 'ati_cargo_name')) {
                 $cargoAttributes['ati_cargo_name'] = $cargoTitle;
-            }
-
-            if (Schema::hasColumn('cargos', 'weight_value')) {
                 $cargoAttributes['weight_value'] = $weightValue;
-            }
-
-            if (Schema::hasColumn('cargos', 'weight_unit')) {
                 $cargoAttributes['weight_unit'] = $weightUnit;
-            }
-
-            if (Schema::hasColumn('cargos', 'cargo_type_id')) {
                 $cargoAttributes['cargo_type_id'] = $this->normalizeNullableInteger($cargoItem['cargo_type_id'] ?? null);
-            }
-
-            if (Schema::hasColumn('cargos', 'cargo_type_label')) {
                 $cargoAttributes['cargo_type_label'] = $this->nullIfTrimmedEmpty($cargoItem['cargo_type_label'] ?? null);
-            }
-
-            if (Schema::hasColumn('cargos', 'pack_type_id')) {
                 $cargoAttributes['pack_type_id'] = $this->normalizeNullableInteger($cargoItem['pack_type_id'] ?? null);
-            }
-
-            if (Schema::hasColumn('cargos', 'pack_type_label')) {
                 $cargoAttributes['pack_type_label'] = $this->nullIfTrimmedEmpty($cargoItem['pack_type_label'] ?? null);
-            }
-
-            foreach (['loading_type', 'truck_body_type', 'trailer_type'] as $dictionaryField) {
-                $idColumn = $dictionaryField.'_id';
-                $codeColumn = $dictionaryField.'_code';
-                $labelColumn = $dictionaryField.'_label';
-                $itemsColumn = $dictionaryField.'_items';
-                $primaryItem = $primaryDictionaryItems[$dictionaryField] ?? null;
-
-                if (Schema::hasColumn('cargos', $idColumn)) {
-                    $cargoAttributes[$idColumn] = $this->normalizeNullableInteger($primaryItem['id'] ?? null);
-                }
-
-                if (Schema::hasColumn('cargos', $codeColumn)) {
-                    $cargoAttributes[$codeColumn] = $dictionaryField === 'loading_type'
-                        ? $primaryLoadingCode
-                        : $this->nullIfTrimmedEmpty($primaryItem['code'] ?? null);
-                }
-
-                if (Schema::hasColumn('cargos', $labelColumn)) {
-                    $cargoAttributes[$labelColumn] = $this->nullIfTrimmedEmpty($primaryItem['label'] ?? null);
-                }
-
-                if (Schema::hasColumn('cargos', $itemsColumn)) {
-                    $cargoAttributes[$itemsColumn] = $dictionaryItems[$dictionaryField] !== []
-                        ? $dictionaryItems[$dictionaryField]
-                        : ($primaryItem !== null ? [$primaryItem] : null);
-                }
-            }
-
-            if (Schema::hasColumn('cargos', 'diameter')) {
                 $cargoAttributes['diameter'] = $this->normalizeNullableFloat($cargoItem['diameter_m'] ?? null);
-            }
-
-            if (Schema::hasColumn('cargos', 'is_oversized')) {
                 $cargoAttributes['is_oversized'] = (bool) ($cargoItem['is_oversized'] ?? $cargoType === 'oversized');
-            }
-
-            if (Schema::hasColumn('cargos', 'is_fragile')) {
                 $cargoAttributes['is_fragile'] = (bool) ($cargoItem['is_fragile'] ?? $cargoType === 'fragile');
-            }
-
-            if (Schema::hasColumn('cargos', 'ati_cargo_payload')) {
                 $cargoAttributes['ati_cargo_payload'] = is_array($cargoItem['ati_cargo_payload'] ?? null)
                     ? $cargoItem['ati_cargo_payload']
                     : null;
+
+                foreach (['loading_type', 'truck_body_type', 'trailer_type'] as $dictionaryField) {
+                    $idColumn = $dictionaryField.'_id';
+                    $codeColumn = $dictionaryField.'_code';
+                    $labelColumn = $dictionaryField.'_label';
+                    $itemsColumn = $dictionaryField.'_items';
+                    $primaryItem = $primaryDictionaryItems[$dictionaryField] ?? null;
+
+                    $cargoAttributes[$idColumn] = $this->normalizeNullableInteger($primaryItem['id'] ?? null);
+                    $cargoAttributes[$codeColumn] = $dictionaryField === 'loading_type'
+                        ? $primaryLoadingCode
+                        : $this->nullIfTrimmedEmpty($primaryItem['code'] ?? null);
+                    $cargoAttributes[$labelColumn] = $this->nullIfTrimmedEmpty($primaryItem['label'] ?? null);
+
+                    if (Schema::hasColumn('cargos', $itemsColumn)) {
+                        $cargoAttributes[$itemsColumn] = $dictionaryItems[$dictionaryField] !== []
+                            ? $dictionaryItems[$dictionaryField]
+                            : ($primaryItem !== null ? [$primaryItem] : null);
+                    }
+                }
             }
 
             if (Schema::hasColumn('cargos', 'order_id')) {
@@ -565,12 +537,6 @@ class OrderWizardService
                 $cargoAttributes['package_count'] = $cargoItem['package_count'] ?? null;
             } elseif (Schema::hasColumn('cargos', 'pallet_count') && $packType === 'pallet') {
                 $cargoAttributes['pallet_count'] = $cargoItem['package_count'] ?? null;
-            }
-
-            foreach (['length' => $length, 'width' => $width, 'height' => $height] as $column => $value) {
-                if (Schema::hasColumn('cargos', $column)) {
-                    $cargoAttributes[$column] = $value;
-                }
             }
 
             $cargo = Cargo::query()->create($cargoAttributes);
@@ -587,7 +553,7 @@ class OrderWizardService
             }
         }
 
-        if (Schema::hasTable('order_documents')) {
+        if ($hasOrderDocuments) {
             foreach ($validated['documents'] ?? [] as $document) {
                 if (($document['flow'] ?? null) === 'print_template_workflow') {
                     continue;
@@ -596,7 +562,14 @@ class OrderWizardService
                 $storedFile = $this->storeDocumentFile($document['file'] ?? null);
                 $documentAttributes = [
                     'order_id' => $order->id,
+                    'entity_type' => 'order',
+                    'entity_id' => $order->id,
                     'type' => $document['type'],
+                    'number' => $this->nullIfTrimmedEmpty($document['number'] ?? null),
+                    'document_date' => $this->normalizeOrderDocumentDate($document['document_date'] ?? null),
+                    'generated_pdf_path' => null,
+                    'template_id' => $document['template_id'] ?? null,
+                    'status' => $document['status'],
                     'original_name' => $storedFile['original_name'] ?? null,
                     'file_path' => $storedFile['file_path'] ?? null,
                     'file_size' => $storedFile['file_size'] ?? null,
@@ -609,34 +582,6 @@ class OrderWizardService
                         'requirement_key' => $document['requirement_key'] ?? null,
                     ],
                 ];
-
-                if (Schema::hasColumn('order_documents', 'entity_type')) {
-                    $documentAttributes['entity_type'] = 'order';
-                }
-
-                if (Schema::hasColumn('order_documents', 'entity_id')) {
-                    $documentAttributes['entity_id'] = $order->id;
-                }
-
-                if (Schema::hasColumn('order_documents', 'number')) {
-                    $documentAttributes['number'] = $this->nullIfTrimmedEmpty($document['number'] ?? null);
-                }
-
-                if (Schema::hasColumn('order_documents', 'document_date')) {
-                    $documentAttributes['document_date'] = $this->normalizeOrderDocumentDate($document['document_date'] ?? null);
-                }
-
-                if (Schema::hasColumn('order_documents', 'generated_pdf_path')) {
-                    $documentAttributes['generated_pdf_path'] = null;
-                }
-
-                if (Schema::hasColumn('order_documents', 'template_id')) {
-                    $documentAttributes['template_id'] = $document['template_id'] ?? null;
-                }
-
-                if (Schema::hasColumn('order_documents', 'status')) {
-                    $documentAttributes['status'] = $document['status'];
-                }
 
                 OrderDocument::query()->create($documentAttributes);
             }
@@ -672,17 +617,13 @@ class OrderWizardService
                 'additional_costs' => [],
             ];
 
-            if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
-                $financialTermAttributes['client_payment_terms'] = $this->formatPaymentScheduleSummary(
-                    Arr::get($financialTerm, 'client_payment_schedule', [])
-                );
-            }
+            $financialTermAttributes['client_payment_terms'] = $this->formatPaymentScheduleSummary(
+                Arr::get($financialTerm, 'client_payment_schedule', [])
+            );
 
-            if (Schema::hasColumn('financial_terms', 'payment_terms_snapshot')) {
-                $snapshot = $this->encodePaymentTermsPayload($financialTerm);
-                if ($snapshot !== null) {
-                    $financialTermAttributes['payment_terms_snapshot'] = $snapshot;
-                }
+            $snapshot = $this->encodePaymentTermsPayload($financialTerm);
+            if ($snapshot !== null) {
+                $financialTermAttributes['payment_terms_snapshot'] = $snapshot;
             }
 
             // Удаляем старые financial_terms для этого заказа и создаем новую запись
@@ -840,9 +781,14 @@ class OrderWizardService
      */
     private function onlyExistingOrderColumns(array $attributes): array
     {
-        return collect($attributes)
-            ->filter(fn (mixed $value, string $column): bool => Schema::hasColumn('orders', $column))
-            ->all();
+        if ($this->ordersColumnLookup === null) {
+            $this->ordersColumnLookup = array_fill_keys(
+                Schema::getColumnListing((new Order)->getTable()),
+                true
+            );
+        }
+
+        return array_intersect_key($attributes, $this->ordersColumnLookup);
     }
 
     /**
@@ -880,7 +826,7 @@ class OrderWizardService
 
     private function isPrintWorkflowDocument(OrderDocument $document): bool
     {
-        if (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template') {
+        if ($document->source === 'print_template') {
             return true;
         }
 
@@ -1186,6 +1132,9 @@ class OrderWizardService
         $costsByStage = collect($contractorsCosts)
             ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1')));
 
+        $hasAssignmentsTable = Schema::hasTable('leg_contractor_assignments');
+        $hasLegCostsTable = Schema::hasTable('leg_costs');
+
         foreach ($legs as $leg) {
             $stage = $this->normalizeStageIdentifier($leg->description);
             $performer = $performersByStage->get($stage);
@@ -1199,16 +1148,13 @@ class OrderWizardService
             }
 
             // Удаляем старые записи для этого плеча
-            if (Schema::hasTable('leg_contractor_assignments')) {
+            if ($hasAssignmentsTable) {
                 LegContractorAssignment::query()->where('order_leg_id', $leg->id)->delete();
             }
 
-            if (Schema::hasTable('leg_costs')) {
+            if ($hasLegCostsTable) {
                 LegCost::query()->where('order_leg_id', $leg->id)->delete();
             }
-
-            $hasAssignmentsTable = Schema::hasTable('leg_contractor_assignments');
-            $hasLegCostsTable = Schema::hasTable('leg_costs');
 
             if (! $hasAssignmentsTable && ! $hasLegCostsTable) {
                 continue;

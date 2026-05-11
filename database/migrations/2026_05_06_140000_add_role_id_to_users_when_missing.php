@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Ранний 0001-снимок создавал users без role_id; create_core_auth_tables тогда пропускал создание users.
+ * Колонка site_id больше не используется (см. 2026_06_12_drop_legacy…).
  */
 return new class extends Migration
 {
@@ -16,13 +17,12 @@ return new class extends Migration
         }
 
         Schema::table('users', function (Blueprint $table): void {
-            $table->unsignedBigInteger('role_id')->nullable()->after('site_id');
+            $table->unsignedBigInteger('role_id')->nullable()->after('id');
         });
 
         Schema::table('users', function (Blueprint $table): void {
             $table->foreign('role_id')->references('id')->on('roles')->nullOnDelete();
             $table->index('role_id');
-            $table->index(['site_id', 'role_id']);
         });
     }
 
@@ -35,7 +35,6 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table): void {
             $table->dropForeign(['role_id']);
             $table->dropIndex(['role_id']);
-            $table->dropIndex(['site_id', 'role_id']);
             $table->dropColumn('role_id');
         });
     }

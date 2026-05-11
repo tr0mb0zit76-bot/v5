@@ -47,26 +47,20 @@ class MessengerService
             throw new \InvalidArgumentException('Добавьте хотя бы одного участника.');
         }
 
-        $query = User::query()->whereIn('id', $ids);
-        if (Schema::hasColumn('users', 'is_active')) {
-            $query->where('is_active', true);
-        }
-
-        $found = $query->count();
+        $found = User::query()
+            ->whereIn('id', $ids)
+            ->where('is_active', true)
+            ->count();
         if ($found !== count($ids)) {
             throw new \InvalidArgumentException('Некоторые пользователи недоступны.');
         }
 
         return DB::transaction(function () use ($creator, $title, $ids): Conversation {
-            $conversationData = ['type' => 'group'];
-            if (Schema::hasColumn('conversations', 'title')) {
-                $conversationData['title'] = $title;
-            }
-            if (Schema::hasColumn('conversations', 'created_by')) {
-                $conversationData['created_by'] = $creator->id;
-            }
-
-            $conversation = Conversation::query()->create($conversationData);
+            $conversation = Conversation::query()->create([
+                'type' => 'group',
+                'title' => $title,
+                'created_by' => $creator->id,
+            ]);
 
             $attach = [$creator->id => []];
             foreach ($ids as $userId) {
@@ -126,10 +120,6 @@ class MessengerService
      */
     public function orderDocumentsForChips(User $user, ?string $search = null): array
     {
-        if (! Schema::hasTable('order_documents') || ! Schema::hasTable('orders')) {
-            return [];
-        }
-
         $user->loadMissing('role');
 
         if (! RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'orders')) {

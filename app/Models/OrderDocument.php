@@ -6,7 +6,6 @@ use Database\Factories\OrderDocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * For electronic transport waybills (`type` = etrn), `metadata` may include an `epd` key:
@@ -61,14 +60,11 @@ class OrderDocument extends Model
     protected static function booted(): void
     {
         static::creating(function (self $document): void {
-            if (Schema::hasColumn('order_documents', 'entity_type')
-                && ($document->entity_type === null || $document->entity_type === '')) {
+            if ($document->entity_type === null || $document->entity_type === '') {
                 $document->entity_type = 'order';
             }
 
-            if (Schema::hasColumn('order_documents', 'entity_id')
-                && $document->entity_id === null
-                && $document->order_id !== null) {
+            if ($document->entity_id === null && $document->order_id !== null) {
                 $document->entity_id = (int) $document->order_id;
             }
         });

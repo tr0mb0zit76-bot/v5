@@ -9,7 +9,6 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Services\Epd\EtrnDraftBuilder;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class OneCFreshEtrnController extends Controller
@@ -111,24 +110,13 @@ class OneCFreshEtrnController extends Controller
 
     private function loadOrderForEtrnDraft(Order $order): Order
     {
-        $relations = [];
-        if (Schema::hasTable('contractors')) {
-            $relations[] = 'client';
-            $relations[] = 'carrier';
-        }
-        if (Schema::hasTable('fleet_drivers')) {
-            $relations[] = 'driver';
-        }
-        if (Schema::hasTable('route_points') && Schema::hasTable('order_legs')) {
-            $relations[] = 'routePoints';
-        }
-        if (Schema::hasTable('cargos')) {
-            $relations[] = 'cargoItems';
-        }
-
-        if ($relations !== []) {
-            $order->load($relations);
-        }
+        $order->load([
+            'client',
+            'carrier',
+            'driver',
+            'routePoints',
+            'cargoItems',
+        ]);
 
         return $order;
     }
@@ -158,14 +146,9 @@ class OneCFreshEtrnController extends Controller
             'number' => $order->waybill_number ?: null,
             'document_date' => optional($order->loading_date)?->toDateString(),
             'metadata' => $metadata,
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
         ];
-
-        if (Schema::hasColumn('order_documents', 'entity_type')) {
-            $attributes['entity_type'] = 'order';
-        }
-        if (Schema::hasColumn('order_documents', 'entity_id')) {
-            $attributes['entity_id'] = $order->id;
-        }
 
         return OrderDocument::query()->create($attributes);
     }

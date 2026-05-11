@@ -16,25 +16,15 @@ final class PaymentScheduleAutomaticStatus
 {
     public static function refreshForOrder(int $orderId): void
     {
-        if (! Schema::hasTable('payment_schedules')) {
-            return;
-        }
-
         $today = Carbon::today()->startOfDay();
 
         $query = DB::table('payment_schedules')
             ->where('order_id', $orderId)
-            ->whereNotIn('status', ['paid', 'cancelled']);
-
-        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
-            $query->whereNull('parent_payment_id');
-        }
-
-        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
-            $query->where(function ($q): void {
+            ->whereNotIn('status', ['paid', 'cancelled'])
+            ->whereNull('parent_payment_id')
+            ->where(function ($q): void {
                 $q->whereNull('is_partial')->orWhere('is_partial', false);
             });
-        }
 
         foreach ($query->get(['id', 'planned_date']) as $row) {
             $planned = $row->planned_date ?? null;
@@ -55,10 +45,6 @@ final class PaymentScheduleAutomaticStatus
      */
     public static function refreshForOrdersScope(?int $userId, ?string $roleName, string $ordersScope): void
     {
-        if (! Schema::hasTable('payment_schedules') || ! Schema::hasTable('orders')) {
-            return;
-        }
-
         $orderIds = DB::table('orders')
             ->when(
                 $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',

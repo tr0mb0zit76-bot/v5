@@ -7,7 +7,6 @@ use App\Models\LeadOffer;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class LeadConversionService
 {
@@ -20,9 +19,7 @@ class LeadConversionService
         return DB::transaction(function () use ($lead, $user, $ownCompanyId): Order {
             $lead->loadMissing('cargoItems', 'routePoints', 'offers');
 
-            $existingOrder = Schema::hasColumn('orders', 'lead_id')
-                ? $lead->orders()->latest('id')->first()
-                : null;
+            $existingOrder = $lead->orders()->latest('id')->first();
 
             if ($existingOrder !== null) {
                 return $existingOrder;
@@ -71,9 +68,7 @@ class LeadConversionService
 
             $order = $this->orderWizardService->create($payload, $user);
 
-            if (Schema::hasColumn('orders', 'lead_id')) {
-                $order->forceFill(['lead_id' => $lead->id])->save();
-            }
+            $order->forceFill(['lead_id' => $lead->id])->save();
 
             $lead->forceFill([
                 'status' => 'won',

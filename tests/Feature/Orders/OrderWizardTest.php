@@ -8,6 +8,7 @@ use App\Support\OrderDocumentWorkflowStatus;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -23,6 +24,11 @@ class OrderWizardTest extends TestCase
 
         Storage::fake();
 
+        $phpWordTmp = storage_path('framework/phpword-tmp');
+        if (! is_dir($phpWordTmp)) {
+            File::makeDirectory($phpWordTmp, 0777, true);
+        }
+
         Schema::dropIfExists('order_status_logs');
         Schema::dropIfExists('financial_terms');
         Schema::dropIfExists('order_documents');
@@ -30,6 +36,8 @@ class OrderWizardTest extends TestCase
         Schema::dropIfExists('cargo_leg');
         Schema::dropIfExists('cargos');
         Schema::dropIfExists('route_points');
+        Schema::dropIfExists('leg_costs');
+        Schema::dropIfExists('leg_contractor_assignments');
         Schema::dropIfExists('order_legs');
         Schema::dropIfExists('salary_coefficients');
         Schema::dropIfExists('kpi_thresholds');
@@ -171,6 +179,31 @@ class OrderWizardTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('leg_contractor_assignments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('order_leg_id');
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->timestamp('assigned_at')->nullable();
+            $table->unsignedBigInteger('assigned_by');
+            $table->string('status', 20)->default('pending');
+            $table->text('notes')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('leg_costs', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('order_leg_id');
+            $table->decimal('amount', 10, 2)->nullable();
+            $table->string('currency', 3)->default('RUB');
+            $table->string('payment_form')->nullable();
+            $table->json('payment_schedule')->nullable();
+            $table->string('status', 20)->default('draft');
+            $table->timestamp('calculated_at')->nullable();
+            $table->unsignedBigInteger('calculated_by')->nullable();
+            $table->unsignedBigInteger('leg_contractor_assignment_id')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('print_form_templates', function (Blueprint $table) {
             $table->id();
             $table->string('code', 100)->unique();
@@ -282,6 +315,8 @@ class OrderWizardTest extends TestCase
         Schema::create('order_documents', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');
+            $table->string('entity_type', 40)->default('order');
+            $table->unsignedBigInteger('entity_id')->nullable();
             $table->string('type');
             $table->string('document_group', 50)->nullable();
             $table->string('source', 50)->default('uploaded');
@@ -294,6 +329,7 @@ class OrderWizardTest extends TestCase
             $table->string('status')->default('draft');
             $table->string('workflow_status', 40)->nullable();
             $table->string('signature_status', 50)->nullable();
+            $table->boolean('requires_counterparty_signature')->default(false);
             $table->timestamp('signed_at')->nullable();
             $table->unsignedBigInteger('signed_by')->nullable();
             $table->integer('file_size')->nullable();
@@ -309,6 +345,10 @@ class OrderWizardTest extends TestCase
             $table->text('rejection_reason')->nullable();
             $table->timestamp('internal_signed_at')->nullable();
             $table->unsignedBigInteger('internal_signed_by')->nullable();
+            $table->string('internal_signed_file_path')->nullable();
+            $table->timestamp('counterparty_signed_at')->nullable();
+            $table->string('counterparty_signed_file_path')->nullable();
+            $table->json('snapshot_payload')->nullable();
             $table->timestamps();
         });
 
@@ -318,6 +358,7 @@ class OrderWizardTest extends TestCase
             $table->decimal('client_price', 12, 2)->nullable();
             $table->string('client_currency', 3)->default('RUB');
             $table->string('client_payment_terms')->nullable();
+            $table->text('payment_terms_snapshot')->nullable();
             $table->json('contractors_costs')->nullable();
             $table->decimal('total_cost', 12, 2)->default(0);
             $table->decimal('margin', 12, 2)->default(0);

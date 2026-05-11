@@ -7,7 +7,6 @@ use App\Support\CurrencyDictionary;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class StoreContractorRequest extends FormRequest
@@ -245,10 +244,6 @@ class StoreContractorRequest extends FormRequest
      */
     protected function ownerIdRules(): array
     {
-        if (! Schema::hasColumn('users', 'is_active')) {
-            return ['nullable', 'integer', 'exists:users,id'];
-        }
-
         return [
             'nullable',
             'integer',

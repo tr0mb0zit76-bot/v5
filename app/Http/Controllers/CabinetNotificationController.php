@@ -6,14 +6,13 @@ use App\Support\CabinetNotificationBadges;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
-use Illuminate\Support\Facades\Schema;
 
 class CabinetNotificationController extends Controller
 {
     public function summary(Request $request): JsonResponse
     {
         $user = $request->user();
-        if ($user === null || ! Schema::hasTable('notifications')) {
+        if ($user === null) {
             return response()->json([
                 'unread_count' => 0,
                 'latest' => null,
@@ -38,7 +37,7 @@ class CabinetNotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        if ($user === null || ! Schema::hasTable('notifications')) {
+        if ($user === null) {
             return response()->json(['notifications' => []]);
         }
 
@@ -66,9 +65,7 @@ class CabinetNotificationController extends Controller
         $user = $request->user();
         abort_if($user === null, 403);
 
-        if (Schema::hasTable('notifications')) {
-            $user->unreadNotifications()->update(['read_at' => now()]);
-        }
+        $user->unreadNotifications()->update(['read_at' => now()]);
 
         return response()->json(['ok' => true]);
     }

@@ -89,15 +89,9 @@ class DocumentRegistryController extends Controller
             'uploaded_by' => $request->user()?->id,
             'status' => $payload['status'],
             'metadata' => $metadata,
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
         ];
-
-        if (Schema::hasColumn('order_documents', 'entity_type')) {
-            $attributes['entity_type'] = 'order';
-        }
-
-        if (Schema::hasColumn('order_documents', 'entity_id')) {
-            $attributes['entity_id'] = $order->id;
-        }
 
         OrderDocument::query()->create($attributes);
 
@@ -126,15 +120,9 @@ class DocumentRegistryController extends Controller
                 'party' => $payload['party'],
                 'flow' => 'uploaded',
             ]),
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
         ];
-
-        if (Schema::hasColumn('order_documents', 'entity_type')) {
-            $attrs['entity_type'] = 'order';
-        }
-
-        if (Schema::hasColumn('order_documents', 'entity_id')) {
-            $attrs['entity_id'] = $order->id;
-        }
 
         if ($file !== null) {
             $attrs['original_name'] = $file->getClientOriginalName();

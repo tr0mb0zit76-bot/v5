@@ -305,6 +305,7 @@ class LeadManagementTest extends TestCase
             $table->decimal('client_price', 12, 2)->nullable();
             $table->string('client_currency', 3)->nullable();
             $table->string('client_payment_terms')->nullable();
+            $table->text('payment_terms_snapshot')->nullable();
             $table->json('contractors_costs')->nullable();
             $table->decimal('total_cost', 12, 2)->nullable();
             $table->decimal('margin', 12, 2)->nullable();
@@ -792,10 +793,7 @@ class LeadManagementTest extends TestCase
 
         $response = $this->actingAs($manager)->post(route('leads.convert', $lead));
 
-        // Debug: check response status and content
-        if ($response->status() !== 302) {
-            dd($response->status(), $response->getContent());
-        }
+        $response->assertRedirect();
 
         $orderId = DB::table('orders')->where('lead_id', $lead->id)->value('id');
 

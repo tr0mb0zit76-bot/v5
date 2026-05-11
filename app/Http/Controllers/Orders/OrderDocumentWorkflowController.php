@@ -19,7 +19,6 @@ use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -48,10 +47,7 @@ class OrderDocumentWorkflowController extends Controller
         ]);
 
         $template = PrintFormTemplate::query()->findOrFail($validated['print_form_template_id']);
-        $order->loadMissing(['legs']);
-        if (Schema::hasTable('leg_contractor_assignments')) {
-            $order->loadMissing(['legs.contractorAssignment']);
-        }
+        $order->loadMissing(['legs', 'legs.contractorAssignment']);
 
         abort_unless(
             $this->templateEligibility->isTemplateAvailableForOrder($template, $order),
@@ -187,9 +183,7 @@ class OrderDocumentWorkflowController extends Controller
     {
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
-        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
-            ? $orderDocument->workflow_status
-            : null;
+        $workflowStatus = $orderDocument->workflow_status;
 
         if ($workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL) {
             $user = $request->user();
@@ -228,9 +222,7 @@ class OrderDocumentWorkflowController extends Controller
 
         abort_if(blank($orderDocument->file_path), 404);
 
-        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
-            ? $orderDocument->workflow_status
-            : null;
+        $workflowStatus = $orderDocument->workflow_status;
 
         $canManage = $this->userCanManageOrderDocuments($request, $order);
         $canRequestApproval = $canManage && in_array($workflowStatus, [
@@ -332,9 +324,7 @@ class OrderDocumentWorkflowController extends Controller
 
         abort_if(! is_string($path) || $path === '' || ! Storage::disk($disk)->exists($path), 404);
 
-        $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')
-            ? $orderDocument->workflow_status
-            : null;
+        $workflowStatus = $orderDocument->workflow_status;
         $revealed = in_array($workflowStatus, [
             OrderDocumentWorkflowStatus::APPROVED,
             OrderDocumentWorkflowStatus::FINALIZED,
@@ -521,10 +511,6 @@ class OrderDocumentWorkflowController extends Controller
 
     private function shouldInlineStoredWorkflowPdfForBrowserPreview(OrderDocument $orderDocument): bool
     {
-        if (! Schema::hasColumn('order_documents', 'workflow_status')) {
-            return false;
-        }
-
         $status = $orderDocument->workflow_status;
         if (! in_array($status, [
             OrderDocumentWorkflowStatus::APPROVED,
