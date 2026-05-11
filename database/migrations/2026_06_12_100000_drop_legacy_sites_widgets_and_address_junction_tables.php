@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
@@ -20,8 +21,8 @@ return new class extends Migration
         Schema::dropIfExists('contractor_addresses');
 
         if (Schema::hasTable('orders') && Schema::hasColumn('orders', 'site_id')) {
-            Schema::table('orders', function (Blueprint $table): void {
-                $this->tryDropForeign($table, 'site_id');
+            $this->safelyAlterTable('orders', function (Blueprint $table): void {
+                $table->dropForeign(['site_id']);
             });
             Schema::table('orders', function (Blueprint $table): void {
                 $table->dropColumn('site_id');
@@ -29,10 +30,14 @@ return new class extends Migration
         }
 
         if (Schema::hasTable('users') && Schema::hasColumn('users', 'site_id')) {
-            Schema::table('users', function (Blueprint $table): void {
-                $this->tryDropForeign($table, 'site_id');
-                $this->tryDropIndex($table, ['site_id', 'role_id']);
-                $this->tryDropIndex($table, 'users_site_id_index');
+            $this->safelyAlterTable('users', function (Blueprint $table): void {
+                $table->dropForeign(['site_id']);
+            });
+            $this->safelyAlterTable('users', function (Blueprint $table): void {
+                $table->dropIndex(['site_id', 'role_id']);
+            });
+            $this->safelyAlterTable('users', function (Blueprint $table): void {
+                $table->dropIndex('users_site_id_index');
             });
 
             Schema::table('users', function (Blueprint $table): void {
@@ -50,23 +55,14 @@ return new class extends Migration
         // Не восстанавливаем устаревшую схему: миграция разрушительная.
     }
 
-    private function tryDropForeign(Blueprint $table, string $column): void
-    {
-        try {
-            $table->dropForeign([$column]);
-        } catch (Throwable) {
-            // SQLite / старые имена FK
-        }
-    }
-
     /**
-     * @param  list<string>|string  $index
+     * Blueprint применяется после выхода из замыкания — перехват только снаружи Schema::table.
      */
-    private function tryDropIndex(Blueprint $table, array|string $index): void
+    private function safelyAlterTable(string $table, callable $using): void
     {
         try {
-            $table->dropIndex($index);
-        } catch (Throwable) {
+            Schema::table($table, $using);
+        } catch (QueryException) {
             //
         }
     }
