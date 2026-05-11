@@ -17,15 +17,18 @@ class ContractorManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('contractor_documents');
-        Schema::dropIfExists('contractor_interactions');
-        Schema::dropIfExists('contractor_contacts');
-        Schema::dropIfExists('vat_rates');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('contractor_activity_types');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'contractor_documents',
+            'contractor_interactions',
+            'contractor_contacts',
+            'payment_schedules',
+            'vat_rates',
+            'orders',
+            'contractor_activity_types',
+            'contractors',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
@@ -685,9 +688,11 @@ class ContractorManagementTest extends TestCase
 
     public function test_admin_can_open_contractors_page_without_nested_tables(): void
     {
-        Schema::dropIfExists('contractor_documents');
-        Schema::dropIfExists('contractor_interactions');
-        Schema::dropIfExists('contractor_contacts');
+        $this->schemaDropMany([
+            'contractor_documents',
+            'contractor_interactions',
+            'contractor_contacts',
+        ]);
         Schema::table('contractors', function (Blueprint $table) {
             $table->dropColumn('is_own_company');
         });
@@ -715,6 +720,8 @@ class ContractorManagementTest extends TestCase
 
     public function test_selected_contractor_includes_current_debt_and_related_order_documents(): void
     {
+        $this->schemaDropMany(['order_documents']);
+
         Schema::create('order_documents', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('order_id');

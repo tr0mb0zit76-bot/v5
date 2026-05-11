@@ -107,7 +107,7 @@ class RoleAccess
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
             'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
             'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
             'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports'],
             'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],

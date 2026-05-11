@@ -1,0 +1,247 @@
+<template>
+    <div class="min-h-0 flex-1 space-y-6 overflow-y-auto">
+        <section class="border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Отчёты</h1>
+                    <p class="mt-1 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+                        ABC / XYZ по клиентам и сводка по менеджерам по закрытым заказам. Данные по заказам
+                        <span v-if="order_scope === 'own'" class="font-medium text-zinc-800 dark:text-zinc-200">только ваши</span>
+                        <span v-else class="font-medium text-zinc-800 dark:text-zinc-200">по компании</span>.
+                    </p>
+                </div>
+            </div>
+
+            <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyFilters">
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">С</label>
+                    <input
+                        v-model="filterForm.date_from"
+                        type="date"
+                        class="mt-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                    >
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">По</label>
+                    <input
+                        v-model="filterForm.date_to"
+                        type="date"
+                        class="mt-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                    >
+                </div>
+                <button
+                    type="submit"
+                    class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                    Применить
+                </button>
+            </form>
+
+            <div class="mt-4 flex flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
+                <button
+                    v-for="t in tabs"
+                    :key="t.key"
+                    type="button"
+                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                    :class="tab === t.key
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'"
+                    @click="switchTab(t.key)"
+                >
+                    {{ t.label }}
+                </button>
+            </div>
+
+            <p class="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {{ glossaryBlock }}
+            </p>
+        </section>
+
+        <section v-if="tab === 'abc'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <tr>
+                        <th class="px-4 py-3">Класс</th>
+                        <th class="px-4 py-3">Клиент</th>
+                        <th class="px-4 py-3 text-right">Заказов</th>
+                        <th class="px-4 py-3 text-right">Выручка</th>
+                        <th class="px-4 py-3 text-right">Доля, %</th>
+                        <th class="px-4 py-3 text-right">Накопл., %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in abc.rows" :key="row.customer_id" class="border-b border-zinc-100 dark:border-zinc-800">
+                        <td class="px-4 py-2">
+                            <span
+                                class="inline-flex min-w-[1.5rem] items-center justify-center rounded border px-1.5 py-0.5 text-xs font-bold"
+                                :class="abcBadgeClass(row.abc_class)"
+                            >{{ row.abc_class }}</span>
+                        </td>
+                        <td class="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100">{{ row.customer_name }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-700 dark:text-zinc-300">{{ row.orders_count }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-900 dark:text-zinc-100">{{ formatMoney(row.revenue) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{{ row.share_percent.toFixed(2) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{{ row.cumulative_share_percent.toFixed(2) }}</td>
+                    </tr>
+                    <tr v-if="!abc.rows.length" class="text-zinc-500 dark:text-zinc-400">
+                        <td colspan="6" class="px-4 py-6 text-center text-sm">Нет данных за период.</td>
+                    </tr>
+                </tbody>
+                <tfoot v-if="abc.rows.length" class="border-t border-zinc-200 bg-zinc-50 font-semibold dark:border-zinc-700 dark:bg-zinc-950/40">
+                    <tr>
+                        <td colspan="3" class="px-4 py-2 text-zinc-700 dark:text-zinc-300">Итого</td>
+                        <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(abc.total_revenue) }}</td>
+                        <td colspan="2" class="px-4 py-2 text-right text-xs font-normal text-zinc-500 dark:text-zinc-400">{{ abc.total_orders }} заказов</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </section>
+
+        <section v-else-if="tab === 'xyz'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <tr>
+                        <th class="sticky left-0 z-10 bg-zinc-50 px-4 py-3 dark:bg-zinc-950/50">XYZ</th>
+                        <th class="sticky left-12 z-10 bg-zinc-50 px-4 py-3 dark:bg-zinc-950/50">Клиент</th>
+                        <th v-for="m in xyz.months" :key="m" class="px-2 py-3 text-right">{{ m }}</th>
+                        <th class="px-4 py-3 text-right">μ</th>
+                        <th class="px-4 py-3 text-right">σ</th>
+                        <th class="px-4 py-3 text-right">CV</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in xyz.rows" :key="row.customer_id" class="border-b border-zinc-100 dark:border-zinc-800">
+                        <td class="sticky left-0 z-10 bg-white px-4 py-2 dark:bg-zinc-900">
+                            <span
+                                class="inline-flex min-w-[1.5rem] items-center justify-center rounded border px-1.5 py-0.5 text-xs font-bold"
+                                :class="xyzBadgeClass(row.xyz_class)"
+                            >{{ row.xyz_class }}</span>
+                        </td>
+                        <td class="sticky left-12 z-10 bg-white px-4 py-2 font-medium text-zinc-900 dark:bg-zinc-100 dark:bg-zinc-900">{{ row.customer_name }}</td>
+                        <td v-for="(v, idx) in row.monthly_revenues" :key="idx" class="px-2 py-2 text-right tabular-nums text-zinc-700 dark:text-zinc-300">{{ formatMoney(v) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.mean) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.std_dev) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-400">{{ row.cv === null ? '—' : row.cv.toFixed(3) }}</td>
+                    </tr>
+                    <tr v-if="!xyz.rows.length" class="text-zinc-500 dark:text-zinc-400">
+                        <td :colspan="4 + (xyz.months?.length || 0)" class="px-4 py-6 text-center text-sm">Нет данных за выбранные месяцы.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section v-else class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <tr>
+                        <th class="px-4 py-3">Менеджер</th>
+                        <th class="px-4 py-3 text-right">Заказов</th>
+                        <th class="px-4 py-3 text-right">Маржа</th>
+                        <th class="px-4 py-3 text-right">Средний чек</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in managers" :key="row.manager_id" class="border-b border-zinc-100 dark:border-zinc-800">
+                        <td class="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100">{{ row.manager_name }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-700 dark:text-zinc-300">{{ row.orders_count }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-900 dark:text-zinc-100">{{ formatMoney(row.margin) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-zinc-700 dark:text-zinc-300">{{ formatMoney(row.avg_check) }}</td>
+                    </tr>
+                    <tr v-if="!managers.length" class="text-zinc-500 dark:text-zinc-400">
+                        <td colspan="4" class="px-4 py-6 text-center text-sm">Нет закрытых заказов за период.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </div>
+</template>
+
+<script setup>
+import { computed, reactive } from 'vue';
+import { router } from '@inertiajs/vue3';
+import CrmLayout from '@/Layouts/CrmLayout.vue';
+
+defineOptions({
+    layout: (h, page) => h(CrmLayout, { activeKey: 'reports' }, () => page),
+});
+
+const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
+    tab: { type: String, default: 'abc' },
+    order_scope: { type: String, default: 'own' },
+    abc: { type: Object, default: () => ({ rows: [], total_revenue: 0, total_orders: 0 }) },
+    xyz: { type: Object, default: () => ({ rows: [], months: [] }) },
+    managers: { type: Array, default: () => [] },
+    glossary: { type: Object, default: () => ({}) },
+});
+
+const filterForm = reactive({
+    date_from: props.filters.date_from,
+    date_to: props.filters.date_to,
+});
+
+const tabs = [
+    { key: 'abc', label: 'ABC клиенты' },
+    { key: 'xyz', label: 'XYZ нестабильность' },
+    { key: 'managers', label: 'Менеджеры' },
+];
+
+const glossaryBlock = computed(() => {
+    if (props.tab === 'xyz') {
+        return props.glossary.xyz;
+    }
+    if (props.tab === 'managers') {
+        return props.glossary.managers;
+    }
+
+    return props.glossary.abc;
+});
+
+function formatMoney(value) {
+    return new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+}
+
+function abcBadgeClass(cls) {
+    if (cls === 'A') {
+        return 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200';
+    }
+    if (cls === 'B') {
+        return 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200';
+    }
+
+    return 'border-zinc-300 bg-zinc-100 text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
+}
+
+function xyzBadgeClass(cls) {
+    if (cls === 'X') {
+        return 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200';
+    }
+    if (cls === 'Y') {
+        return 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200';
+    }
+    if (cls === 'Z') {
+        return 'border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200';
+    }
+
+    return 'border-zinc-300 bg-zinc-100 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300';
+}
+
+function applyFilters() {
+    router.get(route('reports.index'), {
+        date_from: filterForm.date_from,
+        date_to: filterForm.date_to,
+        tab: props.tab,
+    }, { preserveState: true, preserveScroll: true, replace: true });
+}
+
+function switchTab(key) {
+    router.get(route('reports.index'), {
+        date_from: filterForm.date_from,
+        date_to: filterForm.date_to,
+        tab: key,
+    }, { preserveState: true, preserveScroll: true, replace: true });
+}
+</script>

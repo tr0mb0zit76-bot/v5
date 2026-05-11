@@ -15,18 +15,20 @@ class PerformerPersistenceTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('leg_costs');
-        Schema::dropIfExists('leg_contractor_assignments');
-        Schema::dropIfExists('route_points');
-        Schema::dropIfExists('order_legs');
-        Schema::dropIfExists('order_documents');
-        Schema::dropIfExists('financial_terms');
-        Schema::dropIfExists('cargo_leg');
-        Schema::dropIfExists('cargos');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'leg_costs',
+            'leg_contractor_assignments',
+            'route_points',
+            'order_legs',
+            'order_documents',
+            'financial_terms',
+            'cargo_leg',
+            'cargos',
+            'orders',
+            'contractors',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

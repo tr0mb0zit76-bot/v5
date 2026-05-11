@@ -16,13 +16,15 @@ class FinanceIndexTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('payment_schedules');
-        Schema::dropIfExists('leg_contractor_assignments');
-        Schema::dropIfExists('order_legs');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'payment_schedules',
+            'leg_contractor_assignments',
+            'order_legs',
+            'orders',
+            'contractors',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
@@ -788,9 +790,9 @@ class FinanceIndexTest extends TestCase
         try {
             $response = $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']));
 
-        $response->assertOk();
-        $response->assertInertia(fn (Assert $page) => $page
-            ->has('cashFlowJournal', 1)
+            $response->assertOk();
+            $response->assertInertia(fn (Assert $page) => $page
+                ->has('cashFlowJournal', 1)
                 ->where('cashFlowJournal.0.status', 'overdue')
             );
         } finally {

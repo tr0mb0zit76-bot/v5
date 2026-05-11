@@ -73,7 +73,7 @@
           :defaultColDef="defaultColDef"
           :domLayout="'normal'"
           :pagination="false"
-          :animateRows="true"
+          :animateRows="false"
           :suppressCellFocus="true"
           :suppressMovableColumns="true"
           :alwaysShowVerticalScroll="true"
@@ -197,6 +197,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
+import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -295,6 +296,7 @@ let removeCenterViewportListener = null;
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
+  animateRows: false,
   getRowId: (params) => String(params.data?.id ?? ''),
 };
 
@@ -388,7 +390,9 @@ const buildRoleDefaultState = () => {
 };
 
 const dynamicColumnDefs = computed(() => {
-  return getAllowedColumns().map((column) => {
+  const saved = readPersistedAgGridColumnState(storageKey.value);
+
+  const raw = getAllowedColumns().map((column) => {
     const columnDefinition = {
       field: column.field,
       headerName: column.headerName,
@@ -419,6 +423,20 @@ const dynamicColumnDefs = computed(() => {
 
     return columnDefinition;
   });
+
+  if (!saved?.length) {
+    return raw;
+  }
+
+  const byField = new Map(raw.map((d) => [d.field, d]));
+  const { orderedFields, byColId } = buildLayoutIndex([...byField.keys()], saved);
+
+  return orderedFields
+    .map((field) => {
+      const def = byField.get(field);
+      return def ? applySavedToColDef(def, byColId.get(field)) : null;
+    })
+    .filter(Boolean);
 });
 
 const saveColumnState = () => {
@@ -444,44 +462,6 @@ const saveColumnState = () => {
     syncModalColumnsWithGrid();
     syncBottomScrollbar();
   }, 250);
-};
-
-const loadColumnState = () => {
-  if (!gridApi.value) {
-    return false;
-  }
-
-  const savedState = localStorage.getItem(storageKey.value);
-
-  if (!savedState) {
-    return false;
-  }
-
-  try {
-    const parsedState = JSON.parse(savedState);
-    const allowedColumnIds = new Set(getAllowedColumns().map((column) => column.field));
-
-    gridApi.value.applyColumnState({
-      state: parsedState
-        .filter((column) => allowedColumnIds.has(column.colId))
-        .map((column) => ({
-          colId: column.colId,
-          hide: column.hide,
-          width: column.width,
-          sort: column.sort ?? null,
-          sortIndex: column.sortIndex ?? null,
-        })),
-      applyOrder: true,
-    });
-
-    syncModalColumnsWithGrid();
-
-    return true;
-  } catch (error) {
-    console.error('Error loading leads grid state', error);
-
-    return false;
-  }
 };
 
 const resetToRoleDefaults = () => {
@@ -735,7 +715,7 @@ const onGridReady = async (params) => {
     gridApi.value.setGridOption('quickFilterText', quickSearch.value);
   }
 
-  if (!loadColumnState()) {
+  if (!readPersistedAgGridColumnState(storageKey.value)?.length) {
     resetToRoleDefaults();
   }
 

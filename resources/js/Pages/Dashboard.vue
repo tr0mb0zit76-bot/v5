@@ -76,7 +76,7 @@
                         <div class="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Личный дашборд</div>
                         <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Показатели менеджера</h1>
                         <p class="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-                            Доля прямых сделок и суммарная дельта считаются по произвольному периоду.
+                            Доля прямых сделок и суммарная дельта считаются по выбранному периоду (по умолчанию — календарный год). Ниже — фактические доход / расход / маржа по закрытым заказам по месяцам.
                         </p>
                     </div>
 
@@ -104,6 +104,55 @@
                             Применить
                         </button>
                     </form>
+                </div>
+            </section>
+
+            <section
+                v-if="financeChart.length"
+                class="rounded-[28px] border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            >
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="space-y-1">
+                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Факт по закрытым заказам</div>
+                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Доход, расход и маржа по месяцам</h2>
+                        <p class="max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
+                            Только статусы «Завершено» и legacy «completed». В период попадает дата закрытия или, если её нет, дата заказа. Расход — ставка перевозчика и доп. расходы по строке заказа.
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-1 rounded-2xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+                        <button
+                            v-for="opt in chartMetricOptions"
+                            :key="opt.key"
+                            type="button"
+                            class="rounded-xl px-3 py-1.5 text-sm font-medium transition"
+                            :class="chartMetric === opt.key
+                                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'"
+                            @click="chartMetric = opt.key"
+                        >
+                            {{ opt.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex h-56 items-end gap-1.5 sm:gap-2">
+                    <div
+                        v-for="p in financeChart"
+                        :key="p.ym"
+                        class="flex min-h-0 min-w-0 flex-1 flex-col items-stretch justify-end gap-2"
+                    >
+                        <div class="flex flex-1 flex-col justify-end px-0.5">
+                            <div
+                                class="mx-auto w-full max-w-[40px] rounded-t-md sm:max-w-[52px]"
+                                :class="barToneClass(p)"
+                                :style="{ height: barHeightPercent(p) }"
+                                :title="formatCurrency(pointValue(p))"
+                            />
+                        </div>
+                        <div class="truncate text-center text-[10px] leading-tight text-zinc-500 dark:text-zinc-400 sm:text-xs">
+                            {{ p.label }}
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -159,7 +208,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import { BarChart3, Bot, Building2, FileText, Package, SquarePen } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -185,9 +234,57 @@ const props = defineProps({
             plan_completion_percent: 0,
             tasks_on_time_percent: 0,
             tasks_sla_breached_open: 0,
+            margin_rank: '—',
+            finance_chart: [],
         }),
     },
 });
+
+const chartMetric = ref('income');
+
+const chartMetricOptions = [
+    { key: 'income', label: 'Доход' },
+    { key: 'expense', label: 'Расход' },
+    { key: 'margin', label: 'Маржа' },
+];
+
+const financeChart = computed(() => props.metrics?.finance_chart ?? []);
+
+const chartMaxAbs = computed(() => {
+    const key = chartMetric.value;
+    let m = 0;
+    for (const p of financeChart.value) {
+        m = Math.max(m, Math.abs(Number(p[key] ?? 0)));
+    }
+
+    return m > 0 ? m : 1;
+});
+
+function pointValue(point) {
+    return Number(point[chartMetric.value] ?? 0);
+}
+
+function barHeightPercent(point) {
+    const ratio = Math.abs(pointValue(point)) / chartMaxAbs.value;
+
+    return `${Math.max(6, ratio * 100)}%`;
+}
+
+function barToneClass(point) {
+    const v = pointValue(point);
+    if (chartMetric.value === 'margin') {
+        if (v < 0) {
+            return 'bg-rose-500/90 dark:bg-rose-400/90';
+        }
+
+        return 'bg-emerald-500/90 dark:bg-emerald-400/90';
+    }
+    if (chartMetric.value === 'expense') {
+        return 'bg-amber-500/90 dark:bg-amber-400/90';
+    }
+
+    return 'bg-sky-500/90 dark:bg-sky-400/90';
+}
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'dashboard' }, () => page),

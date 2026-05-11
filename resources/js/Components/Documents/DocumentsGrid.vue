@@ -65,7 +65,7 @@
                     :defaultColDef="defaultColDef"
                     :domLayout="'normal'"
                     :pagination="false"
-                    :animateRows="true"
+                    :animateRows="false"
                     :suppressCellFocus="true"
                     :alwaysShowVerticalScroll="true"
                     style="height: 100%; width: 100%;"
@@ -153,6 +153,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
+import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -205,6 +206,7 @@ let removeCenterViewportListener = null;
 const gridOptions = {
     theme: 'legacy',
     localeText: agGridLocaleRu,
+    animateRows: false,
 };
 
 const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
@@ -229,6 +231,8 @@ const defaultColDef = {
 };
 
 const columnDefs = computed(() => {
+    const saved = readPersistedAgGridColumnState(storageKey.value);
+
     const baseColumns = fallbackColumns.map((column) => {
         const colDef = {
             field: column.field,
@@ -274,7 +278,31 @@ const columnDefs = computed(() => {
         cellRenderer: (params) => actionCellRenderer(params.data),
     });
 
-    return baseColumns;
+    if (!saved?.length) {
+        return baseColumns;
+    }
+
+    const actionCol = baseColumns.find((c) => c.colId === '__actions');
+    const dataCols = baseColumns.filter((c) => c.field);
+    const fields = dataCols.map((c) => c.field);
+    const { orderedFields, byColId } = buildLayoutIndex(fields, saved);
+    const byField = new Map(dataCols.map((d) => [d.field, d]));
+
+    const reordered = orderedFields
+        .map((field) => {
+            const def = byField.get(field);
+            return def ? applySavedToColDef(def, byColId.get(field)) : null;
+        })
+        .filter(Boolean);
+
+    if (actionCol) {
+        const aSaved = saved.find((r) => r.colId === '__actions');
+        const nextAction = aSaved ? applySavedToColDef({ ...actionCol }, aSaved) : actionCol;
+
+        return [...reordered, nextAction];
+    }
+
+    return reordered;
 });
 
 function normalizeItems(items) {
@@ -409,30 +437,6 @@ function syncModalColumnsWithGrid() {
             };
         })
         .filter(Boolean);
-}
-
-function loadColumnState() {
-    if (!gridApi.value) {
-        return false;
-    }
-
-    const raw = localStorage.getItem(storageKey.value);
-    if (!raw) {
-        return false;
-    }
-
-    try {
-        const state = JSON.parse(raw);
-        gridApi.value.applyColumnState({
-            state,
-            applyOrder: true,
-        });
-        syncModalColumnsWithGrid();
-        return true;
-    } catch (error) {
-        console.error('Error loading documents grid state', error);
-        return false;
-    }
 }
 
 function saveColumnState() {
@@ -672,7 +676,7 @@ async function onGridReady(params) {
         gridApi.value.setGridOption('quickFilterText', quickSearch.value);
     }
 
-    if (!loadColumnState()) {
+    if (!readPersistedAgGridColumnState(storageKey.value)?.length) {
         resetColumns();
     }
 

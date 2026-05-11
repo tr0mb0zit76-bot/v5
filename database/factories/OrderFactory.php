@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Order;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * @extends Factory<Order>
@@ -17,7 +18,7 @@ class OrderFactory extends Factory
      */
     public function definition(): array
     {
-        return [
+        $attributes = [
             'order_number' => 'ORD-'.fake()->unique()->numerify('######'),
             'company_code' => 'ORD',
             'order_date' => fake()->date(),
@@ -28,7 +29,12 @@ class OrderFactory extends Factory
             'bonus' => 0,
             'salary_accrued' => 0,
             'salary_paid' => 0,
-            'performers' => [],
         ];
+
+        if (Schema::hasColumn((new Order)->getTable(), 'performers')) {
+            $attributes['performers'] = [];
+        }
+
+        return $attributes;
     }
 }

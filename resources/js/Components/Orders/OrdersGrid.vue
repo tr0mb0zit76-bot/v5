@@ -202,6 +202,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
+import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -412,6 +413,7 @@ function ordersGridStaleRowClass(data) {
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
+  animateRows: false,
   /** Стабильные id строк — быстрее обновление rowData и меньше лишних перерисовок. */
   getRowId: (params) => String(params.data?.id ?? ''),
   getRowClass: (params) => ordersGridStaleRowClass(params.data),
@@ -618,42 +620,6 @@ const saveColumnState = () => {
     syncModalColumnsWithGrid();
     syncBottomScrollbar();
   }, 250);
-};
-
-const loadColumnState = () => {
-  if (!gridApi.value) {
-    return false;
-  }
-
-  const savedState = localStorage.getItem(storageKey.value);
-
-  if (!savedState) {
-    return false;
-  }
-
-  try {
-    const parsedState = JSON.parse(savedState);
-    const allowedColumnIds = new Set(getAllowedColumns().map((column) => column.field));
-
-    gridApi.value.applyColumnState({
-      state: parsedState
-        .filter((column) => allowedColumnIds.has(column.colId))
-        .map((column) => ({
-        colId: column.colId,
-        hide: column.hide,
-        width: column.width,
-        sort: column.sort ?? null,
-        sortIndex: column.sortIndex ?? null,
-      })),
-      applyOrder: true,
-    });
-
-    syncModalColumnsWithGrid();
-    return true;
-  } catch (error) {
-    console.error('Error loading orders grid state', error);
-    return false;
-  }
 };
 
 const resetToRoleDefaults = () => {
@@ -1038,6 +1004,7 @@ class DateInputEditor {
 
 const dynamicColumnDefs = computed(() => {
   const editableFields = getDefaultEditableFields();
+  const saved = readPersistedAgGridColumnState(storageKey.value);
 
   const columns = getAllowedColumns().map((column) => {
     const isEditable = editableFields.includes(column.field) && props.editable;
@@ -1233,7 +1200,31 @@ const dynamicColumnDefs = computed(() => {
     });
   }
 
-  return columns;
+  if (!saved?.length) {
+    return columns;
+  }
+
+  const actionCol = columns.find((c) => c.colId === '__actions');
+  const dataCols = columns.filter((c) => c.field);
+  const fields = dataCols.map((c) => c.field);
+  const { orderedFields, byColId } = buildLayoutIndex(fields, saved);
+  const byField = new Map(dataCols.map((d) => [d.field, d]));
+
+  const reordered = orderedFields
+    .map((field) => {
+      const def = byField.get(field);
+      return def ? applySavedToColDef(def, byColId.get(field)) : null;
+    })
+    .filter(Boolean);
+
+  if (actionCol) {
+    const aSaved = saved.find((r) => r.colId === '__actions');
+    const nextAction = aSaved ? applySavedToColDef({ ...actionCol }, aSaved) : actionCol;
+
+    return [...reordered, nextAction];
+  }
+
+  return reordered;
 });
 
 const onCellDoubleClicked = (params) => {
@@ -1560,7 +1551,7 @@ const onGridReady = async (params) => {
     gridApi.value.setGridOption('quickFilterText', quickSearch.value);
   }
 
-  if (!loadColumnState()) {
+  if (!readPersistedAgGridColumnState(storageKey.value)?.length) {
     resetToRoleDefaults();
   }
 

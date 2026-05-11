@@ -15,8 +15,7 @@ class RoleManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany(['users', 'roles']);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

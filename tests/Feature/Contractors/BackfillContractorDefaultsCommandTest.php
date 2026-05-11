@@ -13,8 +13,7 @@ class BackfillContractorDefaultsCommandTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('contractors');
+        $this->schemaDropMany(['orders', 'contractors']);
 
         Schema::create('contractors', function (Blueprint $table): void {
             $table->id();

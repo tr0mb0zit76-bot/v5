@@ -17,20 +17,22 @@ class OrderIndexTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('cargo_leg');
-        Schema::dropIfExists('cargos');
-        Schema::dropIfExists('order_status_logs');
-        Schema::dropIfExists('financial_terms');
-        Schema::dropIfExists('kpi_thresholds');
-        Schema::dropIfExists('order_documents');
-        Schema::dropIfExists('route_points');
-        Schema::dropIfExists('order_legs');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('addresses');
-        Schema::dropIfExists('cities');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'cargo_leg',
+            'cargos',
+            'order_status_logs',
+            'financial_terms',
+            'kpi_thresholds',
+            'order_documents',
+            'route_points',
+            'order_legs',
+            'contractors',
+            'addresses',
+            'cities',
+            'orders',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
@@ -1035,7 +1037,7 @@ class OrderIndexTest extends TestCase
 
     public function test_inline_update_rate_still_works_when_financial_terms_table_is_missing(): void
     {
-        Schema::dropIfExists('financial_terms');
+        $this->schemaDropMany(['financial_terms']);
 
         $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
         $manager = User::factory()->create();

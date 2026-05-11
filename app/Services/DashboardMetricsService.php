@@ -13,6 +13,7 @@ class DashboardMetricsService
 {
     public function __construct(
         private readonly DealTypeClassifier $dealTypeClassifier,
+        private readonly CompletedOrderFinancialAnalytics $completedOrderFinancialAnalytics,
     ) {}
 
     /**
@@ -27,7 +28,8 @@ class DashboardMetricsService
      *     plan_completion_percent:float,
      *     tasks_on_time_percent:float,
      *     tasks_sla_breached_open:int,
-     *     margin_rank:string
+     *     margin_rank:string,
+     *     finance_chart: list<array{ym: string, label: string, income: float, expense: float, margin: float}>
      * }
      */
     public function forManager(int $managerId, string $dateFrom, string $dateTo): array
@@ -77,6 +79,9 @@ class DashboardMetricsService
         $weeklyClientReturns = $this->weeklyExpectedCustomerIncomingFromSchedule($managerId);
         $taskMetrics = $this->taskMetricsForManager($managerId, $dateFrom, $dateTo);
 
+        $from = Carbon::parse($dateFrom)->startOfDay();
+        $to = Carbon::parse($dateTo)->endOfDay();
+
         return [
             'total_orders' => $totalOrders,
             'direct_orders' => $directOrders,
@@ -89,6 +94,7 @@ class DashboardMetricsService
             'tasks_on_time_percent' => $taskMetrics['tasks_on_time_percent'],
             'tasks_sla_breached_open' => $taskMetrics['tasks_sla_breached_open'],
             'margin_rank' => '—',
+            'finance_chart' => $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to),
         ];
     }
 
@@ -154,6 +160,11 @@ class DashboardMetricsService
         $periodStart = Carbon::parse($dateFrom)->startOfDay();
         $periodEnd = Carbon::parse($dateTo)->endOfDay();
 
+        $completedTaskColumns = ['completed_at', 'due_at'];
+        if (Schema::hasColumn('tasks', 'sla_deadline_at')) {
+            $completedTaskColumns[] = 'sla_deadline_at';
+        }
+
         $completedInPeriod = Task::query()
             ->where('responsible_id', $managerId)
             ->where('status', 'done')
@@ -163,10 +174,10 @@ class DashboardMetricsService
                 Schema::hasColumn('tasks', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
             )
-            ->get(['completed_at', 'due_at', 'sla_deadline_at']);
+            ->get($completedTaskColumns);
 
         $withDeadline = $completedInPeriod->filter(
-            fn (Task $task): bool => $task->due_at !== null || $task->sla_deadline_at !== null
+            fn (Task $task): bool => $task->due_at !== null || ($task->sla_deadline_at ?? null) !== null
         );
 
         $planCompletionPercent = 0.0;

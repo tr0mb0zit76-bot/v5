@@ -14,14 +14,16 @@ class SalaryPayrollManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('salary_payout_allocations');
-        Schema::dropIfExists('salary_payouts');
-        Schema::dropIfExists('salary_accruals');
-        Schema::dropIfExists('salary_periods');
-        Schema::dropIfExists('payment_schedules');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'salary_payout_allocations',
+            'salary_payouts',
+            'salary_accruals',
+            'salary_periods',
+            'payment_schedules',
+            'orders',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

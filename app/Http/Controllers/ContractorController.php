@@ -306,6 +306,16 @@ class ContractorController extends Controller
             $contractorsQuery->with('owner:id,name');
         }
 
+        if ($hasContactsTable) {
+            $contractorsQuery->with([
+                'contacts' => static function ($query): void {
+                    $query->select('id', 'contractor_id', 'full_name', 'phone', 'is_primary')
+                        ->orderByDesc('is_primary')
+                        ->orderBy('full_name');
+                },
+            ]);
+        }
+
         try {
             $contractorsCollection = $contractorsQuery
                 ->orderByDesc('is_active')
@@ -333,31 +343,35 @@ class ContractorController extends Controller
         $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
 
         $contractors = $contractorsCollection
-            ->map(fn (Contractor $contractor): array => [
-                'id' => $contractor->id,
-                'name' => $contractor->name,
-                'type' => $contractor->type,
-                'type_label' => $this->contractorTypeLabel($contractor->type),
-                'inn' => $contractor->inn,
-                'phone' => $contractor->phone,
-                'email' => $contractor->email,
-                'is_active' => $contractor->is_active,
-                'is_verified' => (bool) $contractor->is_verified,
-                'is_own_company' => $contractor->is_own_company ?? false,
-                'status_text' => $contractor->is_active ? 'Активен' : 'Архив',
-                'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
-                'primary_contact' => $this->resolvePrimaryContact($contractor),
-                'owner_name' => Schema::hasColumn('contractors', 'owner_id')
-                    ? ($contractor->owner?->name ?? '')
-                    : '',
-                'debt_limit' => $contractor->debt_limit,
-                'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
-                'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
-                'current_debt' => $debtMap[$contractor->id] ?? 0,
-                'debt_limit_reached' => $creditService->isBlockedByDebtLimit($contractor, $debtMap[$contractor->id] ?? 0),
-                'contacts_count' => $hasContactsTable ? $contractor->contacts_count : 0,
-                'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
-            ])
+            ->map(function (Contractor $contractor) use ($hasContactsTable, $creditService, $debtMap): array {
+                $primary = $this->primaryContactNameAndPhoneForGrid($contractor, $hasContactsTable);
+
+                return [
+                    'id' => $contractor->id,
+                    'name' => $contractor->name,
+                    'type' => $contractor->type,
+                    'type_label' => $this->contractorTypeLabel($contractor->type),
+                    'inn' => $contractor->inn,
+                    'phone' => $primary['phone'],
+                    'email' => $contractor->email,
+                    'is_active' => $contractor->is_active,
+                    'is_verified' => (bool) $contractor->is_verified,
+                    'is_own_company' => $contractor->is_own_company ?? false,
+                    'status_text' => $contractor->is_active ? 'Активен' : 'Архив',
+                    'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
+                    'primary_contact' => $primary['name'],
+                    'owner_name' => Schema::hasColumn('contractors', 'owner_id')
+                        ? ($contractor->owner?->name ?? '')
+                        : '',
+                    'debt_limit' => $contractor->debt_limit,
+                    'debt_limit_currency' => $contractor->debt_limit_currency ?? 'RUB',
+                    'stop_on_limit' => (bool) ($contractor->stop_on_limit ?? false),
+                    'current_debt' => $debtMap[$contractor->id] ?? 0,
+                    'debt_limit_reached' => $creditService->isBlockedByDebtLimit($contractor, $debtMap[$contractor->id] ?? 0),
+                    'contacts_count' => $hasContactsTable ? $contractor->contacts_count : 0,
+                    'orders_count' => $contractor->customer_orders_count + $contractor->carrier_orders_count,
+                ];
+            })
             ->values();
 
         // Add pagination metadata
@@ -1118,6 +1132,38 @@ class ContractorController extends Controller
         )));
 
         return $items === [] ? '—' : implode(', ', $items);
+    }
+
+    /**
+     * Реестр: «Основной контакт» = ФИО из вкладки «Контакты» (is_primary), «Телефон» = его телефон; иначе поля карточки.
+     *
+     * @return array{name: string, phone: string}
+     */
+    private function primaryContactNameAndPhoneForGrid(Contractor $contractor, bool $hasContactsTable): array
+    {
+        if ($hasContactsTable && $contractor->relationLoaded('contacts')) {
+            $primary = $contractor->contacts->first(static fn ($c): bool => (bool) ($c->is_primary ?? false))
+                ?? $contractor->contacts->first();
+
+            if ($primary !== null) {
+                $name = trim((string) ($primary->full_name ?? ''));
+                $phone = trim((string) ($primary->phone ?? ''));
+                $fallbackPhone = trim((string) ($contractor->phone ?? ''));
+
+                return [
+                    'name' => $name !== '' ? $name : '—',
+                    'phone' => $phone !== '' ? $phone : $fallbackPhone,
+                ];
+            }
+        }
+
+        $legacyName = trim((string) ($contractor->contact_person ?? ''));
+        $legacyPhone = trim((string) ($contractor->phone ?? ''));
+
+        return [
+            'name' => $legacyName !== '' ? $legacyName : '—',
+            'phone' => $legacyPhone,
+        ];
     }
 
     private function resolvePrimaryContact(Contractor $contractor): string

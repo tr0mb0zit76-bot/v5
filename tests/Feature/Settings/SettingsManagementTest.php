@@ -15,15 +15,17 @@ class SettingsManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('salary_periods');
-        Schema::dropIfExists('salary_coefficients');
-        Schema::dropIfExists('kpi_thresholds');
-        Schema::dropIfExists('kpi_settings');
-        Schema::dropIfExists('vat_rates');
-        Schema::dropIfExists('contractor_activity_types');
-        Schema::dropIfExists('currencies');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'salary_periods',
+            'salary_coefficients',
+            'kpi_thresholds',
+            'kpi_settings',
+            'vat_rates',
+            'contractor_activity_types',
+            'currencies',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

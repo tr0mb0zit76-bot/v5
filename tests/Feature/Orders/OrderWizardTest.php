@@ -29,25 +29,27 @@ class OrderWizardTest extends TestCase
             File::makeDirectory($phpWordTmp, 0777, true);
         }
 
-        Schema::dropIfExists('order_status_logs');
-        Schema::dropIfExists('financial_terms');
-        Schema::dropIfExists('order_documents');
-        Schema::dropIfExists('payment_schedules');
-        Schema::dropIfExists('cargo_leg');
-        Schema::dropIfExists('cargos');
-        Schema::dropIfExists('route_points');
-        Schema::dropIfExists('leg_costs');
-        Schema::dropIfExists('leg_contractor_assignments');
-        Schema::dropIfExists('order_legs');
-        Schema::dropIfExists('salary_coefficients');
-        Schema::dropIfExists('kpi_thresholds');
-        Schema::dropIfExists('kpi_settings');
-        Schema::dropIfExists('vat_rates');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('print_form_templates');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'order_status_logs',
+            'financial_terms',
+            'order_documents',
+            'payment_schedules',
+            'cargo_leg',
+            'cargos',
+            'route_points',
+            'leg_costs',
+            'leg_contractor_assignments',
+            'order_legs',
+            'salary_coefficients',
+            'kpi_thresholds',
+            'kpi_settings',
+            'vat_rates',
+            'orders',
+            'print_form_templates',
+            'contractors',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
@@ -1839,7 +1841,7 @@ class OrderWizardTest extends TestCase
 
     public function test_edit_page_opens_with_cargos_linked_through_legs_and_legacy_order_columns_missing(): void
     {
-        Schema::dropIfExists('financial_terms');
+        $this->schemaDropMany(['financial_terms']);
         Schema::table('cargos', function (Blueprint $table) {
             $table->dropColumn('order_id');
         });

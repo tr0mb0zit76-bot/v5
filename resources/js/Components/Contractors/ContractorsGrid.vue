@@ -69,9 +69,8 @@
           :defaultColDef="defaultColDef"
           :domLayout="'normal'"
           :pagination="false"
-          :animateRows="true"
+          :animateRows="false"
           :suppressCellFocus="true"
-          :suppressMovableColumns="true"
           :suppressHorizontalScroll="false"
           :alwaysShowVerticalScroll="true"
           style="height: 100%; width: 100%;"
@@ -195,6 +194,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
+import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -242,8 +242,6 @@ const defaultVisibleFields = [
 
 /** Без плавающей строки фильтра (как в реестре заказов — меньше DOM). */
 const CONTRACTORS_NO_FLOATING_FILTER = new Set([
-  'primary_contact',
-  'owner_name',
   'phone',
   'email',
   'orders_count',
@@ -274,6 +272,7 @@ let removeGridScrollbarSyncListeners = null;
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
+  animateRows: false,
   getRowId: (params) => String(params.data?.id ?? ''),
 };
 
@@ -366,7 +365,9 @@ const buildRoleDefaultState = () => {
 };
 
 const dynamicColumnDefs = computed(() => {
-  return getAllowedColumns().map((column) => {
+  const saved = readPersistedAgGridColumnState(storageKey.value);
+
+  const raw = getAllowedColumns().map((column) => {
     const columnDefinition = {
       field: column.field,
       headerName: column.headerName,
@@ -393,6 +394,20 @@ const dynamicColumnDefs = computed(() => {
 
     return columnDefinition;
   });
+
+  if (!saved?.length) {
+    return raw;
+  }
+
+  const byField = new Map(raw.map((d) => [d.field, d]));
+  const { orderedFields, byColId } = buildLayoutIndex([...byField.keys()], saved);
+
+  return orderedFields
+    .map((field) => {
+      const def = byField.get(field);
+      return def ? applySavedToColDef(def, byColId.get(field)) : null;
+    })
+    .filter(Boolean);
 });
 
 const saveColumnState = () => {
@@ -421,44 +436,6 @@ const saveColumnState = () => {
       syncBottomScrollbar();
     });
   }, 250);
-};
-
-const loadColumnState = () => {
-  if (!gridApi.value) {
-    return false;
-  }
-
-  const savedState = localStorage.getItem(storageKey.value);
-
-  if (!savedState) {
-    return false;
-  }
-
-  try {
-    const parsedState = JSON.parse(savedState);
-    const allowedColumnIds = new Set(getAllowedColumns().map((column) => column.field));
-
-    gridApi.value.applyColumnState({
-      state: parsedState
-        .filter((column) => allowedColumnIds.has(column.colId))
-        .map((column) => ({
-          colId: column.colId,
-          hide: column.hide,
-          width: column.width,
-          sort: column.sort ?? null,
-          sortIndex: column.sortIndex ?? null,
-        })),
-      applyOrder: true,
-    });
-
-    syncModalColumnsWithGrid();
-
-    return true;
-  } catch (error) {
-    console.error('Error loading contractors grid state', error);
-
-    return false;
-  }
 };
 
 const resetToRoleDefaults = () => {
@@ -730,7 +707,7 @@ const onGridReady = async (params) => {
     gridApi.value.setGridOption('quickFilterText', quickSearch.value);
   }
 
-  if (!loadColumnState()) {
+  if (!readPersistedAgGridColumnState(storageKey.value)?.length) {
     resetToRoleDefaults();
   }
 

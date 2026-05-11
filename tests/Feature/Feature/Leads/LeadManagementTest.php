@@ -18,26 +18,28 @@ class LeadManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('order_status_logs');
-        Schema::dropIfExists('financial_terms');
-        Schema::dropIfExists('order_documents');
-        Schema::dropIfExists('cargo_leg');
-        Schema::dropIfExists('cargos');
-        Schema::dropIfExists('route_points');
-        Schema::dropIfExists('order_legs');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('lead_offers');
-        Schema::dropIfExists('lead_activities');
-        Schema::dropIfExists('lead_cargo_items');
-        Schema::dropIfExists('lead_route_points');
-        Schema::dropIfExists('tasks');
-        Schema::dropIfExists('leads');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('salary_coefficients');
-        Schema::dropIfExists('kpi_settings');
-        Schema::dropIfExists('print_form_templates');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'order_status_logs',
+            'financial_terms',
+            'order_documents',
+            'cargo_leg',
+            'cargos',
+            'route_points',
+            'order_legs',
+            'orders',
+            'lead_offers',
+            'lead_activities',
+            'lead_cargo_items',
+            'lead_route_points',
+            'tasks',
+            'leads',
+            'contractors',
+            'salary_coefficients',
+            'kpi_settings',
+            'print_form_templates',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
@@ -65,6 +67,8 @@ class LeadManagementTest extends TestCase
             $table->string('type')->default('customer');
             $table->string('name');
             $table->string('inn', 20)->nullable();
+            $table->string('phone', 50)->nullable();
+            $table->string('email')->nullable();
             $table->string('ogrn')->nullable();
             $table->string('bank_name')->nullable();
             $table->string('bik', 9)->nullable();
@@ -840,11 +844,13 @@ class LeadManagementTest extends TestCase
 
     public function test_index_returns_feature_unavailable_when_lead_tables_are_missing(): void
     {
-        Schema::dropIfExists('lead_offers');
-        Schema::dropIfExists('lead_activities');
-        Schema::dropIfExists('lead_cargo_items');
-        Schema::dropIfExists('lead_route_points');
-        Schema::dropIfExists('leads');
+        $this->schemaDropMany([
+            'lead_offers',
+            'lead_activities',
+            'lead_cargo_items',
+            'lead_route_points',
+            'leads',
+        ]);
 
         $manager = $this->createUserWithRole('manager');
 

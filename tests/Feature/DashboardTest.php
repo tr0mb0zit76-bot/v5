@@ -15,9 +15,7 @@ class DashboardTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany(['orders', 'users', 'roles']);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

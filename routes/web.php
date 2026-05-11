@@ -18,6 +18,7 @@ use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SalesAssistantController;
 use App\Http\Controllers\SalesScriptController;
@@ -138,6 +139,8 @@ if ($sameShowcaseAndCrmHost) {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
+
+    Route::get('/reports', [ReportsController::class, 'index'])->middleware('visibility.area:reports')->name('reports.index');
 
     Route::controller(LeadController::class)->middleware('visibility.area:leads')->group(function () {
         Route::get('/leads', 'index')->name('leads.index');
@@ -397,10 +400,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/leads/{lead}/status', [LeadController::class, 'updateStatus'])
         ->middleware('visibility.area:leads')
         ->name('leads.status.update');
-
-    Route::get('/reports', function () {
-        return Inertia::render('Dashboard');
-    })->middleware('visibility.area:reports')->name('reports.index');
 
     Route::get('/modules', function () {
         return Inertia::render('Dashboard');

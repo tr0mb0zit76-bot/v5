@@ -60,14 +60,17 @@
           :defaultColDef="defaultColDef"
           domLayout="normal"
           :pagination="false"
-          :animateRows="true"
+          :animateRows="false"
           :suppressCellFocus="true"
-          :suppressMovableColumns="true"
           :alwaysShowVerticalScroll="true"
           style="height: 100%; width: 100%;"
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
           @cell-double-clicked="onCellDoubleClicked"
+          @column-resized="onColumnResized"
+          @column-moved="persistColumnState"
+          @column-visible="persistColumnState"
+          @sort-changed="persistColumnState"
         />
       </div>
 
@@ -96,6 +99,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
+import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -120,6 +124,7 @@ let removeCenterViewportListener = null;
 let isSyncingHorizontalScroll = false;
 
 const densityStorageKey = computed(() => `fleet_vehicles_grid_density_${props.userId}`);
+const columnStorageKey = computed(() => `fleet_vehicles_grid_columns_v2_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 const gridContainerStyle = computed(() => ({
@@ -131,6 +136,7 @@ const gridContainerStyle = computed(() => ({
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
+  animateRows: false,
   getRowId: (params) => String(params.data?.id ?? ''),
   isExternalFilterPresent: () => quickSearch.value.trim().length > 0,
   doesExternalFilterPass: (node) => {
@@ -158,15 +164,81 @@ const defaultColDef = {
   suppressSizeToFit: true,
 };
 
-const columnDefs = [
-  { field: 'id', headerName: 'ID', width: 72, maxWidth: 90 },
-  { field: 'owner_name', headerName: 'Владелец', flex: 1, minWidth: 160 },
-  { field: 'tractor_brand', headerName: 'Марка тягача', width: 130 },
-  { field: 'trailer_brand', headerName: 'Марка прицепа', width: 130 },
-  { field: 'tractor_plate', headerName: 'Номер тягача', width: 120 },
-  { field: 'trailer_plate', headerName: 'Номер прицепа', width: 120 },
-  { field: 'documents_count', headerName: 'Док.', width: 72 },
-];
+function buildBaseVehicleColumnDefs() {
+  return [
+    { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: 'agNumberColumnFilter' },
+    { field: 'owner_name', headerName: 'Владелец', flex: 1, minWidth: 160, floatingFilter: true },
+    { field: 'tractor_brand', headerName: 'Марка тягача', width: 130 },
+    { field: 'trailer_brand', headerName: 'Марка прицепа', width: 130 },
+    { field: 'tractor_plate', headerName: 'Номер тягача', width: 120 },
+    { field: 'trailer_plate', headerName: 'Номер прицепа', width: 120 },
+    { field: 'documents_count', headerName: 'Док.', width: 72, filter: 'agNumberColumnFilter' },
+  ];
+}
+
+let columnSaveTimeout = null;
+
+/** Ignore flex / grid init sizing — they fire columnResized and would overwrite saved widths in localStorage. */
+function onColumnResized(event) {
+  if (event?.finished === false) {
+    return;
+  }
+
+  if (event?.source === 'flex' || event?.source === 'gridInitializing') {
+    return;
+  }
+
+  persistColumnState();
+}
+
+function persistColumnState() {
+  if (!gridApi.value) {
+    return;
+  }
+
+  if (columnSaveTimeout) {
+    clearTimeout(columnSaveTimeout);
+  }
+
+  columnSaveTimeout = setTimeout(() => {
+    const state = gridApi.value.getColumnState().map((column, index) => {
+      const width = typeof column.width === 'number' && column.width > 0
+        ? column.width
+        : (typeof column.actualWidth === 'number' && column.actualWidth > 0 ? column.actualWidth : null);
+
+      return {
+        colId: column.colId,
+        hide: column.hide,
+        width,
+        order: index,
+        sort: column.sort ?? null,
+        sortIndex: column.sortIndex ?? null,
+      };
+    });
+    localStorage.setItem(columnStorageKey.value, JSON.stringify(state));
+    columnSaveTimeout = null;
+  }, 200);
+}
+
+const columnDefs = computed(() => {
+  const saved = readPersistedAgGridColumnState(columnStorageKey.value);
+  const raw = buildBaseVehicleColumnDefs();
+
+  if (!saved?.length) {
+    return raw;
+  }
+
+  const fields = raw.map((c) => c.field);
+  const { orderedFields, byColId } = buildLayoutIndex(fields, saved);
+  const byField = new Map(raw.map((d) => [d.field, d]));
+
+  return orderedFields
+    .map((field) => {
+      const def = byField.get(field);
+      return def ? applySavedToColDef({ ...def }, byColId.get(field)) : null;
+    })
+    .filter(Boolean);
+});
 
 function onGridReady(params) {
   gridApi.value = params.api;
@@ -216,6 +288,7 @@ function toggleDensityMenu() {
 
 function resetFilters() {
   quickSearch.value = '';
+  gridApi.value?.setFilterModel(null);
   gridApi.value?.onFilterChanged();
 }
 
@@ -308,6 +381,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (columnSaveTimeout) {
+    clearTimeout(columnSaveTimeout);
+  }
+
   window.removeEventListener('resize', updateGridViewportHeight);
   window.removeEventListener('resize', syncBottomScrollbar);
   removeCenterViewportListener?.();

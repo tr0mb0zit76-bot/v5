@@ -13,9 +13,7 @@ class BackfillOrderOperationalDataCommandTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('financial_terms');
-        Schema::dropIfExists('order_documents');
-        Schema::dropIfExists('orders');
+        $this->schemaDropMany(['financial_terms', 'order_documents', 'orders']);
 
         Schema::create('orders', function (Blueprint $table): void {
             $table->id();

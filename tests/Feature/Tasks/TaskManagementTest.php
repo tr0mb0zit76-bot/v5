@@ -17,13 +17,15 @@ class TaskManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('tasks');
-        Schema::dropIfExists('task_events');
-        Schema::dropIfExists('task_comments');
-        Schema::dropIfExists('task_checklist_items');
-        Schema::dropIfExists('task_attachments');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'tasks',
+            'task_events',
+            'task_comments',
+            'task_checklist_items',
+            'task_attachments',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

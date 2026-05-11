@@ -18,15 +18,17 @@ class TemplateManagementTest extends TestCase
     {
         parent::setUp();
 
-        Schema::dropIfExists('print_form_templates');
-        Schema::dropIfExists('lead_offers');
-        Schema::dropIfExists('lead_cargo_items');
-        Schema::dropIfExists('lead_route_points');
-        Schema::dropIfExists('leads');
-        Schema::dropIfExists('orders');
-        Schema::dropIfExists('contractors');
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('roles');
+        $this->schemaDropMany([
+            'print_form_templates',
+            'lead_offers',
+            'lead_cargo_items',
+            'lead_route_points',
+            'leads',
+            'orders',
+            'contractors',
+            'users',
+            'roles',
+        ]);
 
         Schema::create('roles', function (Blueprint $table) {
             $table->id();

@@ -17,8 +17,15 @@ class DashboardController extends Controller
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
         ]);
 
-        $dateFrom = Carbon::parse($validated['date_from'] ?? now()->startOfMonth()->toDateString())->toDateString();
-        $dateTo = Carbon::parse($validated['date_to'] ?? now()->endOfMonth()->toDateString())->toDateString();
+        $dateFromCarbon = Carbon::parse($validated['date_from'] ?? now()->startOfYear()->toDateString())->startOfDay();
+        $dateToCarbon = Carbon::parse($validated['date_to'] ?? now()->endOfYear()->toDateString())->endOfDay();
+
+        if ($dateFromCarbon->gt($dateToCarbon)) {
+            $dateToCarbon = $dateFromCarbon->copy()->endOfYear();
+        }
+
+        $dateFrom = $dateFromCarbon->toDateString();
+        $dateTo = $dateToCarbon->toDateString();
 
         return Inertia::render('Dashboard', [
             'filters' => [
@@ -38,6 +45,7 @@ class DashboardController extends Controller
                     'tasks_on_time_percent' => 0.0,
                     'tasks_sla_breached_open' => 0,
                     'margin_rank' => '—',
+                    'finance_chart' => [],
                 ]
                 : $dashboardMetricsService->forManager($request->user()->id, $dateFrom, $dateTo),
         ]);
