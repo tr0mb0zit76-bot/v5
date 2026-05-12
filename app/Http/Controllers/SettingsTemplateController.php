@@ -247,105 +247,9 @@ class SettingsTemplateController extends Controller
         return $this->draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
 
-    public function previewOrderOverlay(Request $request, PrintFormTemplate $printFormTemplate): Response
-    {
-        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
-
-        $validated = $request->validate([
-            'order_id' => ['required', 'integer', 'exists:orders,id'],
-        ]);
-
-        abort_if($printFormTemplate->entity_type !== 'order', 422, 'Этот режим доступен только для шаблонов заказа.');
-
-        $excludeOverlays = $printFormTemplate->shouldApplyCrmOverlayOffsets() ? 1 : 0;
-
-        return Inertia::render('Settings/TemplateOverlayPreview', $this->buildOverlayPreviewPayload(
-            $printFormTemplate,
-            route('settings.templates.generate-order-draft', [
-                'printFormTemplate' => $printFormTemplate->id,
-                'order_id' => (int) $validated['order_id'],
-                'preview' => 1,
-                'preview_mode' => 'browser',
-                'exclude_overlays' => $excludeOverlays,
-                'cb' => $this->draftPreviewCacheBuster($printFormTemplate),
-            ]),
-            ['order_id' => (int) $validated['order_id']]
-        ));
-    }
-
-    public function previewLeadOverlay(Request $request, PrintFormTemplate $printFormTemplate): Response
-    {
-        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
-
-        $validated = $request->validate([
-            'lead_id' => ['required', 'integer', 'exists:leads,id'],
-        ]);
-
-        abort_if($printFormTemplate->entity_type !== 'lead', 422, 'Этот режим доступен только для шаблонов лида.');
-
-        $excludeOverlays = $printFormTemplate->shouldApplyCrmOverlayOffsets() ? 1 : 0;
-
-        return Inertia::render('Settings/TemplateOverlayPreview', $this->buildOverlayPreviewPayload(
-            $printFormTemplate,
-            route('settings.templates.generate-lead-draft', [
-                'printFormTemplate' => $printFormTemplate->id,
-                'lead_id' => (int) $validated['lead_id'],
-                'preview' => 1,
-                'preview_mode' => 'browser',
-                'exclude_overlays' => $excludeOverlays,
-                'cb' => $this->draftPreviewCacheBuster($printFormTemplate),
-            ]),
-            ['lead_id' => (int) $validated['lead_id']]
-        ));
-    }
-
     private function draftPreviewCacheBuster(PrintFormTemplate $template): int
     {
         return (int) ($template->updated_at?->getTimestamp() ?? time());
-    }
-
-    public function updateOverlayPositions(Request $request, PrintFormTemplate $printFormTemplate): RedirectResponse
-    {
-        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
-
-        $validated = $request->validate([
-            'signature_offset_x_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'signature_offset_y_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'stamp_offset_x_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'stamp_offset_y_mm' => ['required', 'numeric', 'min:-200', 'max:200'],
-            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
-            'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
-        ]);
-
-        $settings = is_array($printFormTemplate->settings) ? $printFormTemplate->settings : [];
-        $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
-        $signature = is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [];
-        $stamp = is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [];
-
-        $signature['offset_x_mm'] = (float) $validated['signature_offset_x_mm'];
-        $signature['offset_y_mm'] = (float) $validated['signature_offset_y_mm'];
-        $stamp['offset_x_mm'] = (float) $validated['stamp_offset_x_mm'];
-        $stamp['offset_y_mm'] = (float) $validated['stamp_offset_y_mm'];
-        $overlays['internal_signature'] = $signature;
-        $overlays['internal_stamp'] = $stamp;
-        $settings['image_overlays'] = $overlays;
-
-        $printFormTemplate->forceFill([
-            'settings' => $settings,
-            'updated_by' => $request->user()?->id,
-        ])->save();
-
-        if ($printFormTemplate->entity_type === 'lead') {
-            return to_route('settings.templates.preview-lead-overlay', [
-                'printFormTemplate' => $printFormTemplate->id,
-                'lead_id' => (int) ($validated['lead_id'] ?? 0),
-            ]);
-        }
-
-        return to_route('settings.templates.preview-order-overlay', [
-            'printFormTemplate' => $printFormTemplate->id,
-            'order_id' => (int) ($validated['order_id'] ?? 0),
-        ]);
     }
 
     public function overlayAsset(Request $request, PrintFormTemplate $printFormTemplate, string $overlayKey): \Symfony\Component\HttpFoundation\Response
@@ -366,44 +270,6 @@ class SettingsTemplateController extends Controller
             'Cache-Control' => 'private, max-age=60',
             'Content-Disposition' => 'inline; filename="'.basename($path).'"',
         ]);
-    }
-
-    /**
-     * @param  array<string, int>  $context
-     * @return array<string, mixed>
-     */
-    private function buildOverlayPreviewPayload(PrintFormTemplate $printFormTemplate, string $embedUrl, array $context): array
-    {
-        $settings = is_array($printFormTemplate->settings) ? $printFormTemplate->settings : [];
-        $signaturePath = data_get($settings, 'image_overlays.internal_signature.path');
-        $stampPath = data_get($settings, 'image_overlays.internal_stamp.path');
-
-        return [
-            'documentPreview' => DocumentPreview::inertiaMeta(),
-            'templateId' => $printFormTemplate->id,
-            'templateName' => $printFormTemplate->name,
-            'entityType' => $printFormTemplate->entity_type,
-            'embedUrl' => $embedUrl,
-            'saveUrl' => route('settings.templates.update-overlay-positions', ['printFormTemplate' => $printFormTemplate->id]),
-            'backUrl' => route('settings.templates.index'),
-            'orderId' => $context['order_id'] ?? null,
-            'leadId' => $context['lead_id'] ?? null,
-            'signatureOverlayImageUrl' => is_string($signaturePath) && $signaturePath !== ''
-                ? route('settings.templates.overlay-asset', ['printFormTemplate' => $printFormTemplate->id, 'overlayKey' => 'internal_signature'])
-                : null,
-            'stampOverlayImageUrl' => is_string($stampPath) && $stampPath !== ''
-                ? route('settings.templates.overlay-asset', ['printFormTemplate' => $printFormTemplate->id, 'overlayKey' => 'internal_stamp'])
-                : null,
-            'signatureOffsetXmm' => (float) data_get($settings, 'image_overlays.internal_signature.offset_x_mm', 0),
-            'signatureOffsetYmm' => (float) data_get($settings, 'image_overlays.internal_signature.offset_y_mm', 0),
-            'stampOffsetXmm' => (float) data_get($settings, 'image_overlays.internal_stamp.offset_x_mm', 0),
-            'stampOffsetYmm' => (float) data_get($settings, 'image_overlays.internal_stamp.offset_y_mm', 0),
-            'signatureWidthMm' => (float) data_get($settings, 'image_overlays.internal_signature.width_mm', 42),
-            'signatureHeightMm' => (float) data_get($settings, 'image_overlays.internal_signature.height_mm', 18),
-            'stampWidthMm' => (float) data_get($settings, 'image_overlays.internal_stamp.width_mm', 30),
-            'stampHeightMm' => (float) data_get($settings, 'image_overlays.internal_stamp.height_mm', 30),
-            'overlayPositioningEnabled' => $printFormTemplate->shouldApplyCrmOverlayOffsets(),
-        ];
     }
 
     public function destroy(Request $request, PrintFormTemplate $printFormTemplate): RedirectResponse

@@ -28,6 +28,7 @@ class UserManagementController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'phone' => $user->phone,
                     'role_id' => $user->role_id,
                     'role' => $user->role === null ? null : [
                         'id' => $user->role->id,

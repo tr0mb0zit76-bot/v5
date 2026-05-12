@@ -25,6 +25,7 @@ final class PaymentScheduleSummaryFormatter
     private const ANCHOR_LABELS = [
         'first_loading' => 'первой погрузки',
         'last_unloading' => 'последней выгрузки',
+        'border_crossing' => 'прохождения границы',
         'order_date' => 'даты заказа',
         'loading_date' => 'даты погрузки (заказ)',
         'unloading_date' => 'даты выгрузки (заказ)',

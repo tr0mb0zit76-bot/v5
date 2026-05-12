@@ -309,11 +309,9 @@ function onInstallmentAmountInput(index) {
                     <div class="min-w-0 space-y-0.5">
                         <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Якорь</label>
                         <select v-model="inst.anchor" class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 text-[10px] dark:border-zinc-700 dark:bg-zinc-950">
-                            <option value="first_loading">1-я погр.</option>
-                            <option value="last_unloading">Посл. выгр.</option>
-                            <option value="order_date">Заказ</option>
-                            <option value="loading_date">Погр. (зак.)</option>
-                            <option value="unloading_date">Выгр. (зак.)</option>
+                            <option v-for="opt in ps.PAYMENT_ANCHOR_OPTIONS" :key="`anchor-${opt.value}`" :value="opt.value">
+                                {{ opt.shortLabel || opt.label }}
+                            </option>
                         </select>
                     </div>
                     <div class="min-w-0 space-y-0.5">

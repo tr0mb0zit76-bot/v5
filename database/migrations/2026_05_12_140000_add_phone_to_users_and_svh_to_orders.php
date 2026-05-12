@@ -1,0 +1,38 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (Schema::hasTable('users') && ! Schema::hasColumn('users', 'phone')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('phone', 50)->nullable()->after('email');
+            });
+        }
+
+        if (Schema::hasTable('orders') && ! Schema::hasColumn('orders', 'svh_name')) {
+            Schema::table('orders', function (Blueprint $table) {
+                $table->string('svh_name', 500)->nullable()->after('special_notes');
+            });
+        }
+    }
+
+    public function down(): void
+    {
+        if (Schema::hasTable('users') && Schema::hasColumn('users', 'phone')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropColumn('phone');
+            });
+        }
+
+        if (Schema::hasTable('orders') && Schema::hasColumn('orders', 'svh_name')) {
+            Schema::table('orders', function (Blueprint $table) {
+                $table->dropColumn('svh_name');
+            });
+        }
+    }
+};

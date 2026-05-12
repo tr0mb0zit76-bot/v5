@@ -12,7 +12,7 @@ const LEGACY_PX_PER_MM = 3.78;
 const LEGACY_PAGE_WIDTH_PX = OVERLAY_PREVIEW_PAGE_WIDTH_MM * LEGACY_PX_PER_MM;
 const LEGACY_PAGE_HEIGHT_PX = OVERLAY_PREVIEW_PAGE_HEIGHT_MM * LEGACY_PX_PER_MM;
 
-/** Устаревшие якоря (px) при ширине страницы ~794px — см. историю TemplateOverlayPreview. */
+/** Устаревшие якоря (px) при ширине страницы ~794px — история выравнивания оверлея в предпросмотре. */
 export const OVERLAY_PREVIEW_SIGNATURE_ANCHOR_LEGACY = { x: 620, y: 1160 };
 export const OVERLAY_PREVIEW_STAMP_ANCHOR_LEGACY = { x: 460, y: 1120 };
 

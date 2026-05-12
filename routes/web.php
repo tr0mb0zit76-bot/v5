@@ -275,9 +275,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
         Route::delete('/settings/templates/{printFormTemplate}', 'destroy')->name('settings.templates.destroy');
         Route::get('/settings/templates/{printFormTemplate}/overlay-assets/{overlayKey}', 'overlayAsset')->name('settings.templates.overlay-asset');
-        Route::get('/settings/templates/{printFormTemplate}/preview-order-overlay', 'previewOrderOverlay')->name('settings.templates.preview-order-overlay');
-        Route::get('/settings/templates/{printFormTemplate}/preview-lead-overlay', 'previewLeadOverlay')->name('settings.templates.preview-lead-overlay');
-        Route::post('/settings/templates/{printFormTemplate}/overlay-positions', 'updateOverlayPositions')->name('settings.templates.update-overlay-positions');
         Route::get('/settings/templates/{printFormTemplate}/generate-order-draft', 'generateOrderDraft')->name('settings.templates.generate-order-draft');
         Route::get('/settings/templates/{printFormTemplate}/generate-lead-draft', 'generateLeadDraft')->name('settings.templates.generate-lead-draft');
     });

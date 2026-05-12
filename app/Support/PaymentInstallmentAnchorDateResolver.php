@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
  * @phpstan-type DateContext array{
  *     first_loading?: ?string,
  *     last_unloading?: ?string,
+ *     border_crossing?: ?string,
  *     order_date?: ?string,
  *     loading_date?: ?string,
  *     unloading_date?: ?string,
@@ -31,6 +32,7 @@ final class PaymentInstallmentAnchorDateResolver
         $fromContext = match ($anchorNorm) {
             'first_loading' => self::parseDateString($contextDates['first_loading'] ?? null),
             'last_unloading' => self::parseDateString($contextDates['last_unloading'] ?? null),
+            'border_crossing' => self::parseDateString($contextDates['border_crossing'] ?? null),
             'order_date' => self::parseDateString($contextDates['order_date'] ?? null),
             'loading_date' => self::parseDateString($contextDates['loading_date'] ?? null),
             'unloading_date' => self::parseDateString($contextDates['unloading_date'] ?? null),
@@ -51,6 +53,7 @@ final class PaymentInstallmentAnchorDateResolver
             'unloading_date' => self::parseDateString(optional($order->unloading_date)?->toDateString()),
             'first_loading' => self::firstRoutePointDate($order, 'loading'),
             'last_unloading' => self::lastRoutePointDate($order, 'unloading'),
+            'border_crossing' => self::firstRoutePointDate($order, 'border_crossing'),
             default => self::parseDateString(optional($order->loading_date)?->toDateString()),
         };
     }

@@ -259,6 +259,15 @@
                         <label class="text-sm font-medium">Особые отметки</label>
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">СВХ / таможенный склад</label>
+                        <input
+                            v-model="form.svh_name"
+                            type="text"
+                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                            placeholder="Наименование или адрес СВХ для документов"
+                        />
+                    </div>
                 </div>
                 </div>
 
@@ -423,7 +432,7 @@
                             <div class="flex items-center justify-between">
                                 <div>
                                     <div class="text-xs uppercase tracking-wide text-zinc-500">
-                                        {{ item.point.type === 'loading' ? 'Погрузка' : 'Выгрузка' }}
+                                        {{ routePointTypeHeading(item.point.type) }}
                                     </div>
                                     <div class="text-sm font-medium">
                                         {{ routePointTitle(item.point, item.globalIndex) }}
@@ -450,7 +459,7 @@
                                         <input
                                             v-model="item.point.address"
                                             type="text"
-                                            :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, item.point.address)]"
+                                            :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, routePointAddressHighlightValue(item.point))]"
                                             placeholder="Начни вводить адрес"
                                             @input="queueAddressLookup(item.globalIndex)"
                                         />
@@ -482,7 +491,7 @@
                                     <input v-model="item.point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-sm font-medium">{{ item.point.type === 'loading' ? 'Время загрузки' : 'Время выгрузки' }}</label>
+                                    <label class="text-sm font-medium">{{ routePointTimeBlockHeading(item.point.type) }}</label>
                                     <div class="grid grid-cols-2 gap-2">
                                         <input v-model="item.point.planned_time_from" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Время с" />
                                         <input v-model="item.point.planned_time_to" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Время до" />
@@ -534,6 +543,16 @@
                                     </select>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button
+                                type="button"
+                                class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                @click="addRoutePointForLeg(performer.stage, 'border_crossing')"
+                            >
+                                Добавить прохождение границы
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -836,11 +855,13 @@
                             </div>
                             <PaymentTermsWizardBlock
                                 :key="`carrier-pay-${index}`"
+                                v-model:summary-text="cost.payment_terms"
                                 :schedule="cost.payment_schedule"
                                 :total-amount="cost.amount"
                                 :currency="cost.currency"
                                 :route-points="form.route_points"
                                 :order-date="form.order_date"
+                                editable-summary
                             />
                         </div>
                     </div>
@@ -1740,10 +1761,12 @@ function normalizeContractorCost(cost = {}) {
         currency: 'RUB',
         payment_form: 'no_vat',
         payment_schedule: blankPaymentSchedule(),
+        payment_terms: '',
         ...cost,
         payment_schedule: normalizePaymentSchedule(cost.payment_schedule),
     };
     merged.payment_form = normalizePaymentFormCode(merged.payment_form, 'no_vat');
+    merged.payment_terms = String(merged.payment_terms ?? '').trim();
 
     return merged;
 }
@@ -1780,6 +1803,7 @@ function blankOrder() {
         order_number: '',
         payment_terms: '',
         special_notes: '',
+        svh_name: '',
         loading_types: [],
         cargo_sender_name: '',
         cargo_sender_address: '',
@@ -3191,7 +3215,7 @@ const routeChainLabel = computed(() => {
     return form.route_points
         .slice()
         .sort((left, right) => Number(left.sequence ?? 0) - Number(right.sequence ?? 0))
-        .map((point) => `${point.type === 'loading' ? 'Погрузка' : 'Выгрузка'}: ${point.address || 'адрес не указан'}`)
+        .map((point) => `${routePointTypeHeading(point.type)}: ${point.address || 'адрес не указан'}`)
         .join(' → ');
 });
 
@@ -3352,6 +3376,55 @@ function addRoutePoint(type) {
     ));
 }
 
+function addRoutePointForLeg(stage, type) {
+    const stagePoints = form.route_points
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => stageMatches(p.stage, stage));
+    let insertAt = form.route_points.length;
+    if (type === 'border_crossing') {
+        const firstUnload = stagePoints.find(({ p }) => p.type === 'unloading');
+        if (firstUnload) {
+            insertAt = firstUnload.i;
+        } else if (stagePoints.length > 0) {
+            insertAt = stagePoints[stagePoints.length - 1].i + 1;
+        }
+    } else if (stagePoints.length > 0) {
+        insertAt = stagePoints[stagePoints.length - 1].i + 1;
+    }
+    form.route_points.splice(insertAt, 0, blankRoutePoint(type, 0, stage));
+    normalizeRoutePointSequences();
+}
+
+function routePointTypeHeading(type) {
+    if (type === 'loading') {
+        return 'Погрузка';
+    }
+    if (type === 'border_crossing') {
+        return 'Граница';
+    }
+
+    return 'Выгрузка';
+}
+
+function routePointTimeBlockHeading(type) {
+    if (type === 'loading') {
+        return 'Время загрузки';
+    }
+    if (type === 'border_crossing') {
+        return 'Окно (план)';
+    }
+
+    return 'Время выгрузки';
+}
+
+function routePointAddressHighlightValue(point) {
+    if (point.type === 'border_crossing') {
+        return String(point.address ?? '').trim() || String(point.planned_date ?? '').trim();
+    }
+
+    return point.address;
+}
+
 function normalizeRoutePointSequences() {
     form.route_points = form.route_points.map((point, index) => ({
         ...point,
@@ -3414,9 +3487,14 @@ function routePointOrdinal(index) {
 function routePointTitle(point, index) {
     const ordinal = routePointOrdinal(index);
 
-    return point.type === 'loading'
-        ? `Погрузка ${ordinal}`
-        : `Выгрузка ${ordinal}`;
+    if (point.type === 'loading') {
+        return `Погрузка ${ordinal}`;
+    }
+    if (point.type === 'border_crossing') {
+        return `Прохождение границы ${ordinal}`;
+    }
+
+    return `Выгрузка ${ordinal}`;
 }
 
 function routePointCombinedContact(point) {
@@ -3779,6 +3857,7 @@ function buildSubmitPayload() {
         order_number: form.order_number,
         payment_terms: form.payment_terms,
         special_notes: form.special_notes,
+        svh_name: form.svh_name,
         additional_expenses: form.additional_expenses,
         insurance: form.insurance,
         bonus: form.bonus,
@@ -3868,6 +3947,7 @@ function buildSubmitPayload() {
                 currency: cost.currency || 'RUB',
                 payment_form: normalizePaymentFormCode(cost.payment_form, 'no_vat'),
                 payment_schedule: cost.payment_schedule || {},
+                payment_terms: cost.payment_terms ?? '',
             })),
             additional_costs: [],
             kpi_percent: rawFinancial.kpi_percent,

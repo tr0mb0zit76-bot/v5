@@ -90,7 +90,7 @@ final class PaymentInstallmentScheduleNormalizer
             : CalendarBankDayShifter::UNIT_CALENDAR;
 
         $anchorRaw = strtolower(trim((string) ($row['anchor'] ?? 'first_loading')));
-        $anchor = in_array($anchorRaw, ['first_loading', 'last_unloading', 'order_date', 'loading_date', 'unloading_date'], true)
+        $anchor = in_array($anchorRaw, ['first_loading', 'last_unloading', 'border_crossing', 'order_date', 'loading_date', 'unloading_date'], true)
             ? $anchorRaw
             : 'first_loading';
 

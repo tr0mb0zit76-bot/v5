@@ -217,8 +217,8 @@ class OrderPrintFormDraftService
         /** @var Collection<int, mixed> $cargoItems */
         $cargoItems = $order->relationLoaded('cargoItems') ? $order->cargoItems : collect();
 
-        $loadingPoints = $routePoints->where('type', 'loading')->values();
-        $unloadingPoints = $routePoints->where('type', 'unloading')->values();
+        $loadingPoints = $routePoints->where('type', 'loading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
+        $unloadingPoints = $routePoints->where('type', 'unloading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
         $fleetSelection = $this->resolvePrimaryFleetSelection($order);
         $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id']);
         $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id'], $cargoItems);
@@ -229,8 +229,8 @@ class OrderPrintFormDraftService
             ->filter()
             ->implode('; ');
 
-        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight ?? 0));
-        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume ?? 0));
+        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight ?? 0) * $this->cargoPackageCountFactor($cargo));
+        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume ?? 0) * $this->cargoPackageCountFactor($cargo));
         $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? $cargo->pallet_count ?? 0));
 
         $paymentTermsPayload = $this->decodeOrderPaymentTermsPayload($order);
@@ -260,6 +260,7 @@ class OrderPrintFormDraftService
                 'invoice_number' => $order->invoice_number,
                 'waybill_number' => $order->waybill_number,
                 'special_notes' => $order->special_notes,
+                'svh_name' => $order->svh_name,
             ],
             'cargo_sender' => [
                 'name' => $this->resolvePrimaryPartyValue($loadingPoints, 'sender_name'),
@@ -288,6 +289,13 @@ class OrderPrintFormDraftService
             'own_company' => $this->contractorPayload($order->ownCompany),
             'manager' => [
                 'name' => $order->manager?->name,
+                'email' => $order->manager?->email,
+                'phone' => $order->manager?->phone,
+            ],
+            'responsible' => [
+                'name' => $order->manager?->name,
+                'email' => $order->manager?->email,
+                'phone' => $order->manager?->phone,
             ],
             'driver' => $driver,
             'vehicle' => $vehicle,
@@ -311,32 +319,29 @@ class OrderPrintFormDraftService
                 'unloading_cities' => $this->resolvePointCityList($unloadingPoints),
                 'unloading_first_address' => $this->resolvePointAddress($unloadingPoints->first()),
                 'unloading_first_city' => $this->resolvePointCity($unloadingPoints->first()),
+                'unloading_last_city' => $this->resolvePointCity($unloadingPoints->last()),
                 'unloading_time_range' => $this->resolvePointTimeRange($unloadingPoints->first()),
             ],
             'cargo' => array_merge([
                 'summary' => $cargoItems
-                    ->map(fn ($cargo): string => trim(implode(', ', array_filter([
-                        $cargo->title,
-                        $cargo->weight !== null ? $this->formatNumber($cargo->weight).' кг' : null,
-                        $cargo->volume !== null ? $this->formatNumber($cargo->volume).' м³' : null,
-                        $this->cargoDimensionsLabelForCargo($cargo),
-                    ]))))
-                    ->filter()
-                    ->implode('; '),
+                    ->map(fn ($cargo): string => $this->cargoLineDetailText($cargo))
+                    ->filter(fn (string $s): bool => $s !== '')
+                    ->implode("\n\n"),
                 'lines_multiline' => $cargoItems
                     ->map(fn ($cargo): string => $this->cargoLineDetailText($cargo))
-                    ->filter()
-                    ->implode("\n"),
+                    ->filter(fn (string $s): bool => $s !== '')
+                    ->implode("\n\n"),
                 'names' => $cargoNames,
                 'total_weight' => $this->formatNumber($cargoTotalWeight),
                 'total_weight_tons' => $this->formatNumber($cargoTotalWeight / 1000),
-                'total_volume' => $this->formatNumber($cargoTotalVolume),
+                'total_volume' => $this->formatVolumeNumber((float) $cargoTotalVolume),
                 'total_packages' => (string) $cargoTotalPackages,
                 'cargo_types' => $this->resolveCargoScalarList($cargoItems, ['cargo_type_label', 'cargo_type']),
                 'pack_types' => $this->resolveCargoScalarList($cargoItems, ['pack_type_label', 'packing_type']),
                 'loading_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'loading_type_items', 'loading_type_label'),
                 'truck_body_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'truck_body_type_items', 'truck_body_type_label'),
                 'trailer_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'trailer_type_items', 'trailer_type_label'),
+                'hazard_classes' => $this->resolveCargoHazardClassesSummary($cargoItems),
             ], $this->cargoPerLinePlaceholderMap($cargoItems)),
         ];
     }
@@ -1332,7 +1337,21 @@ class OrderPrintFormDraftService
     }
 
     /**
-     * Текстовая строка по одной позиции груза: наименование, вес, объём, габариты (как отдельные плейсхолдеры line_N_text).
+     * Число мест для расчёта суммарного веса/объёма по строке груза (как в мастере заказа, package_count).
+     */
+    private function cargoPackageCountFactor(mixed $cargo): int
+    {
+        if (! is_object($cargo)) {
+            return 1;
+        }
+
+        $n = (float) ($cargo->package_count ?? 0);
+
+        return ($n > 0 && is_finite($n)) ? max(1, (int) $n) : 1;
+    }
+
+    /**
+     * Текст одной позиции груза: как блок «Сводка позиции» в мастере (вес/объём с учётом мест, габариты, число мест).
      */
     private function cargoLineDetailText(mixed $cargo): string
     {
@@ -1340,17 +1359,43 @@ class OrderPrintFormDraftService
             return '';
         }
 
-        $parts = array_filter([
-            $cargo->title ?: $cargo->description,
-            $cargo->weight !== null ? $this->formatNumber((float) $cargo->weight).' кг' : null,
-            $cargo->volume !== null ? $this->formatNumber((float) $cargo->volume).' м³' : null,
-            $this->cargoDimensionsLabelForCargo($cargo),
-        ], static fn (mixed $v): bool => $v !== null && $v !== '');
+        $name = trim((string) ($cargo->title ?? '') !== '' ? (string) $cargo->title : (string) ($cargo->description ?? ''));
+        $factor = $this->cargoPackageCountFactor($cargo);
+        $perWeightKg = (float) ($cargo->weight ?? 0);
+        $totalWeightKg = $perWeightKg * $factor;
 
-        return trim(implode(', ', $parts));
+        $lines = [];
+        $weightLine = 'Вес: '.$this->formatNumber($totalWeightKg).' кг';
+        if ($factor > 1) {
+            $weightLine .= ' ('.$this->formatNumber($perWeightKg).' кг × '.$factor.')';
+        }
+        $lines[] = $weightLine;
+
+        $perVol = (float) ($cargo->volume ?? 0);
+        $totalVol = $perVol * $factor;
+        if ($totalVol > 0.0) {
+            $volLine = 'Объём: '.$this->formatVolumeNumber($totalVol).' м³';
+            if ($factor > 1) {
+                $volLine .= ' ('.$this->formatVolumeNumber($perVol).' м³ × '.$factor.')';
+            }
+            $lines[] = $volLine;
+        } else {
+            $lines[] = 'Объём: —';
+        }
+
+        $dimLine = $this->cargoDimensionsSummaryLine($cargo);
+        if ($dimLine !== null) {
+            $lines[] = $dimLine;
+        }
+
+        $lines[] = 'Мест: '.(int) ($cargo->package_count ?? 0);
+
+        $body = implode("\n", $lines);
+
+        return $name !== '' ? $name."\n".$body : $body;
     }
 
-    private function cargoDimensionsLabelForCargo(mixed $cargo): ?string
+    private function cargoDimensionsSummaryLine(mixed $cargo): ?string
     {
         if (! is_object($cargo)) {
             return null;
@@ -1368,7 +1413,7 @@ class OrderPrintFormDraftService
         $wf = $w !== null ? $this->formatNumber((float) $w) : '—';
         $hf = $h !== null ? $this->formatNumber((float) $h) : '—';
 
-        return 'габариты '.$lf.'×'.$wf.'×'.$hf.' м';
+        return 'Габариты (Д×Ш×В): '.$lf.'×'.$wf.'×'.$hf.' м';
     }
 
     /**
@@ -1385,6 +1430,22 @@ class OrderPrintFormDraftService
         }
 
         return $out;
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     */
+    private function resolveCargoHazardClassesSummary(Collection $cargoItems): string
+    {
+        $parts = $cargoItems
+            ->filter(fn (mixed $cargo): bool => is_object($cargo) && (bool) ($cargo->is_hazardous ?? false))
+            ->map(fn (mixed $cargo): string => trim((string) ($cargo->hazard_class ?? '')))
+            ->filter(fn (string $s): bool => $s !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        return $parts !== [] ? implode(', ', $parts) : '';
     }
 
     private function stringifyValue(mixed $value): string
@@ -1466,5 +1527,10 @@ class OrderPrintFormDraftService
     private function formatNumber(mixed $value): string
     {
         return number_format((float) $value, 2, ',', ' ');
+    }
+
+    private function formatVolumeNumber(float $value): string
+    {
+        return number_format($value, 3, ',', ' ');
     }
 }

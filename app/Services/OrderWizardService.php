@@ -175,6 +175,7 @@ class OrderWizardService
             'customer_payment_term' => $clientPaymentSummary,
             'payment_terms' => $this->encodePaymentTermsPayload($financialTerm),
             'special_notes' => $validated['special_notes'] ?? null,
+            'svh_name' => $validated['svh_name'] ?? null,
             'carrier_rate' => $performerTotal ?: null,
             'carrier_payment_form' => $carrierPaymentForm,
             'carrier_payment_term' => $carrierPaymentSummary,
@@ -380,8 +381,18 @@ class OrderWizardService
         foreach ($routePoints as $index => $routePoint) {
             $routePointType = trim((string) ($routePoint['type'] ?? ''));
             $routePointAddress = trim((string) ($routePoint['address'] ?? ''));
-            if ($routePointType === '' || $routePointAddress === '') {
+            $routePointPlannedDate = trim((string) ($routePoint['planned_date'] ?? ''));
+            if ($routePointType === '') {
                 continue;
+            }
+
+            $isBorderCrossing = $routePointType === 'border_crossing';
+            if ($routePointAddress === '' && ! ($isBorderCrossing && $routePointPlannedDate !== '')) {
+                continue;
+            }
+
+            if ($isBorderCrossing && $routePointAddress === '') {
+                $routePointAddress = 'Прохождение границы';
             }
 
             if ($primaryLeg === null) {
@@ -1044,6 +1055,7 @@ class OrderWizardService
                     'contractor_id' => $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
                     'payment_form' => $cost['payment_form'] ?? null,
                     'payment_schedule' => $cost['payment_schedule'] ?? [],
+                    'payment_terms' => $cost['payment_terms'] ?? null,
                 ])
                 ->values()
                 ->all(),

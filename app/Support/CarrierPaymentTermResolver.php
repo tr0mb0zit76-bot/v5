@@ -24,6 +24,11 @@ final class CarrierPaymentTermResolver
 
         $summaries = collect($contractorsCosts)
             ->map(function (array $cost): string {
+                $manual = trim((string) ($cost['payment_terms'] ?? ''));
+                if ($manual !== '') {
+                    return $manual;
+                }
+
                 $schedule = (array) ($cost['payment_schedule'] ?? []);
                 $amount = (float) ($cost['amount'] ?? 0);
                 $currency = (string) ($cost['currency'] ?? 'RUB');

@@ -63,9 +63,12 @@ final class PaymentInstallmentPlanner
         $firstLoading = PaymentInstallmentAnchorDateResolver::resolve($order, 'first_loading', []);
         $lastUnloading = PaymentInstallmentAnchorDateResolver::resolve($order, 'last_unloading', []);
 
+        $borderCrossing = PaymentInstallmentAnchorDateResolver::resolve($order, 'border_crossing', []);
+
         return [
             'first_loading' => $firstLoading?->toDateString(),
             'last_unloading' => $lastUnloading?->toDateString(),
+            'border_crossing' => $borderCrossing?->toDateString(),
             'order_date' => optional($order->order_date)?->toDateString(),
             'loading_date' => optional($order->loading_date)?->toDateString(),
             'unloading_date' => optional($order->unloading_date)?->toDateString(),
@@ -80,14 +83,17 @@ final class PaymentInstallmentPlanner
         $routePoints = collect($validated['route_points'] ?? [])->sortBy('sequence')->values();
         $firstLoading = $routePoints->firstWhere('type', 'loading');
         $lastUnloading = $routePoints->where('type', 'unloading')->last();
+        $firstBorder = $routePoints->firstWhere('type', 'border_crossing');
 
         $firstDate = self::routePointDateString(is_array($firstLoading) ? $firstLoading : null);
         $lastDate = self::routePointDateString(is_array($lastUnloading) ? $lastUnloading : null);
+        $borderDate = self::routePointDateString(is_array($firstBorder) ? $firstBorder : null);
         $orderDate = isset($validated['order_date']) ? (string) $validated['order_date'] : null;
 
         return [
             'first_loading' => $firstDate,
             'last_unloading' => $lastDate,
+            'border_crossing' => $borderDate,
             'order_date' => $orderDate,
             'loading_date' => $firstDate,
             'unloading_date' => $lastDate,

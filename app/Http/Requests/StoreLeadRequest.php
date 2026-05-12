@@ -72,7 +72,7 @@ class StoreLeadRequest extends FormRequest
             'qualification.budget' => ['nullable', 'string', 'max:255'],
 
             'route_points' => ['nullable', 'array'],
-            'route_points.*.type' => ['required', Rule::in(['loading', 'unloading'])],
+            'route_points.*.type' => ['required', Rule::in(['loading', 'unloading', 'border_crossing'])],
             'route_points.*.sequence' => ['nullable', 'integer', 'min:1'],
             'route_points.*.address' => ['required', 'string', 'max:500'],
             'route_points.*.normalized_data' => ['nullable', 'array'],

@@ -16,11 +16,12 @@ export const PAYMENT_BASIS_OPTIONS = [
 ];
 
 export const PAYMENT_ANCHOR_OPTIONS = [
-    { value: 'first_loading', label: 'Первая погрузка (план в маршруте)' },
-    { value: 'last_unloading', label: 'Последняя выгрузка (план)' },
-    { value: 'order_date', label: 'Дата заказа' },
-    { value: 'loading_date', label: 'Дата погрузки (в заказе)' },
-    { value: 'unloading_date', label: 'Дата выгрузки (в заказе)' },
+    { value: 'first_loading', label: 'Первая погрузка (план в маршруте)', shortLabel: '1-я погр.' },
+    { value: 'last_unloading', label: 'Последняя выгрузка (план)', shortLabel: 'Посл. выгр.' },
+    { value: 'border_crossing', label: 'Прохождение границы (план в маршруте)', shortLabel: 'Граница' },
+    { value: 'order_date', label: 'Дата заказа', shortLabel: 'Заказ' },
+    { value: 'loading_date', label: 'Дата погрузки (в заказе)', shortLabel: 'Погр. (зак.)' },
+    { value: 'unloading_date', label: 'Дата выгрузки (в заказе)', shortLabel: 'Выгр. (зак.)' },
 ];
 
 export const PAYMENT_OFFSET_UNIT_OPTIONS = [
@@ -31,6 +32,7 @@ export const PAYMENT_OFFSET_UNIT_OPTIONS = [
 const INSTALLMENT_ANCHOR_END = {
     first_loading: 'первой погрузки',
     last_unloading: 'последней выгрузки',
+    border_crossing: 'прохождения границы',
     order_date: 'даты заказа',
     loading_date: 'даты погрузки (заказ)',
     unloading_date: 'даты выгрузки (заказ)',
@@ -149,10 +151,12 @@ export function installmentContextDatesFromRoute(routePoints, orderDate) {
     const pts = Array.isArray(routePoints) ? routePoints : [];
     const firstLoad = pts.find((p) => p.type === 'loading' && p.planned_date);
     const lastUnl = [...pts].reverse().find((p) => p.type === 'unloading' && p.planned_date);
+    const firstBorder = pts.find((p) => p.type === 'border_crossing' && p.planned_date);
     const fl = firstLoad?.planned_date || null;
     return {
         first_loading: fl,
         last_unloading: lastUnl?.planned_date || null,
+        border_crossing: firstBorder?.planned_date || null,
         order_date: orderDate || null,
         loading_date: fl,
         unloading_date: lastUnl?.planned_date || null,
@@ -175,6 +179,9 @@ export function resolveInstallmentAnchorDate(anchor, ctx) {
     }
     if (a === 'unloading_date') {
         return parseLocalDate(ctx.unloading_date) || parseLocalDate(ctx.last_unloading);
+    }
+    if (a === 'border_crossing') {
+        return parseLocalDate(ctx.border_crossing);
     }
     return parseLocalDate(ctx.first_loading);
 }

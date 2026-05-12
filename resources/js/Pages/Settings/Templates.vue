@@ -410,7 +410,7 @@
                                         <div>
                                             <div class="text-sm font-medium">Смещения и привязка к странице из CRM</div>
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                                Если выключено, подпись и печать вставляются только в местах плейсхолдеров DOCX (размеры ниже сохраняются; сдвиги и перетаскивание на предпросмотре не применяются к файлу).
+                                                Если выключено, подпись и печать вставляются только в местах плейсхолдеров DOCX (размеры ниже сохраняются; сдвиги из CRM к файлу не применяются).
                                             </div>
                                         </div>
                                     </label>
@@ -420,9 +420,6 @@
                                         class="mt-4 space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800"
                                     >
                                         <div class="text-sm font-medium">Тестовая генерация DOCX</div>
-                                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                                            «Предпросмотр» открывает документ в браузере. «Скачать DOCX» — файл на диск. «Печать и подпись на предпросмотре» — при включённых смещениях из CRM: перетаскивание поверх PDF; при выключенных — готовый вид как при печати (нужен Gotenberg, см. предупреждение вверху страницы).
-                                        </p>
                                     <div v-if="form.entity_type === 'order'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID заказа</label>
@@ -443,14 +440,6 @@
                                                 @click="downloadOrderDraft"
                                             >
                                                 Скачать DOCX
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/60"
-                                                @click="openOrderOverlayPreview"
-                                            >
-                                                <Move class="h-4 w-4" />
-                                                Печать и подпись на предпросмотре
                                             </button>
                                         </div>
                                     </div>
@@ -474,14 +463,6 @@
                                                 @click="downloadLeadDraft"
                                             >
                                                 Скачать DOCX
-                                            </button>
-                                            <button
-                                                type="button"
-                                                class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/60"
-                                                @click="openLeadOverlayPreview"
-                                            >
-                                                <Move class="h-4 w-4" />
-                                                Печать и подпись на предпросмотре
                                             </button>
                                         </div>
                                     </div>
@@ -607,7 +588,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { FileText, Move, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
+import { FileText, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -1008,48 +989,6 @@ function previewOrderDraft() {
             cb: draftPreviewCacheBust(editingTemplate.value),
         }),
         '_blank'
-    );
-}
-
-function openOrderOverlayPreview() {
-    if (editingTemplate.value === null) {
-        return;
-    }
-
-    const orderId = String(previewOrderId.value || '').trim();
-
-    if (orderId === '') {
-        window.alert('Укажи ID заказа — по нему строится фон предпросмотра без печати/подписи, поверх которого перетаскиваются изображения.');
-        return;
-    }
-
-    router.visit(
-        route('settings.templates.preview-order-overlay', {
-            printFormTemplate: editingTemplate.value.id,
-            order_id: orderId,
-            cb: Date.now(),
-        })
-    );
-}
-
-function openLeadOverlayPreview() {
-    if (editingTemplate.value === null) {
-        return;
-    }
-
-    const leadId = String(previewLeadId.value || '').trim();
-
-    if (leadId === '') {
-        window.alert('Укажи ID лида — по нему строится фон предпросмотра без печати/подписи.');
-        return;
-    }
-
-    router.visit(
-        route('settings.templates.preview-lead-overlay', {
-            printFormTemplate: editingTemplate.value.id,
-            lead_id: leadId,
-            cb: Date.now(),
-        })
     );
 }
 

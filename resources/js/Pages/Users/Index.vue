@@ -40,6 +40,7 @@
                         <tr class="text-left text-zinc-600 dark:text-zinc-200">
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Имя</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Email</th>
+                            <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Телефон</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Роль</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Подпись</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Статус</th>
@@ -55,6 +56,7 @@
                         >
                             <td class="px-3 py-3 font-medium">{{ user.name }}</td>
                             <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ user.email }}</td>
+                            <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ user.phone || '—' }}</td>
                             <td class="px-3 py-3">
                                 <span class="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
                                     {{ user.role?.display_name || user.role?.name || 'Без роли' }}
@@ -110,7 +112,7 @@
                             </td>
                         </tr>
                         <tr v-if="displayedUsers.length === 0">
-                            <td colspan="7" class="px-3 py-12 text-center text-zinc-500">
+                            <td colspan="8" class="px-3 py-12 text-center text-zinc-500">
                                 Пользователи в этой вкладке не найдены.
                             </td>
                         </tr>
@@ -148,6 +150,17 @@
                             class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
                         />
                         <div v-if="form.errors.email" class="mt-1 text-sm text-rose-600">{{ form.errors.email }}</div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Телефон</label>
+                        <input
+                            v-model="form.phone"
+                            type="tel"
+                            autocomplete="tel"
+                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                        />
+                        <div v-if="form.errors.phone" class="mt-1 text-sm text-rose-600">{{ form.errors.phone }}</div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -306,6 +319,7 @@ const tabs = computed(() => [
 const form = useForm({
     name: '',
     email: '',
+    phone: '',
     role_id: null,
     is_active: true,
     has_signing_authority: false,
@@ -331,6 +345,7 @@ function resetForm() {
     form.clearErrors();
     form.name = '';
     form.email = '';
+    form.phone = '';
     form.role_id = null;
     form.is_active = true;
     form.has_signing_authority = false;
@@ -351,6 +366,7 @@ function openEditModal(user) {
     form.clearErrors();
     form.name = user.name;
     form.email = user.email;
+    form.phone = user.phone ?? '';
     form.role_id = user.role_id;
     form.is_active = user.is_active;
     form.has_signing_authority = Boolean(user.has_signing_authority);
@@ -392,6 +408,7 @@ function buildUpdatePayload(user, overrides = {}) {
     return {
         name: user.name,
         email: user.email,
+        phone: user.phone ?? '',
         role_id: user.role_id,
         is_active: user.is_active,
         has_signing_authority: user.has_signing_authority,

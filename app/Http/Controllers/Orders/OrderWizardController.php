@@ -582,6 +582,7 @@ class OrderWizardController extends Controller
             'responsible_name' => $order->relationLoaded('manager') ? $order->manager?->name : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
+            'svh_name' => $order->svh_name,
             'loading_types' => $this->resolveLoadingTypesForOrder($order),
             'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
             'insurance' => Schema::hasColumn('orders', 'insurance') ? $order->insurance : null,
@@ -1630,6 +1631,7 @@ class OrderWizardController extends Controller
                         'currency' => $financialTerm?->client_currency ?? 'RUB',
                         'payment_form' => $order->carrier_payment_form ?? 'no_vat',
                         'payment_schedule' => [],
+                        'payment_terms' => '',
                     ];
                 }
 
@@ -1639,13 +1641,16 @@ class OrderWizardController extends Controller
                         return $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? '')) === $stageKey;
                     });
 
+                $ec = is_array($existingCost) ? $existingCost : [];
+
                 return [
                     'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
                     'contractor_id' => $performer['contractor_id'] ?? null,
-                    'amount' => $existingCost['amount'] ?? null,
-                    'currency' => $existingCost['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
-                    'payment_form' => $existingCost['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
-                    'payment_schedule' => $existingCost['payment_schedule'] ?? [],
+                    'amount' => $ec['amount'] ?? null,
+                    'currency' => $ec['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
+                    'payment_form' => $ec['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
+                    'payment_schedule' => $ec['payment_schedule'] ?? [],
+                    'payment_terms' => $ec['payment_terms'] ?? '',
                 ];
             })
             ->all();

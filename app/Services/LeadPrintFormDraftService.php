@@ -212,13 +212,13 @@ class LeadPrintFormDraftService
         /** @var Collection<int, mixed> $cargoItems */
         $cargoItems = $lead->relationLoaded('cargoItems') ? $lead->cargoItems : collect();
 
-        $loadingPoints = $routePoints->where('type', 'loading')->values();
-        $unloadingPoints = $routePoints->where('type', 'unloading')->values();
+        $loadingPoints = $routePoints->where('type', 'loading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
+        $unloadingPoints = $routePoints->where('type', 'unloading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
         $latestOffer = $lead->relationLoaded('offers') ? $lead->offers->sortByDesc('id')->first() : null;
 
         $cargoNames = $cargoItems->pluck('name')->filter()->implode('; ');
-        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight_kg ?? 0));
-        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume_m3 ?? 0));
+        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight_kg ?? 0) * $this->leadCargoPackageCountFactor($cargo));
+        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume_m3 ?? 0) * $this->leadCargoPackageCountFactor($cargo));
         $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? 0));
 
         return [
@@ -250,6 +250,12 @@ class LeadPrintFormDraftService
             'manager' => [
                 'name' => $lead->responsible?->name,
                 'email' => $lead->responsible?->email,
+                'phone' => $lead->responsible?->phone,
+            ],
+            'responsible' => [
+                'name' => $lead->responsible?->name,
+                'email' => $lead->responsible?->email,
+                'phone' => $lead->responsible?->phone,
             ],
             'route' => [
                 'loading_addresses' => $loadingPoints->pluck('address')->filter()->implode('; '),
@@ -260,19 +266,16 @@ class LeadPrintFormDraftService
                 'unloading_cities' => $unloadingPoints->map(fn ($point): ?string => data_get($point->normalized_data, 'city'))->filter()->implode('; '),
                 'unloading_first_address' => $unloadingPoints->first()?->address,
                 'unloading_first_city' => data_get($unloadingPoints->first()?->normalized_data, 'city'),
+                'unloading_last_city' => data_get($unloadingPoints->last()?->normalized_data, 'city'),
             ],
             'cargo' => [
                 'summary' => $cargoItems
-                    ->map(fn ($cargo): string => trim(implode(', ', array_filter([
-                        $cargo->name,
-                        $cargo->weight_kg !== null ? $this->formatNumber($cargo->weight_kg).' кг' : null,
-                        $cargo->volume_m3 !== null ? $this->formatNumber($cargo->volume_m3).' м3' : null,
-                    ]))))
-                    ->filter()
-                    ->implode('; '),
+                    ->map(fn ($cargo): string => $this->leadCargoLineDetailText($cargo))
+                    ->filter(fn (string $s): bool => $s !== '')
+                    ->implode("\n\n"),
                 'names' => $cargoNames,
                 'total_weight' => $this->formatNumber($cargoTotalWeight),
-                'total_volume' => $this->formatNumber($cargoTotalVolume),
+                'total_volume' => $this->formatVolumeNumber((float) $cargoTotalVolume),
                 'total_packages' => (string) $cargoTotalPackages,
             ],
             'offer' => [
@@ -395,6 +398,61 @@ class LeadPrintFormDraftService
     private function formatNumber(mixed $value): string
     {
         return number_format((float) $value, 2, ',', ' ');
+    }
+
+    private function formatVolumeNumber(float $value): string
+    {
+        return number_format($value, 3, ',', ' ');
+    }
+
+    private function leadCargoPackageCountFactor(mixed $cargo): int
+    {
+        if (! is_object($cargo)) {
+            return 1;
+        }
+        $n = (float) ($cargo->package_count ?? 0);
+
+        return ($n > 0 && is_finite($n)) ? max(1, (int) $n) : 1;
+    }
+
+    /**
+     * Сводка строки груза лида (вес/объём × число мест), без габаритов — в модели лида их нет.
+     */
+    private function leadCargoLineDetailText(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        $name = trim((string) ($cargo->name ?? ''));
+        $factor = $this->leadCargoPackageCountFactor($cargo);
+        $perWeight = (float) ($cargo->weight_kg ?? 0);
+        $totalWeight = $perWeight * $factor;
+
+        $lines = [];
+        $wLine = 'Вес: '.$this->formatNumber($totalWeight).' кг';
+        if ($factor > 1) {
+            $wLine .= ' ('.$this->formatNumber($perWeight).' кг × '.$factor.')';
+        }
+        $lines[] = $wLine;
+
+        $perVol = (float) ($cargo->volume_m3 ?? 0);
+        $totalVol = $perVol * $factor;
+        if ($totalVol > 0.0) {
+            $vLine = 'Объём: '.$this->formatVolumeNumber($totalVol).' м³';
+            if ($factor > 1) {
+                $vLine .= ' ('.$this->formatVolumeNumber($perVol).' м³ × '.$factor.')';
+            }
+            $lines[] = $vLine;
+        } else {
+            $lines[] = 'Объём: —';
+        }
+
+        $lines[] = 'Мест: '.(int) ($cargo->package_count ?? 0);
+
+        $body = implode("\n", $lines);
+
+        return $name !== '' ? $name."\n".$body : $body;
     }
 
     private function injectTemplateOverlayImages(TemplateProcessor $processor, PrintFormTemplate $template): void

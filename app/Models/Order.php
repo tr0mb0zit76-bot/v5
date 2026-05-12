@@ -83,6 +83,7 @@ class Order extends Model
         'payment_statuses',
         'payment_status',
         'special_notes',
+        'svh_name',
         'performers',
     ];
 
