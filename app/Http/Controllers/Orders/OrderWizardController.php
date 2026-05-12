@@ -28,6 +28,7 @@ use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\PaymentFormDictionary;
@@ -362,6 +363,7 @@ class OrderWizardController extends Controller
                 ['value' => 'confirmed', 'label' => 'Подтвержден (legacy)'],
                 ['value' => 'completed', 'label' => 'Завершен (legacy)'],
                 ['value' => 'cancelled', 'label' => 'Отменена'],
+                ['value' => 'disruption', 'label' => 'Срыв'],
             ],
             'documentStatusOptions' => [
                 ['value' => 'draft', 'label' => 'Черновик'],
@@ -377,6 +379,7 @@ class OrderWizardController extends Controller
             'currentUser' => [
                 'id' => $request->user()?->id,
                 'name' => $request->user()?->name,
+                'role_name' => $request->user()?->loadMissing('role')->role?->name,
             ],
             'cargoTitleSuggestions' => Cargo::query()
                 ->whereNotNull('title')
@@ -397,16 +400,15 @@ class OrderWizardController extends Controller
             return false;
         }
 
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return true;
-        }
+        $user->loadMissing('role');
 
-        if (! $user->isManager()) {
-            return false;
-        }
-
-        return $order->manager_id === $user->id
-            && $order->loading_date === null;
+        return OrderDeleteAuthorization::userMayDelete(
+            $user->role?->name,
+            $user->id,
+            (int) $order->manager_id,
+            $order->manual_status,
+            $order->status,
+        );
     }
 
     private function canEditInlineField(Request $request, Order $order): bool
@@ -567,6 +569,7 @@ class OrderWizardController extends Controller
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,
+            'manual_status' => Schema::hasColumn('orders', 'manual_status') ? $order->manual_status : null,
             'order_date' => optional($order->order_date)?->toDateString(),
             'client_id' => $order->customer_id,
             'client_snapshot' => $order->relationLoaded('client') && $order->client !== null
@@ -586,6 +589,9 @@ class OrderWizardController extends Controller
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
             'svh_name' => $order->svh_name,
+            'is_international_transport' => Schema::hasColumn('orders', 'is_international_transport')
+                ? (bool) $order->is_international_transport
+                : false,
             'loading_types' => $this->resolveLoadingTypesForOrder($order),
             'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
             'insurance' => Schema::hasColumn('orders', 'insurance') ? $order->insurance : null,

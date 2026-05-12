@@ -115,6 +115,8 @@ class OrderWizardTest extends TestCase
             $table->string('customer_payment_term', 50)->nullable();
             $table->text('payment_terms')->nullable();
             $table->text('special_notes')->nullable();
+            $table->string('svh_name', 500)->nullable();
+            $table->boolean('is_international_transport')->default(false);
             $table->decimal('carrier_rate', 12, 2)->nullable();
             $table->string('carrier_payment_form', 50)->nullable();
             $table->string('carrier_payment_term', 50)->nullable();
@@ -3646,6 +3648,18 @@ class OrderWizardTest extends TestCase
         ];
 
         $this->actingAs($manager)->patch(route('orders.update', $orderId), $patchPayload)->assertRedirect(route('orders.edit', $orderId));
+    }
+
+    public function test_store_order_request_accepts_is_international_transport_flag(): void
+    {
+        $rules = (new StoreOrderRequest)->rules();
+
+        $validator = Validator::make(
+            ['is_international_transport' => true],
+            ['is_international_transport' => $rules['is_international_transport']],
+        );
+
+        $this->assertFalse($validator->fails(), (string) $validator->errors());
     }
 
     private function makeDocxPath(array $entries): string

@@ -182,6 +182,46 @@ class OrderStatusServiceTest extends TestCase
         $this->assertSame('cancelled', $service->resolve($order, 'cancelled'));
     }
 
+    public function test_requested_disruption_wins(): void
+    {
+        $order = new Order;
+        $order->setRelation('legs', collect());
+        $service = $this->serviceWithChecklist([]);
+
+        $this->assertSame('disruption', $service->resolve($order, 'disruption'));
+    }
+
+    public function test_has_fact_loading_on_route_false_when_only_planned_points(): void
+    {
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'planned_date' => Carbon::today(),
+                'actual_date' => null,
+            ]),
+        ]);
+
+        $service = $this->serviceWithChecklist([]);
+
+        $this->assertFalse($service->hasFactOfLoadingOnRoute($order));
+    }
+
+    public function test_has_fact_loading_on_route_true_when_actual_loading(): void
+    {
+        $order = $this->orderWithLegPoints([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'actual_date' => Carbon::today(),
+            ]),
+        ]);
+
+        $service = $this->serviceWithChecklist([]);
+
+        $this->assertTrue($service->hasFactOfLoadingOnRoute($order));
+    }
+
     public function test_legacy_order_without_route_points_uses_order_date_columns(): void
     {
         $order = new Order;
@@ -198,5 +238,6 @@ class OrderStatusServiceTest extends TestCase
         ]);
 
         $this->assertSame('documents', $service->resolve($order));
+        $this->assertFalse($service->hasFactOfLoadingOnRoute($order));
     }
 }

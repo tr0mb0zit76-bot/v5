@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderTableColumns;
 use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
@@ -201,7 +202,13 @@ class OrderIndexController extends Controller
 
             return [
                 ...$row,
-                'can_delete' => $this->canDeleteOrder($row, $roleName, $user?->id, $dbLoadingDate),
+                'can_delete' => OrderDeleteAuthorization::userMayDelete(
+                    $roleName,
+                    $user?->id,
+                    (int) ($row['manager_id'] ?? 0),
+                    $row['manual_status'] ?? null,
+                    $row['status'] ?? null,
+                ),
             ];
         });
 
@@ -251,49 +258,6 @@ class OrderIndexController extends Controller
             'name' => $role->name,
             'visibility_scopes' => is_array($visibilityScopes) ? $visibilityScopes : [],
         ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $order
-     */
-    private function canDeleteOrder(array $order, ?string $roleName, ?int $userId, mixed $loadingDateFromDb = null): bool
-    {
-        if ($userId === null) {
-            return false;
-        }
-
-        if (in_array($roleName, ['admin', 'supervisor'], true)) {
-            return true;
-        }
-
-        if ($roleName !== 'manager') {
-            return false;
-        }
-
-        if ((int) ($order['manager_id'] ?? 0) !== $userId) {
-            return false;
-        }
-
-        if ($this->orderRowHasBlockingLoading($order, $loadingDateFromDb)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Согласовано с маршрутом: план/факт на точке или дата погрузки в заказе.
-     *
-     * @param  array<string, mixed>  $order
-     */
-    private function orderRowHasBlockingLoading(array $order, mixed $loadingDateFromDb): bool
-    {
-        $kind = $order['loading_date_route_kind'] ?? 'none';
-        if (in_array($kind, ['planned', 'actual', 'order'], true)) {
-            return true;
-        }
-
-        return filled($loadingDateFromDb);
     }
 
     private function routePointSubquery(string $type)

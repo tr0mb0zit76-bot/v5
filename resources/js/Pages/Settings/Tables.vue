@@ -52,7 +52,7 @@
                         </button>
                         <button
                             type="button"
-                            class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            :class="crmBtnCreate"
                             :disabled="!selectedRole || form.processing"
                             @click="saveSelectedRole"
                         >
@@ -151,6 +151,7 @@
 import { computed, ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'table-presets' }, () => page),

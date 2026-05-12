@@ -78,7 +78,7 @@
                 </div>
                 <button
                     type="submit"
-                    class="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                    :class="crmBtnCreate"
                 >
                     Сохранить
                 </button>
@@ -155,7 +155,7 @@
                             <input v-model.number="nodeForms[node.id].sort_order" type="number" min="0" class="mt-1 w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
                         </div>
                         <div class="flex items-end">
-                            <button type="submit" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium dark:border-zinc-600">Сохранить шаг</button>
+                            <button type="submit" :class="crmBtnCreate" class="w-full">Сохранить шаг</button>
                         </div>
                     </form>
                 </div>
@@ -226,7 +226,7 @@
                             <input v-model.number="transitionForms[t.id].sort_order" type="number" min="0" class="mt-1 w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
                         </div>
                         <div class="flex flex-wrap gap-2 md:col-span-2 lg:col-span-4">
-                            <button type="submit" class="rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600">Сохранить</button>
+                            <button type="submit" :class="crmBtnCreate">Сохранить</button>
                             <button type="button" class="text-sm text-rose-700 dark:text-rose-300" @click="removeTransition(t.id)">Удалить</button>
                         </div>
                     </form>
@@ -241,6 +241,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { reactive, ref, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),

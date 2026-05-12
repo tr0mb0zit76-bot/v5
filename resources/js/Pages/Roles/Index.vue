@@ -123,7 +123,8 @@
 
                                     <button
                                         type="button"
-                                        class="w-full rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :class="crmBtnCreate"
+                                        class="w-full py-1.5"
                                         :disabled="savingRoleId === role.id"
                                         @click="saveRole(role)"
                                     >
@@ -365,6 +366,7 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { Plus, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'roles' }, () => page),

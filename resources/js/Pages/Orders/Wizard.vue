@@ -21,22 +21,61 @@
                         <h1 class="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                             {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
                         </h1>
-                        <div class="mt-1.5 flex flex-wrap items-center gap-2">
-                            <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус</span>
-                            <span
-                                class="inline-flex max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                                title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
-                            >
-                                {{ orderStatusBadgeLabel }}
-                            </span>
+                        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус</span>
+                                <span
+                                    class="inline-flex max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
+                                    title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
+                                >
+                                    {{ orderStatusBadgeLabel }}
+                                </span>
+                                <button
+                                    v-if="canShowMarkDisruptionButton"
+                                    type="button"
+                                    class="inline-flex shrink-0 items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
+                                    title="Перевозка не началась, заказ уже не «Новый». Доступно руководителю и администратору."
+                                    @click="markOrderDisruption"
+                                >
+                                    <OctagonAlert class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                    Срыв
+                                </button>
+                            </div>
+                            <span class="h-4 w-px shrink-0 bg-zinc-200 dark:bg-zinc-600" aria-hidden="true" />
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Перевозка</span>
+                                <div class="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+                                    <button
+                                        type="button"
+                                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors"
+                                        :class="!form.is_international_transport
+                                            ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                                            : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                        @click="form.is_international_transport = false"
+                                    >
+                                        Внутренняя
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors"
+                                        :class="form.is_international_transport
+                                            ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                                            : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                        @click="form.is_international_transport = true"
+                                    >
+                                        Международная
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <button
                     type="button"
-                    class="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
+                    :class="crmBtnCreate"
+                    class="h-11 shrink-0"
+                    :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
                     @click="submit"
                 >
                     <Save class="h-4 w-4" />
@@ -91,7 +130,7 @@
                     </span>
                     <button
                         type="button"
-                        class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                        :class="crmBtnCreate"
                         :disabled="form.processing || customerDebtBlocked || !isOrderFormEditable"
                         @click="submit"
                     >
@@ -101,8 +140,8 @@
                 </div>
             </div>
 
-            <div class="flex flex-col gap-3 border border-zinc-200 bg-white px-5 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-900">
-                <div class="flex min-w-0 flex-1 flex-wrap gap-2">
+            <div class="flex flex-col gap-2 border border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
+                <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                     <button
                         v-for="tab in tabs"
                         :key="tab.key"
@@ -117,14 +156,52 @@
                         {{ tab.label }}
                     </button>
                 </div>
-                <div class="flex shrink-0 flex-col gap-1 border-t border-zinc-200 pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-zinc-700">
-                    <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус заказа</span>
-                    <span
-                        class="inline-flex w-fit max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                        title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
-                    >
-                        {{ orderStatusBadgeLabel }}
-                    </span>
+                <div class="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-t border-zinc-200 pt-2.5 sm:w-auto sm:min-w-0 sm:flex-nowrap sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-zinc-700">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Перевозка</span>
+                        <div class="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+                            <button
+                                type="button"
+                                class="rounded-md px-3 py-2 text-sm font-medium leading-none transition-colors"
+                                :class="!form.is_international_transport
+                                    ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                @click="form.is_international_transport = false"
+                            >
+                                Внутренняя
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-md px-3 py-2 text-sm font-medium leading-none transition-colors"
+                                :class="form.is_international_transport
+                                    ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
+                                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                @click="form.is_international_transport = true"
+                            >
+                                Международная
+                            </button>
+                        </div>
+                    </div>
+                    <span class="hidden h-6 w-px shrink-0 bg-zinc-200 sm:block dark:bg-zinc-600" aria-hidden="true" />
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус заказа</span>
+                        <span
+                            class="inline-flex max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium leading-none text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
+                            title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
+                        >
+                            {{ orderStatusBadgeLabel }}
+                        </span>
+                        <button
+                            v-if="canShowMarkDisruptionButton"
+                            type="button"
+                            class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold leading-none text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60"
+                            title="Перевозка не началась, заказ уже не «Новый». Доступно руководителю и администратору."
+                            @click="markOrderDisruption"
+                        >
+                            <OctagonAlert class="h-4 w-4 shrink-0" aria-hidden="true" />
+                            Срыв
+                        </button>
+                    </div>
                 </div>
             </div>
         </template>
@@ -277,15 +354,6 @@
                         <label class="text-sm font-medium">Особые отметки</label>
                         <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">СВХ / таможенный склад</label>
-                        <input
-                            v-model="form.svh_name"
-                            type="text"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                            placeholder="Наименование или адрес СВХ для документов"
-                        />
-                    </div>
                 </div>
                 </div>
 
@@ -332,8 +400,28 @@
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-dashed border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-700">
-                    {{ routeChainLabel }}
+                <div class="flex flex-col gap-3 rounded-2xl border border-dashed border-zinc-200 p-4 dark:border-zinc-700 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div class="min-w-0 flex-1 text-sm leading-relaxed text-zinc-500">
+                        {{ routeChainLabel }}
+                    </div>
+                    <div
+                        v-if="form.is_international_transport"
+                        class="flex w-full shrink-0 flex-col gap-2 sm:ml-auto sm:max-w-xs sm:items-end"
+                    >
+                        <label class="sr-only" for="wizard-border-crossing-leg">Добавить прохождение границы на плечо</label>
+                        <select
+                            id="wizard-border-crossing-leg"
+                            v-model="borderCrossingLegPicker"
+                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-55 dark:border-zinc-700 dark:bg-zinc-950 sm:max-w-xs"
+                            :disabled="hasBorderCrossingPoint"
+                            @change="onBorderCrossingLegPickerChange"
+                        >
+                            <option value="">Добавить прохождение границы…</option>
+                            <option v-for="(p, idx) in form.performers" :key="p.stage" :value="String(idx)">
+                                {{ stageLabel(p.stage) }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="space-y-6">
@@ -342,91 +430,97 @@
                         :key="`leg-route-${legIndex}`"
                         class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
                     >
-                        <div class="flex flex-col gap-4 border-b border-zinc-100 pb-3 dark:border-zinc-800 lg:flex-row lg:items-start lg:justify-between">
-                            <div class="shrink-0">
-                                <div class="text-xs uppercase tracking-wide text-zinc-500">Плечо</div>
-                                <div class="text-base font-semibold">{{ stageLabel(performer.stage) }}</div>
+                        <div class="space-y-3 border-b border-zinc-100 pb-4 dark:border-zinc-800 sm:space-y-0 sm:flex sm:flex-nowrap sm:items-end sm:gap-x-3 sm:gap-y-2">
+                            <div class="flex items-center justify-between gap-3 sm:hidden">
+                                <span class="text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ stageLabel(performer.stage) }}</span>
+                                <button
+                                    v-if="form.performers.length > 1"
+                                    type="button"
+                                    class="shrink-0 rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+                                    @click="removePerformer(legIndex)"
+                                >
+                                    Удалить плечо
+                                </button>
                             </div>
-                            <div class="flex min-w-0 flex-1 flex-col gap-3 lg:max-w-5xl">
-                                <div class="grid gap-3 lg:grid-cols-12 lg:items-end">
-                                    <div class="space-y-1 lg:col-span-6">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
-                                            <button
-                                                type="button"
-                                                class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                                @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
-                                            >
-                                                + Новый
-                                            </button>
-                                        </div>
-                                        <div class="relative">
-                                    <input
-                                        :value="carrierSearchValue('performer', legIndex)"
-                                        type="text"
-                                        :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField('performer_carrier', performer.contractor_id)]"
-                                        placeholder="Поиск перевозчика"
-                                        @focus="setCarrierResultsVisible('performer', legIndex, true)"
-                                        @input="onPerformerCarrierInput(legIndex, $event.target.value)"
-                                        @blur="restorePerformerCarrierSearch(legIndex)"
-                                    />
-                                    <button
-                                        v-if="normalizeNullableNumber(form.performers[legIndex]?.contractor_id) !== null"
-                                        type="button"
-                                        class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                                        title="Очистить перевозчика"
-                                        @click="clearPerformerContractor(legIndex)"
-                                    >
-                                        <X class="h-4 w-4" />
-                                    </button>
-                                    <div
-                                        v-if="isCarrierResultsVisible('performer', legIndex) && filteredCarrierResults('performer', legIndex).length > 0"
-                                        class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                    >
+                            <span class="hidden text-base font-semibold leading-none text-zinc-900 dark:text-zinc-50 sm:inline sm:shrink-0">{{ stageLabel(performer.stage) }}</span>
+                            <div class="grid min-w-0 w-full flex-1 grid-cols-1 gap-2 sm:grid-cols-12 sm:gap-3">
+                                <div class="space-y-1 sm:col-span-5">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
                                         <button
-                                            v-for="contractor in filteredCarrierResults('performer', legIndex)"
-                                            :key="contractor.id"
                                             type="button"
-                                            class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                            @mousedown.prevent
-                                            @click="selectPerformerContractor(legIndex, contractor)"
+                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                            @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
                                         >
-                                            <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                            <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                            + Новый
                                         </button>
                                     </div>
+                                    <div class="relative">
+                                        <input
+                                            :value="carrierSearchValue('performer', legIndex)"
+                                            type="text"
+                                            :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField('performer_carrier', performer.contractor_id)]"
+                                            placeholder="Поиск перевозчика"
+                                            @focus="setCarrierResultsVisible('performer', legIndex, true)"
+                                            @input="onPerformerCarrierInput(legIndex, $event.target.value)"
+                                            @blur="restorePerformerCarrierSearch(legIndex)"
+                                        />
+                                        <button
+                                            v-if="normalizeNullableNumber(form.performers[legIndex]?.contractor_id) !== null"
+                                            type="button"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                            title="Очистить перевозчика"
+                                            @click="clearPerformerContractor(legIndex)"
+                                        >
+                                            <X class="h-4 w-4" />
+                                        </button>
+                                        <div
+                                            v-if="isCarrierResultsVisible('performer', legIndex) && filteredCarrierResults('performer', legIndex).length > 0"
+                                            class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                        >
+                                            <button
+                                                v-for="contractor in filteredCarrierResults('performer', legIndex)"
+                                                :key="contractor.id"
+                                                type="button"
+                                                class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                                @mousedown.prevent
+                                                @click="selectPerformerContractor(legIndex, contractor)"
+                                            >
+                                                <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                                <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                            </button>
                                         </div>
                                     </div>
-                                    <div class="space-y-1 lg:col-span-3">
-                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
-                                        <select
-                                            v-model="performer.fleet_vehicle_id"
-                                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
-                                            @focus="loadFleetOptionsForLeg(legIndex)"
-                                        >
-                                            <option :value="null">—</option>
-                                            <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-1 lg:col-span-3">
-                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
-                                        <select
-                                            v-model="performer.fleet_driver_id"
-                                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
-                                            @focus="loadFleetOptionsForLeg(legIndex)"
-                                        >
-                                            <option :value="null">—</option>
-                                            <option v-for="d in fleetDriverOptionsForLeg(legIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
-                                        </select>
-                                    </div>
+                                </div>
+                                <div class="space-y-1 sm:col-span-3">
+                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
+                                    <select
+                                        v-model="performer.fleet_vehicle_id"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :disabled="normalizeNullableNumber(performer.contractor_id) === null"
+                                        @focus="loadFleetOptionsForLeg(legIndex)"
+                                    >
+                                        <option :value="null">—</option>
+                                        <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1 sm:col-span-4">
+                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
+                                    <select
+                                        v-model="performer.fleet_driver_id"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :disabled="normalizeNullableNumber(performer.contractor_id) === null"
+                                        @focus="loadFleetOptionsForLeg(legIndex)"
+                                    >
+                                        <option :value="null">—</option>
+                                        <option v-for="d in fleetDriverOptionsForLeg(legIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
+                                    </select>
                                 </div>
                             </div>
                             <button
                                 v-if="form.performers.length > 1"
                                 type="button"
-                                class="shrink-0 self-start rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+                                class="hidden shrink-0 rounded-xl border border-rose-200 px-3 py-2 text-sm leading-none text-rose-600 hover:bg-rose-50 sm:inline-flex dark:border-rose-900 dark:hover:bg-rose-950/40"
                                 @click="removePerformer(legIndex)"
                             >
                                 Удалить плечо
@@ -447,14 +541,9 @@
                             @drop.prevent="handleRoutePointDrop(item.globalIndex)"
                             @dragend="handleRoutePointDragEnd"
                         >
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <div class="text-xs uppercase tracking-wide text-zinc-500">
-                                        {{ routePointTypeHeading(item.point.type) }}
-                                    </div>
-                                    <div class="text-sm font-medium">
-                                        {{ routePointTitle(item.point, item.globalIndex) }}
-                                    </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0 text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                                    {{ routePointTitle(item.point, item.globalIndex) }}
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <span
@@ -470,7 +559,19 @@
                                 </div>
                             </div>
 
-                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_14rem] lg:items-end">
+                            <template v-if="item.point.type === 'border_crossing'">
+                                <div class="w-full space-y-2">
+                                    <label class="text-sm font-medium">СВХ / таможенный склад</label>
+                                    <input
+                                        v-model="form.svh_name"
+                                        type="text"
+                                        :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.svh_name ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
+                                        placeholder="Наименование или адрес СВХ для документов"
+                                    />
+                                    <p v-if="form.errors.svh_name" class="text-xs text-rose-500">{{ form.errors.svh_name }}</p>
+                                </div>
+                            </template>
+                            <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_14rem] lg:items-end">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
                                     <div class="relative">
@@ -561,16 +662,6 @@
                                     </select>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="flex flex-wrap gap-2 pt-1">
-                            <button
-                                type="button"
-                                class="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                                @click="addRoutePointForLeg(performer.stage, 'border_crossing')"
-                            >
-                                Добавить прохождение границы
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -1388,10 +1479,11 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileText, MapPinned, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
+import { ClipboardList, FileText, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { crmBtnCreate } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
 
 defineOptions({
@@ -1441,6 +1533,7 @@ const tabs = [
 ];
 
 const activeTab = ref('main');
+const borderCrossingLegPicker = ref('');
 
 onMounted(() => {
     if (typeof window === 'undefined') {
@@ -1457,6 +1550,14 @@ onMounted(() => {
         const qs = url.searchParams.toString();
         const next = `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`;
         window.history.replaceState({}, '', next);
+    }
+
+    if (!form.is_international_transport && Array.isArray(form.route_points)) {
+        const nextPoints = form.route_points.filter((p) => p.type !== 'border_crossing');
+        if (nextPoints.length !== form.route_points.length) {
+            form.route_points = nextPoints;
+            normalizeRoutePointSequences();
+        }
     }
 });
 
@@ -1815,6 +1916,7 @@ function blankRoutePoint(type, sequence, stage) {
 function blankOrder() {
     return {
         status: 'new',
+        manual_status: null,
         own_company_id: null,
         own_company_bank_account_id: null,
         client_id: null,
@@ -1823,6 +1925,7 @@ function blankOrder() {
         payment_terms: '',
         special_notes: '',
         svh_name: '',
+        is_international_transport: false,
         loading_types: [],
         cargo_sender_name: '',
         cargo_sender_address: '',
@@ -2205,6 +2308,7 @@ const form = useForm({
         ? String(props.order.own_company_bank_account_id)
         : null,
     client_id: normalizeNullableNumber(props.order?.client_id),
+    manual_status: props.order?.manual_status ?? null,
     additional_expenses: props.order?.additional_expenses ?? null,
     insurance: props.order?.insurance ?? null,
     bonus: props.order?.bonus ?? null,
@@ -2251,11 +2355,23 @@ const form = useForm({
     documents: Array.isArray(props.order?.documents)
         ? props.order.documents.map((document) => normalizeDocument(document))
         : [],
+    is_international_transport: props.order?.is_international_transport === true,
 });
 
 watch(() => form.own_company_id, () => {
     form.own_company_bank_account_id = null;
 });
+
+watch(
+    () => form.is_international_transport,
+    (international) => {
+        if (!international) {
+            form.route_points = form.route_points.filter((p) => p.type !== 'border_crossing');
+            normalizeRoutePointSequences();
+        }
+        borderCrossingLegPicker.value = '';
+    },
+);
 
 function resolveOwnCompanyRecord(companyId) {
     if (companyId == null || companyId === '') {
@@ -2374,7 +2490,8 @@ watch(
 const isEditing = computed(() => props.order !== null);
 
 const orderStatusBadgeLabel = computed(() => {
-    const code = form.status;
+    const manual = form.manual_status != null && String(form.manual_status).trim() !== '' ? String(form.manual_status).trim() : null;
+    const code = manual ?? form.status;
     const opt = props.orderStatusOptions.find((o) => o.value === code);
 
     return opt?.label ?? code ?? '—';
@@ -2387,6 +2504,39 @@ const isOrderFormEditable = computed(() => {
     }
 
     return props.order?.can_edit_order !== false;
+});
+
+function wizardRouteLoadingHasActualDate() {
+    if (!Array.isArray(form.route_points)) {
+        return false;
+    }
+
+    return form.route_points.some(
+        (p) => p.type === 'loading' && p.actual_date != null && String(p.actual_date).trim() !== '',
+    );
+}
+
+const canShowMarkDisruptionButton = computed(() => {
+    if (!isEditing.value || !isOrderFormEditable.value || !props.order?.id) {
+        return false;
+    }
+
+    const role = props.currentUser?.role_name ?? page.props.auth?.user?.role?.name;
+    if (role !== 'admin' && role !== 'supervisor') {
+        return false;
+    }
+
+    const manual = form.manual_status != null && String(form.manual_status).trim() !== '' ? String(form.manual_status).trim() : null;
+    const effective = manual ?? String(form.status || 'new').trim();
+    if (effective === 'new') {
+        return false;
+    }
+
+    if (['disruption', 'cancelled', 'closed'].includes(effective)) {
+        return false;
+    }
+
+    return ! wizardRouteLoadingHasActualDate();
 });
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
@@ -3275,9 +3425,21 @@ const routeChainLabel = computed(() => {
     return form.route_points
         .slice()
         .sort((left, right) => Number(left.sequence ?? 0) - Number(right.sequence ?? 0))
-        .map((point) => `${routePointTypeHeading(point.type)}: ${point.address || 'адрес не указан'}`)
+        .map((point) => {
+            if (point.type === 'border_crossing') {
+                const svh = String(form.svh_name ?? '').trim();
+
+                return `${routePointTypeHeading(point.type)}: ${svh || 'СВХ не указан'}`;
+            }
+
+            return `${routePointTypeHeading(point.type)}: ${point.address || 'адрес не указан'}`;
+        })
         .join(' → ');
 });
+
+const hasBorderCrossingPoint = computed(
+    () => Array.isArray(form.route_points) && form.route_points.some((p) => p.type === 'border_crossing'),
+);
 
 const cargoSummary = computed(() => {
     return form.cargo_items.reduce((summary, item) => {
@@ -3453,6 +3615,27 @@ function addRoutePointForLeg(stage, type) {
     }
     form.route_points.splice(insertAt, 0, blankRoutePoint(type, 0, stage));
     normalizeRoutePointSequences();
+}
+
+function onBorderCrossingLegPickerChange() {
+    const raw = borderCrossingLegPicker.value;
+    if (raw === '' || raw === null || raw === undefined) {
+        return;
+    }
+    const idx = Number.parseInt(String(raw), 10);
+    if (!Number.isFinite(idx) || idx < 0) {
+        borderCrossingLegPicker.value = '';
+
+        return;
+    }
+    const performer = form.performers[idx];
+    if (!performer) {
+        borderCrossingLegPicker.value = '';
+
+        return;
+    }
+    addRoutePointForLeg(performer.stage, 'border_crossing');
+    borderCrossingLegPicker.value = '';
 }
 
 function routePointTypeHeading(type) {
@@ -3921,6 +4104,7 @@ function buildSubmitPayload() {
         payment_terms: form.payment_terms,
         special_notes: form.special_notes,
         svh_name: form.svh_name,
+        is_international_transport: Boolean(form.is_international_transport),
         additional_expenses: form.additional_expenses,
         insurance: form.insurance,
         bonus: form.bonus,
@@ -4038,14 +4222,35 @@ function buildSubmitPayload() {
     };
 }
 
-function submit() {
+function markOrderDisruption() {
+    if (!canShowMarkDisruptionButton.value || !props.order?.id) {
+        return;
+    }
+
+    if (! window.confirm('Установить статус «Срыв»? Убедитесь, что по маршруту ещё не указана фактическая дата погрузки.')) {
+        return;
+    }
+
+    const previousStatus = form.status;
+    form.status = 'disruption';
+
+    submit({
+        skipCoreValidation: true,
+        revertStatusOnError: previousStatus,
+    });
+}
+
+function submit(options = {}) {
+    const skipCoreValidation = options.skipCoreValidation === true;
+    const revertStatusOnError = options.revertStatusOnError ?? null;
+
     saveAttempted.value = true;
 
     if (isEditing.value && !isOrderFormEditable.value) {
         return;
     }
 
-    if (!coreRequiredFieldsValid.value) {
+    if (! skipCoreValidation && ! coreRequiredFieldsValid.value) {
         const errors = {};
 
         if (!form.client_id) {
@@ -4102,6 +4307,14 @@ function submit() {
 
     const hasNewDocumentFiles = form.documents.some((document) => document.file instanceof File);
 
+    const handleRequestError = (errors) => {
+        if (revertStatusOnError !== null) {
+            form.status = revertStatusOnError;
+        }
+
+        form.clearErrors().setError(errors);
+    };
+
     // Multipart FormData с глубокой вложенностью из браузера часто «ломает» financial_term / route_points на PHP.
     // При новых файлах шлём JSON в `order_payload` и прикладываем бинарники отдельными полями `document_file_{i}`.
     if (hasNewDocumentFiles) {
@@ -4128,9 +4341,7 @@ function submit() {
             onFinish: () => {
                 form.processing = false;
             },
-            onError: (errors) => {
-                form.clearErrors().setError(errors);
-            },
+            onError: handleRequestError,
         };
 
         if (isEditing.value) {
@@ -4145,7 +4356,10 @@ function submit() {
         return;
     }
 
-    const submitOptions = { preserveScroll: true };
+    const submitOptions = {
+        preserveScroll: true,
+        onError: handleRequestError,
+    };
 
     if (isEditing.value) {
         form.transform(() => buildSubmitPayload()).patch(route('orders.update', props.order.id), submitOptions);

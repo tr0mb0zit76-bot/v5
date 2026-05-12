@@ -177,7 +177,7 @@
               </button>
               <button
                 type="button"
-                class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                :class="crmBtnCreate"
                 @click="applyColumnModalChanges"
               >
                 Сохранить
@@ -211,6 +211,7 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 

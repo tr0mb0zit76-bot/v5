@@ -85,6 +85,7 @@ class Order extends Model
         'payment_status',
         'special_notes',
         'svh_name',
+        'is_international_transport',
         'performers',
     ];
 
@@ -116,6 +117,7 @@ class Order extends Model
             'order_carrier_date' => 'date',
             'upd_carrier_date' => 'date',
             'is_active' => 'boolean',
+            'is_international_transport' => 'boolean',
             'ai_metadata' => 'array',
             'ati_response' => 'array',
             'metadata' => 'array',

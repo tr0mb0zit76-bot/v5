@@ -63,6 +63,7 @@
       ref="gridPanel"
       class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
       @contextmenu.capture="suppressNativeContextMenuCapture"
+      @contextmenu="onGridPanelEmptyContextMenu"
     >
       <div
         class="ag-theme-alpine orders-grid-theme"
@@ -182,7 +183,7 @@
               </button>
               <button
                 type="button"
-                class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                :class="crmBtnCreate"
                 @click="applyColumnModalChanges"
               >
                 Сохранить
@@ -217,6 +218,7 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -338,7 +340,7 @@ const baseVisibleFields = [
   'waybill_number',
 ];
 
-/** В реестре заказов не показываем колонки AI / ATI / metadata. */
+/** В реестре заказов не показываем колонки AI / ATI / metadata и служебную колонку действий. */
 const ORDERS_GRID_EXCLUDED_FIELDS = new Set([
   'ai_draft_id',
   'ai_confidence',
@@ -347,6 +349,9 @@ const ORDERS_GRID_EXCLUDED_FIELDS = new Set([
   'ati_load_id',
   'ati_published_at',
   'metadata',
+  'actions',
+  '__actions',
+  'order_actions',
 ]);
 
 /** Плавающая строка фильтров только у «поисковых» полей; у ставок и дальше — выкл. */
@@ -392,7 +397,7 @@ function ordersGridStaleRowClass(data) {
   }
 
   const status = data.manual_status || data.status || '';
-  if (['closed', 'cancelled'].includes(status)) {
+  if (['closed', 'cancelled', 'disruption'].includes(status)) {
     return '';
   }
 
@@ -434,6 +439,40 @@ const contextMenu = reactive({
 function closeRowContextMenu() {
   contextMenu.open = false;
   contextMenu.items = [];
+}
+
+/** ПКМ по пустому месту таблицы (не по ячейке) — только быстрые действия без строки. */
+function onGridPanelEmptyContextMenu(event) {
+  if (event?.target?.closest?.('.ag-cell')) {
+    return;
+  }
+
+  if (
+    event?.target?.closest?.('.ag-header')
+    || event?.target?.closest?.('.ag-header-container')
+    || event?.target?.closest?.('.ag-floating-top')
+    || event?.target?.closest?.('.ag-floating-filter')
+  ) {
+    return;
+  }
+
+  if (event?.preventDefault) {
+    event.preventDefault();
+  }
+
+  const items = [
+    {
+      label: 'Новый заказ',
+      run: () => {
+        emit('create-request');
+      },
+    },
+  ];
+
+  contextMenu.x = event.clientX;
+  contextMenu.y = event.clientY;
+  contextMenu.items = items;
+  contextMenu.open = true;
 }
 
 function onCellContextMenu(params) {
@@ -504,7 +543,7 @@ const gridContainerStyle = computed(() => ({
   width: '100%',
 }));
 
-const storageKey = computed(() => `orders_grid_state_v4_${props.userId}`);
+const storageKey = computed(() => `orders_grid_state_v5_${props.userId}`);
 const densityStorageKey = computed(() => `orders_grid_density_${props.userId}`);
 const quickSearchStorageKey = computed(() => `orders_grid_quick_search_v1_${props.userId}`);
 const filterModelStorageKey = computed(() => `orders_grid_filter_model_v1_${props.userId}`);
@@ -782,6 +821,8 @@ const ORDER_STATUS_RU_LABEL_TO_CODE = {
   завершен: 'completed',
   завершён: 'completed',
   'завершён (legacy)': 'completed',
+  срыв: 'disruption',
+  'статус срыв': 'disruption',
 };
 
 function normalizeRuStatusKey(raw) {
@@ -849,6 +890,16 @@ const ORDER_STATUS_ICON_META = {
     colorClass: 'text-rose-600 dark:text-rose-400',
     paths: ['M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z', 'm15 9-6 6', 'm9 9 6 6'],
   },
+  disruption: {
+    label: 'Срыв',
+    colorClass: 'text-red-600 dark:text-red-400',
+    /** Дорожный знак «Стоп»: красный восьмиугольник */
+    filled: true,
+    paths: [
+      'M12 2.2 19.8 6.1 19.8 17.9 12 21.8 4.2 17.9 4.2 6.1 12 2.2Z',
+      'M9.2 9.2h5.6v5.6H9.2z',
+    ],
+  },
   draft: {
     label: 'Черновик',
     colorClass: 'text-zinc-500 dark:text-zinc-400',
@@ -883,15 +934,18 @@ function buildOrderStatusIconSvg(meta) {
   svg.setAttribute('width', '20');
   svg.setAttribute('height', '20');
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('fill', meta.filled ? 'currentColor' : 'none');
+  svg.setAttribute('stroke', meta.filled ? 'none' : 'currentColor');
+  svg.setAttribute('stroke-width', meta.filled ? '0' : '2');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
   svg.setAttribute('class', 'shrink-0');
-  meta.paths.forEach((d) => {
+  meta.paths.forEach((d, index) => {
     const p = document.createElementNS(SVG_NS, 'path');
     p.setAttribute('d', d);
+    if (meta.filled) {
+      p.setAttribute('fill', index === 0 ? 'currentColor' : '#ffffff');
+    }
     svg.appendChild(p);
   });
   (meta.circles ?? []).forEach((c) => {
@@ -899,7 +953,9 @@ function buildOrderStatusIconSvg(meta) {
     circle.setAttribute('cx', c.cx);
     circle.setAttribute('cy', c.cy);
     circle.setAttribute('r', c.r);
-    svg.appendChild(circle);
+    if (!meta.filled) {
+      svg.appendChild(circle);
+    }
   });
 
   return svg;
@@ -1216,6 +1272,7 @@ const dynamicColumnDefs = computed(() => {
           'payment',
           'closed',
           'cancelled',
+          'disruption',
           'draft',
           'pending',
           'confirmed',
@@ -1229,6 +1286,7 @@ const dynamicColumnDefs = computed(() => {
         payment: 'Оплата',
         closed: 'Завершено',
         cancelled: 'Отменена',
+        disruption: 'Срыв',
         draft: 'Черновик (legacy)',
         pending: 'На согласовании (legacy)',
         confirmed: 'Подтвержден (legacy)',
@@ -1239,71 +1297,21 @@ const dynamicColumnDefs = computed(() => {
     return columnDefinition;
   });
 
-  if (['admin', 'supervisor', 'manager'].includes(getRoleKey())) {
-    columns.push({
-      colId: '__actions',
-      headerName: 'Действия',
-      width: 110,
-      minWidth: 96,
-      maxWidth: 120,
-      pinned: 'right',
-      sortable: false,
-      filter: false,
-      floatingFilter: false,
-      resizable: false,
-      editable: false,
-      suppressSizeToFit: true,
-      cellRenderer: (params) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'flex h-full items-center justify-center';
-
-        if (!params.data?.can_delete) {
-          return wrapper;
-        }
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40';
-        button.title = 'Удалить заказ';
-        button.innerHTML = '<span aria-hidden="true">×</span>';
-        button.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          emit('row-delete', params.data);
-        });
-
-        wrapper.appendChild(button);
-
-        return wrapper;
-      },
-    });
-  }
-
   if (!saved?.length) {
     return columns;
   }
 
-  const actionCol = columns.find((c) => c.colId === '__actions');
   const dataCols = columns.filter((c) => c.field);
   const fields = dataCols.map((c) => c.field);
   const { orderedFields, byColId } = buildLayoutIndex(fields, saved);
   const byField = new Map(dataCols.map((d) => [d.field, d]));
 
-  const reordered = orderedFields
+  return orderedFields
     .map((field) => {
       const def = byField.get(field);
       return def ? applySavedToColDef(def, byColId.get(field)) : null;
     })
     .filter(Boolean);
-
-  if (actionCol) {
-    const aSaved = saved.find((r) => r.colId === '__actions');
-    const nextAction = aSaved ? applySavedToColDef({ ...actionCol }, aSaved) : actionCol;
-
-    return [...reordered, nextAction];
-  }
-
-  return reordered;
 });
 
 const onCellDoubleClicked = (params) => {

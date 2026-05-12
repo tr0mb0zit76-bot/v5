@@ -51,9 +51,29 @@
   font-weight: 600;
 }
 
-.orders-grid-theme .orders-grid-status-cell {
+/* Статус: иконка/подпись по вертикали по центру строки (renderer не получает рабочий h-full без flex на ячейке) */
+.orders-grid-theme .orders-grid-status-cell.ag-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding-left: 4px;
   padding-right: 4px;
+}
+
+.orders-grid-theme .orders-grid-status-cell.ag-cell .ag-cell-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.orders-grid-theme .orders-grid-status-cell.ag-cell .ag-cell-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
 }
 
 /* План/факт дат погрузки и выгрузки (маршрут) */

@@ -2,6 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Order;
+use App\Models\User;
+use App\Support\OrderDisruptionGuard;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -9,6 +12,23 @@ use Illuminate\Validation\Validator;
 
 class UpdateInlineOrderFieldRequest extends FormRequest
 {
+    /**
+     * @var list<string>
+     */
+    private const MANUAL_STATUS_CODES = [
+        'new',
+        'in_progress',
+        'documents',
+        'payment',
+        'closed',
+        'cancelled',
+        'disruption',
+        'draft',
+        'pending',
+        'confirmed',
+        'completed',
+    ];
+
     /**
      * @var list<string>
      */
@@ -53,6 +73,36 @@ class UpdateInlineOrderFieldRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $field = $this->input('field');
+            if ($field === 'manual_status') {
+                $user = $this->user();
+                if ($user instanceof User && ! $user->isAdmin() && ! $user->isSupervisor()) {
+                    $validator->errors()->add('field', 'Ручной статус могут менять только руководитель или администратор.');
+
+                    return;
+                }
+
+                $value = $this->input('value');
+                if ($value === null || $value === '' || $value === 'null') {
+                    return;
+                }
+
+                $code = (string) $value;
+                if (! in_array($code, self::MANUAL_STATUS_CODES, true)) {
+                    $validator->errors()->add('value', 'Недопустимое значение ручного статуса.');
+
+                    return;
+                }
+
+                if ($code === 'disruption') {
+                    $order = $this->route('order');
+                    if ($order instanceof Order && $user instanceof User) {
+                        OrderDisruptionGuard::validateMarkDisrupted($user, $order, $validator, 'value');
+                    }
+                }
+
+                return;
+            }
+
             if (! in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
                 return;
             }

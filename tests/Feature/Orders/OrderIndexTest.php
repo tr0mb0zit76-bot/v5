@@ -1106,7 +1106,7 @@ class OrderIndexTest extends TestCase
         ]);
     }
 
-    public function test_manager_cannot_delete_loaded_order(): void
+    public function test_manager_cannot_delete_in_progress_order(): void
     {
         $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
         $manager = User::factory()->create();
@@ -1114,7 +1114,7 @@ class OrderIndexTest extends TestCase
         DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
         $manager->role_id = $managerRoleId;
 
-        $orderId = $this->createOrder('LOCKED-ORDER', $manager->id, '2026-04-02');
+        $orderId = $this->createOrder('LOCKED-ORDER', $manager->id, '2026-04-02', 'in_progress');
 
         $response = $this->actingAs($manager)->delete(route('orders.destroy', $orderId));
 
@@ -1347,6 +1347,76 @@ class OrderIndexTest extends TestCase
         );
     }
 
+    public function test_orders_index_can_delete_for_manager_follows_status(): void
+    {
+        $mgrRoleId = $this->createRole('manager');
+        $manager = User::factory()->create();
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $mgrRoleId]);
+        $manager->role_id = $mgrRoleId;
+
+        $this->createOrder('CD-NEW', (int) $manager->id, null, 'new');
+        $this->createOrder('CD-PROG', (int) $manager->id, null, 'in_progress');
+
+        $this->actingAs($manager)->get(route('orders.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('rows', 2)
+                ->where('rows.0.order_number', 'CD-NEW')
+                ->where('rows.0.can_delete', true)
+                ->where('rows.1.order_number', 'CD-PROG')
+                ->where('rows.1.can_delete', false)
+            );
+    }
+
+    public function test_orders_index_can_delete_for_supervisor_requires_new_or_in_progress(): void
+    {
+        $supRoleId = $this->createRole('supervisor');
+        $mgrRoleId = $this->createRole('manager');
+        $owner = User::factory()->create();
+        DB::table('users')->where('id', $owner->id)->update(['role_id' => $mgrRoleId]);
+
+        $supervisor = User::factory()->create();
+        DB::table('users')->where('id', $supervisor->id)->update(['role_id' => $supRoleId]);
+        $supervisor->role_id = $supRoleId;
+
+        $this->createOrder('CD-SNEW', (int) $owner->id, null, 'new');
+        $this->createOrder('CD-SDOC', (int) $owner->id, null, 'documents');
+
+        $this->actingAs($supervisor)->get(route('orders.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('rows', 2)
+                ->where('rows.0.order_number', 'CD-SNEW')
+                ->where('rows.0.can_delete', true)
+                ->where('rows.1.order_number', 'CD-SDOC')
+                ->where('rows.1.can_delete', false)
+            );
+    }
+
+    public function test_orders_index_can_delete_admin_always_true_for_advanced_status(): void
+    {
+        $admRoleId = $this->createRole('admin');
+        $mgrRoleId = $this->createRole('manager');
+        $owner = User::factory()->create();
+        DB::table('users')->where('id', $owner->id)->update(['role_id' => $mgrRoleId]);
+
+        $admin = User::factory()->create();
+        DB::table('users')->where('id', $admin->id)->update(['role_id' => $admRoleId]);
+        $admin->role_id = $admRoleId;
+
+        $this->createOrder('CD-ADM-DOC', (int) $owner->id, null, 'documents');
+
+        $this->actingAs($admin)->get(route('orders.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('rows', 1, fn (Assert $row) => $row
+                    ->where('order_number', 'CD-ADM-DOC')
+                    ->where('can_delete', true)
+                    ->etc()
+                )
+            );
+    }
+
     private function createRole(string $name, array $visibilityScopes = []): int
     {
         return (int) DB::table('roles')->insertGetId([
@@ -1358,18 +1428,21 @@ class OrderIndexTest extends TestCase
         ]);
     }
 
-    private function createOrder(string $orderNumber, int $managerId, ?string $loadingDate = null): int
+    private function createOrder(string $orderNumber, int $managerId, ?string $loadingDate = null, string $status = 'new'): int
     {
         return (int) DB::table('orders')->insertGetId([
             'order_number' => $orderNumber,
             'manager_id' => $managerId,
             'loading_date' => $loadingDate,
+            'order_date' => '2026-04-10',
             'additional_expenses' => 0,
             'insurance' => 0,
             'bonus' => 0,
+            'kpi_percent' => 0,
+            'delta' => 0,
             'salary_accrued' => 0,
             'salary_paid' => 0,
-            'status' => 'new',
+            'status' => $status,
             'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),

@@ -116,7 +116,7 @@
                         <button
                             type="submit"
                             :disabled="editForm.processing"
-                            class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+                            :class="crmBtnCreate"
                         >
                             Сохранить
                         </button>
@@ -151,6 +151,7 @@ import { computed, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book' }, () => page),

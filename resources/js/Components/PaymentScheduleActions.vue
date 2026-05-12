@@ -159,7 +159,7 @@
                         <button
                             type="submit"
                             :disabled="processing"
-                            class="rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            :class="crmBtnCreate"
                         >
                             {{ processing ? 'Сохранение...' : 'Сохранить' }}
                         </button>
@@ -211,6 +211,7 @@
 import { ref, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Plus, List, X, RotateCcw } from 'lucide-vue-next';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 const props = defineProps({
     payment: {

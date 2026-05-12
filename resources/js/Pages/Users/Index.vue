@@ -161,6 +161,9 @@
                             class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
                         />
                         <div v-if="form.errors.phone" class="mt-1 text-sm text-rose-600">{{ form.errors.phone }}</div>
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            Номер используется для сопоставления с телефоном менеджера, указанным в перевозке заказа.
+                        </p>
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">

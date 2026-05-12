@@ -70,8 +70,41 @@ class OrderStatusService
             'payment' => 'Оплата',
             'closed' => 'Завершено',
             'cancelled' => 'Отменена',
+            'disruption' => 'Срыв',
             default => 'Новый заказ',
         };
+    }
+
+    /**
+     * Факт старта перевозки: есть точка маршрута «погрузка» с заполненной фактической датой.
+     * Без точек маршрута дату в карточке заказа не используем — план/факт не различимы.
+     */
+    public function hasFactOfLoadingOnRoute(Order $order): bool
+    {
+        if (! $order->relationLoaded('legs')) {
+            $order->loadMissing([
+                'legs' => fn ($q) => $q->orderBy('sequence'),
+                'legs.routePoints' => fn ($q) => $q->orderBy('sequence'),
+            ]);
+        }
+
+        $hasRoutePoints = $order->legs->contains(
+            fn ($leg): bool => $leg->routePoints->isNotEmpty()
+        );
+
+        if (! $hasRoutePoints) {
+            return false;
+        }
+
+        foreach ($order->legs as $leg) {
+            foreach ($leg->routePoints as $point) {
+                if ($point->type === 'loading' && $point->actual_date !== null) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -181,6 +214,10 @@ class OrderStatusService
     ): string {
         if ($requestedStatus === 'cancelled') {
             return 'cancelled';
+        }
+
+        if ($requestedStatus === 'disruption') {
+            return 'disruption';
         }
 
         if (

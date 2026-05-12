@@ -177,6 +177,7 @@ class OrderWizardService
             'payment_terms' => $this->encodePaymentTermsPayload($financialTerm),
             'special_notes' => $validated['special_notes'] ?? null,
             'svh_name' => $validated['svh_name'] ?? null,
+            'is_international_transport' => (bool) ($validated['is_international_transport'] ?? false),
             'carrier_rate' => $performerTotal ?: null,
             'carrier_payment_form' => $carrierPaymentForm,
             'carrier_payment_term' => $carrierPaymentSummary,
@@ -355,6 +356,12 @@ class OrderWizardService
         $routePoints = collect($validated['route_points'] ?? [])
             ->sortBy('sequence')
             ->values();
+        $isInternationalTransport = (bool) ($validated['is_international_transport'] ?? false);
+        if (! $isInternationalTransport) {
+            $routePoints = $routePoints
+                ->filter(fn (array $point): bool => trim((string) ($point['type'] ?? '')) !== 'border_crossing')
+                ->values();
+        }
         $loadingTypes = array_values(array_filter(
             array_map(
                 fn (mixed $value): ?string => $this->normalizeLoadingType($value),
@@ -808,7 +815,7 @@ class OrderWizardService
             'status' => $derivedStatus,
             'status_updated_by' => $user->id,
             'status_updated_at' => now(),
-            'is_active' => ! in_array($derivedStatus, ['closed', 'cancelled'], true),
+            'is_active' => ! in_array($derivedStatus, ['closed', 'cancelled', 'disruption'], true),
         ])->save();
 
         if ($previousStatus !== $derivedStatus) {

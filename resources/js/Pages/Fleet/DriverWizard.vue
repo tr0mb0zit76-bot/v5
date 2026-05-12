@@ -111,7 +111,7 @@
                     <button type="button" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-700" @click="$emit('close')">Закрыть</button>
                     <button
                         type="submit"
-                        class="rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
+                        :class="crmBtnCreate"
                         :disabled="form.processing || !form.carrier_contractor_id || !form.full_name?.trim()"
                     >
                         Сохранить
@@ -187,6 +187,7 @@ import { ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { X } from 'lucide-vue-next';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 const props = defineProps({
     selectedDriver: { type: Object, default: null },

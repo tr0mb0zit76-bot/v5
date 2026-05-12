@@ -65,7 +65,8 @@
                     </button>
                     <button
                         type="button"
-                        class="ml-auto inline-flex items-center rounded-lg bg-zinc-900 px-3 py-1.5 font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        :class="crmBtnCreate"
+                        class="ml-auto py-1.5 text-sm"
                         :disabled="savingPositions"
                         @click="saveOverlayPositions"
                     >
@@ -200,6 +201,7 @@
 import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 import {
     OVERLAY_PREVIEW_SIGNATURE_ANCHOR_LEGACY,
     OVERLAY_PREVIEW_STAMP_ANCHOR_LEGACY,

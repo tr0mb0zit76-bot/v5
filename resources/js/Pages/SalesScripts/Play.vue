@@ -121,7 +121,7 @@
                             <div class="flex flex-wrap items-center gap-3">
                                 <button
                                     type="button"
-                                    class="rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                                    :class="crmBtnCreate"
                                     :disabled="trainerMetaBusy"
                                     @click="saveTrainerAssistantInstructions"
                                 >
@@ -253,7 +253,8 @@
 
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
+                        :class="crmBtnCreate"
+                        class="py-2.5"
                         :disabled="!completeForm.outcome"
                         @click="submitComplete"
                     >
@@ -383,7 +384,8 @@
 
             <button
                 type="button"
-                class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900"
+                :class="crmBtnCreate"
+                class="py-2.5"
                 :disabled="!completeForm.outcome"
                 @click="submitComplete"
             >
@@ -413,6 +415,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>

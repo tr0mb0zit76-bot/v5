@@ -1545,7 +1545,7 @@ function handleMobileNavSelect(key) {
                         </button>
                         <button
                             type="button"
-                            class="inline-flex items-center gap-2 border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            :class="crmBtnCreate"
                             :disabled="form.processing"
                             @click="submit"
                         >

@@ -122,7 +122,8 @@
                     <div class="mt-4 flex flex-wrap gap-2">
                         <button
                             type="button"
-                            class="flex-1 rounded-2xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
+                            :class="crmBtnCreate"
+                            class="flex-1"
                             @click="saveMobileNavDraft"
                         >
                             Сохранить
@@ -434,6 +435,7 @@ import {
 } from 'lucide-vue-next';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 const props = defineProps({
     activeKey: {

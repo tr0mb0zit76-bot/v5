@@ -124,7 +124,7 @@
 
                 <button
                     type="button"
-                    class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    :class="crmBtnCreate"
                     :disabled="thresholdForm.processing"
                     @click="saveThresholdSettings"
                 >
@@ -139,6 +139,7 @@
 import { computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'motivation', activeLeafKey: 'kpi-settings' }, () => page),

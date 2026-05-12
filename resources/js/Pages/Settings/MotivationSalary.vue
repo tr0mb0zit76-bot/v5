@@ -398,7 +398,8 @@
                                 <div class="flex justify-end gap-2">
                                     <button
                                         type="button"
-                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :class="crmBtnCreate"
+                                        class="px-3 py-1.5 text-xs"
                                         @click="saveSalaryCoefficient(coefficient)"
                                     >
                                         Сохранить
@@ -429,6 +430,7 @@
 import { computed, reactive, ref } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => {

@@ -18,7 +18,7 @@
             <div class="flex flex-wrap items-center gap-2">
                 <button type="button" class="secondary-button" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать коммерческое</button>
                 <button type="button" class="primary-button" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
-                <button type="button" class="secondary-button" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
+                <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
         </div>
 
@@ -358,6 +358,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });
 

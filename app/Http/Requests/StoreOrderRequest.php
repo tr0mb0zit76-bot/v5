@@ -5,10 +5,13 @@ namespace App\Http\Requests;
 use App\Models\Contractor;
 use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
+use App\Models\Order;
+use App\Models\User;
 use App\Rules\DocumentWithinPageBudget;
 use App\Services\ContractorCreditService;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
+use App\Support\OrderDisruptionGuard;
 use App\Support\OrderDocumentRegistryTypes;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentScheduleNormalizer;
@@ -80,6 +83,30 @@ class StoreOrderRequest extends FormRequest
     public function after(): array
     {
         return [
+            function (Validator $validator): void {
+                if ($this->input('status') !== 'disruption') {
+                    return;
+                }
+
+                if ($this->routeIs('orders.store')) {
+                    $validator->errors()->add('status', 'Нельзя создать заказ сразу в статусе «Срыв».');
+
+                    return;
+                }
+
+                if (! $this->routeIs('orders.update')) {
+                    return;
+                }
+
+                $order = $this->route('order');
+                $user = $this->user();
+
+                if (! $order instanceof Order || ! $user instanceof User) {
+                    return;
+                }
+
+                OrderDisruptionGuard::validateMarkDisrupted($user, $order, $validator, 'status');
+            },
             function (Validator $validator): void {
                 if (! $this->routeIs('orders.store')) {
                     return;
@@ -343,7 +370,7 @@ class StoreOrderRequest extends FormRequest
     protected function baseRules(): array
     {
         return [
-            'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled'])],
+            'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled', 'disruption'])],
             'own_company_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'own_company_bank_account_id' => ['nullable', 'string', 'max:100'],
             'client_id' => ['required', 'integer', 'exists:contractors,id'],
@@ -351,6 +378,7 @@ class StoreOrderRequest extends FormRequest
             'order_number' => ['nullable', 'string', 'max:255'],
             'special_notes' => ['nullable', 'string'],
             'svh_name' => ['nullable', 'string', 'max:500'],
+            'is_international_transport' => ['sometimes', 'boolean'],
             'loading_types' => ['nullable', 'array'],
             'loading_types.*' => ['nullable', Rule::in(['top', 'side', 'rear', 'full', 'tail_lift', 'crane'])],
 
