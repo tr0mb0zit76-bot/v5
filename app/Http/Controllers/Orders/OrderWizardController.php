@@ -578,6 +578,9 @@ class OrderWizardController extends Controller
                 ]
                 : null,
             'own_company_id' => $order->own_company_id,
+            'own_company_bank_account_id' => Schema::hasColumn('orders', 'own_company_bank_account_id')
+                ? $order->own_company_bank_account_id
+                : null,
             'responsible_id' => $order->manager_id,
             'responsible_name' => $order->relationLoaded('manager') ? $order->manager?->name : null,
             'payment_terms' => $order->payment_terms,
@@ -1205,6 +1208,7 @@ class OrderWizardController extends Controller
             'bik',
             'account_number',
             'correspondent_account',
+            'bank_accounts',
             'signer_name_nominative',
             'signer_name_prepositional',
             'signer_authority_basis',

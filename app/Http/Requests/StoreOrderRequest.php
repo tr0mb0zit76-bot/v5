@@ -280,6 +280,60 @@ class StoreOrderRequest extends FormRequest
                     }
                 }
             },
+            function (Validator $validator): void {
+                $rawId = $this->input('own_company_bank_account_id');
+                if ($rawId === null || $rawId === '') {
+                    return;
+                }
+
+                if (! is_string($rawId)) {
+                    $validator->errors()->add('own_company_bank_account_id', 'Некорректный идентификатор счёта.');
+
+                    return;
+                }
+
+                $accountId = trim($rawId);
+                if ($accountId === '') {
+                    return;
+                }
+
+                $ownCompanyId = (int) $this->input('own_company_id', 0);
+                if ($ownCompanyId <= 0) {
+                    $validator->errors()->add('own_company_bank_account_id', 'Сначала выберите свою компанию, чтобы указать расчётный счёт.');
+
+                    return;
+                }
+
+                $contractor = Contractor::query()->find($ownCompanyId);
+                if ($contractor === null) {
+                    return;
+                }
+
+                if (Schema::hasColumn('contractors', 'is_own_company') && ! (bool) $contractor->is_own_company) {
+                    $validator->errors()->add('own_company_bank_account_id', 'Счёт можно выбрать только для своей компании.');
+
+                    return;
+                }
+
+                $accounts = $contractor->bank_accounts;
+                if (! is_array($accounts)) {
+                    $validator->errors()->add('own_company_bank_account_id', 'У выбранной компании нет списка счетов.');
+
+                    return;
+                }
+
+                foreach ($accounts as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+                    $rowId = $row['id'] ?? null;
+                    if ($rowId !== null && (string) $rowId === $accountId) {
+                        return;
+                    }
+                }
+
+                $validator->errors()->add('own_company_bank_account_id', 'Указанный счёт не найден у выбранной своей компании.');
+            },
         ];
     }
 
@@ -291,6 +345,7 @@ class StoreOrderRequest extends FormRequest
         return [
             'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled'])],
             'own_company_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'own_company_bank_account_id' => ['nullable', 'string', 'max:100'],
             'client_id' => ['required', 'integer', 'exists:contractors,id'],
             'order_date' => ['required', 'date'],
             'order_number' => ['nullable', 'string', 'max:255'],

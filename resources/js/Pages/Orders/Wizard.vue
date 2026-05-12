@@ -160,6 +160,24 @@
                         <p v-if="form.errors.own_company_id" class="text-xs text-rose-500">{{ form.errors.own_company_id }}</p>
                     </div>
 
+                    <div v-if="showOwnCompanyBankAccountPicker" class="space-y-2">
+                        <label class="text-sm font-medium">Расчётный счёт своей компании</label>
+                        <select
+                            v-model="form.own_company_bank_account_id"
+                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                        >
+                            <option :value="null">Основной (по умолчанию)</option>
+                            <option
+                                v-for="acc in selectableOwnCompanyBankAccounts"
+                                :key="String(acc.id)"
+                                :value="acc.id"
+                            >
+                                {{ ownCompanyBankAccountLabel(acc) }}
+                            </option>
+                        </select>
+                        <p v-if="form.errors.own_company_bank_account_id" class="text-xs text-rose-500">{{ form.errors.own_company_bank_account_id }}</p>
+                    </div>
+
                     <div class="space-y-2">
                         <div class="flex items-center justify-between gap-3">
                             <label class="text-sm font-medium">Контрагент</label>
@@ -1798,6 +1816,7 @@ function blankOrder() {
     return {
         status: 'new',
         own_company_id: null,
+        own_company_bank_account_id: null,
         client_id: null,
         order_date: new Date().toISOString().slice(0, 10),
         order_number: '',
@@ -2182,6 +2201,9 @@ const form = useForm({
     ...blankOrder(),
     ...(props.order ?? {}),
     own_company_id: normalizeNullableNumber(props.order?.own_company_id),
+    own_company_bank_account_id: props.order?.own_company_bank_account_id
+        ? String(props.order.own_company_bank_account_id)
+        : null,
     client_id: normalizeNullableNumber(props.order?.client_id),
     additional_expenses: props.order?.additional_expenses ?? null,
     insurance: props.order?.insurance ?? null,
@@ -2230,6 +2252,44 @@ const form = useForm({
         ? props.order.documents.map((document) => normalizeDocument(document))
         : [],
 });
+
+watch(() => form.own_company_id, () => {
+    form.own_company_bank_account_id = null;
+});
+
+function resolveOwnCompanyRecord(companyId) {
+    if (companyId == null || companyId === '') {
+        return null;
+    }
+    const fromOwn = ownCompanyOptions.value.find((c) => Number(c.id) === Number(companyId));
+    if (fromOwn) {
+        return fromOwn;
+    }
+    return contractors.value.find((c) => Boolean(c.is_own_company) && Number(c.id) === Number(companyId)) ?? null;
+}
+
+function ownCompanyBankAccountLabel(row) {
+    const label = String(row?.label ?? '').trim();
+    if (label) {
+        return label;
+    }
+    const digits = String(row?.account_number ?? '').replace(/\D/g, '');
+    if (digits.length >= 4) {
+        return `Р/с …${digits.slice(-4)}`;
+    }
+    return 'Расчётный счёт';
+}
+
+const selectableOwnCompanyBankAccounts = computed(() => {
+    const company = resolveOwnCompanyRecord(form.own_company_id);
+    const raw = company?.bank_accounts;
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    return raw.filter((row) => row && row.id != null && String(row.id).trim() !== '');
+});
+
+const showOwnCompanyBankAccountPicker = computed(() => selectableOwnCompanyBankAccounts.value.length > 1);
 
 const calculatedCompensation = ref({
     kpi_percent: 0,
@@ -3852,6 +3912,9 @@ function buildSubmitPayload() {
         // Basic order fields
         status: form.status,
         own_company_id: form.own_company_id,
+        own_company_bank_account_id: form.own_company_bank_account_id && String(form.own_company_bank_account_id).trim() !== ''
+            ? String(form.own_company_bank_account_id).trim()
+            : null,
         client_id: form.client_id,
         order_date: form.order_date,
         order_number: form.order_number,

@@ -169,6 +169,7 @@ class OrderWizardService
             'unloading_date' => $lastUnloadingDate,
             'customer_id' => $validated['client_id'],
             'own_company_id' => $validated['own_company_id'] ?? null,
+            'own_company_bank_account_id' => $this->nullIfTrimmedEmpty($validated['own_company_bank_account_id'] ?? null),
             'carrier_id' => $carrierId,
             'customer_rate' => $clientPrice ?: null,
             'customer_payment_form' => Arr::get($financialTerm, 'client_payment_form'),

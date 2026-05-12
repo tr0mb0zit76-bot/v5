@@ -48,6 +48,7 @@ class Order extends Model
         'lead_id',
         'customer_id',
         'own_company_id',
+        'own_company_bank_account_id',
         'carrier_id',
         'driver_id',
         'ai_draft_id',

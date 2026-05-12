@@ -286,7 +286,7 @@ class OrderPrintFormDraftService
             ],
             'customer' => $this->contractorPayload($order->client),
             'carrier' => $this->contractorPayload($this->resolveCarrierContractorForPrint($order)),
-            'own_company' => $this->contractorPayload($order->ownCompany),
+            'own_company' => $this->contractorPayload($order->ownCompany, $order->own_company_bank_account_id),
             'manager' => [
                 'name' => $order->manager?->name,
                 'email' => $order->manager?->email,
@@ -682,14 +682,16 @@ class OrderPrintFormDraftService
     /**
      * @return array<string, mixed>
      */
-    private function contractorPayload(mixed $contractor): array
+    private function contractorPayload(mixed $contractor, ?string $preferredOwnCompanyBankAccountId = null): array
     {
-        $acct = $contractor instanceof Contractor ? $contractor->bankDetailsFromAccountsFallback() : [
-            'bank_name' => null,
-            'bik' => null,
-            'account_number' => null,
-            'correspondent_account' => null,
-        ];
+        $acct = $contractor instanceof Contractor
+            ? $contractor->bankDetailsForAccountId($preferredOwnCompanyBankAccountId)
+            : [
+                'bank_name' => null,
+                'bik' => null,
+                'account_number' => null,
+                'correspondent_account' => null,
+            ];
 
         $nonResident = $contractor instanceof Contractor ? $contractor->nonResidentPrintPayload() : [
             'is_non_resident' => 'Нет',

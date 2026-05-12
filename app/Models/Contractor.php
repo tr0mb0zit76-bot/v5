@@ -237,6 +237,47 @@ class Contractor extends Model
      */
     public function bankDetailsFromAccountsFallback(): array
     {
+        return $this->extractBankRowDetails($this->resolvePrimaryBankAccountRow());
+    }
+
+    /**
+     * Реквизиты счёта из bank_accounts по id строки (как в карточке контрагента).
+     * Если id не найден — то же поведение, что и {@see bankDetailsFromAccountsFallback()}.
+     *
+     * @return array{bank_name: ?string, bik: ?string, account_number: ?string, correspondent_account: ?string}
+     */
+    public function bankDetailsForAccountId(?string $accountId): array
+    {
+        if ($accountId === null || $accountId === '') {
+            return $this->bankDetailsFromAccountsFallback();
+        }
+
+        $accounts = $this->bank_accounts;
+        if (! is_array($accounts) || $accounts === []) {
+            return $this->bankDetailsFromAccountsFallback();
+        }
+
+        foreach ($accounts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $rowId = $row['id'] ?? null;
+            if ($rowId === null || $rowId === '') {
+                continue;
+            }
+            if ((string) $rowId === (string) $accountId) {
+                return $this->extractBankRowDetails($row);
+            }
+        }
+
+        return $this->bankDetailsFromAccountsFallback();
+    }
+
+    /**
+     * @return array{bank_name: ?string, bik: ?string, account_number: ?string, correspondent_account: ?string}
+     */
+    private function extractBankRowDetails(?array $row): array
+    {
         $empty = [
             'bank_name' => null,
             'bik' => null,
@@ -244,21 +285,7 @@ class Contractor extends Model
             'correspondent_account' => null,
         ];
 
-        $accounts = $this->bank_accounts;
-        if (! is_array($accounts) || $accounts === []) {
-            return $empty;
-        }
-
-        $primary = collect($accounts)->first(
-            fn (mixed $row): bool => is_array($row) && filter_var($row['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN)
-        );
-
-        if (! is_array($primary)) {
-            $first = $accounts[0] ?? null;
-            $primary = is_array($first) ? $first : null;
-        }
-
-        if (! is_array($primary)) {
+        if (! is_array($row)) {
             return $empty;
         }
 
@@ -272,11 +299,34 @@ class Contractor extends Model
         };
 
         return [
-            'bank_name' => $pick($primary['bank_name'] ?? null),
-            'bik' => $pick($primary['bik'] ?? null),
-            'account_number' => $pick($primary['account_number'] ?? null),
-            'correspondent_account' => $pick($primary['correspondent_account'] ?? null),
+            'bank_name' => $pick($row['bank_name'] ?? null),
+            'bik' => $pick($row['bik'] ?? null),
+            'account_number' => $pick($row['account_number'] ?? null),
+            'correspondent_account' => $pick($row['correspondent_account'] ?? null),
         ];
+    }
+
+    /**
+     * Строка основного (или первого) счёта в bank_accounts.
+     */
+    private function resolvePrimaryBankAccountRow(): ?array
+    {
+        $accounts = $this->bank_accounts;
+        if (! is_array($accounts) || $accounts === []) {
+            return null;
+        }
+
+        $primary = collect($accounts)->first(
+            fn (mixed $row): bool => is_array($row) && filter_var($row['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN)
+        );
+
+        if (! is_array($primary)) {
+            $first = $accounts[0] ?? null;
+
+            return is_array($first) ? $first : null;
+        }
+
+        return $primary;
     }
 
     /**

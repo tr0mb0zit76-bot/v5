@@ -1184,6 +1184,7 @@ CREATE TABLE `orders` (
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `customer_id` bigint unsigned DEFAULT NULL,
   `own_company_id` bigint unsigned DEFAULT NULL,
+  `own_company_bank_account_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `carrier_id` bigint unsigned DEFAULT NULL,
   `lead_id` bigint unsigned DEFAULT NULL,
   `driver_id` bigint unsigned DEFAULT NULL,
