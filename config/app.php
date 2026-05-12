@@ -82,6 +82,19 @@ return [
     'showcase_domain' => $showcaseHosts[0],
 
     /*
+    | Витрина и CRM на одном хосте (локальная отладка без split-domain).
+    */
+    'same_showcase_and_crm_host' => $crmDomain !== ''
+        && count($showcaseHosts) === 1
+        && strcasecmp($crmDomain, $showcaseHosts[0] ?? '') === 0,
+
+    /*
+    | Суффикс заголовка вкладки (после названия страницы через « - ») для Inertia.
+    */
+    'showcase_browser_title' => env('SHOWCASE_BROWSER_TITLE', 'Логистические решения'),
+    'crm_browser_title' => env('CRM_BROWSER_TITLE', 'CRM Логистические решения'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------

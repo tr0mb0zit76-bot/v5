@@ -6,12 +6,15 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\PaymentInstallmentPlanner;
+use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSummaryFormatter;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class OrderCompensationService
 {
@@ -276,9 +279,19 @@ class OrderCompensationService
         $financialTerm->margin = $order->delta;
 
         if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
-            $financialTerm->client_payment_terms = PaymentScheduleSummaryFormatter::format(
-                (array) data_get($paymentTerms, 'client.payment_schedule', [])
-            );
+            $override = trim((string) data_get($paymentTerms, 'client.payment_terms_text', ''));
+            if ($override !== '') {
+                $financialTerm->client_payment_terms = Str::limit($override, 255, '');
+            } else {
+                $order->loadMissing(['legs.routePoints']);
+                $financialTerm->client_payment_terms = PaymentScheduleSummaryFormatter::format(
+                    (array) data_get($paymentTerms, 'client.payment_schedule', []),
+                    (float) ($order->customer_rate ?? 0),
+                    (string) ($financialTerm->client_currency ?: 'RUB'),
+                    $order,
+                    [],
+                );
+            }
         }
 
         if (! $financialTerm->exists) {
@@ -385,6 +398,19 @@ class OrderCompensationService
             return [];
         }
 
+        if (PaymentInstallmentScheduleNormalizer::isInstallmentModel($schedule)) {
+            $schedule = PaymentInstallmentScheduleNormalizer::normalize($schedule, $amount);
+
+            return $this->buildInstallmentPaymentScheduleRows(
+                $order,
+                $party,
+                $amount,
+                $schedule,
+                $carrierContractorId,
+                $invoiceByKey,
+            );
+        }
+
         $rows = [];
         $hasPrepayment = (bool) ($schedule['has_prepayment'] ?? false);
         $prepaymentRatio = max(0, min(100, (float) ($schedule['prepayment_ratio'] ?? 0)));
@@ -422,6 +448,48 @@ class OrderCompensationService
                     (int) ($schedule['postpayment_days'] ?? 0),
                     false,
                 ),
+                $carrierContractorId,
+                $invoiceByKey,
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $schedule
+     * @param  array<string, string>  $invoiceByKey
+     * @return list<array<string, mixed>>
+     */
+    private function buildInstallmentPaymentScheduleRows(
+        Order $order,
+        string $party,
+        float $amount,
+        array $schedule,
+        ?int $carrierContractorId,
+        array $invoiceByKey = [],
+    ): array {
+        $order->loadMissing(['legs.routePoints']);
+        $ctx = PaymentInstallmentPlanner::dateContextFromOrder($order);
+
+        /** @var list<array<string, mixed>> $installments */
+        $installments = array_values(array_filter($schedule['installments'] ?? [], static fn ($r): bool => is_array($r)));
+        $rows = [];
+
+        foreach ($installments as $index => $row) {
+            $slot = $index + 1;
+            $planned = PaymentInstallmentPlanner::plannedDateForInstallment($row, $order, $ctx);
+            $partAmount = round((float) ($row['amount'] ?? 0), 2);
+            if ($partAmount <= 0) {
+                continue;
+            }
+
+            $rows[] = $this->paymentScheduleRowAttributes(
+                $order,
+                $party,
+                'installment_'.$slot,
+                $partAmount,
+                $planned,
                 $carrierContractorId,
                 $invoiceByKey,
             );

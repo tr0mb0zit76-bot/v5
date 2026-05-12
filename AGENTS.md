@@ -56,6 +56,39 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Stick to existing directory structure; don't create new base folders without approval.
 - Do not change the application's dependencies without approval.
 
+## Домен приложения (актуальная карта кода)
+
+Кратко, что важно знать при правках (Laravel + Inertia Vue 3 + Tailwind).
+
+### Роли и видимость модулей
+
+- Правила областей: `app/Support/RoleAccess.php` (`effectiveVisibilityAreasFromRolePayload`, `hasVisibilityArea`, легаси `scripts` / подмодули помощника продавца).
+- Страница ролей: `resources/js/Pages/Roles/Index.vue` — колонки в `roleColumns`, сохранение через `router.patch`, после успеха `replaceRoleColumnsFromInertiaPage(page)`; `visibility_areas` перед отправкой фильтруются по актуальному списку из `visibilityAreaOptions` (`sanitizeVisibilityAreas`), чтобы не ломать валидацию легаси-ключами.
+- Общие данные авторизации: `app/Http/Middleware/HandleInertiaRequests.php` — `auth` и часть связанных пропсов обёрнуты в `Inertia::always(...)`, чтобы при частичных reload (`only`) не залипали старые `visibility_areas`.
+- Меню CRM: `resources/js/Layouts/CrmLayout.vue` — `visibleAreas` из `auth.user.role.visibility_areas`; у пунктов с проверкой должно быть поле `visibilityArea` (в т.ч. дашборд).
+- Middleware маршрутов: `EnsureVisibilityAreaAccess`, `EnsureVisibilityAnyAreaAccess` — чтение роли через `Role::query()->find($user->role_id)`, без зависимости от частично загруженного relation на `User`.
+- CRUD ролей: `app/Http/Controllers/RoleManagementController.php` — в БД уходит явный набор полей (не «сырой» spread всего `validated()` для критичных атрибутов); колонка `default_mobile_nav_keys` на `roles` (если есть в схеме) — дефолт нижней панели для пользователей роли.
+- Валидация: `app/Http/Requests/StoreRoleRequest.php`, `UpdateRoleRequest.php` — у `visibility_areas` минимум одна область; сообщения на русском.
+
+### Печатные формы (DOCX)
+
+- Заказ: `app/Services/OrderPrintFormDraftService.php` — снимок данных, `TemplateProcessor`, подстановка плейсхолдеров `${…}` и `{{…}}`.
+- Лид: `app/Services/LeadPrintFormDraftService.php` — аналогично.
+- Карта плейсхолдеров → путь в снимке: `app/Support/PrintFormPlaceholderPathResolver.php` (legacy-имена вроде `stoimost`, `dolzhn_podpisant_rod`).
+- Варианты имён макросов для `setValue`: `app/Support/PrintFormPlaceholderMacroVariants.php` — **только точное имя**, без вариантов с пробелами (чтобы не портить вёрстку вокруг плейсхолдера).
+- Каталог переменных для UI шаблонов: `app/Services/PrintFormVariableCatalog.php`.
+- Суммы с валютой в одном поле: `order.customer_rate_with_currency`, `order.carrier_rate_with_currency` (легаси `stoimost*` мапятся на них).
+
+### Склонение должности (родительный падеж, без второго поля ввода)
+
+- `app/Support/RussianPositionInflector.php` — эвристики + fallback на исходную строку.
+- В снимок контрагента добавлено `*.signer_position_genitive_auto` в сервисах печати заказа/лида; в legacy добавлены алиасы `dolzhn_podpisant_rod`, `podpisant_perevoz_rod`.
+
+### Прочее
+
+- Мобильная нижняя панель: `app/Support/MobileNavCatalog.php` — кандидаты кнопок с учётом `visibility_areas` (дашборд не навязывается, если области нет); итоговый проп для фронта собирает `app/Support/MobileNavResolver.php` (`HandleInertiaRequests` → `auth.user.mobile_nav`). Сохранение выбора пользователя: `ProfileController::updateMobileBottomNav`, маршрут `profile.mobile-bottom-nav` (`routes/web.php`).
+- PWA: `public/sw.js` — кэш shell для `/`, навигации на другие пути идут через сеть.
+
 
 ## Frontend Bundling
 

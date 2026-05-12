@@ -2,11 +2,18 @@ import './bootstrap';
 import '../css/app.css';
 
 import { createApp, h } from 'vue';
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
-const appName = import.meta.env.VITE_APP_NAME || 'LR';
+function documentTitleSuffixFromPage() {
+    const suffix = router.page?.props?.document_title_suffix;
+    if (typeof suffix === 'string' && suffix.trim() !== '') {
+        return suffix.trim();
+    }
+
+    return 'CRM Логистические решения';
+}
 
 const savedTheme = localStorage.getItem('theme');
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -59,7 +66,12 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 }
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => {
+        const suffix = documentTitleSuffixFromPage();
+        const t = typeof title === 'string' ? title.trim() : '';
+
+        return t !== '' ? `${t} - ${suffix}` : suffix;
+    },
     resolve: (name) =>
         resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')),
     setup({ el, App, props, plugin }) {

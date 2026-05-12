@@ -1,0 +1,117 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Support;
+
+use App\Models\Order;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
+
+/**
+ * Даты-якоря для траншей: первая погрузка / последняя выгрузка / дата заказа и т.д.
+ *
+ * @phpstan-type DateContext array{
+ *     first_loading?: ?string,
+ *     last_unloading?: ?string,
+ *     order_date?: ?string,
+ *     loading_date?: ?string,
+ *     unloading_date?: ?string,
+ * }
+ */
+final class PaymentInstallmentAnchorDateResolver
+{
+    /**
+     * @param  DateContext  $contextDates
+     */
+    public static function resolve(?Order $order, string $anchor, array $contextDates = []): ?Carbon
+    {
+        $anchorNorm = strtolower(trim($anchor));
+
+        $fromContext = match ($anchorNorm) {
+            'first_loading' => self::parseDateString($contextDates['first_loading'] ?? null),
+            'last_unloading' => self::parseDateString($contextDates['last_unloading'] ?? null),
+            'order_date' => self::parseDateString($contextDates['order_date'] ?? null),
+            'loading_date' => self::parseDateString($contextDates['loading_date'] ?? null),
+            'unloading_date' => self::parseDateString($contextDates['unloading_date'] ?? null),
+            default => null,
+        };
+
+        if ($fromContext !== null) {
+            return $fromContext;
+        }
+
+        if ($order === null) {
+            return null;
+        }
+
+        return match ($anchorNorm) {
+            'order_date' => self::parseDateString(optional($order->order_date)?->toDateString()),
+            'loading_date' => self::parseDateString(optional($order->loading_date)?->toDateString()),
+            'unloading_date' => self::parseDateString(optional($order->unloading_date)?->toDateString()),
+            'first_loading' => self::firstRoutePointDate($order, 'loading'),
+            'last_unloading' => self::lastRoutePointDate($order, 'unloading'),
+            default => self::parseDateString(optional($order->loading_date)?->toDateString()),
+        };
+    }
+
+    private static function parseDateString(?string $value): ?Carbon
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private static function firstRoutePointDate(Order $order, string $type): ?Carbon
+    {
+        $order->loadMissing(['legs.routePoints']);
+
+        /** @var Collection<int, mixed> $points */
+        $points = $order->legs->sortBy('sequence')->flatMap(fn ($leg) => $leg->routePoints->sortBy('sequence'));
+
+        foreach ($points as $point) {
+            if (($point->type ?? null) !== $type) {
+                continue;
+            }
+
+            $d = $point->planned_date ?? null;
+            if ($d !== null) {
+                return Carbon::parse($d)->startOfDay();
+            }
+        }
+
+        return self::parseDateString(optional($order->loading_date)?->toDateString());
+    }
+
+    private static function lastRoutePointDate(Order $order, string $type): ?Carbon
+    {
+        $order->loadMissing(['legs.routePoints']);
+
+        $last = null;
+
+        foreach ($order->legs->sortBy('sequence') as $leg) {
+            foreach ($leg->routePoints->sortBy('sequence') as $point) {
+                if (($point->type ?? null) !== $type) {
+                    continue;
+                }
+
+                $d = $point->planned_date ?? null;
+                if ($d !== null) {
+                    $last = Carbon::parse($d)->startOfDay();
+                }
+            }
+        }
+
+        if ($last !== null) {
+            return $last;
+        }
+
+        return self::parseDateString(optional($order->unloading_date)?->toDateString());
+    }
+}

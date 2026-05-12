@@ -643,6 +643,9 @@ class OrderWizardController extends Controller
                 ),
                 'client_request_mode' => data_get($paymentTermsConfig, 'client.request_mode', 'single_request'),
                 'client_payment_schedule' => $paymentTermsConfig['client']['payment_schedule'] ?? [],
+                'client_payment_terms' => $useWizardState
+                    ? (string) ($wizardFt['client_payment_terms'] ?? $financialTerm?->client_payment_terms ?? $order->customer_payment_term ?? '')
+                    : (string) ($financialTerm?->client_payment_terms ?? $order->customer_payment_term ?? ''),
                 'contractors_costs' => $contractorsCosts,
                 'additional_costs' => $useWizardState
                     ? ($wizardFt['additional_costs'] ?? $financialTerm?->additional_costs ?? [])

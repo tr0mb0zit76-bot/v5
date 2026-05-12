@@ -556,7 +556,13 @@ class OrderPrintFormDraftService
     {
         $schedule = data_get($paymentTermsPayload, 'client.payment_schedule');
         if (is_array($schedule) && $schedule !== []) {
-            return PaymentScheduleSummaryFormatter::format($schedule);
+            return PaymentScheduleSummaryFormatter::format(
+                $schedule,
+                (float) ($order->customer_rate ?? 0),
+                'RUB',
+                $order,
+                [],
+            );
         }
 
         return PaymentScheduleSummaryFormatter::humanizeStoredSummary($order->customer_payment_term);

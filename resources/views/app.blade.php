@@ -8,9 +8,9 @@
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="Logist CRM">
+        <meta name="apple-mobile-web-app-title" content="{{ $documentTitleDefault ?? config('app.crm_browser_title') }}">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ $documentTitleDefault ?? config('app.crm_browser_title') }}</title>
         <link rel="icon" type="image/png" href="/assets/favicon/favicon-96x96.png" sizes="96x96">
         <link rel="icon" type="image/svg+xml" href="/assets/favicon/favicon.svg">
         <link rel="shortcut icon" href="/assets/favicon/favicon.ico">

@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Role;
 use App\Support\CabinetNotificationBadges;
 use App\Support\DocumentUploadLimits;
+use App\Support\InertiaAppSurface;
 use App\Support\MobileNavResolver;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'document_title_suffix' => Inertia::always(fn () => InertiaAppSurface::fromRequest($request)->documentTitleSuffix()),
             'can_manage_sales_scripts' => Inertia::always(fn () => $request->user() !== null && RoleAccess::canManageSalesScripts($request->user())),
             'flash' => fn () => $request->session()->get('flash'),
             'cabinet_notification_badges' => Inertia::always(fn () => $request->user() === null

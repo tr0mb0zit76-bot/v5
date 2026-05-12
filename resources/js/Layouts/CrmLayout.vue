@@ -210,7 +210,9 @@
                     <ThemeToggle v-if="!collapsed" />
 
                     <button
+                        type="button"
                         class="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        :title="collapsed ? 'Развернуть меню' : 'Свернуть меню'"
                         @click="collapsed = !collapsed"
                     >
                         <PanelLeftClose v-if="!collapsed" class="h-4 w-4" />
@@ -223,11 +225,13 @@
                 <div v-for="item in menuItems" :key="item.key" class="space-y-1">
                     <div class="flex items-center gap-1">
                         <button
+                            type="button"
                             class="relative flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 transition-colors"
                             :class="activeKey === item.key
                                 ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                                 : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
-                            @click="handleMenuSelect(item.key)"
+                            :title="collapsed ? item.label : false"
+                            @click="handleMenuSelect(item.key, $event)"
                         >
                             <span class="relative inline-flex shrink-0">
                                 <component :is="item.icon" class="h-5 w-5" />
@@ -299,7 +303,11 @@
             </nav>
 
             <div class="border-t border-zinc-200 p-4 dark:border-zinc-800">
-                <div v-if="collapsed" class="mb-3 flex justify-center">
+                <div
+                    v-if="collapsed"
+                    class="mb-3 flex justify-center"
+                    title="Тема оформления"
+                >
                     <ThemeToggle />
                 </div>
                 <div v-if="!collapsed" class="flex items-center gap-3">
@@ -324,6 +332,7 @@
                         as="button"
                         class="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                         :class="collapsed ? 'px-2' : ''"
+                        :title="collapsed ? 'Выйти' : false"
                     >
                         <LogOut class="h-4 w-4 shrink-0" />
                         <span v-if="!collapsed">Выйти</span>
@@ -331,6 +340,35 @@
                 </div>
             </div>
         </aside>
+
+        <Teleport to="body">
+            <div
+                v-if="collapsedFlyout"
+                class="fixed inset-0 z-[80]"
+                aria-hidden="true"
+                @click="closeCollapsedFlyout"
+            />
+            <div
+                v-if="collapsedFlyout"
+                class="fixed z-[81] min-w-[13rem] max-w-[min(100vw-1rem,20rem)] rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                :style="{ top: `${collapsedFlyout.top}px`, left: `${collapsedFlyout.left}px` }"
+                role="menu"
+            >
+                <button
+                    v-for="row in collapsedFlyout.items"
+                    :key="row.key"
+                    type="button"
+                    role="menuitem"
+                    class="flex w-full px-3 py-2 text-left text-sm transition-colors"
+                    :class="isFlyoutNavKeyActive(row.key)
+                        ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+                        : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800/80'"
+                    @click="selectFlyoutNav(row.key)"
+                >
+                    {{ row.label }}
+                </button>
+            </div>
+        </Teleport>
 
         <div v-if="!showMobileAppShell" :class="[collapsed ? 'lg:pl-20' : 'lg:pl-64', 'flex min-h-0 min-w-0 flex-1 flex-col']">
             <header class="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 lg:hidden">
@@ -366,7 +404,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
@@ -488,6 +526,7 @@ function applyRouteToExpandedGroups() {
 const collapsed = ref(readSidebarCollapsedFromStorage());
 const expandedGroups = ref(readExpandedGroupsFromStorage());
 const mobileMenuOpen = ref(false);
+const collapsedFlyout = ref(null);
 const deferredInstallPrompt = ref(null);
 const isStandaloneApp = ref(false);
 const isMobileViewport = ref(false);
@@ -522,6 +561,38 @@ const hasSettingsMotivationAccess = computed(() => {
     return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
 });
 const hasFinanceSalaryAccess = computed(() => authUser.value?.role?.name === 'admin' || visibleAreas.value.includes('finance_salary'));
+
+const MENU_ROUTES = {
+    dashboard: '/dashboard',
+    leads: '/leads',
+    orders: '/orders',
+    tasks: '/tasks',
+    kanban: '/kanban',
+    'orders-create': '/orders/create',
+    contractors: '/contractors',
+    'fleet-vehicles': '/fleet/vehicles',
+    'fleet-containers': '/fleet/containers',
+    'fleet-drivers': '/drivers',
+    documents: '/documents',
+    finance: '/finance',
+    'finance-cashflow': '/finance?section=cashflow',
+    'finance-salary': '/finance/salary',
+    reports: '/reports',
+    modules: '/modules',
+    'sales-assistant-scripts': '/scripts',
+    'sales-assistant-book': '/sales-assistant/book',
+    'sales-assistant-trainer': '/sales-assistant/trainer',
+    'sales-assistant-trainer-analytics': '/sales-assistant/trainer/analytics',
+    settings: '/settings',
+    users: '/settings/users',
+    roles: '/settings/roles',
+    'table-presets': '/settings/tables',
+    dictionaries: '/settings/dictionaries',
+    templates: '/settings/templates',
+    motivation: '/settings/motivation',
+    'kpi-settings': '/settings/motivation/kpi',
+    'salary-settings': '/settings/motivation/salary',
+};
 
 const MOBILE_BROWSER_BYPASS = 'crm_mobile_browser_cabinet_v1';
 
@@ -820,11 +891,27 @@ watch(
 );
 
 watch(collapsed, (value) => {
+    if (!value) {
+        closeCollapsedFlyout();
+    }
     try {
         localStorage.setItem(sidebarCollapsedStorageKey, value ? '1' : '0');
     } catch {
         /* ignore */
     }
+});
+
+watchEffect((onCleanup) => {
+    if (!collapsedFlyout.value) {
+        return;
+    }
+    function onKeydown(e) {
+        if (e.key === 'Escape') {
+            closeCollapsedFlyout();
+        }
+    }
+    window.addEventListener('keydown', onKeydown);
+    onCleanup(() => window.removeEventListener('keydown', onKeydown));
 });
 
 watch(
@@ -907,46 +994,73 @@ function isSettingsChildActive(child) {
     return child.children?.some((grandChild) => grandChild.key === props.activeSubKey || grandChild.key === props.activeLeafKey) ?? false;
 }
 
-function handleMenuSelect(key) {
-    const routes = {
-        dashboard: '/dashboard',
-        leads: '/leads',
-        orders: '/orders',
-        tasks: '/tasks',
-        kanban: '/kanban',
-        'orders-create': '/orders/create',
-        contractors: '/contractors',
-        'fleet-vehicles': '/fleet/vehicles',
-        'fleet-containers': '/fleet/containers',
-        'fleet-drivers': '/drivers',
-        documents: '/documents',
-        finance: '/finance',
-        'finance-cashflow': '/finance?section=cashflow',
-        'finance-salary': '/finance/salary',
-        reports: '/reports',
-        modules: '/modules',
-        'sales-assistant-scripts': '/scripts',
-        'sales-assistant-book': '/sales-assistant/book',
-        'sales-assistant-trainer': '/sales-assistant/trainer',
-        'sales-assistant-trainer-analytics': '/sales-assistant/trainer/analytics',
-        settings: '/settings',
-        users: '/settings/users',
-        roles: '/settings/roles',
-        'table-presets': '/settings/tables',
-        dictionaries: '/settings/dictionaries',
-        templates: '/settings/templates',
-        motivation: '/settings/motivation',
-        'kpi-settings': '/settings/motivation/kpi',
-        'salary-settings': '/settings/motivation/salary',
+function closeCollapsedFlyout() {
+    collapsedFlyout.value = null;
+}
+
+function collectMenuLeaves(menuItem, prefix = '') {
+    const out = [];
+    for (const n of menuItem.children || []) {
+        if (n.children?.length) {
+            const nextPrefix = prefix ? `${prefix}${n.label} — ` : `${n.label} — `;
+            out.push(...collectMenuLeaves(n, nextPrefix));
+        } else if (MENU_ROUTES[n.key]) {
+            out.push({ key: n.key, label: prefix + n.label });
+        }
+    }
+    return out;
+}
+
+function openCollapsedFlyout(item, event) {
+    const el = event?.currentTarget;
+    if (!(el instanceof HTMLElement)) {
+        return;
+    }
+    const items = collectMenuLeaves(item, '');
+    if (items.length === 0) {
+        return;
+    }
+    const rect = el.getBoundingClientRect();
+    const panelWidth = 220;
+    const left = Math.min(rect.right + 8, window.innerWidth - panelWidth);
+    collapsedFlyout.value = {
+        parentKey: item.key,
+        top: rect.top,
+        left: Math.max(8, left),
+        items,
     };
+}
+
+function isFlyoutNavKeyActive(key) {
+    return key === props.activeSubKey || key === props.activeLeafKey || key === props.activeKey;
+}
+
+function selectFlyoutNav(key) {
+    closeCollapsedFlyout();
+    handleMenuSelect(key);
+}
+
+function handleMenuSelect(key, event) {
+    const topItem = menuItems.value.find((i) => i.key === key);
+
+    if (collapsed.value && topItem?.children?.length) {
+        if (collapsedFlyout.value?.parentKey === key) {
+            closeCollapsedFlyout();
+        } else {
+            openCollapsedFlyout(topItem, event);
+        }
+        return;
+    }
+
+    closeCollapsedFlyout();
 
     if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning'].includes(key)) {
         toggleMenuGroup(key);
     }
 
-    if (routes[key]) {
+    if (MENU_ROUTES[key]) {
         mobileMenuOpen.value = false;
-        router.visit(routes[key]);
+        router.visit(MENU_ROUTES[key]);
     }
 }
 

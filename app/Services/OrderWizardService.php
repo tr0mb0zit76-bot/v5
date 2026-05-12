@@ -16,12 +16,15 @@ use App\Models\User;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\PaymentFormDictionary;
+use App\Support\PaymentInstallmentPlanner;
+use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleSummaryFormatter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use JsonException;
 
 class OrderWizardService
@@ -124,7 +127,18 @@ class OrderWizardService
         $performerTotal = collect($contractorCosts)->sum(fn (array $performer): float => (float) ($performer['amount'] ?? 0));
         $clientPrice = (float) Arr::get($financialTerm, 'client_price', 0);
         $clientPaymentSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
-        $clientPaymentSummary = $this->formatPaymentScheduleSummary($clientPaymentSchedule);
+        $dateContext = PaymentInstallmentPlanner::dateContextFromWizardPayload($validated);
+        $clientCurrency = (string) Arr::get($financialTerm, 'client_currency', 'RUB');
+        $manualClientTerms = trim((string) Arr::get($financialTerm, 'client_payment_terms', ''));
+        $clientPaymentSummary = $manualClientTerms !== ''
+            ? Str::limit($manualClientTerms, 255, '')
+            : $this->formatPaymentScheduleSummary(
+                is_array($clientPaymentSchedule) ? $clientPaymentSchedule : [],
+                $clientPrice,
+                $clientCurrency,
+                null,
+                $dateContext,
+            );
         $carrierPaymentForm = CarrierPaymentFormResolver::fromContractorsCostsArray($contractorCosts);
         $carrierPaymentSummary = $this->resolveCarrierPaymentTerm($contractorCosts);
 
@@ -607,6 +621,10 @@ class OrderWizardService
                 + $additionalFromOrder;
             $margin = (float) Arr::get($financialTerm, 'client_price', 0) * (1 - ((float) Arr::get($financialTerm, 'kpi_percent', 0) / 100)) - $totalCost;
 
+            $orderForSummary = $order->fresh(['legs.routePoints']);
+            $clientSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
+            $clientSchedule = is_array($clientSchedule) ? $clientSchedule : [];
+
             $financialTermAttributes = [
                 'order_id' => $order->id,
                 'client_price' => Arr::get($financialTerm, 'client_price'),
@@ -617,9 +635,16 @@ class OrderWizardService
                 'additional_costs' => [],
             ];
 
-            $financialTermAttributes['client_payment_terms'] = $this->formatPaymentScheduleSummary(
-                Arr::get($financialTerm, 'client_payment_schedule', [])
-            );
+            $manualClientTerms = trim((string) Arr::get($financialTerm, 'client_payment_terms', ''));
+            $financialTermAttributes['client_payment_terms'] = $manualClientTerms !== ''
+                ? Str::limit($manualClientTerms, 255, '')
+                : PaymentScheduleSummaryFormatter::format(
+                    $clientSchedule,
+                    (float) Arr::get($financialTerm, 'client_price', 0),
+                    (string) Arr::get($financialTerm, 'client_currency', 'RUB'),
+                    $orderForSummary,
+                    [],
+                );
 
             $snapshot = $this->encodePaymentTermsPayload($financialTerm);
             if ($snapshot !== null) {
@@ -977,6 +1002,23 @@ class OrderWizardService
             }
         }
 
+        $clientSchedule = $out['client_payment_schedule'] ?? null;
+        if (is_array($clientSchedule) && PaymentInstallmentScheduleNormalizer::isInstallmentModel($clientSchedule)) {
+            $total = (float) ($out['client_price'] ?? 0);
+            $out['client_payment_schedule'] = PaymentInstallmentScheduleNormalizer::normalize($clientSchedule, $total);
+        }
+
+        foreach ($costs as $i => $cost) {
+            if (! is_array($cost)) {
+                continue;
+            }
+            $sch = $cost['payment_schedule'] ?? null;
+            if (is_array($sch) && PaymentInstallmentScheduleNormalizer::isInstallmentModel($sch)) {
+                $legTotal = (float) ($cost['amount'] ?? 0);
+                $out['contractors_costs'][$i]['payment_schedule'] = PaymentInstallmentScheduleNormalizer::normalize($sch, $legTotal);
+            }
+        }
+
         return $out;
     }
 
@@ -990,6 +1032,7 @@ class OrderWizardService
                 'payment_form' => Arr::get($financialTerm, 'client_payment_form'),
                 'request_mode' => Arr::get($financialTerm, 'client_request_mode', 'single_request'),
                 'payment_schedule' => Arr::get($financialTerm, 'client_payment_schedule', []),
+                'payment_terms_text' => Arr::get($financialTerm, 'client_payment_terms'),
             ],
             'carriers' => collect(Arr::get($financialTerm, 'contractors_costs', []))
                 ->map(fn (array $cost): array => [
@@ -1011,10 +1054,16 @@ class OrderWizardService
 
     /**
      * @param  array<string, mixed>  $schedule
+     * @param  array<string, ?string>  $dateContext
      */
-    private function formatPaymentScheduleSummary(array $schedule): string
-    {
-        return PaymentScheduleSummaryFormatter::format($schedule);
+    private function formatPaymentScheduleSummary(
+        array $schedule,
+        float $totalAmount = 0.0,
+        string $currency = 'RUB',
+        ?Order $order = null,
+        array $dateContext = [],
+    ): string {
+        return PaymentScheduleSummaryFormatter::format($schedule, $totalAmount, $currency, $order, $dateContext);
     }
 
     /**

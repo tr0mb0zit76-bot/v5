@@ -23,7 +23,13 @@ final class CarrierPaymentTermResolver
         }
 
         $summaries = collect($contractorsCosts)
-            ->map(fn (array $cost): string => PaymentScheduleSummaryFormatter::format((array) ($cost['payment_schedule'] ?? [])))
+            ->map(function (array $cost): string {
+                $schedule = (array) ($cost['payment_schedule'] ?? []);
+                $amount = (float) ($cost['amount'] ?? 0);
+                $currency = (string) ($cost['currency'] ?? 'RUB');
+
+                return PaymentScheduleSummaryFormatter::format($schedule, $amount, $currency);
+            })
             ->unique()
             ->values();
 

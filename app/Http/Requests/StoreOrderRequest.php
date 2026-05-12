@@ -11,6 +11,7 @@ use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentRegistryTypes;
 use App\Support\PaymentFormDictionary;
+use App\Support\PaymentInstallmentScheduleNormalizer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -198,6 +199,87 @@ class StoreOrderRequest extends FormRequest
                     }
                 }
             },
+            function (Validator $validator): void {
+                $ft = $this->input('financial_term', []);
+                if (! is_array($ft)) {
+                    return;
+                }
+
+                $sched = $ft['client_payment_schedule'] ?? null;
+                if (! is_array($sched) || ! PaymentInstallmentScheduleNormalizer::isInstallmentModel($sched)) {
+                    return;
+                }
+
+                /** @var list<array<string, mixed>> $rows */
+                $rows = array_values(array_filter($sched['installments'] ?? [], static fn ($r): bool => is_array($r)));
+                if ($rows === []) {
+                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Добавьте хотя бы одну траншу.');
+
+                    return;
+                }
+
+                if (count($rows) > PaymentInstallmentScheduleNormalizer::MAX_INSTALLMENTS) {
+                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Не более двух траншей.');
+
+                    return;
+                }
+
+                $sum = array_sum(array_map(static fn (array $r): float => (float) ($r['percent'] ?? 0), $rows));
+                if (count($rows) >= 2 && abs($sum - 100.0) > 0.05) {
+                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Сумма процентов по двум траншам должна быть 100%.');
+                }
+
+                if (count($rows) === 1 && abs($sum - 100.0) > 0.05) {
+                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Для одной транши укажите 100%.');
+                }
+            },
+            function (Validator $validator): void {
+                $ft = $this->input('financial_term', []);
+                if (! is_array($ft)) {
+                    return;
+                }
+
+                $costs = Arr::get($ft, 'contractors_costs', []);
+                if (! is_array($costs)) {
+                    return;
+                }
+
+                foreach ($costs as $i => $cost) {
+                    if (! is_array($cost)) {
+                        continue;
+                    }
+
+                    $sched = $cost['payment_schedule'] ?? null;
+                    if (! is_array($sched) || ! PaymentInstallmentScheduleNormalizer::isInstallmentModel($sched)) {
+                        continue;
+                    }
+
+                    /** @var list<array<string, mixed>> $rows */
+                    $rows = array_values(array_filter($sched['installments'] ?? [], static fn ($r): bool => is_array($r)));
+                    $baseKey = "financial_term.contractors_costs.$i.payment_schedule.installments";
+
+                    if ($rows === []) {
+                        $validator->errors()->add($baseKey, 'Добавьте хотя бы одну траншу.');
+
+                        continue;
+                    }
+
+                    if (count($rows) > PaymentInstallmentScheduleNormalizer::MAX_INSTALLMENTS) {
+                        $validator->errors()->add($baseKey, 'Не более двух траншей.');
+
+                        continue;
+                    }
+
+                    $sum = array_sum(array_map(static fn (array $r): float => (float) ($r['percent'] ?? 0), $rows));
+                    if (count($rows) >= 2 && abs($sum - 100.0) > 0.05) {
+                        $validator->errors()->add($baseKey, 'Сумма процентов по двум траншам должна быть 100%.');
+                    }
+
+                    if (count($rows) === 1 && abs($sum - 100.0) > 0.05) {
+                        $validator->errors()->add($baseKey, 'Для одной транши укажите 100%.');
+                    }
+                }
+            },
         ];
     }
 
@@ -297,6 +379,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.client_currency' => ['required_with:financial_term', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.client_payment_form' => ['nullable', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
             'financial_term.client_request_mode' => ['nullable', Rule::in(['single_request', 'split_by_leg'])],
+            'financial_term.client_payment_terms' => ['nullable', 'string', 'max:255'],
             'financial_term.client_payment_schedule' => ['nullable', 'array'],
             'financial_term.client_payment_schedule.has_prepayment' => ['nullable', 'boolean'],
             'financial_term.client_payment_schedule.prepayment_ratio' => ['nullable', 'numeric', 'min:1', 'max:99'],
@@ -304,6 +387,13 @@ class StoreOrderRequest extends FormRequest
             'financial_term.client_payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.client_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
             'financial_term.client_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
+            'financial_term.client_payment_schedule.installments' => ['nullable', 'array', 'max:2'],
+            'financial_term.client_payment_schedule.installments.*.percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'financial_term.client_payment_schedule.installments.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'financial_term.client_payment_schedule.installments.*.offset_days' => ['nullable', 'integer', 'min:-730', 'max:730'],
+            'financial_term.client_payment_schedule.installments.*.offset_unit' => ['nullable', Rule::in(['calendar_days', 'bank_days'])],
+            'financial_term.client_payment_schedule.installments.*.anchor' => ['nullable', Rule::in(['first_loading', 'last_unloading', 'order_date', 'loading_date', 'unloading_date'])],
+            'financial_term.client_payment_schedule.installments.*.basis' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.kpi_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'financial_term.contractors_costs' => ['nullable', 'array'],
             'financial_term.contractors_costs.*.stage' => ['nullable', 'string', 'max:50'],
@@ -318,6 +408,13 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.payment_schedule.prepayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.contractors_costs.*.payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
             'financial_term.contractors_costs.*.payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
+            'financial_term.contractors_costs.*.payment_schedule.installments' => ['nullable', 'array', 'max:2'],
+            'financial_term.contractors_costs.*.payment_schedule.installments.*.percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'financial_term.contractors_costs.*.payment_schedule.installments.*.amount' => ['nullable', 'numeric', 'min:0'],
+            'financial_term.contractors_costs.*.payment_schedule.installments.*.offset_days' => ['nullable', 'integer', 'min:-730', 'max:730'],
+            'financial_term.contractors_costs.*.payment_schedule.installments.*.offset_unit' => ['nullable', Rule::in(['calendar_days', 'bank_days'])],
+            'financial_term.contractors_costs.*.payment_schedule.installments.*.anchor' => ['nullable', Rule::in(['first_loading', 'last_unloading', 'order_date', 'loading_date', 'unloading_date'])],
+            'financial_term.contractors_costs.*.payment_schedule.installments.*.basis' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'])],
             'financial_term.additional_costs' => ['nullable', 'array'],
             'financial_term.additional_costs.*.label' => ['nullable', 'string', 'max:100'],
             'financial_term.additional_costs.*.amount' => ['nullable', 'numeric', 'min:0'],

@@ -150,11 +150,26 @@ const paymentFormOptions = computed(() => {
 });
 
 const paymentBasisOptions = [
-    { value: 'fttn', label: 'ФТТН' },
-    { value: 'ottn', label: 'ОТТН' },
-    { value: 'loading', label: 'На загрузке' },
-    { value: 'unloading', label: 'На выгрузке' },
+    { value: 'fttn', label: 'По сканам' },
+    { value: 'fttn_receipt', label: 'По сканам + квиток' },
+    { value: 'ottn', label: 'По оригиналам' },
 ];
+
+function paymentBasisLabel(value) {
+    const v = value || 'fttn';
+    const fromOptions = paymentBasisOptions.find((option) => option.value === v)?.label;
+    if (fromOptions) {
+        return fromOptions;
+    }
+    if (v === 'loading') {
+        return 'При погрузке';
+    }
+    if (v === 'unloading') {
+        return 'При выгрузке';
+    }
+
+    return v;
+}
 
 const defaultCurrencySelectOptions = [
     { value: 'RUB', label: 'RUB' },
@@ -234,10 +249,10 @@ function paymentScheduleSummary(schedule) {
         const prepaymentRatio = Number(normalized.prepayment_ratio || 0);
         const postpaymentRatio = Math.max(0, 100 - prepaymentRatio);
 
-        return `${prepaymentRatio}% ${Number(normalized.prepayment_days || 0)} дн ${String(normalized.prepayment_mode || 'fttn').toUpperCase()} / ${postpaymentRatio}% ${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+        return `${prepaymentRatio}% ${Number(normalized.prepayment_days || 0)} дн ${paymentBasisLabel(normalized.prepayment_mode)} / ${postpaymentRatio}% ${Number(normalized.postpayment_days || 0)} дн ${paymentBasisLabel(normalized.postpayment_mode)}`;
     }
 
-    return `${Number(normalized.postpayment_days || 0)} дн ${String(normalized.postpayment_mode || 'ottn').toUpperCase()}`;
+    return `${Number(normalized.postpayment_days || 0)} дн ${paymentBasisLabel(normalized.postpayment_mode)}`;
 }
 
 /** Как в OrdersGrid: в БД латиница (FTTN/OTTN), в подписи — кириллица. */
@@ -247,12 +262,14 @@ function formatPaymentTermsForDisplay(value) {
     }
 
     return String(value)
-        .replace(/\bFTTN\b/gi, 'ФТТН')
-        .replace(/\bOTTN\b/gi, 'ОТТН')
+        .replace(/\bFTTN_RECEIPT\b/gi, 'По сканам + квиток')
+        .replace(/\bFTTN\b/gi, 'По сканам')
+        .replace(/\bOTTN\b/gi, 'По оригиналам')
         .replace(/\bLOADING\b/gi, 'погрузка')
         .replace(/\bUNLOADING\b/gi, 'выгрузка')
-        .replace(/\bfttn\b/gi, 'ФТТН')
-        .replace(/\bottn\b/gi, 'ОТТН')
+        .replace(/\bfttn_receipt\b/gi, 'По сканам + квиток')
+        .replace(/\bfttn\b/gi, 'По сканам')
+        .replace(/\bottn\b/gi, 'По оригиналам')
         .replace(/\bloading\b/gi, 'погрузка')
         .replace(/\bunloading\b/gi, 'выгрузка');
 }

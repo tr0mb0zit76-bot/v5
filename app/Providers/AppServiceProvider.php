@@ -18,8 +18,10 @@ use App\Policies\TaskPolicy;
 use App\Services\Inference\DeepSeekChatCompletionClient;
 use App\Services\NextcloudWebDavStorage;
 use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
+use App\Support\InertiaAppSurface;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -64,6 +66,13 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        View::composer('app', function ($view): void {
+            $view->with(
+                'documentTitleDefault',
+                InertiaAppSurface::fromRequest(request())->documentTitleSuffix(),
+            );
+        });
 
         Gate::policy(SalesScript::class, SalesScriptPolicy::class);
         Gate::policy(SalesScriptVersion::class, SalesScriptVersionPolicy::class);
