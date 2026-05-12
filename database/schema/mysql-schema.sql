@@ -1163,7 +1163,7 @@ CREATE TABLE `orders` (
   `unloading_date` date DEFAULT NULL,
   `customer_rate` decimal(12,2) DEFAULT NULL,
   `customer_payment_form` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `customer_payment_term` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `customer_payment_term` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `customer_payment_date` date DEFAULT NULL,
   `special_notes` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `carrier_payment_date` date DEFAULT NULL,

@@ -717,8 +717,16 @@
                             </div>
                             <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900/40 md:col-span-4">
                                 <div class="font-medium text-zinc-700 dark:text-zinc-200">Сводка позиции</div>
-                                <div class="mt-1">Вес: {{ cargoWeightInKg(item).toFixed(2) }} кг</div>
-                                <div>Объём: {{ cargoVolumeDisplay(item) || '—' }} м³</div>
+                                <div class="mt-1">
+                                    Вес: {{ cargoLineTotalWeightKg(item).toFixed(2) }} кг
+                                    <span v-if="cargoPackageCountFactor(item) > 1" class="text-zinc-500">({{ cargoWeightInKg(item).toFixed(2) }} кг × {{ cargoPackageCountFactor(item) }})</span>
+                                </div>
+                                <div>
+                                    Объём:
+                                    <template v-if="cargoLineTotalVolumeM3(item) > 0">{{ cargoLineTotalVolumeM3(item).toFixed(3) }} м³</template>
+                                    <template v-else>—</template>
+                                    <span v-if="cargoPackageCountFactor(item) > 1 && cargoLineTotalVolumeM3(item) > 0" class="text-zinc-500">({{ Number(item.volume_m3 || 0).toFixed(3) }} м³ × {{ cargoPackageCountFactor(item) }})</span>
+                                </div>
                                 <div v-if="cargoHasDimensions(item)">Габариты (Д×Ш×В): {{ cargoDimensionsLabel(item) }}</div>
                                 <div>Мест: {{ Number(item.package_count || 0) }}</div>
                             </div>
@@ -2062,6 +2070,29 @@ function cargoWeightInKg(item) {
     return v;
 }
 
+/** Вес и габариты в строке — на одно место; множитель для сводок по числу мест. */
+function cargoPackageCountFactor(item) {
+    const n = Number(item.package_count);
+    if (Number.isFinite(n) && n > 0) {
+        return Math.trunc(n);
+    }
+
+    return 1;
+}
+
+function cargoLineTotalWeightKg(item) {
+    return cargoWeightInKg(item) * cargoPackageCountFactor(item);
+}
+
+function cargoLineTotalVolumeM3(item) {
+    const per = Number(item.volume_m3);
+    if (!Number.isFinite(per) || per <= 0) {
+        return 0;
+    }
+
+    return per * cargoPackageCountFactor(item);
+}
+
 function cargoHasDimensions(item) {
     return [item.length_m, item.width_m, item.height_m].some((v) => v !== null && v !== undefined && String(v).trim() !== '');
 }
@@ -3166,8 +3197,8 @@ const routeChainLabel = computed(() => {
 
 const cargoSummary = computed(() => {
     return form.cargo_items.reduce((summary, item) => {
-        summary.totalWeight += cargoWeightInKg(item);
-        summary.totalVolume += Number(item.volume_m3 || 0);
+        summary.totalWeight += cargoLineTotalWeightKg(item);
+        summary.totalVolume += cargoLineTotalVolumeM3(item);
         summary.totalPackages += Number(item.package_count || 0);
 
         return summary;

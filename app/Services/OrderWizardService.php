@@ -130,17 +130,21 @@ class OrderWizardService
         $dateContext = PaymentInstallmentPlanner::dateContextFromWizardPayload($validated);
         $clientCurrency = (string) Arr::get($financialTerm, 'client_currency', 'RUB');
         $manualClientTerms = trim((string) Arr::get($financialTerm, 'client_payment_terms', ''));
+        $formattedClientSummary = $this->formatPaymentScheduleSummary(
+            is_array($clientPaymentSchedule) ? $clientPaymentSchedule : [],
+            $clientPrice,
+            $clientCurrency,
+            null,
+            $dateContext,
+        );
         $clientPaymentSummary = $manualClientTerms !== ''
             ? Str::limit($manualClientTerms, 255, '')
-            : $this->formatPaymentScheduleSummary(
-                is_array($clientPaymentSchedule) ? $clientPaymentSchedule : [],
-                $clientPrice,
-                $clientCurrency,
-                null,
-                $dateContext,
-            );
+            : Str::limit($formattedClientSummary, 2000, '');
         $carrierPaymentForm = CarrierPaymentFormResolver::fromContractorsCostsArray($contractorCosts);
-        $carrierPaymentSummary = $this->resolveCarrierPaymentTerm($contractorCosts);
+        $carrierPaymentRaw = $this->resolveCarrierPaymentTerm($contractorCosts);
+        $carrierPaymentSummary = ($carrierPaymentRaw !== null && $carrierPaymentRaw !== '')
+            ? Str::limit($carrierPaymentRaw, 2000, '')
+            : null;
 
         $normalizedPerformers = collect($performers)
             ->map(function (array $performer): array {

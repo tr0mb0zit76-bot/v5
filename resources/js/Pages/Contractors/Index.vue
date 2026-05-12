@@ -684,7 +684,8 @@ const activityTypeDropdownSummary = computed(() => {
     return `${form.activity_types.slice(0, 2).join(', ')} +${form.activity_types.length - 2}`;
 });
 
-function applyFormState(contractor) {
+function applyFormState(contractor, options = {}) {
+    const resetTab = options.resetTab ?? true;
     const payload = contractorToForm(contractor);
     form.defaults(payload);
     form.reset();
@@ -695,7 +696,9 @@ function applyFormState(contractor) {
     }
 
     transportRequirementsText.value = payload.transport_requirements.join('\n');
-    activeTab.value = 'general';
+    if (resetTab) {
+        activeTab.value = 'general';
+    }
     addressSuggestions.value = {
         legal_address: [],
         actual_address: [],
@@ -707,8 +710,11 @@ function applyFormState(contractor) {
 
 applyFormState(props.selectedContractor);
 
-watch(() => props.selectedContractor, (contractor) => {
-    applyFormState(contractor);
+watch(() => props.selectedContractor, (contractor, previousContractor) => {
+    const prevId = previousContractor?.id ?? null;
+    const nextId = contractor?.id ?? null;
+    const resetTab = prevId !== nextId;
+    applyFormState(contractor, { resetTab });
 });
 
 watch(() => form.is_non_resident, (isNonResident) => {
@@ -903,15 +909,15 @@ function closeContractorModal() {
     isCreateRouteDismissed.value = true;
     isDetailsModalDismissed.value = true;
 
-    window.history.replaceState(window.history.state, '', route('contractors.index', {
+    router.get(route('contractors.index', {
         search: effectiveIndexSearchQuery(search.value),
         type: '',
         page: props.pagination.current_page,
-    }));
+    }), {}, { preserveScroll: true, replace: true });
 }
 
 function resetToSelected() {
-    applyFormState(props.selectedContractor);
+    applyFormState(props.selectedContractor, { resetTab: false });
 }
 
 function parseMultilineList(value) {

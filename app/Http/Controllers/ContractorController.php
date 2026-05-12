@@ -1092,17 +1092,19 @@ class ContractorController extends Controller
     {
         $context = [];
 
-        $search = trim((string) $request->input('search', ''));
+        // Только query string: в теле PATCH/PUT есть поле `type` (вид контрагента) —
+        // через input() оно ошибочно попадало в редирект как фильтр списка.
+        $search = trim((string) $request->query('search', ''));
         if ($search !== '') {
             $context['search'] = $search;
         }
 
-        $type = trim((string) $request->input('type', ''));
+        $type = trim((string) $request->query('type', ''));
         if ($type !== '') {
             $context['type'] = $type;
         }
 
-        $page = $request->integer('page');
+        $page = (int) $request->query('page', 0);
         if ($page > 0) {
             $context['page'] = $page;
         }
