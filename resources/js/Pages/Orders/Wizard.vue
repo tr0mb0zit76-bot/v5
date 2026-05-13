@@ -1344,15 +1344,47 @@
                                     Скачать DOCX
                                 </button>
                             </div>
-                            <div v-if="item.document.flow === 'uploaded'" class="flex flex-wrap items-center gap-3">
-                                <label
-                                    class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            <div v-if="item.document.flow === 'uploaded'" class="space-y-2">
+                                <div
+                                    class="rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
+                                    :class="orderDocumentDropActiveIndex === item.index && isOrderFormEditable
+                                        ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
+                                        : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
+                                    @dragenter.prevent="onOrderDocumentDragEnter(item.index)"
+                                    @dragleave.prevent="onOrderDocumentDragLeave"
+                                    @dragover.prevent="onOrderDocumentDragOver"
+                                    @drop.prevent="onOrderDocumentDrop(item.index, $event)"
                                 >
-                                    <Paperclip class="h-4 w-4 text-zinc-500" />
-                                    <span>Прикрепить файл</span>
-                                    <input type="file" class="hidden" @change="onDocumentFileChange(item.index, $event)" />
-                                </label>
-                                <span v-if="item.document.original_name" class="text-xs text-zinc-500">Файл: {{ item.document.original_name }}</span>
+                                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                                        Перетащите файл сюда<span v-if="isOrderFormEditable"> или выберите на диске</span>
+                                    </p>
+                                    <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
+                                        <label
+                                            class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                            :class="!isOrderFormEditable ? 'pointer-events-none opacity-50' : ''"
+                                        >
+                                            <Paperclip class="h-4 w-4 text-zinc-500" />
+                                            <span>Прикрепить файл</span>
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                                                class="hidden"
+                                                :disabled="!isOrderFormEditable"
+                                                @change="onDocumentFileChange(item.index, $event)"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div v-if="item.document.original_name" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                                        <span>Файл: {{ item.document.original_name }}</span>
+                                        <a
+                                            v-if="item.document.uploaded_file_preview_url && order?.id"
+                                            :href="item.document.uploaded_file_preview_url"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="font-medium text-sky-600 underline dark:text-sky-400"
+                                        >Предпросмотр</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1437,15 +1469,47 @@
                                     Скачать DOCX
                                 </button>
                             </div>
-                            <div v-if="item.document.flow === 'uploaded'" class="flex flex-wrap items-center gap-3">
-                                <label
-                                    class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                            <div v-if="item.document.flow === 'uploaded'" class="space-y-2">
+                                <div
+                                    class="rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
+                                    :class="orderDocumentDropActiveIndex === item.index && isOrderFormEditable
+                                        ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
+                                        : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
+                                    @dragenter.prevent="onOrderDocumentDragEnter(item.index)"
+                                    @dragleave.prevent="onOrderDocumentDragLeave"
+                                    @dragover.prevent="onOrderDocumentDragOver"
+                                    @drop.prevent="onOrderDocumentDrop(item.index, $event)"
                                 >
-                                    <Paperclip class="h-4 w-4 text-zinc-500" />
-                                    <span>Прикрепить файл</span>
-                                    <input type="file" class="hidden" @change="onDocumentFileChange(item.index, $event)" />
-                                </label>
-                                <span v-if="item.document.original_name" class="text-xs text-zinc-500">Файл: {{ item.document.original_name }}</span>
+                                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                                        Перетащите файл сюда<span v-if="isOrderFormEditable"> или выберите на диске</span>
+                                    </p>
+                                    <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
+                                        <label
+                                            class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                            :class="!isOrderFormEditable ? 'pointer-events-none opacity-50' : ''"
+                                        >
+                                            <Paperclip class="h-4 w-4 text-zinc-500" />
+                                            <span>Прикрепить файл</span>
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                                                class="hidden"
+                                                :disabled="!isOrderFormEditable"
+                                                @change="onDocumentFileChange(item.index, $event)"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div v-if="item.document.original_name" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                                        <span>Файл: {{ item.document.original_name }}</span>
+                                        <a
+                                            v-if="item.document.uploaded_file_preview_url && order?.id"
+                                            :href="item.document.uploaded_file_preview_url"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="font-medium text-sky-600 underline dark:text-sky-400"
+                                        >Предпросмотр</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         </div>
@@ -4015,14 +4079,82 @@ watch(
     { immediate: true },
 );
 
+/** Счётчик dragenter/dragleave внутри зоны (без мерцания на вложенных элементах) */
+let orderDocumentDropDepth = 0;
+const orderDocumentDropActiveIndex = ref(null);
+
+const ORDER_DOCUMENT_UPLOAD_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'webp']);
+
+function orderDocumentUploadExtension(file) {
+    return (file.name.split('.').pop() || '').toLowerCase();
+}
+
+function onOrderDocumentDragEnter(index) {
+    if (!isOrderFormEditable.value) {
+        return;
+    }
+    orderDocumentDropDepth += 1;
+    orderDocumentDropActiveIndex.value = index;
+}
+
+function onOrderDocumentDragLeave() {
+    orderDocumentDropDepth = Math.max(0, orderDocumentDropDepth - 1);
+    if (orderDocumentDropDepth === 0) {
+        orderDocumentDropActiveIndex.value = null;
+    }
+}
+
+function onOrderDocumentDragOver(event) {
+    if (!isOrderFormEditable.value) {
+        return;
+    }
+    const dt = event.dataTransfer;
+    if (dt) {
+        dt.dropEffect = 'copy';
+    }
+}
+
+async function onOrderDocumentDrop(index, event) {
+    orderDocumentDropDepth = 0;
+    orderDocumentDropActiveIndex.value = null;
+    if (!isOrderFormEditable.value) {
+        return;
+    }
+    const file = event.dataTransfer?.files?.[0] ?? null;
+    if (!file) {
+        return;
+    }
+    await assignDocumentFileAtIndex(index, file);
+}
+
+async function assignDocumentFileAtIndex(index, file) {
+    if (!file) {
+        return;
+    }
+    const ext = orderDocumentUploadExtension(file);
+    if (!ORDER_DOCUMENT_UPLOAD_EXTENSIONS.has(ext)) {
+        window.alert(
+            'Недопустимый тип файла. Разрешены: PDF, Word, Excel, изображения (JPG, PNG, WebP).',
+        );
+
+        return;
+    }
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    form.documents[index].file = file;
+    form.documents[index].original_name = file.name;
+}
+
 async function onDocumentFileChange(index, event) {
     const file = event.target.files?.[0] ?? null;
     if (file) {
-        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+        await assignDocumentFileAtIndex(index, file);
+    } else {
+        form.documents[index].file = null;
+        form.documents[index].original_name = '';
     }
-    form.documents[index].file = file;
-    if (file) {
-        form.documents[index].original_name = file.name;
+    const input = event.target;
+    if (input && 'value' in input) {
+        input.value = '';
     }
 }
 

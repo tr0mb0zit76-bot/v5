@@ -19,6 +19,7 @@ use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -307,6 +308,33 @@ class OrderDocumentWorkflowController extends Controller
         ]);
     }
 
+    public function previewUploaded(Request $request, Order $order, OrderDocument $orderDocument): Response|RedirectResponse
+    {
+        $this->ensureCanViewOrderDocuments($request, $order);
+        $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+
+        abort_if(blank($orderDocument->file_path), 404);
+
+        if ($this->documentIsPrintWorkflow($orderDocument)) {
+            return redirect()->route('orders.documents.preview-draft', [$order, $orderDocument]);
+        }
+
+        $orderDocument->refresh();
+
+        $driver = $this->resolveDraftStorageDriver($orderDocument);
+        $contents = $this->documentStorage->get($orderDocument->file_path, $driver);
+
+        $mime = (string) ($orderDocument->mime_type ?: 'application/octet-stream');
+        $filename = $orderDocument->original_name ?: basename((string) $orderDocument->file_path);
+        $disposition = $this->inlineDispositionForMime($mime, $filename);
+
+        return response($contents, 200, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, max-age=60',
+            'Content-Disposition' => $disposition,
+        ]);
+    }
+
     public function overlayAsset(
         Request $request,
         Order $order,
@@ -408,6 +436,25 @@ class OrderDocumentWorkflowController extends Controller
             $orderDocument->generated_pdf_path,
             'order-'.$order->id.'-document-'.$orderDocument->id.'.pdf'
         );
+    }
+
+    private function documentIsPrintWorkflow(OrderDocument $document): bool
+    {
+        if (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template') {
+            return true;
+        }
+
+        return data_get($document->metadata, 'flow') === 'print_template_workflow';
+    }
+
+    private function inlineDispositionForMime(string $mime, string $filename): string
+    {
+        $asciiName = preg_replace('/[\r\n"]/', '', $filename) ?: 'file';
+        $inline = str_starts_with($mime, 'image/')
+            || $mime === 'application/pdf';
+        $mode = $inline ? 'inline' : 'attachment';
+
+        return sprintf('%s; filename="%s"', $mode, addcslashes($asciiName, '"\\'));
     }
 
     private function resolveDraftStorageDriver(OrderDocument $orderDocument): string

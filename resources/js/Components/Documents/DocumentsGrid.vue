@@ -457,7 +457,7 @@ function documentsCellRenderer(row, field) {
 
     items.forEach((item) => {
         const link = document.createElement('a');
-        link.href = item.order_url;
+        link.href = item.preview_url ?? item.order_url ?? '#';
         link.className = 'truncate text-xs text-sky-700 underline dark:text-sky-300';
         link.textContent = item.label;
         container.appendChild(link);

@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class DocumentStorageService
 {
     public const DRIVER_LOCAL = 'local';
+
     public const DRIVER_NEXTCLOUD = 'nextcloud';
 
     private readonly string $configuredDriver;
@@ -23,6 +26,35 @@ class DocumentStorageService
     public function configuredDriver(): string
     {
         return $this->configuredDriver;
+    }
+
+    /**
+     * Сохраняет загруженный файл в текущий сконфигурированный драйвер (local или Nextcloud).
+     *
+     * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
+     */
+    public function storeOrderUpload(UploadedFile $file, string $directory = 'order-documents'): array
+    {
+        $originalName = $file->getClientOriginalName();
+        $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        $safeSuffix = $ext !== '' && preg_match('/^[a-z0-9]{1,10}$/i', $ext) === 1 ? '.'.$ext : '';
+        $basename = Str::uuid()->toString().$safeSuffix;
+        $path = trim($directory, '/').'/'.$basename;
+        $contents = $file->get();
+        $driver = $this->configuredDriver();
+        $this->put($path, $contents, $driver);
+        $size = $file->getSize();
+        if ($size === false) {
+            $size = strlen($contents);
+        }
+
+        return [
+            'original_name' => $originalName,
+            'file_path' => $path,
+            'file_size' => (int) $size,
+            'mime_type' => $file->getMimeType(),
+            'storage_driver' => $driver,
+        ];
     }
 
     public function put(string $path, string $contents, ?string $driver = null): void

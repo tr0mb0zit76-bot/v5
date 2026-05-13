@@ -716,7 +716,13 @@ class OrderWizardController extends Controller
             || (data_get($document->metadata, 'flow') === 'print_template_workflow');
 
         if (! $isPrintWorkflow) {
-            return $base;
+            $uploadedPreviewUrl = filled($document->file_path)
+                ? route('orders.documents.preview-uploaded', [$order, $document])
+                : null;
+
+            return array_merge($base, [
+                'uploaded_file_preview_url' => $uploadedPreviewUrl,
+            ]);
         }
 
         $workflowStatus = Schema::hasColumn('order_documents', 'workflow_status')

@@ -240,6 +240,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders/{order}/documents/{orderDocument}/regenerate-draft', 'regenerateDraft')->name('orders.documents.regenerate-draft');
         Route::delete('/orders/{order}/documents/{orderDocument}/print-workflow', 'discardPrintWorkflow')->name('orders.documents.discard-print-workflow');
         Route::get('/orders/{order}/documents/{orderDocument}/preview-draft', 'previewDraft')->name('orders.documents.preview-draft');
+        Route::get('/orders/{order}/documents/{orderDocument}/preview-uploaded', 'previewUploaded')->name('orders.documents.preview-uploaded');
         Route::get('/orders/{order}/documents/{orderDocument}/overlay-assets/{overlayKey}', 'overlayAsset')->name('orders.documents.overlay-asset');
         Route::post('/orders/{order}/documents/{orderDocument}/overlay-positions', 'updateOverlayPositions')->name('orders.documents.update-overlay-positions');
         Route::get('/orders/{order}/documents/{orderDocument}/download-draft', 'downloadDraft')->name('orders.documents.download-draft');

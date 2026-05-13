@@ -41,6 +41,7 @@ class OrderWizardService
         private readonly OrderStatusService $orderStatusService,
         private readonly OrderCompensationService $orderCompensationService,
         private readonly OrderWizardStateService $orderWizardStateService,
+        private readonly DocumentStorageService $documentStorage,
     ) {}
 
     /**
@@ -602,6 +603,15 @@ class OrderWizardService
                 }
 
                 $storedFile = $this->storeDocumentFile($document['file'] ?? null);
+                $metadata = [
+                    'party' => $document['party'] ?? 'internal',
+                    'flow' => $document['flow'] ?? 'uploaded',
+                    'stage' => $document['stage'] ?? null,
+                    'requirement_key' => $document['requirement_key'] ?? null,
+                ];
+                if (is_array($storedFile) && isset($storedFile['storage_driver'])) {
+                    $metadata['storage_driver'] = $storedFile['storage_driver'];
+                }
                 $documentAttributes = [
                     'order_id' => $order->id,
                     'entity_type' => 'order',
@@ -617,12 +627,7 @@ class OrderWizardService
                     'file_size' => $storedFile['file_size'] ?? null,
                     'mime_type' => $storedFile['mime_type'] ?? null,
                     'uploaded_by' => $user->id,
-                    'metadata' => [
-                        'party' => $document['party'] ?? 'internal',
-                        'flow' => $document['flow'] ?? 'uploaded',
-                        'stage' => $document['stage'] ?? null,
-                        'requirement_key' => $document['requirement_key'] ?? null,
-                    ],
+                    'metadata' => $metadata,
                 ];
 
                 OrderDocument::query()->create($documentAttributes);
@@ -965,19 +970,23 @@ class OrderWizardService
     /**
      * @return array<string, mixed>|null
      */
+    /**
+     * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}|null
+     */
     private function storeDocumentFile(mixed $file): ?array
     {
         if (! $file instanceof UploadedFile) {
             return null;
         }
 
-        $path = $file->store('order-documents');
+        $stored = $this->documentStorage->storeOrderUpload($file);
 
         return [
-            'original_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
-            'file_size' => $file->getSize(),
-            'mime_type' => $file->getMimeType(),
+            'original_name' => $stored['original_name'],
+            'file_path' => $stored['file_path'],
+            'file_size' => $stored['file_size'],
+            'mime_type' => $stored['mime_type'],
+            'storage_driver' => $stored['storage_driver'],
         ];
     }
 

@@ -4,7 +4,7 @@
             <div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Реестр документов</h1>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Единый список документов по заказам с быстрыми ссылками в карточку заказа. Состав строк совпадает с доступом в разделе «Заказы» (например, менеджер видит в основном только свои заказы).
+                    Единый список документов по заказам: по подписи документа открывается предпросмотр файла (или экран печатной формы для заявок по шаблону). Состав строк совпадает с доступом в разделе «Заказы».
                     Заявки и договоры из мастера — колонки «Заявка …» / «Договор …».
                 </p>
             </div>
@@ -217,17 +217,18 @@ function closeDocumentModal() {
 }
 
 function submitDocument() {
-    const method = modalMode.value === 'create' ? documentForm.post : documentForm.patch;
-    const target = modalMode.value === 'create'
-        ? route('documents.store')
-        : route('documents.update', editingDocumentId.value);
-
-    method(target, {
+    const options = {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             closeDocumentModal();
         },
-    });
+    };
+
+    if (modalMode.value === 'create') {
+        documentForm.post(route('documents.store'), options);
+    } else {
+        documentForm.patch(route('documents.update', editingDocumentId.value), options);
+    }
 }
 </script>

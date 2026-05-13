@@ -6,6 +6,7 @@ use App\Http\Requests\StoreDocumentRegistryRequest;
 use App\Http\Requests\UpdateDocumentRegistryRequest;
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Services\DocumentStorageService;
 use App\Services\OrderCompensationService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,7 @@ class DocumentRegistryController extends Controller
 {
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
+        private readonly DocumentStorageService $documentStorage,
     ) {}
 
     public function index(Request $request): Response
@@ -70,11 +72,13 @@ class DocumentRegistryController extends Controller
         $order = Order::query()->findOrFail((int) $payload['order_id']);
         $this->ensureCanManageOrder($request, $order);
         $file = $request->file('file');
+        abort_if($file === null, 422);
 
-        $storedPath = $file?->store('order-documents');
+        $stored = $this->documentStorage->storeOrderUpload($file);
         $metadata = [
             'party' => $payload['party'],
             'flow' => 'uploaded',
+            'storage_driver' => $stored['storage_driver'],
         ];
 
         $attributes = [
@@ -82,10 +86,10 @@ class DocumentRegistryController extends Controller
             'type' => $payload['type'],
             'number' => $this->nullableTrimmedString($payload['number'] ?? null),
             'document_date' => $this->nullableDateString($payload['document_date'] ?? null),
-            'original_name' => $file?->getClientOriginalName(),
-            'file_path' => $storedPath,
-            'file_size' => $file?->getSize(),
-            'mime_type' => $file?->getMimeType(),
+            'original_name' => $stored['original_name'],
+            'file_path' => $stored['file_path'],
+            'file_size' => $stored['file_size'],
+            'mime_type' => $stored['mime_type'],
             'uploaded_by' => $request->user()?->id,
             'status' => $payload['status'],
             'metadata' => $metadata,
@@ -110,25 +114,40 @@ class DocumentRegistryController extends Controller
         $this->ensureCanManageOrder($request, $order);
         $file = $request->file('file');
 
+        $metadata = array_merge((array) ($document->metadata ?? []), [
+            'party' => $payload['party'],
+            'flow' => 'uploaded',
+        ]);
+
         $attrs = [
             'order_id' => $order->id,
             'type' => $payload['type'],
             'number' => $this->nullableTrimmedString($payload['number'] ?? null),
             'document_date' => $this->nullableDateString($payload['document_date'] ?? null),
             'status' => $payload['status'],
-            'metadata' => array_merge((array) ($document->metadata ?? []), [
-                'party' => $payload['party'],
-                'flow' => 'uploaded',
-            ]),
+            'metadata' => $metadata,
             'entity_type' => 'order',
             'entity_id' => $order->id,
         ];
 
         if ($file !== null) {
-            $attrs['original_name'] = $file->getClientOriginalName();
-            $attrs['file_path'] = $file->store('order-documents');
-            $attrs['file_size'] = $file->getSize();
-            $attrs['mime_type'] = $file->getMimeType();
+            $oldPath = $document->file_path;
+            $oldDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+            if (filled($oldPath)) {
+                $this->documentStorage->delete(
+                    $oldPath,
+                    $oldDriver === DocumentStorageService::DRIVER_NEXTCLOUD
+                        ? DocumentStorageService::DRIVER_NEXTCLOUD
+                        : DocumentStorageService::DRIVER_LOCAL,
+                );
+            }
+
+            $stored = $this->documentStorage->storeOrderUpload($file);
+            $attrs['metadata']['storage_driver'] = $stored['storage_driver'];
+            $attrs['original_name'] = $stored['original_name'];
+            $attrs['file_path'] = $stored['file_path'];
+            $attrs['file_size'] = $stored['file_size'];
+            $attrs['mime_type'] = $stored['mime_type'];
             $attrs['uploaded_by'] = $request->user()?->id;
         }
 
@@ -153,30 +172,30 @@ class DocumentRegistryController extends Controller
             'order_id' => $order->id,
             'order_number' => $order->order_number ?: '#'.$order->id,
             'order_edit_url' => route('orders.edit', $order).'?tab=documents',
-            'customer_invoice' => $this->serializeColumnDocs($documents, 'invoice', 'customer'),
-            'customer_upd' => $this->serializeColumnDocs($documents, 'upd', 'customer'),
-            'customer_act' => $this->serializeColumnDocs($documents, 'act', 'customer'),
-            'customer_invoice_factura' => $this->serializeColumnDocs($documents, 'invoice_factura', 'customer'),
-            'customer_request' => $this->serializeColumnDocs($documents, 'request', 'customer'),
-            'customer_contract_request' => $this->serializeColumnDocs($documents, 'contract_request', 'customer'),
-            'carrier_invoice' => $this->serializeColumnDocs($documents, 'invoice', 'carrier'),
-            'carrier_upd' => $this->serializeColumnDocs($documents, 'upd', 'carrier'),
-            'carrier_act' => $this->serializeColumnDocs($documents, 'act', 'carrier'),
-            'carrier_invoice_factura' => $this->serializeColumnDocs($documents, 'invoice_factura', 'carrier'),
-            'carrier_request' => $this->serializeColumnDocs($documents, 'request', 'carrier'),
-            'carrier_contract_request' => $this->serializeColumnDocs($documents, 'contract_request', 'carrier'),
-            'transport_docs' => $this->serializeTransportDocs($documents),
+            'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer'),
+            'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer'),
+            'customer_act' => $this->serializeColumnDocs($order, $documents, 'act', 'customer'),
+            'customer_invoice_factura' => $this->serializeColumnDocs($order, $documents, 'invoice_factura', 'customer'),
+            'customer_request' => $this->serializeColumnDocs($order, $documents, 'request', 'customer'),
+            'customer_contract_request' => $this->serializeColumnDocs($order, $documents, 'contract_request', 'customer'),
+            'carrier_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'carrier'),
+            'carrier_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'carrier'),
+            'carrier_act' => $this->serializeColumnDocs($order, $documents, 'act', 'carrier'),
+            'carrier_invoice_factura' => $this->serializeColumnDocs($order, $documents, 'invoice_factura', 'carrier'),
+            'carrier_request' => $this->serializeColumnDocs($order, $documents, 'request', 'carrier'),
+            'carrier_contract_request' => $this->serializeColumnDocs($order, $documents, 'contract_request', 'carrier'),
+            'transport_docs' => $this->serializeTransportDocs($order, $documents),
             'etrn_status' => $etrn['status'],
             'etrn_external_id' => $etrn['external_id'],
-            'other_docs' => $this->serializeOtherDocs($documents),
+            'other_docs' => $this->serializeOtherDocs($order, $documents),
         ];
     }
 
     /**
      * @param  Collection<int, OrderDocument>  $documents
-     * @return list<array{id: int, label: string, order_url: string}>
+     * @return list<array{id: int, label: string, preview_url: string, order_url: string}>
      */
-    private function serializeColumnDocs($documents, string $type, string $party): array
+    private function serializeColumnDocs(Order $order, $documents, string $type, string $party): array
     {
         return $documents
             ->filter(function (OrderDocument $doc) use ($type, $party): bool {
@@ -184,40 +203,50 @@ class DocumentRegistryController extends Controller
 
                 return $doc->type === $type && ($meta['party'] ?? 'internal') === $party;
             })
-            ->map(fn (OrderDocument $doc): array => [
-                'id' => $doc->id,
-                'label' => $doc->number ?: ($doc->original_name ?: 'Без номера'),
-                'order_url' => route('orders.edit', (int) $doc->order_id).'?tab=documents',
-            ])
+            ->map(function (OrderDocument $doc) use ($order): array {
+                $preview = $this->resolveOrderDocumentPreviewUrl($order, $doc);
+
+                return [
+                    'id' => $doc->id,
+                    'label' => $doc->number ?: ($doc->original_name ?: 'Без номера'),
+                    'preview_url' => $preview,
+                    'order_url' => $preview,
+                ];
+            })
             ->values()
             ->all();
     }
 
     /**
      * @param  Collection<int, OrderDocument>  $documents
-     * @return list<array{id: int, type: string, label: string, order_url: string}>
+     * @return list<array{id: int, type: string, label: string, preview_url: string, order_url: string}>
      */
-    private function serializeTransportDocs($documents): array
+    private function serializeTransportDocs(Order $order, $documents): array
     {
         $transportTypes = ['waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration'];
 
         return $documents
             ->filter(fn (OrderDocument $doc): bool => in_array($doc->type, $transportTypes, true))
-            ->map(fn (OrderDocument $doc): array => [
-                'id' => $doc->id,
-                'type' => (string) $doc->type,
-                'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
-                'order_url' => route('orders.edit', (int) $doc->order_id).'?tab=documents',
-            ])
+            ->map(function (OrderDocument $doc) use ($order): array {
+                $preview = $this->resolveOrderDocumentPreviewUrl($order, $doc);
+
+                return [
+                    'id' => $doc->id,
+                    'type' => (string) $doc->type,
+                    'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
+                    'preview_url' => $preview,
+                    'order_url' => $preview,
+                ];
+            })
             ->values()
             ->all();
     }
 
     /**
      * @param  Collection<int, OrderDocument>  $documents
-     * @return list<array{id: int, label: string, order_url: string}>
+     * @return list<array{id: int, label: string, preview_url: string, order_url: string}>
      */
-    private function serializeOtherDocs($documents): array
+    private function serializeOtherDocs(Order $order, $documents): array
     {
         $structuredTypes = ['invoice', 'upd', 'act', 'invoice_factura', 'waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration'];
         $partySplitTypes = ['request', 'contract_request'];
@@ -233,13 +262,44 @@ class DocumentRegistryController extends Controller
 
                 return ! in_array($type, $structuredTypes, true);
             })
-            ->map(fn (OrderDocument $doc): array => [
-                'id' => $doc->id,
-                'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
-                'order_url' => route('orders.edit', (int) $doc->order_id).'?tab=documents',
-            ])
+            ->map(function (OrderDocument $doc) use ($order): array {
+                $preview = $this->resolveOrderDocumentPreviewUrl($order, $doc);
+
+                return [
+                    'id' => $doc->id,
+                    'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
+                    'preview_url' => $preview,
+                    'order_url' => $preview,
+                ];
+            })
             ->values()
             ->all();
+    }
+
+    private function resolveOrderDocumentPreviewUrl(Order $order, OrderDocument $doc): string
+    {
+        if ($this->orderDocumentIsPrintWorkflow($doc)) {
+            if (filled($doc->file_path) || filled($doc->generated_pdf_path)) {
+                return route('orders.documents.preview-draft', [$order, $doc]);
+            }
+
+            return route('orders.edit', $order).'?tab=documents';
+        }
+
+        if (filled($doc->file_path)) {
+            return route('orders.documents.preview-uploaded', [$order, $doc]);
+        }
+
+        return route('orders.edit', $order).'?tab=documents';
+    }
+
+    private function orderDocumentIsPrintWorkflow(OrderDocument $document): bool
+    {
+        if (Schema::hasColumn('order_documents', 'source') && $document->source === 'print_template') {
+            return true;
+        }
+
+        return data_get($document->metadata, 'flow') === 'print_template_workflow';
     }
 
     /**
