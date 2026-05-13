@@ -13,7 +13,52 @@ class DocxPlaceholderExtractor
      */
     public function extractFromDisk(string $disk, string $path): array
     {
-        $absolutePath = Storage::disk($disk)->path($path);
+        $relativePath = ltrim($path, '/');
+        $filesystem = Storage::disk($disk);
+
+        try {
+            $absolutePath = $filesystem->path($relativePath);
+        } catch (\Throwable) {
+            $absolutePath = '';
+        }
+
+        if ($absolutePath === '' || ! is_file($absolutePath)) {
+            if ($disk === 'local') {
+                $legacy = storage_path('app/'.$relativePath);
+                if (is_file($legacy)) {
+                    return $this->extractFromFile($legacy);
+                }
+            }
+
+            if (! $filesystem->exists($relativePath)) {
+                return [];
+            }
+
+            $contents = $filesystem->get($relativePath);
+            $tmpBase = tempnam(sys_get_temp_dir(), 'crm-docx-ph-');
+            if ($tmpBase === false) {
+                return [];
+            }
+
+            @unlink($tmpBase);
+            $ext = strtolower((string) pathinfo($relativePath, PATHINFO_EXTENSION));
+            if ($ext === '') {
+                $ext = 'docx';
+            }
+
+            $absolutePath = $tmpBase.'.'.$ext;
+            try {
+                if (file_put_contents($absolutePath, $contents) === false) {
+                    return [];
+                }
+
+                return $this->extractFromFile($absolutePath);
+            } finally {
+                if (is_file($absolutePath)) {
+                    @unlink($absolutePath);
+                }
+            }
+        }
 
         return $this->extractFromFile($absolutePath);
     }

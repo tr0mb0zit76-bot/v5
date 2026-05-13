@@ -8,10 +8,13 @@ use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\PrintFormTemplate;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
+use App\Support\PrintFormTemplateDiskSource;
+use App\Support\PrintFormTemplateOverlayAppearanceOrder;
 use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -33,8 +36,16 @@ class OrderPrintFormDraftService
      */
     public function generate(PrintFormTemplate $template, Order $order, bool $includeTemplateOverlays = true): array
     {
-        $templatePath = Storage::disk($template->file_disk)->path($template->file_path);
-        $processor = new TemplateProcessor($templatePath);
+        $templatePrep = PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path);
+        try {
+            $processor = new TemplateProcessor($templatePrep['path']);
+        } finally {
+            foreach ($templatePrep['tempFiles'] as $tmpPath) {
+                if (is_string($tmpPath) && $tmpPath !== '' && is_file($tmpPath)) {
+                    @unlink($tmpPath);
+                }
+            }
+        }
 
         $settings = is_array($template->settings) ? $template->settings : [];
         $placeholders = collect($settings['variables'] ?? [])
@@ -106,7 +117,7 @@ class OrderPrintFormDraftService
         }
 
         if ($includeTemplateOverlays && $overlayStyles !== []) {
-            $this->applyFloatingImageStyle($absoluteTarget, $overlayStyles);
+            DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles);
         }
 
         return [
@@ -117,76 +128,6 @@ class OrderPrintFormDraftService
     }
 
     /**
-     * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
-     */
-    private function applyFloatingImageStyle(string $absoluteDocxPath, array $overlayStyles): void
-    {
-        $zip = new \ZipArchive;
-        if ($zip->open($absoluteDocxPath) !== true) {
-            return;
-        }
-
-        $documentXml = $zip->getFromName('word/document.xml');
-        if (! is_string($documentXml) || $documentXml === '') {
-            $zip->close();
-
-            return;
-        }
-
-        $styleIndex = 0;
-        $updatedDocumentXml = preg_replace_callback(
-            '/<v:shape([^>]*?)style="([^"]*?)"([^>]*)>/',
-            static function (array $matches) use ($overlayStyles, &$styleIndex): string {
-                $before = $matches[1];
-                $style = $matches[2];
-                $after = $matches[3];
-
-                if (! str_contains($style, 'position:absolute')) {
-                    $style = 'position:absolute;'.$style;
-                }
-
-                if (! str_contains($style, 'z-index')) {
-                    $style .= ';z-index:251659264';
-                }
-
-                if (! str_contains($style, 'mso-wrap-style')) {
-                    $style .= ';mso-wrap-style:none';
-                }
-
-                // Привязка к странице (а не к абзацу/тексту), иначе при длинном тексте в плейсхолдерах
-                // плавающие печать/подпись смещаются вместе с потоком. Gotenberg/LibreOffice рендерит тот же DOCX.
-                if (! str_contains($style, 'mso-position-horizontal-relative')) {
-                    $style .= ';mso-position-horizontal-relative:page';
-                }
-
-                if (! str_contains($style, 'mso-position-vertical-relative')) {
-                    $style .= ';mso-position-vertical-relative:page';
-                }
-
-                $resolvedOverlayStyle = $overlayStyles[$styleIndex] ?? ['margin_left_mm' => 0.0, 'margin_top_mm' => 0.0];
-                $styleIndex++;
-
-                if (! str_contains($style, 'margin-left')) {
-                    $style .= ';margin-left:'.number_format((float) $resolvedOverlayStyle['margin_left_mm'], 2, '.', '').'mm';
-                }
-
-                if (! str_contains($style, 'margin-top')) {
-                    $style .= ';margin-top:'.number_format((float) $resolvedOverlayStyle['margin_top_mm'], 2, '.', '').'mm';
-                }
-
-                return '<v:shape'.$before.'style="'.$style.'"'.$after.'>';
-            },
-            $documentXml
-        );
-
-        if (is_string($updatedDocumentXml) && $updatedDocumentXml !== $documentXml) {
-            $zip->addFromString('word/document.xml', $updatedDocumentXml);
-        }
-
-        $zip->close();
-    }
-
-    /**
      * @return list<array{margin_left_mm: float, margin_top_mm: float}>
      */
     private function buildOverlayFloatingStyles(PrintFormTemplate $template): array
@@ -194,7 +135,9 @@ class OrderPrintFormDraftService
         $settings = is_array($template->settings) ? $template->settings : [];
         $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
 
-        return collect(['internal_signature', 'internal_stamp'])
+        $keys = PrintFormTemplateOverlayAppearanceOrder::imageOverlayKeysInReadingOrder($template);
+
+        return collect($keys)
             ->map(function (string $key) use ($overlays): array {
                 $overlay = is_array($overlays[$key] ?? null) ? $overlays[$key] : [];
 

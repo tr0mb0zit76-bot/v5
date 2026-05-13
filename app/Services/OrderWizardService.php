@@ -602,7 +602,7 @@ class OrderWizardService
                     continue;
                 }
 
-                $storedFile = $this->storeDocumentFile($document['file'] ?? null);
+                $storedFile = $this->storeDocumentFile($document['file'] ?? null, $order);
                 $metadata = [
                     'party' => $document['party'] ?? 'internal',
                     'flow' => $document['flow'] ?? 'uploaded',
@@ -973,13 +973,13 @@ class OrderWizardService
     /**
      * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}|null
      */
-    private function storeDocumentFile(mixed $file): ?array
+    private function storeDocumentFile(mixed $file, Order $order): ?array
     {
         if (! $file instanceof UploadedFile) {
             return null;
         }
 
-        $stored = $this->documentStorage->storeOrderUpload($file);
+        $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
 
         return [
             'original_name' => $stored['original_name'],

@@ -74,7 +74,7 @@ class DocumentRegistryController extends Controller
         $file = $request->file('file');
         abort_if($file === null, 422);
 
-        $stored = $this->documentStorage->storeOrderUpload($file);
+        $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
         $metadata = [
             'party' => $payload['party'],
             'flow' => 'uploaded',
@@ -142,7 +142,7 @@ class DocumentRegistryController extends Controller
                 );
             }
 
-            $stored = $this->documentStorage->storeOrderUpload($file);
+            $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
             $attrs['metadata']['storage_driver'] = $stored['storage_driver'];
             $attrs['original_name'] = $stored['original_name'];
             $attrs['file_path'] = $stored['file_path'];

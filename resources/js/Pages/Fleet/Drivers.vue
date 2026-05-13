@@ -20,6 +20,7 @@
                 :rows="rows"
                 :user-id="userId"
                 @row-dblclick="handleRowDblClick"
+                @create-request="openCreate"
             />
         </div>
 

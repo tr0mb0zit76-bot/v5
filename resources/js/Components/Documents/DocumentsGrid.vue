@@ -59,6 +59,7 @@
             ref="gridPanel"
             class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             @contextmenu.capture="suppressNativeContextMenuCapture"
+            @contextmenu="onGridPanelEmptyContextMenu"
         >
             <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
                 <AgGridVue
@@ -155,7 +156,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -167,6 +168,7 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
     readPersistedAgGridDensity,
@@ -236,6 +238,38 @@ function closeRowContextMenu() {
     contextMenu.items = [];
 }
 
+/** ПКМ по пустой области грида (не по ячейке) — добавить документ без привязки к строке. */
+function onGridPanelEmptyContextMenu(event) {
+    if (event?.target?.closest?.('.ag-cell')) {
+        return;
+    }
+
+    if (
+        event?.target?.closest?.('.ag-header')
+        || event?.target?.closest?.('.ag-header-container')
+        || event?.target?.closest?.('.ag-floating-top')
+        || event?.target?.closest?.('.ag-floating-filter')
+    ) {
+        return;
+    }
+
+    if (event?.preventDefault) {
+        event.preventDefault();
+    }
+
+    contextMenu.x = event.clientX;
+    contextMenu.y = event.clientY;
+    contextMenu.items = [
+        {
+            label: 'Добавить документ',
+            run: () => {
+                emit('open-create', null);
+            },
+        },
+    ];
+    contextMenu.open = true;
+}
+
 function onCellContextMenu(params) {
     const ev = params.event;
     if (ev?.preventDefault) {
@@ -243,27 +277,21 @@ function onCellContextMenu(params) {
     }
 
     const row = params.node?.data;
-    if (!row) {
-        closeRowContextMenu();
-
-        return;
-    }
-
     const items = [];
 
-    if (row.order_id) {
+    if (row?.order_id) {
         items.push(
             {
                 label: 'Открыть заказ',
                 run: () => {
                     emit('row-dblclick', row);
-                    router.visit(route('orders.edit', row.order_id));
+                    window.open(route('orders.edit', row.order_id), '_blank', 'noopener,noreferrer');
                 },
             },
             {
                 label: 'Документы и печатные формы…',
                 run: () => {
-                    router.get(route('orders.edit', row.order_id), { tab: 'documents' }, { preserveScroll: true });
+                    window.open(`${route('orders.edit', row.order_id)}?tab=documents`, '_blank', 'noopener,noreferrer');
                 },
             },
         );
@@ -272,7 +300,7 @@ function onCellContextMenu(params) {
     items.push({
         label: 'Добавить документ',
         run: () => {
-            emit('open-create');
+            emit('open-create', row?.order_id ?? null);
         },
     });
 
@@ -345,44 +373,22 @@ const columnDefs = computed(() => {
         return colDef;
     });
 
-    baseColumns.push({
-        colId: '__actions',
-        headerName: 'Действие',
-        width: 120,
-        minWidth: 110,
-        maxWidth: 130,
-        pinned: 'right',
-        sortable: false,
-        filter: false,
-        resizable: false,
-        cellRenderer: (params) => actionCellRenderer(params.data),
-    });
-
     if (!saved?.length) {
         return baseColumns;
     }
 
-    const actionCol = baseColumns.find((c) => c.colId === '__actions');
+    const savedFiltered = saved.filter((r) => r.colId !== '__actions');
     const dataCols = baseColumns.filter((c) => c.field);
     const fields = dataCols.map((c) => c.field);
-    const { orderedFields, byColId } = buildLayoutIndex(fields, saved);
+    const { orderedFields, byColId } = buildLayoutIndex(fields, savedFiltered);
     const byField = new Map(dataCols.map((d) => [d.field, d]));
 
-    const reordered = orderedFields
+    return orderedFields
         .map((field) => {
             const def = byField.get(field);
             return def ? applySavedToColDef(def, byColId.get(field)) : null;
         })
         .filter(Boolean);
-
-    if (actionCol) {
-        const aSaved = saved.find((r) => r.colId === '__actions');
-        const nextAction = aSaved ? applySavedToColDef({ ...actionCol }, aSaved) : actionCol;
-
-        return [...reordered, nextAction];
-    }
-
-    return reordered;
 });
 
 function normalizeItems(items) {
@@ -458,6 +464,8 @@ function documentsCellRenderer(row, field) {
     items.forEach((item) => {
         const link = document.createElement('a');
         link.href = item.preview_url ?? item.order_url ?? '#';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
         link.className = 'truncate text-xs text-sky-700 underline dark:text-sky-300';
         link.textContent = item.label;
         container.appendChild(link);
@@ -471,26 +479,11 @@ function orderCellRenderer(params) {
     wrapper.className = 'flex h-full items-center';
     const link = document.createElement('a');
     link.href = params.data?.order_edit_url ?? '#';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
     link.className = 'font-medium text-sky-700 underline dark:text-sky-300';
     link.textContent = params.data?.order_number ?? '—';
     wrapper.appendChild(link);
-
-    return wrapper;
-}
-
-function actionCellRenderer(row) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'flex h-full items-center justify-center';
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800';
-    button.textContent = 'Добавить';
-    button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        emit('open-create', row?.order_id ?? null);
-    });
-    wrapper.appendChild(button);
 
     return wrapper;
 }
@@ -670,7 +663,7 @@ function onFilterChanged() {
 function onCellDoubleClicked(event) {
     if (event.data?.order_id) {
         emit('row-dblclick', event.data);
-        router.visit(route('orders.edit', event.data.order_id));
+        window.open(route('orders.edit', event.data.order_id), '_blank', 'noopener,noreferrer');
     }
 }
 

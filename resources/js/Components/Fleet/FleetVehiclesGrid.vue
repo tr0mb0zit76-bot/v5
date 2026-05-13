@@ -50,7 +50,12 @@
       </div>
     </div>
 
-    <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div
+      ref="gridPanel"
+      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      @contextmenu.capture="suppressNativeContextMenuCapture"
+      @contextmenu="onGridPanelEmptyContextMenu"
+    >
       <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
@@ -85,11 +90,19 @@
         />
       </div>
     </div>
+
+    <GridContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @close="closeRowContextMenu"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -101,6 +114,8 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import {
   CRM_AG_GRID_DENSITY_CHANGED,
   readPersistedAgGridDensity,
@@ -117,7 +132,7 @@ const props = defineProps({
 
 const page = usePage();
 
-const emit = defineEmits(['row-dblclick']);
+const emit = defineEmits(['row-dblclick', 'create-request']);
 
 const agGrid = ref(null);
 const gridApi = ref(null);
@@ -132,6 +147,74 @@ const showDensityMenu = ref(false);
 let removeCenterViewportListener = null;
 let isSyncingHorizontalScroll = false;
 
+const contextMenu = reactive({
+  open: false,
+  x: 0,
+  y: 0,
+  items: [],
+});
+
+function closeRowContextMenu() {
+  contextMenu.open = false;
+  contextMenu.items = [];
+}
+
+function onGridPanelEmptyContextMenu(event) {
+  if (event?.target?.closest?.('.ag-cell')) {
+    return;
+  }
+
+  if (
+    event?.target?.closest?.('.ag-header')
+    || event?.target?.closest?.('.ag-header-container')
+    || event?.target?.closest?.('.ag-floating-top')
+    || event?.target?.closest?.('.ag-floating-filter')
+  ) {
+    return;
+  }
+
+  if (event?.preventDefault) {
+    event.preventDefault();
+  }
+
+  contextMenu.x = event.clientX;
+  contextMenu.y = event.clientY;
+  contextMenu.items = [
+    {
+      label: 'Добавить ТС',
+      run: () => emit('create-request'),
+    },
+  ];
+  contextMenu.open = true;
+}
+
+function onCellContextMenu(params) {
+  const ev = params.event;
+  if (ev?.preventDefault) {
+    ev.preventDefault();
+  }
+
+  const row = params.node?.data;
+  const items = [];
+
+  if (row?.id) {
+    items.push({
+      label: 'Открыть карточку',
+      run: () => emit('row-dblclick', row),
+    });
+  }
+
+  items.push({
+    label: 'Добавить ТС',
+    run: () => emit('create-request'),
+  });
+
+  contextMenu.x = ev.clientX;
+  contextMenu.y = ev.clientY;
+  contextMenu.items = items;
+  contextMenu.open = true;
+}
+
 const columnStorageKey = computed(() => `fleet_vehicles_grid_columns_v2_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
@@ -145,6 +228,8 @@ const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
   animateRows: false,
+  preventDefaultOnContextMenu: true,
+  onCellContextMenu,
   getRowId: (params) => String(params.data?.id ?? ''),
   isExternalFilterPresent: () => quickSearch.value.trim().length > 0,
   doesExternalFilterPass: (node) => {

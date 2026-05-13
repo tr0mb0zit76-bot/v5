@@ -30,15 +30,19 @@ class DocumentStorageService
 
     /**
      * Сохраняет загруженный файл в текущий сконфигурированный драйвер (local или Nextcloud).
+     * Путь `order_documents/{orderId}/…` совпадает с печатными формами заказа (удобно в Nextcloud).
      *
      * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
      */
-    public function storeOrderUpload(UploadedFile $file, string $directory = 'order-documents'): array
+    public function storeOrderUpload(UploadedFile $file, ?int $orderId = null): array
     {
         $originalName = $file->getClientOriginalName();
         $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
         $safeSuffix = $ext !== '' && preg_match('/^[a-z0-9]{1,10}$/i', $ext) === 1 ? '.'.$ext : '';
         $basename = Str::uuid()->toString().$safeSuffix;
+        $directory = $orderId !== null
+            ? 'order_documents/'.$orderId
+            : 'order_documents/misc';
         $path = trim($directory, '/').'/'.$basename;
         $contents = $file->get();
         $driver = $this->configuredDriver();

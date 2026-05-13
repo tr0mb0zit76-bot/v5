@@ -103,7 +103,28 @@
                     <div>
                         <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Файл</label>
                         <p v-if="documentUploadHint" class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
-                        <input type="file" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" @change="onFilePicked">
+                        <div
+                            class="mt-2 rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
+                            :class="documentFileDrop.active
+                                ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
+                                : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
+                            @dragenter.prevent="onDocumentModalDragEnter"
+                            @dragleave.prevent="onDocumentModalDragLeave"
+                            @dragover.prevent="onDocumentModalDragOver"
+                            @drop.prevent="onDocumentModalDrop"
+                        >
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400">Перетащите файл сюда или выберите на диске</p>
+                            <label class="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900">
+                                <span>Выбрать файл</span>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                                    class="hidden"
+                                    @change="onFilePicked"
+                                >
+                            </label>
+                            <p v-if="documentForm.file?.name" class="mt-2 text-xs text-zinc-500">Выбран: {{ documentForm.file.name }}</p>
+                        </div>
                         <p v-if="documentForm.errors.file" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.file }}</p>
                     </div>
                     <div class="flex justify-end gap-2 pt-2">
@@ -129,7 +150,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { useForm, usePage } from '@inertiajs/vue3';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
@@ -154,6 +175,8 @@ const showDocumentModal = ref(false);
 const modalMode = ref('create');
 const editingDocumentId = ref(null);
 const viewMode = ref('all');
+
+const documentFileDrop = reactive({ depth: 0, active: false });
 
 const etrnRows = computed(() => {
     return props.rows.filter((row) => Array.isArray(row.transport_docs)
@@ -196,6 +219,41 @@ async function onFilePicked(event) {
         await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
     }
     documentForm.file = file ?? null;
+    const input = event.target;
+    if (input && 'value' in input) {
+        input.value = '';
+    }
+}
+
+function onDocumentModalDragEnter() {
+    documentFileDrop.depth += 1;
+    documentFileDrop.active = true;
+}
+
+function onDocumentModalDragLeave() {
+    documentFileDrop.depth = Math.max(0, documentFileDrop.depth - 1);
+    if (documentFileDrop.depth === 0) {
+        documentFileDrop.active = false;
+    }
+}
+
+function onDocumentModalDragOver(event) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+    }
+}
+
+async function onDocumentModalDrop(event) {
+    event.preventDefault();
+    documentFileDrop.depth = 0;
+    documentFileDrop.active = false;
+    const file = event.dataTransfer?.files?.[0] ?? null;
+    if (!file) {
+        return;
+    }
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    documentForm.file = file;
 }
 
 function openCreateModal(orderId = null) {
@@ -212,6 +270,8 @@ function openCreateModal(orderId = null) {
 
 function closeDocumentModal() {
     showDocumentModal.value = false;
+    documentFileDrop.depth = 0;
+    documentFileDrop.active = false;
     documentForm.reset();
     documentForm.clearErrors();
 }
