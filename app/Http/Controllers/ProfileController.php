@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Http\Requests\UpdateMobileBottomNavRequest;
+use App\Http\Requests\UpdateUiPreferencesRequest;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,24 @@ class ProfileController extends Controller
 
         $keys = $request->validated('mobile_nav_keys');
         $request->user()->mobile_nav_keys = $keys === [] ? null : array_values($keys);
+        $request->user()->save();
+
+        return Redirect::back();
+    }
+
+    /**
+     * Личные настройки интерфейса (плотность AG Grid и др.).
+     */
+    public function updateUiPreferences(UpdateUiPreferencesRequest $request): RedirectResponse
+    {
+        if (! Schema::hasColumn('users', 'ui_preferences')) {
+            abort(404);
+        }
+
+        $validated = $request->validated();
+        $prefs = is_array($request->user()->ui_preferences) ? $request->user()->ui_preferences : [];
+        $prefs['ag_grid_density'] = $validated['ag_grid_density'];
+        $request->user()->ui_preferences = $prefs;
         $request->user()->save();
 
         return Redirect::back();

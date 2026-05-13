@@ -90,6 +90,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search } from 'lucide-vue-next';
@@ -100,6 +101,12 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import {
+  CRM_AG_GRID_DENSITY_CHANGED,
+  readPersistedAgGridDensity,
+  schedulePersistAgGridDensityToProfile,
+  writeLocalAgGridDensity,
+} from '@/support/agGridUserDensity.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -107,6 +114,8 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   userId: { type: [String, Number], default: 'guest' },
 });
+
+const page = usePage();
 
 const emit = defineEmits(['row-dblclick']);
 
@@ -123,7 +132,6 @@ const showDensityMenu = ref(false);
 let removeCenterViewportListener = null;
 let isSyncingHorizontalScroll = false;
 
-const densityStorageKey = computed(() => `fleet_drivers_grid_density_${props.userId}`);
 const columnStorageKey = computed(() => `fleet_drivers_grid_columns_v2_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
@@ -278,7 +286,8 @@ function updateGridViewportHeight() {
 
 function applyDensity(densityKey) {
   currentDensity.value = resolveGridDensity(densityKey).key;
-  localStorage.setItem(densityStorageKey.value, currentDensity.value);
+  writeLocalAgGridDensity(props.userId, currentDensity.value);
+  schedulePersistAgGridDensityToProfile(currentDensity.value);
   showDensityMenu.value = false;
 
   nextTick(() => {
@@ -371,19 +380,30 @@ watch(quickSearch, () => {
   gridApi.value?.onFilterChanged();
 });
 
-onMounted(() => {
-  try {
-    const raw = localStorage.getItem(densityStorageKey.value);
-    if (raw) {
-      currentDensity.value = resolveGridDensity(raw).key;
-    }
-  } catch {
-    /* ignore */
+function onExternalAgGridDensityChange(event) {
+  const detail = event?.detail;
+  if (!detail) {
+    return;
   }
+  const key = resolveGridDensity(detail).key;
+  if (key === currentDensity.value) {
+    return;
+  }
+  currentDensity.value = key;
+  nextTick(() => {
+    gridApi.value?.resetRowHeights();
+    gridApi.value?.refreshCells({ force: true });
+    syncBottomScrollbar();
+  });
+}
+
+onMounted(() => {
+  currentDensity.value = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
 
   updateGridViewportHeight();
   window.addEventListener('resize', updateGridViewportHeight);
   window.addEventListener('resize', syncBottomScrollbar);
+  window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
 });
 
 onUnmounted(() => {
@@ -393,6 +413,7 @@ onUnmounted(() => {
 
   window.removeEventListener('resize', updateGridViewportHeight);
   window.removeEventListener('resize', syncBottomScrollbar);
+  window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
   removeCenterViewportListener?.();
 });
 

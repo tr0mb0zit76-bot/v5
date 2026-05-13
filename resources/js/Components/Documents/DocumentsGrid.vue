@@ -155,7 +155,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
@@ -167,6 +167,12 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import {
+    CRM_AG_GRID_DENSITY_CHANGED,
+    readPersistedAgGridDensity,
+    schedulePersistAgGridDensityToProfile,
+    writeLocalAgGridDensity,
+} from '@/support/agGridUserDensity.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -174,6 +180,8 @@ const props = defineProps({
     rows: { type: Array, default: () => [] },
     userId: { type: [String, Number], default: 'guest' },
 });
+
+const page = usePage();
 
 const emit = defineEmits(['open-create', 'row-dblclick']);
 
@@ -283,7 +291,6 @@ const gridOptions = {
 };
 
 const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
-const densityStorageKey = computed(() => `documents_grid_density_${props.userId}`);
 const quickSearchStorageKey = computed(() => `documents_grid_quick_search_${props.userId}`);
 const filterModelStorageKey = computed(() => `documents_grid_filter_model_v1_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
@@ -547,9 +554,13 @@ function resetColumns() {
 
 function applyDensity(densityKey) {
     currentDensity.value = resolveGridDensity(densityKey).key;
-    localStorage.setItem(densityStorageKey.value, currentDensity.value);
+    writeLocalAgGridDensity(props.userId, currentDensity.value);
+    schedulePersistAgGridDensityToProfile(currentDensity.value);
     showDensityMenu.value = false;
-    nextTick(syncBottomScrollbar);
+    nextTick(() => {
+        gridApi.value?.resetRowHeights();
+        syncBottomScrollbar();
+    });
 }
 
 function toggleDensityMenu() {
@@ -753,8 +764,8 @@ async function onGridReady(params) {
         resetColumns();
     }
 
-    const savedDensity = localStorage.getItem(densityStorageKey.value);
-    currentDensity.value = savedDensity ? resolveGridDensity(savedDensity).key : defaultGridDensity;
+    const savedDensity = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
+    currentDensity.value = savedDensity;
 
     loadFilterModel();
 
@@ -786,15 +797,33 @@ watch(() => props.rows, async () => {
     syncBottomScrollbar();
 }, { deep: true });
 
+function onExternalAgGridDensityChange(event) {
+    const detail = event?.detail;
+    if (!detail) {
+        return;
+    }
+    const key = resolveGridDensity(detail).key;
+    if (key === currentDensity.value) {
+        return;
+    }
+    currentDensity.value = key;
+    nextTick(() => {
+        gridApi.value?.resetRowHeights();
+        syncBottomScrollbar();
+    });
+}
+
 onMounted(() => {
     updateGridViewportHeight();
     window.addEventListener('resize', updateGridViewportHeight);
     window.addEventListener('resize', syncBottomScrollbar);
+    window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
 });
 
 onUnmounted(() => {
     window.removeEventListener('resize', updateGridViewportHeight);
     window.removeEventListener('resize', syncBottomScrollbar);
+    window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
     removeCenterViewportListener?.();
     if (saveTimeout) {
         clearTimeout(saveTimeout);

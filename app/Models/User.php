@@ -31,6 +31,7 @@ class User extends Authenticatable
         'ai_preferences',
         'ai_learning_enabled',
         'mobile_nav_keys',
+        'ui_preferences',
     ];
 
     /**
@@ -54,6 +55,7 @@ class User extends Authenticatable
             'ai_learning_enabled' => 'boolean',
             'ai_preferences' => 'array',
             'mobile_nav_keys' => 'array',
+            'ui_preferences' => 'array',
         ];
     }
 

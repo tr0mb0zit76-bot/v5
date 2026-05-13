@@ -1836,6 +1836,7 @@ CREATE TABLE `users` (
   `has_signing_authority` tinyint(1) NOT NULL DEFAULT '0',
   `ai_preferences` json DEFAULT NULL,
   `mobile_nav_keys` json DEFAULT NULL,
+  `ui_preferences` json DEFAULT NULL,
   `ai_learning_enabled` tinyint(1) NOT NULL DEFAULT '1',
   `remember_token` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
