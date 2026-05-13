@@ -1027,6 +1027,227 @@
 
             </div>
 
+            <div v-else-if="activeTab === 'norms_penalties'" class="space-y-6">
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    Штрафы и нормативы по времени (часы) для заказчика и отдельно по каждому плечу перевозчика. Данные сохраняются в карточке заказа и доступны для дальнейших сопоставлений.
+                </p>
+                <div
+                    v-if="normsPenaltiesTabValidationMessages.length > 0"
+                    class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100"
+                    role="alert"
+                >
+                    <ul class="list-inside list-disc space-y-1">
+                        <li v-for="(msg, i) in normsPenaltiesTabValidationMessages" :key="`norms-err-${i}`">{{ msg }}</li>
+                    </ul>
+                </div>
+
+                <div class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <div class="-mx-1 flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-1 pb-0.5">
+                        <h2 class="shrink-0 text-base font-semibold">Заказчик</h2>
+                        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 gap-y-1 overflow-x-auto">
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Срыв</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.miss_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="form.financial_term.client_norms_penalties.miss_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`cn-miss-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Простой</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.downtime_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="form.financial_term.client_norms_penalties.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`cn-down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Штраф</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.fine_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="form.financial_term.client_norms_penalties.fine_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`cn-fine-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex min-w-0 shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Пеня</span>
+                            <input
+                                v-model="form.financial_term.client_norms_penalties.penalty_terms"
+                                type="text"
+                                class="h-8 min-w-[10rem] max-w-[28rem] flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="Условия пени…"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Погрузка, ч">Погр.</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.norm_loading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Таможня, ч">Там.</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.norm_customs_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Выгрузка, ч">Выгр.</span>
+                            <input
+                                v-model.number="form.financial_term.client_norms_penalties.norm_unloading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                    </div>
+                </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Строки по плечам синхронизируются с вкладкой «Маршрут».</p>
+                    <button
+                        type="button"
+                        class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        :disabled="!isOrderFormEditable"
+                        @click="syncCarrierNormsByLegFromPerformers"
+                    >
+                        Подтянуть плечи
+                    </button>
+                </div>
+
+                <div v-for="(normRow, legIndex) in form.financial_term.carrier_norms_by_leg" :key="`carrier-norms-${normRow.stage}-${legIndex}`" class="rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800">
+                    <div class="-mx-1 flex min-h-9 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 px-1 pb-0.5">
+                        <h2 class="shrink-0 text-base font-semibold">Перевозчик · {{ stageLabel(normRow.stage) }}</h2>
+                        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-x-2 gap-y-1 overflow-x-auto">
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Срыв</span>
+                            <input
+                                v-model.number="normRow.miss_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="normRow.miss_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-miss-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Простой</span>
+                            <input
+                                v-model.number="normRow.downtime_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="normRow.downtime_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-down-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Штраф</span>
+                            <input
+                                v-model.number="normRow.fine_amount"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                class="h-8 w-[5.5rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                            <select v-model="normRow.fine_currency" class="h-8 w-[4.25rem] shrink-0 rounded-lg border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" :disabled="!isOrderFormEditable">
+                                <option v-for="option in currencyOptions" :key="`leg-${legIndex}-fine-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex min-w-0 shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400">Пеня</span>
+                            <input
+                                v-model="normRow.penalty_terms"
+                                type="text"
+                                class="h-8 min-w-[10rem] max-w-[28rem] flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950"
+                                placeholder="Условия пени…"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <span class="shrink-0 text-zinc-300 dark:text-zinc-600" aria-hidden="true">|</span>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Погрузка, ч">Погр.</span>
+                            <input
+                                v-model.number="normRow.norm_loading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Таможня, ч">Там.</span>
+                            <input
+                                v-model.number="normRow.norm_customs_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                            <span class="whitespace-nowrap text-xs text-zinc-500 dark:text-zinc-400" title="Выгрузка, ч">Выгр.</span>
+                            <input
+                                v-model.number="normRow.norm_unloading_hours"
+                                type="number"
+                                min="0"
+                                step="0.25"
+                                class="h-8 w-14 shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!isOrderFormEditable"
+                            >
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div v-else-if="activeTab === 'documents'" class="space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
@@ -1270,111 +1491,118 @@
                     {{ page.props.flash.message }}
                 </div>
 
-                <div class="grid gap-4 lg:grid-cols-2">
-                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div class="flex items-center justify-between">
-                            <div class="text-sm font-semibold">Документы заказчика</div>
-                            <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocumentFor('customer', null)">
-                                Добавить документ заказчика
-                            </button>
-                        </div>
-
-                        <div v-if="customerDocuments.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                            Документы заказчика пока не добавлены.
-                        </div>
-
-                        <div v-for="item in customerDocuments" :key="`customer-document-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex items-center justify-between">
-                                <div class="text-sm font-medium">Документ заказчика</div>
-                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
-                                    Удалить
-                                </button>
-                            </div>
-                            <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Вид</label>
-                                    <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option value="uploaded">Загружаемый</option>
-                                        <option value="generated">Формируемый</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Тип</label>
-                                    <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Номер</label>
-                                    <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Дата</label>
-                                    <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Статус</label>
-                                    <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <div v-if="item.document.flow === 'generated'" class="space-y-2">
-                                    <label class="text-sm font-medium">Шаблон DOCX</label>
-                                    <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option :value="null">Не выбран</option>
-                                        <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
+                <div class="space-y-6 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="space-y-2">
+                        <div class="text-sm font-semibold">Прикрепить файл</div>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Перетащите файл в область ниже — откроется окно с выбором стороны и типа документа. Или нажмите «Прикрепить файл»: сначала выбор файла в системном окне, затем то же окно настроек.
+                        </p>
+                        <input
+                            ref="orderDocumentGlobalFileInputRef"
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                            class="hidden"
+                            @change="onOrderDocumentGlobalFileInputChange"
+                        >
+                        <div
+                            class="rounded-xl border border-dashed px-4 py-6 text-center transition-colors"
+                            :class="orderDocumentGlobalDropActive && isOrderFormEditable
+                                ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
+                                : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
+                            @dragenter.prevent="onOrderDocumentGlobalDragEnter"
+                            @dragleave.prevent="onOrderDocumentGlobalDragLeave"
+                            @dragover.prevent="onOrderDocumentGlobalDragOver"
+                            @drop.prevent="onOrderDocumentGlobalDrop"
+                        >
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                                Перетащите файл сюда<span v-if="isOrderFormEditable"> или нажмите «Прикрепить файл»</span>
+                            </p>
+                            <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
                                 <button
                                     type="button"
-                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                    @click="previewDocumentDraft(item.document)"
+                                    class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
+                                    :class="!isOrderFormEditable ? 'pointer-events-none opacity-50' : ''"
+                                    :disabled="!isOrderFormEditable"
+                                    @click="triggerOrderDocumentGlobalFilePick"
                                 >
-                                    Предпросмотр
-                                </button>
-                                <button
-                                    type="button"
-                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                    @click="downloadDocumentDraft(item.document)"
-                                >
-                                    Скачать DOCX
+                                    <Paperclip class="h-4 w-4 text-zinc-500" />
+                                    <span>Прикрепить файл</span>
                                 </button>
                             </div>
-                            <div v-if="item.document.flow === 'uploaded'" class="space-y-2">
-                                <div
-                                    class="rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
-                                    :class="orderDocumentDropActiveIndex === item.index && isOrderFormEditable
-                                        ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
-                                        : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
-                                    @dragenter.prevent="onOrderDocumentDragEnter(item.index)"
-                                    @dragleave.prevent="onOrderDocumentDragLeave"
-                                    @dragover.prevent="onOrderDocumentDragOver"
-                                    @drop.prevent="onOrderDocumentDrop(item.index, $event)"
-                                >
-                                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                                        Перетащите файл сюда<span v-if="isOrderFormEditable"> или выберите на диске</span>
-                                    </p>
-                                    <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
-                                        <label
-                                            class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                            :class="!isOrderFormEditable ? 'pointer-events-none opacity-50' : ''"
-                                        >
-                                            <Paperclip class="h-4 w-4 text-zinc-500" />
-                                            <span>Прикрепить файл</span>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
-                                                class="hidden"
-                                                :disabled="!isOrderFormEditable"
-                                                @change="onDocumentFileChange(item.index, $event)"
-                                            />
-                                        </label>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Заказчик</div>
+                        <div class="mt-3 space-y-3">
+
+                            <div v-if="customerDocuments.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                                Документы заказчика пока не добавлены. Используйте «Прикрепить файл» выше.
+                            </div>
+
+                            <div v-for="item in customerDocuments" :key="`customer-document-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm font-medium">Документ заказчика</div>
+                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
+                                        Удалить
+                                    </button>
+                                </div>
+                                <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Вид</label>
+                                        <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option value="uploaded">Загружаемый</option>
+                                            <option value="generated">Формируемый</option>
+                                        </select>
                                     </div>
-                                    <div v-if="item.document.original_name" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Тип</label>
+                                        <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Номер</label>
+                                        <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Дата</label>
+                                        <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Статус</label>
+                                        <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div v-if="item.document.flow === 'generated'" class="space-y-2">
+                                        <label class="text-sm font-medium">Шаблон DOCX</label>
+                                        <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option :value="null">Не выбран</option>
+                                            <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
+                                        @click="previewDocumentDraft(item.document)"
+                                    >
+                                        Предпросмотр
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
+                                        @click="downloadDocumentDraft(item.document)"
+                                    >
+                                        Скачать DOCX
+                                    </button>
+                                </div>
+                                <div v-if="item.document.flow === 'uploaded'" class="space-y-2 rounded-xl border border-zinc-100 bg-zinc-50/60 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+                                    <div v-if="item.document.original_name" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
                                         <span>Файл: {{ item.document.original_name }}</span>
                                         <a
                                             v-if="item.document.uploaded_file_preview_url && order?.id"
@@ -1384,122 +1612,100 @@
                                             class="font-medium text-sky-600 underline dark:text-sky-400"
                                         >Предпросмотр</a>
                                     </div>
+                                    <div v-else class="text-xs text-zinc-500">Файл не прикреплён.</div>
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-white dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                        :disabled="!isOrderFormEditable"
+                                        @click="openOrderDocumentAttachModal({ presetIndex: item.index })"
+                                    >
+                                        Прикрепить или заменить файл…
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                        <div class="text-sm font-semibold">Документы перевозчика</div>
-                        <p v-if="form.performers.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                            Добавьте плечо маршрута, чтобы прикреплять документы перевозчика.
+
+                    <div class="border-t border-zinc-200 pt-6 dark:border-zinc-800">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Плечи маршрута (перевозчик)</div>
+                        <p v-if="form.performers.length === 0" class="mt-3 rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                            Добавьте плечо маршрута, чтобы прикреплять документы перевозчика. Документы к плечу — через «Прикрепить файл» выше.
                         </p>
-                        <div v-for="(performer, performerIndex) in form.performers" :key="`carrier-doc-stage-${performerIndex}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex items-center justify-between">
+                        <div v-for="(performer, performerIndex) in form.performers" :key="`carrier-doc-stage-${performerIndex}`" class="mt-4 space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                     <div class="text-sm font-semibold">{{ stageLabel(performer.stage) }}</div>
-                                    <p class="text-xs text-zinc-500">Блок связан с конкретным плечом маршрута.</p>
+                                    <p class="text-xs text-zinc-500">Документы этого блока относятся к выбранному плечу.</p>
                                 </div>
-                                <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addDocumentFor('carrier', performer.stage)">
-                                    Добавить документ перевозчика
-                                </button>
                             </div>
 
                             <div v-if="carrierDocumentsForStage(performer.stage).length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                                Для {{ stageLabel(performer.stage) }} документы перевозчика пока не добавлены.
+                                Для {{ stageLabel(performer.stage) }} документы перевозчика пока не добавлены. Используйте «Прикрепить файл» выше.
                             </div>
 
                             <div v-for="item in carrierDocumentsForStage(performer.stage)" :key="`carrier-document-${performerIndex}-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex items-center justify-between">
-                                <div class="text-sm font-medium">Документ перевозчика</div>
-                                <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
-                                    Удалить
-                                </button>
-                            </div>
-                            <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Вид</label>
-                                    <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option value="uploaded">Загружаемый</option>
-                                        <option value="generated">Формируемый</option>
-                                    </select>
+                                <div class="flex items-center justify-between">
+                                    <div class="text-sm font-medium">Документ перевозчика</div>
+                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
+                                        Удалить
+                                    </button>
                                 </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Тип</label>
-                                    <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Номер</label>
-                                    <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Дата</label>
-                                    <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Статус</label>
-                                    <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                    </select>
-                                </div>
-                                <div v-if="item.document.flow === 'generated'" class="space-y-2">
-                                    <label class="text-sm font-medium">Шаблон DOCX</label>
-                                    <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                        <option :value="null">Не выбран</option>
-                                        <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                    @click="previewDocumentDraft(item.document)"
-                                >
-                                    Предпросмотр
-                                </button>
-                                <button
-                                    type="button"
-                                    class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                    :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                    @click="downloadDocumentDraft(item.document)"
-                                >
-                                    Скачать DOCX
-                                </button>
-                            </div>
-                            <div v-if="item.document.flow === 'uploaded'" class="space-y-2">
-                                <div
-                                    class="rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
-                                    :class="orderDocumentDropActiveIndex === item.index && isOrderFormEditable
-                                        ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
-                                        : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
-                                    @dragenter.prevent="onOrderDocumentDragEnter(item.index)"
-                                    @dragleave.prevent="onOrderDocumentDragLeave"
-                                    @dragover.prevent="onOrderDocumentDragOver"
-                                    @drop.prevent="onOrderDocumentDrop(item.index, $event)"
-                                >
-                                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                                        Перетащите файл сюда<span v-if="isOrderFormEditable"> или выберите на диске</span>
-                                    </p>
-                                    <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
-                                        <label
-                                            class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                            :class="!isOrderFormEditable ? 'pointer-events-none opacity-50' : ''"
-                                        >
-                                            <Paperclip class="h-4 w-4 text-zinc-500" />
-                                            <span>Прикрепить файл</span>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
-                                                class="hidden"
-                                                :disabled="!isOrderFormEditable"
-                                                @change="onDocumentFileChange(item.index, $event)"
-                                            />
-                                        </label>
+                                <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Вид</label>
+                                        <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option value="uploaded">Загружаемый</option>
+                                            <option value="generated">Формируемый</option>
+                                        </select>
                                     </div>
-                                    <div v-if="item.document.original_name" class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Тип</label>
+                                        <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Номер</label>
+                                        <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Дата</label>
+                                        <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Статус</label>
+                                        <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div v-if="item.document.flow === 'generated'" class="space-y-2">
+                                        <label class="text-sm font-medium">Шаблон DOCX</label>
+                                        <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                            <option :value="null">Не выбран</option>
+                                            <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
+                                        @click="previewDocumentDraft(item.document)"
+                                    >
+                                        Предпросмотр
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
+                                        @click="downloadDocumentDraft(item.document)"
+                                    >
+                                        Скачать DOCX
+                                    </button>
+                                </div>
+                                <div v-if="item.document.flow === 'uploaded'" class="space-y-2 rounded-xl border border-zinc-100 bg-zinc-50/60 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+                                    <div v-if="item.document.original_name" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
                                         <span>Файл: {{ item.document.original_name }}</span>
                                         <a
                                             v-if="item.document.uploaded_file_preview_url && order?.id"
@@ -1509,9 +1715,17 @@
                                             class="font-medium text-sky-600 underline dark:text-sky-400"
                                         >Предпросмотр</a>
                                     </div>
+                                    <div v-else class="text-xs text-zinc-500">Файл не прикреплён.</div>
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-white dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                        :disabled="!isOrderFormEditable"
+                                        @click="openOrderDocumentAttachModal({ presetIndex: item.index })"
+                                    >
+                                        Прикрепить или заменить файл…
+                                    </button>
                                 </div>
                             </div>
-                        </div>
                         </div>
                     </div>
                 </div>
@@ -1562,18 +1776,82 @@
             </div>
         </div>
     </Teleport>
+
+    <Modal :show="showOrderDocumentAttachModal" max-width="xl" @close="closeOrderDocumentAttachModal">
+        <CrmModalHeader :title="orderDocumentAttachModalTitle" @close="closeOrderDocumentAttachModal">
+            <template v-if="orderDocumentAttachPresetIndex === null">
+                Укажите, чей это документ и тип. Форматы: PDF, Word, Excel, JPG, PNG, WebP.
+            </template>
+            <template v-else>
+                Выберите файл и подтвердите замену.
+            </template>
+        </CrmModalHeader>
+        <div class="space-y-4 border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
+            <div v-if="orderDocumentAttachPendingFile" class="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900/50">
+                <Paperclip class="h-4 w-4 shrink-0 text-zinc-500" />
+                <span class="min-w-0 truncate font-medium text-zinc-800 dark:text-zinc-100">{{ orderDocumentAttachPendingFile.name }}</span>
+            </div>
+            <div v-else>
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900">
+                    <span>Выбрать файл…</span>
+                    <input
+                        ref="orderDocumentAttachModalFileInputRef"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                        class="hidden"
+                        @change="onOrderDocumentAttachModalFileChange"
+                    >
+                </label>
+            </div>
+
+            <div v-if="orderDocumentAttachPresetIndex !== null && form.documents[orderDocumentAttachPresetIndex]" class="rounded-xl border border-zinc-100 bg-zinc-50/70 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">
+                {{ orderDocumentAttachPresetSummary }}
+            </div>
+
+            <div v-if="orderDocumentAttachPresetIndex === null" class="grid gap-4 sm:grid-cols-2">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium">Чей документ</label>
+                    <select v-model="orderDocumentAttachTargetKind" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <option value="customer">Заказчик</option>
+                        <option value="carrier" :disabled="form.performers.length === 0">Плечо (перевозчик)</option>
+                    </select>
+                </div>
+                <div v-if="orderDocumentAttachTargetKind === 'carrier'" class="space-y-2">
+                    <label class="text-sm font-medium">Плечо</label>
+                    <select v-model="orderDocumentAttachStage" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <option v-for="(p, idx) in form.performers" :key="`attach-leg-${idx}`" :value="p.stage">{{ stageLabel(p.stage) }}</option>
+                    </select>
+                </div>
+                <div class="space-y-2 sm:col-span-2">
+                    <label class="text-sm font-medium">Тип документа</label>
+                    <select v-model="orderDocumentAttachNewDocType" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                <button type="button" :class="crmBtnNeutral" @click="closeOrderDocumentAttachModal">Отмена</button>
+                <button type="button" :class="crmBtnCreate" :disabled="!orderDocumentAttachPendingFile" @click="confirmOrderDocumentAttach">
+                    {{ orderDocumentAttachPresetIndex !== null ? 'Заменить файл' : 'Прикрепить' }}
+                </button>
+            </div>
+        </div>
+    </Modal>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileText, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
+import { ClipboardList, FileText, Gavel, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
 import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import Modal from '@/Components/Modal.vue';
+import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
 
 defineOptions({
@@ -1619,6 +1897,7 @@ const tabs = [
     { key: 'route', label: 'Маршрут', icon: MapPinned },
     { key: 'cargo', label: 'Груз', icon: Package },
     { key: 'finance', label: 'Финансы', icon: Wallet },
+    { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
 ];
 
@@ -1631,7 +1910,7 @@ onMounted(() => {
     }
     const url = new URL(window.location.href);
     const tab = url.searchParams.get('tab');
-    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'documents']);
+    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents']);
     if (tab && allowed.has(tab)) {
         activeTab.value = tab;
     }
@@ -2003,6 +2282,66 @@ function blankRoutePoint(type, sequence, stage) {
     };
 }
 
+function blankPartyNormsPenalties() {
+    return {
+        stage: null,
+        miss_amount: null,
+        miss_currency: 'RUB',
+        downtime_amount: null,
+        downtime_currency: 'RUB',
+        fine_amount: null,
+        fine_currency: 'RUB',
+        penalty_terms: '',
+        norm_loading_hours: null,
+        norm_customs_hours: null,
+        norm_unloading_hours: null,
+    };
+}
+
+function normalizePartyNormsPenalties(raw) {
+    const base = blankPartyNormsPenalties();
+    if (!raw || typeof raw !== 'object') {
+        return base;
+    }
+    const toNum = (v) => {
+        if (v === null || v === undefined || v === '') {
+            return null;
+        }
+        const n = Number(v);
+
+        return Number.isFinite(n) ? n : null;
+    };
+
+    return {
+        ...base,
+        stage: raw.stage != null && String(raw.stage).trim() !== '' ? String(raw.stage).trim() : null,
+        miss_amount: toNum(raw.miss_amount),
+        miss_currency: String(raw.miss_currency ?? base.miss_currency).slice(0, 3) || base.miss_currency,
+        downtime_amount: toNum(raw.downtime_amount),
+        downtime_currency: String(raw.downtime_currency ?? base.downtime_currency).slice(0, 3) || base.downtime_currency,
+        fine_amount: toNum(raw.fine_amount),
+        fine_currency: String(raw.fine_currency ?? base.fine_currency).slice(0, 3) || base.fine_currency,
+        penalty_terms: String(raw.penalty_terms ?? '').slice(0, 2000),
+        norm_loading_hours: toNum(raw.norm_loading_hours),
+        norm_customs_hours: toNum(raw.norm_customs_hours),
+        norm_unloading_hours: toNum(raw.norm_unloading_hours),
+    };
+}
+
+function normalizeCarrierNormsByLegList(existingRows, performers) {
+    const existing = Array.isArray(existingRows) ? existingRows : [];
+    const legs = Array.isArray(performers) ? performers : [];
+
+    return legs.map((performer) => {
+        const existingRow = existing.find((row) => stageMatches(row.stage, performer.stage));
+
+        return normalizePartyNormsPenalties({
+            ...existingRow,
+            stage: performer.stage,
+        });
+    });
+}
+
 function blankOrder() {
     return {
         status: 'new',
@@ -2086,6 +2425,8 @@ function blankOrder() {
             contractors_costs: [],
             additional_costs: [],
             kpi_percent: 0,
+            client_norms_penalties: blankPartyNormsPenalties(),
+            carrier_norms_by_leg: [],
         },
         additional_expenses: null,
         insurance: null,
@@ -2392,6 +2733,16 @@ function selectedLoadingTypeCodes() {
     return [...new Set(fromCargo.length > 0 ? fromCargo : (Array.isArray(form.loading_types) ? form.loading_types : []))];
 }
 
+const initialWizardPerformers = Array.isArray(props.order?.performers)
+    ? props.order.performers.map((performer) => ({
+        stage: stageLabel(performer.stage ?? 'leg_1'),
+        contractor_id: normalizeNullableNumber(performer.contractor_id),
+        contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
+        fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
+        fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
+    }))
+    : blankOrder().performers;
+
 const form = useForm({
     ...blankOrder(),
     ...(props.order ?? {}),
@@ -2410,15 +2761,7 @@ const form = useForm({
     cargo_items: Array.isArray(props.order?.cargo_items)
         ? props.order.cargo_items.map((c) => normalizeCargoItem(c))
         : blankOrder().cargo_items,
-    performers: Array.isArray(props.order?.performers)
-        ? props.order.performers.map((performer) => ({
-            stage: stageLabel(performer.stage ?? 'leg_1'),
-            contractor_id: normalizeNullableNumber(performer.contractor_id),
-            contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
-            fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
-            fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
-        }))
-        : blankOrder().performers,
+    performers: initialWizardPerformers,
     route_points: Array.isArray(props.order?.route_points)
         ? props.order.route_points.map((point, index) => ({
             ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), stageLabel(point.stage ?? 'leg_1')),
@@ -2443,6 +2786,11 @@ const form = useForm({
         contractors_costs: Array.isArray(props.order?.financial_term?.contractors_costs)
             ? props.order.financial_term.contractors_costs.map((cost) => normalizeContractorCost(cost))
             : [],
+        client_norms_penalties: normalizePartyNormsPenalties(props.order?.financial_term?.client_norms_penalties),
+        carrier_norms_by_leg: normalizeCarrierNormsByLegList(
+            props.order?.financial_term?.carrier_norms_by_leg,
+            initialWizardPerformers,
+        ),
     },
     documents: Array.isArray(props.order?.documents)
         ? props.order.documents.map((document) => normalizeDocument(document))
@@ -3588,6 +3936,13 @@ const documentTabValidationMessages = computed(() => {
         .map(([, value]) => (Array.isArray(value) ? value.join(' ') : String(value)));
 });
 
+const normsPenaltiesTabValidationMessages = computed(() => {
+    return Object.entries(form.errors)
+        .filter(([key]) => key.startsWith('financial_term.client_norms_penalties')
+            || key.startsWith('financial_term.carrier_norms_by_leg'))
+        .map(([, value]) => (Array.isArray(value) ? value.join(' ') : String(value)));
+});
+
 const hasUnsavedDocumentFiles = computed(() => form.documents.some((d) => d.file instanceof File));
 
 const financialSummary = computed(() => {
@@ -3955,14 +4310,11 @@ function addCargoItem() {
     form.cargo_items.push(normalizeCargoItem({}));
 }
 
-function addDocument() {
-    addDocumentFor('customer', null);
-}
-
-function addDocumentFor(party, stage = null) {
+function addDocumentFor(party, stage = null, overrides = {}) {
     form.documents.push(normalizeDocument({
         party,
         stage,
+        ...overrides,
     }));
 }
 
@@ -4005,6 +4357,22 @@ function syncContractorCostsFromPerformers() {
         }
 
         return nextRow;
+    });
+    syncCarrierNormsByLegFromPerformers();
+}
+
+function syncCarrierNormsByLegFromPerformers() {
+    const existingRows = Array.isArray(form.financial_term.carrier_norms_by_leg)
+        ? form.financial_term.carrier_norms_by_leg
+        : [];
+
+    form.financial_term.carrier_norms_by_leg = form.performers.map((performer) => {
+        const existingRow = existingRows.find((row) => stageMatches(row.stage, performer.stage));
+
+        return normalizePartyNormsPenalties({
+            ...existingRow,
+            stage: performer.stage,
+        });
     });
 }
 
@@ -4079,32 +4447,59 @@ watch(
     { immediate: true },
 );
 
-/** Счётчик dragenter/dragleave внутри зоны (без мерцания на вложенных элементах) */
-let orderDocumentDropDepth = 0;
-const orderDocumentDropActiveIndex = ref(null);
-
 const ORDER_DOCUMENT_UPLOAD_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'webp']);
+
+const showOrderDocumentAttachModal = ref(false);
+const orderDocumentAttachPendingFile = ref(null);
+const orderDocumentAttachPresetIndex = ref(null);
+const orderDocumentAttachNewDocType = ref('request');
+const orderDocumentAttachTargetKind = ref('customer');
+const orderDocumentAttachStage = ref(null);
+const orderDocumentGlobalDropActive = ref(false);
+let orderDocumentGlobalDropDepth = 0;
+const orderDocumentGlobalFileInputRef = ref(null);
+const orderDocumentAttachModalFileInputRef = ref(null);
+
+const orderDocumentAttachModalTitle = computed(() => (orderDocumentAttachPresetIndex.value !== null ? 'Заменить файл' : 'Прикрепить файл'));
+
+watch(orderDocumentAttachTargetKind, (kind) => {
+    if (kind === 'carrier' && form.performers.length === 0) {
+        orderDocumentAttachTargetKind.value = 'customer';
+
+        return;
+    }
+    if (kind === 'carrier' && form.performers.length > 0) {
+        const stages = form.performers.map((p) => p.stage);
+        if (orderDocumentAttachStage.value === null || orderDocumentAttachStage.value === '' || !stages.some((s) => stageMatches(s, orderDocumentAttachStage.value))) {
+            orderDocumentAttachStage.value = form.performers[0].stage;
+        }
+    }
+});
+
+function documentStatusLabel(status) {
+    return props.documentStatusOptions.find((o) => o.value === status)?.label ?? status;
+}
 
 function orderDocumentUploadExtension(file) {
     return (file.name.split('.').pop() || '').toLowerCase();
 }
 
-function onOrderDocumentDragEnter(index) {
+function onOrderDocumentGlobalDragEnter() {
     if (!isOrderFormEditable.value) {
         return;
     }
-    orderDocumentDropDepth += 1;
-    orderDocumentDropActiveIndex.value = index;
+    orderDocumentGlobalDropDepth += 1;
+    orderDocumentGlobalDropActive.value = true;
 }
 
-function onOrderDocumentDragLeave() {
-    orderDocumentDropDepth = Math.max(0, orderDocumentDropDepth - 1);
-    if (orderDocumentDropDepth === 0) {
-        orderDocumentDropActiveIndex.value = null;
+function onOrderDocumentGlobalDragLeave() {
+    orderDocumentGlobalDropDepth = Math.max(0, orderDocumentGlobalDropDepth - 1);
+    if (orderDocumentGlobalDropDepth === 0) {
+        orderDocumentGlobalDropActive.value = false;
     }
 }
 
-function onOrderDocumentDragOver(event) {
+function onOrderDocumentGlobalDragOver(event) {
     if (!isOrderFormEditable.value) {
         return;
     }
@@ -4114,9 +4509,9 @@ function onOrderDocumentDragOver(event) {
     }
 }
 
-async function onOrderDocumentDrop(index, event) {
-    orderDocumentDropDepth = 0;
-    orderDocumentDropActiveIndex.value = null;
+async function onOrderDocumentGlobalDrop(event) {
+    orderDocumentGlobalDropDepth = 0;
+    orderDocumentGlobalDropActive.value = false;
     if (!isOrderFormEditable.value) {
         return;
     }
@@ -4124,7 +4519,124 @@ async function onOrderDocumentDrop(index, event) {
     if (!file) {
         return;
     }
+    await openOrderDocumentAttachModal({ file });
+}
+
+function triggerOrderDocumentGlobalFilePick() {
+    if (!isOrderFormEditable.value) {
+        return;
+    }
+    orderDocumentGlobalFileInputRef.value?.click();
+}
+
+async function onOrderDocumentGlobalFileInputChange(event) {
+    const file = event.target.files?.[0] ?? null;
+    const input = event.target;
+    if (input && 'value' in input) {
+        input.value = '';
+    }
+    if (!file) {
+        return;
+    }
+    await openOrderDocumentAttachModal({ file });
+}
+
+async function setOrderDocumentAttachPendingFile(file) {
+    if (!file) {
+        orderDocumentAttachPendingFile.value = null;
+
+        return;
+    }
+    const ext = orderDocumentUploadExtension(file);
+    if (!ORDER_DOCUMENT_UPLOAD_EXTENSIONS.has(ext)) {
+        window.alert(
+            'Недопустимый тип файла. Разрешены: PDF, Word, Excel, изображения (JPG, PNG, WebP).',
+        );
+
+        return;
+    }
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    orderDocumentAttachPendingFile.value = file;
+}
+
+async function openOrderDocumentAttachModal(options = {}) {
+    const file = options.file ?? null;
+    const rawPreset = options.presetIndex;
+    const presetIndex = rawPreset !== undefined && rawPreset !== null && form.documents[rawPreset]
+        ? rawPreset
+        : null;
+
+    orderDocumentAttachPresetIndex.value = presetIndex;
+    orderDocumentAttachPendingFile.value = null;
+
+    if (presetIndex !== null) {
+        const doc = form.documents[presetIndex];
+        orderDocumentAttachTargetKind.value = doc.party === 'carrier' ? 'carrier' : 'customer';
+        orderDocumentAttachStage.value = doc.party === 'carrier' ? doc.stage : null;
+    } else {
+        orderDocumentAttachTargetKind.value = 'customer';
+        orderDocumentAttachStage.value = form.performers[0]?.stage ?? null;
+        orderDocumentAttachNewDocType.value = props.documentTypeOptions[0]?.value ?? 'request';
+    }
+
+    if (file) {
+        await setOrderDocumentAttachPendingFile(file);
+    }
+
+    showOrderDocumentAttachModal.value = true;
+}
+
+function closeOrderDocumentAttachModal() {
+    showOrderDocumentAttachModal.value = false;
+    orderDocumentAttachPendingFile.value = null;
+    orderDocumentAttachPresetIndex.value = null;
+    if (orderDocumentAttachModalFileInputRef.value) {
+        orderDocumentAttachModalFileInputRef.value.value = '';
+    }
+    if (orderDocumentGlobalFileInputRef.value) {
+        orderDocumentGlobalFileInputRef.value.value = '';
+    }
+}
+
+async function onOrderDocumentAttachModalFileChange(event) {
+    const file = event.target.files?.[0] ?? null;
+    await setOrderDocumentAttachPendingFile(file);
+    const input = event.target;
+    if (input && 'value' in input) {
+        input.value = '';
+    }
+}
+
+async function confirmOrderDocumentAttach() {
+    const file = orderDocumentAttachPendingFile.value;
+    if (!file) {
+        window.alert('Выберите файл.');
+
+        return;
+    }
+    const presetIdx = orderDocumentAttachPresetIndex.value;
+    let index;
+    if (presetIdx !== null) {
+        if (!form.documents[presetIdx]) {
+            window.alert('Документ не найден.');
+
+            return;
+        }
+        index = presetIdx;
+    } else {
+        const party = orderDocumentAttachTargetKind.value === 'carrier' ? 'carrier' : 'customer';
+        const stage = party === 'carrier' ? orderDocumentAttachStage.value : null;
+        if (party === 'carrier' && (stage === null || stage === '')) {
+            window.alert('Выберите плечо маршрута.');
+
+            return;
+        }
+        const docType = orderDocumentAttachNewDocType.value;
+        addDocumentFor(party, stage, { type: docType, flow: 'uploaded' });
+        index = form.documents.length - 1;
+    }
     await assignDocumentFileAtIndex(index, file);
+    closeOrderDocumentAttachModal();
 }
 
 async function assignDocumentFileAtIndex(index, file) {
@@ -4144,23 +4656,23 @@ async function assignDocumentFileAtIndex(index, file) {
     form.documents[index].original_name = file.name;
 }
 
-async function onDocumentFileChange(index, event) {
-    const file = event.target.files?.[0] ?? null;
-    if (file) {
-        await assignDocumentFileAtIndex(index, file);
-    } else {
-        form.documents[index].file = null;
-        form.documents[index].original_name = '';
-    }
-    const input = event.target;
-    if (input && 'value' in input) {
-        input.value = '';
-    }
-}
-
 function documentTypeLabel(type) {
     return props.documentTypeOptions.find((option) => option.value === type)?.label ?? type;
 }
+
+const orderDocumentAttachPresetSummary = computed(() => {
+    const idx = orderDocumentAttachPresetIndex.value;
+    if (idx === null || !form.documents[idx]) {
+        return '';
+    }
+    const d = form.documents[idx];
+    const partyLabel = d.party === 'carrier' ? 'Перевозчик' : 'Заказчик';
+    const leg = d.party === 'carrier' && d.stage !== null && d.stage !== undefined && String(d.stage).length > 0
+        ? ` · ${stageLabel(d.stage)}`
+        : '';
+
+    return `${partyLabel}${leg} · ${documentTypeLabel(d.type)} · ${documentStatusLabel(d.status)}${d.number ? ` · № ${d.number}` : ''}`;
+});
 
 function documentRequirementLabel(key) {
     return props.requiredDocumentRules.find((rule) => rule.key === key)?.label ?? '';
@@ -4263,6 +4775,24 @@ async function createInlineCounterparty() {
     } finally {
         inlineContractorSaving.value = false;
     }
+}
+
+function normsPenaltiesForSubmit(row) {
+    const n = normalizePartyNormsPenalties(row && typeof row === 'object' ? row : {});
+
+    return {
+        ...(n.stage ? { stage: n.stage } : {}),
+        miss_amount: n.miss_amount,
+        miss_currency: n.miss_currency,
+        downtime_amount: n.downtime_amount,
+        downtime_currency: n.downtime_currency,
+        fine_amount: n.fine_amount,
+        fine_currency: n.fine_currency,
+        penalty_terms: n.penalty_terms,
+        norm_loading_hours: n.norm_loading_hours,
+        norm_customs_hours: n.norm_customs_hours,
+        norm_unloading_hours: n.norm_unloading_hours,
+    };
 }
 
 function buildSubmitPayload() {
@@ -4378,6 +4908,10 @@ function buildSubmitPayload() {
             })),
             additional_costs: [],
             kpi_percent: rawFinancial.kpi_percent,
+            client_norms_penalties: normsPenaltiesForSubmit(rawFinancial.client_norms_penalties),
+            carrier_norms_by_leg: Array.isArray(rawFinancial.carrier_norms_by_leg)
+                ? rawFinancial.carrier_norms_by_leg.map((row) => normsPenaltiesForSubmit(row))
+                : [],
         },
 
         // Documents

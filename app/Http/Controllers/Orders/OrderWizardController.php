@@ -666,6 +666,12 @@ class OrderWizardController extends Controller
                     : ($financialTerm?->additional_costs ?? []),
                 // Источник истины — пересчёт в orders.kpi_percent; снимок wizard_state отстаёт после inline/grid.
                 'kpi_percent' => $order->kpi_percent ?? ($useWizardState ? ($wizardFt['kpi_percent'] ?? 0) : 0),
+                'client_norms_penalties' => $useWizardState
+                    ? (is_array($wizardFt['client_norms_penalties'] ?? null) ? $wizardFt['client_norms_penalties'] : [])
+                    : [],
+                'carrier_norms_by_leg' => $useWizardState
+                    ? (is_array($wizardFt['carrier_norms_by_leg'] ?? null) ? $wizardFt['carrier_norms_by_leg'] : [])
+                    : [],
             ],
             'payment_settlement' => $this->buildPaymentSettlementSummary((int) $order->id),
             'documents' => $documents->map(fn (OrderDocument $document): array => $this->serializeOrderDocument(

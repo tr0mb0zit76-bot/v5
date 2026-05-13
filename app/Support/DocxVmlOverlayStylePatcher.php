@@ -62,7 +62,7 @@ final class DocxVmlOverlayStylePatcher
                 continue;
             }
 
-            $patched = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx);
+            $patched = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx, $name);
             if ($patched !== $xml) {
                 $zip->deleteName($name);
                 $zip->addFromString($name, $patched);
@@ -116,17 +116,18 @@ final class DocxVmlOverlayStylePatcher
     /**
      * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
      */
-    public static function patchWordprocessingMl(string $documentXml, array $overlayStyles, int &$overlayIdx): string
+    public static function patchWordprocessingMl(string $documentXml, array $overlayStyles, int &$overlayIdx, string $partPath = 'word/document.xml'): string
     {
         if ($overlayStyles === []) {
             return $documentXml;
         }
 
         $overlayCount = count($overlayStyles);
+        $isHeaderFooter = str_starts_with($partPath, 'word/header') || str_starts_with($partPath, 'word/footer');
 
         $updated = preg_replace_callback(
             '/<v:shape([^>]*?)style="([^"]*?)"([^>]*)>/',
-            static function (array $matches) use ($overlayStyles, &$overlayIdx, $overlayCount): string {
+            static function (array $matches) use ($overlayStyles, &$overlayIdx, $overlayCount, $isHeaderFooter): string {
                 $fullTag = $matches[0];
                 if (! str_contains($fullTag, '#_x0000_t75')) {
                     return $fullTag;
@@ -144,6 +145,11 @@ final class DocxVmlOverlayStylePatcher
                 $style = preg_replace('/\bmargin-top\s*:\s*[^;"\']+/i', '', $style) ?? $style;
                 $style = trim((string) preg_replace('/;{2,}/', ';', $style), ';');
 
+                if ($isHeaderFooter) {
+                    $style = preg_replace('/\bmso-position-horizontal-relative\s*:\s*page\b/i', 'mso-position-horizontal-relative:margin', $style) ?? $style;
+                    $style = preg_replace('/\bmso-position-vertical-relative\s*:\s*page\b/i', 'mso-position-vertical-relative:margin', $style) ?? $style;
+                }
+
                 $resolved = $overlayStyles[$overlayIdx];
                 $overlayIdx++;
 
@@ -160,16 +166,25 @@ final class DocxVmlOverlayStylePatcher
                 }
 
                 if (! str_contains($style, 'mso-position-horizontal-relative')) {
-                    $style .= ';mso-position-horizontal-relative:page';
+                    $style .= $isHeaderFooter
+                        ? ';mso-position-horizontal-relative:margin'
+                        : ';mso-position-horizontal-relative:page';
                 }
 
                 if (! str_contains($style, 'mso-position-vertical-relative')) {
-                    $style .= ';mso-position-vertical-relative:page';
+                    $style .= $isHeaderFooter
+                        ? ';mso-position-vertical-relative:margin'
+                        : ';mso-position-vertical-relative:page';
+                }
+
+                if ($isHeaderFooter && ! str_contains($style, 'mso-behind-text')) {
+                    $style .= ';mso-behind-text:yes';
                 }
 
                 $leftMm = number_format((float) $resolved['margin_left_mm'], 2, '.', '');
                 $topMm = number_format((float) $resolved['margin_top_mm'], 2, '.', '');
                 $style .= ';margin-left:'.$leftMm.'mm;margin-top:'.$topMm.'mm';
+                $style = trim((string) preg_replace('/;{2,}/', ';', $style), ';');
 
                 return '<v:shape'.$before.'style="'.$style.'"'.$after.'>';
             },

@@ -9,7 +9,7 @@ class PrintFormVariableCatalog
      */
     public function orderOptions(): array
     {
-        return [
+        return array_merge([
             ['value' => 'order.id', 'label' => 'Заказ: ID'],
             ['value' => 'order.order_number', 'label' => 'Заказ: Номер'],
             ['value' => 'order.order_date', 'label' => 'Заказ: Дата'],
@@ -190,7 +190,50 @@ class PrintFormVariableCatalog
             ['value' => 'cargo.line_3_name', 'label' => 'Груз: Позиция 3 — только наименование'],
             ['value' => 'cargo.line_4_name', 'label' => 'Груз: Позиция 4 — только наименование'],
             ['value' => 'cargo.line_5_name', 'label' => 'Груз: Позиция 5 — только наименование'],
+        ], $this->orderFinancialNormsPlaceholderOptions());
+    }
+
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    private function orderFinancialNormsPlaceholderOptions(): array
+    {
+        $rows = [];
+        $sharedKeys = [
+            ['stage', 'этап (идентификатор плеча в мастере)'],
+            ['miss_amount', 'срыв, сумма'],
+            ['miss_currency', 'срыв, валюта'],
+            ['miss_amount_with_currency', 'срыв, сумма с валютой'],
+            ['downtime_amount', 'простой, сумма'],
+            ['downtime_currency', 'простой, валюта'],
+            ['downtime_amount_with_currency', 'простой, сумма с валютой'],
+            ['fine_amount', 'штраф, сумма'],
+            ['fine_currency', 'штраф, валюта'],
+            ['fine_amount_with_currency', 'штраф, сумма с валютой'],
+            ['penalty_terms', 'пеня / условия (текст)'],
+            ['norm_loading_hours', 'норматив, погрузка (ч)'],
+            ['norm_customs_hours', 'норматив, таможня (ч)'],
+            ['norm_unloading_hours', 'норматив, выгрузка (ч)'],
         ];
+
+        foreach ($sharedKeys as [$key, $suffix]) {
+            $rows[] = [
+                'value' => 'financial.client_norms_penalties.'.$key,
+                'label' => 'Заказчик (мастер): '.$suffix,
+            ];
+        }
+
+        for ($i = 0; $i < 15; $i++) {
+            $n = $i + 1;
+            foreach ($sharedKeys as [$key, $suffix]) {
+                $rows[] = [
+                    'value' => 'financial.carrier_norms_by_leg.'.$i.'.'.$key,
+                    'label' => 'Перевозчик, плечо №'.$n.' (порядок в мастере): '.$suffix,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     /**

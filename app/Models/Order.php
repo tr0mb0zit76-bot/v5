@@ -146,6 +146,10 @@ class Order extends Model
             $casts['performers'] = 'array';
         }
 
+        if (Schema::hasColumn($this->getTable(), 'wizard_state')) {
+            $casts['wizard_state'] = 'array';
+        }
+
         return $casts;
     }
 

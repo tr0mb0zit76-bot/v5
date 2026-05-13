@@ -296,6 +296,7 @@ class OrderPrintFormDraftService
                 'hs_codes' => $this->resolveCargoHsCodesSummary($cargoItems),
                 'first_hs_code' => $this->resolveCargoFirstHsCode($cargoItems),
             ], $this->cargoPerLinePlaceholderMap($cargoItems)),
+            'financial' => $this->financialNormsPenaltiesSnapshot($order),
         ];
     }
 
@@ -1531,6 +1532,100 @@ class OrderPrintFormDraftService
         }
 
         return $resolved;
+    }
+
+    /**
+     * Штрафы, нормативы и пеня из мастера заказа ({@see Order::$wizard_state} → financial_term).
+     *
+     * @return array{client_norms_penalties: array<string, mixed>, carrier_norms_by_leg: list<array<string, mixed>>}
+     */
+    private function financialNormsPenaltiesSnapshot(Order $order): array
+    {
+        $wizard = is_array($order->wizard_state) ? $order->wizard_state : [];
+        $ft = is_array($wizard['financial_term'] ?? null) ? $wizard['financial_term'] : [];
+        $client = is_array($ft['client_norms_penalties'] ?? null) ? $ft['client_norms_penalties'] : [];
+        $carrier = is_array($ft['carrier_norms_by_leg'] ?? null) ? $ft['carrier_norms_by_leg'] : [];
+
+        return [
+            'client_norms_penalties' => $this->normsPenaltiesRowForPrintSnapshot($client),
+            'carrier_norms_by_leg' => array_values(array_map(
+                fn (mixed $row): array => $this->normsPenaltiesRowForPrintSnapshot(is_array($row) ? $row : []),
+                $carrier,
+            )),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function normsPenaltiesRowForPrintSnapshot(array $row): array
+    {
+        $stage = $row['stage'] ?? null;
+        $stageOut = is_string($stage) && trim($stage) !== '' ? trim($stage) : null;
+
+        $missAmount = $this->nullableNumericScalar($row['miss_amount'] ?? null);
+        $missCurrency = $this->normsPenaltyCurrencyCode($row['miss_currency'] ?? null);
+        $downtimeAmount = $this->nullableNumericScalar($row['downtime_amount'] ?? null);
+        $downtimeCurrency = $this->normsPenaltyCurrencyCode($row['downtime_currency'] ?? null);
+        $fineAmount = $this->nullableNumericScalar($row['fine_amount'] ?? null);
+        $fineCurrency = $this->normsPenaltyCurrencyCode($row['fine_currency'] ?? null);
+
+        $penaltyTerms = $row['penalty_terms'] ?? '';
+        $penaltyTermsOut = is_string($penaltyTerms) ? trim($penaltyTerms) : '';
+
+        return [
+            'stage' => $stageOut,
+            'miss_amount' => $missAmount !== null ? $this->formatMoney($missAmount) : null,
+            'miss_currency' => $missCurrency,
+            'miss_amount_with_currency' => $this->formatMoneyWithCurrency($missAmount, $missCurrency),
+            'downtime_amount' => $downtimeAmount !== null ? $this->formatMoney($downtimeAmount) : null,
+            'downtime_currency' => $downtimeCurrency,
+            'downtime_amount_with_currency' => $this->formatMoneyWithCurrency($downtimeAmount, $downtimeCurrency),
+            'fine_amount' => $fineAmount !== null ? $this->formatMoney($fineAmount) : null,
+            'fine_currency' => $fineCurrency,
+            'fine_amount_with_currency' => $this->formatMoneyWithCurrency($fineAmount, $fineCurrency),
+            'penalty_terms' => $penaltyTermsOut === '' ? null : $penaltyTermsOut,
+            'norm_loading_hours' => $this->normHoursStringForPrint($row['norm_loading_hours'] ?? null),
+            'norm_customs_hours' => $this->normHoursStringForPrint($row['norm_customs_hours'] ?? null),
+            'norm_unloading_hours' => $this->normHoursStringForPrint($row['norm_unloading_hours'] ?? null),
+        ];
+    }
+
+    private function nullableNumericScalar(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    private function normsPenaltyCurrencyCode(mixed $value): string
+    {
+        if (! is_string($value)) {
+            return 'RUB';
+        }
+
+        $trimmed = strtoupper(trim($value));
+
+        return $trimmed !== '' ? substr($trimmed, 0, 3) : 'RUB';
+    }
+
+    private function normHoursStringForPrint(mixed $value): ?string
+    {
+        $hours = $this->nullableNumericScalar($value);
+        if ($hours === null) {
+            return null;
+        }
+
+        $formatted = rtrim(rtrim(number_format($hours, 2, ',', ' '), '0'), ',');
+
+        return $formatted !== '' ? $formatted : null;
     }
 
     private function formatDate(mixed $value): ?string
