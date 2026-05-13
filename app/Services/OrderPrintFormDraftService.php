@@ -11,6 +11,7 @@ use App\Support\CarrierPaymentTermResolver;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\PhpWordTemplateOverlayImageInjector;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormTemplateDiskSource;
@@ -923,23 +924,12 @@ class OrderPrintFormDraftService
 
         $absolutePath = $resolved['absolute'];
 
-        // PhpWord 1.4: default limit is -1, but setImageValue breaks after the first match because `++$i >= -1`.
-        $imageReplaceLimit = \PHP_INT_MAX;
-
-        $processor->setMacroChars('${', '}');
-        $processor->setImageValue($placeholder, [
+        PhpWordTemplateOverlayImageInjector::injectImageForAllMacroStyles($processor, $placeholder, [
             'path' => $absolutePath,
             'width' => $widthPx,
             'height' => $heightPx,
             'ratio' => true,
-        ], $imageReplaceLimit);
-        $processor->setMacroChars('{{', '}}');
-        $processor->setImageValue($placeholder, [
-            'path' => $absolutePath,
-            'width' => $widthPx,
-            'height' => $heightPx,
-            'ratio' => true,
-        ], $imageReplaceLimit);
+        ]);
 
         return $resolved['cleanup'];
     }

@@ -10,14 +10,14 @@ use ZipArchive;
  */
 final class DocxVmlOverlayStylePatcher
 {
-    /** Режим открытия ZIP для записи (если в сборке нет ZipArchive::RDWR — значение 2). */
+    /** Режим открытия ZIP для записи. На PHP 8.3+ есть {@see ZipArchive::RDWR}; иначе 0 (read-write). Не использовать 2 — это ZIP_EXCL и на Windows ломает открытие существующего DOCX. */
     public static function zipOpenFlagsReadWrite(): int
     {
         if (defined('ZipArchive::RDWR')) {
             return (int) ZipArchive::RDWR;
         }
 
-        return 2;
+        return 0;
     }
 
     /**
@@ -30,8 +30,17 @@ final class DocxVmlOverlayStylePatcher
         }
 
         $zip = new ZipArchive;
+        $stagingPath = null;
+
         if ($zip->open($absoluteDocxPath, self::zipOpenFlagsReadWrite()) !== true) {
-            return;
+            $stagingPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'crm-docx-vml-'.uniqid('', true).'.docx';
+            if (! @copy($absoluteDocxPath, $stagingPath) || $zip->open($stagingPath, self::zipOpenFlagsReadWrite()) !== true) {
+                if (is_string($stagingPath) && is_file($stagingPath)) {
+                    @unlink($stagingPath);
+                }
+
+                return;
+            }
         }
 
         $overlayIdx = 0;
@@ -55,11 +64,17 @@ final class DocxVmlOverlayStylePatcher
 
             $patched = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx);
             if ($patched !== $xml) {
+                $zip->deleteName($name);
                 $zip->addFromString($name, $patched);
             }
         }
 
         $zip->close();
+
+        if (is_string($stagingPath) && is_file($stagingPath)) {
+            @copy($stagingPath, $absoluteDocxPath);
+            @unlink($stagingPath);
+        }
     }
 
     /**

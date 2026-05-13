@@ -360,13 +360,34 @@ class SettingsTemplateController extends Controller
     }
 
     /**
-     * @param  array<string, mixed>  $mapping
+     * @param  array<int|string, mixed>  $mapping
      * @param  list<string>  $variables
      * @return array<string, string>
      */
     private function filterVariableMapping(array $mapping, array $variables): array
     {
-        return collect($mapping)
+        $normalized = [];
+
+        foreach ($mapping as $key => $value) {
+            if (is_int($key) && is_array($value)) {
+                $placeholder = trim((string) ($value['placeholder'] ?? ''));
+                $sourcePath = trim((string) ($value['source_path'] ?? ''));
+                if ($placeholder !== '' && $sourcePath !== '') {
+                    $normalized[$placeholder] = $sourcePath;
+                }
+
+                continue;
+            }
+
+            if (is_string($key) && is_string($value)) {
+                $trimmed = trim($value);
+                if ($trimmed !== '') {
+                    $normalized[$key] = $trimmed;
+                }
+            }
+        }
+
+        return collect($normalized)
             ->filter(fn (mixed $value, string $key): bool => in_array($key, $variables, true) && is_string($value) && $value !== '')
             ->all();
     }

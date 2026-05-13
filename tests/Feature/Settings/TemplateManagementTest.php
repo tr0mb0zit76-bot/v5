@@ -1016,6 +1016,85 @@ class TemplateManagementTest extends TestCase
         $this->assertFalse((bool) data_get($settings, 'image_overlays.apply_crm_overlay_offsets'));
     }
 
+    public function test_admin_can_upload_new_docx_when_variable_mapping_is_legacy_row_list(): void
+    {
+        Storage::fake('local');
+
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $oldDocx = $this->makeDocxPath([
+            'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+        $storedOld = 'print-form-templates/99/legacy-v1.docx';
+        Storage::disk('local')->put($storedOld, file_get_contents($oldDocx));
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'legacy_mapping_tpl',
+            'name' => 'Шаблон со старым форматом сопоставлений',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'is_default' => false,
+            'vue_component' => 'ExternalDocxTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_disk' => 'local',
+            'file_path' => $storedOld,
+            'original_filename' => 'old.docx',
+            'settings' => json_encode([
+                'variables' => ['order.number'],
+                'variable_mapping' => [
+                    ['placeholder' => 'order.number', 'source_path' => 'order.order_number'],
+                ],
+                'pipeline_status' => 'placeholders_ready',
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->patch(route('settings.templates.update', $templateId), [
+            'code' => 'legacy_mapping_tpl',
+            'name' => 'Шаблон со старым форматом сопоставлений',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'external_docx',
+            'contractor_id' => null,
+            'is_default' => false,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'internal_signature_placeholder' => 'internal_signature_image',
+            'internal_stamp_placeholder' => 'internal_stamp_image',
+            'signature_image_width_mm' => 42,
+            'signature_image_height_mm' => 18,
+            'signature_image_offset_x_mm' => 0,
+            'signature_image_offset_y_mm' => 0,
+            'stamp_image_width_mm' => 30,
+            'stamp_image_height_mm' => 30,
+            'stamp_image_offset_x_mm' => 0,
+            'stamp_image_offset_y_mm' => 0,
+            'apply_crm_overlay_offsets' => '1',
+            'variable_mappings' => [
+                ['placeholder' => 'order.number', 'source_path' => 'order.order_number'],
+            ],
+            'source_file' => $this->makeDocxUpload('replacement.docx', [
+                'word/document.xml' => '<w:document><w:body><w:p><w:r><w:t>${order.number}</w:t></w:r></w:p><w:p><w:r><w:t>${customer.name}</w:t></w:r></w:p></w:body></w:document>',
+            ]),
+        ])->assertRedirect(route('settings.templates.index'));
+
+        $settings = json_decode((string) DB::table('print_form_templates')->where('id', $templateId)->value('settings'), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(['customer.name', 'order.number'], $settings['variables']);
+        $this->assertSame(['order.number' => 'order.order_number'], $settings['variable_mapping']);
+    }
+
     private function createRole(string $name, string $displayName): int
     {
         return (int) DB::table('roles')->insertGetId([
