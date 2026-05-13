@@ -3,22 +3,22 @@ export const gridDensityOptions = [
     key: 'compact',
     label: 'Компактно',
     fontSize: '12px',
-    rowHeight: '36px',
-    headerHeight: '38px',
+    rowHeight: '34px',
+    headerHeight: '36px',
   },
   {
     key: 'normal',
     label: 'Нормально',
     fontSize: '13px',
-    rowHeight: '42px',
-    headerHeight: '44px',
+    rowHeight: '40px',
+    headerHeight: '42px',
   },
   {
     key: 'comfortable',
     label: 'Свободно',
     fontSize: '14px',
-    rowHeight: '48px',
-    headerHeight: '50px',
+    rowHeight: '46px',
+    headerHeight: '48px',
   },
 ];
 

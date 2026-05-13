@@ -5,31 +5,37 @@
   --ag-header-background-color: #f4f4f5;
   --ag-header-foreground-color: #18181b;
   --ag-odd-row-background-color: #fafafa;
-  --ag-border-color: #e4e4e7;
-  --ag-row-border-color: #f1f5f9;
+  --ag-border-color: #c5ccd6;
+  --ag-row-border-color: #b8c0ca;
+  --orders-grid-cell-grid: #b0b8c4;
+  /* Было ~18px из ag-theme-alpine (6×3); уменьшаем «воздух» по горизонтали */
+  --ag-cell-horizontal-padding: 6px;
+  --ag-cell-widget-spacing: 5px;
+  --ag-widget-container-horizontal-padding: 8px;
+  --ag-widget-container-vertical-padding: 8px;
   --ag-selected-row-background-color: rgba(24, 24, 27, 0.08);
   --ag-font-size: 13px;
   --ag-font-family: Inter, Figtree, system-ui, sans-serif;
-  --ag-row-height: 42px;
-  --ag-header-height: 44px;
+  --ag-row-height: 40px;
+  --ag-header-height: 42px;
 }
 
 .orders-grid-theme.orders-grid-density--compact {
   --ag-font-size: 12px;
-  --ag-row-height: 36px;
-  --ag-header-height: 38px;
+  --ag-row-height: 34px;
+  --ag-header-height: 36px;
 }
 
 .orders-grid-theme.orders-grid-density--normal {
   --ag-font-size: 13px;
-  --ag-row-height: 42px;
-  --ag-header-height: 44px;
+  --ag-row-height: 40px;
+  --ag-header-height: 42px;
 }
 
 .orders-grid-theme.orders-grid-density--comfortable {
   --ag-font-size: 14px;
-  --ag-row-height: 48px;
-  --ag-header-height: 50px;
+  --ag-row-height: 46px;
+  --ag-header-height: 48px;
 }
 
 .orders-grid-theme .ag-root-wrapper,
@@ -56,8 +62,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 4px;
-  padding-right: 4px;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 .orders-grid-theme .orders-grid-status-cell.ag-cell .ag-cell-wrapper {
@@ -136,7 +142,7 @@
   background: var(--ag-background-color);
   color: var(--ag-foreground-color);
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 6px;
   font: inherit;
 }
 
@@ -187,6 +193,17 @@
   border-color: #27272a;
 }
 
+.orders-grid-theme .ag-header-cell,
+.orders-grid-theme .ag-cell,
+.orders-grid-theme .ag-header-group-cell {
+  border-right: 1px solid var(--orders-grid-cell-grid);
+  border-bottom: 1px solid var(--orders-grid-cell-grid);
+}
+
+.orders-grid-theme .ag-header-cell-resize::after {
+  background-color: var(--orders-grid-cell-grid);
+}
+
 .dark .orders-grid-theme {
   --ag-background-color: #18181b;
   --ag-foreground-color: #f4f4f5;
@@ -194,6 +211,7 @@
   --ag-header-foreground-color: #fafafa;
   --ag-odd-row-background-color: #18181b;
   --ag-border-color: #3f3f46;
-  --ag-row-border-color: #27272a;
+  --ag-row-border-color: #52525b;
+  --orders-grid-cell-grid: #52525b;
   --ag-selected-row-background-color: rgba(255, 255, 255, 0.08);
 }

@@ -25,10 +25,11 @@
                             <div class="flex items-center gap-1.5">
                                 <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус</span>
                                 <span
-                                    class="inline-flex max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                                    title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
+                                    class="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
+                                    :title="'Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
                                 >
-                                    {{ orderStatusBadgeLabel }}
+                                    <OrderStatusIcon v-if="orderStatusIconMeta" :icon-key="orderStatusIconKey" :size="18" />
+                                    <span class="min-w-0 truncate">{{ orderStatusBadgeLabel }}</span>
                                 </span>
                                 <button
                                     v-if="canShowMarkDisruptionButton"
@@ -186,10 +187,11 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус заказа</span>
                         <span
-                            class="inline-flex max-w-full items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium leading-none text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                            title="Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам"
+                            class="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium leading-none text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
+                            :title="'Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
                         >
-                            {{ orderStatusBadgeLabel }}
+                            <OrderStatusIcon v-if="orderStatusIconMeta" :icon-key="orderStatusIconKey" />
+                            <span class="min-w-0 truncate">{{ orderStatusBadgeLabel }}</span>
                         </span>
                         <button
                             v-if="canShowMarkDisruptionButton"
@@ -560,15 +562,37 @@
                             </div>
 
                             <template v-if="item.point.type === 'border_crossing'">
-                                <div class="w-full space-y-2">
-                                    <label class="text-sm font-medium">СВХ / таможенный склад</label>
-                                    <input
-                                        v-model="form.svh_name"
-                                        type="text"
-                                        :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.svh_name ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
-                                        placeholder="Наименование или адрес СВХ для документов"
-                                    />
-                                    <p v-if="form.errors.svh_name" class="text-xs text-rose-500">{{ form.errors.svh_name }}</p>
+                                <div class="w-full space-y-3">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Код поста и наименование СВХ</label>
+                                        <div class="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                                            <input
+                                                v-model="form.customs_post_code"
+                                                type="text"
+                                                :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.customs_post_code ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
+                                                placeholder="Код поста"
+                                            />
+                                            <input
+                                                v-model="form.svh_name"
+                                                type="text"
+                                                :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.svh_name ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
+                                                placeholder="Наименование СВХ / таможенного склада"
+                                            />
+                                        </div>
+                                        <p v-if="form.errors.customs_post_code || form.errors.svh_name" class="text-xs text-rose-500">
+                                            {{ form.errors.customs_post_code || form.errors.svh_name }}
+                                        </p>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Адрес СВХ</label>
+                                        <input
+                                            v-model="form.svh_address"
+                                            type="text"
+                                            :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', form.errors.svh_address ? 'border-rose-500 dark:border-rose-500' : 'border-zinc-200 dark:border-zinc-700']"
+                                            placeholder="Почтовый или производственный адрес"
+                                        />
+                                        <p v-if="form.errors.svh_address" class="text-xs text-rose-500">{{ form.errors.svh_address }}</p>
+                                    </div>
                                 </div>
                             </template>
                             <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_14rem] lg:items-end">
@@ -1482,6 +1506,8 @@ import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
+import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
+import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
@@ -1925,6 +1951,8 @@ function blankOrder() {
         payment_terms: '',
         special_notes: '',
         svh_name: '',
+        svh_address: '',
+        customs_post_code: '',
         is_international_transport: false,
         loading_types: [],
         cargo_sender_name: '',
@@ -2355,6 +2383,9 @@ const form = useForm({
     documents: Array.isArray(props.order?.documents)
         ? props.order.documents.map((document) => normalizeDocument(document))
         : [],
+    svh_name: props.order?.svh_name ?? '',
+    svh_address: props.order?.svh_address ?? '',
+    customs_post_code: props.order?.customs_post_code ?? '',
     is_international_transport: props.order?.is_international_transport === true,
 });
 
@@ -2496,6 +2527,16 @@ const orderStatusBadgeLabel = computed(() => {
 
     return opt?.label ?? code ?? '—';
 });
+
+const orderStatusIconKey = computed(() => {
+    const manual = form.manual_status != null && String(form.manual_status).trim() !== '' ? String(form.manual_status).trim() : null;
+    const effective = manual ?? form.status;
+    const row = { manual_status: form.manual_status, status: form.status };
+
+    return resolveOrderStatusIconKey(row, effective);
+});
+
+const orderStatusIconMeta = computed(() => Boolean(orderStatusIconKey.value && ORDER_STATUS_ICON_META[orderStatusIconKey.value]));
 
 /** Ложь, когда владелец заказа не может менять карточку (все печатные заявки финализированы). */
 const isOrderFormEditable = computed(() => {
@@ -3427,9 +3468,14 @@ const routeChainLabel = computed(() => {
         .sort((left, right) => Number(left.sequence ?? 0) - Number(right.sequence ?? 0))
         .map((point) => {
             if (point.type === 'border_crossing') {
-                const svh = String(form.svh_name ?? '').trim();
+                const parts = [
+                    String(form.customs_post_code ?? '').trim(),
+                    String(form.svh_name ?? '').trim(),
+                    String(form.svh_address ?? '').trim(),
+                ].filter((s) => s !== '');
+                const label = parts.length > 0 ? parts.join(' · ') : 'СВХ / пост не указаны';
 
-                return `${routePointTypeHeading(point.type)}: ${svh || 'СВХ не указан'}`;
+                return `${routePointTypeHeading(point.type)}: ${label}`;
             }
 
             return `${routePointTypeHeading(point.type)}: ${point.address || 'адрес не указан'}`;
@@ -4104,6 +4150,8 @@ function buildSubmitPayload() {
         payment_terms: form.payment_terms,
         special_notes: form.special_notes,
         svh_name: form.svh_name,
+        svh_address: form.svh_address,
+        customs_post_code: form.customs_post_code,
         is_international_transport: Boolean(form.is_international_transport),
         additional_expenses: form.additional_expenses,
         insurance: form.insurance,

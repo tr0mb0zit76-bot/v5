@@ -589,6 +589,10 @@ class OrderWizardController extends Controller
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
             'svh_name' => $order->svh_name,
+            'svh_address' => Schema::hasColumn('orders', 'svh_address') ? $order->svh_address : null,
+            'customs_post_code' => Schema::hasColumn('orders', 'customs_post_code') ? $order->customs_post_code : null,
+            'customs_declaration_place' => Schema::hasColumn('orders', 'customs_declaration_place') ? $order->customs_declaration_place : null,
+            'customs_commodity_code' => Schema::hasColumn('orders', 'customs_commodity_code') ? $order->customs_commodity_code : null,
             'is_international_transport' => Schema::hasColumn('orders', 'is_international_transport')
                 ? (bool) $order->is_international_transport
                 : false,

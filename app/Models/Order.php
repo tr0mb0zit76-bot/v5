@@ -85,6 +85,11 @@ class Order extends Model
         'payment_status',
         'special_notes',
         'svh_name',
+        'svh_address',
+        'customs_post_code',
+        'customs_post_name',
+        'customs_declaration_place',
+        'customs_commodity_code',
         'is_international_transport',
         'performers',
     ];

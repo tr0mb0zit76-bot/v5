@@ -378,6 +378,8 @@ class StoreOrderRequest extends FormRequest
             'order_number' => ['nullable', 'string', 'max:255'],
             'special_notes' => ['nullable', 'string'],
             'svh_name' => ['nullable', 'string', 'max:500'],
+            'svh_address' => ['nullable', 'string', 'max:500'],
+            'customs_post_code' => ['nullable', 'string', 'max:120'],
             'is_international_transport' => ['sometimes', 'boolean'],
             'loading_types' => ['nullable', 'array'],
             'loading_types.*' => ['nullable', Rule::in(['top', 'side', 'rear', 'full', 'tail_lift', 'crane'])],

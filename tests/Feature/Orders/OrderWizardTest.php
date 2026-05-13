@@ -22,6 +22,17 @@ class OrderWizardTest extends TestCase
     {
         parent::setUp();
 
+        $connection = config('database.default');
+        $database = (string) config("database.connections.{$connection}.database");
+        $allowedDatabase = (string) env('ORDER_WIZARD_TEST_DATABASE', 'u_tromb');
+        if ($database === '' || $database !== $allowedDatabase) {
+            $this->markTestSkipped(
+                'OrderWizardTest пересоздаёт таблицы и удаляет все строки в выбранной БД. '
+                .'Создайте отдельную схему MySQL (например `'.$allowedDatabase.'`), скопируйте `u_tromb.env.example` в `.env.testing` и выполните `php artisan migrate --env=testing`. '
+                .'Сейчас DB_DATABASE=`'.($database === '' ? '(пусто)' : $database).'`, ожидается `'.$allowedDatabase.'`.'
+            );
+        }
+
         Storage::fake();
 
         $phpWordTmp = storage_path('framework/phpword-tmp');

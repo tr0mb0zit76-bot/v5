@@ -261,6 +261,12 @@ class OrderPrintFormDraftService
                 'waybill_number' => $order->waybill_number,
                 'special_notes' => $order->special_notes,
                 'svh_name' => $order->svh_name,
+                'svh_address' => $order->svh_address,
+                'customs_post_code' => $order->customs_post_code,
+                'customs_post_name' => null,
+                'customs_declaration_place' => null,
+                'customs_commodity_code' => null,
+                'svh_summary' => $this->formatSvhSummaryBlock($order),
             ],
             'cargo_sender' => [
                 'name' => $this->resolvePrimaryPartyValue($loadingPoints, 'sender_name'),
@@ -324,9 +330,9 @@ class OrderPrintFormDraftService
             ],
             'cargo' => array_merge([
                 'summary' => $cargoItems
-                    ->map(fn ($cargo): string => $this->cargoLineDetailText($cargo))
+                    ->map(fn ($cargo): string => $this->cargoLineDetailTextForSummaryLine($cargo))
                     ->filter(fn (string $s): bool => $s !== '')
-                    ->implode("\n\n"),
+                    ->implode('  |  '),
                 'lines_multiline' => $cargoItems
                     ->map(fn ($cargo): string => $this->cargoLineDetailText($cargo))
                     ->filter(fn (string $s): bool => $s !== '')
@@ -342,6 +348,8 @@ class OrderPrintFormDraftService
                 'truck_body_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'truck_body_type_items', 'truck_body_type_label'),
                 'trailer_types' => $this->resolveCargoDictionaryItemLabels($cargoItems, 'trailer_type_items', 'trailer_type_label'),
                 'hazard_classes' => $this->resolveCargoHazardClassesSummary($cargoItems),
+                'hs_codes' => $this->resolveCargoHsCodesSummary($cargoItems),
+                'first_hs_code' => $this->resolveCargoFirstHsCode($cargoItems),
             ], $this->cargoPerLinePlaceholderMap($cargoItems)),
         ];
     }
@@ -1397,6 +1405,16 @@ class OrderPrintFormDraftService
         return $name !== '' ? $name."\n".$body : $body;
     }
 
+    /**
+     * Одна строка для плейсхолдера «сводка по грузу»: без переводов строк, позиции через разделитель.
+     */
+    private function cargoLineDetailTextForSummaryLine(mixed $cargo): string
+    {
+        $block = $this->cargoLineDetailText($cargo);
+
+        return trim(preg_replace("/\s+/u", ' ', str_replace(["\r\n", "\n", "\r"], ' ', $block)) ?? '');
+    }
+
     private function cargoDimensionsSummaryLine(mixed $cargo): ?string
     {
         if (! is_object($cargo)) {
@@ -1450,6 +1468,64 @@ class OrderPrintFormDraftService
         return $parts !== [] ? implode(', ', $parts) : '';
     }
 
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     */
+    private function resolveCargoHsCodesSummary(Collection $cargoItems): string
+    {
+        $parts = $cargoItems
+            ->map(fn (mixed $cargo): string => is_object($cargo) ? trim((string) ($cargo->hs_code ?? '')) : '')
+            ->filter(fn (string $s): bool => $s !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        return $parts !== [] ? implode(', ', $parts) : '';
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     */
+    private function resolveCargoFirstHsCode(Collection $cargoItems): ?string
+    {
+        foreach ($cargoItems as $cargo) {
+            if (! is_object($cargo)) {
+                continue;
+            }
+            $code = trim((string) ($cargo->hs_code ?? ''));
+            if ($code !== '') {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Сводка по СВХ / таможне для старых макетов с одним блоком текста.
+     */
+    private function formatSvhSummaryBlock(Order $order): string
+    {
+        $lines = [];
+
+        $postCode = trim((string) ($order->customs_post_code ?? ''));
+        $svhName = trim((string) ($order->svh_name ?? ''));
+        if ($postCode !== '' || $svhName !== '') {
+            $postLine = $postCode;
+            if ($svhName !== '') {
+                $postLine = $postLine !== '' ? $postLine.' — '.$svhName : $svhName;
+            }
+            $lines[] = $postLine;
+        }
+
+        $address = trim((string) ($order->svh_address ?? ''));
+        if ($address !== '') {
+            $lines[] = $address;
+        }
+
+        return implode("\n", $lines);
+    }
+
     private function stringifyValue(mixed $value): string
     {
         if ($value === null) {
@@ -1462,6 +1538,18 @@ class OrderPrintFormDraftService
 
         if (is_scalar($value)) {
             return (string) $value;
+        }
+
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $item) {
+                $piece = $this->stringifyValue($item);
+                if ($piece !== '') {
+                    $parts[] = $piece;
+                }
+            }
+
+            return implode(', ', $parts);
         }
 
         return '';
