@@ -94,8 +94,12 @@ class OrderPrintFormDraftService
         $overlayTempFiles = [];
         if ($includeTemplateOverlays) {
             $overlayTempFiles = $this->injectTemplateOverlayImages($processor, $template);
-            if ($template->shouldApplyCrmOverlayOffsets()) {
-                $overlayStyles = $this->buildOverlayFloatingStyles($template);
+            $overlayStyles = $this->buildOverlayFloatingStyles($template);
+            if (! $template->shouldApplyCrmOverlayOffsets()) {
+                $overlayStyles = array_map(
+                    static fn (): array => ['margin_left_mm' => 0.0, 'margin_top_mm' => 0.0],
+                    $overlayStyles,
+                );
             }
         }
 
@@ -117,9 +121,7 @@ class OrderPrintFormDraftService
             }
         }
 
-        if ($includeTemplateOverlays && $overlayStyles !== []) {
-            DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles);
-        }
+        DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles, true);
 
         return [
             'disk' => $disk,

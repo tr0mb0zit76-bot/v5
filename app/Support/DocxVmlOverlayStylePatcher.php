@@ -5,8 +5,9 @@ namespace App\Support;
 use ZipArchive;
 
 /**
- * После PhpWord setImageValue подпись/печать попадают в VML (type "#_x0000_t75").
- * Дописываем привязку к странице и смещения из CRM. Патчим document/header/footer; ZIP открываем на запись.
+ * После PhpWord {@see TemplateProcessor::setImageValue} подпись/печать попадают в VML (type "#_x0000_t75").
+ * Дописываем привязку и смещения; для колонтитулов — «не в ячейке» и плотная строка абзаца, чтобы таблица не разъезжалась.
+ * Опционально чистим ведущие запятые/пробелы после пустых плейсхолдеров ({@see DocxOrphanSeparatorCleaner}).
  */
 final class DocxVmlOverlayStylePatcher
 {
@@ -23,9 +24,9 @@ final class DocxVmlOverlayStylePatcher
     /**
      * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
      */
-    public static function patchDocx(string $absoluteDocxPath, array $overlayStyles): void
+    public static function patchDocx(string $absoluteDocxPath, array $overlayStyles, bool $cleanOrphanSeparators = true): void
     {
-        if ($overlayStyles === []) {
+        if ($overlayStyles === [] && ! $cleanOrphanSeparators) {
             return;
         }
 
@@ -62,10 +63,16 @@ final class DocxVmlOverlayStylePatcher
                 continue;
             }
 
-            $patched = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx, $name);
-            if ($patched !== $xml) {
+            $originalXml = $xml;
+            $xml = DocxHeaderFooterOverlayParagraphCompactor::patch($xml, $name);
+            $xml = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx, $name);
+            if ($cleanOrphanSeparators) {
+                $xml = DocxOrphanSeparatorCleaner::cleanWordprocessingMl($xml);
+            }
+
+            if ($xml !== $originalXml) {
                 $zip->deleteName($name);
-                $zip->addFromString($name, $patched);
+                $zip->addFromString($name, $xml);
             }
         }
 
@@ -118,10 +125,6 @@ final class DocxVmlOverlayStylePatcher
      */
     public static function patchWordprocessingMl(string $documentXml, array $overlayStyles, int &$overlayIdx, string $partPath = 'word/document.xml'): string
     {
-        if ($overlayStyles === []) {
-            return $documentXml;
-        }
-
         $overlayCount = count($overlayStyles);
         $isHeaderFooter = str_starts_with($partPath, 'word/header') || str_starts_with($partPath, 'word/footer');
 
@@ -133,13 +136,21 @@ final class DocxVmlOverlayStylePatcher
                     return $fullTag;
                 }
 
-                if ($overlayIdx >= $overlayCount) {
+                if (! $isHeaderFooter && $overlayCount === 0) {
+                    return $fullTag;
+                }
+
+                if (! $isHeaderFooter && $overlayIdx >= $overlayCount) {
                     return $fullTag;
                 }
 
                 $before = $matches[1];
                 $style = $matches[2];
                 $after = $matches[3];
+
+                if ($isHeaderFooter && ! preg_match('/\bo:allowincell=/i', $before.$after)) {
+                    $before .= ' o:allowincell="f"';
+                }
 
                 $style = preg_replace('/\bmargin-left\s*:\s*[^;"\']+/i', '', $style) ?? $style;
                 $style = preg_replace('/\bmargin-top\s*:\s*[^;"\']+/i', '', $style) ?? $style;
@@ -150,7 +161,10 @@ final class DocxVmlOverlayStylePatcher
                     $style = preg_replace('/\bmso-position-vertical-relative\s*:\s*page\b/i', 'mso-position-vertical-relative:margin', $style) ?? $style;
                 }
 
-                $resolved = $overlayStyles[$overlayIdx];
+                $resolved = $overlayIdx < $overlayCount
+                    ? $overlayStyles[$overlayIdx]
+                    : ['margin_left_mm' => 0.0, 'margin_top_mm' => 0.0];
+
                 $overlayIdx++;
 
                 if (! str_contains($style, 'position:absolute')) {

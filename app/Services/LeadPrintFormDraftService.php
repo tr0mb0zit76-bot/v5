@@ -86,8 +86,12 @@ class LeadPrintFormDraftService
         $overlayStyles = [];
         if ($includeTemplateOverlays) {
             $this->injectTemplateOverlayImages($processor, $template);
-            if ($template->shouldApplyCrmOverlayOffsets()) {
-                $overlayStyles = $this->buildOverlayFloatingStyles($template);
+            $overlayStyles = $this->buildOverlayFloatingStyles($template);
+            if (! $template->shouldApplyCrmOverlayOffsets()) {
+                $overlayStyles = array_map(
+                    static fn (): array => ['margin_left_mm' => 0.0, 'margin_top_mm' => 0.0],
+                    $overlayStyles,
+                );
             }
         }
 
@@ -102,9 +106,7 @@ class LeadPrintFormDraftService
         }
 
         $processor->saveAs($absoluteTarget);
-        if ($includeTemplateOverlays && $overlayStyles !== []) {
-            DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles);
-        }
+        DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles, true);
 
         return [
             'disk' => $disk,
