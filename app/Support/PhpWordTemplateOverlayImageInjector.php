@@ -29,6 +29,7 @@ final class PhpWordTemplateOverlayImageInjector
         foreach ([['${', '}'], ['{{', '}}']] as $pair) {
             [$open, $close] = $pair;
             $processor->setMacroChars($open, $close);
+            DocxTextRunPlaceholderMerger::applyToTemplateProcessor($processor, $open, $close, $innerPlaceholder);
 
             $initial = self::countPlaceholderMacros($processor, $innerPlaceholder);
             $passes = min($initial, $maxPasses);
@@ -37,6 +38,8 @@ final class PhpWordTemplateOverlayImageInjector
                 $processor->setImageValue($innerPlaceholder, $imagePayload);
             }
         }
+
+        $processor->setMacroChars('${', '}');
     }
 
     public static function countPlaceholderMacros(TemplateProcessor $processor, string $innerPlaceholder): int

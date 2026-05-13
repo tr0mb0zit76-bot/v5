@@ -270,6 +270,7 @@ class OrderPrintFormDraftService
                 'unloading_first_address' => $this->resolvePointAddress($unloadingPoints->first()),
                 'unloading_first_city' => $this->resolvePointCity($unloadingPoints->first()),
                 'unloading_last_city' => $this->resolvePointCity($unloadingPoints->last()),
+                'unloading_last_address' => $this->resolvePointAddress($unloadingPoints->last()),
                 'unloading_time_range' => $this->resolvePointTimeRange($unloadingPoints->first()),
             ],
             'cargo' => array_merge([
@@ -1297,6 +1298,18 @@ class OrderPrintFormDraftService
     }
 
     /**
+     * Только наименование/описание позиции (без веса и прочего блока).
+     */
+    private function cargoLineNameOnly(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        return trim((string) ($cargo->title ?? '') !== '' ? (string) $cargo->title : (string) ($cargo->description ?? ''));
+    }
+
+    /**
      * Текст одной позиции груза: как блок «Сводка позиции» в мастере (вес/объём с учётом мест, габариты, число мест).
      */
     private function cargoLineDetailText(mixed $cargo): string
@@ -1305,7 +1318,7 @@ class OrderPrintFormDraftService
             return '';
         }
 
-        $name = trim((string) ($cargo->title ?? '') !== '' ? (string) $cargo->title : (string) ($cargo->description ?? ''));
+        $name = $this->cargoLineNameOnly($cargo);
         $factor = $this->cargoPackageCountFactor($cargo);
         $perWeightKg = (float) ($cargo->weight ?? 0);
         $totalWeightKg = $perWeightKg * $factor;
@@ -1383,6 +1396,8 @@ class OrderPrintFormDraftService
         for ($i = 1; $i <= 10; $i++) {
             $cargo = $values->get($i - 1);
             $out['line_'.$i.'_text'] = $cargo !== null ? $this->cargoLineDetailText($cargo) : '';
+            $out['line_'.$i.'_name'] = $cargo !== null ? $this->cargoLineNameOnly($cargo) : '';
+            $out['line_'.$i.'_summary'] = $cargo !== null ? $this->cargoLineDetailTextForSummaryLine($cargo) : '';
         }
 
         return $out;

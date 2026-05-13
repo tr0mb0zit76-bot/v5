@@ -212,6 +212,7 @@ class LeadPrintFormDraftService
                 'unloading_first_address' => $unloadingPoints->first()?->address,
                 'unloading_first_city' => data_get($unloadingPoints->first()?->normalized_data, 'city'),
                 'unloading_last_city' => data_get($unloadingPoints->last()?->normalized_data, 'city'),
+                'unloading_last_address' => $unloadingPoints->last()?->address,
             ],
             'cargo' => [
                 'summary' => $cargoItems

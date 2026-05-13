@@ -62,4 +62,20 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
             'lead_only' => 'lead_only',
         ], $effective);
     }
+
+    public function test_order_legacy_gruz_maps_to_cargo_line_summary(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame('cargo.line_1_summary', $resolver->resolve('gruz_1', [], 'order'));
+        $this->assertSame('cargo.line_5_summary', $resolver->resolve('gruz_5', [], 'order'));
+    }
+
+    public function test_order_legacy_cargo_name_maps_to_cargo_line_name(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame('cargo.line_1_name', $resolver->resolve('cargo_name1', [], 'order'));
+        $this->assertSame('cargo.line_3_name', $resolver->resolve('cargo_name3', [], 'order'));
+    }
 }
