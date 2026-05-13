@@ -291,6 +291,7 @@
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Исходный DOCX</label>
                                     <input
+                                        ref="sourceDocxFileInputRef"
                                         type="file"
                                         accept=".docx"
                                         class="field file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm dark:file:bg-zinc-800"
@@ -586,7 +587,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { FileText, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -646,6 +647,7 @@ const props = defineProps({
 
 const showModal = ref(false);
 const editingTemplate = ref(null);
+const sourceDocxFileInputRef = ref(null);
 const templateModalTab = ref('main');
 const previewOrderId = ref('');
 const previewLeadId = ref('');
@@ -905,6 +907,41 @@ function buildVariableMappings(template) {
         }));
 }
 
+/**
+ * После замены DOCX на сервере обновляются settings.variables; объект editingTemplate
+ * мог остаться ссылкой на старую строку из props — тогда модалка показывает старые плейсхолдеры.
+ */
+function resyncEditingTemplateFromTemplatesList(templatesList) {
+    if (!showModal.value || editingTemplate.value === null || !Array.isArray(templatesList)) {
+        return;
+    }
+    const id = editingTemplate.value.id;
+    const fresh = templatesList.find((t) => t.id === id);
+    if (!fresh) {
+        return;
+    }
+    const cur = editingTemplate.value;
+    const varsEqual = JSON.stringify(cur.variables ?? []) === JSON.stringify(fresh.variables ?? []);
+    const metaEqual = cur.updated_at === fresh.updated_at && cur.version === fresh.version && cur.original_filename === fresh.original_filename;
+    if (varsEqual && metaEqual) {
+        return;
+    }
+    editingTemplate.value = fresh;
+    form.variable_mappings = buildVariableMappings(fresh);
+    form.source_file = null;
+    if (sourceDocxFileInputRef.value) {
+        sourceDocxFileInputRef.value.value = '';
+    }
+}
+
+watch(
+    () => props.templates,
+    (templatesList) => {
+        resyncEditingTemplateFromTemplatesList(templatesList);
+    },
+    { deep: true },
+);
+
 watch(
     () => [form.internal_signature_placeholder, form.internal_stamp_placeholder],
     () => {
@@ -958,8 +995,10 @@ function submit() {
             forceFormData: true,
             preserveScroll: true,
             preserveState: true,
-            onSuccess: () => {
+            onSuccess: async () => {
                 form.transform((data) => data);
+                await nextTick();
+                resyncEditingTemplateFromTemplatesList(props.templates);
             },
             onError: () => {
                 form.transform((data) => data);
