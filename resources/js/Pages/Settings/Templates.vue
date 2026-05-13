@@ -532,10 +532,10 @@
                                 <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
                                     Подстановки заказа/лида. Плейсхолдеры подписи и печати — в блоке «Основное» → «Подпись и печать для DOCX».
                                 </p>
-                                <div v-if="form.variable_mappings.length > 0" class="grid gap-4 md:grid-cols-2">
+                                    <div v-if="form.variable_mappings.length > 0" class="grid gap-4 md:grid-cols-2">
                                     <div
                                         v-for="(mapping, index) in form.variable_mappings"
-                                        :key="mapping.placeholder"
+                                        :key="`${index}-${mapping.placeholder}`"
                                         class="grid gap-3 rounded-2xl border border-zinc-200 p-3 dark:border-zinc-800"
                                     >
                                         <div>
@@ -932,18 +932,26 @@ function pipelineStatusClass(value) {
 }
 
 function submit() {
+    const withOverlayCheckbox = (data) => ({
+        ...data,
+        // multipart FormData omits unchecked boxes — always send 0/1 so CRM смещения вкл/выкл сохраняются
+        apply_crm_overlay_offsets: data.apply_crm_overlay_offsets === true || data.apply_crm_overlay_offsets === '1' || data.apply_crm_overlay_offsets === 1 ? '1' : '0',
+    });
+
     if (editingTemplate.value === null) {
-        form.post(route('settings.templates.store'), {
-            forceFormData: true,
-            preserveScroll: true,
-            preserveState: true,
-        });
+        form
+            .transform((data) => withOverlayCheckbox(data))
+            .post(route('settings.templates.store'), {
+                forceFormData: true,
+                preserveScroll: true,
+                preserveState: true,
+            });
         return;
     }
 
     form
         .transform((data) => ({
-            ...data,
+            ...withOverlayCheckbox(data),
             _method: 'patch',
         }))
         .post(route('settings.templates.update', editingTemplate.value.id), {

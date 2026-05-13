@@ -937,6 +937,85 @@ class TemplateManagementTest extends TestCase
         $this->assertSame(11.0, (float) data_get($settings, 'image_overlays.internal_stamp.offset_y_mm'));
     }
 
+    public function test_admin_can_save_apply_crm_overlay_offsets_false_from_string_zero(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $templateId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'overlay_flag_tpl',
+            'name' => 'Шаблон флага смещений',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'system',
+            'is_default' => false,
+            'vue_component' => 'SystemPrintFormTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'settings' => json_encode([
+                'variables' => [],
+                'variable_mapping' => [],
+                'image_overlays' => [
+                    'apply_crm_overlay_offsets' => true,
+                    'internal_signature' => [
+                        'placeholder' => 'internal_signature_image',
+                        'width_mm' => 42,
+                        'height_mm' => 18,
+                        'offset_x_mm' => 5,
+                        'offset_y_mm' => 0,
+                        'path' => null,
+                        'disk' => null,
+                    ],
+                    'internal_stamp' => [
+                        'placeholder' => 'internal_stamp_image',
+                        'width_mm' => 30,
+                        'height_mm' => 30,
+                        'offset_x_mm' => 0,
+                        'offset_y_mm' => 0,
+                        'path' => null,
+                        'disk' => null,
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->patch(route('settings.templates.update', $templateId), [
+            'code' => 'overlay_flag_tpl',
+            'name' => 'Шаблон флага смещений',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'system',
+            'contractor_id' => null,
+            'is_default' => false,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'internal_signature_placeholder' => 'internal_signature_image',
+            'internal_stamp_placeholder' => 'internal_stamp_image',
+            'signature_image_width_mm' => 42,
+            'signature_image_height_mm' => 18,
+            'signature_image_offset_x_mm' => 5,
+            'signature_image_offset_y_mm' => 0,
+            'stamp_image_width_mm' => 30,
+            'stamp_image_height_mm' => 30,
+            'stamp_image_offset_x_mm' => 0,
+            'stamp_image_offset_y_mm' => 0,
+            'apply_crm_overlay_offsets' => '0',
+        ])->assertRedirect(route('settings.templates.index'));
+
+        $settings = json_decode((string) DB::table('print_form_templates')->where('id', $templateId)->value('settings'), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertFalse((bool) data_get($settings, 'image_overlays.apply_crm_overlay_offsets'));
+    }
+
     private function createRole(string $name, string $displayName): int
     {
         return (int) DB::table('roles')->insertGetId([

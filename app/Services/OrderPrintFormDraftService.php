@@ -923,20 +923,23 @@ class OrderPrintFormDraftService
 
         $absolutePath = $resolved['absolute'];
 
+        // PhpWord 1.4: default limit is -1, but setImageValue breaks after the first match because `++$i >= -1`.
+        $imageReplaceLimit = \PHP_INT_MAX;
+
         $processor->setMacroChars('${', '}');
         $processor->setImageValue($placeholder, [
             'path' => $absolutePath,
             'width' => $widthPx,
             'height' => $heightPx,
             'ratio' => true,
-        ]);
+        ], $imageReplaceLimit);
         $processor->setMacroChars('{{', '}}');
         $processor->setImageValue($placeholder, [
             'path' => $absolutePath,
             'width' => $widthPx,
             'height' => $heightPx,
             'ratio' => true,
-        ]);
+        ], $imageReplaceLimit);
 
         return $resolved['cleanup'];
     }
