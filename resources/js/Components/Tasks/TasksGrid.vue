@@ -255,6 +255,10 @@ function formatDue(value) {
 
 function onGridReady(params) {
   gridApi.value = params.api;
+  nextTick(() => {
+    updateGridViewportHeight();
+    syncBottomScrollbar();
+  });
 }
 
 function onCellDoubleClicked(event) {
@@ -292,14 +296,21 @@ function readDensityFromStorage() {
 }
 
 function updateGridViewportHeight() {
-  if (!gridSection.value || !gridPanel.value) {
+  const panelElement = gridPanel.value;
+  if (!panelElement) {
     return;
   }
-  const sectionRect = gridSection.value.getBoundingClientRect();
-  const panelTop = gridPanel.value.getBoundingClientRect().top;
-  const reserve = 24;
-  const h = Math.max(280, Math.floor(sectionRect.bottom - panelTop - reserve));
-  gridViewportHeight.value = h;
+
+  const sectionTop = panelElement.getBoundingClientRect().top;
+  const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
+  const commandBarFooter = document.querySelector('footer');
+  const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
+  const footerReserve = 60;
+
+  gridViewportHeight.value = Math.max(
+    280,
+    Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
+  );
 }
 
 function syncBottomScrollbar() {
@@ -310,10 +321,12 @@ function syncBottomScrollbar() {
   const centerViewport = document.querySelector('.ag-body-horizontal-scroll-viewport');
   if (!centerViewport) {
     bottomScrollbarWidth.value = 0;
+    updateGridViewportHeight();
 
     return;
   }
   bottomScrollbarWidth.value = Math.max(centerViewport.scrollWidth, centerViewport.clientWidth);
+  updateGridViewportHeight();
   if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
     bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
   }
