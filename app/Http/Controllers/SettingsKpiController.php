@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreSalaryCoefficientRequest;
 use App\Http\Requests\StoreSalaryPayoutRequest;
 use App\Http\Requests\StoreSalaryPeriodRequest;
+use App\Http\Requests\StoreSalaryUnscopedAdvanceRequest;
 use App\Http\Requests\UpdateKpiSettingsRequest;
 use App\Http\Requests\UpdateSalaryCoefficientRequest;
 use App\Models\SalaryCoefficient;
@@ -158,6 +159,13 @@ class SettingsKpiController extends Controller
         $this->salaryPayrollService->createPayout($salaryPeriod, $request->validated(), $request->user()?->id);
 
         return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id]);
+    }
+
+    public function storeSalaryAdvanceWithoutPeriod(StoreSalaryUnscopedAdvanceRequest $request): RedirectResponse
+    {
+        $this->salaryPayrollService->createUnscopedAdvancePayout($request->validated(), $request->user()?->id);
+
+        return $this->salaryRedirect($request, []);
     }
 
     private function assertSalaryModuleAccess(Request $request): void

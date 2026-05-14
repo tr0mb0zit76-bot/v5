@@ -125,6 +125,14 @@
                 >
                     Закрыть
                 </button>
+                <button
+                    type="button"
+                    class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100 dark:hover:bg-amber-950"
+                    :disabled="selectedSalaryPeriodId !== null && selectedPeriod?.status === 'closed'"
+                    @click="openAdvancePayoutModal"
+                >
+                    Выдача аванса
+                </button>
             </div>
 
             <div class="overflow-auto border border-zinc-200 dark:border-zinc-800">
@@ -242,6 +250,97 @@
                     </tbody>
                 </table>
             </div>
+
+            <Teleport to="body">
+                <div
+                    v-if="advancePayoutModalOpen"
+                    class="fixed inset-0 z-[80] flex items-center justify-center bg-zinc-950/50 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="advance-payout-modal-title"
+                    @click.self="closeAdvancePayoutModal"
+                >
+                    <div
+                        class="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                    >
+                        <h3 id="advance-payout-modal-title" class="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                            Выдача аванса
+                        </h3>
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            <template v-if="selectedSalaryPeriodId">
+                                Сумма войдёт в «Выплачено» и «Авансы» по выбранному периоду и зачтётся при последующих выплатах зарплаты.
+                                <span v-if="selectedPeriod" class="block pt-1">
+                                    Период: {{ selectedPeriod.period_start }} — {{ selectedPeriod.period_end }}.
+                                </span>
+                            </template>
+                            <template v-else>
+                                Аванс без привязки к периоду: запись появится в учёте и будет автоматически зачтена при пересчёте подходящих зарплатных периодов (по дате выдачи и начислениям по заказам).
+                            </template>
+                        </p>
+                        <div class="mt-4 space-y-3">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Сотрудник</label>
+                                <select
+                                    v-model="advancePayoutForm.user_id"
+                                    class="w-full border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                >
+                                    <option value="">Выберите…</option>
+                                    <option v-for="employee in employees" :key="`adv-emp-${employee.id}`" :value="String(employee.id)">
+                                        {{ employee.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Сумма</label>
+                                <input
+                                    v-model="advancePayoutForm.amount"
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    class="w-full border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                    placeholder="0,00"
+                                >
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Дата выдачи</label>
+                                <input
+                                    v-model="advancePayoutForm.payout_date"
+                                    type="date"
+                                    class="w-full border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                >
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Комментарий (необязательно)</label>
+                                <input
+                                    v-model="advancePayoutForm.comment"
+                                    type="text"
+                                    maxlength="500"
+                                    class="w-full border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                    placeholder="Например: аванс на карту"
+                                >
+                            </div>
+                        </div>
+                        <div class="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                class="rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:hover:bg-zinc-800"
+                                :disabled="advancePayoutSubmitting"
+                                @click="closeAdvancePayoutModal"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60 dark:bg-amber-700 dark:hover:bg-amber-600"
+                                :disabled="advancePayoutSubmitting"
+                                @click="submitAdvancePayoutModal"
+                            >
+                                Провести аванс
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Teleport>
 
         </section>
 
@@ -486,6 +585,15 @@ const selectedSalaryUserId = ref(props.activeSalaryUserId ?? null);
 const expandedEmployeeIds = ref([]);
 const payoutDrafts = reactive({});
 
+const advancePayoutModalOpen = ref(false);
+const advancePayoutSubmitting = ref(false);
+const advancePayoutForm = reactive({
+    user_id: '',
+    amount: '',
+    payout_date: new Date().toISOString().slice(0, 10),
+    comment: '',
+});
+
 const createSalaryForm = useForm({
     manager_id: '',
     base_salary: 0,
@@ -556,6 +664,7 @@ const routes = {
     periodsApprove: props.salary_module === 'finance' ? 'finance.salary.periods.approve' : 'settings.motivation.salary.periods.approve',
     periodsClose: props.salary_module === 'finance' ? 'finance.salary.periods.close' : 'settings.motivation.salary.periods.close',
     periodsPayoutStore: props.salary_module === 'finance' ? 'finance.salary.periods.payouts.store' : 'settings.motivation.salary.periods.payouts.store',
+    advancePayoutUnscopedStore: props.salary_module === 'finance' ? 'finance.salary.advance-payouts.store' : '',
     coefficientsStore: props.salary_module === 'finance' ? 'finance.salary.coefficients.store' : 'settings.motivation.salary.store',
     coefficientsUpdate: props.salary_module === 'finance' ? 'finance.salary.coefficients.update' : 'settings.motivation.salary.update',
     coefficientsDelete: props.salary_module === 'finance' ? 'finance.salary.coefficients.destroy' : 'settings.motivation.salary.destroy',
@@ -664,6 +773,69 @@ function storeSalaryPayout(userId, type = 'salary') {
             payoutDrafts[userId] = null;
         },
     });
+}
+
+function openAdvancePayoutModal() {
+    if (selectedSalaryPeriodId.value !== null && selectedPeriod.value?.status === 'closed') {
+        return;
+    }
+
+    advancePayoutForm.user_id = selectedSalaryUserId.value != null ? String(selectedSalaryUserId.value) : '';
+    advancePayoutForm.amount = '';
+    advancePayoutForm.payout_date = new Date().toISOString().slice(0, 10);
+    advancePayoutForm.comment = '';
+    advancePayoutModalOpen.value = true;
+}
+
+function closeAdvancePayoutModal() {
+    if (advancePayoutSubmitting.value) {
+        return;
+    }
+    advancePayoutModalOpen.value = false;
+}
+
+function submitAdvancePayoutModal() {
+    const userId = Number(advancePayoutForm.user_id);
+    const amount = Number(advancePayoutForm.amount);
+
+    if (!userId || !Number.isFinite(amount) || amount <= 0) {
+        window.alert('Выберите сотрудника и укажите сумму больше 0.');
+        return;
+    }
+
+    advancePayoutSubmitting.value = true;
+
+    const payload = {
+        user_id: userId,
+        amount,
+        payout_date: advancePayoutForm.payout_date,
+        type: 'advance',
+        comment: advancePayoutForm.comment.trim() !== '' ? advancePayoutForm.comment.trim() : null,
+    };
+
+    const finish = {
+        preserveScroll: true,
+        onFinish: () => {
+            advancePayoutSubmitting.value = false;
+        },
+        onSuccess: () => {
+            advancePayoutModalOpen.value = false;
+        },
+    };
+
+    if (selectedSalaryPeriodId.value) {
+        router.post(route(routes.periodsPayoutStore, selectedSalaryPeriodId.value), payload, finish);
+    } else if (routes.advancePayoutUnscopedStore) {
+        router.post(route(routes.advancePayoutUnscopedStore), {
+            user_id: userId,
+            amount,
+            payout_date: advancePayoutForm.payout_date,
+            comment: payload.comment,
+        }, finish);
+    } else {
+        advancePayoutSubmitting.value = false;
+        window.alert('Выдача аванса без периода доступна только в разделе «Финансы → Зарплата».');
+    }
 }
 
 function money(value) {

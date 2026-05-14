@@ -6,6 +6,7 @@ use App\Models\SalaryAccrual;
 use App\Models\SalaryCoefficient;
 use App\Models\SalaryPayout;
 use App\Models\SalaryPeriod;
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -33,8 +34,8 @@ class SalaryPayrollService
                 ->where('type', '!=', 'advance')
                 ->exists();
             $hasAllocatedPayouts = DB::table('salary_payout_allocations')
-                ->join('salary_payouts', 'salary_payouts.id', '=', 'salary_payout_allocations.payout_id')
-                ->where('salary_payouts.period_id', $period->id)
+                ->join('salary_accruals', 'salary_accruals.id', '=', 'salary_payout_allocations.accrual_id')
+                ->where('salary_accruals.period_id', $period->id)
                 ->exists();
 
             if ($hasLockedPayouts || $hasAllocatedPayouts) {
@@ -160,6 +161,27 @@ class SalaryPayrollService
     }
 
     /**
+     * Аванс вне зарплатного периода: не распределяется по начислениям до пересчёта периода
+     * ({@see self::settleOpenAdvancesForUser} подхватит по дате {@code payout_date}).
+     *
+     * @param  array{user_id: int|string, amount: float|int|string, payout_date: string, comment?: string|null}  $payload
+     */
+    public function createUnscopedAdvancePayout(array $payload, ?int $createdBy): SalaryPayout
+    {
+        return DB::transaction(function () use ($payload, $createdBy): SalaryPayout {
+            return SalaryPayout::query()->create([
+                'period_id' => null,
+                'user_id' => (int) $payload['user_id'],
+                'amount' => (float) $payload['amount'],
+                'payout_date' => $payload['payout_date'],
+                'type' => 'advance',
+                'comment' => $payload['comment'] ?? null,
+                'created_by' => $createdBy,
+            ]);
+        });
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function userSummariesForPeriod(?SalaryPeriod $period, ?int $userId = null): array
@@ -168,16 +190,32 @@ class SalaryPayrollService
             return [];
         }
 
-        $userRows = SalaryAccrual::query()
-            ->leftJoin('users', 'users.id', '=', 'salary_accruals.user_id')
-            ->when($userId !== null, fn ($query) => $query->where('salary_accruals.user_id', $userId))
-            ->select('salary_accruals.user_id', 'users.name as user_name')
-            ->groupBy('salary_accruals.user_id', 'users.name')
-            ->orderBy('users.name')
-            ->get();
+        $accrualUserIds = SalaryAccrual::query()
+            ->when($userId !== null, fn ($query) => $query->where('user_id', $userId))
+            ->distinct()
+            ->pluck('user_id');
 
-        return $userRows->map(function (object $row) use ($period): array {
-            $userId = (int) $row->user_id;
+        $payoutUserIds = SalaryPayout::query()
+            ->where('period_id', $period->id)
+            ->when($userId !== null, fn ($query) => $query->where('user_id', $userId))
+            ->distinct()
+            ->pluck('user_id');
+
+        $mergedUserIds = $accrualUserIds
+            ->merge($payoutUserIds)
+            ->filter(fn (mixed $id): bool => $id !== null && (int) $id > 0)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->sort()
+            ->values();
+
+        $users = User::query()
+            ->whereIn('id', $mergedUserIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return $users->map(function (User $userRow) use ($period): array {
+            $userId = (int) $userRow->id;
             $periodAccruals = SalaryAccrual::query()
                 ->where('period_id', $period->id)
                 ->where('user_id', $userId)
@@ -205,7 +243,7 @@ class SalaryPayrollService
 
             return [
                 'user_id' => $userId,
-                'user_name' => $row->user_name,
+                'user_name' => $userRow->name,
                 'accrued_total' => round((float) $periodAccruals->sum('salary_amount'), 2),
                 'payable_total' => round($payableTotal, 2),
                 'paid_total' => round($paidTotal, 2),
