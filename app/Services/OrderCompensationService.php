@@ -6,6 +6,7 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\CashToCashMarginCalculator;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -149,7 +150,14 @@ class OrderCompensationService
         $additionalExpenses = (float) ($order->additional_expenses ?? 0);
         $insurance = (float) ($order->insurance ?? 0);
         $bonus = (float) ($order->bonus ?? 0);
-        $delta = $customerRate - ($customerRate * ($kpiPercent / 100)) - ($carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier));
+        $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $cashToCash = CashToCashMarginCalculator::isCashToCash(
+            (string) ($order->customer_payment_form ?? ''),
+            $this->extractContractorsCosts($order),
+        );
+        $delta = $cashToCash
+            ? ($customerRate - $expense)
+            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense);
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate(
             (int) $order->manager_id,
@@ -199,7 +207,15 @@ class OrderCompensationService
 
         $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
-        $delta = $customerRate - ($customerRate * ($kpiPercent / 100)) - ($carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier));
+        $contractorsCosts = is_array($data['contractors_costs'] ?? null) ? $data['contractors_costs'] : [];
+        $cashToCash = CashToCashMarginCalculator::isCashToCash(
+            isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
+            $contractorsCosts,
+        );
+        $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $delta = $cashToCash
+            ? ($customerRate - $expense)
+            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense);
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
         $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
