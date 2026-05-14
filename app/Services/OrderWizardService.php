@@ -15,6 +15,7 @@ use App\Models\RoutePoint;
 use App\Models\User;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\CashToCashMarginCalculator;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
@@ -652,7 +653,16 @@ class OrderWizardService
 
             $totalCost = collect($normalizedContractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0))
                 + $additionalFromOrder;
-            $margin = (float) Arr::get($financialTerm, 'client_price', 0) * (1 - ((float) Arr::get($financialTerm, 'kpi_percent', 0) / 100)) - $totalCost;
+            $cashToCash = CashToCashMarginCalculator::isCashToCash(
+                (string) Arr::get($financialTerm, 'client_payment_form', ''),
+                $normalizedContractorsCosts,
+            );
+            $margin = CashToCashMarginCalculator::margin(
+                (float) Arr::get($financialTerm, 'client_price', 0),
+                $totalCost,
+                (float) Arr::get($financialTerm, 'kpi_percent', 0),
+                $cashToCash,
+            );
 
             $orderForSummary = $order->fresh(['legs.routePoints']);
             $clientSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);

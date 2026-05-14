@@ -400,18 +400,58 @@ class OrderPrintFormDraftService
         if ($raw === null || $raw === '') {
             $fromCostsOnly = $this->mergeCarriersFromFinancialTermsIfMissing($order, []);
 
-            return isset($fromCostsOnly['carriers']) && $fromCostsOnly['carriers'] !== []
-                ? $fromCostsOnly
-                : null;
+            if (! isset($fromCostsOnly['carriers']) || $fromCostsOnly['carriers'] === []) {
+                return null;
+            }
+
+            return $this->mergeClientContractPrintSummaryIntoPaymentTermsPayload($order, $fromCostsOnly);
         }
 
         if (is_array($raw)) {
-            return $this->mergeCarriersFromFinancialTermsIfMissing($order, $raw);
+            return $this->mergeClientContractPrintSummaryIntoPaymentTermsPayload(
+                $order,
+                $this->mergeCarriersFromFinancialTermsIfMissing($order, $raw),
+            );
         }
 
         $decoded = json_decode((string) $raw, true);
 
-        return is_array($decoded) ? $this->mergeCarriersFromFinancialTermsIfMissing($order, $decoded) : null;
+        return is_array($decoded)
+            ? $this->mergeClientContractPrintSummaryIntoPaymentTermsPayload(
+                $order,
+                $this->mergeCarriersFromFinancialTermsIfMissing($order, $decoded),
+            )
+            : null;
+    }
+
+    /**
+     * Текст «Сводка для договора и печати» хранится в {@see FinancialTerm::$client_payment_terms} и в JSON как {@code client.payment_terms_text}.
+     *
+     * @param  array<string, mixed>  $decoded
+     * @return array<string, mixed>
+     */
+    private function mergeClientContractPrintSummaryIntoPaymentTermsPayload(Order $order, array $decoded): array
+    {
+        $existing = trim((string) data_get($decoded, 'client.payment_terms_text', ''));
+        if ($existing !== '') {
+            return $decoded;
+        }
+
+        if (! Schema::hasTable('financial_terms') || ! $order->relationLoaded('financialTerms')) {
+            return $decoded;
+        }
+
+        $ft = $order->financialTerms->first();
+        $summary = trim((string) ($ft?->client_payment_terms ?? ''));
+        if ($summary === '') {
+            return $decoded;
+        }
+
+        $client = is_array($decoded['client'] ?? null) ? $decoded['client'] : [];
+        $client['payment_terms_text'] = $summary;
+        $decoded['client'] = $client;
+
+        return $decoded;
     }
 
     /**
@@ -515,12 +555,26 @@ class OrderPrintFormDraftService
      */
     private function resolveCustomerPaymentTermDisplay(Order $order, ?array $paymentTermsPayload): ?string
     {
+        $manual = trim((string) data_get($paymentTermsPayload, 'client.payment_terms_text', ''));
+        if ($manual !== '') {
+            return $manual;
+        }
+
+        if (Schema::hasTable('financial_terms') && $order->relationLoaded('financialTerms')) {
+            $fromDb = trim((string) ($order->financialTerms->first()?->client_payment_terms ?? ''));
+            if ($fromDb !== '') {
+                return $fromDb;
+            }
+        }
+
         $schedule = data_get($paymentTermsPayload, 'client.payment_schedule');
         if (is_array($schedule) && $schedule !== []) {
+            $currency = $this->resolveCustomerCurrencyCode($order, $paymentTermsPayload);
+
             return PaymentScheduleSummaryFormatter::format(
                 $schedule,
                 (float) ($order->customer_rate ?? 0),
-                'RUB',
+                $currency,
                 $order,
                 [],
             );

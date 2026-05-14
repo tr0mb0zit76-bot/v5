@@ -26,6 +26,7 @@ use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\CashToCashMarginCalculator;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\OrderDeleteAuthorization;
@@ -1749,7 +1750,16 @@ class OrderWizardController extends Controller
 
         $kpiPercent = (float) ($order->kpi_percent ?? 0);
         $clientPrice = (float) ($order->customer_rate ?? $financialTerm->client_price ?? 0);
-        $financialTerm->margin = ($clientPrice * (1 - ($kpiPercent / 100))) - $financialTerm->total_cost;
+        $cashToCash = CashToCashMarginCalculator::isCashToCash(
+            (string) ($order->customer_payment_form ?? ''),
+            $costs,
+        );
+        $financialTerm->margin = CashToCashMarginCalculator::margin(
+            $clientPrice,
+            (float) $financialTerm->total_cost,
+            $kpiPercent,
+            $cashToCash,
+        );
 
         $order->refresh();
 
