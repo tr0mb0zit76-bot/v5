@@ -935,6 +935,7 @@
                             </div>
                         </div>
                         <PaymentTermsWizardBlock
+                            :key="`client-pay-${props.order?.id ?? 'draft'}`"
                             v-model:summary-text="form.financial_term.client_payment_terms"
                             :schedule="form.financial_term.client_payment_schedule"
                             :total-amount="form.financial_term.client_price"
@@ -987,7 +988,7 @@
                                 </div>
                             </div>
                             <PaymentTermsWizardBlock
-                                :key="`carrier-pay-${index}`"
+                                :key="`carrier-pay-${props.order?.id ?? 'draft'}-${index}`"
                                 v-model:summary-text="cost.payment_terms"
                                 :schedule="cost.payment_schedule"
                                 :total-amount="cost.amount"

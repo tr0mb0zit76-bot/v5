@@ -44,8 +44,8 @@ enum InertiaAppSurface: string
     public function documentTitleSuffix(): string
     {
         return match ($this) {
-            self::Showcase => (string) config('app.showcase_browser_title', 'Логистические решения'),
-            self::Crm => (string) config('app.crm_browser_title', 'CRM Логистические решения'),
+            self::Showcase => (string) config('app.showcase_browser_title', 'Автоальянс Смоленск'),
+            self::Crm => (string) config('app.crm_browser_title', 'CRM компании Автоальянс Смоленск'),
         };
     }
 

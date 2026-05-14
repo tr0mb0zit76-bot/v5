@@ -14,6 +14,9 @@ const props = defineProps({
 
 const summaryText = defineModel('summaryText', { type: String, default: '' });
 
+/** Последняя автосводка, которую мы подставили в поле; чтобы не затирать ручной текст при повторных пересчётах. */
+const lastAutoSummaryPushed = ref(null);
+
 const termsMode = ref('standard');
 /** 'single' | 'pair' — число траншей в режиме «подробно». */
 const installmentPairMode = ref('pair');
@@ -22,7 +25,10 @@ const autoSummary = computed(() =>
     ps.paymentScheduleSummaryHuman(props.schedule, Number(props.totalAmount || 0), props.currency, props.routePoints, props.orderDate),
 );
 
-/** Подставляем автосводку в строку при любом изменении графика; первый прогон не затираем текст с сервера. */
+/**
+ * Подставляем автосводку только пока пользователь не ушёл от последней автосводки:
+ * иначе любой повторный пересчёт autoSummary затирал ручной текст до сохранения и после открытия карточки.
+ */
 watch(autoSummary, (val, oldVal) => {
     if (!props.editableSummary) {
         return;
@@ -31,9 +37,15 @@ watch(autoSummary, (val, oldVal) => {
         if (!String(summaryText.value ?? '').trim()) {
             summaryText.value = val;
         }
+        lastAutoSummaryPushed.value = val;
         return;
     }
-    summaryText.value = val;
+    const current = String(summaryText.value ?? '').trim();
+    const prevAuto = String(lastAutoSummaryPushed.value ?? '').trim();
+    if (current === '' || current === prevAuto) {
+        summaryText.value = val;
+    }
+    lastAutoSummaryPushed.value = val;
 });
 
 function syncFromPropsSchedule() {

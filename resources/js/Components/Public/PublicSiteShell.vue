@@ -26,8 +26,6 @@ const activeSection = ref(0);
 const isLoginOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isReady = ref(false);
-const logoUrl = '/assets/logo.png';
-const modalLogoUrl = '/assets/logo_black.png';
 
 const isNonEmptyTextMap = (value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
@@ -55,6 +53,17 @@ const availableLocales = computed(
 const localeSwitchHref = (code) => route('public.locale.switch', { locale: code });
 
 const crmLoginUrl = computed(() => page.props.publicSite?.crm_login_url ?? '/login');
+
+const checkoCompanyUrl = computed(() => {
+    const u = page.props.publicSite?.checko_company_url;
+    if (typeof u === 'string' && u.trim() !== '') {
+        return u.trim();
+    }
+
+    return 'https://checko.ru/company/avtoalyans-smolensk-1156733014899';
+});
+
+const checkoWidgetTitle = 'ИНН 6732110940 — карточка компании на портале «Чекко»';
 /** URL дашборда на том же хосте, что и страница входа в кабинет (для витрины ≠ CRM). */
 const crmDashboardUrl = computed(() => {
     try {
@@ -227,8 +236,8 @@ onBeforeUnmount(() => {
 
         <header class="header">
             <div class="header-container">
-                <Link href="/" class="logo-link">
-                    <img :src="logoUrl" alt="Логотип" class="logo">
+                <Link href="/" class="site-title-link">
+                    <span class="site-title-text">{{ t('site_brand', 'Автоальянс Смоленск') }}</span>
                 </Link>
 
                 <nav class="nav">
@@ -408,7 +417,7 @@ onBeforeUnmount(() => {
 
                     <div class="contact-item">
                         <h3>{{ t('email') }}</h3>
-                        <p>info@log-sol.ru</p>
+                        <p>{{ t('footer_email') }}</p>
                     </div>
 
                     <div class="contact-item">
@@ -484,8 +493,9 @@ onBeforeUnmount(() => {
                 <div class="footer-end">
                     <a
                         class="footer-checko"
-                        title='ООО "ЛОГИСТИЧЕСКИЕ РЕШЕНИЯ" на портале "Чекко"'
-                        href="https://checko.ru/company/logisticheskie-resheniya-1226300040889"
+                        :href="checkoCompanyUrl"
+                        :title="checkoWidgetTitle"
+                        rel="noopener noreferrer"
                     >
                         <img width="150" height="50" src="https://checko.ru/cdn/widget/300x100_white.png" alt="Checko">
                     </a>
@@ -516,7 +526,7 @@ onBeforeUnmount(() => {
                 <div class="auth-modal-content">
                     <div class="auth-form active">
                         <div class="auth-brand">
-                            <img :src="modalLogoUrl" alt="Логотип кабинета" class="auth-brand-logo">
+                            <p class="auth-brand-title">{{ t('site_brand', 'Автоальянс Смоленск') }}</p>
                         </div>
                         <h3 class="auth-title">Добро пожаловать</h3>
                         <p class="auth-subtitle">Войдите в свой аккаунт</p>
@@ -607,14 +617,23 @@ onBeforeUnmount(() => {
   margin: 0 auto;
 }
 
-.logo {
-  height: 50px;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+.site-title-link {
+  flex-shrink: 0;
+  text-decoration: none;
+  color: #f5f5f5;
 }
 
-.logo-link:hover .logo {
-  opacity: 0.9;
-  transform: scale(1.02);
+.site-title-text {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  display: inline-block;
+  max-width: min(280px, 52vw);
+}
+
+.site-title-link:hover .site-title-text {
+  color: #ff9800;
 }
 
 .nav {
@@ -623,10 +642,6 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   row-gap: 4px;
-}
-
-.logo-link {
-  flex-shrink: 0;
 }
 
 .mobile-nav-toggle {
@@ -1239,10 +1254,13 @@ onBeforeUnmount(() => {
   margin-bottom: 28px;
 }
 
-.auth-brand-logo {
-  width: min(168px, 72%);
-  height: auto;
-  display: block;
+.auth-brand-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #241912;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
 }
 
 .auth-form.active {

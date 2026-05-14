@@ -432,24 +432,22 @@ class OrderPrintFormDraftService
      */
     private function mergeClientContractPrintSummaryIntoPaymentTermsPayload(Order $order, array $decoded): array
     {
+        $client = is_array($decoded['client'] ?? null) ? $decoded['client'] : [];
+
+        if (Schema::hasTable('financial_terms') && $order->relationLoaded('financialTerms')) {
+            $fromFt = trim((string) ($order->financialTerms->first()?->client_payment_terms ?? ''));
+            if ($fromFt !== '') {
+                $client['payment_terms_text'] = $fromFt;
+                $decoded['client'] = $client;
+
+                return $decoded;
+            }
+        }
+
         $existing = trim((string) data_get($decoded, 'client.payment_terms_text', ''));
         if ($existing !== '') {
             return $decoded;
         }
-
-        if (! Schema::hasTable('financial_terms') || ! $order->relationLoaded('financialTerms')) {
-            return $decoded;
-        }
-
-        $ft = $order->financialTerms->first();
-        $summary = trim((string) ($ft?->client_payment_terms ?? ''));
-        if ($summary === '') {
-            return $decoded;
-        }
-
-        $client = is_array($decoded['client'] ?? null) ? $decoded['client'] : [];
-        $client['payment_terms_text'] = $summary;
-        $decoded['client'] = $client;
 
         return $decoded;
     }

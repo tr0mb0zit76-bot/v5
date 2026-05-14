@@ -1,7 +1,7 @@
 export const publicPages = {
     home: {
         pageKey: 'home',
-        title: 'Логистические решения',
+        title: 'Автоальянс Смоленск',
         mode: 'vertical',
         sections: [
             {

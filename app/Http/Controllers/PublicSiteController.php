@@ -73,7 +73,7 @@ class PublicSiteController extends Controller
         $translations = [];
         $crmHost = trim((string) config('app.crm_domain'));
         if ($crmHost === '') {
-            $crmHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.log-sol.local';
+            $crmHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'crm.avtoaliyans.ru';
         }
         $crmScheme = request()->isSecure() ? 'https' : 'http';
 
@@ -102,6 +102,7 @@ class PublicSiteController extends Controller
                     ['code' => 'en', 'label' => 'EN'],
                     ['code' => 'cn', 'label' => '中文'],
                 ],
+                'checko_company_url' => (string) config('app.showcase_checko_company_url', ''),
             ],
         ];
     }

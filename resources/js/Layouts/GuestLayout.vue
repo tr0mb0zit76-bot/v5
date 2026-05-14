@@ -11,7 +11,7 @@ const lightLogoUrl = '/assets/logo_black.png';
                 <Link href="/" class="mb-8 inline-flex items-center">
                     <img
                         :src="lightLogoUrl"
-                        alt="Логистические Решения"
+                        alt="Автоальянс Смоленск"
                         class="h-12 w-auto sm:h-14"
                     />
                 </Link>

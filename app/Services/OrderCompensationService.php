@@ -299,14 +299,24 @@ class OrderCompensationService
             if ($override !== '') {
                 $financialTerm->client_payment_terms = Str::limit($override, 255, '');
             } else {
-                $order->loadMissing(['legs.routePoints']);
-                $financialTerm->client_payment_terms = PaymentScheduleSummaryFormatter::format(
-                    (array) data_get($paymentTerms, 'client.payment_schedule', []),
-                    (float) ($order->customer_rate ?? 0),
-                    (string) ($financialTerm->client_currency ?: 'RUB'),
-                    $order,
-                    [],
-                );
+                $fromOrderColumn = trim((string) ($order->customer_payment_term ?? ''));
+                if ($fromOrderColumn !== '') {
+                    $financialTerm->client_payment_terms = Str::limit($fromOrderColumn, 255, '');
+                } else {
+                    $existingFt = trim((string) ($financialTerm->client_payment_terms ?? ''));
+                    if ($existingFt !== '') {
+                        $financialTerm->client_payment_terms = Str::limit($existingFt, 255, '');
+                    } else {
+                        $order->loadMissing(['legs.routePoints']);
+                        $financialTerm->client_payment_terms = PaymentScheduleSummaryFormatter::format(
+                            (array) data_get($paymentTerms, 'client.payment_schedule', []),
+                            (float) ($order->customer_rate ?? 0),
+                            (string) ($financialTerm->client_currency ?: 'RUB'),
+                            $order,
+                            [],
+                        );
+                    }
+                }
             }
         }
 

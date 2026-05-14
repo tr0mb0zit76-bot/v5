@@ -69,8 +69,8 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     /*
-    | Домены витрины и кабинета (разные хосты в проде: log-sol.ru vs crm.log-sol.ru).
-    | Локально по умолчанию: витрина v5.local, кабинет из CRM_DOMAIN (например crm.log-sol.local).
+    | Домены витрины и кабинета (разные хосты в проде: avtoaliyans.ru vs crm.avtoaliyans.ru).
+    | Локально по умолчанию: витрина v5.local, кабинет из CRM_DOMAIN (например crm.avtoaliyans.local).
     */
     'crm_domain' => $crmDomain,
 
@@ -91,8 +91,17 @@ return [
     /*
     | Суффикс заголовка вкладки (после названия страницы через « - ») для Inertia.
     */
-    'showcase_browser_title' => env('SHOWCASE_BROWSER_TITLE', 'Логистические решения'),
-    'crm_browser_title' => env('CRM_BROWSER_TITLE', 'CRM Логистические решения'),
+    'showcase_browser_title' => env('SHOWCASE_BROWSER_TITLE', 'Автоальянс Смоленск'),
+    'crm_browser_title' => env('CRM_BROWSER_TITLE', 'CRM компании Автоальянс Смоленск'),
+
+    /*
+    | Ссылка на карточку компании на checko.ru для виджета «Проверенная компания» на витрине.
+    | По умолчанию — карточка с ИНН 6732110940 (ОГРН в URL задаёт сам Чекко).
+    */
+    'showcase_checko_company_url' => env(
+        'SHOWCASE_CHECKO_COMPANY_URL',
+        'https://checko.ru/company/avtoalyans-smolensk-1156733014899',
+    ),
 
     /*
     |--------------------------------------------------------------------------

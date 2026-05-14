@@ -659,7 +659,7 @@ class OrderWizardController extends Controller
                 'client_request_mode' => data_get($paymentTermsConfig, 'client.request_mode', 'single_request'),
                 'client_payment_schedule' => $paymentTermsConfig['client']['payment_schedule'] ?? [],
                 'client_payment_terms' => $useWizardState
-                    ? (string) ($wizardFt['client_payment_terms'] ?? $financialTerm?->client_payment_terms ?? $order->customer_payment_term ?? '')
+                    ? $this->resolveClientPaymentTermsForWizardPayload($wizardFt, $financialTerm, $order)
                     : (string) ($financialTerm?->client_payment_terms ?? $order->customer_payment_term ?? ''),
                 'contractors_costs' => $contractorsCosts,
                 'additional_costs' => $useWizardState
@@ -1683,6 +1683,30 @@ class OrderWizardController extends Controller
             ->all();
 
         return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
+    }
+
+    /**
+     * Текст сводки для мастера: пустая строка в {@see Order::$wizard_state} не должна перекрывать
+     * сохранённые {@see FinancialTerm::$client_payment_terms} и поле {@see Order::$customer_payment_term}.
+     *
+     * @param  array<string, mixed>  $wizardFt
+     */
+    private function resolveClientPaymentTermsForWizardPayload(
+        array $wizardFt,
+        ?FinancialTerm $financialTerm,
+        Order $order,
+    ): string {
+        $fromWizard = trim((string) ($wizardFt['client_payment_terms'] ?? ''));
+        if ($fromWizard !== '') {
+            return $fromWizard;
+        }
+
+        $fromFt = trim((string) ($financialTerm?->client_payment_terms ?? ''));
+        if ($fromFt !== '') {
+            return $fromFt;
+        }
+
+        return trim((string) ($order->customer_payment_term ?? ''));
     }
 
     /**
