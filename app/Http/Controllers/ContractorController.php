@@ -590,6 +590,7 @@ class ContractorController extends Controller
         unset($validated['contacts'], $validated['interactions'], $validated['documents']);
 
         foreach ([
+            'legal_form',
             'debt_limit',
             'short_description',
             'signer_name_nominative',

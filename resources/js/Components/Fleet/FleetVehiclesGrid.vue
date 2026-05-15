@@ -239,7 +239,7 @@ const gridOptions = {
     }
 
     const data = node.data ?? {};
-    const haystack = [data.owner_name, data.tractor_brand, data.trailer_brand, data.tractor_plate, data.trailer_plate, String(data.id)]
+    const haystack = [data.owner_name, data.tractor_brand, data.trailer_brand, data.tractor_plate, data.trailer_plate]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -259,7 +259,7 @@ const defaultColDef = {
 
 function buildBaseVehicleColumnDefs() {
   return [
-    { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: 'agNumberColumnFilter' },
+    { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: false, floatingFilter: false, suppressHeaderFilterButton: true, getQuickFilterText: () => '' },
     { field: 'owner_name', headerName: 'Владелец', flex: 1, minWidth: 160, floatingFilter: true },
     { field: 'tractor_brand', headerName: 'Марка тягача', width: 130 },
     { field: 'trailer_brand', headerName: 'Марка прицепа', width: 130 },

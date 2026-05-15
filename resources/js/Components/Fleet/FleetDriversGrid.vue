@@ -239,7 +239,7 @@ const gridOptions = {
     }
 
     const data = node.data ?? {};
-    const haystack = [data.full_name, data.phone, data.carrier_name, data.passport_series, data.passport_number, String(data.id)]
+    const haystack = [data.full_name, data.phone, data.carrier_name, data.passport_series, data.passport_number]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
@@ -259,7 +259,7 @@ const defaultColDef = {
 
 function buildBaseDriverColumnDefs() {
   return [
-    { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: 'agNumberColumnFilter' },
+    { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: false, floatingFilter: false, suppressHeaderFilterButton: true, getQuickFilterText: () => '' },
     { field: 'carrier_name', headerName: 'Перевозчик', flex: 1, minWidth: 160, floatingFilter: true },
     { field: 'full_name', headerName: 'ФИО', width: 200, minWidth: 140 },
     { field: 'phone', headerName: 'Телефон', width: 130 },

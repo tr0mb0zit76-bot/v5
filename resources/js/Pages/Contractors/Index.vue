@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
@@ -932,6 +932,15 @@ function parseMultilineList(value) {
         .filter((item) => item !== '');
 }
 
+function buildContractorSubmitPayload() {
+    const documents = (form.documents ?? []).map(({ file: _file, preview_url: _previewUrl, ...meta }) => meta);
+
+    return JSON.parse(JSON.stringify({
+        ...toRaw(form.data()),
+        documents,
+    }));
+}
+
 function submit() {
     form.transport_requirements = parseMultilineList(transportRequirementsText.value);
     form.activity_types = [...new Set((form.activity_types ?? []).map((item) => String(item).trim()).filter(Boolean))];
@@ -973,10 +982,7 @@ function submit() {
     const hasNewDocumentFiles = (form.documents ?? []).some((document) => document.file instanceof File);
 
     if (hasNewDocumentFiles) {
-        const jsonBody = {
-            ...form.data(),
-            documents: (form.documents ?? []).map(({ file: _file, preview_url: _previewUrl, ...meta }) => meta),
-        };
+        const jsonBody = buildContractorSubmitPayload();
         const formData = new FormData();
         formData.append('contractor_payload', JSON.stringify(jsonBody));
         (form.documents ?? []).forEach((document, index) => {

@@ -282,7 +282,10 @@ const baseColumnDefs = [
         minWidth: 80,
         sortable: true,
         pinned: 'left',
-        filter: 'agNumberColumnFilter',
+        filter: false,
+        floatingFilter: false,
+        suppressHeaderFilterButton: true,
+        getQuickFilterText: () => '',
         valueFormatter: (p) => (p.value === null || p.value === undefined || p.value === '' ? '—' : String(p.value)),
     },
     {

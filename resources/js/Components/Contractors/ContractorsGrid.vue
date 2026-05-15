@@ -267,6 +267,7 @@ const defaultVisibleFields = [
 
 /** Без плавающей строки фильтра (как в реестре заказов — меньше DOM). */
 const CONTRACTORS_NO_FLOATING_FILTER = new Set([
+  'id',
   'phone',
   'email',
   'orders_count',
@@ -453,10 +454,6 @@ const dynamicColumnDefs = computed(() => {
       valueFormatter: (params) => formatValue(params.value, column.type),
     };
 
-    if (column.field === 'id') {
-      columnDefinition.pinned = 'left';
-    }
-
     if (column.field === 'name') {
       columnDefinition.pinned = 'left';
       columnDefinition.lockPinned = true;
@@ -464,8 +461,16 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.headerClass = 'orders-grid-order-number-header';
     }
 
-    if (column.type === 'numeric') {
+    if (column.type === 'numeric' && column.field !== 'id') {
       columnDefinition.filter = 'agNumberColumnFilter';
+    }
+
+    if (column.field === 'id') {
+      columnDefinition.pinned = 'left';
+      columnDefinition.filter = false;
+      columnDefinition.floatingFilter = false;
+      columnDefinition.suppressHeaderFilterButton = true;
+      columnDefinition.getQuickFilterText = () => '';
     }
 
     return columnDefinition;

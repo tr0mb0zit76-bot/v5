@@ -369,7 +369,6 @@ const ORDERS_GRID_EXCLUDED_FIELDS = new Set([
 
 /** Плавающая строка фильтров только у «поисковых» полей; у ставок и дальше — выкл. */
 const FLOATING_FILTER_FIELDS = new Set([
-  'id',
   'order_number',
   'company_code',
   'manager_name',
@@ -938,7 +937,10 @@ const dynamicColumnDefs = computed(() => {
 
     if (column.field === 'id') {
       columnDefinition.pinned = 'left';
-      columnDefinition.filter = 'agNumberColumnFilter';
+      columnDefinition.filter = false;
+      columnDefinition.floatingFilter = false;
+      columnDefinition.suppressHeaderFilterButton = true;
+      columnDefinition.getQuickFilterText = () => '';
       columnDefinition.valueFormatter = (params) => formatEmpty(params.value);
     }
 

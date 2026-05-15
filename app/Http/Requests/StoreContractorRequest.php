@@ -49,7 +49,7 @@ class StoreContractorRequest extends FormRequest
                 $data['documents'] = $documents;
             }
 
-            $this->merge($data);
+            $this->merge($this->normalizeEmptyStringsToNull($data));
         }
 
         if ($this->has('owner_id') && $this->input('owner_id') === '') {
@@ -278,6 +278,29 @@ class StoreContractorRequest extends FormRequest
                 new DocumentWithinPageBudget,
             ],
         ];
+    }
+
+    /**
+     * Пустые строки из JSON contractor_payload не проходят ConvertEmptyStringsToNull.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function normalizeEmptyStringsToNull(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if ($value === '') {
+                $data[$key] = null;
+
+                continue;
+            }
+
+            if (is_array($value)) {
+                $data[$key] = $this->normalizeEmptyStringsToNull($value);
+            }
+        }
+
+        return $data;
     }
 
     /**

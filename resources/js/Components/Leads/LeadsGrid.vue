@@ -293,6 +293,7 @@ const defaultVisibleFields = [
 
 /** Плавающая строка фильтра отключена (меньше DOM), как в реестрах заказов/контрагентов. */
 const LEADS_NO_FLOATING_FILTER = new Set([
+  'id',
   'title',
   'planned_shipping_date',
   'target_price',
@@ -489,7 +490,7 @@ const dynamicColumnDefs = computed(() => {
       valueFormatter: (params) => formatValue(params.value, column.type, column.field, params.data),
     };
 
-    if (column.type === 'numeric') {
+    if (column.type === 'numeric' && column.field !== 'id') {
       columnDefinition.filter = 'agNumberColumnFilter';
     } else if (column.type === 'date') {
       columnDefinition.filter = 'agDateColumnFilter';
@@ -497,6 +498,10 @@ const dynamicColumnDefs = computed(() => {
 
     if (column.field === 'id') {
       columnDefinition.pinned = 'left';
+      columnDefinition.filter = false;
+      columnDefinition.floatingFilter = false;
+      columnDefinition.suppressHeaderFilterButton = true;
+      columnDefinition.getQuickFilterText = () => '';
     }
 
     if (column.field === 'number') {
