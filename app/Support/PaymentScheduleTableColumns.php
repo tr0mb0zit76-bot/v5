@@ -5,21 +5,22 @@ namespace App\Support;
 class PaymentScheduleTableColumns
 {
     /**
-     * @return list<array{field: string, label: string}>
+     * @return list<array{field: string, label: string, width: int, minWidth: int}>
      */
     public static function options(): array
     {
         return [
-            ['field' => 'order_number', 'label' => 'Заказ'],
-            ['field' => 'direction', 'label' => 'Направление'],
-            ['field' => 'counterparty_name', 'label' => 'Контрагент'],
-            ['field' => 'payment_type', 'label' => 'Тип'],
-            ['field' => 'invoice_number', 'label' => 'Номер счёта'],
-            ['field' => 'planned_date', 'label' => 'План'],
-            ['field' => 'actual_date', 'label' => 'Факт'],
-            ['field' => 'amount', 'label' => 'Сумма'],
-            ['field' => 'status', 'label' => 'Статус'],
-            ['field' => 'actions', 'label' => 'Действия'],
+            ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80],
+            ['field' => 'order_number', 'label' => 'Заказ', 'width' => 160, 'minWidth' => 120],
+            ['field' => 'direction', 'label' => 'Направление', 'width' => 140, 'minWidth' => 110],
+            ['field' => 'counterparty_name', 'label' => 'Контрагент', 'width' => 200, 'minWidth' => 160],
+            ['field' => 'payment_type', 'label' => 'Тип', 'width' => 130, 'minWidth' => 110],
+            ['field' => 'invoice_number', 'label' => 'Номер счёта', 'width' => 150, 'minWidth' => 120],
+            ['field' => 'planned_date', 'label' => 'План', 'width' => 130, 'minWidth' => 110],
+            ['field' => 'actual_date', 'label' => 'Факт', 'width' => 130, 'minWidth' => 110],
+            ['field' => 'amount', 'label' => 'Сумма', 'width' => 130, 'minWidth' => 110],
+            ['field' => 'status', 'label' => 'Статус', 'width' => 130, 'minWidth' => 110],
+            ['field' => 'actions', 'label' => 'Действия', 'width' => 160, 'minWidth' => 140],
         ];
     }
 
@@ -32,11 +33,21 @@ class PaymentScheduleTableColumns
     }
 
     /**
+     * @param  list<array{colId: string, hide: bool, width: int, order: int}>  $preset
+     * @return list<array{colId: string, hide: bool, width: int, order: int}>
+     */
+    public static function mergePresetWithCatalog(array $preset): array
+    {
+        return TableColumnsPreset::mergeWithCatalog($preset, static::options());
+    }
+
+    /**
      * @return list<array{colId: string, hide: bool, width: int, order: int}>
      */
     public static function defaultState(string $roleName): array
     {
         $defaults = [
+            'id' => ['width' => 90, 'hide' => false],
             'order_number' => ['width' => 160, 'hide' => false],
             'direction' => ['width' => 140, 'hide' => false],
             'counterparty_name' => ['width' => 200, 'hide' => false],

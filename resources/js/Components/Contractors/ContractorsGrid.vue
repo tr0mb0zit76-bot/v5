@@ -243,6 +243,7 @@ const page = usePage();
 const emit = defineEmits(['row-select', 'columns-changed', 'create-request']);
 
 const fallbackColumns = [
+  { field: 'id', label: 'ID', width: 90, minWidth: 80, type: 'numeric' },
   { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },
   { field: 'status_text', label: 'Статус', width: 130, minWidth: 110, type: null },
   { field: 'activity_types_label', label: 'Вид деятельности', width: 220, minWidth: 180, type: null },
@@ -252,6 +253,7 @@ const fallbackColumns = [
 ];
 
 const defaultVisibleFields = [
+  'id',
   'name',
   'status_text',
   'activity_types_label',
@@ -450,6 +452,10 @@ const dynamicColumnDefs = computed(() => {
       floatingFilter: !CONTRACTORS_NO_FLOATING_FILTER.has(column.field),
       valueFormatter: (params) => formatValue(params.value, column.type),
     };
+
+    if (column.field === 'id') {
+      columnDefinition.pinned = 'left';
+    }
 
     if (column.field === 'name') {
       columnDefinition.pinned = 'left';

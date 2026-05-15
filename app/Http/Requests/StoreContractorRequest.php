@@ -2,12 +2,16 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\DocumentWithinPageBudget;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\DocumentUploadBudget;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use JsonException;
 
 class StoreContractorRequest extends FormRequest
 {
@@ -18,6 +22,36 @@ class StoreContractorRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->has('contractor_payload')) {
+            try {
+                /** @var array<string, mixed> $data */
+                $data = json_decode($this->string('contractor_payload')->value(), true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                throw ValidationException::withMessages([
+                    'contractor_payload' => 'Некорректный JSON контрагента.',
+                ]);
+            }
+
+            if (! is_array($data)) {
+                throw ValidationException::withMessages([
+                    'contractor_payload' => 'Некорректный JSON контрагента.',
+                ]);
+            }
+
+            $documents = $data['documents'] ?? [];
+            if (is_array($documents)) {
+                foreach (array_keys($documents) as $index) {
+                    $uploadKey = 'contractor_document_file_'.$index;
+                    if ($this->hasFile($uploadKey)) {
+                        $documents[$index]['file'] = $this->file($uploadKey);
+                    }
+                }
+                $data['documents'] = $documents;
+            }
+
+            $this->merge($data);
+        }
+
         if ($this->has('owner_id') && $this->input('owner_id') === '') {
             $this->merge(['owner_id' => null]);
         }
@@ -230,12 +264,19 @@ class StoreContractorRequest extends FormRequest
             'interactions.*.summary' => ['nullable', 'string'],
             'interactions.*.result' => ['nullable', 'string', 'max:255'],
             'documents' => ['nullable', 'array'],
+            'documents.*.id' => ['nullable', 'integer'],
             'documents.*.type' => ['nullable', 'string', 'max:255'],
             'documents.*.title' => ['required', 'string', 'max:255'],
             'documents.*.number' => ['nullable', 'string', 'max:255'],
             'documents.*.document_date' => ['nullable', 'date'],
             'documents.*.status' => ['nullable', 'string', 'max:255'],
             'documents.*.notes' => ['nullable', 'string'],
+            'documents.*.file' => [
+                'nullable',
+                'file',
+                'max:'.DocumentUploadBudget::absoluteMaxKilobytes(),
+                new DocumentWithinPageBudget,
+            ],
         ];
     }
 

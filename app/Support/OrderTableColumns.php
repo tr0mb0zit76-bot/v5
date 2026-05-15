@@ -96,6 +96,7 @@ class OrderTableColumns
     public static function defaultVisibleFields(string $roleName): array
     {
         $defaultFields = [
+            'id',
             'order_number',
             'company_code',
             'manager_name',
@@ -133,42 +134,7 @@ class OrderTableColumns
      */
     public static function mergePresetWithCatalog(array $preset): array
     {
-        $byColId = [];
-
-        foreach ($preset as $column) {
-            if (! is_array($column) || ! isset($column['colId'])) {
-                continue;
-            }
-
-            $byColId[(string) $column['colId']] = $column;
-        }
-
-        $merged = array_values(array_filter($preset, fn ($column): bool => is_array($column) && isset($column['colId'])));
-        $nextOrder = 0;
-
-        foreach ($merged as $column) {
-            $nextOrder = max($nextOrder, (int) ($column['order'] ?? 0) + 1);
-        }
-
-        foreach (static::options() as $option) {
-            $field = $option['field'];
-
-            if (isset($byColId[$field])) {
-                continue;
-            }
-
-            $merged[] = [
-                'colId' => $field,
-                'hide' => true,
-                'width' => (int) ($option['width'] ?? 120),
-                'order' => $nextOrder,
-            ];
-            $nextOrder++;
-        }
-
-        usort($merged, fn (array $left, array $right): int => ($left['order'] ?? 0) <=> ($right['order'] ?? 0));
-
-        return $merged;
+        return TableColumnsPreset::mergeWithCatalog($preset, static::options());
     }
 
     /**

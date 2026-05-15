@@ -10,6 +10,7 @@ class ContractorTableColumns
     public static function options(): array
     {
         return [
+            ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80, 'type' => 'numeric'],
             ['field' => 'name', 'label' => 'Название', 'width' => 240, 'minWidth' => 190, 'type' => null],
             ['field' => 'status_text', 'label' => 'Статус', 'width' => 130, 'minWidth' => 110, 'type' => null],
             ['field' => 'activity_types_label', 'label' => 'Вид деятельности', 'width' => 220, 'minWidth' => 180, 'type' => null],
@@ -42,6 +43,7 @@ class ContractorTableColumns
     {
         return match ($roleName) {
             'manager' => [
+                'id',
                 'name',
                 'status_text',
                 'activity_types_label',
@@ -49,6 +51,7 @@ class ContractorTableColumns
                 'primary_contact',
             ],
             default => [
+                'id',
                 'name',
                 'status_text',
                 'activity_types_label',
@@ -62,6 +65,15 @@ class ContractorTableColumns
                 'is_verified',
             ],
         };
+    }
+
+    /**
+     * @param  list<array{colId: string, hide: bool, width: int, order: int}>  $preset
+     * @return list<array{colId: string, hide: bool, width: int, order: int}>
+     */
+    public static function mergePresetWithCatalog(array $preset): array
+    {
+        return TableColumnsPreset::mergeWithCatalog($preset, static::options());
     }
 
     /**

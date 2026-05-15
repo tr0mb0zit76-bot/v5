@@ -18,6 +18,11 @@ class ContractorDocument extends Model
         'document_date',
         'status',
         'notes',
+        'original_name',
+        'file_path',
+        'file_size',
+        'mime_type',
+        'storage_driver',
         'created_by',
     ];
 

@@ -6,10 +6,13 @@ use App\Http\Requests\StoreContractorRequest;
 use App\Http\Requests\UpdateContractorRequest;
 use App\Models\Contractor;
 use App\Models\ContractorActivityType;
+use App\Models\ContractorDocument;
 use App\Models\User;
 use App\Services\Checko\ContractorScoringService;
 use App\Services\ContractorCreditService;
+use App\Services\ContractorDocumentSyncService;
 use App\Services\DaDataService;
+use App\Services\DocumentStorageService;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
 use App\Support\CurrencyDictionary;
@@ -24,9 +27,15 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class ContractorController extends Controller
 {
+    public function __construct(
+        private readonly ContractorDocumentSyncService $contractorDocumentSync,
+        private readonly DocumentStorageService $documentStorage,
+    ) {}
+
     public function index(Request $request): Response
     {
         return $this->renderPage($request);
@@ -538,15 +547,11 @@ class ContractorController extends Controller
                     'result' => $interaction->result,
                     'author_name' => $interaction->author?->name,
                 ])->values() : collect(),
-                'documents' => $hasDocumentsTable ? $selectedContractor->documents->map(fn ($document): array => [
-                    'id' => $document->id,
-                    'type' => $document->type,
-                    'title' => $document->title,
-                    'number' => $document->number,
-                    'document_date' => optional($document->document_date)?->toDateString(),
-                    'status' => $document->status,
-                    'notes' => $document->notes,
-                ])->values() : collect(),
+                'documents' => $hasDocumentsTable
+                    ? $selectedContractor->documents->map(
+                        fn ($document): array => $this->serializeContractorDocument($document, $selectedContractor),
+                    )->values()
+                    : collect(),
                 'orders' => $orders,
                 'order_documents' => $relatedOrderDocuments,
             ];
@@ -1048,18 +1053,64 @@ class ContractorController extends Controller
             }
         }
 
-        if (Schema::hasTable('contractor_documents')
-            && array_key_exists('documents', $validated)
-            && is_array($validated['documents'])) {
-            $contractor->documents()->delete();
-
-            foreach ($validated['documents'] as $document) {
-                $contractor->documents()->create([
-                    ...$document,
-                    'created_by' => $userId,
-                ]);
-            }
+        if (array_key_exists('documents', $validated) && is_array($validated['documents'])) {
+            $this->contractorDocumentSync->sync($contractor, $validated['documents'], $userId);
         }
+    }
+
+    public function previewDocument(Request $request, Contractor $contractor, ContractorDocument $contractorDocument): HttpResponse
+    {
+        abort_unless($contractorDocument->contractor_id === $contractor->id, 404);
+        abort_unless(
+            Schema::hasTable('contractor_documents') && Schema::hasColumn('contractor_documents', 'file_path'),
+            404,
+        );
+        abort_if(blank($contractorDocument->file_path), 404);
+
+        $driver = $contractorDocument->storage_driver ?: DocumentStorageService::DRIVER_LOCAL;
+        $contents = $this->documentStorage->get((string) $contractorDocument->file_path, $driver);
+        $mime = (string) ($contractorDocument->mime_type ?: 'application/octet-stream');
+        $filename = $contractorDocument->original_name ?: basename((string) $contractorDocument->file_path);
+
+        return response($contents, 200, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, max-age=60',
+            'Content-Disposition' => $this->inlineDispositionForMime($mime, $filename),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeContractorDocument(ContractorDocument $document, Contractor $contractor): array
+    {
+        $hasFile = Schema::hasColumn('contractor_documents', 'file_path') && filled($document->file_path);
+
+        return [
+            'id' => $document->id,
+            'type' => $document->type,
+            'title' => $document->title,
+            'number' => $document->number,
+            'document_date' => optional($document->document_date)?->toDateString(),
+            'status' => $document->status,
+            'notes' => $document->notes,
+            'original_name' => $document->original_name,
+            'mime_type' => $document->mime_type,
+            'created_at' => optional($document->created_at)?->toIso8601String(),
+            'preview_url' => $hasFile
+                ? route('contractors.documents.preview', [$contractor, $document])
+                : null,
+        ];
+    }
+
+    private function inlineDispositionForMime(string $mime, string $filename): string
+    {
+        $asciiName = preg_replace('/[\r\n"]/', '', $filename) ?: 'file';
+        $inline = str_starts_with($mime, 'image/')
+            || $mime === 'application/pdf';
+        $mode = $inline ? 'inline' : 'attachment';
+
+        return sprintf('%s; filename="%s"', $mode, addcslashes($asciiName, '"\\'));
     }
 
     private function contractorHasOrders(Contractor $contractor): bool

@@ -61,6 +61,36 @@ class DocumentStorageService
         ];
     }
 
+    /**
+     * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
+     */
+    public function storeContractorUpload(UploadedFile $file, ?int $contractorId = null): array
+    {
+        $originalName = $file->getClientOriginalName();
+        $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        $safeSuffix = $ext !== '' && preg_match('/^[a-z0-9]{1,10}$/i', $ext) === 1 ? '.'.$ext : '';
+        $basename = Str::uuid()->toString().$safeSuffix;
+        $directory = $contractorId !== null
+            ? 'contractor_documents/'.$contractorId
+            : 'contractor_documents/misc';
+        $path = trim($directory, '/').'/'.$basename;
+        $contents = $file->get();
+        $driver = $this->configuredDriver();
+        $this->put($path, $contents, $driver);
+        $size = $file->getSize();
+        if ($size === false) {
+            $size = strlen($contents);
+        }
+
+        return [
+            'original_name' => $originalName,
+            'file_path' => $path,
+            'file_size' => (int) $size,
+            'mime_type' => $file->getMimeType(),
+            'storage_driver' => $driver,
+        ];
+    }
+
     public function put(string $path, string $contents, ?string $driver = null): void
     {
         $driver = $this->resolveDriver($driver);

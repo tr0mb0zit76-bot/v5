@@ -22,6 +22,7 @@ import {
 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
+import ContractorDocumentsSection from '@/Components/Contractors/ContractorDocumentsSection.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 
@@ -554,12 +555,16 @@ function contractorToForm(contractor) {
             : [],
         documents: Array.isArray(contractor.documents)
             ? contractor.documents.map((document) => ({
+                id: document.id ?? null,
                 type: document.type ?? '',
                 title: document.title ?? '',
                 number: document.number ?? '',
                 document_date: document.document_date ?? '',
                 status: document.status ?? '',
                 notes: document.notes ?? '',
+                original_name: document.original_name ?? '',
+                preview_url: document.preview_url ?? null,
+                created_at: document.created_at ?? null,
             }))
             : [],
     };
@@ -965,6 +970,49 @@ function submit() {
         form.inn = String(form.inn).replace(/\D/g, '');
     }
 
+    const hasNewDocumentFiles = (form.documents ?? []).some((document) => document.file instanceof File);
+
+    if (hasNewDocumentFiles) {
+        const jsonBody = {
+            ...form.data(),
+            documents: (form.documents ?? []).map(({ file: _file, preview_url: _previewUrl, ...meta }) => meta),
+        };
+        const formData = new FormData();
+        formData.append('contractor_payload', JSON.stringify(jsonBody));
+        (form.documents ?? []).forEach((document, index) => {
+            if (document.file instanceof File) {
+                formData.append(`contractor_document_file_${index}`, document.file);
+            }
+        });
+
+        const url = selectedContractorId.value === null
+            ? route('contractors.store')
+            : route('contractors.update', selectedContractorId.value);
+        const opts = {
+            preserveScroll: true,
+            forceFormData: true,
+            onBefore: () => {
+                form.processing = true;
+            },
+            onFinish: () => {
+                form.processing = false;
+            },
+            onSuccess: () => {
+                if (selectedContractorId.value === null) {
+                    isCreateModalOpen.value = false;
+                }
+            },
+        };
+
+        if (selectedContractorId.value !== null) {
+            formData.append('_method', 'patch');
+        }
+
+        router.post(url, formData, opts);
+
+        return;
+    }
+
     if (selectedContractorId.value === null) {
         form.post(route('contractors.store'), {
             preserveScroll: true,
@@ -1018,17 +1066,6 @@ function addInteraction() {
         subject: '',
         summary: '',
         result: '',
-    });
-}
-
-function addDocument() {
-    form.documents.push({
-        type: '',
-        title: '',
-        number: '',
-        document_date: '',
-        status: '',
-        notes: '',
     });
 }
 
@@ -2683,59 +2720,7 @@ function handleMobileNavSelect(key) {
                         </div>
                     </div>
 
-                    <div v-else-if="activeTab === 'documents'" class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                Карточка хранит метаданные по документам контрагента. Файловое хранилище можно подключить отдельным шагом.
-                            </div>
-                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addDocument">
-                                <Plus class="h-4 w-4" />
-                                Добавить документ
-                            </button>
-                        </div>
-
-                        <div class="space-y-3">
-                            <div v-for="(document, index) in form.documents" :key="`document-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="mb-3 flex items-center justify-between gap-3">
-                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Документ #{{ index + 1 }}</div>
-                                    <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.documents, index)">
-                                        Удалить
-                                    </button>
-                                </div>
-
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тип</label>
-                                        <input v-model="document.type" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Наименование</label>
-                                        <input v-model="document.title" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Номер</label>
-                                        <input v-model="document.number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата документа</label>
-                                        <input v-model="document.document_date" type="date" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Статус</label>
-                                        <input v-model="document.status" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                    <div class="space-y-2 md:col-span-2 xl:col-span-1">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Комментарий</label>
-                                        <input v-model="document.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div v-if="form.documents.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                Документы пока не добавлены.
-                            </div>
-                        </div>
-                    </div>
+                    <ContractorDocumentsSection v-else-if="activeTab === 'documents'" v-model="form.documents" />
                 </div>
             </section>
         </Modal>

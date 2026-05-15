@@ -262,6 +262,7 @@ const statusLabels = {
 };
 
 const fallbackColumns = [
+  { field: 'id', label: 'ID', width: 90, minWidth: 80, type: 'numeric' },
   { field: 'number', label: '№ лида', width: 120, minWidth: 110, type: null },
   { field: 'status', label: 'Статус', width: 150, minWidth: 130, type: null },
   { field: 'title', label: 'Тема', width: 220, minWidth: 180, type: null },
@@ -276,6 +277,7 @@ const fallbackColumns = [
 ];
 
 const defaultVisibleFields = [
+  'id',
   'number',
   'status',
   'title',
@@ -491,6 +493,10 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.filter = 'agNumberColumnFilter';
     } else if (column.type === 'date') {
       columnDefinition.filter = 'agDateColumnFilter';
+    }
+
+    if (column.field === 'id') {
+      columnDefinition.pinned = 'left';
     }
 
     if (column.field === 'number') {

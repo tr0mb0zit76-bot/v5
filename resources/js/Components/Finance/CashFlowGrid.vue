@@ -275,6 +275,17 @@ class PaymentScheduleCell {
 
 const baseColumnDefs = [
     {
+        colId: 'id',
+        field: 'id',
+        headerName: 'ID',
+        width: 90,
+        minWidth: 80,
+        sortable: true,
+        pinned: 'left',
+        filter: 'agNumberColumnFilter',
+        valueFormatter: (p) => (p.value === null || p.value === undefined || p.value === '' ? '—' : String(p.value)),
+    },
+    {
         colId: 'order_number',
         headerName: 'Заказ',
         minWidth: 120,

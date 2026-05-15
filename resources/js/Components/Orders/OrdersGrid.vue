@@ -300,6 +300,7 @@ const paymentFormValueLabels = computed(() => {
 });
 
 const fallbackColumns = [
+  { field: 'id', label: 'ID', width: 90, minWidth: 80, type: 'numeric' },
   { field: 'order_number', label: '№ заказа', width: 110, minWidth: 95, type: null },
   { field: 'company_code', label: 'Компания', width: 110, minWidth: 80, type: null },
   { field: 'manager_name', label: 'Менеджер', width: 150, minWidth: 140, type: null },
@@ -326,6 +327,7 @@ const fallbackColumns = [
 ];
 
 const baseVisibleFields = [
+  'id',
   'order_number',
   'company_code',
   'manager_name',
@@ -934,6 +936,12 @@ const dynamicColumnDefs = computed(() => {
       },
     };
 
+    if (column.field === 'id') {
+      columnDefinition.pinned = 'left';
+      columnDefinition.filter = 'agNumberColumnFilter';
+      columnDefinition.valueFormatter = (params) => formatEmpty(params.value);
+    }
+
     if (column.field === 'order_number') {
       columnDefinition.pinned = 'left';
       columnDefinition.lockPinned = true;
@@ -948,7 +956,7 @@ const dynamicColumnDefs = computed(() => {
       };
     }
 
-    if (column.type === 'numeric') {
+    if (column.type === 'numeric' && column.field !== 'id') {
       columnDefinition.valueFormatter = moneyFormatter;
       columnDefinition.valueParser = (params) => {
         if (params.newValue === null || params.newValue === undefined || params.newValue === '') {

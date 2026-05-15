@@ -4,10 +4,13 @@ namespace App\Http\Middleware;
 
 use App\Models\Role;
 use App\Support\CabinetNotificationBadges;
+use App\Support\ContractorTableColumns;
 use App\Support\DocumentUploadLimits;
 use App\Support\InertiaAppSurface;
+use App\Support\LeadTableColumns;
 use App\Support\MobileNavResolver;
 use App\Support\OrderTableColumns;
+use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -104,6 +107,21 @@ class HandleInertiaRequests extends Middleware
                             $ordersPreset = $columnsConfig['orders'] ?? OrderTableColumns::defaultState($roleModel->name);
                             $columnsConfig['orders'] = OrderTableColumns::mergePresetWithCatalog(
                                 is_array($ordersPreset) ? $ordersPreset : [],
+                            );
+
+                            $leadsPreset = $columnsConfig['leads'] ?? LeadTableColumns::defaultState($roleModel->name);
+                            $columnsConfig['leads'] = LeadTableColumns::mergePresetWithCatalog(
+                                is_array($leadsPreset) ? $leadsPreset : [],
+                            );
+
+                            $contractorsPreset = $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($roleModel->name);
+                            $columnsConfig['contractors'] = ContractorTableColumns::mergePresetWithCatalog(
+                                is_array($contractorsPreset) ? $contractorsPreset : [],
+                            );
+
+                            $paymentSchedulePreset = $columnsConfig['payment_schedule'] ?? PaymentScheduleTableColumns::defaultState($roleModel->name);
+                            $columnsConfig['payment_schedule'] = PaymentScheduleTableColumns::mergePresetWithCatalog(
+                                is_array($paymentSchedulePreset) ? $paymentSchedulePreset : [],
                             );
 
                             return $columnsConfig;
