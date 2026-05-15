@@ -30,6 +30,7 @@ class UserManagementController extends Controller
                     'email' => $user->email,
                     'phone' => $user->phone,
                     'role_id' => $user->role_id,
+                    'has_password' => filled($user->getRawOriginal('password')),
                     'role' => $user->role === null ? null : [
                         'id' => $user->role->id,
                         'name' => $user->role->name,

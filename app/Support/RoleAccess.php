@@ -46,8 +46,6 @@ class RoleAccess
         return [
             ['key' => 'dashboard', 'label' => 'Дашборд', 'description' => 'Главная панель и сводные карточки'],
             ['key' => 'dashboard_tiles', 'label' => 'Плитки дашборда', 'description' => 'Доступ к отдельным карточкам на дашборде'],
-            ['key' => 'dashboard_widgets', 'label' => 'Виджеты дашборда', 'description' => 'Виджеты с трендами и дополнительными данными'],
-            ['key' => 'dashboard_reports', 'label' => 'Отчёты в дашборде', 'description' => 'Расширенные отчёты и списки в дашборде'],
             ['key' => 'leads', 'label' => 'Лиды', 'description' => 'Воронка до конверсии в заказ'],
             ['key' => 'orders', 'label' => 'Заказы', 'description' => 'Раздел работы с заказами'],
             ['key' => 'users', 'label' => 'Пользователи', 'description' => 'Управление пользователями'],
@@ -106,12 +104,12 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
-            'dispatcher' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
-            'accountant' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports'],
-            'clerk' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
-            'viewer' => ['dashboard', 'dashboard_tiles', 'dashboard_widgets', 'dashboard_reports', 'orders'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
+            'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports'],
+            'clerk' => ['dashboard', 'dashboard_tiles', 'orders', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
+            'viewer' => ['dashboard', 'dashboard_tiles', 'orders'],
             default => ['dashboard'],
         };
     }
@@ -131,8 +129,6 @@ class RoleAccess
                 'documents' => 'all',
                 'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
-                'dashboard_widgets' => 'all',
-                'dashboard_reports' => 'all',
             ],
             'supervisor' => [
                 'orders' => 'all',
@@ -143,8 +139,6 @@ class RoleAccess
                 'documents' => 'all',
                 'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
-                'dashboard_widgets' => 'all',
-                'dashboard_reports' => 'all',
             ],
             'manager' => [
                 'orders' => 'own',
@@ -155,8 +149,6 @@ class RoleAccess
                 'documents' => 'own',
                 'payment_schedules' => 'own',
                 'dashboard_tiles' => 'own',
-                'dashboard_widgets' => 'own',
-                'dashboard_reports' => 'own',
             ],
             'dispatcher' => [
                 'orders' => 'all',
@@ -164,8 +156,6 @@ class RoleAccess
                 'kanban' => 'all',
                 'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
-                'dashboard_widgets' => 'all',
-                'dashboard_reports' => 'all',
             ],
             'accountant' => [
                 'orders' => 'all',
@@ -174,8 +164,6 @@ class RoleAccess
                 'documents' => 'all',
                 'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
-                'dashboard_widgets' => 'all',
-                'dashboard_reports' => 'all',
             ],
             'clerk' => [
                 'orders' => 'all',
@@ -185,14 +173,10 @@ class RoleAccess
                 'documents' => 'all',
                 'payment_schedules' => 'all',
                 'dashboard_tiles' => 'all',
-                'dashboard_widgets' => 'all',
-                'dashboard_reports' => 'all',
             ],
             'viewer' => [
                 'orders' => 'all',
                 'dashboard_tiles' => 'all',
-                'dashboard_widgets' => 'all',
-                'dashboard_reports' => 'all',
             ],
             default => [],
         };

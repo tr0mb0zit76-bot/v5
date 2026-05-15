@@ -220,6 +220,7 @@ import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } 
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
+import { renderOrderOneCSummaryCell } from '@/support/orderOneCSummaryCell.js';
 import { renderOrderStatusTextCell, resolveOrderStatusLabel } from '@/support/orderStatusDisplay.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
@@ -991,6 +992,17 @@ const dynamicColumnDefs = computed(() => {
 
     if (['customer_payment_term', 'carrier_payment_term'].includes(column.field)) {
       columnDefinition.valueFormatter = (params) => formatPaymentTermsDisplay(params.value);
+    }
+
+    if (column.field === 'one_c_summary') {
+      columnDefinition.cellRenderer = renderOrderOneCSummaryCell;
+      columnDefinition.wrapText = true;
+      columnDefinition.autoHeight = true;
+      columnDefinition.sortable = false;
+      columnDefinition.filter = 'agTextColumnFilter';
+      columnDefinition.valueFormatter = (params) => formatEmpty(params.value);
+      columnDefinition.getQuickFilterText = (params) => (params.value == null ? '' : String(params.value));
+      columnDefinition.cellClass = 'orders-grid-summary-cell';
     }
 
     if (column.field === 'status_text') {

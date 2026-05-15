@@ -46,6 +46,9 @@ class DashboardController extends Controller
                     'margin_rank' => '—',
                     'finance_chart' => [],
                     'finance_flow_mode' => 'hidden',
+                    'show_dual_metrics' => false,
+                    'metrics_scope' => 'own',
+                    'metrics_own' => null,
                 ]
                 : $dashboardMetricsService->forDashboard($request->user(), $dateFrom, $dateTo),
         ]);

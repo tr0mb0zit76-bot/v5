@@ -135,7 +135,14 @@
             <div class="flex items-start justify-between gap-4">
                 <div class="shrink-0">
                     <h1 class="text-2xl font-semibold">Заказы</h1>
-                    <p class="text-sm text-zinc-500">Всего заказов: {{ rows.length }}</p>
+                    <p class="text-sm text-zinc-500">
+                        <template v-if="hasOrderPeriodFilter">
+                            За период {{ orderDateFrom }} — {{ orderDateTo }}: {{ displayedRows.length }} из {{ rows.length }}
+                        </template>
+                        <template v-else>
+                            Всего заказов: {{ rows.length }}
+                        </template>
+                    </p>
                 </div>
 
                 <button
@@ -150,7 +157,7 @@
 
             <div class="min-h-0 flex-1 overflow-hidden">
                 <OrdersGrid
-                    :rows="rows"
+                    :rows="displayedRows"
                     :available-columns="availableColumns"
                     :role-key="roleKey"
                     :role-columns-config="roleColumnsConfig"
@@ -169,7 +176,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const MOBILE_SORT_OPTIONS = [
     { value: 'id_desc', label: 'Сначала новые' },
@@ -199,7 +206,48 @@ const roleKey = computed(() => page.props.roleKey ?? page.props.auth?.user?.role
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const availableColumns = computed(() => page.props.orderColumns ?? []);
 const rows = computed(() => page.props.rows ?? []);
+const orderDateFrom = ref(null);
+const orderDateTo = ref(null);
+
+const hasOrderPeriodFilter = computed(() => Boolean(orderDateFrom.value && orderDateTo.value));
+
+const displayedRows = computed(() => {
+    if (!hasOrderPeriodFilter.value) {
+        return rows.value;
+    }
+
+    return rows.value.filter((row) => {
+        const date = row.order_date ? String(row.order_date).slice(0, 10) : '';
+
+        if (date === '') {
+            return false;
+        }
+
+        return date >= orderDateFrom.value && date <= orderDateTo.value;
+    });
+});
+
 const paymentFormOptions = computed(() => page.props.paymentFormOptions ?? []);
+
+onMounted(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const from = url.searchParams.get('order_date_from');
+    const to = url.searchParams.get('order_date_to');
+
+    if (!from || !to) {
+        return;
+    }
+
+    orderDateFrom.value = from;
+    orderDateTo.value = to;
+    url.searchParams.delete('order_date_from');
+    url.searchParams.delete('order_date_to');
+    window.history.replaceState({}, '', url.pathname + url.search);
+});
 const isMobileStandalone = computed(() => {
     if (typeof window === 'undefined') {
         return false;
@@ -250,8 +298,8 @@ const mobileRows = computed(() => {
     const query = mobileSearch.value.trim().toLowerCase();
 
     const filtered = query === ''
-        ? rows.value
-        : rows.value.filter((row) => {
+        ? displayedRows.value
+        : displayedRows.value.filter((row) => {
             return [
                 row.order_number,
                 row.customer_name,

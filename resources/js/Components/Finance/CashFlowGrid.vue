@@ -117,7 +117,26 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    initialPreset: {
+        type: String,
+        default: null,
+    },
 });
+
+const presetFilterModels = {
+    customer_overdue: {
+        direction: {
+            filterType: 'text',
+            type: 'equals',
+            filter: 'Нам',
+        },
+        status: {
+            filterType: 'text',
+            type: 'equals',
+            filter: 'Просрочено',
+        },
+    },
+};
 
 const quickSearch = ref('');
 const agGrid = ref(null);
@@ -541,7 +560,12 @@ const onGridReady = async (params) => {
         gridApi.value.setGridOption('quickFilterText', quickSearch.value);
     }
 
-    loadPersistedFilterModel();
+    const presetModel = props.initialPreset ? presetFilterModels[props.initialPreset] : null;
+    if (presetModel) {
+        gridApi.value.setFilterModel(presetModel);
+    } else {
+        loadPersistedFilterModel();
+    }
 
     await nextTick();
     updateGridViewportHeight();

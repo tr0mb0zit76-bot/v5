@@ -7,6 +7,7 @@ use App\Support\CabinetNotificationBadges;
 use App\Support\DocumentUploadLimits;
 use App\Support\InertiaAppSurface;
 use App\Support\MobileNavResolver;
+use App\Support\OrderTableColumns;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -95,7 +96,18 @@ class HandleInertiaRequests extends Middleware
                         'visibility_scopes' => is_array($visibilityScopes)
                             ? $visibilityScopes
                             : RoleAccess::defaultVisibilityScopes($roleModel->name),
-                        'columns_config' => is_array($roleModel->columns_config ?? null) ? $roleModel->columns_config : [],
+                        'columns_config' => (function () use ($roleModel): array {
+                            $columnsConfig = is_array($roleModel->columns_config ?? null)
+                                ? $roleModel->columns_config
+                                : [];
+
+                            $ordersPreset = $columnsConfig['orders'] ?? OrderTableColumns::defaultState($roleModel->name);
+                            $columnsConfig['orders'] = OrderTableColumns::mergePresetWithCatalog(
+                                is_array($ordersPreset) ? $ordersPreset : [],
+                            );
+
+                            return $columnsConfig;
+                        })(),
                     ];
                 })(),
             ],

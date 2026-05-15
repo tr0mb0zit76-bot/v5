@@ -7,6 +7,7 @@ use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\OrderDeleteAuthorization;
+use App\Support\OrderGridOneCSummaryResolver;
 use App\Support\OrderTableColumns;
 use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
@@ -102,6 +103,10 @@ class OrderIndexController extends Controller
             $orderSelectColumns[] = 'orders.carrier_payment_term';
         }
 
+        if (Schema::hasColumn('orders', 'performers')) {
+            $orderSelectColumns[] = 'orders.performers';
+        }
+
         $rows = DB::table('orders')
             ->leftJoin('users as managers', 'managers.id', '=', 'orders.manager_id')
             ->leftJoin('contractors as customers', 'customers.id', '=', 'orders.customer_id')
@@ -109,6 +114,7 @@ class OrderIndexController extends Controller
             ->select($orderSelectColumns)
             ->selectSub($this->routePointSubquery('loading'), 'loading_point')
             ->selectSub($this->routePointSubquery('unloading'), 'unloading_point')
+            ->selectSub($this->routePointSubquery('unloading', last: true), 'last_unloading_point')
             ->selectSub($this->cargoDescriptionSubquery(), 'cargo_description')
             ->when(
                 Schema::hasTable('leg_contractor_assignments'),
@@ -212,6 +218,8 @@ class OrderIndexController extends Controller
             ];
         });
 
+        $rows = (new OrderGridOneCSummaryResolver)->enrich(collect($rows))->values()->all();
+
         return Inertia::render('Orders/Index', [
             'rows' => $rows,
             'roleKey' => $roleName ?? 'manager',
@@ -260,7 +268,7 @@ class OrderIndexController extends Controller
         ];
     }
 
-    private function routePointSubquery(string $type)
+    private function routePointSubquery(string $type, bool $last = false)
     {
         $cityCandidates = array_values(array_filter([
             Schema::hasColumn('route_points', 'normalized_data')
@@ -282,13 +290,22 @@ class OrderIndexController extends Controller
             : 'COALESCE(NULLIF(cities.name, ""), addresses.address_line)';
         $displayExpression = "COALESCE({$cityExpression}, {$addressExpression})";
 
-        return DB::table('route_points')
+        $query = DB::table('route_points')
             ->join('order_legs', 'order_legs.id', '=', 'route_points.order_leg_id')
             ->leftJoin('addresses', 'addresses.id', '=', 'route_points.address_id')
             ->leftJoin('cities', 'cities.id', '=', 'addresses.city_id')
             ->selectRaw($displayExpression)
             ->whereColumn('order_legs.order_id', 'orders.id')
-            ->where('route_points.type', $type)
+            ->where('route_points.type', $type);
+
+        if ($last) {
+            return $query
+                ->orderByDesc('order_legs.sequence')
+                ->orderByDesc('route_points.sequence')
+                ->limit(1);
+        }
+
+        return $query
             ->orderBy('order_legs.sequence')
             ->orderBy('route_points.sequence')
             ->limit(1);

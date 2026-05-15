@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -36,13 +37,53 @@ class DashboardMetricsService
     {
         $user->loadMissing('role');
         $managerId = $user->id;
+        $tilesScope = RoleAccess::resolveVisibilityScopeForUser($user, 'dashboard_tiles');
+        $effectiveManagerId = $tilesScope === 'own' ? $managerId : null;
+        $roleName = $user->role?->name;
+        $showDualMetrics = $tilesScope === 'all'
+            && in_array($roleName, ['admin', 'supervisor'], true);
+
+        $primary = $this->tileMetricsForManager($effectiveManagerId, $dateFrom, $dateTo);
+        $finance = $this->financeChartForUser($user, $tilesScope, $managerId, $dateFrom, $dateTo);
+
+        $payload = [
+            ...$primary,
+            ...$finance,
+            'show_dual_metrics' => $showDualMetrics,
+            'metrics_scope' => $tilesScope === 'all' ? 'company' : 'own',
+            'metrics_own' => null,
+        ];
+
+        if ($showDualMetrics) {
+            $payload['metrics_own'] = $this->tileMetricsForManager($managerId, $dateFrom, $dateTo);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array{
+     *     total_orders:int,
+     *     period_delta:float,
+     *     weekly_client_returns:float,
+     *     weekly_client_returns_overdue:float,
+     *     tasks_today:int,
+     *     tasks_overdue:int,
+     *     plan_completion_percent:float,
+     *     tasks_on_time_percent:float,
+     *     tasks_sla_breached_open:int,
+     *     margin_rank:string
+     * }
+     */
+    private function tileMetricsForManager(?int $managerId, string $dateFrom, string $dateTo): array
+    {
         $orderColumns = array_values(array_filter(
             ['id', 'delta'],
             fn (string $column): bool => Schema::hasColumn('orders', $column)
         ));
 
         $query = Order::query()
-            ->where('manager_id', $managerId)
+            ->when($managerId !== null, fn ($q) => $q->where('manager_id', $managerId))
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
@@ -52,35 +93,11 @@ class DashboardMetricsService
         $select = $orderColumns === [] ? ['*'] : $orderColumns;
         $orders = $query->get($select);
 
-        $totalOrders = $orders->count();
-
         $weeklyReturns = $this->weeklyCustomerReturnDueTotals($managerId);
         $taskMetrics = $this->taskMetricsForManager($managerId, $dateFrom, $dateTo);
 
-        $from = Carbon::parse($dateFrom)->startOfDay();
-        $to = Carbon::parse($dateTo)->endOfDay();
-
-        $roleName = $user->role?->name;
-        $financeFlowMode = 'hidden';
-        $financeChart = [];
-
-        if (in_array($roleName, ['admin', 'supervisor', 'accountant'], true)) {
-            $financeFlowMode = 'full';
-            $financeChart = $this->completedOrderFinancialAnalytics->monthlyBucketsAggregate($from, $to);
-        } elseif ($roleName === 'manager') {
-            $financeFlowMode = 'margin_own';
-            $raw = $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to);
-            $financeChart = array_map(static function (array $row): array {
-                return [
-                    ...$row,
-                    'income' => 0.0,
-                    'expense' => 0.0,
-                ];
-            }, $raw);
-        }
-
         return [
-            'total_orders' => $totalOrders,
+            'total_orders' => $orders->count(),
             'period_delta' => round($orders->sum(fn (Order $order): float => (float) ($order->delta ?? 0)), 2),
             'weekly_client_returns' => round($weeklyReturns['total'], 2),
             'weekly_client_returns_overdue' => round($weeklyReturns['overdue'], 2),
@@ -90,8 +107,43 @@ class DashboardMetricsService
             'tasks_on_time_percent' => $taskMetrics['tasks_on_time_percent'],
             'tasks_sla_breached_open' => $taskMetrics['tasks_sla_breached_open'],
             'margin_rank' => '—',
-            'finance_chart' => $financeChart,
-            'finance_flow_mode' => $financeFlowMode,
+        ];
+    }
+
+    /**
+     * @return array{finance_chart: list<array<string, mixed>>, finance_flow_mode: 'hidden'|'margin_own'|'full'}
+     */
+    private function financeChartForUser(User $user, string $tilesScope, int $managerId, string $dateFrom, string $dateTo): array
+    {
+        $roleName = $user->role?->name;
+        $from = Carbon::parse($dateFrom)->startOfDay();
+        $to = Carbon::parse($dateTo)->endOfDay();
+
+        if (! in_array($roleName, ['admin', 'supervisor', 'accountant', 'manager'], true)) {
+            return [
+                'finance_chart' => [],
+                'finance_flow_mode' => 'hidden',
+            ];
+        }
+
+        if ($tilesScope === 'all') {
+            return [
+                'finance_flow_mode' => 'full',
+                'finance_chart' => $this->completedOrderFinancialAnalytics->monthlyBucketsAggregate($from, $to),
+            ];
+        }
+
+        $raw = $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to);
+
+        return [
+            'finance_flow_mode' => 'margin_own',
+            'finance_chart' => array_map(static function (array $row): array {
+                return [
+                    ...$row,
+                    'income' => 0.0,
+                    'expense' => 0.0,
+                ];
+            }, $raw),
         ];
     }
 
@@ -104,7 +156,7 @@ class DashboardMetricsService
      *     tasks_sla_breached_open:int
      * }
      */
-    private function taskMetricsForManager(int $managerId, string $dateFrom, string $dateTo): array
+    private function taskMetricsForManager(?int $managerId, string $dateFrom, string $dateTo): array
     {
         if (! Schema::hasTable('tasks')) {
             return [
@@ -120,7 +172,7 @@ class DashboardMetricsService
         $now = Carbon::now();
 
         $base = Task::query()
-            ->where('responsible_id', $managerId)
+            ->when($managerId !== null, fn ($q) => $q->where('responsible_id', $managerId))
             ->when(
                 Schema::hasColumn('tasks', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
@@ -163,7 +215,7 @@ class DashboardMetricsService
         }
 
         $completedInPeriod = Task::query()
-            ->where('responsible_id', $managerId)
+            ->when($managerId !== null, fn ($q) => $q->where('responsible_id', $managerId))
             ->where('status', 'done')
             ->whereNotNull('completed_at')
             ->whereBetween('completed_at', [$periodStart, $periodEnd])
@@ -210,7 +262,7 @@ class DashboardMetricsService
     /**
      * @return array{total: float, overdue: float}
      */
-    private function weeklyCustomerReturnDueTotals(int $managerId): array
+    private function weeklyCustomerReturnDueTotals(?int $managerId): array
     {
         if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('payment_schedules', 'planned_date')) {
             return ['total' => 0.0, 'overdue' => 0.0];
@@ -236,11 +288,11 @@ class DashboardMetricsService
         return ['total' => $total, 'overdue' => $overdue];
     }
 
-    private function customerScheduleDueBaseQuery(int $managerId): Builder
+    private function customerScheduleDueBaseQuery(?int $managerId): Builder
     {
         $query = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
-            ->where('orders.manager_id', $managerId)
+            ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId))
             ->where('payment_schedules.party', 'customer')
             ->whereIn('payment_schedules.status', ['pending', 'overdue']);
 

@@ -205,6 +205,26 @@
                         </div>
                     </label>
 
+                    <div
+                        v-if="editingUser !== null"
+                        class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                    >
+                        <div class="font-medium text-zinc-900 dark:text-zinc-50">
+                            <template v-if="editingUser.has_password">
+                                Пароль задан
+                                <span class="ml-1.5 select-none tracking-[0.35em] text-zinc-500 dark:text-zinc-400" aria-hidden="true">••••••••</span>
+                            </template>
+                            <template v-else>
+                                <span class="text-amber-800 dark:text-amber-200">Пароль ещё не задан</span>
+                            </template>
+                        </div>
+                        <p class="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400">
+                            Текущий пароль по соображениям безопасности не хранится и не показывается. Поля ниже — только для
+                            <strong class="font-medium text-zinc-600 dark:text-zinc-300">нового</strong>
+                            пароля; кнопка с глазом переключает видимость вводимого текста (если поле пустое, показывать нечего).
+                        </p>
+                    </div>
+
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
@@ -219,9 +239,10 @@
                                 />
                                 <button
                                     type="button"
-                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    :disabled="editingUser !== null && form.password.length === 0"
                                     :aria-pressed="passwordVisible"
-                                    :title="passwordVisible ? 'Скрыть пароль' : 'Показать пароль'"
+                                    :title="passwordFieldToggleTitle"
                                     aria-label="Показать или скрыть пароль"
                                     @click="passwordVisible = !passwordVisible"
                                 >
@@ -243,9 +264,10 @@
                                 />
                                 <button
                                     type="button"
-                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    :disabled="editingUser !== null && form.password_confirmation.length === 0"
                                     :aria-pressed="passwordConfirmVisible"
-                                    :title="passwordConfirmVisible ? 'Скрыть пароль' : 'Показать пароль'"
+                                    :title="passwordConfirmFieldToggleTitle"
                                     aria-label="Показать или скрыть подтверждение пароля"
                                     @click="passwordConfirmVisible = !passwordConfirmVisible"
                                 >
@@ -313,6 +335,22 @@ const passwordConfirmVisible = ref(false);
 const activeUsers = computed(() => props.users.filter((user) => user.is_active));
 const inactiveUsers = computed(() => props.users.filter((user) => !user.is_active));
 const displayedUsers = computed(() => activeTab.value === 'active' ? activeUsers.value : inactiveUsers.value);
+
+const passwordFieldToggleTitle = computed(() => {
+    if (editingUser.value !== null && form.password.length === 0) {
+        return 'Сначала введите новый пароль — нечего показывать';
+    }
+
+    return passwordVisible.value ? 'Скрыть вводимый пароль' : 'Показать вводимый пароль';
+});
+
+const passwordConfirmFieldToggleTitle = computed(() => {
+    if (editingUser.value !== null && form.password_confirmation.length === 0) {
+        return 'Сначала введите подтверждение — нечего показывать';
+    }
+
+    return passwordConfirmVisible.value ? 'Скрыть подтверждение' : 'Показать подтверждение';
+});
 
 const tabs = computed(() => [
     { key: 'active', label: `Активные (${activeUsers.value.length})` },

@@ -383,7 +383,7 @@ const props = defineProps({
 const showCreateForm = ref(false);
 const savingRoleId = ref(null);
 const childAreaMap = {
-    dashboard: ['dashboard_tiles', 'dashboard_widgets', 'dashboard_reports'],
+    dashboard: ['dashboard_tiles'],
     settings: ['settings_system', 'settings_motivation'],
     scripts: [
         'sales_assistant_scripts',
@@ -401,8 +401,6 @@ const scopeAreaKeys = [
     'documents',
     'payment_schedules',
     'dashboard_tiles',
-    'dashboard_widgets',
-    'dashboard_reports',
 ];
 const visibilityGroupDefinitions = [
     { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'orders', 'tasks', 'kanban'] },
@@ -790,14 +788,6 @@ function scopeHint(areaKey) {
 
     if (areaKey === 'dashboard_tiles') {
         return 'Все плитки или только относящиеся к своим данным';
-    }
-
-    if (areaKey === 'dashboard_widgets') {
-        return 'Все виджеты или только относящиеся к своим данным';
-    }
-
-    if (areaKey === 'dashboard_reports') {
-        return 'Все отчёты на дашборде или только по своим данным';
     }
 
     return 'Объём данных внутри раздела';

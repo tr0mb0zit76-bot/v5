@@ -33,7 +33,9 @@ class SettingsTableManagementController extends Controller
                         'name' => $role->name,
                         'display_name' => $role->display_name,
                         'columns_config' => [
-                            'orders' => $columnsConfig['orders'] ?? OrderTableColumns::defaultState($role->name),
+                            'orders' => OrderTableColumns::mergePresetWithCatalog(
+                                $columnsConfig['orders'] ?? OrderTableColumns::defaultState($role->name),
+                            ),
                             'leads' => $columnsConfig['leads'] ?? LeadTableColumns::defaultState($role->name),
                             'contractors' => $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($role->name),
                             'payment_schedule' => $columnsConfig['payment_schedule'] ?? PaymentScheduleTableColumns::defaultState($role->name),

@@ -152,9 +152,17 @@
                 </div>
             </div>
 
+            <p
+                v-if="cashFlowPresetLabel"
+                class="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+            >
+                {{ cashFlowPresetLabel }}
+            </p>
+
             <section class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                 <CashFlowGrid
-                    :rows="cashFlowJournal"
+                    :rows="cashFlowRows"
+                    :initial-preset="cashFlowGridPreset"
                     :user-id="cashFlowGridUserId"
                     :available-columns="paymentScheduleColumns"
                     :role-columns-config="roleColumnsConfig"
@@ -169,7 +177,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, ArrowLeft, BarChart3, Clock, TrendingDown, TrendingUp, Wallet } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -258,6 +266,57 @@ const props = defineProps({
 });
 
 const activeSubmodule = computed(() => props.active_submodule);
+
+const cashFlowGridPreset = ref(null);
+
+function isCustomerOverdueRow(row) {
+    if (row?.direction !== 'Нам') {
+        return false;
+    }
+    if (row.status === 'overdue') {
+        return true;
+    }
+    if (row.status !== 'pending' || !row.planned_date) {
+        return false;
+    }
+    const planned = String(row.planned_date).slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+
+    return planned < today;
+}
+
+const cashFlowRows = computed(() => {
+    if (cashFlowGridPreset.value !== 'customer_overdue') {
+        return props.cashFlowJournal;
+    }
+
+    return props.cashFlowJournal.filter(isCustomerOverdueRow);
+});
+
+const cashFlowPresetLabel = computed(() => {
+    if (cashFlowGridPreset.value === 'customer_overdue') {
+        return 'Показана просроченная дебиторка от клиентов (как на дашборде).';
+    }
+
+    return null;
+});
+
+onMounted(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const preset = url.searchParams.get('preset');
+    if (!preset) {
+        return;
+    }
+
+    cashFlowGridPreset.value = preset;
+    url.searchParams.delete('preset');
+    window.history.replaceState({}, '', url.pathname + url.search);
+});
+
 const canManagePaymentSchedule = computed(() => props.can_manage_payment_schedule);
 const canShowPaymentScheduleActions = computed(() => props.can_show_payment_schedule_actions);
 const canPaymentScheduleRecordPayment = computed(() => props.can_payment_schedule_record_payment);

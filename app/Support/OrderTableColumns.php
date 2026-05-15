@@ -12,6 +12,7 @@ class OrderTableColumns
         return [
             ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80, 'type' => 'numeric'],
             ['field' => 'order_number', 'label' => '№ заказа', 'width' => 110, 'minWidth' => 95, 'type' => null],
+            ['field' => 'one_c_summary', 'label' => 'Сводная информация', 'width' => 420, 'minWidth' => 280, 'type' => 'summary'],
             ['field' => 'company_code', 'label' => 'Компания', 'width' => 110, 'minWidth' => 80, 'type' => null],
             ['field' => 'manager_id', 'label' => 'ID менеджера', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'manager_name', 'label' => 'Менеджер', 'width' => 150, 'minWidth' => 140, 'type' => null],
@@ -122,6 +123,52 @@ class OrderTableColumns
             'manager' => array_values(array_filter($defaultFields, fn (string $field): bool => $field !== 'salary_paid')),
             default => $defaultFields,
         };
+    }
+
+    /**
+     * Дополняет сохранённый пресет колонками из каталога (новые — скрыты по умолчанию).
+     *
+     * @param  list<array{colId: string, hide: bool, width: int, order: int}>  $preset
+     * @return list<array{colId: string, hide: bool, width: int, order: int}>
+     */
+    public static function mergePresetWithCatalog(array $preset): array
+    {
+        $byColId = [];
+
+        foreach ($preset as $column) {
+            if (! is_array($column) || ! isset($column['colId'])) {
+                continue;
+            }
+
+            $byColId[(string) $column['colId']] = $column;
+        }
+
+        $merged = array_values(array_filter($preset, fn ($column): bool => is_array($column) && isset($column['colId'])));
+        $nextOrder = 0;
+
+        foreach ($merged as $column) {
+            $nextOrder = max($nextOrder, (int) ($column['order'] ?? 0) + 1);
+        }
+
+        foreach (static::options() as $option) {
+            $field = $option['field'];
+
+            if (isset($byColId[$field])) {
+                continue;
+            }
+
+            $merged[] = [
+                'colId' => $field,
+                'hide' => true,
+                'width' => (int) ($option['width'] ?? 120),
+                'order' => $nextOrder,
+            ];
+            $nextOrder++;
+        }
+
+        usort($merged, fn (array $left, array $right): int => ($left['order'] ?? 0) <=> ($right['order'] ?? 0));
+
+        return $merged;
     }
 
     /**

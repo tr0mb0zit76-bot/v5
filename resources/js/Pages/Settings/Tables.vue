@@ -202,6 +202,7 @@ const groupDefinitions = [
 const groupMap = {
     id: 'identity',
     order_number: 'identity',
+    one_c_summary: 'documents',
     company_code: 'identity',
     manager_id: 'identity',
     manager_name: 'identity',

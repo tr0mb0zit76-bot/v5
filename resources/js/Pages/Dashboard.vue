@@ -155,28 +155,76 @@
             <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Сделок за период</div>
-                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.total_orders }}</div>
+                    <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
+                    <Link
+                        :href="ordersPeriodUrl"
+                        class="mt-2 block text-3xl font-semibold text-zinc-900 underline-offset-4 transition hover:underline dark:text-zinc-50"
+                    >
+                        {{ metrics.total_orders }}
+                    </Link>
+                    <p v-if="showDualMetrics" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Мои: {{ metricsOwn.total_orders }}
+                    </p>
                 </article>
 
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Задач на сегодня</div>
-                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.tasks_today }}</div>
-                    <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Открытых просроченных (по сроку или SLA): {{ metrics.tasks_overdue }}</div>
-                    <div v-if="Number(metrics.tasks_sla_breached_open || 0) > 0" class="mt-1 text-xs text-rose-600 dark:text-rose-400">
-                        С просроченным SLA: {{ metrics.tasks_sla_breached_open }}
-                    </div>
+                    <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
+                    <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.tasks_today }}</div>
+                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Открытых просроченных (по сроку или SLA):
+                        <Link
+                            v-if="Number(metrics.tasks_overdue) > 0"
+                            :href="tasksOverdueUrl"
+                            class="font-medium text-rose-700 underline-offset-2 hover:underline dark:text-rose-300"
+                        >
+                            {{ metrics.tasks_overdue }}
+                        </Link>
+                        <span v-else>{{ metrics.tasks_overdue }}</span>
+                    </p>
+                    <p v-if="Number(metrics.tasks_sla_breached_open || 0) > 0" class="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                        С просроченным SLA:
+                        <Link
+                            :href="tasksSlaOverdueUrl"
+                            class="font-medium underline-offset-2 hover:underline"
+                        >
+                            {{ metrics.tasks_sla_breached_open }}
+                        </Link>
+                    </p>
+                    <p v-if="showDualMetrics" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Мои: сегодня {{ metricsOwn.tasks_today }}, просрочено {{ metricsOwn.tasks_overdue }}
+                    </p>
                 </article>
 
                 <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">План выполнен на</div>
-                    <div class="mt-3 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ formatPercent(metrics.plan_completion_percent) }}</div>
+                    <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
+                    <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ formatPercent(metrics.plan_completion_percent) }}</div>
                     <div class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">В срок (закрытые за период): {{ formatPercent(metrics.tasks_on_time_percent) }}</div>
+                    <p v-if="showDualMetrics" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Мои: {{ formatPercent(metricsOwn.plan_completion_percent) }}
+                    </p>
                 </article>
 
                 <article class="rounded-none border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
                     <div class="text-sm font-medium text-rose-800 dark:text-rose-200">На этой неделе надо вернуть от клиентов</div>
-                    <div class="mt-3 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
-                    <div class="mt-2 text-xs text-rose-700 dark:text-rose-300">из них просрочено: {{ formatCurrency(metrics.weekly_client_returns_overdue) }}</div>
+                    <div class="mt-1 text-[11px] uppercase tracking-wide text-rose-600/80 dark:text-rose-400/80">{{ primaryScopeLabel }}</div>
+                    <div class="mt-2 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
+                    <p class="mt-2 text-xs text-rose-700 dark:text-rose-300">
+                        из них просрочено:
+                        <Link
+                            v-if="Number(metrics.weekly_client_returns_overdue) > 0"
+                            :href="financeCustomerOverdueUrl"
+                            class="font-semibold underline-offset-2 hover:underline"
+                        >
+                            {{ formatCurrency(metrics.weekly_client_returns_overdue) }}
+                        </Link>
+                        <span v-else>{{ formatCurrency(metrics.weekly_client_returns_overdue) }}</span>
+                    </p>
+                    <p v-if="showDualMetrics" class="mt-2 text-xs text-rose-700/90 dark:text-rose-300/90">
+                        Мои: {{ formatCurrency(metricsOwn.weekly_client_returns) }}
+                        (просрочено {{ formatCurrency(metricsOwn.weekly_client_returns_overdue) }})
+                    </p>
                 </article>
             </section>
         </div>
@@ -212,9 +260,41 @@ const props = defineProps({
             margin_rank: '—',
             finance_chart: [],
             finance_flow_mode: 'hidden',
+            show_dual_metrics: false,
+            metrics_scope: 'own',
+            metrics_own: null,
         }),
     },
 });
+
+const emptyTileMetrics = {
+    total_orders: 0,
+    period_delta: 0,
+    weekly_client_returns: 0,
+    weekly_client_returns_overdue: 0,
+    tasks_today: 0,
+    tasks_overdue: 0,
+    plan_completion_percent: 0,
+    tasks_on_time_percent: 0,
+    tasks_sla_breached_open: 0,
+    margin_rank: '—',
+};
+
+const showDualMetrics = computed(() => props.metrics?.show_dual_metrics === true);
+const metricsOwn = computed(() => ({ ...emptyTileMetrics, ...(props.metrics?.metrics_own ?? {}) }));
+const primaryScopeLabel = computed(() => (props.metrics?.metrics_scope === 'company' ? 'По компании' : 'Мои'));
+
+const ordersPeriodUrl = computed(() => route('orders.index', {
+    order_date_from: filterForm.date_from,
+    order_date_to: filterForm.date_to,
+}));
+
+const tasksOverdueUrl = computed(() => route('tasks.index', { filter: 'overdue' }));
+const tasksSlaOverdueUrl = computed(() => route('tasks.index', { filter: 'sla_overdue' }));
+const financeCustomerOverdueUrl = computed(() => route('finance.index', {
+    section: 'cashflow',
+    preset: 'customer_overdue',
+}));
 
 const financeFlowMode = computed(() => props.metrics?.finance_flow_mode ?? 'hidden');
 

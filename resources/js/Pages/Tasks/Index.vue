@@ -373,6 +373,9 @@ const visibleTasks = computed(() => {
     if (activeFilter.value === 'Просроченные') {
         return list.filter((task) => isOverdue(task));
     }
+    if (activeFilter.value === 'SLA просрочен') {
+        return list.filter((task) => isSlaBreached(task));
+    }
 
     return list;
 });
@@ -595,10 +598,46 @@ function isOverdue(task) {
     return Date.now() > date.getTime();
 }
 
+function isSlaBreached(task) {
+    if (task?.status === 'done' || !task?.sla_deadline_at) {
+        return false;
+    }
+    const date = new Date(task.sla_deadline_at);
+    if (Number.isNaN(date.getTime())) {
+        return false;
+    }
+
+    return Date.now() > date.getTime();
+}
+
+const filterQueryMap = {
+    overdue: 'Просроченные',
+    sla_overdue: 'SLA просрочен',
+};
+
+function applyFilterFromQuery() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    const filterKey = url.searchParams.get('filter');
+    const mapped = filterQueryMap[filterKey ?? ''];
+
+    if (mapped) {
+        activeFilter.value = mapped;
+        url.searchParams.delete('filter');
+        window.history.replaceState({}, '', url.pathname + url.search);
+    }
+}
+
 onMounted(() => {
     if (typeof window === 'undefined') {
         return;
     }
+
+    applyFilterFromQuery();
+
     let url = new URL(window.location.href);
     const taskParam = url.searchParams.get('task');
     if (taskParam) {
