@@ -10,7 +10,7 @@ class LeadTableColumns
     public static function options(): array
     {
         return [
-            ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80, 'type' => 'numeric'],
+            ['field' => 'id', 'label' => 'ID', 'width' => 56, 'minWidth' => 48, 'type' => 'numeric'],
             ['field' => 'number', 'label' => '№ лида', 'width' => 120, 'minWidth' => 110, 'type' => null],
             ['field' => 'status', 'label' => 'Статус', 'width' => 150, 'minWidth' => 130, 'type' => null],
             ['field' => 'title', 'label' => 'Тема', 'width' => 220, 'minWidth' => 180, 'type' => null],

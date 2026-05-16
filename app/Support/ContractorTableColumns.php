@@ -10,7 +10,7 @@ class ContractorTableColumns
     public static function options(): array
     {
         return [
-            ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80, 'type' => 'numeric'],
+            ['field' => 'id', 'label' => 'ID', 'width' => 56, 'minWidth' => 48, 'type' => 'numeric'],
             ['field' => 'name', 'label' => 'Название', 'width' => 240, 'minWidth' => 190, 'type' => null],
             ['field' => 'status_text', 'label' => 'Статус', 'width' => 130, 'minWidth' => 110, 'type' => null],
             ['field' => 'activity_types_label', 'label' => 'Вид деятельности', 'width' => 220, 'minWidth' => 180, 'type' => null],

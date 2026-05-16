@@ -81,6 +81,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
+import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -274,12 +275,10 @@ class PaymentScheduleCell {
 }
 
 const baseColumnDefs = [
-    {
+    applyAgGridIdColumnSizing({
         colId: 'id',
         field: 'id',
         headerName: 'ID',
-        width: 90,
-        minWidth: 80,
         sortable: true,
         pinned: 'left',
         filter: false,
@@ -287,7 +286,7 @@ const baseColumnDefs = [
         suppressHeaderFilterButton: true,
         getQuickFilterText: () => '',
         valueFormatter: (p) => (p.value === null || p.value === undefined || p.value === '' ? '—' : String(p.value)),
-    },
+    }),
     {
         colId: 'order_number',
         headerName: 'Заказ',
@@ -589,6 +588,7 @@ const onGridReady = async (params) => {
 
 const onFirstDataRendered = () => {
     requestAnimationFrame(() => {
+        autoSizeIdColumnIfNotPersisted(gridApi.value, null);
         updateGridViewportHeight();
         attachCenterViewportListener();
         syncBottomScrollbar();

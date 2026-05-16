@@ -211,6 +211,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import {
@@ -262,7 +263,7 @@ const statusLabels = {
 };
 
 const fallbackColumns = [
-  { field: 'id', label: 'ID', width: 90, minWidth: 80, type: 'numeric' },
+  { field: 'id', label: 'ID', width: 56, minWidth: 48, type: 'numeric' },
   { field: 'number', label: '№ лида', width: 120, minWidth: 110, type: null },
   { field: 'status', label: 'Статус', width: 150, minWidth: 130, type: null },
   { field: 'title', label: 'Тема', width: 220, minWidth: 180, type: null },
@@ -502,6 +503,8 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.floatingFilter = false;
       columnDefinition.suppressHeaderFilterButton = true;
       columnDefinition.getQuickFilterText = () => '';
+
+      return applyAgGridIdColumnSizing(columnDefinition);
     }
 
     if (column.field === 'number') {
@@ -821,6 +824,7 @@ const onGridReady = async (params) => {
 
 const onFirstDataRendered = () => {
   requestAnimationFrame(() => {
+    autoSizeIdColumnIfNotPersisted(gridApi.value, storageKey.value);
     updateGridViewportHeight();
     attachCenterViewportListener();
     syncBottomScrollbar();
