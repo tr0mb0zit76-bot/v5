@@ -1228,6 +1228,8 @@ class OrderWizardController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'default_customer_norms_penalties',
+            'default_carrier_norms_penalties',
             'ogrn',
             'bank_name',
             'bik',

@@ -213,21 +213,23 @@
                             Наши компании для подписи
                         </label>
                         <p class="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
-                            Если ничего не выбрано — пользователь может подписывать заявки по <strong class="font-medium">всем</strong> нашим компаниям. Выберите одну или несколько, чтобы ограничить доступ.
+                            Если ничего не выбрано — пользователь может подписывать заявки по <strong class="font-medium">всем</strong> нашим компаниям. Отметьте компании, чтобы ограничить доступ.
                         </p>
-                        <select
-                            v-model="form.signing_own_company_ids"
-                            multiple
-                            size="6"
-                            class="mt-3 w-full rounded-xl border border-zinc-300 bg-white px-2 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-400"
-                        >
-                            <option v-for="company in ownCompanies" :key="`sign-co-${company.id}`" :value="company.id">
-                                {{ company.name }}
-                            </option>
-                        </select>
-                        <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                            Удерживайте Ctrl (Cmd на Mac), чтобы выбрать несколько компаний.
-                        </p>
+                        <div class="mt-3 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                            <label
+                                v-for="company in ownCompanies"
+                                :key="`sign-co-${company.id}`"
+                                class="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm text-zinc-800 transition hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                            >
+                                <input
+                                    type="checkbox"
+                                    class="mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                                    :checked="isSigningCompanySelected(company.id)"
+                                    @change="toggleSigningCompany(company.id)"
+                                >
+                                <span>{{ company.name }}</span>
+                            </label>
+                        </div>
                         <div v-if="form.errors.signing_own_company_ids" class="mt-1 text-sm text-rose-600">
                             {{ form.errors.signing_own_company_ids }}
                         </div>
@@ -458,6 +460,25 @@ watch(() => form.has_signing_authority, (enabled) => {
         form.signing_own_company_ids = [];
     }
 });
+
+function isSigningCompanySelected(companyId) {
+    const id = Number(companyId);
+
+    return form.signing_own_company_ids.some((selectedId) => Number(selectedId) === id);
+}
+
+function toggleSigningCompany(companyId) {
+    const id = Number(companyId);
+    const ids = form.signing_own_company_ids.map((selectedId) => Number(selectedId));
+
+    if (ids.includes(id)) {
+        form.signing_own_company_ids = ids.filter((selectedId) => selectedId !== id);
+
+        return;
+    }
+
+    form.signing_own_company_ids = [...ids, id];
+}
 
 watch(() => form.role_id, (roleId) => {
     if (editingUser.value !== null) {

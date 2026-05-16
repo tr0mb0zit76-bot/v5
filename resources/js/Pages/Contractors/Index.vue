@@ -23,8 +23,10 @@ import {
 import Modal from '@/Components/Modal.vue';
 import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
 import ContractorDocumentsSection from '@/Components/Contractors/ContractorDocumentsSection.vue';
+import ContractorDefaultNormsPenaltiesFields from '@/Components/Contractors/ContractorDefaultNormsPenaltiesFields.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
+import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/support/normsPenalties.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'contractors' }, () => page),
@@ -363,6 +365,8 @@ function blankForm() {
         default_carrier_payment_form: '',
         default_carrier_payment_term: '',
         default_carrier_payment_schedule: blankPaymentSchedule(),
+        default_customer_norms_penalties: blankPartyNormsPenalties(),
+        default_carrier_norms_penalties: blankPartyNormsPenalties(),
         cooperation_terms_notes: '',
         is_active: true,
         is_verified: false,
@@ -522,6 +526,8 @@ function contractorToForm(contractor) {
         default_carrier_payment_form: contractor.default_carrier_payment_form ?? '',
         default_carrier_payment_term: contractor.default_carrier_payment_term ?? '',
         default_carrier_payment_schedule: normalizePaymentSchedule(contractor.default_carrier_payment_schedule ?? parsePaymentTermPreset(contractor.default_carrier_payment_term)),
+        default_customer_norms_penalties: normalizePartyNormsPenalties(contractor.default_customer_norms_penalties),
+        default_carrier_norms_penalties: normalizePartyNormsPenalties(contractor.default_carrier_norms_penalties),
         cooperation_terms_notes: contractor.cooperation_terms_notes ?? '',
         is_active: Boolean(contractor.is_active),
         is_verified: Boolean(contractor.is_verified),
@@ -2086,6 +2092,11 @@ function handleMobileNavSelect(key) {
                                                 </div>
                                             </div>
                                         </div>
+                                        <ContractorDefaultNormsPenaltiesFields
+                                            v-model="form.default_customer_norms_penalties"
+                                            :currency-options="currencySelectOptions"
+                                            description="Подставляются в заказ на вкладке «Нормативы / штрафы» (блок заказчика)."
+                                        />
                                     </div>
 
                                     <div
@@ -2170,6 +2181,11 @@ function handleMobileNavSelect(key) {
                                                 </div>
                                             </div>
                                         </div>
+                                        <ContractorDefaultNormsPenaltiesFields
+                                            v-model="form.default_carrier_norms_penalties"
+                                            :currency-options="currencySelectOptions"
+                                            description="Подставляются в заказ на вкладке «Нормативы / штрафы» (по каждому плечу перевозчика)."
+                                        />
                                     </div>
                                 </div>
 

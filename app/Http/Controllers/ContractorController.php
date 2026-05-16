@@ -16,6 +16,7 @@ use App\Services\DocumentStorageService;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
 use App\Support\CurrencyDictionary;
+use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -261,6 +262,8 @@ class ContractorController extends Controller
                 'default_carrier_payment_schedule' => $contractor->default_carrier_payment_schedule,
                 'default_carrier_payment_term' => $contractor->default_carrier_payment_term,
                 'cooperation_terms_notes' => $contractor->cooperation_terms_notes,
+                'default_customer_norms_penalties' => $contractor->default_customer_norms_penalties,
+                'default_carrier_norms_penalties' => $contractor->default_carrier_norms_penalties,
             ]);
 
         return response()->json([
@@ -604,6 +607,8 @@ class ContractorController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'default_customer_norms_penalties',
+            'default_carrier_norms_penalties',
             'non_resident_corr_bank_name',
             'non_resident_corr_bank_swift',
             'non_resident_corr_settlement_account',
@@ -675,6 +680,22 @@ class ContractorController extends Controller
             $validated = $this->applyLegacyBankFields($validated, $existingContractor);
         }
 
+        if (array_key_exists('default_customer_norms_penalties', $validated)) {
+            $validated['default_customer_norms_penalties'] = PartyNormsPenalties::normalizeForStorage(
+                is_array($validated['default_customer_norms_penalties'] ?? null)
+                    ? $validated['default_customer_norms_penalties']
+                    : null,
+            );
+        }
+
+        if (array_key_exists('default_carrier_norms_penalties', $validated)) {
+            $validated['default_carrier_norms_penalties'] = PartyNormsPenalties::normalizeForStorage(
+                is_array($validated['default_carrier_norms_penalties'] ?? null)
+                    ? $validated['default_carrier_norms_penalties']
+                    : null,
+            );
+        }
+
         if (! (bool) ($validated['is_non_resident'] ?? false)) {
             foreach (['non_resident_corr_bank_name', 'non_resident_corr_bank_swift', 'non_resident_corr_settlement_account', 'non_resident_corr_bank_account', 'cnaps_code'] as $column) {
                 if (Schema::hasColumn('contractors', $column)) {
@@ -704,6 +725,8 @@ class ContractorController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'default_customer_norms_penalties',
+            'default_carrier_norms_penalties',
             'bank_accounts',
             'is_non_resident',
             'non_resident_corr_bank_name',

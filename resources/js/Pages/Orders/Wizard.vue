@@ -1854,6 +1854,11 @@ import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
+import {
+    blankPartyNormsPenalties,
+    hasNormsPenaltiesContent,
+    normalizePartyNormsPenalties,
+} from '@/support/normsPenalties.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -2283,49 +2288,12 @@ function blankRoutePoint(type, sequence, stage) {
     };
 }
 
-function blankPartyNormsPenalties() {
-    return {
-        stage: null,
-        miss_amount: null,
-        miss_currency: 'RUB',
-        downtime_amount: null,
-        downtime_currency: 'RUB',
-        fine_amount: null,
-        fine_currency: 'RUB',
-        penalty_terms: '',
-        norm_loading_hours: null,
-        norm_customs_hours: null,
-        norm_unloading_hours: null,
-    };
-}
-
-function normalizePartyNormsPenalties(raw) {
-    const base = blankPartyNormsPenalties();
-    if (!raw || typeof raw !== 'object') {
-        return base;
-    }
-    const toNum = (v) => {
-        if (v === null || v === undefined || v === '') {
-            return null;
-        }
-        const n = Number(v);
-
-        return Number.isFinite(n) ? n : null;
-    };
+function normalizePartyNormsPenaltiesWithStage(raw) {
+    const base = normalizePartyNormsPenalties(raw);
 
     return {
         ...base,
-        stage: raw.stage != null && String(raw.stage).trim() !== '' ? String(raw.stage).trim() : null,
-        miss_amount: toNum(raw.miss_amount),
-        miss_currency: String(raw.miss_currency ?? base.miss_currency).slice(0, 3) || base.miss_currency,
-        downtime_amount: toNum(raw.downtime_amount),
-        downtime_currency: String(raw.downtime_currency ?? base.downtime_currency).slice(0, 3) || base.downtime_currency,
-        fine_amount: toNum(raw.fine_amount),
-        fine_currency: String(raw.fine_currency ?? base.fine_currency).slice(0, 3) || base.fine_currency,
-        penalty_terms: String(raw.penalty_terms ?? '').slice(0, 2000),
-        norm_loading_hours: toNum(raw.norm_loading_hours),
-        norm_customs_hours: toNum(raw.norm_customs_hours),
-        norm_unloading_hours: toNum(raw.norm_unloading_hours),
+        stage: raw?.stage != null && String(raw.stage).trim() !== '' ? String(raw.stage).trim() : null,
     };
 }
 
@@ -2336,7 +2304,7 @@ function normalizeCarrierNormsByLegList(existingRows, performers) {
     return legs.map((performer) => {
         const existingRow = existing.find((row) => stageMatches(row.stage, performer.stage));
 
-        return normalizePartyNormsPenalties({
+        return normalizePartyNormsPenaltiesWithStage({
             ...existingRow,
             stage: performer.stage,
         });
@@ -3698,6 +3666,14 @@ function contractorPaymentSchedule(contractor, scheduleField, legacyField) {
     return blankPaymentSchedule();
 }
 
+function contractorNormsDefaults(contractor, field) {
+    if (!contractor?.[field] || !hasNormsPenaltiesContent(contractor[field])) {
+        return null;
+    }
+
+    return normalizePartyNormsPenalties(contractor[field]);
+}
+
 function applyClientDefaults(contractor) {
     if (!contractor) {
         return;
@@ -3709,8 +3685,30 @@ function applyClientDefaults(contractor) {
 
     form.financial_term.client_payment_schedule = contractorPaymentSchedule(contractor, 'default_customer_payment_schedule', 'default_customer_payment_term');
 
+    const clientNorms = contractorNormsDefaults(contractor, 'default_customer_norms_penalties');
+    if (clientNorms) {
+        form.financial_term.client_norms_penalties = clientNorms;
+    }
+
     if (contractor.cooperation_terms_notes && !String(form.special_notes || '').trim()) {
         form.special_notes = contractor.cooperation_terms_notes;
+    }
+}
+
+function applyCarrierNormsDefaultsByStage(stage, contractorId) {
+    const norms = contractorNormsDefaults(getContractorById(contractorId), 'default_carrier_norms_penalties');
+    if (!norms) {
+        return;
+    }
+
+    syncCarrierNormsByLegFromPerformers();
+
+    const idx = form.financial_term.carrier_norms_by_leg.findIndex((row) => stageMatches(row.stage, stage));
+    if (idx >= 0) {
+        form.financial_term.carrier_norms_by_leg[idx] = normalizePartyNormsPenaltiesWithStage({
+            ...norms,
+            stage: form.financial_term.carrier_norms_by_leg[idx].stage,
+        });
     }
 }
 
@@ -3732,6 +3730,8 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
     }
 
     costRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
+
+    applyCarrierNormsDefaultsByStage(stage, contractorId);
 }
 
 function selectPerformerContractor(index, contractor) {
@@ -4360,6 +4360,12 @@ function syncContractorCostsFromPerformers() {
         return nextRow;
     });
     syncCarrierNormsByLegFromPerformers();
+
+    form.performers.forEach((performer) => {
+        if (performer.contractor_id) {
+            applyCarrierNormsDefaultsByStage(performer.stage, performer.contractor_id);
+        }
+    });
 }
 
 function syncCarrierNormsByLegFromPerformers() {
@@ -4370,7 +4376,7 @@ function syncCarrierNormsByLegFromPerformers() {
     form.financial_term.carrier_norms_by_leg = form.performers.map((performer) => {
         const existingRow = existingRows.find((row) => stageMatches(row.stage, performer.stage));
 
-        return normalizePartyNormsPenalties({
+        return normalizePartyNormsPenaltiesWithStage({
             ...existingRow,
             stage: performer.stage,
         });
