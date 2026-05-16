@@ -332,7 +332,9 @@ class OrderWizardController extends Controller
         $canManageOrderDocuments = $order !== null
             && $this->canEditInlineField($request, $order)
             && ! $isSignerOnly;
-        $canApproveOrderDocuments = $user !== null && $user->hasSigningAuthority();
+        $canApproveOrderDocuments = $user !== null
+            && $order !== null
+            && $user->canSignDocumentsForOwnCompany($order->own_company_id);
 
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($request, $order, $canManageOrderDocuments, $canApproveOrderDocuments),

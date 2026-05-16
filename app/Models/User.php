@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable
 {
@@ -100,5 +101,75 @@ class User extends Authenticatable
     public function hasSigningAuthority(): bool
     {
         return (bool) $this->has_signing_authority;
+    }
+
+    /**
+     * @return BelongsToMany<Contractor, $this>
+     */
+    public function signingOwnCompanies(): BelongsToMany
+    {
+        return $this->belongsToMany(Contractor::class, 'user_signing_own_company')
+            ->withTimestamps();
+    }
+
+    /**
+     * Пустой список ограничений — подпись по всем «нашим» компаниям.
+     */
+    public function signingOwnCompaniesUnrestricted(): bool
+    {
+        if (! $this->hasSigningAuthority()) {
+            return false;
+        }
+
+        if (! Schema::hasTable('user_signing_own_company')) {
+            return true;
+        }
+
+        if ($this->relationLoaded('signingOwnCompanies')) {
+            return $this->signingOwnCompanies->isEmpty();
+        }
+
+        return ! $this->signingOwnCompanies()->exists();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function signingOwnCompanyIds(): array
+    {
+        if (! Schema::hasTable('user_signing_own_company')) {
+            return [];
+        }
+
+        if ($this->relationLoaded('signingOwnCompanies')) {
+            return $this->signingOwnCompanies
+                ->pluck('id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return $this->signingOwnCompanies()
+            ->pluck('contractors.id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public function canSignDocumentsForOwnCompany(?int $ownCompanyId): bool
+    {
+        if (! $this->hasSigningAuthority()) {
+            return false;
+        }
+
+        if ($this->signingOwnCompaniesUnrestricted()) {
+            return true;
+        }
+
+        if ($ownCompanyId === null || $ownCompanyId <= 0) {
+            return true;
+        }
+
+        return in_array($ownCompanyId, $this->signingOwnCompanyIds(), true);
     }
 }
