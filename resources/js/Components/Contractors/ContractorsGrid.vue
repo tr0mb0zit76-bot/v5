@@ -208,6 +208,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import {
@@ -474,6 +475,8 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.floatingFilter = false;
       columnDefinition.suppressHeaderFilterButton = true;
       columnDefinition.getQuickFilterText = () => '';
+
+      return applyAgGridIdColumnSizing(columnDefinition);
     }
 
     return columnDefinition;
@@ -808,6 +811,7 @@ const onGridReady = async (params) => {
 
 const onFirstDataRendered = () => {
   requestAnimationFrame(() => {
+    autoSizeIdColumnIfNotPersisted(gridApi.value, storageKey.value);
     updateGridViewportHeight();
     attachCenterViewportListener();
     syncBottomScrollbar();

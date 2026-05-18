@@ -6,6 +6,7 @@ use App\Rules\DocumentWithinPageBudget;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
+use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -239,6 +240,8 @@ class StoreContractorRequest extends FormRequest
             'default_carrier_payment_schedule.postpayment_days' => ['nullable', 'integer', 'min:0'],
             'default_carrier_payment_schedule.postpayment_mode' => ['nullable', Rule::in(['fttn', 'fttn_receipt', 'ottn'])],
             'cooperation_terms_notes' => ['nullable', 'string'],
+            ...PartyNormsPenalties::validationRules('default_customer_norms_penalties'),
+            ...PartyNormsPenalties::validationRules('default_carrier_norms_penalties'),
             'is_active' => ['required', 'boolean'],
             'is_verified' => ['required', 'boolean'],
             'is_own_company' => ['required', 'boolean'],

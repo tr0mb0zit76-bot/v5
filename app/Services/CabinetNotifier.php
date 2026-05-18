@@ -21,13 +21,16 @@ class CabinetNotifier
         $recipients = User::query()
             ->where('is_active', true)
             ->where('id', '!=', $requester->id)
-            ->where(function ($q): void {
-                $q->whereHas('role', fn ($rq) => $rq->whereIn('name', ['admin', 'supervisor']));
-                if (Schema::hasColumn('users', 'has_signing_authority')) {
-                    $q->orWhere('has_signing_authority', true);
+            ->with('signingOwnCompanies:id')
+            ->get()
+            ->filter(function (User $user) use ($order): bool {
+                if ($user->hasRole('admin') || $user->hasRole('supervisor')) {
+                    return true;
                 }
+
+                return $user->canSignDocumentsForOwnCompany($order->own_company_id);
             })
-            ->get();
+            ->values();
 
         if ($recipients->isEmpty()) {
             return;

@@ -217,6 +217,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
@@ -945,6 +946,8 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.suppressHeaderFilterButton = true;
       columnDefinition.getQuickFilterText = () => '';
       columnDefinition.valueFormatter = (params) => formatEmpty(params.value);
+
+      return applyAgGridIdColumnSizing(columnDefinition);
     }
 
     if (column.field === 'order_number') {
@@ -1417,6 +1420,7 @@ const onGridReady = async (params) => {
 
 const onFirstDataRendered = () => {
   requestAnimationFrame(() => {
+    autoSizeIdColumnIfNotPersisted(gridApi.value, storageKey.value);
     updateGridViewportHeight();
     attachCenterViewportListener();
     syncBottomScrollbar();

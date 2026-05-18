@@ -332,7 +332,9 @@ class OrderWizardController extends Controller
         $canManageOrderDocuments = $order !== null
             && $this->canEditInlineField($request, $order)
             && ! $isSignerOnly;
-        $canApproveOrderDocuments = $user !== null && $user->hasSigningAuthority();
+        $canApproveOrderDocuments = $user !== null
+            && $order !== null
+            && $user->canSignDocumentsForOwnCompany($order->own_company_id);
 
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($request, $order, $canManageOrderDocuments, $canApproveOrderDocuments),
@@ -1226,6 +1228,8 @@ class OrderWizardController extends Controller
             'default_carrier_payment_term',
             'default_carrier_payment_schedule',
             'cooperation_terms_notes',
+            'default_customer_norms_penalties',
+            'default_carrier_norms_penalties',
             'ogrn',
             'bank_name',
             'bik',

@@ -69,7 +69,7 @@
                                         ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
                                         : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'"
                                 >
-                                    {{ user.has_signing_authority ? 'Есть' : 'Нет' }}
+                                    {{ user.signing_own_companies_label || (user.has_signing_authority ? 'Есть' : 'Нет') }}
                                 </span>
                             </td>
                             <td class="px-3 py-3">
@@ -206,6 +206,36 @@
                     </label>
 
                     <div
+                        v-if="form.has_signing_authority && ownCompanies.length > 0"
+                        class="rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20"
+                    >
+                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                            Наши компании для подписи
+                        </label>
+                        <p class="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+                            Если ничего не выбрано — пользователь может подписывать заявки по <strong class="font-medium">всем</strong> нашим компаниям. Отметьте компании, чтобы ограничить доступ.
+                        </p>
+                        <div class="mt-3 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                            <label
+                                v-for="company in ownCompanies"
+                                :key="`sign-co-${company.id}`"
+                                class="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm text-zinc-800 transition hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                            >
+                                <input
+                                    type="checkbox"
+                                    class="mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                                    :checked="isSigningCompanySelected(company.id)"
+                                    @change="toggleSigningCompany(company.id)"
+                                >
+                                <span>{{ company.name }}</span>
+                            </label>
+                        </div>
+                        <div v-if="form.errors.signing_own_company_ids" class="mt-1 text-sm text-rose-600">
+                            {{ form.errors.signing_own_company_ids }}
+                        </div>
+                    </div>
+
+                    <div
                         v-if="editingUser !== null"
                         class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-950"
                     >
@@ -322,6 +352,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    ownCompanies: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -364,6 +398,7 @@ const form = useForm({
     role_id: null,
     is_active: true,
     has_signing_authority: false,
+    signing_own_company_ids: [],
     password: '',
     password_confirmation: '',
 });
@@ -390,6 +425,7 @@ function resetForm() {
     form.role_id = null;
     form.is_active = true;
     form.has_signing_authority = false;
+    form.signing_own_company_ids = [];
     form.password = '';
     form.password_confirmation = '';
     resetPasswordVisibility();
@@ -411,9 +447,37 @@ function openEditModal(user) {
     form.role_id = user.role_id;
     form.is_active = user.is_active;
     form.has_signing_authority = Boolean(user.has_signing_authority);
+    form.signing_own_company_ids = Array.isArray(user.signing_own_company_ids)
+        ? user.signing_own_company_ids.map((id) => Number(id))
+        : [];
     form.password = '';
     form.password_confirmation = '';
     showModal.value = true;
+}
+
+watch(() => form.has_signing_authority, (enabled) => {
+    if (!enabled) {
+        form.signing_own_company_ids = [];
+    }
+});
+
+function isSigningCompanySelected(companyId) {
+    const id = Number(companyId);
+
+    return form.signing_own_company_ids.some((selectedId) => Number(selectedId) === id);
+}
+
+function toggleSigningCompany(companyId) {
+    const id = Number(companyId);
+    const ids = form.signing_own_company_ids.map((selectedId) => Number(selectedId));
+
+    if (ids.includes(id)) {
+        form.signing_own_company_ids = ids.filter((selectedId) => selectedId !== id);
+
+        return;
+    }
+
+    form.signing_own_company_ids = [...ids, id];
 }
 
 watch(() => form.role_id, (roleId) => {
@@ -453,6 +517,9 @@ function buildUpdatePayload(user, overrides = {}) {
         role_id: user.role_id,
         is_active: user.is_active,
         has_signing_authority: user.has_signing_authority,
+        signing_own_company_ids: Array.isArray(user.signing_own_company_ids)
+            ? [...user.signing_own_company_ids]
+            : [],
         password: '',
         password_confirmation: '',
         ...overrides,
