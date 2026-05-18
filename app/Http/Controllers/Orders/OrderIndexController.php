@@ -113,7 +113,7 @@ class OrderIndexController extends Controller
             ->leftJoin('contractors as carriers', 'carriers.id', '=', 'orders.carrier_id')
             ->select($orderSelectColumns)
             ->selectSub($this->routePointSubquery('loading'), 'loading_point')
-            ->selectSub($this->routePointSubquery('unloading'), 'unloading_point')
+            ->selectSub($this->routePointSubquery('unloading', last: true), 'unloading_point')
             ->selectSub($this->routePointSubquery('unloading', last: true), 'last_unloading_point')
             ->selectSub($this->cargoDescriptionSubquery(), 'cargo_description')
             ->when(

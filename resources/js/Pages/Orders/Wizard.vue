@@ -4726,18 +4726,20 @@ async function fetchAddressSuggestions(index) {
 }
 
 function selectAddress(index, suggestion) {
+    const existing = form.route_points[index].normalized_data || {};
     form.route_points[index].address = suggestion.value ?? '';
     form.route_points[index].normalized_data = {
-        city: suggestion.data?.city ?? suggestion.data?.settlement ?? null,
-        region: suggestion.data?.region_with_type ?? suggestion.data?.region ?? null,
-        street: suggestion.data?.street_with_type ?? suggestion.data?.street ?? null,
-        house: suggestion.data?.house ?? null,
+        ...existing,
+        city: suggestion.data?.city ?? suggestion.data?.settlement ?? existing.city ?? null,
+        region: suggestion.data?.region_with_type ?? suggestion.data?.region ?? existing.region ?? null,
+        street: suggestion.data?.street_with_type ?? suggestion.data?.street ?? existing.street ?? null,
+        house: suggestion.data?.house ?? existing.house ?? null,
         coordinates: {
-            lat: suggestion.data?.geo_lat ?? null,
-            lng: suggestion.data?.geo_lon ?? null,
+            lat: suggestion.data?.geo_lat ?? existing.coordinates?.lat ?? null,
+            lng: suggestion.data?.geo_lon ?? existing.coordinates?.lng ?? null,
         },
-        kladr_id: suggestion.data?.kladr_id ?? null,
-        fias_id: suggestion.data?.fias_id ?? null,
+        kladr_id: suggestion.data?.kladr_id ?? existing.kladr_id ?? null,
+        fias_id: suggestion.data?.fias_id ?? existing.fias_id ?? null,
     };
     addressSuggestions.value[index] = [];
 }

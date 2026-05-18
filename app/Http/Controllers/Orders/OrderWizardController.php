@@ -34,6 +34,7 @@ use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\RoutePointNormalizedData;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -489,7 +490,7 @@ class OrderWizardController extends Controller
         $statusLogs = Schema::hasTable('order_status_logs') ? $order->statusLogs : collect();
         $routePoints = $order->legs
             ->sortBy('sequence')
-            ->flatMap(function ($leg) use ($routePointHasAddressColumn, $routePointHasMetadataColumn) {
+            ->flatMap(function ($leg) use ($routePointHasAddressColumn) {
                 return $leg->routePoints
                     ->sortBy('sequence')
                     ->map(fn ($point): array => [
@@ -503,9 +504,7 @@ class OrderWizardController extends Controller
                             : data_get($point->metadata, 'address',
                                 data_get($point->metadata, 'full_address',
                                     data_get($point->normalized_data, 'result', $point->instructions))),
-                        'normalized_data' => $routePointHasMetadataColumn
-                            ? (data_get($point->metadata, 'normalized_data', []))
-                            : ($point->normalized_data ?? []),
+                        'normalized_data' => RoutePointNormalizedData::resolveForWizard($point),
                         'planned_date' => optional($point->planned_date)?->toDateString(),
                         'planned_time_from' => filled($point->planned_time_from) ? substr((string) $point->planned_time_from, 0, 5) : null,
                         'planned_time_to' => filled($point->planned_time_to) ? substr((string) $point->planned_time_to, 0, 5) : null,

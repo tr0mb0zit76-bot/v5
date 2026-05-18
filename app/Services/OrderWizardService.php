@@ -20,6 +20,7 @@ use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\RoutePointNormalizedData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -420,6 +421,7 @@ class OrderWizardService
             if (! is_array($normalizedData)) {
                 $normalizedData = [];
             }
+            $normalizedData = RoutePointNormalizedData::prepareForStorage($normalizedData, $routePointAddress);
             if ($routePointType === 'loading') {
                 if ($loadingTypes !== []) {
                     $normalizedData['loading_types'] = $loadingTypes;
