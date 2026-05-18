@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `logist-crm-shell-${CACHE_VERSION}`;
 const ASSET_CACHE_NAME = `logist-crm-assets-${CACHE_VERSION}`;
 const SHELL_URLS = [
@@ -53,10 +53,9 @@ self.addEventListener('fetch', (event) => {
     const isStaticAsset = requestUrl.pathname.startsWith('/build/') || requestUrl.pathname.startsWith('/assets/');
 
     if (isNavigationRequest) {
-        // Не кэшируем произвольные GET-страницы как «/» — иначе предпросмотры перезаписывают shell-кэш.
+        // Не перехватываем маршруты CRM: только сеть, без respondWith(fetch) — иначе при
+        // недоступном сервере в консоли «Uncaught Failed to fetch» из sw.js.
         if (requestUrl.pathname !== '/') {
-            event.respondWith(fetch(event.request));
-
             return;
         }
 
@@ -86,17 +85,19 @@ self.addEventListener('fetch', (event) => {
                     return cachedResponse;
                 }
 
-                return fetch(event.request).then((response) => {
-                    if (!response || response.status >= 400 || response.status === 206) {
+                return fetch(event.request)
+                    .then((response) => {
+                        if (!response || response.status >= 400 || response.status === 206) {
+                            return response;
+                        }
+
+                        const responseClone = response.clone();
+
+                        caches.open(ASSET_CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+
                         return response;
-                    }
-
-                    const responseClone = response.clone();
-
-                    caches.open(ASSET_CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-
-                    return response;
-                });
+                    })
+                    .catch(() => caches.match(event.request));
             })
         );
     }

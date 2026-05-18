@@ -6,14 +6,18 @@ use App\Models\Contractor;
 use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
 use App\Models\Order;
+use App\Models\OrderLeg;
 use App\Models\PrintFormTemplate;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\DocxVmlOverlayStylePatcher;
+use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PhpWordTemplateOverlayImageInjector;
+use App\Support\PrintFormCargoTableCloner;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
+use App\Support\PrintFormRouteTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
 use App\Support\PrintFormTemplateOverlayAppearanceOrder;
 use App\Support\RussianPositionInflector;
@@ -35,8 +39,12 @@ class OrderPrintFormDraftService
     /**
      * @return array{disk: string, path: string, download_name: string}
      */
-    public function generate(PrintFormTemplate $template, Order $order, bool $includeTemplateOverlays = true): array
-    {
+    public function generate(
+        PrintFormTemplate $template,
+        Order $order,
+        bool $includeTemplateOverlays = true,
+        ?OrderPrintFormContext $context = null,
+    ): array {
         $templatePrep = PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path);
         try {
             $processor = new TemplateProcessor($templatePrep['path']);
@@ -55,13 +63,33 @@ class OrderPrintFormDraftService
             ->unique()
             ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
-        $snapshot = $this->buildSnapshot($this->loadOrderContext($order));
+        $orderForSnapshot = $this->loadOrderContext($order);
+        $snapshot = $this->buildSnapshot($orderForSnapshot, $context);
         $overlayPlaceholders = $this->overlayPlaceholderList($template);
+        $cargoItems = $orderForSnapshot->relationLoaded('cargoItems') ? $orderForSnapshot->cargoItems : collect();
 
         $processor->setMacroChars('${', '}');
 
+        (new PrintFormCargoTableCloner)->apply(
+            $processor,
+            $this->buildCargoTableRowsForTemplate($cargoItems),
+        );
+
+        (new PrintFormRouteTableCloner)->apply(
+            $processor,
+            $this->buildRouteTableRowsForTemplate($orderForSnapshot, $context),
+        );
+
         foreach ($placeholders as $placeholder) {
             if (in_array($placeholder, $overlayPlaceholders, true)) {
+                continue;
+            }
+
+            if (PrintFormCargoTableCloner::isCargoTablePlaceholder($placeholder)) {
+                continue;
+            }
+
+            if (PrintFormRouteTableCloner::isRouteTablePlaceholder($placeholder)) {
                 continue;
             }
 
@@ -78,6 +106,14 @@ class OrderPrintFormDraftService
 
             foreach ($placeholders as $placeholder) {
                 if (in_array($placeholder, $overlayPlaceholders, true)) {
+                    continue;
+                }
+
+                if (PrintFormCargoTableCloner::isCargoTablePlaceholder($placeholder)) {
+                    continue;
+                }
+
+                if (PrintFormRouteTableCloner::isRouteTablePlaceholder($placeholder)) {
                     continue;
                 }
 
@@ -156,10 +192,11 @@ class OrderPrintFormDraftService
     /**
      * @return array<string, mixed>
      */
-    private function buildSnapshot(Order $order): array
+    private function buildSnapshot(Order $order, ?OrderPrintFormContext $context = null): array
     {
         /** @var Collection<int, mixed> $routePoints */
         $routePoints = $order->relationLoaded('routePoints') ? $order->routePoints : collect();
+        $routePoints = $this->filterRoutePointsForPrintContext($order, $routePoints, $context);
         /** @var Collection<int, mixed> $cargoItems */
         $cargoItems = $order->relationLoaded('cargoItems') ? $order->cargoItems : collect();
 
@@ -237,7 +274,7 @@ class OrderPrintFormDraftService
                 'all_contact_phones' => $this->resolvePartyContactPhoneList($unloadingPoints, 'recipient_contact', 'recipient_phone'),
             ],
             'customer' => $this->contractorPayload($order->client),
-            'carrier' => $this->contractorPayload($this->resolveCarrierContractorForPrint($order)),
+            'carrier' => $this->contractorPayload($this->resolveCarrierContractorForPrint($order, $context)),
             'own_company' => $this->contractorPayload($order->ownCompany, $order->own_company_bank_account_id),
             'manager' => [
                 'name' => $order->manager?->name,
@@ -499,8 +536,12 @@ class OrderPrintFormDraftService
     /**
      * Реквизиты перевозчика: при пустом {@see Order::$carrier_id} берём контрагента из первой строки затрат по плечу.
      */
-    private function resolveCarrierContractorForPrint(Order $order): mixed
+    private function resolveCarrierContractorForPrint(Order $order, ?OrderPrintFormContext $context = null): mixed
     {
+        if ($context?->carrierContractorId !== null) {
+            return Contractor::query()->find($context->carrierContractorId) ?? $order->carrier;
+        }
+
         if ($order->carrier) {
             return $order->carrier;
         }
@@ -511,6 +552,169 @@ class OrderPrintFormDraftService
         }
 
         return $order->carrier;
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $routePoints
+     * @return Collection<int, mixed>
+     */
+    private function filterRoutePointsForPrintContext(Order $order, Collection $routePoints, ?OrderPrintFormContext $context): Collection
+    {
+        if ($context === null || $context->routeLegsAsTableRows) {
+            return $routePoints;
+        }
+
+        if ($context->legStage !== null && $context->legStage !== '') {
+            $legId = $this->resolveLegIdForStage($order, $context->legStage);
+            if ($legId === null) {
+                return $routePoints;
+            }
+
+            return $routePoints->where('order_leg_id', $legId)->values();
+        }
+
+        if ($context->carrierContractorId !== null) {
+            $legIds = $this->legIdsForCarrierContractor($order, $context->carrierContractorId);
+            if ($legIds === []) {
+                return $routePoints;
+            }
+
+            return $routePoints->whereIn('order_leg_id', $legIds)->values();
+        }
+
+        return $routePoints;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function buildRouteTableRowsForTemplate(Order $order, ?OrderPrintFormContext $context): array
+    {
+        if ($context === null || ! $context->routeLegsAsTableRows) {
+            return [];
+        }
+
+        if (! $order->relationLoaded('legs')) {
+            return [];
+        }
+
+        $carrierId = $context->carrierContractorId;
+        $legs = $order->legs->sortBy('sequence')->values();
+        $rows = [];
+        $index = 0;
+
+        foreach ($legs as $leg) {
+            if ($carrierId !== null && ! $this->legBelongsToCarrier($leg, $carrierId)) {
+                continue;
+            }
+
+            $points = $leg->relationLoaded('routePoints')
+                ? $leg->routePoints->sortBy('sequence')
+                : collect();
+            $loading = $points->where('type', 'loading')->values();
+            $unloading = $points->where('type', 'unloading')->values();
+            $stageLabel = $this->formatLegStageLabel((string) $leg->description);
+            $loadingAddresses = $this->resolvePartyAddressList($loading);
+            $unloadingAddresses = $this->resolvePartyAddressList($unloading);
+            $loadingCities = $this->resolvePointCityList($loading);
+            $unloadingCities = $this->resolvePointCityList($unloading);
+            $summaryParts = array_filter([
+                $stageLabel !== '' ? 'Плечо: '.$stageLabel : null,
+                $loadingAddresses !== null && $loadingAddresses !== '' ? 'Загрузка: '.$loadingAddresses : null,
+                $unloadingAddresses !== null && $unloadingAddresses !== '' ? 'Выгрузка: '.$unloadingAddresses : null,
+            ]);
+
+            $index++;
+            $rows[] = [
+                'route_row_index' => (string) $index,
+                'route_row_stage' => $stageLabel,
+                'route_row_loading_addresses' => $loadingAddresses ?? '',
+                'route_row_unloading_addresses' => $unloadingAddresses ?? '',
+                'route_row_loading_cities' => $loadingCities ?? '',
+                'route_row_unloading_cities' => $unloadingCities ?? '',
+                'route_row_summary' => implode("\n", $summaryParts),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function resolveLegIdForStage(Order $order, string $stage): ?int
+    {
+        if (! $order->relationLoaded('legs')) {
+            return null;
+        }
+
+        $normalized = $this->normalizeStageIdentifier($stage);
+
+        foreach ($order->legs as $leg) {
+            if ($this->normalizeStageIdentifier((string) $leg->description) === $normalized) {
+                return (int) $leg->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function legIdsForCarrierContractor(Order $order, int $carrierContractorId): array
+    {
+        if (! $order->relationLoaded('legs')) {
+            return [];
+        }
+
+        return $order->legs
+            ->filter(fn (OrderLeg $leg): bool => $this->legBelongsToCarrier($leg, $carrierContractorId))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function legBelongsToCarrier(OrderLeg $leg, int $carrierContractorId): bool
+    {
+        $performer = is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : [];
+        $performerContractorId = isset($performer['contractor_id']) && $performer['contractor_id'] !== null
+            ? (int) $performer['contractor_id']
+            : null;
+
+        if ($performerContractorId === $carrierContractorId) {
+            return true;
+        }
+
+        if ($leg->relationLoaded('contractorAssignment') && $leg->contractorAssignment !== null) {
+            return (int) $leg->contractorAssignment->contractor_id === $carrierContractorId;
+        }
+
+        return false;
+    }
+
+    private function formatLegStageLabel(string $description): string
+    {
+        $normalized = $this->normalizeStageIdentifier($description);
+
+        if (preg_match('/^leg_(\d+)$/u', $normalized, $matches) === 1) {
+            return 'Плечо '.$matches[1];
+        }
+
+        return $description !== '' ? $description : $normalized;
+    }
+
+    private function normalizeStageIdentifier(?string $stage): string
+    {
+        $value = trim((string) $stage);
+
+        if ($value === '') {
+            return 'leg_1';
+        }
+
+        if (preg_match('/^Плечо\s+(\d+)$/u', $value, $matches) === 1) {
+            return 'leg_'.$matches[1];
+        }
+
+        return $value;
     }
 
     private function firstCarrierContractorIdFromFinancialTerms(Order $order): ?int
@@ -674,9 +878,14 @@ class OrderPrintFormDraftService
 
         if (Schema::hasTable('order_legs')) {
             $relations[] = 'legs';
+            $relations[] = 'legs.routePoints';
 
             if (Schema::hasTable('leg_costs')) {
                 $relations[] = 'legs.cost';
+            }
+
+            if (Schema::hasTable('leg_contractor_assignments')) {
+                $relations[] = 'legs.contractorAssignment';
             }
         }
 
@@ -1452,6 +1661,76 @@ class OrderPrintFormDraftService
         $hf = $h !== null ? $this->formatNumber((float) $h) : '—';
 
         return 'Габариты (Д×Ш×В): '.$lf.'×'.$wf.'×'.$hf.' м';
+    }
+
+    /**
+     * Строки для cloneRow таблицы грузов в DOCX.
+     *
+     * @param  Collection<int, mixed>  $cargoItems
+     * @return list<array<string, string>>
+     */
+    private function buildCargoTableRowsForTemplate(Collection $cargoItems): array
+    {
+        return $cargoItems
+            ->values()
+            ->map(function (mixed $cargo, int $index): array {
+                $dimensions = $this->cargoDimensionsSummaryLine($cargo);
+
+                return [
+                    'cargo_row_index' => (string) ($index + 1),
+                    'cargo_row_name' => $this->cargoLineNameOnly($cargo),
+                    'cargo_row_summary' => $this->cargoLineDetailTextForSummaryLine($cargo),
+                    'cargo_row_text' => $this->cargoLineDetailText($cargo),
+                    'cargo_row_weight' => $this->cargoRowWeightLabel($cargo),
+                    'cargo_row_volume' => $this->cargoRowVolumeLabel($cargo),
+                    'cargo_row_packages' => is_object($cargo) ? (string) (int) ($cargo->package_count ?? 0) : '',
+                    'cargo_row_hs_code' => is_object($cargo) ? trim((string) ($cargo->hs_code ?? '')) : '',
+                    'cargo_row_dimensions' => $dimensions ?? '',
+                ];
+            })
+            ->all();
+    }
+
+    private function cargoRowWeightLabel(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        $factor = $this->cargoPackageCountFactor($cargo);
+        $totalKg = (float) ($cargo->weight ?? 0) * $factor;
+
+        if ($totalKg <= 0.0) {
+            return '';
+        }
+
+        $label = $this->formatNumber($totalKg).' кг';
+        if ($factor > 1) {
+            $label .= ' ('.$this->formatNumber((float) ($cargo->weight ?? 0)).' × '.$factor.')';
+        }
+
+        return $label;
+    }
+
+    private function cargoRowVolumeLabel(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        $factor = $this->cargoPackageCountFactor($cargo);
+        $totalVol = (float) ($cargo->volume ?? 0) * $factor;
+
+        if ($totalVol <= 0.0) {
+            return '';
+        }
+
+        $label = $this->formatVolumeNumber($totalVol).' м³';
+        if ($factor > 1) {
+            $label .= ' ('.$this->formatVolumeNumber((float) ($cargo->volume ?? 0)).' × '.$factor.')';
+        }
+
+        return $label;
     }
 
     /**

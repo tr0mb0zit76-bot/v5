@@ -1249,490 +1249,23 @@
                 </div>
             </div>
 
-            <div v-else-if="activeTab === 'documents'" class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-base font-semibold">Документы</h2>
-                        <p class="text-sm text-zinc-500">Общий блок заказчика + отдельные блоки по каждому плечу перевозки</p>
-                    </div>
-                </div>
-
-                <div
-                    v-if="documentTabValidationMessages.length > 0"
-                    class="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-900 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-100"
-                    role="alert"
-                >
-                    <div class="font-medium">Не удалось сохранить заказ</div>
-                    <ul class="mt-2 list-inside list-disc space-y-1 text-xs">
-                        <li v-for="(msg, idx) in documentTabValidationMessages" :key="`doc-err-${idx}`">{{ msg }}</li>
-                    </ul>
-                </div>
-
-                <div class="grid gap-4 lg:grid-cols-2">
-                    <div
-                        v-if="documentChecklist.length > 0"
-                        class="rounded-2xl border border-amber-200/80 bg-amber-50/50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
-                    >
-                        <div class="font-medium text-amber-950 dark:text-amber-100">Обязательные документы для этапов «Оплата» и «Завершено»</div>
-                        <p class="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
-                            Пока не выполнены все пункты, после выгрузки статус заказа останется «Документы». Для загружаемых файлов — прикрепите файл и поставьте статус «Отправлен» или «Подписан». Для печатных форм — завершите цепочку документа (финальный PDF и подписи по шаблону).
-                        </p>
-                        <ul class="mt-3 space-y-1.5">
-                            <li
-                                v-for="item in documentChecklist"
-                                :key="`doc-req-${item.key}`"
-                                class="flex items-start gap-2 text-amber-950 dark:text-amber-100"
-                            >
-                                <span class="mt-0.5 shrink-0" :class="item.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400'">
-                                    {{ item.completed ? '✓' : '○' }}
-                                </span>
-                                <span>
-                                    <span class="font-medium">{{ item.label }}</span>
-                                    <span class="text-zinc-600 dark:text-zinc-400"> — {{ item.description }}</span>
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-                    <div
-                        class="space-y-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/25"
-                    >
-                        <div>
-                            <h3 class="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Печатные формы</h3>
-                            <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
-                                Черновик DOCX → согласование руководителем → печать/подпись у нас → загрузка финального PDF. В одном заказе могут быть отдельные заявки для заказчика и для перевозчика — у каждой строки указана сторона шаблона.
-                            </p>
-                        </div>
-                        <template v-if="!order?.id">
-                            <p class="text-xs text-emerald-900/80 dark:text-emerald-200/80">
-                                Печатные формы привязаны к заказу в базе. Сохраните заказ — появится выбор шаблона и кнопка «Создать в карточке».
-                            </p>
-                        </template>
-                        <template v-else>
-                            <div class="flex flex-wrap items-end gap-3">
-                                <div class="min-w-[200px] flex-1 space-y-1">
-                                    <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Шаблон</label>
-                                    <select
-                                        v-model="workflowTemplateId"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                    >
-                                        <option :value="null">Выберите шаблон</option>
-                                        <option v-for="template in printFormTemplateOptions" :key="`wf-tpl-${template.id}`" :value="template.id">
-                                            {{ templateOptionLabel(template) }}
-                                        </option>
-                                    </select>
-                                </div>
-                                <button
-                                    type="button"
-                                    class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-                                    :disabled="!workflowTemplateId || !isOrderFormEditable"
-                                    @click="createPersistedPrintWorkflowDocument"
-                                >
-                                    Создать в карточке
-                                </button>
-                            </div>
-
-                            <div v-if="printWorkflowDocuments.length === 0" class="rounded-xl border border-dashed border-emerald-300/80 px-3 py-3 text-sm text-emerald-900/70 dark:border-emerald-800 dark:text-emerald-200/70">
-                                Пока нет печатных форм по этому процессу.
-                            </div>
-
-                            <div v-for="doc in printWorkflowDocuments" :key="`print-wf-${doc.id}`" class="space-y-3 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
-                                <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <div class="text-sm font-medium">
-                                        {{ printWorkflowDocumentTitle(doc) }}
-                                        <span
-                                            v-if="doc.print_party_label"
-                                            class="ml-2 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-normal text-sky-900 dark:bg-sky-950/50 dark:text-sky-200"
-                                        >
-                                            Сторона: {{ doc.print_party_label }}
-                                        </span>
-                                        <span
-                                            v-if="doc.workflow_status_label"
-                                            class="ml-2 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-normal text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                                        >
-                                            {{ doc.workflow_status_label }}
-                                        </span>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2">
-                                        <Link
-                                            v-if="doc.draft_preview_url"
-                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                            :href="doc.draft_preview_url"
-                                        >
-                                            Предпросмотр
-                                        </Link>
-                                        <a
-                                            v-if="doc.draft_download_url"
-                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                            :href="doc.draft_download_url"
-                                        >
-                                            Скачать черновик DOCX
-                                        </a>
-                                        <a
-                                            v-if="doc.final_pdf_download_url"
-                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                            :href="doc.final_pdf_download_url"
-                                        >
-                                            {{
-                                                doc.workflow_status === 'finalized'
-                                                    ? 'Скачать PDF с нашей подписью'
-                                                    : doc.workflow_status === 'approved'
-                                                      ? 'Скачать PDF для контрагента'
-                                                      : 'Скачать PDF'
-                                            }}
-                                        </a>
-                                    </div>
-                                </div>
-                                <p v-if="doc.rejection_reason" class="text-xs text-rose-700 dark:text-rose-300">
-                                    Причина отклонения: {{ doc.rejection_reason }}
-                                </p>
-                                <p
-                                    v-if="doc.signature_status_label"
-                                    class="text-xs text-zinc-600 dark:text-zinc-400"
-                                >
-                                    Подпись (юр.): {{ doc.signature_status_label }}
-                                    <span v-if="doc.requires_counterparty_signature" class="text-zinc-500"> · по шаблону нужна сторона клиента</span>
-                                </p>
-                                <p
-                                    v-if="doc.signature_followup_hint"
-                                    class="rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1.5 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-                                >
-                                    {{ doc.signature_followup_hint }}
-                                </p>
-                                <p
-                                    v-if="doc.workflow_status === 'finalized' && doc.final_pdf_storage_path"
-                                    class="text-xs text-zinc-600 dark:text-zinc-400"
-                                >
-                                    Финальный файл в хранилище ({{ documentStorage.label }}):
-                                    <code class="rounded bg-zinc-100 px-1 font-mono text-[11px] dark:bg-zinc-800">{{ doc.final_pdf_storage_path }}</code>
-                                </p>
-                                <div class="flex flex-wrap gap-2">
-                                    <button
-                                        v-if="doc.can_request_approval"
-                                        type="button"
-                                        class="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                                        :disabled="!isOrderFormEditable"
-                                        @click="postWorkflowAction('request-approval', doc.id)"
-                                    >
-                                        Отправить на согласование
-                                    </button>
-                                    <button
-                                        v-if="doc.can_regenerate_draft"
-                                        type="button"
-                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable"
-                                        @click="postWorkflowAction('regenerate-draft', doc.id)"
-                                    >
-                                        Пересоздать черновик
-                                    </button>
-                                    <button
-                                        v-if="doc.can_approve"
-                                        type="button"
-                                        class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs text-white hover:bg-emerald-800"
-                                        @click="postWorkflowAction('approve', doc.id)"
-                                    >
-                                        Подписать
-                                    </button>
-                                    <button
-                                        v-if="doc.can_reject"
-                                        type="button"
-                                        class="rounded-lg border border-rose-300 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                                        @click="toggleWorkflowReject(doc.id)"
-                                    >
-                                        Отказать
-                                    </button>
-                                    <label
-                                        v-if="doc.can_finalize"
-                                        class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-950/70"
-                                    >
-                                        <span>Сохранить финальный PDF в заказе</span>
-                                        <input type="file" accept="application/pdf" class="hidden" @change="finalizeWorkflowPdf(doc, $event)" />
-                                    </label>
-                                    <button
-                                        v-if="doc.can_discard_print_draft"
-                                        type="button"
-                                        class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                                        :disabled="!isOrderFormEditable"
-                                        @click="confirmDiscardPrintWorkflow(doc)"
-                                    >
-                                        Удалить черновик
-                                    </button>
-                                </div>
-                                <div v-if="workflowRejectTargetId === doc.id" class="space-y-2 rounded-lg border border-rose-200 bg-rose-50/50 p-2 dark:border-rose-900 dark:bg-rose-950/30">
-                                    <label class="text-xs font-medium text-rose-900 dark:text-rose-200">Причина отклонения</label>
-                                    <textarea
-                                        v-model="workflowRejectReason"
-                                        rows="2"
-                                        class="w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-sm dark:border-rose-800 dark:bg-zinc-950"
-                                        placeholder="Укажите причину"
-                                    />
-                                    <div class="flex gap-2">
-                                        <button
-                                            type="button"
-                                            class="rounded-lg bg-rose-700 px-3 py-1 text-xs text-white hover:bg-rose-800"
-                                            :disabled="!workflowRejectReason.trim()"
-                                            @click="submitWorkflowReject(doc.id)"
-                                        >
-                                            Подтвердить отклонение
-                                        </button>
-                                        <button type="button" class="rounded-lg border border-zinc-200 px-3 py-1 text-xs dark:border-zinc-600" @click="cancelWorkflowReject">
-                                            Отмена
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <div
-                    v-if="page.props.flash?.message"
-                    class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
-                    role="status"
-                >
-                    {{ page.props.flash.message }}
-                </div>
-
-                <div class="space-y-6 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="space-y-2">
-                        <div class="text-sm font-semibold">Прикрепить файл</div>
-                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Перетащите файл в область ниже — откроется окно с выбором стороны и типа документа. Или нажмите «Прикрепить файл»: сначала выбор файла в системном окне, затем то же окно настроек.
-                        </p>
-                        <input
-                            ref="orderDocumentGlobalFileInputRef"
-                            type="file"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
-                            class="hidden"
-                            @change="onOrderDocumentGlobalFileInputChange"
-                        >
-                        <div
-                            class="rounded-xl border border-dashed px-4 py-6 text-center transition-colors"
-                            :class="orderDocumentGlobalDropActive && isOrderFormEditable
-                                ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
-                                : 'border-zinc-200 bg-zinc-50/40 dark:border-zinc-700 dark:bg-zinc-900/20'"
-                            @dragenter.prevent="onOrderDocumentGlobalDragEnter"
-                            @dragleave.prevent="onOrderDocumentGlobalDragLeave"
-                            @dragover.prevent="onOrderDocumentGlobalDragOver"
-                            @drop.prevent="onOrderDocumentGlobalDrop"
-                        >
-                            <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                                Перетащите файл сюда<span v-if="isOrderFormEditable"> или нажмите «Прикрепить файл»</span>
-                            </p>
-                            <div class="mt-3 flex flex-wrap items-center justify-center gap-3">
-                                <button
-                                    type="button"
-                                    class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900"
-                                    :class="!isOrderFormEditable ? 'pointer-events-none opacity-50' : ''"
-                                    :disabled="!isOrderFormEditable"
-                                    @click="triggerOrderDocumentGlobalFilePick"
-                                >
-                                    <Paperclip class="h-4 w-4 text-zinc-500" />
-                                    <span>Прикрепить файл</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-zinc-200 pt-6 dark:border-zinc-800">
-                        <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Заказчик</div>
-                        <div class="mt-3 space-y-3">
-
-                            <div v-if="customerDocuments.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                                Документы заказчика пока не добавлены. Используйте «Прикрепить файл» выше.
-                            </div>
-
-                            <div v-for="item in customerDocuments" :key="`customer-document-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="flex items-center justify-between">
-                                    <div class="text-sm font-medium">Документ заказчика</div>
-                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
-                                        Удалить
-                                    </button>
-                                </div>
-                                <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Вид</label>
-                                        <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option value="uploaded">Загружаемый</option>
-                                            <option value="generated">Формируемый</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Тип</label>
-                                        <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Номер</label>
-                                        <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Дата</label>
-                                        <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Статус</label>
-                                        <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div v-if="item.document.flow === 'generated'" class="space-y-2">
-                                        <label class="text-sm font-medium">Шаблон DOCX</label>
-                                        <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option :value="null">Не выбран</option>
-                                            <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                        @click="previewDocumentDraft(item.document)"
-                                    >
-                                        Предпросмотр
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                        @click="downloadDocumentDraft(item.document)"
-                                    >
-                                        Скачать DOCX
-                                    </button>
-                                </div>
-                                <div v-if="item.document.flow === 'uploaded'" class="space-y-2 rounded-xl border border-zinc-100 bg-zinc-50/60 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                                    <div v-if="item.document.original_name" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
-                                        <span>Файл: {{ item.document.original_name }}</span>
-                                        <a
-                                            v-if="item.document.uploaded_file_preview_url && order?.id"
-                                            :href="item.document.uploaded_file_preview_url"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="font-medium text-sky-600 underline dark:text-sky-400"
-                                        >Предпросмотр</a>
-                                    </div>
-                                    <div v-else class="text-xs text-zinc-500">Файл не прикреплён.</div>
-                                    <button
-                                        type="button"
-                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-white dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable"
-                                        @click="openOrderDocumentAttachModal({ presetIndex: item.index })"
-                                    >
-                                        Прикрепить или заменить файл…
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-zinc-200 pt-6 dark:border-zinc-800">
-                        <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Плечи маршрута (перевозчик)</div>
-                        <p v-if="form.performers.length === 0" class="mt-3 rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                            Добавьте плечо маршрута, чтобы прикреплять документы перевозчика. Документы к плечу — через «Прикрепить файл» выше.
-                        </p>
-                        <div v-for="(performer, performerIndex) in form.performers" :key="`carrier-doc-stage-${performerIndex}`" class="mt-4 space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                    <div class="text-sm font-semibold">{{ stageLabel(performer.stage) }}</div>
-                                    <p class="text-xs text-zinc-500">Документы этого блока относятся к выбранному плечу.</p>
-                                </div>
-                            </div>
-
-                            <div v-if="carrierDocumentsForStage(performer.stage).length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                                Для {{ stageLabel(performer.stage) }} документы перевозчика пока не добавлены. Используйте «Прикрепить файл» выше.
-                            </div>
-
-                            <div v-for="item in carrierDocumentsForStage(performer.stage)" :key="`carrier-document-${performerIndex}-${item.index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                                <div class="flex items-center justify-between">
-                                    <div class="text-sm font-medium">Документ перевозчика</div>
-                                    <button type="button" class="rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeDocumentAt(item.index)">
-                                        Удалить
-                                    </button>
-                                </div>
-                                <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Вид</label>
-                                        <select v-model="item.document.flow" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option value="uploaded">Загружаемый</option>
-                                            <option value="generated">Формируемый</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Тип</label>
-                                        <select v-model="item.document.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Номер</label>
-                                        <input v-model="item.document.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Дата</label>
-                                        <input v-model="item.document.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                                    </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Статус</label>
-                                        <select v-model="item.document.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option v-for="option in documentStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                                        </select>
-                                    </div>
-                                    <div v-if="item.document.flow === 'generated'" class="space-y-2">
-                                        <label class="text-sm font-medium">Шаблон DOCX</label>
-                                        <select v-model="item.document.template_id" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                                            <option :value="null">Не выбран</option>
-                                            <option v-for="template in printFormTemplateOptions" :key="template.id" :value="template.id">{{ templateOptionLabel(template) }}</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div v-if="item.document.flow === 'generated'" class="flex flex-wrap justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                        @click="previewDocumentDraft(item.document)"
-                                    >
-                                        Предпросмотр
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable || !order?.id || !item.document.template_id"
-                                        @click="downloadDocumentDraft(item.document)"
-                                    >
-                                        Скачать DOCX
-                                    </button>
-                                </div>
-                                <div v-if="item.document.flow === 'uploaded'" class="space-y-2 rounded-xl border border-zinc-100 bg-zinc-50/60 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
-                                    <div v-if="item.document.original_name" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600 dark:text-zinc-300">
-                                        <span>Файл: {{ item.document.original_name }}</span>
-                                        <a
-                                            v-if="item.document.uploaded_file_preview_url && order?.id"
-                                            :href="item.document.uploaded_file_preview_url"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="font-medium text-sky-600 underline dark:text-sky-400"
-                                        >Предпросмотр</a>
-                                    </div>
-                                    <div v-else class="text-xs text-zinc-500">Файл не прикреплён.</div>
-                                    <button
-                                        type="button"
-                                        class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-white dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                                        :disabled="!isOrderFormEditable"
-                                        @click="openOrderDocumentAttachModal({ presetIndex: item.index })"
-                                    >
-                                        Прикрепить или заменить файл…
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <OrderWizardDocumentsTab
+                v-else-if="activeTab === 'documents'"
+                v-model:signed-documents="form.documents"
+                :order="order"
+                :performers="form.performers"
+                :client-request-mode="form.financial_term.client_request_mode"
+                :is-order-form-editable="isOrderFormEditable"
+                :all-documents="order?.documents ?? []"
+                :print-form-template-options-customer="printFormTemplateOptionsCustomer"
+                :print-form-template-options-carrier="printFormTemplateOptionsCarrier"
+                :document-type-options="documentTypeOptions"
+                :required-document-rules="requiredDocumentRules"
+                :required-document-checklist="requiredDocumentChecklist"
+                :document-tab-validation-messages="documentTabValidationMessages"
+                :document-storage="documentStorage"
+            />
         </div>
-    </div>
 
     <Teleport to="body">
         <div
@@ -1839,6 +1372,7 @@
             </div>
         </div>
     </Modal>
+    </div>
 </template>
 
 <script setup>
@@ -1852,6 +1386,7 @@ import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/ord
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
 import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
 import {
@@ -1883,6 +1418,8 @@ const props = defineProps({
     orderStatusOptions: { type: Array, default: () => [] },
     documentStatusOptions: { type: Array, default: () => [] },
     printFormTemplateOptions: { type: Array, default: () => [] },
+    printFormTemplateOptionsCustomer: { type: Array, default: () => [] },
+    printFormTemplateOptionsCarrier: { type: Array, default: () => [] },
     orderDocumentWorkflow: { type: Object, default: () => ({ status_options: [] }) },
     documentStorage: {
         type: Object,
@@ -2762,7 +2299,9 @@ const form = useForm({
         ),
     },
     documents: Array.isArray(props.order?.documents)
-        ? props.order.documents.map((document) => normalizeDocument(document))
+        ? props.order.documents
+            .filter((document) => !document.is_print_workflow && document.status === 'signed')
+            .map((document) => normalizeDocument({ ...document, status: 'signed', flow: 'uploaded' }))
         : [],
     svh_name: props.order?.svh_name ?? '',
     svh_address: props.order?.svh_address ?? '',
@@ -4927,8 +4466,9 @@ function buildSubmitPayload() {
         documents: form.documents
             .filter((document) => !document.is_print_workflow && document.flow !== 'print_template_workflow')
             .map((document) => ({
+                id: document.id ?? null,
                 type: document.type,
-                flow: document.flow,
+                flow: 'uploaded',
                 party: document.party,
                 stage: document.stage,
                 requirement_key: document.requirement_key,
@@ -4936,11 +4476,9 @@ function buildSubmitPayload() {
                 document_date: document.document_date && String(document.document_date).trim() !== ''
                     ? document.document_date
                     : null,
-                status: document.status,
+                status: 'signed',
                 template_id: document.template_id,
                 file: document.file instanceof File ? document.file : null,
-                original_name: document.original_name,
-                generated_pdf_path: document.generated_pdf_path,
             })),
     };
 }

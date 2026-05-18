@@ -51,7 +51,7 @@
             </div>
 
             <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                Двойной клик по строке открывает заказ
+                Двойной клик — документы заказа
             </div>
         </div>
 
@@ -185,7 +185,7 @@ const props = defineProps({
 
 const page = usePage();
 
-const emit = defineEmits(['open-create', 'row-dblclick']);
+const emit = defineEmits(['open-create', 'row-dblclick', 'open-order-documents']);
 
 const fallbackColumns = [
     { field: 'order_number', headerName: 'Номер заказа', width: 160, minWidth: 140 },
@@ -662,8 +662,7 @@ function onFilterChanged() {
 
 function onCellDoubleClicked(event) {
     if (event.data?.order_id) {
-        emit('row-dblclick', event.data);
-        window.open(route('orders.edit', event.data.order_id), '_blank', 'noopener,noreferrer');
+        emit('open-order-documents', event.data);
     }
 }
 

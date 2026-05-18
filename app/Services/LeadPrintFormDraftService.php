@@ -7,6 +7,7 @@ use App\Models\Lead;
 use App\Models\PrintFormTemplate;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\PhpWordTemplateOverlayImageInjector;
+use App\Support\PrintFormCargoTableCloner;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormTemplateDiskSource;
@@ -48,13 +49,24 @@ class LeadPrintFormDraftService
             ->unique()
             ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
-        $snapshot = $this->buildSnapshot($this->loadLeadContext($lead));
+        $leadForSnapshot = $this->loadLeadContext($lead);
+        $snapshot = $this->buildSnapshot($leadForSnapshot);
         $overlayPlaceholders = $this->overlayPlaceholderList($template);
+        $cargoItems = $leadForSnapshot->relationLoaded('cargoItems') ? $leadForSnapshot->cargoItems : collect();
 
         $processor->setMacroChars('${', '}');
 
+        (new PrintFormCargoTableCloner)->apply(
+            $processor,
+            $this->buildCargoTableRowsForTemplate($cargoItems),
+        );
+
         foreach ($placeholders as $placeholder) {
             if (in_array($placeholder, $overlayPlaceholders, true)) {
+                continue;
+            }
+
+            if (PrintFormCargoTableCloner::isCargoTablePlaceholder($placeholder)) {
                 continue;
             }
 
@@ -71,6 +83,10 @@ class LeadPrintFormDraftService
 
             foreach ($placeholders as $placeholder) {
                 if (in_array($placeholder, $overlayPlaceholders, true)) {
+                    continue;
+                }
+
+                if (PrintFormCargoTableCloner::isCargoTablePlaceholder($placeholder)) {
                     continue;
                 }
 
@@ -365,6 +381,81 @@ class LeadPrintFormDraftService
     private function formatVolumeNumber(float $value): string
     {
         return number_format($value, 3, ',', ' ');
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $cargoItems
+     * @return list<array<string, string>>
+     */
+    private function buildCargoTableRowsForTemplate(Collection $cargoItems): array
+    {
+        return $cargoItems
+            ->values()
+            ->map(function (mixed $cargo, int $index): array {
+                $name = is_object($cargo) ? trim((string) ($cargo->name ?? '')) : '';
+
+                return [
+                    'cargo_row_index' => (string) ($index + 1),
+                    'cargo_row_name' => $name,
+                    'cargo_row_summary' => $this->leadCargoLineSummaryOneLine($cargo),
+                    'cargo_row_text' => $this->leadCargoLineDetailText($cargo),
+                    'cargo_row_weight' => $this->leadCargoRowWeightLabel($cargo),
+                    'cargo_row_volume' => $this->leadCargoRowVolumeLabel($cargo),
+                    'cargo_row_packages' => is_object($cargo) ? (string) (int) ($cargo->package_count ?? 0) : '',
+                    'cargo_row_hs_code' => is_object($cargo) ? trim((string) ($cargo->hs_code ?? '')) : '',
+                    'cargo_row_dimensions' => '',
+                ];
+            })
+            ->all();
+    }
+
+    private function leadCargoLineSummaryOneLine(mixed $cargo): string
+    {
+        $block = $this->leadCargoLineDetailText($cargo);
+
+        return trim(preg_replace("/\s+/u", ' ', str_replace(["\r\n", "\n", "\r"], ' ', $block)) ?? '');
+    }
+
+    private function leadCargoRowWeightLabel(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        $factor = $this->leadCargoPackageCountFactor($cargo);
+        $totalKg = (float) ($cargo->weight_kg ?? 0) * $factor;
+
+        if ($totalKg <= 0.0) {
+            return '';
+        }
+
+        $label = $this->formatNumber($totalKg).' кг';
+        if ($factor > 1) {
+            $label .= ' ('.$this->formatNumber((float) ($cargo->weight_kg ?? 0)).' × '.$factor.')';
+        }
+
+        return $label;
+    }
+
+    private function leadCargoRowVolumeLabel(mixed $cargo): string
+    {
+        if (! is_object($cargo)) {
+            return '';
+        }
+
+        $factor = $this->leadCargoPackageCountFactor($cargo);
+        $totalVol = (float) ($cargo->volume_m3 ?? 0) * $factor;
+
+        if ($totalVol <= 0.0) {
+            return '';
+        }
+
+        $label = $this->formatVolumeNumber($totalVol).' м³';
+        if ($factor > 1) {
+            $label .= ' ('.$this->formatVolumeNumber((float) ($cargo->volume_m3 ?? 0)).' × '.$factor.')';
+        }
+
+        return $label;
     }
 
     private function leadCargoPackageCountFactor(mixed $cargo): int

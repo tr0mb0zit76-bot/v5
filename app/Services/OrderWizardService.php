@@ -385,13 +385,7 @@ class OrderWizardService
         $this->deleteExistingCargoItems($order);
 
         if ($hasOrderDocuments) {
-            $order->documents()
-                ->get()
-                ->each(function (OrderDocument $document): void {
-                    if (! $this->isPrintWorkflowDocument($document) || $this->isEmptyPrintWorkflowArtifact($document)) {
-                        $document->delete();
-                    }
-                });
+            $this->purgeEmptyPrintWorkflowArtifacts($order);
         }
 
         foreach ($routePoints as $index => $routePoint) {
@@ -600,41 +594,7 @@ class OrderWizardService
         }
 
         if ($hasOrderDocuments) {
-            foreach ($validated['documents'] ?? [] as $document) {
-                if (($document['flow'] ?? null) === 'print_template_workflow') {
-                    continue;
-                }
-
-                $storedFile = $this->storeDocumentFile($document['file'] ?? null, $order);
-                $metadata = [
-                    'party' => $document['party'] ?? 'internal',
-                    'flow' => $document['flow'] ?? 'uploaded',
-                    'stage' => $document['stage'] ?? null,
-                    'requirement_key' => $document['requirement_key'] ?? null,
-                ];
-                if (is_array($storedFile) && isset($storedFile['storage_driver'])) {
-                    $metadata['storage_driver'] = $storedFile['storage_driver'];
-                }
-                $documentAttributes = [
-                    'order_id' => $order->id,
-                    'entity_type' => 'order',
-                    'entity_id' => $order->id,
-                    'type' => $document['type'],
-                    'number' => $this->nullIfTrimmedEmpty($document['number'] ?? null),
-                    'document_date' => $this->normalizeOrderDocumentDate($document['document_date'] ?? null),
-                    'generated_pdf_path' => null,
-                    'template_id' => $document['template_id'] ?? null,
-                    'status' => $document['status'],
-                    'original_name' => $storedFile['original_name'] ?? null,
-                    'file_path' => $storedFile['file_path'] ?? null,
-                    'file_size' => $storedFile['file_size'] ?? null,
-                    'mime_type' => $storedFile['mime_type'] ?? null,
-                    'uploaded_by' => $user->id,
-                    'metadata' => $metadata,
-                ];
-
-                OrderDocument::query()->create($documentAttributes);
-            }
+            $this->syncSignedRegistryDocuments($order, $validated['documents'] ?? [], $user);
         }
 
         if (Schema::hasTable('financial_terms') && filled($validated['financial_term'] ?? null)) {
@@ -909,6 +869,146 @@ class OrderWizardService
             && blank($document->file_path)
             && blank($document->generated_pdf_path)
             && blank($document->original_name);
+    }
+
+    private function purgeEmptyPrintWorkflowArtifacts(Order $order): void
+    {
+        $order->documents()
+            ->get()
+            ->each(function (OrderDocument $document): void {
+                if ($this->isEmptyPrintWorkflowArtifact($document)) {
+                    $document->delete();
+                }
+            });
+    }
+
+    /**
+     * Синхронизация подписанных загружаемых документов из вкладки «Документы» (без печатного workflow).
+     *
+     * @param  list<array<string, mixed>>  $documents
+     */
+    private function syncSignedRegistryDocuments(Order $order, array $documents, User $user): void
+    {
+        $incoming = collect($documents)->filter(function (array $document): bool {
+            if (($document['flow'] ?? null) === 'print_template_workflow') {
+                return false;
+            }
+
+            return ($document['status'] ?? '') === 'signed';
+        });
+
+        $incomingIds = $incoming
+            ->pluck('id')
+            ->filter(fn (mixed $id): bool => $id !== null && (int) $id > 0)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+
+        $order->documents()
+            ->get()
+            ->each(function (OrderDocument $document) use ($incomingIds): void {
+                if ($this->isPrintWorkflowDocument($document)) {
+                    return;
+                }
+
+                if (! in_array((int) $document->id, $incomingIds, true)) {
+                    $this->deleteUploadedDocumentFile($document);
+                    $document->delete();
+                }
+            });
+
+        foreach ($incoming as $document) {
+            $id = isset($document['id']) ? (int) $document['id'] : 0;
+            $storedFile = $this->storeDocumentFile($document['file'] ?? null, $order);
+
+            $metadata = [
+                'party' => $document['party'] ?? 'internal',
+                'flow' => 'uploaded',
+                'stage' => $document['stage'] ?? null,
+                'requirement_key' => $document['requirement_key'] ?? null,
+            ];
+
+            $attributes = [
+                'type' => $document['type'],
+                'number' => $this->nullIfTrimmedEmpty($document['number'] ?? null),
+                'document_date' => $this->normalizeOrderDocumentDate($document['document_date'] ?? null),
+                'template_id' => $document['template_id'] ?? null,
+                'status' => 'signed',
+                'uploaded_by' => $user->id,
+            ];
+
+            if ($id > 0) {
+                $existing = OrderDocument::query()
+                    ->where('order_id', $order->id)
+                    ->whereKey($id)
+                    ->first();
+
+                if ($existing === null || $this->isPrintWorkflowDocument($existing)) {
+                    continue;
+                }
+
+                if (is_array($storedFile)) {
+                    $this->deleteUploadedDocumentFile($existing);
+                    $metadata['storage_driver'] = $storedFile['storage_driver'];
+                    $existing->update([
+                        ...$attributes,
+                        'original_name' => $storedFile['original_name'],
+                        'file_path' => $storedFile['file_path'],
+                        'file_size' => $storedFile['file_size'],
+                        'mime_type' => $storedFile['mime_type'],
+                        'metadata' => $metadata,
+                    ]);
+                } else {
+                    $mergedMetadata = array_merge((array) ($existing->metadata ?? []), $metadata);
+                    $existing->update([
+                        ...$attributes,
+                        'metadata' => $mergedMetadata,
+                    ]);
+                }
+
+                continue;
+            }
+
+            if (! is_array($storedFile)) {
+                continue;
+            }
+
+            $metadata['storage_driver'] = $storedFile['storage_driver'];
+
+            OrderDocument::query()->create([
+                'order_id' => $order->id,
+                'entity_type' => 'order',
+                'entity_id' => $order->id,
+                ...$attributes,
+                'original_name' => $storedFile['original_name'],
+                'file_path' => $storedFile['file_path'],
+                'file_size' => $storedFile['file_size'],
+                'mime_type' => $storedFile['mime_type'],
+                'metadata' => $metadata,
+                'generated_pdf_path' => null,
+            ]);
+        }
+    }
+
+    private function deleteUploadedDocumentFile(OrderDocument $document): void
+    {
+        if ($this->isPrintWorkflowDocument($document)) {
+            return;
+        }
+
+        $path = $document->file_path;
+        if (! filled($path)) {
+            return;
+        }
+
+        $driver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+
+        $this->documentStorage->delete(
+            (string) $path,
+            $driver === DocumentStorageService::DRIVER_NEXTCLOUD
+                ? DocumentStorageService::DRIVER_NEXTCLOUD
+                : DocumentStorageService::DRIVER_LOCAL,
+        );
     }
 
     private function nullIfTrimmedEmpty(mixed $value): ?string

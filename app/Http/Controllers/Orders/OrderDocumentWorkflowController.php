@@ -16,6 +16,7 @@ use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\DocumentPreview;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -46,6 +47,9 @@ class OrderDocumentWorkflowController extends Controller
 
         $validated = $request->validate([
             'print_form_template_id' => ['required', 'integer', 'exists:print_form_templates,id'],
+            'order_leg_stage' => ['nullable', 'string', 'max:80'],
+            'carrier_contractor_id' => ['nullable', 'integer', 'min:1'],
+            'route_legs_as_table_rows' => ['nullable', 'boolean'],
         ]);
 
         $template = PrintFormTemplate::query()->findOrFail($validated['print_form_template_id']);
@@ -57,8 +61,10 @@ class OrderDocumentWorkflowController extends Controller
             'Шаблон недоступен для этого заказа.'
         );
 
+        $context = $this->resolvePrintFormContextFromRequest($validated);
+
         try {
-            $this->workflowService->createFromTemplate($order, $template, $request->user());
+            $this->workflowService->createFromTemplate($order, $template, $request->user(), $context);
         } catch (\InvalidArgumentException $e) {
             abort(422, $e->getMessage());
         }
@@ -689,6 +695,28 @@ class OrderDocumentWorkflowController extends Controller
         }
 
         abort(403);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolvePrintFormContextFromRequest(array $validated): ?OrderPrintFormContext
+    {
+        $legStage = isset($validated['order_leg_stage']) && is_string($validated['order_leg_stage'])
+            ? trim($validated['order_leg_stage'])
+            : null;
+        $carrierId = isset($validated['carrier_contractor_id']) ? (int) $validated['carrier_contractor_id'] : null;
+        $routeLegsAsTableRows = (bool) ($validated['route_legs_as_table_rows'] ?? false);
+
+        if (($legStage === null || $legStage === '') && ($carrierId === null || $carrierId <= 0) && ! $routeLegsAsTableRows) {
+            return null;
+        }
+
+        return new OrderPrintFormContext(
+            legStage: $legStage !== '' ? $legStage : null,
+            carrierContractorId: $carrierId > 0 ? $carrierId : null,
+            routeLegsAsTableRows: $routeLegsAsTableRows,
+        );
     }
 
     private function userCanManageOrderDocuments(Request $request, Order $order): bool

@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { ExternalLink, Paperclip, Trash2, Upload } from 'lucide-vue-next';
+import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsTable.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
@@ -22,13 +23,22 @@ const loading = ref(false);
 const loadError = ref('');
 const documents = ref([]);
 const documentTypeOptions = ref([]);
+const deletingDocId = ref(null);
+
+const signedDocuments = computed(() => documents.value
+    .filter((doc) => !doc.is_print_workflow && doc.status === 'signed')
+    .map((doc) => ({
+        ...doc,
+        uploaded_file_preview_url: doc.preview_url ?? doc.uploaded_file_preview_url ?? null,
+    })));
+const printWorkflowDocuments = computed(() => documents.value.filter((doc) => doc.is_print_workflow));
 
 const addForm = reactive({
     party: 'customer',
     type: 'invoice',
     number: '',
     document_date: '',
-    status: 'sent',
+    status: 'signed',
     file: null,
 });
 const addSubmitting = ref(false);
@@ -224,6 +234,8 @@ function deleteDocument(doc) {
         return;
     }
 
+    deletingDocId.value = doc.id;
+
     const label = doc.original_name || doc.type_label || `#${doc.id}`;
     if (!window.confirm(`Удалить документ «${label}»?`)) {
         return;
@@ -247,6 +259,9 @@ function deleteDocument(doc) {
             })
             .catch((error) => {
                 window.alert(error?.message ?? 'Не удалось удалить документ');
+            })
+            .finally(() => {
+                deletingDocId.value = null;
             });
 
         return;
@@ -269,6 +284,9 @@ function deleteDocument(doc) {
         })
         .catch((error) => {
             window.alert(error?.message ?? 'Не удалось удалить документ');
+        })
+        .finally(() => {
+            deletingDocId.value = null;
         });
 }
 
@@ -358,10 +376,21 @@ function openWizardDocuments() {
 
                     <p v-if="loading" class="text-sm text-zinc-500">Загрузка…</p>
                     <p v-else-if="loadError" class="text-sm text-rose-600">{{ loadError }}</p>
-                    <p v-else-if="documents.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Документов пока нет.</p>
+                    <p v-if="signedDocuments.length === 0 && printWorkflowDocuments.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Документов пока нет.</p>
 
-                    <ul v-else class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-                        <li v-for="doc in documents" :key="doc.id" class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                    <OrderSignedDocumentsTable
+                        v-if="signedDocuments.length > 0"
+                        class="mb-4"
+                        :documents="signedDocuments"
+                        :document-type-options="documentTypeOptions"
+                        :required-document-rules="[]"
+                        :can-edit="true"
+                        :deleting-id="deletingDocId"
+                        @delete="deleteDocument"
+                    />
+
+                    <ul v-if="printWorkflowDocuments.length > 0" class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+                        <li v-for="doc in printWorkflowDocuments" :key="doc.id" class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">

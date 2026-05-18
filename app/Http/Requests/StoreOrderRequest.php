@@ -533,6 +533,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.carrier_norms_by_leg.*.norm_unloading_hours' => ['nullable', 'numeric', 'min:0', 'max:1000'],
 
             'documents' => ['nullable', 'array'],
+            'documents.*.id' => ['nullable', 'integer', 'min:1'],
             'documents.*.type' => ['required', Rule::in(OrderDocumentRegistryTypes::values())],
             'documents.*.flow' => ['nullable', Rule::in(['uploaded', 'generated', 'print_template_workflow'])],
             'documents.*.party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],

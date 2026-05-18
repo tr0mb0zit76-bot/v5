@@ -40,7 +40,19 @@
             </button>
         </div>
 
-        <DocumentsGrid :rows="visibleRows" :user-id="userId" @open-create="openCreateModal" />
+        <DocumentsGrid
+            :rows="visibleRows"
+            :user-id="userId"
+            @open-create="openCreateModal"
+            @open-order-documents="openOrderDocumentsFromGrid"
+        />
+
+        <OrderDocumentsModal
+            :show="orderDocumentsModal.show"
+            :order-id="orderDocumentsModal.orderId"
+            :order-number="orderDocumentsModal.orderNumber"
+            @close="closeOrderDocumentsModal"
+        />
 
         <Modal :show="showDocumentModal" max-width="xl" @close="closeDocumentModal">
             <section class="overflow-y-auto bg-white dark:bg-zinc-900">
@@ -156,6 +168,7 @@ import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import DocumentsGrid from '@/Components/Documents/DocumentsGrid.vue';
+import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 
@@ -175,6 +188,12 @@ const showDocumentModal = ref(false);
 const modalMode = ref('create');
 const editingDocumentId = ref(null);
 const viewMode = ref('all');
+
+const orderDocumentsModal = reactive({
+    show: false,
+    orderId: null,
+    orderNumber: '',
+});
 
 const documentFileDrop = reactive({ depth: 0, active: false });
 
@@ -274,6 +293,22 @@ function closeDocumentModal() {
     documentFileDrop.active = false;
     documentForm.reset();
     documentForm.clearErrors();
+}
+
+function openOrderDocumentsFromGrid(row) {
+    if (!row?.order_id) {
+        return;
+    }
+
+    orderDocumentsModal.show = true;
+    orderDocumentsModal.orderId = row.order_id;
+    orderDocumentsModal.orderNumber = row.order_number || '';
+}
+
+function closeOrderDocumentsModal() {
+    orderDocumentsModal.show = false;
+    orderDocumentsModal.orderId = null;
+    orderDocumentsModal.orderNumber = '';
 }
 
 function submitDocument() {

@@ -376,6 +376,8 @@ class OrderWizardController extends Controller
                 ['value' => 'sent', 'label' => 'Отправлен'],
             ],
             'printFormTemplateOptions' => $this->availablePrintFormTemplates($order)->values(),
+            'printFormTemplateOptionsCustomer' => $this->availablePrintFormTemplates($order, 'customer')->values(),
+            'printFormTemplateOptionsCarrier' => $this->availablePrintFormTemplates($order, 'carrier')->values(),
             'orderDocumentWorkflow' => [
                 'status_options' => OrderDocumentWorkflowStatus::options(),
             ],
@@ -709,6 +711,9 @@ class OrderWizardController extends Controller
             'flow' => data_get($document->metadata, 'flow', 'uploaded'),
             'party' => data_get($document->metadata, 'party', 'internal'),
             'stage' => data_get($document->metadata, 'stage'),
+            'order_leg_stage' => data_get($document->metadata, 'order_leg_stage'),
+            'carrier_contractor_id' => data_get($document->metadata, 'carrier_contractor_id'),
+            'route_legs_as_table_rows' => (bool) data_get($document->metadata, 'route_legs_as_table_rows', false),
             'requirement_key' => data_get($document->metadata, 'requirement_key'),
             'number' => $document->number,
             'document_date' => optional($document->document_date)?->toDateString(),
@@ -1281,7 +1286,7 @@ class OrderWizardController extends Controller
     /**
      * @return Collection<int, array{id:int,name:string,code:string,document_type:string,party:string,contractor_id:int|null,contractor_name:string|null,is_default:bool}>
      */
-    private function availablePrintFormTemplates(?Order $order = null): Collection
+    private function availablePrintFormTemplates(?Order $order = null, ?string $party = null): Collection
     {
         if (! Schema::hasTable('print_form_templates')) {
             return collect();
@@ -1295,6 +1300,10 @@ class OrderWizardController extends Controller
                 fn ($query) => $query->with(['contractor:id,name'])
             )
             ->where('entity_type', 'order')
+            ->when(
+                $party !== null && Schema::hasColumn('print_form_templates', 'party'),
+                fn ($query) => $query->where('party', $party)
+            )
             ->where('is_active', true)
             ->whereNotNull('file_path')
             ->where(function ($query) use ($contractorIds): void {

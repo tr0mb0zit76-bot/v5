@@ -7,6 +7,7 @@ use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderPrintFormContext;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -23,10 +24,14 @@ class OrderPrintDocumentWorkflowService
     /**
      * Создаёт запись документа и сохраняет сгенерированный DOCX на диске.
      */
-    public function createFromTemplate(Order $order, PrintFormTemplate $template, User $user): OrderDocument
-    {
+    public function createFromTemplate(
+        Order $order,
+        PrintFormTemplate $template,
+        User $user,
+        ?OrderPrintFormContext $context = null,
+    ): OrderDocument {
         $order = $this->draftService->loadOrderContext($order);
-        $generated = $this->draftService->generate($template, $order, false);
+        $generated = $this->draftService->generate($template, $order, false, $context);
 
         $permanentPath = sprintf('order_documents/%d/%s-draft.docx', $order->id, (string) Str::uuid());
         $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
@@ -51,13 +56,16 @@ class OrderPrintDocumentWorkflowService
                 knownContents: $docxContents
             ),
             'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'metadata' => [
+            'metadata' => array_filter([
                 'flow' => 'print_template_workflow',
                 'party' => $this->resolveMetadataParty($template),
                 'template_code' => $template->code,
                 'template_name' => $template->name,
                 'storage_driver' => $this->documentStorage->configuredDriver(),
-            ],
+                'order_leg_stage' => $context?->legStage,
+                'carrier_contractor_id' => $context?->carrierContractorId,
+                'route_legs_as_table_rows' => $context?->routeLegsAsTableRows ?? false,
+            ], fn (mixed $value): bool => $value !== null && $value !== false && $value !== ''),
         ];
 
         /** @var OrderDocument $document */
@@ -188,7 +196,12 @@ class OrderPrintDocumentWorkflowService
         $template = PrintFormTemplate::query()->findOrFail($document->template_id);
         $order = Order::query()->findOrFail($document->order_id);
         $order = $this->draftService->loadOrderContext($order);
-        $generated = $this->draftService->generate($template, $order, false);
+        $generated = $this->draftService->generate(
+            $template,
+            $order,
+            false,
+            $this->printContextFromDocumentMetadata($document),
+        );
 
         if ($document->file_path) {
             $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
@@ -238,7 +251,12 @@ class OrderPrintDocumentWorkflowService
 
         $order = Order::query()->findOrFail($document->order_id);
         $order = $this->draftService->loadOrderContext($order);
-        $generated = $this->draftService->generate($template, $order, true);
+        $generated = $this->draftService->generate(
+            $template,
+            $order,
+            true,
+            $this->printContextFromDocumentMetadata($document),
+        );
 
         if ($document->file_path) {
             $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
@@ -373,5 +391,27 @@ class OrderPrintDocumentWorkflowService
         }
 
         return 'internal';
+    }
+
+    private function printContextFromDocumentMetadata(OrderDocument $document): ?OrderPrintFormContext
+    {
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $legStage = isset($metadata['order_leg_stage']) && is_string($metadata['order_leg_stage'])
+            ? trim($metadata['order_leg_stage'])
+            : null;
+        $carrierId = isset($metadata['carrier_contractor_id']) && (int) $metadata['carrier_contractor_id'] > 0
+            ? (int) $metadata['carrier_contractor_id']
+            : null;
+        $routeLegsAsTableRows = (bool) ($metadata['route_legs_as_table_rows'] ?? false);
+
+        if (($legStage === null || $legStage === '') && $carrierId === null && ! $routeLegsAsTableRows) {
+            return null;
+        }
+
+        return new OrderPrintFormContext(
+            legStage: $legStage !== '' ? $legStage : null,
+            carrierContractorId: $carrierId,
+            routeLegsAsTableRows: $routeLegsAsTableRows,
+        );
     }
 }
