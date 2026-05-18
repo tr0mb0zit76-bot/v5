@@ -12,6 +12,7 @@ use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\MessengerController;
+use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderWizardController;
@@ -231,6 +232,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
     });
+    Route::get('/orders/{order}/documents/list', [OrderDocumentsModalController::class, 'index'])
+        ->middleware('visibility.area:orders')
+        ->name('orders.documents.list');
+
     Route::controller(OrderDocumentWorkflowController::class)->middleware('visibility.area:orders')->group(function () {
         Route::post('/orders/{order}/documents/from-template', 'storeFromTemplate')->name('orders.documents.from-template');
         Route::post('/orders/{order}/documents/{orderDocument}/request-approval', 'requestApproval')->name('orders.documents.request-approval');
@@ -356,8 +361,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->name('finance.index');
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area:documents')->name('documents.index');
-    Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area:documents')->name('documents.store');
-    Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area:documents')->name('documents.update');
+    Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
+    Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');
+    Route::delete('/documents/{document}', [DocumentRegistryController::class, 'destroy'])->middleware('visibility.area.any:documents|orders')->name('documents.destroy');
     Route::post('/finance/documents', [FinanceDocumentController::class, 'store'])->middleware('visibility.area:documents')->name('finance.documents.store');
     Route::patch('/finance/documents/{financeDocument}', [FinanceDocumentController::class, 'update'])->middleware('visibility.area:documents')->name('finance.documents.update');
     Route::controller(SettingsKpiController::class)->middleware('visibility.area:finance_salary')->group(function () {

@@ -9,6 +9,7 @@ use App\Models\OrderDocument;
 use App\Services\DocumentStorageService;
 use App\Services\OrderCompensationService;
 use App\Support\RoleAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -66,7 +67,7 @@ class DocumentRegistryController extends Controller
         ]);
     }
 
-    public function store(StoreDocumentRegistryRequest $request): RedirectResponse
+    public function store(StoreDocumentRegistryRequest $request): RedirectResponse|JsonResponse
     {
         $payload = $request->validated();
         $order = Order::query()->findOrFail((int) $payload['order_id']);
@@ -101,13 +102,19 @@ class DocumentRegistryController extends Controller
 
         $this->orderCompensationService->recalculateImpactedPeriods($order);
 
+        $message = 'Документ добавлен в реестр и карточку заказа.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $message]);
+        }
+
         return to_route('documents.index')->with('flash', [
             'type' => 'success',
-            'message' => 'Документ добавлен в реестр и карточку заказа.',
+            'message' => $message,
         ]);
     }
 
-    public function update(UpdateDocumentRegistryRequest $request, OrderDocument $document): RedirectResponse
+    public function update(UpdateDocumentRegistryRequest $request, OrderDocument $document): RedirectResponse|JsonResponse
     {
         $payload = $request->validated();
         $order = Order::query()->findOrFail((int) $payload['order_id']);
@@ -154,10 +161,62 @@ class DocumentRegistryController extends Controller
         $document->fill($attrs)->save();
         $this->orderCompensationService->recalculateImpactedPeriods($order);
 
+        $message = 'Документ обновлён.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $message]);
+        }
+
         return to_route('documents.index')->with('flash', [
             'type' => 'success',
-            'message' => 'Документ обновлён.',
+            'message' => $message,
         ]);
+    }
+
+    public function destroy(Request $request, OrderDocument $document): RedirectResponse|JsonResponse
+    {
+        $order = Order::query()->findOrFail((int) $document->order_id);
+        $this->ensureCanManageOrder($request, $order);
+
+        if ($this->orderDocumentIsPrintWorkflow($document)) {
+            abort_unless(
+                $request->user() !== null,
+                403,
+            );
+
+            $document->delete();
+            $this->orderCompensationService->recalculateImpactedPeriods($order);
+
+            $message = 'Печатная форма удалена из заказа.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['ok' => true, 'message' => $message]);
+            }
+
+            return back()->with('flash', ['type' => 'success', 'message' => $message]);
+        }
+
+        $oldPath = $document->file_path;
+        $oldDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+        if (filled($oldPath)) {
+            $this->documentStorage->delete(
+                $oldPath,
+                $oldDriver === DocumentStorageService::DRIVER_NEXTCLOUD
+                    ? DocumentStorageService::DRIVER_NEXTCLOUD
+                    : DocumentStorageService::DRIVER_LOCAL,
+            );
+        }
+
+        $document->delete();
+        $this->orderCompensationService->recalculateImpactedPeriods($order);
+
+        $message = 'Документ удалён.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $message]);
+        }
+
+        return back()->with('flash', ['type' => 'success', 'message' => $message]);
     }
 
     /**

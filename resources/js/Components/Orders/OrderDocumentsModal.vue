@@ -1,0 +1,432 @@
+<script setup>
+import { computed, reactive, ref, watch } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
+import { ExternalLink, Paperclip, Trash2, Upload } from 'lucide-vue-next';
+import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
+import Modal from '@/Components/Modal.vue';
+import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
+
+const props = defineProps({
+    show: { type: Boolean, default: false },
+    orderId: { type: Number, default: null },
+    orderNumber: { type: String, default: '' },
+});
+
+const emit = defineEmits(['close']);
+
+const page = usePage();
+const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
+
+const loading = ref(false);
+const loadError = ref('');
+const documents = ref([]);
+const documentTypeOptions = ref([]);
+
+const addForm = reactive({
+    party: 'customer',
+    type: 'invoice',
+    number: '',
+    document_date: '',
+    status: 'sent',
+    file: null,
+});
+const addSubmitting = ref(false);
+const addError = ref('');
+const replaceDocId = ref(null);
+const replaceFileInputRef = ref(null);
+
+const modalTitle = computed(() => {
+    const label = props.orderNumber || (props.orderId ? `#${props.orderId}` : '');
+
+    return label ? `Документы — ${label}` : 'Документы заказа';
+});
+
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+}
+
+async function loadDocuments() {
+    if (!props.orderId) {
+        documents.value = [];
+
+        return;
+    }
+
+    loading.value = true;
+    loadError.value = '';
+
+    try {
+        const response = await fetch(route('orders.documents.list', props.orderId), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Не удалось загрузить документы (${response.status})`);
+        }
+
+        const payload = await response.json();
+        documents.value = Array.isArray(payload.documents) ? payload.documents : [];
+        documentTypeOptions.value = Array.isArray(payload.document_type_options)
+            ? payload.document_type_options
+            : [];
+    } catch (error) {
+        loadError.value = error?.message ?? 'Ошибка загрузки документов';
+        documents.value = [];
+    } finally {
+        loading.value = false;
+    }
+}
+
+watch(
+    () => [props.show, props.orderId],
+    ([visible]) => {
+        if (visible && props.orderId) {
+            loadDocuments();
+        }
+    },
+    { immediate: true },
+);
+
+function closeModal() {
+    addForm.file = null;
+    addError.value = '';
+    replaceDocId.value = null;
+    emit('close');
+}
+
+async function onAddFilePicked(event) {
+    const [file] = event.target.files ?? [];
+    if (file) {
+        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    }
+    addForm.file = file ?? null;
+    if (event.target) {
+        event.target.value = '';
+    }
+}
+
+async function submitAdd() {
+    if (!props.orderId || !addForm.file) {
+        addError.value = 'Выберите файл для загрузки.';
+
+        return;
+    }
+
+    addSubmitting.value = true;
+    addError.value = '';
+
+    const body = new FormData();
+    body.append('order_id', String(props.orderId));
+    body.append('party', addForm.party);
+    body.append('type', addForm.type);
+    body.append('status', addForm.status);
+    if (addForm.number) {
+        body.append('number', addForm.number);
+    }
+    if (addForm.document_date) {
+        body.append('document_date', addForm.document_date);
+    }
+    body.append('file', addForm.file);
+
+    try {
+        const response = await fetch(route('documents.store'), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            body,
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.message ?? `Ошибка загрузки (${response.status})`);
+        }
+
+        addForm.file = null;
+        addForm.number = '';
+        addForm.document_date = '';
+        await loadDocuments();
+    } catch (error) {
+        addError.value = error?.message ?? 'Не удалось добавить документ';
+    } finally {
+        addSubmitting.value = false;
+    }
+}
+
+function startReplace(doc) {
+    replaceDocId.value = doc.id;
+    replaceFileInputRef.value?.click();
+}
+
+async function onReplaceFilePicked(event) {
+    const docId = replaceDocId.value;
+    const [file] = event.target.files ?? [];
+    replaceDocId.value = null;
+    if (event.target) {
+        event.target.value = '';
+    }
+
+    if (!docId || !file || !props.orderId) {
+        return;
+    }
+
+    const doc = documents.value.find((item) => item.id === docId);
+    if (!doc || doc.is_print_workflow) {
+        return;
+    }
+
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+
+    const body = new FormData();
+    body.append('_method', 'PATCH');
+    body.append('order_id', String(props.orderId));
+    body.append('party', doc.party);
+    body.append('type', doc.type);
+    body.append('status', doc.status);
+    if (doc.number) {
+        body.append('number', doc.number);
+    }
+    if (doc.document_date) {
+        body.append('document_date', doc.document_date);
+    }
+    body.append('file', file);
+
+    try {
+        const response = await fetch(route('documents.update', docId), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            body,
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.message ?? `Ошибка замены (${response.status})`);
+        }
+
+        await loadDocuments();
+    } catch (error) {
+        window.alert(error?.message ?? 'Не удалось заменить файл');
+    }
+}
+
+function deleteDocument(doc) {
+    if (!doc?.id || !props.orderId) {
+        return;
+    }
+
+    const label = doc.original_name || doc.type_label || `#${doc.id}`;
+    if (!window.confirm(`Удалить документ «${label}»?`)) {
+        return;
+    }
+
+    if (doc.is_print_workflow) {
+        fetch(route('orders.documents.discard-print-workflow', [props.orderId, doc.id]), {
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const payload = await response.json().catch(() => ({}));
+                    throw new Error(payload.message ?? `Ошибка удаления (${response.status})`);
+                }
+                await loadDocuments();
+            })
+            .catch((error) => {
+                window.alert(error?.message ?? 'Не удалось удалить документ');
+            });
+
+        return;
+    }
+
+    fetch(route('documents.destroy', doc.id), {
+        method: 'DELETE',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfToken(),
+        },
+    })
+        .then(async (response) => {
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.message ?? `Ошибка удаления (${response.status})`);
+            }
+            await loadDocuments();
+        })
+        .catch((error) => {
+            window.alert(error?.message ?? 'Не удалось удалить документ');
+        });
+}
+
+function openWizardDocuments() {
+    if (!props.orderId) {
+        return;
+    }
+
+    router.get(route('orders.edit', props.orderId), { tab: 'documents' }, { preserveScroll: true });
+}
+</script>
+
+<template>
+    <Modal :show="show" max-width="2xl" @close="closeModal">
+        <section class="flex max-h-[min(90vh,820px)] flex-col overflow-hidden bg-white dark:bg-zinc-900">
+            <CrmModalHeader :title="modalTitle" @close="closeModal">
+                Добавление файлов и список документов по заказу. Печатные формы по шаблону можно открыть в мастере заказа.
+            </CrmModalHeader>
+
+            <div class="min-h-0 flex-1 overflow-y-auto border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
+                <form class="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40" @submit.prevent="submitAdd">
+                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Добавить документ</div>
+                    <p v-if="documentUploadHint" class="text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Сторона</label>
+                            <select v-model="addForm.party" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <option value="customer">Заказчик</option>
+                                <option value="carrier">Перевозчик</option>
+                                <option value="internal">Внутренний</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип</label>
+                            <select v-model="addForm.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Статус</label>
+                            <select v-model="addForm.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <option value="draft">Черновик</option>
+                                <option value="pending">Ожидает</option>
+                                <option value="signed">Подписан</option>
+                                <option value="sent">Отправлен</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Номер</label>
+                            <input v-model="addForm.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                        </div>
+                        <div class="space-y-1 sm:col-span-2">
+                            <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Дата документа</label>
+                            <input v-model="addForm.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900">
+                            <Paperclip class="h-4 w-4" />
+                            <span>{{ addForm.file ? addForm.file.name : 'Выбрать файл…' }}</span>
+                            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" class="hidden" @change="onAddFilePicked" />
+                        </label>
+                        <button type="submit" :class="crmBtnCreate" :disabled="addSubmitting || !addForm.file">
+                            {{ addSubmitting ? 'Загрузка…' : 'Прикрепить' }}
+                        </button>
+                    </div>
+                    <p v-if="addError" class="text-xs text-rose-600">{{ addError }}</p>
+                </form>
+
+                <input
+                    ref="replaceFileInputRef"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                    class="hidden"
+                    @change="onReplaceFilePicked"
+                >
+
+                <div class="mt-6">
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Документы по заказу</div>
+                        <button type="button" class="text-xs text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-400" @click="openWizardDocuments">
+                            Мастер заказа
+                        </button>
+                    </div>
+
+                    <p v-if="loading" class="text-sm text-zinc-500">Загрузка…</p>
+                    <p v-else-if="loadError" class="text-sm text-rose-600">{{ loadError }}</p>
+                    <p v-else-if="documents.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Документов пока нет.</p>
+
+                    <ul v-else class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+                        <li v-for="doc in documents" :key="doc.id" class="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                                        {{ doc.original_name || doc.type_label }}
+                                    </span>
+                                    <span
+                                        v-if="doc.is_print_workflow"
+                                        class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-800 dark:bg-violet-950 dark:text-violet-200"
+                                    >
+                                        Печатная форма
+                                    </span>
+                                </div>
+                                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ doc.party_label }} · {{ doc.type_label }}
+                                    <template v-if="doc.number"> · № {{ doc.number }}</template>
+                                    <template v-if="doc.document_date"> · {{ doc.document_date }}</template>
+                                    · {{ doc.status_label }}
+                                    <template v-if="doc.workflow_status_label"> · {{ doc.workflow_status_label }}</template>
+                                </p>
+                            </div>
+                            <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                <a
+                                    v-if="doc.preview_url"
+                                    :href="doc.preview_url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-1 text-xs text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-400"
+                                >
+                                    <ExternalLink class="h-3.5 w-3.5" />
+                                    Открыть
+                                </a>
+                                <a
+                                    v-else-if="doc.is_print_workflow"
+                                    :href="doc.wizard_url"
+                                    class="inline-flex items-center gap-1 text-xs text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-400"
+                                >
+                                    В мастере
+                                </a>
+                                <button
+                                    v-if="doc.can_replace"
+                                    type="button"
+                                    class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    @click="startReplace(doc)"
+                                >
+                                    <Upload class="h-3.5 w-3.5" />
+                                    Заменить
+                                </button>
+                                <button
+                                    v-if="doc.can_delete"
+                                    type="button"
+                                    class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                    @click="deleteDocument(doc)"
+                                >
+                                    <Trash2 class="h-3.5 w-3.5" />
+                                    Удалить
+                                </button>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="flex justify-end border-t border-zinc-200 px-5 py-4 dark:border-zinc-800 sm:px-6">
+                <button type="button" :class="crmBtnNeutral" @click="closeModal">Закрыть</button>
+            </div>
+        </section>
+    </Modal>
+</template>

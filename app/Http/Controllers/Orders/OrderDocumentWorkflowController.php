@@ -17,6 +17,7 @@ use App\Support\DocumentPreview;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -180,7 +181,7 @@ class OrderDocumentWorkflowController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Черновик пересоздан из данных заказа.']);
     }
 
-    public function discardPrintWorkflow(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse
+    public function discardPrintWorkflow(Request $request, Order $order, OrderDocument $orderDocument): RedirectResponse|JsonResponse
     {
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
 
@@ -211,9 +212,15 @@ class OrderDocumentWorkflowController extends Controller
 
         $this->orderCompensationService->recalculateImpactedPeriods($order);
 
+        $message = 'Черновик по шаблону удалён из заказа.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => $message]);
+        }
+
         return redirect()
             ->route('orders.edit', $order)
-            ->with('flash', ['type' => 'success', 'message' => 'Черновик по шаблону удалён из заказа.']);
+            ->with('flash', ['type' => 'success', 'message' => $message]);
     }
 
     public function previewDraft(Request $request, Order $order, OrderDocument $orderDocument): InertiaResponse

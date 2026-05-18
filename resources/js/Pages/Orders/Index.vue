@@ -172,11 +172,18 @@
                 />
             </div>
         </template>
+
+        <OrderDocumentsModal
+            :show="orderDocumentsModal.show"
+            :order-id="orderDocumentsModal.orderId"
+            :order-number="orderDocumentsModal.orderNumber"
+            @close="closeOrderDocumentsModal"
+        />
     </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 const MOBILE_SORT_OPTIONS = [
     { value: 'id_desc', label: 'Сначала новые' },
@@ -191,6 +198,7 @@ import { Plus, Search } from 'lucide-vue-next';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
+import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -335,12 +343,24 @@ const handleRowDblClick = (row) => {
     }
 };
 
+const orderDocumentsModal = reactive({
+    show: false,
+    orderId: null,
+    orderNumber: '',
+});
+
 const handleOpenOrderDocuments = (row) => {
     if (!row?.id) {
         return;
     }
 
-    router.get(route('orders.edit', row.id), { tab: 'documents' }, { preserveScroll: true });
+    orderDocumentsModal.show = true;
+    orderDocumentsModal.orderId = row.id;
+    orderDocumentsModal.orderNumber = row.order_number || '';
+};
+
+const closeOrderDocumentsModal = () => {
+    orderDocumentsModal.show = false;
 };
 
 const openCreateOrder = () => {

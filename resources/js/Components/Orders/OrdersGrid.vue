@@ -1083,9 +1083,17 @@ const dynamicColumnDefs = computed(() => {
 });
 
 const onCellDoubleClicked = (params) => {
-  if (params.data) {
-    emit('row-dblclick', params.data);
+  if (!params.data) {
+    return;
   }
+
+  if (params.colDef?.field === 'status_text') {
+    emit('open-order-documents', params.data);
+
+    return;
+  }
+
+  emit('row-dblclick', params.data);
 };
 
 const onCellValueChanged = (params) => {
