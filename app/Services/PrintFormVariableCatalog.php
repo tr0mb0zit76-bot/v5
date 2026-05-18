@@ -70,6 +70,7 @@ class PrintFormVariableCatalog
             ['value' => 'customer.signer_position', 'label' => 'Заказчик: Должность подписанта'],
             ['value' => 'customer.signer_position_genitive_auto', 'label' => 'Заказчик: Должность подписанта (авто, родительный)'],
             ['value' => 'customer.signer_authority_basis', 'label' => 'Заказчик: Основание подписи'],
+            ...$this->englishRequisitesPlaceholderOptions('customer', 'Заказчик'),
 
             ['value' => 'carrier.name', 'label' => 'Перевозчик: Наименование'],
             ['value' => 'carrier.full_name', 'label' => 'Перевозчик: Полное наименование'],
@@ -97,6 +98,7 @@ class PrintFormVariableCatalog
             ['value' => 'carrier.signer_position', 'label' => 'Перевозчик: Должность подписанта'],
             ['value' => 'carrier.signer_position_genitive_auto', 'label' => 'Перевозчик: Должность подписанта (авто, родительный)'],
             ['value' => 'carrier.signer_authority_basis', 'label' => 'Перевозчик: Основание подписи'],
+            ...$this->englishRequisitesPlaceholderOptions('carrier', 'Перевозчик'),
 
             ['value' => 'own_company.name', 'label' => 'Своя компания: Наименование'],
             ['value' => 'own_company.full_name', 'label' => 'Своя компания: Полное наименование'],
@@ -121,6 +123,7 @@ class PrintFormVariableCatalog
             ['value' => 'own_company.signer_position', 'label' => 'Своя компания: Должность подписанта'],
             ['value' => 'own_company.signer_position_genitive_auto', 'label' => 'Своя компания: Должность подписанта (авто, родительный)'],
             ['value' => 'own_company.signer_authority_basis', 'label' => 'Своя компания: Основание подписи'],
+            ...$this->englishRequisitesPlaceholderOptions('own_company', 'Своя компания'),
 
             ['value' => 'manager.name', 'label' => 'Менеджер: Имя'],
             ['value' => 'manager.email', 'label' => 'Менеджер: Email'],
@@ -288,6 +291,7 @@ class PrintFormVariableCatalog
             ['value' => 'counterparty.signer_position', 'label' => 'Контрагент: Должность подписанта'],
             ['value' => 'counterparty.signer_position_genitive_auto', 'label' => 'Контрагент: Должность подписанта (авто, родительный)'],
             ['value' => 'counterparty.signer_authority_basis', 'label' => 'Контрагент: Основание подписи'],
+            ...$this->englishRequisitesPlaceholderOptions('counterparty', 'Контрагент'),
             ['value' => 'manager.name', 'label' => 'Менеджер: Имя'],
             ['value' => 'manager.email', 'label' => 'Менеджер: Email'],
             ['value' => 'manager.phone', 'label' => 'Менеджер: Телефон'],
@@ -313,6 +317,27 @@ class PrintFormVariableCatalog
             ['value' => 'offer.offer_date', 'label' => 'КП: Дата'],
             ['value' => 'offer.price', 'label' => 'КП: Цена'],
             ['value' => 'offer.currency', 'label' => 'КП: Валюта'],
+        ];
+    }
+
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    private function englishRequisitesPlaceholderOptions(string $prefix, string $partyLabel): array
+    {
+        return [
+            ['value' => "{$prefix}.has_english_requisites", 'label' => "{$partyLabel}: Реквизиты на английском (Да/Нет)"],
+            ['value' => "{$prefix}.name_en", 'label' => "{$partyLabel}: Наименование (EN)"],
+            ['value' => "{$prefix}.full_name_en", 'label' => "{$partyLabel}: Полное наименование (EN)"],
+            ['value' => "{$prefix}.legal_address_en", 'label' => "{$partyLabel}: Юр. адрес (EN)"],
+            ['value' => "{$prefix}.actual_address_en", 'label' => "{$partyLabel}: Факт. адрес (EN)"],
+            ['value' => "{$prefix}.postal_address_en", 'label' => "{$partyLabel}: Почтовый адрес (EN)"],
+            ['value' => "{$prefix}.contact_person_en", 'label' => "{$partyLabel}: Контактное лицо (EN)"],
+            ['value' => "{$prefix}.bank_name_en", 'label' => "{$partyLabel}: Банк (EN)"],
+            ['value' => "{$prefix}.signer_name_nominative_en", 'label' => "{$partyLabel}: Подписант, именительный (EN)"],
+            ['value' => "{$prefix}.signer_name_prepositional_en", 'label' => "{$partyLabel}: Подписант, предложный (EN)"],
+            ['value' => "{$prefix}.signer_position_en", 'label' => "{$partyLabel}: Должность подписанта (EN)"],
+            ['value' => "{$prefix}.signer_authority_basis_en", 'label' => "{$partyLabel}: Основание подписи (EN)"],
         ];
     }
 }

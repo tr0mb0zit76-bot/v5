@@ -732,6 +732,20 @@ class OrderPrintFormDraftService
             'signer_position_genitive_auto' => RussianPositionInflector::toGenitive($contractor?->signer_position ?? $contractor?->contact_person_position),
             'signer_authority_basis' => $contractor?->signer_authority_basis,
             ...$nonResident,
+            ...($contractor instanceof Contractor ? $contractor->englishRequisitesPrintPayload() : [
+                'has_english_requisites' => 'Нет',
+                'name_en' => null,
+                'full_name_en' => null,
+                'legal_address_en' => null,
+                'actual_address_en' => null,
+                'postal_address_en' => null,
+                'contact_person_en' => null,
+                'bank_name_en' => null,
+                'signer_name_nominative_en' => null,
+                'signer_name_prepositional_en' => null,
+                'signer_position_en' => null,
+                'signer_authority_basis_en' => null,
+            ]),
         ];
     }
 

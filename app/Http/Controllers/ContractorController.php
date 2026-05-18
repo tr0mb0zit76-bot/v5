@@ -614,6 +614,17 @@ class ContractorController extends Controller
             'non_resident_corr_settlement_account',
             'non_resident_corr_bank_account',
             'cnaps_code',
+            'name_en',
+            'full_name_en',
+            'legal_address_en',
+            'actual_address_en',
+            'postal_address_en',
+            'contact_person_en',
+            'bank_name_en',
+            'signer_name_nominative_en',
+            'signer_name_prepositional_en',
+            'signer_position_en',
+            'signer_authority_basis_en',
         ] as $nullableField) {
             if (($validated[$nullableField] ?? null) === '') {
                 $validated[$nullableField] = null;

@@ -141,6 +141,22 @@ class StoreContractorRequest extends FormRequest
             $this->merge(['inn' => ContractorIdentity::normalizeInn($this->input('inn'))]);
         }
 
+        if ($this->has('has_english_requisites') && ! $this->boolean('has_english_requisites')) {
+            $this->merge([
+                'name_en' => null,
+                'full_name_en' => null,
+                'legal_address_en' => null,
+                'actual_address_en' => null,
+                'postal_address_en' => null,
+                'contact_person_en' => null,
+                'bank_name_en' => null,
+                'signer_name_nominative_en' => null,
+                'signer_name_prepositional_en' => null,
+                'signer_position_en' => null,
+                'signer_authority_basis_en' => null,
+            ]);
+        }
+
         foreach (['default_customer_payment_form', 'default_carrier_payment_form'] as $paymentFormKey) {
             if (! $this->has($paymentFormKey)) {
                 continue;
@@ -246,6 +262,18 @@ class StoreContractorRequest extends FormRequest
             'is_verified' => ['required', 'boolean'],
             'is_own_company' => ['required', 'boolean'],
             'is_non_resident' => ['nullable', 'boolean'],
+            'has_english_requisites' => ['nullable', 'boolean'],
+            'name_en' => ['nullable', 'string', 'max:255'],
+            'full_name_en' => ['nullable', 'string', 'max:255'],
+            'legal_address_en' => ['nullable', 'string', 'max:255'],
+            'actual_address_en' => ['nullable', 'string', 'max:255'],
+            'postal_address_en' => ['nullable', 'string', 'max:255'],
+            'contact_person_en' => ['nullable', 'string', 'max:255'],
+            'bank_name_en' => ['nullable', 'string', 'max:255'],
+            'signer_name_nominative_en' => ['nullable', 'string', 'max:255'],
+            'signer_name_prepositional_en' => ['nullable', 'string', 'max:255'],
+            'signer_position_en' => ['nullable', 'string', 'max:255'],
+            'signer_authority_basis_en' => ['nullable', 'string', 'max:255'],
             'non_resident_corr_bank_name' => ['nullable', 'string', 'max:255'],
             'non_resident_corr_bank_swift' => ['nullable', 'string', 'max:11', 'regex:/^[A-Za-z0-9]*$/u'],
             'non_resident_corr_settlement_account' => ['nullable', 'string', 'max:34', 'regex:/^[0-9]*$/u'],

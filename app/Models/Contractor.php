@@ -67,6 +67,18 @@ class Contractor extends Model
         'is_verified',
         'is_own_company',
         'is_non_resident',
+        'has_english_requisites',
+        'name_en',
+        'full_name_en',
+        'legal_address_en',
+        'actual_address_en',
+        'postal_address_en',
+        'contact_person_en',
+        'bank_name_en',
+        'signer_name_nominative_en',
+        'signer_name_prepositional_en',
+        'signer_position_en',
+        'signer_authority_basis_en',
         'non_resident_corr_bank_name',
         'non_resident_corr_bank_swift',
         'non_resident_corr_settlement_account',
@@ -98,6 +110,7 @@ class Contractor extends Model
             'is_verified' => 'boolean',
             'is_own_company' => 'boolean',
             'is_non_resident' => 'boolean',
+            'has_english_requisites' => 'boolean',
             'stop_on_limit' => 'boolean',
             'rating' => 'decimal:2',
         ];
@@ -355,5 +368,46 @@ class Contractor extends Model
             'non_resident_corr_bank_account' => blank($this->non_resident_corr_bank_account) ? null : trim((string) $this->non_resident_corr_bank_account),
             'cnaps_code' => blank($this->cnaps_code) ? null : trim((string) $this->cnaps_code),
         ];
+    }
+
+    /**
+     * Поля для печатных форм (${customer.name_en} и т.д.). Значения заполняются только при включённой галочке.
+     *
+     * @return array<string, string|null>
+     */
+    public function englishRequisitesPrintPayload(): array
+    {
+        $keys = [
+            'name_en',
+            'full_name_en',
+            'legal_address_en',
+            'actual_address_en',
+            'postal_address_en',
+            'contact_person_en',
+            'bank_name_en',
+            'signer_name_nominative_en',
+            'signer_name_prepositional_en',
+            'signer_position_en',
+            'signer_authority_basis_en',
+        ];
+
+        $payload = [
+            'has_english_requisites' => $this->has_english_requisites ? 'Да' : 'Нет',
+        ];
+
+        foreach ($keys as $key) {
+            $payload[$key] = null;
+        }
+
+        if (! $this->has_english_requisites) {
+            return $payload;
+        }
+
+        foreach ($keys as $key) {
+            $value = $this->{$key};
+            $payload[$key] = blank($value) ? null : trim((string) $value);
+        }
+
+        return $payload;
     }
 }
