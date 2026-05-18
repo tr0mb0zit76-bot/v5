@@ -23,6 +23,8 @@ const loading = ref(false);
 const loadError = ref('');
 const documents = ref([]);
 const documentTypeOptions = ref([]);
+const requiredDocumentRules = ref([]);
+const requiredDocumentChecklist = ref([]);
 const deletingDocId = ref(null);
 
 const signedDocuments = computed(() => documents.value
@@ -45,6 +47,9 @@ const addSubmitting = ref(false);
 const addError = ref('');
 const replaceDocId = ref(null);
 const replaceFileInputRef = ref(null);
+const addFileInputRef = ref(null);
+const addDropActive = ref(false);
+let addDropDepth = 0;
 
 const modalTitle = computed(() => {
     const label = props.orderNumber || (props.orderId ? `#${props.orderId}` : '');
@@ -83,6 +88,12 @@ async function loadDocuments() {
         documentTypeOptions.value = Array.isArray(payload.document_type_options)
             ? payload.document_type_options
             : [];
+        requiredDocumentRules.value = Array.isArray(payload.requiredDocumentRules)
+            ? payload.requiredDocumentRules
+            : [];
+        requiredDocumentChecklist.value = Array.isArray(payload.requiredDocumentChecklist)
+            ? payload.requiredDocumentChecklist
+            : [];
     } catch (error) {
         loadError.value = error?.message ?? 'Ошибка загрузки документов';
         documents.value = [];
@@ -108,15 +119,51 @@ function closeModal() {
     emit('close');
 }
 
+async function assignAddFile(file) {
+    if (!file) {
+        return;
+    }
+
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    addForm.file = file;
+    addError.value = '';
+}
+
 async function onAddFilePicked(event) {
     const [file] = event.target.files ?? [];
-    if (file) {
-        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    }
-    addForm.file = file ?? null;
     if (event.target) {
         event.target.value = '';
     }
+
+    if (file) {
+        await assignAddFile(file);
+    }
+}
+
+function onAddDragEnter() {
+    addDropDepth += 1;
+    addDropActive.value = true;
+}
+
+function onAddDragLeave() {
+    addDropDepth = Math.max(0, addDropDepth - 1);
+    if (addDropDepth === 0) {
+        addDropActive.value = false;
+    }
+}
+
+async function onAddDrop(event) {
+    event.preventDefault();
+    addDropDepth = 0;
+    addDropActive.value = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file) {
+        await assignAddFile(file);
+    }
+}
+
+function triggerAddFilePick() {
+    addFileInputRef.value?.click();
 }
 
 async function submitAdd() {
@@ -345,12 +392,36 @@ function openWizardDocuments() {
                         </div>
                     </div>
 
+                    <input
+                        ref="addFileInputRef"
+                        type="file"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                        class="hidden"
+                        @change="onAddFilePicked"
+                    >
+                    <div
+                        class="rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
+                        :class="addDropActive
+                            ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
+                            : 'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950'"
+                        @dragenter.prevent="onAddDragEnter"
+                        @dragleave.prevent="onAddDragLeave"
+                        @dragover.prevent
+                        @drop.prevent="onAddDrop"
+                    >
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                            {{ addForm.file ? addForm.file.name : 'Перетащите файл сюда или выберите на диске' }}
+                        </p>
+                        <button
+                            type="button"
+                            class="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950"
+                            @click="triggerAddFilePick"
+                        >
+                            <Paperclip class="h-4 w-4 text-zinc-500" />
+                            {{ addForm.file ? 'Заменить файл' : 'Выбрать файл' }}
+                        </button>
+                    </div>
                     <div class="flex flex-wrap items-center gap-3">
-                        <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-900">
-                            <Paperclip class="h-4 w-4" />
-                            <span>{{ addForm.file ? addForm.file.name : 'Выбрать файл…' }}</span>
-                            <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" class="hidden" @change="onAddFilePicked" />
-                        </label>
                         <button type="submit" :class="crmBtnCreate" :disabled="addSubmitting || !addForm.file">
                             {{ addSubmitting ? 'Загрузка…' : 'Прикрепить' }}
                         </button>
@@ -376,14 +447,17 @@ function openWizardDocuments() {
 
                     <p v-if="loading" class="text-sm text-zinc-500">Загрузка…</p>
                     <p v-else-if="loadError" class="text-sm text-rose-600">{{ loadError }}</p>
-                    <p v-if="signedDocuments.length === 0 && printWorkflowDocuments.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Документов пока нет.</p>
+                    <p v-if="!loading && !loadError && signedDocuments.length === 0 && printWorkflowDocuments.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
+                        Подписанных файлов пока нет. В таблице ниже — пять обязательных пунктов для этапов «Оплата» и «Завершено».
+                    </p>
 
                     <OrderSignedDocumentsTable
-                        v-if="signedDocuments.length > 0"
+                        v-if="!loading && !loadError"
                         class="mb-4"
-                        :documents="signedDocuments"
+                        :signed-documents="signedDocuments"
                         :document-type-options="documentTypeOptions"
-                        :required-document-rules="[]"
+                        :required-document-rules="requiredDocumentRules"
+                        :required-document-checklist="requiredDocumentChecklist"
                         :can-edit="true"
                         :deleting-id="deletingDocId"
                         @delete="deleteDocument"

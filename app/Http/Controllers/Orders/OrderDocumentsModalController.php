@@ -36,6 +36,8 @@ class OrderDocumentsModalController extends Controller
             ],
             'documents' => $documents,
             'document_type_options' => $this->documentRequirementService->documentTypeOptions(),
+            'requiredDocumentRules' => $this->documentRequirementService->requirementRules(),
+            'requiredDocumentChecklist' => $this->documentRequirementService->checklistForOrder($order),
         ]);
     }
 

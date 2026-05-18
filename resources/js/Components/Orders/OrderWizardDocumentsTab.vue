@@ -37,6 +37,18 @@ const documentUploadHint = computed(() => page.props.document_upload_limits?.hin
 const customerSlots = computed(() => customerPrintSlots(props.performers, props.clientRequestMode));
 const carrierSlots = computed(() => carrierPrintSlots(props.performers));
 
+const effectiveDocumentChecklist = computed(() => {
+    if (props.order?.id && Array.isArray(props.requiredDocumentChecklist) && props.requiredDocumentChecklist.length > 0) {
+        return props.requiredDocumentChecklist;
+    }
+
+    return (props.requiredDocumentRules || []).map((rule) => ({
+        ...rule,
+        completed: false,
+        matched_document_id: null,
+    }));
+});
+
 const templateSelection = reactive({});
 const workflowRejectTargetId = ref(null);
 const workflowRejectReason = ref('');
@@ -56,6 +68,9 @@ const attachForm = reactive({
 
 const orderDocumentGlobalFileInputRef = ref(null);
 const orderDocumentGlobalDropActive = ref(false);
+const attachModalFileInputRef = ref(null);
+const attachDropActive = ref(false);
+let attachDropDepth = 0;
 
 watch(
     () => props.allDocuments,
@@ -197,7 +212,7 @@ function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 }
 
-function openAttachModal(preset = {}) {
+async function openAttachModal(preset = {}) {
     attachForm.party = preset.party ?? 'customer';
     attachForm.type = preset.type ?? 'request';
     attachForm.number = '';
@@ -205,12 +220,67 @@ function openAttachModal(preset = {}) {
     attachForm.stage = preset.stage ?? null;
     attachForm.file = null;
     attachError.value = '';
+    attachDropDepth = 0;
+    attachDropActive.value = false;
     showAttachModal.value = true;
+
+    if (preset.file) {
+        await assignAttachFile(preset.file);
+    }
 }
 
 function closeAttachModal() {
     showAttachModal.value = false;
     attachForm.file = null;
+    attachDropDepth = 0;
+    attachDropActive.value = false;
+}
+
+async function assignAttachFile(file) {
+    if (!file) {
+        return;
+    }
+
+    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    attachForm.file = file;
+    attachError.value = '';
+}
+
+function onAttachDragEnter() {
+    attachDropDepth += 1;
+    attachDropActive.value = true;
+}
+
+function onAttachDragLeave() {
+    attachDropDepth = Math.max(0, attachDropDepth - 1);
+    if (attachDropDepth === 0) {
+        attachDropActive.value = false;
+    }
+}
+
+async function onAttachDrop(event) {
+    event.preventDefault();
+    attachDropDepth = 0;
+    attachDropActive.value = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file) {
+        await assignAttachFile(file);
+    }
+}
+
+function triggerAttachFilePick() {
+    attachModalFileInputRef.value?.click();
+}
+
+async function onAttachFileInputChange(event) {
+    const [file] = event.target.files ?? [];
+    if (event.target) {
+        event.target.value = '';
+    }
+
+    if (file) {
+        await assignAttachFile(file);
+    }
 }
 
 async function submitAttach() {
@@ -318,9 +388,7 @@ async function onGlobalFileInputChange(event) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    attachForm.file = file;
-    openAttachModal();
+    await openAttachModal({ file });
 }
 
 function onGlobalDragEnter() {
@@ -341,9 +409,7 @@ async function onGlobalDrop(event) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    attachForm.file = file;
-    openAttachModal();
+    await openAttachModal({ file });
 }
 </script>
 
@@ -352,7 +418,7 @@ async function onGlobalDrop(event) {
         <div class="flex items-center justify-between">
             <div>
                 <h2 class="text-base font-semibold">Документы</h2>
-                <p class="text-sm text-zinc-500">Печатные формы, подписанные файлы и чек-лист для этапов оплаты</p>
+                <p class="text-sm text-zinc-500">Печатные формы и учёт подписанных документов</p>
             </div>
         </div>
 
@@ -524,32 +590,19 @@ async function onGlobalDrop(event) {
 
         <section class="space-y-3">
             <div class="text-sm font-semibold">Учёт документов</div>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                Пять обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы.
+            </p>
             <OrderSignedDocumentsTable
-                :documents="signedDocuments"
+                :signed-documents="signedDocuments"
                 :document-type-options="documentTypeOptions"
                 :required-document-rules="requiredDocumentRules"
+                :required-document-checklist="effectiveDocumentChecklist"
                 :can-edit="isOrderFormEditable"
                 :deleting-id="deletingDocId"
                 @delete="deleteSignedDocument"
                 @update:field="updateSignedField"
             />
-            <div
-                v-if="requiredDocumentChecklist.length > 0"
-                class="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/40"
-            >
-                <div class="font-medium text-zinc-800 dark:text-zinc-200">Чек-лист для «Оплата» / «Завершено»</div>
-                <ul class="mt-2 space-y-1">
-                    <li
-                        v-for="item in requiredDocumentChecklist"
-                        :key="item.key"
-                        class="flex items-start gap-2"
-                        :class="item.completed ? 'text-emerald-700 dark:text-emerald-300' : 'text-zinc-600 dark:text-zinc-400'"
-                    >
-                        <span>{{ item.completed ? '✓' : '○' }}</span>
-                        <span>{{ item.label }}</span>
-                    </li>
-                </ul>
-            </div>
         </section>
 
         <Modal :show="showAttachModal" max-width="xl" @close="closeAttachModal">
@@ -580,7 +633,35 @@ async function onGlobalDrop(event) {
                         <input v-model="attachForm.document_date" type="date" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
                     </div>
                 </div>
-                <p v-if="attachForm.file" class="text-xs text-zinc-600">Файл: {{ attachForm.file.name }}</p>
+                <input
+                    ref="attachModalFileInputRef"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                    class="hidden"
+                    @change="onAttachFileInputChange"
+                >
+                <div
+                    class="rounded-xl border border-dashed px-4 py-5 text-center transition-colors"
+                    :class="attachDropActive
+                        ? 'border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40'
+                        : 'border-zinc-200 bg-zinc-50/60 dark:border-zinc-700 dark:bg-zinc-900/40'"
+                    @dragenter.prevent="onAttachDragEnter"
+                    @dragleave.prevent="onAttachDragLeave"
+                    @dragover.prevent
+                    @drop.prevent="onAttachDrop"
+                >
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                        {{ attachForm.file ? attachForm.file.name : 'Перетащите файл сюда или выберите на диске' }}
+                    </p>
+                    <button
+                        type="button"
+                        class="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950"
+                        @click="triggerAttachFilePick"
+                    >
+                        <Paperclip class="h-4 w-4 text-zinc-500" />
+                        {{ attachForm.file ? 'Заменить файл' : 'Выбрать файл' }}
+                    </button>
+                </div>
                 <p v-if="attachError" class="text-xs text-rose-600">{{ attachError }}</p>
                 <div class="flex justify-end gap-2">
                     <button type="button" class="rounded-xl border px-4 py-2 text-sm" @click="closeAttachModal">Отмена</button>

@@ -7,6 +7,24 @@ use Tests\TestCase;
 
 class OrderDocumentRequirementServiceTest extends TestCase
 {
+    public function test_requirement_rules_define_five_mandatory_registry_rows(): void
+    {
+        $service = app(OrderDocumentRequirementService::class);
+        $rules = $service->requirementRules();
+
+        $this->assertCount(5, $rules);
+        $this->assertSame(
+            [
+                'customer_request',
+                'carrier_request',
+                'waybill',
+                'customer_closing_document',
+                'carrier_closing_document',
+            ],
+            array_column($rules, 'key'),
+        );
+    }
+
     public function test_uploaded_document_counts_only_when_status_is_sent_or_signed(): void
     {
         $service = app(OrderDocumentRequirementService::class);

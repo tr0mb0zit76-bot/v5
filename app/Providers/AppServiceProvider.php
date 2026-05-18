@@ -39,6 +39,7 @@ class AppServiceProvider extends ServiceProvider
                 password: config('document_storage.nextcloud.webdav_password'),
                 webdavRoot: (string) config('document_storage.nextcloud.webdav_root', '/remote.php/dav/files'),
                 timeoutSeconds: (int) config('document_storage.nextcloud.timeout', 30),
+                verifySsl: (bool) config('document_storage.nextcloud.verify_ssl', true),
             );
         });
 

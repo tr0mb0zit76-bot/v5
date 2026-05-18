@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 class NextcloudWebDavStorage
 {
@@ -15,6 +17,7 @@ class NextcloudWebDavStorage
         private readonly ?string $password,
         private readonly string $webdavRoot,
         private readonly int $timeoutSeconds = 30,
+        private readonly bool $verifySsl = true,
     ) {}
 
     public function put(string $path, string $contents): void
@@ -191,15 +194,42 @@ class NextcloudWebDavStorage
     {
         $request = Http::withBasicAuth((string) $this->username, (string) $this->password)
             ->timeout($this->timeoutSeconds)
+            ->withOptions([
+                'verify' => $this->verifySsl,
+            ])
             ->withHeaders([
                 'OCS-APIRequest' => 'true',
             ]);
 
-        if ($body !== null) {
-            return $request->send($method, $url, ['body' => $body]);
+        try {
+            if ($body !== null) {
+                return $request->send($method, $url, ['body' => $body]);
+            }
+
+            return $request->send($method, $url);
+        } catch (ConnectionException $exception) {
+            throw new RuntimeException($this->connectionErrorMessage($exception), 0, $exception);
+        }
+    }
+
+    private function connectionErrorMessage(Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+        $host = parse_url((string) $this->baseUrl, PHP_URL_HOST) ?: (string) $this->baseUrl;
+
+        if (
+            str_contains($message, 'SSL')
+            || str_contains($message, 'certificate')
+            || str_contains($message, 'CURLE_SSL')
+        ) {
+            return sprintf(
+                'Не удалось подключиться к Nextcloud (%s): ошибка SSL-сертификата. Убедитесь, что в NEXTCLOUD_BASE_URL указан хост, для которого выдан сертификат (например nc.avtoaliyans.ru), или для локальной отладки задайте NEXTCLOUD_VERIFY_SSL=false. Подробности: %s',
+                $host,
+                $message,
+            );
         }
 
-        return $request->send($method, $url);
+        return sprintf('Не удалось подключиться к Nextcloud (%s): %s', $host, $message);
     }
 
     private function assertStatusIn(int $status, array $allowedStatuses, string $errorMessage): void

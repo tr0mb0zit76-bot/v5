@@ -16,6 +16,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 class DocumentRegistryController extends Controller
 {
@@ -75,7 +76,12 @@ class DocumentRegistryController extends Controller
         $file = $request->file('file');
         abort_if($file === null, 422);
 
-        $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
+        try {
+            $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
+        } catch (RuntimeException $exception) {
+            return $this->storageFailureResponse($request, $exception);
+        }
+
         $metadata = [
             'party' => $payload['party'],
             'flow' => 'uploaded',
@@ -149,7 +155,12 @@ class DocumentRegistryController extends Controller
                 );
             }
 
-            $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
+            try {
+                $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
+            } catch (RuntimeException $exception) {
+                return $this->storageFailureResponse($request, $exception);
+            }
+
             $attrs['metadata']['storage_driver'] = $stored['storage_driver'];
             $attrs['original_name'] = $stored['original_name'];
             $attrs['file_path'] = $stored['file_path'];
@@ -447,5 +458,16 @@ class DocumentRegistryController extends Controller
         }
 
         return strlen($trimmed) >= 10 ? substr($trimmed, 0, 10) : $trimmed;
+    }
+
+    private function storageFailureResponse(Request $request, RuntimeException $exception): RedirectResponse|JsonResponse
+    {
+        $message = $exception->getMessage();
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 502);
+        }
+
+        return back()->withErrors(['file' => $message]);
     }
 }
