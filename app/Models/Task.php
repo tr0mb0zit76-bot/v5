@@ -71,6 +71,14 @@ class Task extends Model
     }
 
     /**
+     * @return BelongsTo<Contractor, $this>
+     */
+    public function contractor(): BelongsTo
+    {
+        return $this->belongsTo(Contractor::class, 'contractor_id');
+    }
+
+    /**
      * @return HasMany<TaskChecklistItem, $this>
      */
     public function checklistItems(): HasMany

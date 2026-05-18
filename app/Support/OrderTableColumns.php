@@ -10,7 +10,7 @@ class OrderTableColumns
     public static function options(): array
     {
         return [
-            ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80, 'type' => 'numeric'],
+            ['field' => 'id', 'label' => 'ID', 'width' => 56, 'minWidth' => 48, 'type' => 'numeric'],
             ['field' => 'order_number', 'label' => '№ заказа', 'width' => 110, 'minWidth' => 95, 'type' => null],
             ['field' => 'one_c_summary', 'label' => 'Сводная информация', 'width' => 420, 'minWidth' => 280, 'type' => 'summary'],
             ['field' => 'company_code', 'label' => 'Компания', 'width' => 110, 'minWidth' => 80, 'type' => null],

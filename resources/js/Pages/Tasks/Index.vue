@@ -96,14 +96,49 @@
                         >
                             Редактировать
                         </button>
+                        <div
+                            v-if="selectedTask && selectedTask.status !== 'done'"
+                            ref="completeMenuRoot"
+                            class="relative inline-flex"
+                        >
+                            <button
+                                type="button"
+                                :class="crmBtnCreate"
+                                class="!rounded-r-none !px-3 !py-2 text-xs"
+                                @click="markDone(selectedTask)"
+                            >
+                                Завершить
+                            </button>
+                            <button
+                                type="button"
+                                :class="crmBtnCreate"
+                                class="!rounded-l-none border-l border-l-white/20 !px-2 !py-2 text-xs dark:border-l-zinc-900/30"
+                                aria-label="Другие действия завершения"
+                                @click.stop="completeMenuOpen = !completeMenuOpen"
+                            >
+                                <ChevronDown class="h-4 w-4" />
+                            </button>
+                            <div
+                                v-if="completeMenuOpen"
+                                class="absolute right-0 top-full z-20 mt-1 min-w-[15rem] border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                            >
+                                <button
+                                    type="button"
+                                    class="block w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                                    @click="markDoneAndCreateNew(selectedTask)"
+                                >
+                                    Завершить и создать новую
+                                </button>
+                            </div>
+                        </div>
                         <button
                             v-if="selectedTask && selectedTask.status !== 'done'"
                             type="button"
-                            :class="crmBtnCreate"
+                            :class="crmBtnNeutral"
                             class="!px-3 !py-2 text-xs"
-                            @click="markDone(selectedTask)"
+                            @click="openRescheduleModal"
                         >
-                            Завершить
+                            Перенести срок
                         </button>
                     </template>
                 </CrmModalHeader>
@@ -121,6 +156,18 @@
                                 :class="selectedTask.sla_breached ? 'border-rose-400 text-rose-700 dark:border-rose-500 dark:text-rose-300' : 'border-zinc-200 dark:border-zinc-700'"
                             >
                                 SLA: {{ formatDue(selectedTask.sla_deadline_at) }}
+                            </span>
+                            <span
+                                v-if="selectedTask.lead_number"
+                                class="rounded-full border border-zinc-200 px-2 py-1 dark:border-zinc-700"
+                            >
+                                Лид: {{ selectedTask.lead_number }}
+                            </span>
+                            <span
+                                v-if="selectedTask.contractor_name"
+                                class="rounded-full border border-zinc-200 px-2 py-1 dark:border-zinc-700"
+                            >
+                                Контрагент: {{ selectedTask.contractor_name }}
                             </span>
                         </div>
 
@@ -238,12 +285,21 @@
                         </div>
                     </div>
 
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Связанный лид</label>
-                        <select v-model="form.lead_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
-                            <option :value="null">Без привязки</option>
-                            <option v-for="lead in leadOptions" :key="lead.id" :value="lead.id">{{ lead.number }} — {{ lead.title }}</option>
-                        </select>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Связанный лид</label>
+                            <select v-model="form.lead_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="lead in leadOptions" :key="lead.id" :value="lead.id">{{ lead.number }} — {{ lead.title }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Контрагент</label>
+                            <select v-model="form.contractor_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="contractor in contractorOptions" :key="contractor.id" :value="contractor.id">{{ contractor.name }}</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2">
@@ -257,11 +313,40 @@
                 </form>
             </div>
         </Modal>
+
+        <Modal :show="isRescheduleModalOpen" max-width="sm" @close="closeRescheduleModal">
+            <div class="overflow-y-auto bg-white dark:bg-zinc-900">
+                <CrmModalHeader
+                    eyebrow="Срок задачи"
+                    title="Перенести срок"
+                    @close="closeRescheduleModal"
+                />
+                <form class="space-y-4 px-6 pb-6 pt-2" @submit.prevent="submitReschedule">
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Новый срок</label>
+                        <input
+                            v-model="rescheduleDueAt"
+                            type="datetime-local"
+                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                            required
+                        />
+                    </div>
+                    <div class="flex items-center justify-end gap-2 pt-2">
+                        <button type="button" :class="crmBtnNeutral" @click="closeRescheduleModal">
+                            Отмена
+                        </button>
+                        <button type="submit" :class="crmBtnCreate" :disabled="rescheduleProcessing">
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </Modal>
     </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
@@ -269,7 +354,7 @@ import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline 
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';
-import { Plus } from 'lucide-vue-next';
+import { ChevronDown, Plus } from 'lucide-vue-next';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'tasks' }, () => page),
@@ -290,6 +375,10 @@ const props = defineProps({
     statusOptions: Array,
     users: Array,
     leadOptions: Array,
+    contractorOptions: {
+        type: Array,
+        default: () => [],
+    },
     can_bulk_mutate_tasks: {
         type: Boolean,
         default: false,
@@ -301,6 +390,7 @@ const quickFilters = computed(() => props.quickFilters ?? []);
 const statusOptions = computed(() => props.statusOptions ?? []);
 const users = computed(() => props.users ?? []);
 const leadOptions = computed(() => props.leadOptions ?? []);
+const contractorOptions = computed(() => props.contractorOptions ?? []);
 const canBulkMutateTasks = computed(() => props.can_bulk_mutate_tasks === true);
 
 watch(() => page.props.tasks, (next) => {
@@ -381,7 +471,23 @@ const visibleTasks = computed(() => {
 });
 
 const editingTask = ref(null);
-const form = useForm({ title: '', description: '', status: 'new', priority: 'medium', due_at: '', sla_deadline_at: '', responsible_id: null, lead_id: null });
+const form = useForm({
+    title: '',
+    description: '',
+    status: 'new',
+    priority: 'medium',
+    due_at: '',
+    sla_deadline_at: '',
+    responsible_id: null,
+    lead_id: null,
+    contractor_id: null,
+});
+
+const completeMenuOpen = ref(false);
+const completeMenuRoot = ref(null);
+const isRescheduleModalOpen = ref(false);
+const rescheduleDueAt = ref('');
+const rescheduleProcessing = ref(false);
 
 const checklistForm = useForm({ title: '' });
 const commentForm = useForm({ body: '' });
@@ -418,6 +524,8 @@ function resetFormDefaults() {
     form.due_at = '';
     form.responsible_id = currentUserId ?? users.value[0]?.id ?? null;
     form.lead_id = null;
+    form.contractor_id = null;
+    form.sla_deadline_at = '';
     form.clearErrors();
 }
 
@@ -450,6 +558,7 @@ function openEditModal(task) {
     form.sla_deadline_at = task.sla_deadline_at ? task.sla_deadline_at.slice(0, 16) : '';
     form.responsible_id = task.responsible_id;
     form.lead_id = task.lead_id;
+    form.contractor_id = task.contractor_id ?? null;
     form.clearErrors();
     isFormOpen.value = true;
 }
@@ -481,10 +590,63 @@ function submitForm() {
 }
 
 function markDone(task) {
+    completeMenuOpen.value = false;
     router.patch(route('tasks.status.update', task.id), { status: 'done' }, {
         preserveScroll: true,
         only: modalPropKeys,
     });
+}
+
+function markDoneAndCreateNew(task) {
+    completeMenuOpen.value = false;
+    router.post(route('tasks.complete-and-follow-up', task.id), {}, {
+        preserveScroll: true,
+        only: modalPropKeys,
+        onSuccess: () => {
+            isTaskDetailDismissed.value = false;
+        },
+    });
+}
+
+function openRescheduleModal() {
+    completeMenuOpen.value = false;
+    if (!selectedTask.value) {
+        return;
+    }
+    rescheduleDueAt.value = selectedTask.value.due_at ? selectedTask.value.due_at.slice(0, 16) : '';
+    isRescheduleModalOpen.value = true;
+}
+
+function closeRescheduleModal() {
+    isRescheduleModalOpen.value = false;
+    rescheduleDueAt.value = '';
+}
+
+function submitReschedule() {
+    if (!selectedTask.value || !rescheduleDueAt.value) {
+        return;
+    }
+    rescheduleProcessing.value = true;
+    router.patch(route('tasks.due.update', selectedTask.value.id), {
+        due_at: rescheduleDueAt.value,
+    }, {
+        preserveScroll: true,
+        only: modalPropKeys,
+        onFinish: () => {
+            rescheduleProcessing.value = false;
+            closeRescheduleModal();
+        },
+    });
+}
+
+function onDocumentClick(event) {
+    if (!completeMenuOpen.value) {
+        return;
+    }
+    const root = completeMenuRoot.value;
+    if (root && !root.contains(event.target)) {
+        completeMenuOpen.value = false;
+    }
 }
 
 function addChecklistItem() {
@@ -632,6 +794,8 @@ function applyFilterFromQuery() {
 }
 
 onMounted(() => {
+    document.addEventListener('click', onDocumentClick);
+
     if (typeof window === 'undefined') {
         return;
     }
@@ -660,5 +824,9 @@ onMounted(() => {
         url.searchParams.delete('create');
         window.history.replaceState({}, '', url.pathname + url.search);
     }
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', onDocumentClick);
 });
 </script>

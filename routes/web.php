@@ -380,6 +380,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/tasks/bulk', 'bulkUpdate')->name('tasks.bulk');
             Route::get('/tasks/{task}', 'show')->name('tasks.show');
             Route::patch('/tasks/{task}', 'update')->name('tasks.update');
+            Route::patch('/tasks/{task}/due', 'updateDue')->name('tasks.due.update');
+            Route::post('/tasks/{task}/complete-and-follow-up', 'completeAndCreateFollowUp')->name('tasks.complete-and-follow-up');
             Route::post('/tasks/{task}/checklist-items', 'storeChecklistItem')->name('tasks.checklist-items.store');
             Route::patch('/tasks/{task}/checklist-items/{taskChecklistItem}', 'toggleChecklistItem')->name('tasks.checklist-items.toggle');
             Route::post('/tasks/{task}/comments', 'storeComment')->name('tasks.comments.store');

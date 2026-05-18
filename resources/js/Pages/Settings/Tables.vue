@@ -1,5 +1,5 @@
 <template>
-    <div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <div class="shrink-0">
             <h1 class="text-2xl font-semibold">Управление таблицами</h1>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">
@@ -8,11 +8,11 @@
         </div>
 
         <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <section class="flex min-h-0 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                <div class="shrink-0 border-b border-zinc-200 px-4 py-3 text-sm font-medium dark:border-zinc-800">
+            <section class="min-h-0 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="border-b border-zinc-200 px-4 py-3 text-sm font-medium dark:border-zinc-800">
                     Роли
                 </div>
-                <div class="min-h-0 flex-1 overflow-y-auto p-2">
+                <div class="flex max-h-full flex-col overflow-y-auto p-2">
                     <button
                         v-for="role in roles"
                         :key="role.id"
@@ -31,9 +31,8 @@
                 </div>
             </section>
 
-            <section class="flex min-h-0 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-                <div class="flex shrink-0 flex-col border-b border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <section class="min-h-0 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <div>
                         <div class="font-medium">
                             {{ selectedRole?.display_name || selectedRole?.name || 'Роль не выбрана' }}
@@ -62,7 +61,7 @@
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2 px-4 pb-3">
+                <div class="flex flex-wrap gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <button
                         v-for="table in tableDefinitions"
                         :key="table.key"
@@ -77,21 +76,10 @@
                     </button>
                 </div>
 
-                    <div
-                        v-if="selectedColumns.length"
-                        class="hidden gap-3 border-t border-zinc-100 px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500 lg:grid lg:grid-cols-[minmax(0,1fr)_110px_140px_92px] dark:border-zinc-800 dark:text-zinc-400"
-                    >
-                        <div>Колонка</div>
-                        <div>Доступна роли</div>
-                        <div>Ширина</div>
-                        <div class="text-right">Порядок</div>
-                    </div>
-                </div>
-
-                <div v-if="selectedColumns.length" class="min-h-0 flex-1 overflow-y-auto p-4">
+                <div v-if="selectedColumns.length" class="max-h-full overflow-y-auto p-4">
                     <div class="space-y-5">
                         <section v-for="group in groupedSelectedColumns" :key="group.key" class="space-y-2">
-                            <div class="border-b border-zinc-200 bg-zinc-50 px-1 py-2 text-sm font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-200">
+                            <div class="sticky top-0 z-10 border-b border-zinc-200 bg-white px-1 py-2 text-sm font-semibold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
                                 {{ group.label }}
                             </div>
 
@@ -170,7 +158,6 @@ defineOptions({
         activeKey: 'settings',
         activeSubKey: 'configuration',
         activeLeafKey: 'table-presets',
-        containScroll: true,
     }, () => page),
 });
 

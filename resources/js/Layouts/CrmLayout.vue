@@ -387,14 +387,9 @@
             </header>
 
             <main
-                class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-0.5 pb-[110px] md:px-4 md:pt-1.5 md:pb-[130px]"
+                class="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-[110px] md:px-4 md:pt-1.5 md:pb-[130px] lg:flex lg:flex-col lg:overflow-hidden"
             >
-                <div
-                    class="flex min-h-0 min-w-0 flex-1 flex-col"
-                    :class="containScroll ? 'overflow-hidden' : 'overflow-y-auto overscroll-y-contain'"
-                >
-                    <slot />
-                </div>
+                <slot />
             </main>
 
             <footer
@@ -454,11 +449,6 @@ const props = defineProps({
     activeLeafKey: {
         type: String,
         default: null,
-    },
-    /** Страница сама управляет прокруткой (закреплённые шапки таблиц настроек и ролей). */
-    containScroll: {
-        type: Boolean,
-        default: false,
     },
 });
 

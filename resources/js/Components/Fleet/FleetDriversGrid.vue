@@ -259,7 +259,7 @@ const defaultColDef = {
 
 function buildBaseDriverColumnDefs() {
   return [
-    { field: 'id', headerName: 'ID', width: 72, maxWidth: 90, filter: false, floatingFilter: false, suppressHeaderFilterButton: true, getQuickFilterText: () => '' },
+    { field: 'id', headerName: 'ID', width: 56, minWidth: 48, maxWidth: 72, filter: false, floatingFilter: false, suppressHeaderFilterButton: true, getQuickFilterText: () => '' },
     { field: 'carrier_name', headerName: 'Перевозчик', flex: 1, minWidth: 160, floatingFilter: true },
     { field: 'full_name', headerName: 'ФИО', width: 200, minWidth: 140 },
     { field: 'phone', headerName: 'Телефон', width: 130 },

@@ -12,6 +12,7 @@ use App\Support\MobileNavResolver;
 use App\Support\OrderTableColumns;
 use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
+use App\Support\ShowcaseUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
@@ -52,6 +53,7 @@ class HandleInertiaRequests extends Middleware
                 : CabinetNotificationBadges::unreadFor($request->user())),
             'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
             'auth' => Inertia::always(fn () => $this->sharedAuth($request)),
+            'showcase_home_url' => Inertia::always(fn () => ShowcaseUrl::home($request)),
         ];
     }
 

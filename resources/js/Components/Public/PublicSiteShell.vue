@@ -26,6 +26,8 @@ const activeSection = ref(0);
 const isLoginOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isReady = ref(false);
+const authLogoUrl = '/assets/logo_black.png?v=2';
+const headerLogoUrl = '/assets/logo_white.png?v=2';
 
 const isNonEmptyTextMap = (value) =>
     value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
@@ -237,7 +239,11 @@ onBeforeUnmount(() => {
         <header class="header">
             <div class="header-container">
                 <Link href="/" class="site-title-link">
-                    <span class="site-title-text">{{ t('site_brand', 'Автоальянс Смоленск') }}</span>
+                    <img
+                        :src="headerLogoUrl"
+                        alt="Автоальянс Смоленск"
+                        class="site-title-logo"
+                    >
                 </Link>
 
                 <nav class="nav">
@@ -525,9 +531,13 @@ onBeforeUnmount(() => {
 
                 <div class="auth-modal-content">
                     <div class="auth-form active">
-                        <div class="auth-brand">
-                            <p class="auth-brand-title">{{ t('site_brand', 'Автоальянс Смоленск') }}</p>
-                        </div>
+                        <a :href="route('public.home')" class="auth-brand">
+                            <img
+                                :src="authLogoUrl"
+                                alt=""
+                                class="h-auto w-full object-contain"
+                            >
+                        </a>
                         <h3 class="auth-title">Добро пожаловать</h3>
                         <p class="auth-subtitle">Войдите в свой аккаунт</p>
 
@@ -620,20 +630,19 @@ onBeforeUnmount(() => {
 .site-title-link {
   flex-shrink: 0;
   text-decoration: none;
-  color: #f5f5f5;
+  display: block;
 }
 
-.site-title-text {
-  font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-  display: inline-block;
-  max-width: min(280px, 52vw);
+.site-title-logo {
+  display: block;
+  height: 2.5rem;
+  width: auto;
+  max-width: min(320px, 55vw);
+  object-fit: contain;
 }
 
-.site-title-link:hover .site-title-text {
-  color: #ff9800;
+.site-title-link:hover .site-title-logo {
+  opacity: 0.88;
 }
 
 .nav {
@@ -1248,9 +1257,7 @@ onBeforeUnmount(() => {
 }
 
 .auth-brand {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  display: block;
   margin-bottom: 28px;
 }
 

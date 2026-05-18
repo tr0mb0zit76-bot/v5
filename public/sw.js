@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `logist-crm-shell-${CACHE_VERSION}`;
 const ASSET_CACHE_NAME = `logist-crm-assets-${CACHE_VERSION}`;
 const SHELL_URLS = [

@@ -7,8 +7,10 @@ use App\Http\Requests\StoreTaskAttachmentRequest;
 use App\Http\Requests\StoreTaskChecklistItemRequest;
 use App\Http\Requests\StoreTaskCommentRequest;
 use App\Http\Requests\StoreTaskRequest;
+use App\Http\Requests\UpdateTaskDueRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Requests\UpdateTaskStatusRequest;
+use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Task;
 use App\Models\TaskAttachment;
@@ -179,6 +181,100 @@ class TaskController extends Controller
                 'status' => $task->status,
             ],
         ]);
+    }
+
+    public function updateDue(UpdateTaskDueRequest $request, Task $task): RedirectResponse
+    {
+        $dueAt = Carbon::parse($request->string('due_at')->toString());
+        $updatePayload = ['due_at' => $dueAt];
+
+        if (Schema::hasColumn('tasks', 'sla_deadline_at')) {
+            $updatePayload['sla_deadline_at'] = $this->taskSlaService->resolveSlaDeadline(
+                $dueAt->toDateTimeString(),
+                $task->sla_deadline_at?->toDateTimeString(),
+            );
+        }
+
+        $task->update($updatePayload);
+
+        if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+            $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+        }
+
+        $this->logTaskEvent(
+            $task,
+            $request->user()?->id,
+            'due_rescheduled',
+            'Перенесён срок выполнения',
+            $dueAt->format('d.m.Y H:i'),
+        );
+
+        return to_route('tasks.show', $task);
+    }
+
+    public function completeAndCreateFollowUp(Request $request, Task $task): RedirectResponse
+    {
+        abort_unless(RoleAccess::canMutateTask($request->user(), $task), 403);
+        abort_if($task->status === 'done', 422, 'Задача уже завершена.');
+
+        $userId = $request->user()?->id;
+        $lastMessage = $this->resolveLastTaskMessage($task);
+
+        $task->update([
+            'status' => 'done',
+            'completed_at' => now(),
+        ]);
+
+        if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+            $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+        }
+
+        $this->logTaskEvent(
+            $task,
+            $userId,
+            'status_changed',
+            'Изменён статус задачи',
+            TaskStatus::label('done'),
+        );
+        $this->syncLinkedLeadStatus($task, $userId);
+
+        $newTaskAttributes = [
+            'number' => $this->nextTaskNumber(),
+            'title' => $task->title,
+            'description' => $task->description,
+            'status' => 'new',
+            'priority' => $task->priority,
+            'due_at' => $task->due_at,
+            'responsible_id' => $task->responsible_id,
+            'created_by' => $userId,
+            'lead_id' => $task->lead_id,
+            'order_id' => $task->order_id,
+            'contractor_id' => $task->contractor_id,
+        ];
+
+        if (Schema::hasColumn('tasks', 'sla_deadline_at')) {
+            $newTaskAttributes['sla_deadline_at'] = $task->sla_deadline_at;
+        }
+
+        $newTask = Task::query()->create($newTaskAttributes);
+
+        $this->logTaskEvent($newTask, $userId, 'created', 'Создана задача', $newTask->title);
+
+        if ($lastMessage !== null) {
+            $this->logTaskEvent(
+                $newTask,
+                $userId,
+                'continued_from_task',
+                'Сообщение из задачи '.$task->number,
+                $lastMessage,
+                ['from_task_id' => $task->id, 'from_task_number' => $task->number],
+            );
+        }
+
+        $this->syncLinkedLeadStatus($newTask, $userId);
+        $this->cabinetNotifier->notifyTaskAssigned($newTask, $request->user());
+
+        return to_route('tasks.show', $newTask);
     }
 
     public function storeChecklistItem(StoreTaskChecklistItemRequest $request, Task $task): RedirectResponse
@@ -383,6 +479,7 @@ class TaskController extends Controller
             'quickFilters' => $this->quickFilters($request),
             'users' => $this->activeUsers(),
             'leadOptions' => $this->leadOptions($request),
+            'contractorOptions' => $this->contractorOptions($request),
             'attachmentBaseUrl' => route('tasks.index'),
             'can_bulk_mutate_tasks' => RoleAccess::canBulkMutateTasks($request->user()),
         ];
@@ -396,6 +493,7 @@ class TaskController extends Controller
         $loads = [
             'responsible:id,name',
             'lead:id,number,title',
+            'contractor:id,name',
         ];
 
         if (Schema::hasTable('task_checklist_items')) {
@@ -445,6 +543,7 @@ class TaskController extends Controller
             'lead_title' => $task->lead?->title,
             'order_id' => $task->order_id,
             'contractor_id' => $task->contractor_id,
+            'contractor_name' => $task->contractor?->name,
             'checklist_items' => $task->relationLoaded('checklistItems') ? $task->checklistItems->map(fn ($item): array => [
                 'id' => $item->id,
                 'title' => $item->title,
@@ -573,6 +672,63 @@ class TaskController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array{id:int,name:string}>
+     */
+    private function contractorOptions(Request $request): array
+    {
+        if (! Schema::hasTable('contractors')) {
+            return [];
+        }
+
+        $user = $request->user();
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'contractors');
+
+        return Contractor::query()
+            ->when(
+                $user !== null && ! $user->isAdmin() && $scope !== 'all' && Schema::hasColumn('contractors', 'owner_id'),
+                fn ($query) => $query->where('owner_id', $user->id)
+            )
+            ->orderBy('name')
+            ->limit(200)
+            ->get(['id', 'name'])
+            ->map(fn (Contractor $contractor): array => [
+                'id' => $contractor->id,
+                'name' => $contractor->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function resolveLastTaskMessage(Task $task): ?string
+    {
+        if (Schema::hasTable('task_comments')) {
+            $latestComment = $task->comments()
+                ->orderByDesc('id')
+                ->value('body');
+
+            if (is_string($latestComment) && trim($latestComment) !== '') {
+                return trim($latestComment);
+            }
+        }
+
+        if (! Schema::hasTable('task_events')) {
+            return null;
+        }
+
+        $latestCommentEvent = $task->events()
+            ->where('type', 'comment_added')
+            ->whereNotNull('description')
+            ->orderByDesc('id')
+            ->value('description');
+
+        if (is_string($latestCommentEvent) && trim($latestCommentEvent) !== '') {
+            return trim($latestCommentEvent);
+        }
+
+        return null;
     }
 
     private function nextTaskNumber(): string

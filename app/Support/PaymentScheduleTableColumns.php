@@ -10,7 +10,7 @@ class PaymentScheduleTableColumns
     public static function options(): array
     {
         return [
-            ['field' => 'id', 'label' => 'ID', 'width' => 90, 'minWidth' => 80],
+            ['field' => 'id', 'label' => 'ID', 'width' => 56, 'minWidth' => 48],
             ['field' => 'order_number', 'label' => 'Заказ', 'width' => 160, 'minWidth' => 120],
             ['field' => 'direction', 'label' => 'Направление', 'width' => 140, 'minWidth' => 110],
             ['field' => 'counterparty_name', 'label' => 'Контрагент', 'width' => 200, 'minWidth' => 160],
@@ -47,7 +47,7 @@ class PaymentScheduleTableColumns
     public static function defaultState(string $roleName): array
     {
         $defaults = [
-            'id' => ['width' => 90, 'hide' => false],
+            'id' => ['width' => 56, 'hide' => false],
             'order_number' => ['width' => 160, 'hide' => false],
             'direction' => ['width' => 140, 'hide' => false],
             'counterparty_name' => ['width' => 200, 'hide' => false],

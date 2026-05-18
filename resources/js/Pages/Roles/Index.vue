@@ -1,6 +1,6 @@
 <template>
-    <div class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-        <div class="flex shrink-0 items-center justify-between gap-3">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:min-h-0">
+        <div class="flex items-center justify-between gap-3">
             <div>
                 <h1 class="text-xl font-semibold">Роли</h1>
                 <p class="text-sm text-zinc-500">Роли по колонкам, права и области видимости по строкам</p>
@@ -18,7 +18,7 @@
 
         <div
             v-if="showCreateForm"
-            class="shrink-0 rounded-2xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900"
+            class="rounded-2xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900"
         >
             <div class="mb-4">
                 <div class="text-sm font-medium">Новая роль</div>
@@ -78,12 +78,12 @@
             </form>
         </div>
 
-        <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <div class="min-h-0 flex-1 overflow-auto">
+        <div class="min-h-0 flex-1 overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="h-full overflow-auto">
                 <table class="min-w-[1280px] border-collapse text-sm">
-                    <thead class="sticky top-0 z-20 bg-zinc-100 shadow-sm dark:bg-zinc-800">
+                    <thead class="sticky top-0 z-20 bg-zinc-100 dark:bg-zinc-800">
                         <tr>
-                            <th class="sticky left-0 top-0 z-30 min-w-[320px] border-b border-r border-zinc-200 bg-zinc-100 px-3 py-3 text-left dark:border-zinc-700 dark:bg-zinc-800">
+                            <th class="sticky left-0 z-30 min-w-[320px] border-b border-r border-zinc-200 bg-zinc-100 px-3 py-3 text-left dark:border-zinc-700 dark:bg-zinc-800">
                                 <div class="text-sm font-medium">Настройка</div>
                                 <div class="text-xs text-zinc-500">Родительские строки управляют зависимыми ниже</div>
                             </th>
@@ -91,7 +91,7 @@
                             <th
                                 v-for="role in roleColumns"
                                 :key="role.id"
-                                class="sticky top-0 z-20 min-w-[280px] border-b border-zinc-200 bg-zinc-100 px-3 py-3 align-top dark:border-zinc-700 dark:bg-zinc-800"
+                                class="min-w-[280px] border-b border-zinc-200 px-3 py-3 align-top dark:border-zinc-700"
                             >
                                 <div class="space-y-3 text-left">
                                     <div class="flex items-start justify-between gap-3">
@@ -369,11 +369,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, {
-        activeKey: 'settings',
-        activeSubKey: 'roles',
-        containScroll: true,
-    }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'roles' }, () => page),
 });
 
 const props = defineProps({

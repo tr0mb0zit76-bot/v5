@@ -300,7 +300,7 @@ const paymentFormValueLabels = computed(() => {
 });
 
 const fallbackColumns = [
-  { field: 'id', label: 'ID', width: 90, minWidth: 80, type: 'numeric' },
+  { field: 'id', label: 'ID', width: 56, minWidth: 48, type: 'numeric' },
   { field: 'order_number', label: '№ заказа', width: 110, minWidth: 95, type: null },
   { field: 'company_code', label: 'Компания', width: 110, minWidth: 80, type: null },
   { field: 'manager_name', label: 'Менеджер', width: 150, minWidth: 140, type: null },
@@ -937,6 +937,9 @@ const dynamicColumnDefs = computed(() => {
 
     if (column.field === 'id') {
       columnDefinition.pinned = 'left';
+      columnDefinition.width = 56;
+      columnDefinition.minWidth = 48;
+      columnDefinition.maxWidth = 72;
       columnDefinition.filter = false;
       columnDefinition.floatingFilter = false;
       columnDefinition.suppressHeaderFilterButton = true;

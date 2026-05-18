@@ -243,7 +243,7 @@ const page = usePage();
 const emit = defineEmits(['row-select', 'columns-changed', 'create-request']);
 
 const fallbackColumns = [
-  { field: 'id', label: 'ID', width: 90, minWidth: 80, type: 'numeric' },
+  { field: 'id', label: 'ID', width: 56, minWidth: 48, type: 'numeric' },
   { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },
   { field: 'status_text', label: 'Статус', width: 130, minWidth: 110, type: null },
   { field: 'activity_types_label', label: 'Вид деятельности', width: 220, minWidth: 180, type: null },
@@ -467,6 +467,9 @@ const dynamicColumnDefs = computed(() => {
 
     if (column.field === 'id') {
       columnDefinition.pinned = 'left';
+      columnDefinition.width = 56;
+      columnDefinition.minWidth = 48;
+      columnDefinition.maxWidth = 72;
       columnDefinition.filter = false;
       columnDefinition.floatingFilter = false;
       columnDefinition.suppressHeaderFilterButton = true;

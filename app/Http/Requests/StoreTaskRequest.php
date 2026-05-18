@@ -22,6 +22,11 @@ class StoreTaskRequest extends FormRequest
         if ($sla === '') {
             $this->merge(['sla_deadline_at' => null]);
         }
+
+        $contractorId = $this->input('contractor_id');
+        if ($contractorId === '' || $contractorId === null) {
+            $this->merge(['contractor_id' => null]);
+        }
     }
 
     /**
@@ -69,7 +74,7 @@ class StoreTaskRequest extends FormRequest
             'responsible_id' => ['required', 'integer', 'exists:users,id'],
             'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
             'order_id' => ['nullable', 'integer'],
-            'contractor_id' => ['nullable', 'integer'],
+            'contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
         ];
     }
 }
