@@ -279,12 +279,6 @@ const baseColumnDefs = [
         colId: 'id',
         field: 'id',
         headerName: 'ID',
-<<<<<<< HEAD
-        width: 56,
-        minWidth: 48,
-        maxWidth: 72,
-=======
->>>>>>> 8235fe25cb96fb40b7f4299ccd2672ed801ed097
         sortable: true,
         pinned: 'left',
         filter: false,
