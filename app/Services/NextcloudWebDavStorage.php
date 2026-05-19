@@ -113,15 +113,36 @@ class NextcloudWebDavStorage
 
             // 201 - created, 405 - already exists
             if (! in_array($response->status(), [201, 405], true)) {
-                throw new RuntimeException(sprintf(
-                    'Не удалось создать корневую директорию Nextcloud (%s), HTTP %d.',
-                    $current,
-                    $response->status()
-                ));
+                throw new RuntimeException($this->rootDirectoryErrorMessage($current, $response->status()));
             }
         }
 
         $this->rootTailPrepared = true;
+    }
+
+    private function rootDirectoryErrorMessage(string $directory, int $status): string
+    {
+        $host = parse_url((string) $this->baseUrl, PHP_URL_HOST) ?: (string) $this->baseUrl;
+        $user = trim((string) $this->username);
+
+        $message = sprintf(
+            'Не удалось создать корневую директорию Nextcloud (%s), HTTP %d.',
+            $directory,
+            $status,
+        );
+
+        if ($status !== 404) {
+            return $message;
+        }
+
+        return $message.' '
+            .sprintf(
+                'Чаще всего Nextcloud недоступен: в браузере на https://%s/ видна заглушка хостинга вместо входа в Nextcloud, контейнер Docker не запущен или nginx не проксирует на 127.0.0.1:18081. '
+                .'Проверьте `docker compose -f docker-compose.prod.yml ps` в каталоге deploy/nextcloud, восстановите reverse proxy (см. docs/nextcloud-install.md) '
+                .'и учётку WebDAV `%s` в NEXTCLOUD_WEBDAV_USER / NEXTCLOUD_WEBDAV_ROOT.',
+                $host,
+                $user !== '' ? $user : 'crm-bot',
+            );
     }
 
     private function buildFileUrl(string $path): string

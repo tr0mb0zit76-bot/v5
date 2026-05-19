@@ -149,7 +149,84 @@ Nextcloud и CRM на одном сервере, но **разные имена 
 
 Файлы на диске контейнера (volumes) при смене только имени хоста **переносить не нужно** — меняются DNS, прокси и конфиг Nextcloud.
 
-## 7) Backups
+## 7) Устранение неполадок
+
+### ISPmanager: `cannot load certificate ... nc.avtoaliyans.ru_le1.crtca` (nginx test failed)
+
+После перевыпуска или замены SSL панель не сохранила `/etc/nginx/vhosts/www-root/nc.avtoaliyans.ru.conf`: в конфиге остались пути к **старому** Let's Encrypt, файла цепочки `.crtca` на диске нет. Nginx не перезагружается — сайт `nc.*` перестаёт проксировать на Docker.
+
+1. На сервере посмотреть, какие файлы сертификата реально есть:
+
+   ```bash
+   ls -la /var/www/httpd-cert/www-root/nc.avtoaliyans.ru*
+   ```
+
+2. В **ISPmanager** → сайт `nc.avtoaliyans.ru` → **SSL-сертификаты** → заново выпустить Let's Encrypt (или привязать загруженный сертификат). Дождаться успешного сохранения без ошибки «Тест конфигурации веб-сервера … неудачно».
+
+3. Проверить nginx и перезагрузить:
+
+   ```bash
+   nginx -t && systemctl reload nginx
+   ```
+
+4. Убедиться, что в vhost снова есть прокси на `http://127.0.0.1:18081` (раздел 4 ниже).
+
+Предупреждение `listen ... http2` deprecated — не блокирует запуск; позже можно заменить на `listen 443 ssl;` и отдельно `http2 on;`.
+
+### В браузере заглушка Reg.ru («Сайт только что создан»)
+
+Это **не** Nextcloud: запросы на `nc.avtoaliyans.ru` обслуживает дефолтный сайт панели (ISPmanager / Reg.ru), а не reverse proxy на контейнер.
+
+Порядок действий на VDS:
+
+1. Поднять стек Nextcloud:
+
+   ```bash
+   cd /path/to/deploy/nextcloud
+   docker compose --env-file .env -f docker-compose.prod.yml up -d
+   docker compose --env-file .env -f docker-compose.prod.yml ps
+   ```
+
+   Должны быть `running`: `nextcloud-app-prod`, `nextcloud-db-prod`, `nextcloud-redis-prod`.
+
+2. Проверить, что приложение слушает локально (порт из `.env`, обычно `18081`):
+
+   ```bash
+   curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18081/status.php
+   ```
+
+   Ожидается `200` и JSON с `"installed":true`.
+
+3. В ISPmanager для сайта `nc.avtoaliyans.ru` включить **обратный прокси** на `http://127.0.0.1:18081` (не «статический сайт» / не корень Reg.ru). Пример nginx — в разделе 4 выше. После смены SSL-сертификата конфиг прокси иногда сбрасывается — его нужно восстановить.
+
+4. Открыть `https://nc.avtoaliyans.ru/` — должен быть экран входа Nextcloud, не заглушка.
+
+### CRM: «Не удалось создать корневую директорию Nextcloud (/CRM), HTTP 404»
+
+Пока в браузере заглушка Reg.ru, WebDAV тоже получает 404 с того же хоста — сначала исправьте пункты выше.
+
+Когда Nextcloud в браузере открывается:
+
+- В `.env` CRM проверьте:
+
+  ```env
+  DOCUMENT_STORAGE=nextcloud
+  NEXTCLOUD_BASE_URL=https://nc.avtoaliyans.ru
+  NEXTCLOUD_WEBDAV_USER=crm-bot
+  NEXTCLOUD_WEBDAV_PASSWORD=...
+  NEXTCLOUD_WEBDAV_ROOT=/remote.php/dav/files/crm-bot/CRM
+  ```
+
+  Пользователь `crm-bot` должен существовать в Nextcloud (или укажите существующего в `NEXTCLOUD_WEBDAV_USER` и скорректируйте путь после `files/`).
+
+- Диагностика с сервера CRM:
+
+  ```bash
+  php artisan config:clear
+  php artisan documents:probe-nextcloud
+  ```
+
+## 8) Backups
 
 - Database dump from `nextcloud-db-*` container.
 - Volume backups:
