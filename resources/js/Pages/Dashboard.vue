@@ -171,22 +171,27 @@
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Задач на сегодня</div>
                     <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
                     <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.tasks_today }}</div>
-                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        Открытых просроченных (по сроку или SLA):
+                    <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        <span>Открытых просроченных (по сроку или SLA):</span>
                         <Link
                             v-if="Number(metrics.tasks_overdue) > 0"
                             :href="tasksOverdueUrl"
-                            class="font-medium text-rose-700 underline-offset-2 hover:underline dark:text-rose-300"
+                            :class="dashboardTaskCountLinkClass"
+                            :aria-label="`Открыть просроченные задачи: ${metrics.tasks_overdue}`"
                         >
                             {{ metrics.tasks_overdue }}
                         </Link>
-                        <span v-else>{{ metrics.tasks_overdue }}</span>
+                        <span v-else class="font-medium text-zinc-700 dark:text-zinc-300">{{ metrics.tasks_overdue }}</span>
                     </p>
-                    <p v-if="Number(metrics.tasks_sla_breached_open || 0) > 0" class="mt-1 text-xs text-rose-600 dark:text-rose-400">
-                        С просроченным SLA:
+                    <p
+                        v-if="Number(metrics.tasks_sla_breached_open || 0) > 0"
+                        class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-rose-600 dark:text-rose-400"
+                    >
+                        <span>С просроченным SLA:</span>
                         <Link
                             :href="tasksSlaOverdueUrl"
-                            class="font-medium underline-offset-2 hover:underline"
+                            :class="dashboardTaskCountLinkClass"
+                            :aria-label="`Открыть задачи с просроченным SLA: ${metrics.tasks_sla_breached_open}`"
                         >
                             {{ metrics.tasks_sla_breached_open }}
                         </Link>
@@ -291,6 +296,9 @@ const ordersPeriodUrl = computed(() => route('orders.index', {
 
 const tasksOverdueUrl = computed(() => route('tasks.index', { filter: 'overdue' }));
 const tasksSlaOverdueUrl = computed(() => route('tasks.index', { filter: 'sla_overdue' }));
+
+const dashboardTaskCountLinkClass =
+    'inline-flex min-w-[2.25rem] items-center justify-center rounded-lg border border-rose-200/90 bg-rose-50 px-2.5 py-1 text-xs font-semibold tabular-nums text-rose-900 shadow-sm transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-rose-800/70 dark:bg-rose-950/45 dark:text-rose-50 dark:hover:bg-rose-900/40';
 const financeCustomerOverdueUrl = computed(() => route('finance.index', {
     section: 'cashflow',
     preset: 'customer_overdue',

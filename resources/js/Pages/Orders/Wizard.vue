@@ -595,7 +595,7 @@
                                     </div>
                                 </div>
                             </template>
-                            <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem_14rem] lg:items-end">
+                            <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9rem_9.5rem_9.5rem_14rem] lg:items-end">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
                                     <div class="relative">
@@ -604,7 +604,8 @@
                                             type="text"
                                             :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('route_point_address_' + item.globalIndex, routePointAddressHighlightValue(item.point))]"
                                             placeholder="Начни вводить адрес"
-                                            @input="queueAddressLookup(item.globalIndex)"
+                                            @input="onRoutePointAddressInput(item.globalIndex)"
+                                            @blur="syncRoutePointCityFromAddress(item.point)"
                                         />
 
                                         <div
@@ -623,6 +624,17 @@
                                             </button>
                                         </div>
                                     </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium">Город</label>
+                                    <input
+                                        :value="routePointCityValue(item.point)"
+                                        type="text"
+                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Нормализованное название"
+                                        @input="setRoutePointCity(item.point, $event.target.value)"
+                                    />
                                 </div>
 
                                 <div class="space-y-2">
@@ -1384,6 +1396,11 @@ import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizar
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
 import { ORDER_STATUS_ICON_META, resolveOrderStatusIconKey } from '@/support/orderStatusDisplay.js';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import {
+    routePointCityValue,
+    setRoutePointCity,
+    syncRoutePointCityFromAddress,
+} from '@/support/routePointNormalizedData.js';
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
@@ -4232,6 +4249,14 @@ function paymentBasisLabel(value) {
     return orderPs.PAYMENT_BASIS_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
 
+function onRoutePointAddressInput(index) {
+    const point = form.route_points[index];
+    if (point) {
+        syncRoutePointCityFromAddress(point);
+    }
+    queueAddressLookup(index);
+}
+
 function queueAddressLookup(index) {
     clearTimeout(addressTimers[index]);
 
@@ -4265,11 +4290,17 @@ async function fetchAddressSuggestions(index) {
 }
 
 function selectAddress(index, suggestion) {
-    const existing = form.route_points[index].normalized_data || {};
-    form.route_points[index].address = suggestion.value ?? '';
-    form.route_points[index].normalized_data = {
+    const point = form.route_points[index];
+    const existing = point.normalized_data || {};
+    point.address = suggestion.value ?? '';
+    const suggestedCity = suggestion.data?.city
+        ?? suggestion.data?.settlement
+        ?? suggestion.data?.city_with_type
+        ?? existing.city
+        ?? null;
+    point.normalized_data = {
         ...existing,
-        city: suggestion.data?.city ?? suggestion.data?.settlement ?? existing.city ?? null,
+        city: suggestedCity,
         region: suggestion.data?.region_with_type ?? suggestion.data?.region ?? existing.region ?? null,
         street: suggestion.data?.street_with_type ?? suggestion.data?.street ?? existing.street ?? null,
         house: suggestion.data?.house ?? existing.house ?? null,
@@ -4280,6 +4311,7 @@ function selectAddress(index, suggestion) {
         kladr_id: suggestion.data?.kladr_id ?? existing.kladr_id ?? null,
         fias_id: suggestion.data?.fias_id ?? existing.fias_id ?? null,
     };
+    syncRoutePointCityFromAddress(point);
     addressSuggestions.value[index] = [];
 }
 
