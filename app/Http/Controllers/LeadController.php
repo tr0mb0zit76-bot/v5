@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AdvanceLeadProcessStageRequest;
 use App\Http\Requests\ConvertLeadRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreLeadNextStepRequest;
 use App\Http\Requests\StoreLeadRequest;
 use App\Http\Requests\UpdateLeadRequest;
 use App\Http\Requests\UpdateLeadStatusRequest;
+use App\Models\BusinessProcess;
+use App\Models\BusinessProcessStage;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
 use App\Models\Task;
+use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
@@ -32,6 +36,10 @@ use Inertia\Response;
 
 class LeadController extends Controller
 {
+    public function __construct(
+        private readonly LeadBusinessProcessService $leadBusinessProcessService,
+    ) {}
+
     public function index(Request $request): Response
     {
         return $this->renderIndexPage($request);
@@ -55,6 +63,8 @@ class LeadController extends Controller
             'activities',
             'offers',
             'orders',
+            'businessProcess',
+            'businessProcessStage',
         ];
 
         if (Schema::hasTable('tasks')) {
@@ -96,7 +106,16 @@ class LeadController extends Controller
 
             $this->syncNestedData($lead, $request);
 
-            return $lead;
+            if ($this->leadBusinessProcessService->tablesReady() && $request->filled('business_process_id')) {
+                $process = BusinessProcess::query()
+                    ->where('is_active', true)
+                    ->with('stages')
+                    ->findOrFail((int) $request->integer('business_process_id'));
+
+                $this->leadBusinessProcessService->startProcess($lead, $process, $request->user());
+            }
+
+            return $lead->fresh(['businessProcess', 'businessProcessStage']);
         });
 
         return to_route('leads.show', $lead);
@@ -411,6 +430,24 @@ class LeadController extends Controller
             ],
             'currencyOptions' => CurrencyDictionary::options(),
             'printFormTemplateOptions' => $this->availableCommercialTemplates($selectedLead)->values(),
+            'businessProcessesEnabled' => $this->leadBusinessProcessService->tablesReady(),
+            'businessProcesses' => $this->leadBusinessProcessService->tablesReady()
+                ? $this->leadBusinessProcessService->activeProcessesWithStages()
+                    ->map(fn (BusinessProcess $process): array => [
+                        'id' => $process->id,
+                        'name' => $process->name,
+                        'description' => $process->description,
+                        'stages' => $process->stages->map(fn (BusinessProcessStage $stage): array => [
+                            'id' => $stage->id,
+                            'name' => $stage->name,
+                            'duration_days' => $stage->duration_days,
+                            'is_terminal' => $stage->is_terminal,
+                            'terminal_outcome' => $stage->terminal_outcome,
+                        ])->values()->all(),
+                    ])
+                    ->values()
+                    ->all()
+                : [],
         ];
     }
 
@@ -713,6 +750,8 @@ class LeadController extends Controller
                 'order_number' => $order->order_number,
                 'status' => $order->status,
             ])->values()->all(),
+            'business_process_id' => $lead->business_process_id,
+            'process_progress' => $this->leadBusinessProcessService->progressPayload($lead),
             'tasks' => Schema::hasTable('tasks')
                 ? $lead->tasks->map(fn (Task $task): array => [
                     'id' => $task->id,
@@ -728,6 +767,19 @@ class LeadController extends Controller
                 ])->values()->all()
                 : [],
         ];
+    }
+
+    public function advanceProcessStage(AdvanceLeadProcessStageRequest $request, Lead $lead): RedirectResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless($this->leadBusinessProcessService->tablesReady(), 404);
+
+        $stage = BusinessProcessStage::query()->findOrFail((int) $request->integer('stage_id'));
+
+        $this->leadBusinessProcessService->moveLeadToStage($lead, $stage, $request->user());
+
+        return to_route('leads.show', $lead);
     }
 
     public function updateStatus(UpdateLeadStatusRequest $request, Lead $lead): JsonResponse

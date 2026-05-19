@@ -8,6 +8,7 @@ use App\Http\Requests\StoreTaskChecklistItemRequest;
 use App\Http\Requests\StoreTaskCommentRequest;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskDueRequest;
+use App\Http\Requests\UpdateTaskInlineRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Requests\UpdateTaskStatusRequest;
 use App\Models\Contractor;
@@ -183,6 +184,37 @@ class TaskController extends Controller
         ]);
     }
 
+    public function inlineUpdate(UpdateTaskInlineRequest $request, Task $task): RedirectResponse
+    {
+        $field = $request->string('field')->toString();
+        $value = $request->input('value');
+
+        if ($field === 'priority') {
+            $task->update(['priority' => (string) $value]);
+            $this->logTaskEvent(
+                $task,
+                $request->user()?->id,
+                'priority_changed',
+                'Изменён приоритет',
+                (string) $value,
+            );
+        } else {
+            $assigneeId = (int) $value;
+            $task->update(['responsible_id' => $assigneeId]);
+            $assignee = User::query()->find($assigneeId);
+            $this->logTaskEvent(
+                $task->fresh(),
+                $request->user()?->id,
+                'assigned',
+                'Назначен ответственный',
+                $assignee?->name,
+            );
+            $this->cabinetNotifier->notifyTaskAssigned($task->fresh(), $request->user());
+        }
+
+        return back();
+    }
+
     public function updateDue(UpdateTaskDueRequest $request, Task $task): RedirectResponse
     {
         $dueAt = Carbon::parse($request->string('due_at')->toString());
@@ -208,6 +240,10 @@ class TaskController extends Controller
             'Перенесён срок выполнения',
             $dueAt->format('d.m.Y H:i'),
         );
+
+        if ($request->header('X-Inertia')) {
+            return back();
+        }
 
         return to_route('tasks.show', $task);
     }
@@ -415,7 +451,11 @@ class TaskController extends Controller
                 if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
                     $this->taskSlaService->clearEscalationIfResolved($task->fresh());
                 }
-            } else {
+
+                continue;
+            }
+
+            if ($action === 'assign') {
                 abort_unless(RoleAccess::canBulkMutateTasks($request->user()), 403);
                 $task->update([
                     'responsible_id' => $validated['responsible_id'],
@@ -429,7 +469,52 @@ class TaskController extends Controller
                     $assignee?->name
                 );
                 $this->cabinetNotifier->notifyTaskAssigned($task->fresh(), $request->user());
+
+                continue;
             }
+
+            abort_unless(RoleAccess::canMutateTask($request->user(), $task), 403);
+
+            if ($action === 'status') {
+                $status = (string) $validated['status'];
+                $task->update([
+                    'status' => $status,
+                    'completed_at' => $status === 'done' ? now() : null,
+                ]);
+                if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+                    $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+                }
+                $this->logTaskEvent(
+                    $task->fresh(),
+                    $request->user()?->id,
+                    'status_changed',
+                    'Массовая смена статуса',
+                    TaskStatus::label($status),
+                );
+                $this->syncLinkedLeadStatus($task->fresh(), $request->user()?->id);
+
+                continue;
+            }
+
+            $dueAt = Carbon::parse((string) $validated['due_at']);
+            $updatePayload = ['due_at' => $dueAt];
+            if (Schema::hasColumn('tasks', 'sla_deadline_at')) {
+                $updatePayload['sla_deadline_at'] = $this->taskSlaService->resolveSlaDeadline(
+                    $dueAt->toDateTimeString(),
+                    $task->sla_deadline_at?->toDateTimeString(),
+                );
+            }
+            $task->update($updatePayload);
+            if (Schema::hasColumn('tasks', 'sla_escalated_at')) {
+                $this->taskSlaService->clearEscalationIfResolved($task->fresh());
+            }
+            $this->logTaskEvent(
+                $task->fresh(),
+                $request->user()?->id,
+                'due_rescheduled',
+                'Массовый перенос срока',
+                $dueAt->format('d.m.Y H:i'),
+            );
         }
 
         return to_route('tasks.index');
@@ -601,9 +686,30 @@ class TaskController extends Controller
 
         return $taskQuery
             ->get()
-            ->map(fn (Task $task): array => $this->formatTaskRow($task))
+            ->map(function (Task $task) use ($request): array {
+                $row = $this->enrichTaskRowForGrid($this->formatTaskRow($task));
+                $row['can_mutate'] = RoleAccess::canMutateTask($request->user(), $task);
+
+                return $row;
+            })
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function enrichTaskRowForGrid(array $row): array
+    {
+        $open = ($row['status'] ?? '') !== 'done';
+        $dueOverdue = $open
+            && filled($row['due_at'] ?? null)
+            && Carbon::parse((string) $row['due_at'])->isPast();
+        $row['is_due_overdue'] = $dueOverdue;
+        $row['is_overdue'] = $dueOverdue;
+
+        return $row;
     }
 
     /**
@@ -618,13 +724,9 @@ class TaskController extends Controller
             ['label' => 'Срочные', 'count' => $tasks->where('priority', 'critical')->count()],
             ['label' => 'В работе', 'count' => $tasks->where('status', 'in_progress')->count()],
             ['label' => 'На проверке', 'count' => $tasks->where('status', 'review')->count()],
-            ['label' => 'Просроченные', 'count' => $tasks->filter(function (array $task): bool {
-                if (($task['status'] ?? '') === 'done' || blank($task['due_at'] ?? null)) {
-                    return false;
-                }
-
-                return Carbon::parse($task['due_at'])->isPast();
-            })->count()],
+            ['label' => 'Просроченные', 'count' => $tasks->filter(
+                fn (array $task): bool => (bool) ($task['is_due_overdue'] ?? false)
+            )->count()],
         ];
     }
 

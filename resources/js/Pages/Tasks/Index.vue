@@ -51,9 +51,40 @@
                     Назначить выбранные
                 </button>
             </template>
+            <template v-if="selectedTaskIds.length > 0">
+                <select
+                    v-model="bulkStatus"
+                    class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                >
+                    <option value="" disabled>Статус для выбранных…</option>
+                    <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                </select>
+                <button
+                    type="button"
+                    :class="crmBtnNeutral"
+                    :disabled="!bulkStatus"
+                    @click="bulkSetStatus"
+                >
+                    Применить статус
+                </button>
+                <input
+                    v-model="bulkDueAt"
+                    type="datetime-local"
+                    class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                >
+                <button
+                    type="button"
+                    :class="crmBtnNeutral"
+                    :disabled="!bulkDueAt"
+                    @click="bulkRescheduleDue"
+                >
+                    Перенести срок
+                </button>
+            </template>
         </div>
 
-        <div class="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+        <div class="flex shrink-0 flex-wrap items-center gap-3 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+            <div class="flex flex-wrap gap-2">
             <button
                 v-for="filter in quickFilters"
                 :key="filter.label"
@@ -66,16 +97,61 @@
             >
                 {{ filter.label }} · {{ filter.count }}
             </button>
+            </div>
+            <label v-if="users.length > 1" class="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <span class="shrink-0 font-medium uppercase tracking-[0.15em]">Ответственный</span>
+                <select
+                    v-model="filterResponsibleId"
+                    class="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                >
+                    <option :value="null">Все</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                </select>
+            </label>
         </div>
 
         <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
             <TasksGrid
                 :rows="visibleTasks"
                 :user-id="userId"
+                :users="users"
+                :status-options="statusOptions"
+                :can-bulk-mutate-tasks="canBulkMutateTasks"
                 @row-dblclick="handleRowDblClick"
                 @selection-changed="onTaskSelectionChanged"
+                @quick-status="onQuickStatus"
+                @quick-reschedule-due="onQuickRescheduleDue"
+                @assign-request="onAssignRequest"
+                @cell-save="handleCellSave"
             />
         </div>
+
+        <Modal :show="assignOneTask !== null" max-width="sm" @close="assignOneTask = null">
+            <section class="bg-white p-6 dark:bg-zinc-900">
+                <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Назначить ответственного</h2>
+                <p v-if="assignOneTask" class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Задача #{{ assignOneTask.number }} — {{ assignOneTask.title }}
+                </p>
+                <select
+                    v-model="assignOneUserId"
+                    class="mt-4 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                >
+                    <option :value="null" disabled>Выберите сотрудника</option>
+                    <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                </select>
+                <div class="mt-6 flex justify-end gap-2">
+                    <button type="button" :class="crmBtnNeutral" @click="assignOneTask = null">Отмена</button>
+                    <button
+                        type="button"
+                        :class="crmBtnCreate"
+                        :disabled="!assignOneUserId"
+                        @click="confirmAssignOne"
+                    >
+                        Назначить
+                    </button>
+                </div>
+            </section>
+        </Modal>
 
         <Modal :show="isTaskDetailModalOpen" max-width="5xl" @close="closeTaskDetailModal">
             <section class="flex max-h-[calc(100dvh-3rem)] flex-col overflow-hidden bg-white dark:bg-zinc-900">
@@ -410,8 +486,13 @@ watch(selectedTask, (next) => {
 });
 
 const activeFilter = ref('Все');
+const filterResponsibleId = ref(null);
 const selectedTaskIds = ref([]);
 const bulkAssignUserId = ref(null);
+const bulkStatus = ref('');
+const bulkDueAt = ref('');
+const assignOneTask = ref(null);
+const assignOneUserId = ref(null);
 
 function onTaskSelectionChanged(ids) {
     selectedTaskIds.value = Array.isArray(ids) ? ids : [];
@@ -449,8 +530,141 @@ function bulkAssignSelected() {
     });
 }
 
+function bulkSetStatus() {
+    if (!selectedTaskIds.value.length || !bulkStatus.value) {
+        return;
+    }
+    router.post(route('tasks.bulk'), {
+        task_ids: selectedTaskIds.value,
+        action: 'status',
+        status: bulkStatus.value,
+    }, {
+        preserveScroll: true,
+        only: ['tasks', 'quickFilters', 'selectedTask'],
+        onSuccess: () => {
+            selectedTaskIds.value = [];
+            bulkStatus.value = '';
+        },
+    });
+}
+
+function bulkRescheduleDue() {
+    if (!selectedTaskIds.value.length || !bulkDueAt.value) {
+        return;
+    }
+    router.post(route('tasks.bulk'), {
+        task_ids: selectedTaskIds.value,
+        action: 'reschedule',
+        due_at: bulkDueAt.value,
+    }, {
+        preserveScroll: true,
+        only: ['tasks', 'quickFilters', 'selectedTask'],
+        onSuccess: () => {
+            selectedTaskIds.value = [];
+            bulkDueAt.value = '';
+        },
+    });
+}
+
+function handleCellSave({ row, field, value }) {
+    if (!row?.id || !field) {
+        return;
+    }
+
+    if (field === 'status') {
+        router.patch(route('tasks.status.update', row.id), { status: value }, {
+            preserveScroll: true,
+            only: ['tasks', 'quickFilters', 'selectedTask'],
+        });
+
+        return;
+    }
+
+    if (field === 'responsible_id') {
+        if (canBulkMutateTasks.value) {
+            router.post(route('tasks.bulk'), {
+                task_ids: [row.id],
+                action: 'assign',
+                responsible_id: value,
+            }, {
+                preserveScroll: true,
+                only: ['tasks', 'quickFilters', 'selectedTask'],
+            });
+
+            return;
+        }
+
+        router.patch(route('tasks.inline-update', row.id), { field, value }, {
+            preserveScroll: true,
+            only: ['tasks', 'quickFilters', 'selectedTask'],
+        });
+
+        return;
+    }
+
+    if (field === 'priority') {
+        router.patch(route('tasks.inline-update', row.id), { field, value }, {
+            preserveScroll: true,
+            only: ['tasks', 'quickFilters', 'selectedTask'],
+        });
+    }
+}
+
+function onQuickStatus({ row, status }) {
+    if (!row?.id || !status) {
+        return;
+    }
+    router.patch(route('tasks.status.update', row.id), { status }, {
+        preserveScroll: true,
+        only: ['tasks', 'quickFilters', 'selectedTask'],
+    });
+}
+
+function onQuickRescheduleDue(row) {
+    if (!row?.id) {
+        return;
+    }
+    const current = row.due_at ? String(row.due_at).slice(0, 16).replace('T', ' ') : '';
+    const next = window.prompt('Новый срок (ГГГГ-ММ-ДД ЧЧ:ММ)', current);
+    if (!next || !next.trim()) {
+        return;
+    }
+    const normalized = next.trim().includes('T') ? next.trim() : next.trim().replace(' ', 'T');
+    router.patch(route('tasks.due.update', row.id), { due_at: normalized }, {
+        preserveScroll: true,
+        only: ['tasks', 'quickFilters', 'selectedTask'],
+    });
+}
+
+function onAssignRequest(row) {
+    assignOneTask.value = row;
+    assignOneUserId.value = row?.responsible_id ?? null;
+}
+
+function confirmAssignOne() {
+    if (!assignOneTask.value?.id || !assignOneUserId.value) {
+        return;
+    }
+    router.post(route('tasks.bulk'), {
+        task_ids: [assignOneTask.value.id],
+        action: 'assign',
+        responsible_id: assignOneUserId.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            assignOneTask.value = null;
+            assignOneUserId.value = null;
+        },
+    });
+}
+
 const visibleTasks = computed(() => {
-    const list = tasks.value ?? [];
+    let list = tasks.value ?? [];
+
+    if (filterResponsibleId.value) {
+        list = list.filter((task) => Number(task.responsible_id) === Number(filterResponsibleId.value));
+    }
+
     if (activeFilter.value === 'Срочные') {
         return list.filter((task) => task.priority === 'critical');
     }
@@ -461,10 +675,7 @@ const visibleTasks = computed(() => {
         return list.filter((task) => task.status === 'review');
     }
     if (activeFilter.value === 'Просроченные') {
-        return list.filter((task) => isOverdue(task));
-    }
-    if (activeFilter.value === 'SLA просрочен') {
-        return list.filter((task) => isSlaBreached(task));
+        return list.filter((task) => isDueOverdue(task));
     }
 
     return list;
@@ -748,7 +959,11 @@ function formatDateTime(value) {
     return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
 }
 
-function isOverdue(task) {
+
+function isDueOverdue(task) {
+    if (task?.is_due_overdue !== undefined) {
+        return Boolean(task.is_due_overdue);
+    }
     if (!task?.due_at || task.status === 'done') {
         return false;
     }
@@ -774,7 +989,6 @@ function isSlaBreached(task) {
 
 const filterQueryMap = {
     overdue: 'Просроченные',
-    sla_overdue: 'SLA просрочен',
 };
 
 function applyFilterFromQuery() {

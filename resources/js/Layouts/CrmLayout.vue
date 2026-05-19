@@ -495,7 +495,7 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
     if (activeKey === 'settings') {
         keys.push('settings');
         const leaf = activeLeafKey ?? activeSubKey ?? '';
-        if (['users', 'roles'].includes(leaf)) {
+        if (['users', 'roles', 'business-processes'].includes(leaf)) {
             keys.push('administration');
         }
         if (['table-presets', 'dictionaries', 'templates'].includes(leaf)) {
@@ -588,6 +588,7 @@ const MENU_ROUTES = {
     settings: '/settings',
     users: '/settings/users',
     roles: '/settings/roles',
+    'business-processes': '/settings/business-processes',
     'table-presets': '/settings/tables',
     dictionaries: '/settings/dictionaries',
     templates: '/settings/templates',
@@ -810,6 +811,9 @@ const menuItems = computed(() => {
                 }
                 if (authUser.value?.role?.name === 'admin') {
                     administrationChildren.push({ key: 'roles', label: 'Роли' });
+                }
+                if (hasSettingsSystemAccess.value) {
+                    administrationChildren.push({ key: 'business-processes', label: 'Бизнес-процессы' });
                 }
                 if (administrationChildren.length > 0) {
                     children.push({

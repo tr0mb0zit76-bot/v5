@@ -39,7 +39,11 @@
         </div>
     </div>
 
-    <div ref="gridPanel" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div
+      ref="gridPanel"
+      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      @contextmenu.capture="suppressNativeContextMenuCapture"
+    >
       <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
@@ -58,6 +62,8 @@
           @grid-ready="onGridReady"
           @first-data-rendered="onFirstDataRendered"
           @cell-double-clicked="onCellDoubleClicked"
+          @cell-context-menu="onCellContextMenu"
+          @cell-value-changed="onCellValueChanged"
         />
       </div>
 
@@ -72,11 +78,19 @@
         />
       </div>
     </div>
+
+    <GridContextMenu
+      :open="contextMenu.open"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :items="contextMenu.items"
+      @close="closeRowContextMenu"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -93,6 +107,9 @@ import {
   schedulePersistAgGridDensityToProfile,
   writeLocalAgGridDensity,
 } from '@/support/agGridUserDensity.js';
+import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { AgSetListFilter } from '@/Components/Grid/agSetListFilter.js';
+import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -105,11 +122,30 @@ const props = defineProps({
     type: [String, Number],
     default: 'guest',
   },
+  users: {
+    type: Array,
+    default: () => [],
+  },
+  canBulkMutateTasks: {
+    type: Boolean,
+    default: false,
+  },
+  statusOptions: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const page = usePage();
 
-const emit = defineEmits(['row-dblclick', 'selection-changed']);
+const emit = defineEmits([
+  'row-dblclick',
+  'selection-changed',
+  'quick-status',
+  'quick-reschedule-due',
+  'assign-request',
+  'cell-save',
+]);
 
 const agGrid = ref(null);
 const gridApi = ref(null);
@@ -140,9 +176,83 @@ const priorityLabels = {
   critical: 'Критичный',
 };
 
+const priorityCodes = Object.keys(priorityLabels);
+
+const statusLabelByValue = (value) => {
+  const option = props.statusOptions.find((item) => item.value === value);
+
+  return option?.label ?? value ?? '—';
+};
+
+const responsibleFilterValues = computed(() => {
+  const names = new Set();
+
+  for (const row of props.rows ?? []) {
+    const name = String(row?.responsible_name ?? '').trim();
+    names.add(name === '' ? '—' : name);
+  }
+
+  return [...names].sort((a, b) => a.localeCompare(b, 'ru'));
+});
+
+const statusFilterValues = computed(() =>
+  props.statusOptions.map((option) => option.label),
+);
+
+const priorityFilterValues = computed(() => Object.values(priorityLabels));
+
+const userIdByName = computed(() => {
+  const map = new Map();
+
+  for (const user of props.users ?? []) {
+    map.set(user.name, Number(user.id));
+  }
+
+  return map;
+});
+
+function canEditResponsible(row) {
+  if (!row) {
+    return false;
+  }
+
+  return Boolean(row.can_mutate) || props.canBulkMutateTasks;
+}
+
+function setListFilterParams(values) {
+  return {
+    values,
+    sortValues: true,
+    searchPlaceholder: 'Поиск…',
+  };
+}
+
+const contextMenu = reactive({
+  open: false,
+  x: 0,
+  y: 0,
+  items: [],
+});
+
+function closeRowContextMenu() {
+  contextMenu.open = false;
+  contextMenu.items = [];
+}
+
 const gridOptions = {
   theme: 'legacy',
   localeText: agGridLocaleRu,
+  getRowClass: (params) => {
+    const row = params.data;
+    if (!row || row.status === 'done') {
+      return '';
+    }
+    if (row.is_due_overdue || row.is_overdue) {
+      return 'ag-row-task-due-overdue';
+    }
+
+    return '';
+  },
   getRowId: (params) => String(params.data?.id ?? ''),
   rowSelection: {
     mode: 'multiRow',
@@ -197,36 +307,106 @@ const defaultColDef = {
   suppressSizeToFit: true,
 };
 
-const columnDefs = [
-  { field: 'number', headerName: 'Номер', width: 110, minWidth: 90 },
-  { field: 'title', headerName: 'Название', flex: 1, minWidth: 180 },
-  { field: 'status_label', headerName: 'Статус', width: 130, minWidth: 110 },
+const columnDefs = computed(() => [
+  { field: 'number', headerName: 'Номер', width: 110, minWidth: 90, filter: 'agTextColumnFilter' },
+  { field: 'title', headerName: 'Название', flex: 1, minWidth: 180, filter: 'agTextColumnFilter' },
+  {
+    colId: 'status',
+    headerName: 'Статус',
+    width: 140,
+    minWidth: 120,
+    filter: AgSetListFilter,
+    filterParams: setListFilterParams(statusFilterValues.value),
+    filterValueGetter: (params) => statusLabelByValue(params.data?.status),
+    valueGetter: (params) => statusLabelByValue(params.data?.status),
+    valueSetter: (params) => {
+      const option = props.statusOptions.find((item) => item.label === params.newValue);
+      if (!option) {
+        return false;
+      }
+      params.data.status = option.value;
+      params.data.status_label = option.label;
+
+      return true;
+    },
+    editable: (params) => Boolean(params.data?.can_mutate),
+    cellEditor: 'agSelectCellEditor',
+    cellEditorParams: {
+      values: props.statusOptions.map((option) => option.label),
+    },
+    cellClass: (params) => (params.data?.can_mutate ? 'tasks-grid-editable-cell' : ''),
+  },
   {
     field: 'priority',
     headerName: 'Приоритет',
-    width: 120,
-    minWidth: 100,
-    valueFormatter: (p) => priorityLabels[p.value] ?? p.value ?? '—',
+    width: 130,
+    minWidth: 110,
+    filter: AgSetListFilter,
+    filterParams: setListFilterParams(priorityFilterValues.value),
+    filterValueGetter: (params) => priorityLabels[params.data?.priority] ?? '—',
+    valueFormatter: (params) => priorityLabels[params.value] ?? params.value ?? '—',
+    editable: (params) => Boolean(params.data?.can_mutate),
+    cellEditor: 'agSelectCellEditor',
+    cellEditorParams: { values: priorityCodes },
+    cellClass: (params) => (params.data?.can_mutate ? 'tasks-grid-editable-cell' : ''),
   },
-  { field: 'responsible_name', headerName: 'Ответственный', width: 160, minWidth: 130 },
+  {
+    colId: 'responsible',
+    headerName: 'Ответственный',
+    width: 170,
+    minWidth: 140,
+    filter: AgSetListFilter,
+    filterParams: setListFilterParams(responsibleFilterValues.value),
+    filterValueGetter: (params) => {
+      const name = String(params.data?.responsible_name ?? '').trim();
+
+      return name === '' ? '—' : name;
+    },
+    valueGetter: (params) => {
+      const name = String(params.data?.responsible_name ?? '').trim();
+
+      return name === '' ? '—' : name;
+    },
+    valueSetter: (params) => {
+      const userId = userIdByName.value.get(params.newValue);
+      if (!userId) {
+        return false;
+      }
+      params.data.responsible_id = userId;
+      params.data.responsible_name = params.newValue;
+
+      return true;
+    },
+    editable: (params) => canEditResponsible(params.data),
+    cellEditor: 'agSelectCellEditor',
+    cellEditorParams: {
+      values: (props.users ?? []).map((user) => user.name),
+    },
+    cellClass: (params) => (canEditResponsible(params.data) ? 'tasks-grid-editable-cell' : ''),
+  },
   {
     field: 'due_at',
     headerName: 'Срок',
     width: 150,
     minWidth: 130,
+    filter: 'agDateColumnFilter',
     valueFormatter: (p) => formatDue(p.value),
+    cellClass: (params) => (params.data?.is_due_overdue ? 'tasks-grid-cell-due-overdue' : ''),
   },
   {
     field: 'lead_number',
     headerName: 'Лид',
     width: 120,
     minWidth: 100,
+    filter: 'agTextColumnFilter',
     valueFormatter: (p) => p.data?.lead_number || '—',
   },
   {
     headerName: 'Чеклист',
     width: 110,
     minWidth: 100,
+    sortable: false,
+    filter: false,
     valueGetter: (p) => {
       const items = p.data?.checklist_items ?? [];
       const done = items.filter((i) => i.is_done).length;
@@ -234,7 +414,7 @@ const columnDefs = [
       return `${done}/${items.length}`;
     },
   },
-];
+]);
 
 function formatDue(value) {
   if (!value) {
@@ -266,6 +446,97 @@ function onCellDoubleClicked(event) {
   if (id) {
     emit('row-dblclick', event.data);
   }
+}
+
+function onCellValueChanged(params) {
+  if (params.newValue === params.oldValue) {
+    return;
+  }
+
+  const field = params.colDef.field ?? params.colDef.colId;
+  let value = params.newValue;
+
+  if (params.colDef.colId === 'responsible') {
+    emit('cell-save', {
+      row: params.data,
+      field: 'responsible_id',
+      value: params.data.responsible_id,
+    });
+
+    return;
+  }
+
+  if (params.colDef.colId === 'status') {
+    emit('cell-save', {
+      row: params.data,
+      field: 'status',
+      value: params.data.status,
+    });
+
+    return;
+  }
+
+  emit('cell-save', {
+    row: params.data,
+    field,
+    value,
+  });
+}
+
+function onCellContextMenu(params) {
+  const ev = params.event;
+  if (ev?.preventDefault) {
+    ev.preventDefault();
+  }
+
+  const row = params.node?.data;
+  if (!row?.id) {
+    closeRowContextMenu();
+
+    return;
+  }
+
+  const items = [
+    {
+      label: 'Открыть карточку',
+      run: () => emit('row-dblclick', row),
+    },
+  ];
+
+  if (row.can_mutate && row.status !== 'done') {
+    if (row.status !== 'in_progress') {
+      items.push({
+        label: 'В работу',
+        run: () => emit('quick-status', { row, status: 'in_progress' }),
+      });
+    }
+    if (row.status !== 'review') {
+      items.push({
+        label: 'На проверку',
+        run: () => emit('quick-status', { row, status: 'review' }),
+      });
+    }
+    items.push({
+      label: 'Перенести срок…',
+      run: () => emit('quick-reschedule-due', row),
+    });
+    items.push({
+      label: 'Завершить',
+      run: () => emit('quick-status', { row, status: 'done' }),
+    });
+  }
+
+  if (props.canBulkMutateTasks) {
+    items.push({
+      label: 'Назначить ответственного…',
+      run: () => emit('assign-request', row),
+    });
+  }
+
+  contextMenu.x = ev.clientX;
+  contextMenu.y = ev.clientY;
+  contextMenu.items = items;
+  contextMenu.open = true;
 }
 
 function applyDensity(key) {
@@ -403,5 +674,43 @@ onUnmounted(() => {
 <style scoped>
 .toolbar-button {
   @apply inline-flex items-center justify-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+}
+
+:deep(.ag-row.ag-row-task-due-overdue) {
+  background-color: rgb(255 251 235);
+}
+
+.dark :deep(.ag-row.ag-row-task-due-overdue) {
+  background-color: rgb(66 32 6 / 0.35);
+}
+
+:deep(.ag-row.ag-row-task-sla-breached) {
+  background-color: rgb(255 241 242);
+}
+
+.dark :deep(.ag-row.ag-row-task-sla-breached) {
+  background-color: rgb(76 5 25 / 0.4);
+}
+
+:deep(.tasks-grid-cell-due-overdue) {
+  color: rgb(180 83 9);
+  font-weight: 600;
+}
+
+.dark :deep(.tasks-grid-cell-due-overdue) {
+  color: rgb(251 191 36);
+}
+
+:deep(.tasks-grid-cell-sla-breached) {
+  color: rgb(190 18 60);
+  font-weight: 600;
+}
+
+.dark :deep(.tasks-grid-cell-sla-breached) {
+  color: rgb(251 113 133);
+}
+
+:deep(.tasks-grid-editable-cell) {
+  cursor: pointer;
 }
 </style>

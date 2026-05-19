@@ -24,6 +24,7 @@ use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SalesAssistantController;
 use App\Http\Controllers\SalesScriptController;
 use App\Http\Controllers\SalesScriptEditorController;
+use App\Http\Controllers\SettingsBusinessProcessController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
@@ -153,6 +154,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
         Route::post('/leads/{lead}/proposal', 'prepareProposal')->name('leads.proposal');
         Route::post('/leads/{lead}/next-step', 'storeNextStep')->name('leads.next-step.store');
+        Route::patch('/leads/{lead}/process-stage', 'advanceProcessStage')->name('leads.process-stage');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
     });
@@ -285,6 +287,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/settings/templates/{printFormTemplate}/generate-lead-draft', 'generateLeadDraft')->name('settings.templates.generate-lead-draft');
     });
 
+    Route::controller(SettingsBusinessProcessController::class)->middleware('visibility.area:settings')->group(function () {
+        Route::get('/settings/business-processes', 'index')->name('settings.business-processes.index');
+        Route::post('/settings/business-processes', 'storeProcess')->name('settings.business-processes.store');
+        Route::patch('/settings/business-processes/{businessProcess}', 'updateProcess')->name('settings.business-processes.update');
+        Route::delete('/settings/business-processes/{businessProcess}', 'destroyProcess')->name('settings.business-processes.destroy');
+        Route::post('/settings/business-processes/{businessProcess}/stages', 'storeStage')->name('settings.business-processes.stages.store');
+        Route::patch('/settings/business-processes/{businessProcess}/stages/{stage}', 'updateStage')->name('settings.business-processes.stages.update');
+        Route::delete('/settings/business-processes/{businessProcess}/stages/{stage}', 'destroyStage')->name('settings.business-processes.stages.destroy');
+    });
+
     Route::controller(SettingsDictionariesController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/dictionaries', 'index')->name('settings.dictionaries.index');
         Route::post('/settings/dictionaries/activity-types', 'storeActivityType')->name('settings.dictionaries.activity-types.store');
@@ -386,6 +398,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/tasks/bulk', 'bulkUpdate')->name('tasks.bulk');
             Route::get('/tasks/{task}', 'show')->name('tasks.show');
             Route::patch('/tasks/{task}', 'update')->name('tasks.update');
+            Route::patch('/tasks/{task}/inline', 'inlineUpdate')->name('tasks.inline-update');
             Route::patch('/tasks/{task}/due', 'updateDue')->name('tasks.due.update');
             Route::post('/tasks/{task}/complete-and-follow-up', 'completeAndCreateFollowUp')->name('tasks.complete-and-follow-up');
             Route::post('/tasks/{task}/checklist-items', 'storeChecklistItem')->name('tasks.checklist-items.store');

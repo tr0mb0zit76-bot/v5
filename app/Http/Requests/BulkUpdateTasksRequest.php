@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Support\RoleAccess;
+use App\Support\TaskStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,7 @@ class BulkUpdateTasksRequest extends FormRequest
             return RoleAccess::canBulkMutateTasks($user);
         }
 
-        return true;
+        return RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'tasks');
     }
 
     /**
@@ -32,8 +33,10 @@ class BulkUpdateTasksRequest extends FormRequest
         return [
             'task_ids' => ['required', 'array', 'min:1'],
             'task_ids.*' => ['integer', 'exists:tasks,id'],
-            'action' => ['required', 'string', Rule::in(['close', 'assign'])],
+            'action' => ['required', 'string', Rule::in(['close', 'assign', 'status', 'reschedule'])],
             'responsible_id' => ['required_if:action,assign', 'nullable', 'integer', 'exists:users,id'],
+            'status' => ['required_if:action,status', 'nullable', 'string', Rule::in(TaskStatus::values())],
+            'due_at' => ['required_if:action,reschedule', 'nullable', 'date'],
         ];
     }
 }

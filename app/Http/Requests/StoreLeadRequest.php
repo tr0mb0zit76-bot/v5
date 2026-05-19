@@ -71,6 +71,10 @@ class StoreLeadRequest extends FormRequest
             'qualification.authority' => ['nullable', 'string', 'max:255'],
             'qualification.budget' => ['nullable', 'string', 'max:255'],
 
+            'business_process_id' => Schema::hasColumn('leads', 'business_process_id')
+                ? ['required', 'integer', 'exists:business_processes,id']
+                : ['nullable'],
+
             'route_points' => ['nullable', 'array'],
             'route_points.*.type' => ['required', Rule::in(['loading', 'unloading', 'border_crossing'])],
             'route_points.*.sequence' => ['nullable', 'integer', 'min:1'],

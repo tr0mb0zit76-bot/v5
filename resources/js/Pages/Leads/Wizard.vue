@@ -40,6 +40,17 @@
 
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
             <div v-if="activeTab === 'main'" class="space-y-5">
+                <LeadProcessPanel
+                    v-if="businessProcessesEnabled"
+                    v-model:advance-stage-id="advanceStageId"
+                    :selected-lead-id="selectedLeadId"
+                    :business-processes="businessProcesses"
+                    :business-process-id="form.business_process_id"
+                    :process-progress="processProgress"
+                    :processing="processStageForm.processing"
+                    @update:business-process-id="form.business_process_id = $event"
+                    @advance="submitProcessStage"
+                />
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="space-y-2">
                         <label class="label">Статус</label>
@@ -358,6 +369,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });
@@ -379,6 +391,11 @@ const props = defineProps({
     currentUserId: Number,
     canAssignResponsible: Boolean,
     canUseLeadTasks: Boolean,
+    businessProcessesEnabled: Boolean,
+    businessProcesses: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(['close']);
@@ -420,6 +437,8 @@ function blankForm() {
         offers: [],
         orders: [],
         tasks: [],
+        business_process_id: props.businessProcesses?.[0]?.id ?? null,
+        process_progress: null,
     };
 }
 
@@ -447,6 +466,8 @@ function leadToForm(lead) {
 }
 
 const form = useForm(leadToForm(props.selectedLead));
+const advanceStageId = ref('');
+const processStageForm = useForm({ stage_id: null });
 const nextStepForm = useForm({
     title: '',
     description: '',
@@ -465,9 +486,12 @@ watch(() => props.selectedLead, (lead) => {
     nextStepForm.reset();
     nextStepForm.responsible_id = lead?.responsible_id ?? props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null;
     nextStepForm.priority = 'high';
+    advanceStageId.value = '';
 }, { immediate: true });
 
 const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
+const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
+const businessProcessesEnabled = computed(() => Boolean(props.businessProcessesEnabled));
 const selectedCounterparty = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.counterparty_id)) ?? null);
 const selectedCounterpartyName = computed(() => selectedCounterparty.value?.name ?? 'Не выбран');
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
@@ -703,8 +727,28 @@ function addActivity() { form.activities.push({ type: 'note', subject: '', conte
 function removeActivity(index) { form.activities.splice(index, 1); }
 function openTask(taskId) { router.get(route('tasks.index'), taskId ? { task: taskId } : {}); }
 
+function submitProcessStage() {
+    if (!selectedLeadId.value || !advanceStageId.value) {
+        return;
+    }
+
+    processStageForm.stage_id = advanceStageId.value;
+    processStageForm.patch(route('leads.process-stage', selectedLeadId.value), {
+        preserveScroll: true,
+        onSuccess: () => {
+            advanceStageId.value = '';
+        },
+    });
+}
+
 function submit() {
-    const payload = { ...form.data(), offers: undefined, orders: undefined, tasks: undefined };
+    const payload = {
+        ...form.data(),
+        offers: undefined,
+        orders: undefined,
+        tasks: undefined,
+        process_progress: undefined,
+    };
 
     if (selectedLeadId.value) {
         router.patch(route('leads.update', selectedLeadId.value), payload);

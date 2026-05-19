@@ -38,6 +38,11 @@ class Lead extends Model
         'lost_reason',
         'lead_qualification',
         'metadata',
+        'business_process_id',
+        'business_process_stage_id',
+        'process_started_at',
+        'stage_entered_at',
+        'stage_due_at',
         'created_by',
         'updated_by',
     ];
@@ -56,6 +61,9 @@ class Lead extends Model
             'expected_margin' => 'decimal:2',
             'lead_qualification' => 'array',
             'metadata' => 'array',
+            'process_started_at' => 'datetime',
+            'stage_entered_at' => 'datetime',
+            'stage_due_at' => 'datetime',
         ];
 
         if ($this->hasDeletedAtColumn()) {
@@ -97,6 +105,22 @@ class Lead extends Model
     public function hasDeletedAtColumn(): bool
     {
         return Schema::hasColumn($this->getTable(), 'deleted_at');
+    }
+
+    /**
+     * @return BelongsTo<BusinessProcess, $this>
+     */
+    public function businessProcess(): BelongsTo
+    {
+        return $this->belongsTo(BusinessProcess::class);
+    }
+
+    /**
+     * @return BelongsTo<BusinessProcessStage, $this>
+     */
+    public function businessProcessStage(): BelongsTo
+    {
+        return $this->belongsTo(BusinessProcessStage::class, 'business_process_stage_id');
     }
 
     /**
