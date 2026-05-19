@@ -12,7 +12,26 @@
                 </div>
             </div>
 
-            <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyFilters">
+            <form v-if="tab === 'lead-stuck'" class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyStuckFilters">
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Порог, дней на этапе</label>
+                    <input
+                        v-model.number="filterForm.stuck_days"
+                        type="number"
+                        min="1"
+                        max="365"
+                        class="mt-1 w-28 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                    >
+                </div>
+                <button
+                    type="submit"
+                    class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                    Применить
+                </button>
+            </form>
+
+            <form v-else-if="!isLeadProcessTab" class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyFilters">
                 <div>
                     <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">С</label>
                     <input
@@ -130,6 +149,85 @@
             </table>
         </section>
 
+        <section v-else-if="tab === 'lead-sla'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <tr>
+                        <th class="px-4 py-3">Лид</th>
+                        <th class="px-4 py-3">Процесс</th>
+                        <th class="px-4 py-3">Этап</th>
+                        <th class="px-4 py-3">Ответственный</th>
+                        <th class="px-4 py-3 text-right">Срок этапа</th>
+                        <th class="px-4 py-3 text-right">Просрочка, дн.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr
+                        v-for="row in lead_sla.rows"
+                        :key="row.lead_id"
+                        class="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
+                        @click="openLead(row.lead_id)"
+                    >
+                        <td class="px-4 py-2">
+                            <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ row.lead_number }}</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ row.lead_title }}</div>
+                        </td>
+                        <td class="px-4 py-2">{{ row.process_name || '—' }}</td>
+                        <td class="px-4 py-2">{{ row.stage_name || '—' }}</td>
+                        <td class="px-4 py-2">{{ row.responsible_name || '—' }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums">{{ formatDateTime(row.stage_due_at) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums text-rose-600 dark:text-rose-400">{{ row.days_overdue ?? '—' }}</td>
+                    </tr>
+                    <tr v-if="!lead_sla.rows.length" class="text-zinc-500 dark:text-zinc-400">
+                        <td colspan="6" class="px-4 py-6 text-center text-sm">
+                            {{ has_leads_access ? 'Нет лидов с просроченным этапом.' : 'Нет доступа к разделу «Лиды».' }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section v-else-if="tab === 'lead-stuck'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <p class="border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                Показаны лиды на этапе дольше {{ lead_stuck.stuck_days ?? filterForm.stuck_days }} дн.
+            </p>
+            <table class="min-w-full text-sm">
+                <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
+                    <tr>
+                        <th class="px-4 py-3">Лид</th>
+                        <th class="px-4 py-3">Процесс</th>
+                        <th class="px-4 py-3">Этап</th>
+                        <th class="px-4 py-3">Ответственный</th>
+                        <th class="px-4 py-3 text-right">На этапе с</th>
+                        <th class="px-4 py-3 text-right">Дней на этапе</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr
+                        v-for="row in lead_stuck.rows"
+                        :key="row.lead_id"
+                        class="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
+                        @click="openLead(row.lead_id)"
+                    >
+                        <td class="px-4 py-2">
+                            <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ row.lead_number }}</div>
+                            <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ row.lead_title }}</div>
+                        </td>
+                        <td class="px-4 py-2">{{ row.process_name || '—' }}</td>
+                        <td class="px-4 py-2">{{ row.stage_name || '—' }}</td>
+                        <td class="px-4 py-2">{{ row.responsible_name || '—' }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums">{{ formatDateTime(row.stage_entered_at) }}</td>
+                        <td class="px-4 py-2 text-right tabular-nums">{{ row.days_on_stage ?? '—' }}</td>
+                    </tr>
+                    <tr v-if="!lead_stuck.rows.length" class="text-zinc-500 dark:text-zinc-400">
+                        <td colspan="6" class="px-4 py-6 text-center text-sm">
+                            {{ has_leads_access ? `Нет лидов дольше ${lead_stuck.stuck_days ?? filterForm.stuck_days} дн. на этапе.` : 'Нет доступа к разделу «Лиды».' }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
         <section v-else class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
@@ -169,22 +267,33 @@ const props = defineProps({
     filters: { type: Object, default: () => ({}) },
     tab: { type: String, default: 'abc' },
     order_scope: { type: String, default: 'own' },
+    leads_scope: { type: String, default: 'own' },
+    has_leads_access: { type: Boolean, default: false },
+    lead_sla: { type: Object, default: () => ({ rows: [] }) },
+    lead_stuck: { type: Object, default: () => ({ rows: [] }) },
     abc: { type: Object, default: () => ({ rows: [], total_revenue: 0, total_orders: 0 }) },
     xyz: { type: Object, default: () => ({ rows: [], months: [] }) },
     managers: { type: Array, default: () => [] },
     glossary: { type: Object, default: () => ({}) },
 });
 
+const DEFAULT_STUCK_DAYS = 3;
+
 const filterForm = reactive({
     date_from: props.filters.date_from,
     date_to: props.filters.date_to,
+    stuck_days: props.filters.stuck_days ?? props.lead_stuck?.stuck_days ?? DEFAULT_STUCK_DAYS,
 });
 
 const tabs = [
     { key: 'abc', label: 'ABC клиенты' },
     { key: 'xyz', label: 'XYZ нестабильность' },
     { key: 'managers', label: 'Менеджеры' },
+    { key: 'lead-sla', label: 'Просрочка этапов' },
+    { key: 'lead-stuck', label: 'Застряли на этапе' },
 ];
+
+const isLeadProcessTab = computed(() => ['lead-sla', 'lead-stuck'].includes(props.tab));
 
 const glossaryBlock = computed(() => {
     if (props.tab === 'xyz') {
@@ -192,6 +301,12 @@ const glossaryBlock = computed(() => {
     }
     if (props.tab === 'managers') {
         return props.glossary.managers;
+    }
+    if (props.tab === 'lead-sla') {
+        return props.glossary.lead_sla;
+    }
+    if (props.tab === 'lead-stuck') {
+        return props.glossary.lead_stuck;
     }
 
     return props.glossary.abc;
@@ -229,19 +344,78 @@ function xyzBadgeClass(cls) {
     return 'border-zinc-300 bg-zinc-100 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300';
 }
 
-function applyFilters() {
-    router.get(route('reports.index'), {
+function normalizeStuckDays(value) {
+    const days = Number.parseInt(String(value ?? DEFAULT_STUCK_DAYS), 10);
+
+    if (Number.isNaN(days)) {
+        return DEFAULT_STUCK_DAYS;
+    }
+
+    return Math.min(365, Math.max(1, days));
+}
+
+function reportQueryParams(tab) {
+    const params = {
         date_from: filterForm.date_from,
         date_to: filterForm.date_to,
-        tab: props.tab,
-    }, { preserveState: true, preserveScroll: true, replace: true });
+        tab,
+    };
+
+    if (tab === 'lead-stuck') {
+        params.stuck_days = normalizeStuckDays(filterForm.stuck_days);
+    }
+
+    return params;
+}
+
+function applyFilters() {
+    router.get(route('reports.index'), reportQueryParams(props.tab), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+}
+
+function applyStuckFilters() {
+    filterForm.stuck_days = normalizeStuckDays(filterForm.stuck_days);
+
+    router.get(route('reports.index'), reportQueryParams('lead-stuck'), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
 }
 
 function switchTab(key) {
-    router.get(route('reports.index'), {
-        date_from: filterForm.date_from,
-        date_to: filterForm.date_to,
-        tab: key,
-    }, { preserveState: true, preserveScroll: true, replace: true });
+    router.get(route('reports.index'), reportQueryParams(key), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return '—';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '—';
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
+function openLead(leadId) {
+    if (!leadId) {
+        return;
+    }
+
+    router.get(route('leads.show', leadId));
 }
 </script>

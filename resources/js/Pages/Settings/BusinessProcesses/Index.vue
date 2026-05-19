@@ -69,22 +69,61 @@
                 <div class="space-y-3">
                     <h2 class="text-lg font-semibold">Этапы</h2>
 
-                    <form class="grid gap-2 rounded-lg border border-dashed border-zinc-300 p-3 md:grid-cols-6 dark:border-zinc-700" @submit.prevent="addStage">
-                        <input v-model="stageForm.name" type="text" placeholder="Название этапа" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950" required />
-                        <input v-model.number="stageForm.duration_days" type="number" min="0" max="365" placeholder="Дней" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" title="Норматив, дней" />
-                        <label class="inline-flex items-center gap-2 text-sm md:col-span-1">
-                            <input v-model="stageForm.is_terminal" type="checkbox" class="rounded border-zinc-300" />
-                            Финал
-                        </label>
-                        <select v-model="stageForm.terminal_outcome" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm md:col-span-1 dark:border-zinc-700 dark:bg-zinc-950" :disabled="!stageForm.is_terminal">
-                            <option :value="null">—</option>
-                            <option value="won">Выигран</option>
-                            <option value="lost">Проигран</option>
-                            <option value="neutral">Нейтрально</option>
-                        </select>
-                        <button type="submit" class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 md:col-span-1" :disabled="stageForm.processing">
-                            +
-                        </button>
+                    <form class="space-y-3 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700" @submit.prevent="submitStage">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="text-sm font-medium">{{ editingStageId ? 'Редактирование этапа' : 'Новый этап' }}</div>
+                            <button v-if="editingStageId" type="button" class="text-xs text-zinc-500 hover:underline" @click="resetStageForm">
+                                Отмена
+                            </button>
+                        </div>
+                        <div class="grid gap-2 md:grid-cols-6">
+                            <input v-model="stageForm.name" type="text" placeholder="Название этапа" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950" required />
+                            <input v-model.number="stageForm.duration_days" type="number" min="0" max="365" placeholder="Норматив, дней" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" title="Норматив SLA этапа" />
+                            <label class="inline-flex items-center gap-2 text-sm">
+                                <input v-model="stageForm.is_terminal" type="checkbox" class="rounded border-zinc-300" />
+                                Финал
+                            </label>
+                            <select v-model="stageForm.terminal_outcome" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" :disabled="!stageForm.is_terminal">
+                                <option :value="null">—</option>
+                                <option value="won">Выигран</option>
+                                <option value="lost">Проигран</option>
+                                <option value="neutral">Нейтрально</option>
+                            </select>
+                            <button type="submit" class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700" :disabled="stageForm.processing">
+                                {{ editingStageId ? 'Сохранить' : 'Добавить' }}
+                            </button>
+                        </div>
+                        <div class="grid gap-2 md:grid-cols-2">
+                            <label class="inline-flex items-center gap-2 text-sm">
+                                <input v-model="stageForm.auto_create_task" type="checkbox" class="rounded border-zinc-300" />
+                                Создавать задачу при входе на этап
+                            </label>
+                            <select v-model="stageForm.task_priority" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" :disabled="!stageForm.auto_create_task">
+                                <option value="low">Низкий</option>
+                                <option value="medium">Средний</option>
+                                <option value="high">Высокий</option>
+                                <option value="critical">Срочный</option>
+                            </select>
+                            <input
+                                v-model="stageForm.task_title_template"
+                                type="text"
+                                placeholder="Шаблон задачи: {stage_name} — {lead_number}"
+                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!stageForm.auto_create_task"
+                            />
+                            <input
+                                v-model.number="stageForm.task_due_days_offset"
+                                type="number"
+                                min="0"
+                                max="365"
+                                placeholder="Срок задачи, дней от входа"
+                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                :disabled="!stageForm.auto_create_task"
+                            />
+                        </div>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Плейсхолдеры: {stage_name}, {process_name}, {lead_number}, {lead_title}
+                        </p>
                     </form>
 
                     <div class="overflow-x-auto">
@@ -108,6 +147,7 @@
                                         <span v-else class="text-zinc-400">—</span>
                                     </td>
                                     <td class="px-2 py-2 text-right">
+                                        <button type="button" class="mr-2 text-zinc-600 hover:underline" @click="editStage(stage)">Изменить</button>
                                         <button type="button" class="text-rose-600 hover:underline" @click="deleteStage(stage.id)">Удалить</button>
                                     </td>
                                 </tr>
@@ -164,6 +204,8 @@ const processForm = useForm({
     sort_order: 0,
 });
 
+const editingStageId = ref(null);
+
 const stageForm = useForm({
     name: '',
     description: '',
@@ -171,6 +213,11 @@ const stageForm = useForm({
     duration_days: 0,
     is_terminal: false,
     terminal_outcome: null,
+    auto_create_task: false,
+    task_title_template: '',
+    task_description_template: '',
+    task_due_days_offset: 0,
+    task_priority: 'medium',
 });
 
 watch(selectedProcess, (process) => {
@@ -221,19 +268,51 @@ function deleteProcess() {
     });
 }
 
-function addStage() {
+function resetStageForm() {
+    editingStageId.value = null;
+    stageForm.reset();
+    stageForm.duration_days = 0;
+    stageForm.is_terminal = false;
+    stageForm.terminal_outcome = null;
+    stageForm.auto_create_task = false;
+    stageForm.task_due_days_offset = 0;
+    stageForm.task_priority = 'medium';
+}
+
+function editStage(stage) {
+    editingStageId.value = stage.id;
+    stageForm.name = stage.name;
+    stageForm.description = stage.description ?? '';
+    stageForm.sequence = stage.sequence;
+    stageForm.duration_days = stage.duration_days ?? 0;
+    stageForm.is_terminal = Boolean(stage.is_terminal);
+    stageForm.terminal_outcome = stage.terminal_outcome;
+    stageForm.auto_create_task = Boolean(stage.auto_create_task);
+    stageForm.task_title_template = stage.task_title_template ?? '';
+    stageForm.task_description_template = stage.task_description_template ?? '';
+    stageForm.task_due_days_offset = stage.task_due_days_offset ?? 0;
+    stageForm.task_priority = stage.task_priority ?? 'medium';
+}
+
+function submitStage() {
     if (!selectedProcess.value) {
+        return;
+    }
+
+    const onSuccess = () => resetStageForm();
+
+    if (editingStageId.value) {
+        stageForm.patch(route('settings.business-processes.stages.update', [selectedProcess.value.id, editingStageId.value]), {
+            preserveScroll: true,
+            onSuccess,
+        });
+
         return;
     }
 
     stageForm.post(route('settings.business-processes.stages.store', selectedProcess.value.id), {
         preserveScroll: true,
-        onSuccess: () => {
-            stageForm.reset();
-            stageForm.duration_days = 0;
-            stageForm.is_terminal = false;
-            stageForm.terminal_outcome = null;
-        },
+        onSuccess,
     });
 }
 

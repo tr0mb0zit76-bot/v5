@@ -274,6 +274,10 @@ const fallbackColumns = [
   { field: 'target_price', label: 'Цена', width: 130, minWidth: 120, type: 'numeric' },
   { field: 'target_currency', label: 'Валюта', width: 100, minWidth: 90, type: null },
   { field: 'has_offer', label: 'Есть КП', width: 110, minWidth: 100, type: 'boolean' },
+  { field: 'process_name', label: 'Процесс', width: 180, minWidth: 150, type: null },
+  { field: 'current_stage_name', label: 'Этап', width: 170, minWidth: 140, type: null },
+  { field: 'stage_due_at', label: 'Срок этапа', width: 150, minWidth: 130, type: 'datetime' },
+  { field: 'is_stage_overdue', label: 'Этап просрочен', width: 130, minWidth: 110, type: 'boolean' },
   { field: 'created_at', label: 'Создан', width: 160, minWidth: 140, type: 'datetime' },
 ];
 
@@ -383,6 +387,7 @@ const gridOptions = {
   animateRows: false,
   preventDefaultOnContextMenu: true,
   getRowId: (params) => String(params.data?.id ?? ''),
+  getRowClass: (params) => (params.data?.is_stage_overdue ? 'ag-row-lead-stage-overdue' : ''),
   onCellContextMenu,
 };
 
@@ -517,6 +522,10 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.headerClass = 'orders-grid-order-number-header';
     } else if (column.field === 'title') {
       columnDefinition.flex = 1;
+    } else if (column.field === 'is_stage_overdue') {
+      columnDefinition.cellClass = (params) => (params.data?.is_stage_overdue ? 'leads-grid-cell-stage-overdue' : '');
+    } else if (column.field === 'stage_due_at') {
+      columnDefinition.cellClass = (params) => (params.data?.is_stage_overdue ? 'leads-grid-cell-stage-overdue' : '');
     }
 
     return columnDefinition;
@@ -1050,8 +1059,12 @@ function formatValue(value, type, field, row) {
     return formatMoney(value, row?.target_currency ?? 'RUB');
   }
 
-  if (field === 'created_at' || type === 'datetime') {
+  if (field === 'stage_due_at' || field === 'created_at' || type === 'datetime') {
     return formatDateTime(value);
+  }
+
+  if (field === 'is_stage_overdue') {
+    return value ? 'Да' : 'Нет';
   }
 
   if (type === 'boolean' || field === 'has_offer') {
@@ -1069,5 +1082,22 @@ function formatValue(value, type, field, row) {
 
 .toolbar-button {
   @apply inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+}
+
+:deep(.ag-row.ag-row-lead-stage-overdue) {
+  background-color: rgb(255 241 242);
+}
+
+.dark :deep(.ag-row.ag-row-lead-stage-overdue) {
+  background-color: rgb(76 5 25 / 0.35);
+}
+
+:deep(.leads-grid-cell-stage-overdue) {
+  color: rgb(190 18 60);
+  font-weight: 600;
+}
+
+.dark :deep(.leads-grid-cell-stage-overdue) {
+  color: rgb(251 113 133);
 }
 </style>

@@ -49,6 +49,8 @@
                     :current-user-id="page.props.currentUserId ?? null"
                     :can-assign-responsible="Boolean(page.props.canAssignResponsible)"
                     :can-use-lead-tasks="Boolean(page.props.canUseLeadTasks)"
+                    :business-processes-enabled="Boolean(page.props.businessProcessesEnabled)"
+                    :business-processes="page.props.businessProcesses ?? []"
                     @close="closeLeadModal"
                 />
             </section>

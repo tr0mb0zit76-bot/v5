@@ -19,6 +19,11 @@ class BusinessProcessStage extends Model
         'duration_days',
         'is_terminal',
         'terminal_outcome',
+        'auto_create_task',
+        'task_title_template',
+        'task_description_template',
+        'task_due_days_offset',
+        'task_priority',
     ];
 
     /**
@@ -28,6 +33,7 @@ class BusinessProcessStage extends Model
     {
         return [
             'is_terminal' => 'boolean',
+            'auto_create_task' => 'boolean',
         ];
     }
 

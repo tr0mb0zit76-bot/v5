@@ -164,6 +164,11 @@ class SettingsBusinessProcessController extends Controller
                 'duration_days' => $stage->duration_days,
                 'is_terminal' => $stage->is_terminal,
                 'terminal_outcome' => $stage->terminal_outcome,
+                'auto_create_task' => (bool) ($stage->auto_create_task ?? false),
+                'task_title_template' => $stage->task_title_template,
+                'task_description_template' => $stage->task_description_template,
+                'task_due_days_offset' => (int) ($stage->task_due_days_offset ?? 0),
+                'task_priority' => $stage->task_priority ?? 'medium',
             ])->values()->all(),
         ];
     }
@@ -180,6 +185,19 @@ class SettingsBusinessProcessController extends Controller
             'duration_days' => ['required', 'integer', 'min:0', 'max:365'],
             'is_terminal' => ['required', 'boolean'],
             'terminal_outcome' => ['nullable', Rule::in(['won', 'lost', 'neutral'])],
+            'auto_create_task' => ['nullable', 'boolean'],
+            'task_title_template' => ['nullable', 'string', 'max:255'],
+            'task_description_template' => ['nullable', 'string'],
+            'task_due_days_offset' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'task_priority' => ['nullable', Rule::in(['low', 'medium', 'high', 'critical'])],
         ]);
+
+        if (Schema::hasColumn('business_process_stages', 'auto_create_task')) {
+            $validated['auto_create_task'] = (bool) ($validated['auto_create_task'] ?? false);
+            $validated['task_due_days_offset'] = (int) ($validated['task_due_days_offset'] ?? 0);
+            $validated['task_priority'] = $validated['task_priority'] ?? 'medium';
+        }
+
+        return $validated;
     }
 }

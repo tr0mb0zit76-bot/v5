@@ -6,9 +6,11 @@ use App\Models\BusinessProcess;
 use App\Models\BusinessProcessStage;
 use App\Models\Lead;
 use App\Models\LeadProcessStageLog;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -67,13 +69,15 @@ class LeadBusinessProcessService
         $lead->stage_due_at = $this->resolveStageDueAt($stage, $now);
         $lead->save();
 
-        LeadProcessStageLog::query()->create([
+        $log = LeadProcessStageLog::query()->create([
             'lead_id' => $lead->id,
             'business_process_stage_id' => $stage->id,
             'entered_at' => $now,
             'due_at' => $lead->stage_due_at,
             'created_by' => $user?->id,
         ]);
+
+        $this->maybeCreatePlaybookTask($lead, $stage, $log, $user);
 
         if (Schema::hasTable('lead_activities')) {
             $lead->activities()->create([
@@ -133,9 +137,7 @@ class LeadBusinessProcessService
         $completedCount = $currentIndex === false ? 0 : $currentIndex;
         $progressPercent = $total > 0 ? (int) round(($completedCount / $total) * 100) : 0;
 
-        $isOverdue = $lead->stage_due_at !== null
-            && $lead->stage_due_at->isPast()
-            && ! $this->isTerminalStage($lead->businessProcessStage);
+        $isOverdue = $this->isStageOverdue($lead);
 
         return [
             'process_id' => $process->id,
@@ -167,6 +169,38 @@ class LeadBusinessProcessService
                     'state' => $state,
                 ];
             })->all(),
+        ];
+    }
+
+    public function isStageOverdue(Lead $lead): bool
+    {
+        if (! $this->tablesReady() || $lead->business_process_id === null) {
+            return false;
+        }
+
+        $lead->loadMissing('businessProcessStage');
+
+        return $lead->stage_due_at !== null
+            && $lead->stage_due_at->isPast()
+            && ! $this->isTerminalStage($lead->businessProcessStage);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function gridProcessFields(Lead $lead): ?array
+    {
+        if (! $this->tablesReady() || $lead->business_process_id === null) {
+            return null;
+        }
+
+        $lead->loadMissing(['businessProcess:id,name', 'businessProcessStage:id,name,is_terminal']);
+
+        return [
+            'process_name' => $lead->businessProcess?->name,
+            'current_stage_name' => $lead->businessProcessStage?->name,
+            'stage_due_at' => optional($lead->stage_due_at)?->toIso8601String(),
+            'is_stage_overdue' => $this->isStageOverdue($lead),
         ];
     }
 
@@ -232,5 +266,89 @@ class LeadBusinessProcessService
     private function isTerminalStage(?BusinessProcessStage $stage): bool
     {
         return $stage !== null && $stage->is_terminal;
+    }
+
+    private function maybeCreatePlaybookTask(Lead $lead, BusinessProcessStage $stage, LeadProcessStageLog $log, ?User $user): void
+    {
+        if (! Schema::hasTable('tasks') || ! $this->stageHasPlaybook($stage) || ! $stage->auto_create_task) {
+            return;
+        }
+
+        if (Task::query()
+            ->where('lead_id', $lead->id)
+            ->where('meta->playbook_log_id', $log->id)
+            ->exists()) {
+            return;
+        }
+
+        $lead->loadMissing(['businessProcess:id,name', 'responsible:id']);
+
+        $title = $this->renderPlaybookTemplate(
+            $stage->task_title_template ?: '{stage_name} — {lead_number}',
+            $lead,
+            $stage,
+        );
+
+        $description = filled($stage->task_description_template)
+            ? $this->renderPlaybookTemplate($stage->task_description_template, $lead, $stage)
+            : null;
+
+        $dueAt = (int) ($stage->task_due_days_offset ?? 0) > 0
+            ? now()->addDays((int) $stage->task_due_days_offset)
+            : $lead->stage_due_at;
+
+        Task::query()->create([
+            'number' => $this->nextTaskNumber(),
+            'title' => $title,
+            'description' => $description,
+            'status' => 'new',
+            'priority' => $stage->task_priority ?: 'medium',
+            'due_at' => $dueAt,
+            'responsible_id' => $lead->responsible_id ?? $user?->id,
+            'created_by' => $user?->id,
+            'lead_id' => $lead->id,
+            'meta' => [
+                'playbook_log_id' => $log->id,
+                'playbook_stage_id' => $stage->id,
+                'playbook_process_id' => $stage->business_process_id,
+            ],
+        ]);
+    }
+
+    private function stageHasPlaybook(BusinessProcessStage $stage): bool
+    {
+        return Schema::hasColumn('business_process_stages', 'auto_create_task');
+    }
+
+    private function renderPlaybookTemplate(string $template, Lead $lead, BusinessProcessStage $stage): string
+    {
+        $lead->loadMissing('businessProcess:id,name');
+
+        $replacements = [
+            '{stage}' => $stage->name,
+            '{stage_name}' => $stage->name,
+            '{process}' => $lead->businessProcess?->name ?? '',
+            '{process_name}' => $lead->businessProcess?->name ?? '',
+            '{lead}' => $lead->title,
+            '{lead_title}' => $lead->title,
+            '{lead_number}' => $lead->number,
+        ];
+
+        return trim(str_replace(array_keys($replacements), array_values($replacements), $template));
+    }
+
+    private function nextTaskNumber(): string
+    {
+        $prefix = 'TSK-'.now()->format('ymd');
+
+        if (! Schema::hasTable('tasks')) {
+            return sprintf('%s-%03d', $prefix, 1);
+        }
+
+        $sequence = DB::table('tasks')
+            ->where('number', 'like', $prefix.'-%')
+            ->count() + 1;
+
+        return sprintf('%s-%03d', $prefix, $sequence);
     }
 }

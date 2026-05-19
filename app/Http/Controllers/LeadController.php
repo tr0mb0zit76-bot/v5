@@ -362,28 +362,51 @@ class LeadController extends Controller
         $user = $request->user();
         $leadsScope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
 
+        $processReady = $this->leadBusinessProcessService->tablesReady();
+
+        $relations = ['counterparty:id,name', 'responsible:id,name', 'offers:id,lead_id,status,number,offer_date'];
+        if ($processReady) {
+            $relations[] = 'businessProcess:id,name';
+            $relations[] = 'businessProcessStage:id,name,is_terminal';
+        }
+
         $leads = Lead::query()
-            ->with(['counterparty:id,name', 'responsible:id,name', 'offers:id,lead_id,status,number,offer_date'])
+            ->with($relations)
             ->when(
                 $user !== null && ! $user->isAdmin() && $leadsScope !== 'all',
                 fn ($query) => $query->where('responsible_id', $user->id)
             )
             ->latest('id')
             ->get()
-            ->map(fn (Lead $lead): array => [
-                'id' => $lead->id,
-                'number' => $lead->number,
-                'status' => $lead->status,
-                'title' => $lead->title,
-                'source' => $lead->source,
-                'counterparty_name' => $lead->counterparty?->name,
-                'responsible_name' => $lead->responsible?->name,
-                'planned_shipping_date' => optional($lead->planned_shipping_date)->toDateString(),
-                'target_price' => $lead->target_price,
-                'target_currency' => $lead->target_currency,
-                'has_offer' => $lead->offers->isNotEmpty(),
-                'created_at' => optional($lead->created_at)->toIso8601String(),
-            ])
+            ->map(function (Lead $lead) use ($processReady): array {
+                $row = [
+                    'id' => $lead->id,
+                    'number' => $lead->number,
+                    'status' => $lead->status,
+                    'title' => $lead->title,
+                    'source' => $lead->source,
+                    'counterparty_name' => $lead->counterparty?->name,
+                    'responsible_name' => $lead->responsible?->name,
+                    'planned_shipping_date' => optional($lead->planned_shipping_date)->toDateString(),
+                    'target_price' => $lead->target_price,
+                    'target_currency' => $lead->target_currency,
+                    'has_offer' => $lead->offers->isNotEmpty(),
+                    'created_at' => optional($lead->created_at)->toIso8601String(),
+                    'process_name' => null,
+                    'current_stage_name' => null,
+                    'stage_due_at' => null,
+                    'is_stage_overdue' => false,
+                ];
+
+                if ($processReady) {
+                    $processFields = $this->leadBusinessProcessService->gridProcessFields($lead);
+                    if ($processFields !== null) {
+                        $row = array_merge($row, $processFields);
+                    }
+                }
+
+                return $row;
+            })
             ->values();
 
         return $leads;
