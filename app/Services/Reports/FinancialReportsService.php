@@ -4,6 +4,7 @@ namespace App\Services\Reports;
 
 use App\Services\CompletedOrderFinancialAnalytics;
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -34,10 +35,35 @@ class FinancialReportsService
      *     total_orders: int
      * }
      */
-    public function abcByCustomer(Carbon $from, Carbon $to, ?int $managerId): array
+    public function abcByCustomer(Carbon $from, Carbon $to, ?int $managerId, string $party = 'customer'): array
     {
-        if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'customer_rate')) {
-            return ['rows' => [], 'total_revenue' => 0.0, 'total_orders' => 0];
+        return $this->abcByContractorParty($from, $to, $managerId, $party);
+    }
+
+    /**
+     * @return array{
+     *     rows: list<array{
+     *         contractor_id: int,
+     *         contractor_name: string,
+     *         revenue: float,
+     *         orders_count: int,
+     *         share_percent: float,
+     *         cumulative_share_percent: float,
+     *         abc_class: 'A'|'B'|'C'
+     *     }>,
+     *     total_revenue: float,
+     *     total_orders: int,
+     *     party: string
+     * }
+     */
+    public function abcByContractorParty(Carbon $from, Carbon $to, ?int $managerId, string $party = 'customer'): array
+    {
+        $party = $party === 'carrier' ? 'carrier' : 'customer';
+        $contractorColumn = $party === 'carrier' ? 'carrier_id' : 'customer_id';
+        $amountColumn = $party === 'carrier' ? 'carrier_rate' : 'customer_rate';
+
+        if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', $amountColumn) || ! Schema::hasColumn('orders', $contractorColumn)) {
+            return ['rows' => [], 'total_revenue' => 0.0, 'total_orders' => 0, 'party' => $party];
         }
 
         $query = DB::table('orders')
@@ -46,33 +72,29 @@ class FinancialReportsService
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($q) => $q->whereNull('orders.deleted_at'),
             )
-            ->when(
-                Schema::hasColumn('orders', 'customer_id'),
-                fn ($q) => $q->whereNotNull('orders.customer_id'),
-            )
+            ->whereNotNull('orders.'.$contractorColumn)
             ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId));
-
-        if (! Schema::hasColumn('orders', 'customer_id')) {
-            return ['rows' => [], 'total_revenue' => 0.0, 'total_orders' => 0];
-        }
 
         $nameSql = $this->contractorDisplayNameSql('c');
 
-        $query->leftJoin('contractors as c', 'c.id', '=', 'orders.customer_id')
+        $query->leftJoin('contractors as c', 'c.id', '=', 'orders.'.$contractorColumn);
+        $this->applyContractorPartyFilter($query, 'c', $party);
+
+        $query
             ->select([
-                'orders.customer_id',
-                DB::raw('MAX('.$nameSql.') as customer_name'),
-                DB::raw('SUM(COALESCE(orders.customer_rate, 0)) as revenue'),
+                'orders.'.$contractorColumn.' as contractor_id',
+                DB::raw('MAX('.$nameSql.') as contractor_name'),
+                DB::raw('SUM(COALESCE(orders.'.$amountColumn.', 0)) as revenue'),
                 DB::raw('COUNT(*) as orders_count'),
             ])
-            ->groupBy('orders.customer_id');
+            ->groupBy('orders.'.$contractorColumn);
 
         $raw = $query->get();
 
         $rows = $raw->map(function (object $row): array {
             return [
-                'customer_id' => (int) $row->customer_id,
-                'customer_name' => (string) ($row->customer_name ?? '—'),
+                'contractor_id' => (int) $row->contractor_id,
+                'contractor_name' => (string) ($row->contractor_name ?? '—'),
                 'revenue' => round((float) $row->revenue, 2),
                 'orders_count' => (int) $row->orders_count,
             ];
@@ -91,6 +113,7 @@ class FinancialReportsService
                 ])->all(),
                 'total_revenue' => 0.0,
                 'total_orders' => $totalOrders,
+                'party' => $party,
             ];
         }
 
@@ -114,6 +137,7 @@ class FinancialReportsService
             'rows' => $classified,
             'total_revenue' => round($totalRevenue, 2),
             'total_orders' => $totalOrders,
+            'party' => $party,
         ];
     }
 
@@ -133,10 +157,26 @@ class FinancialReportsService
      *     months: list<string>
      * }
      */
-    public function xyzByCustomer(Carbon $from, Carbon $to, ?int $managerId, int $monthSpan = 6): array
+    public function xyzByCustomer(Carbon $from, Carbon $to, ?int $managerId, int $monthSpan = 6, string $party = 'customer'): array
     {
-        if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'customer_rate') || ! Schema::hasColumn('orders', 'customer_id')) {
-            return ['rows' => [], 'months' => []];
+        return $this->xyzByContractorParty($from, $to, $managerId, $monthSpan, $party);
+    }
+
+    /**
+     * @return array{
+     *     rows: list<array<string, mixed>>,
+     *     months: list<string>,
+     *     party: string
+     * }
+     */
+    public function xyzByContractorParty(Carbon $from, Carbon $to, ?int $managerId, int $monthSpan = 6, string $party = 'customer'): array
+    {
+        $party = $party === 'carrier' ? 'carrier' : 'customer';
+        $contractorColumn = $party === 'carrier' ? 'carrier_id' : 'customer_id';
+        $amountColumn = $party === 'carrier' ? 'carrier_rate' : 'customer_rate';
+
+        if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', $amountColumn) || ! Schema::hasColumn('orders', $contractorColumn)) {
+            return ['rows' => [], 'months' => [], 'party' => $party];
         }
 
         $end = $to->copy()->endOfMonth();
@@ -151,39 +191,43 @@ class FinancialReportsService
 
         $nameSql = $this->contractorDisplayNameSql('c');
 
-        $cells = DB::table('orders')
-            ->leftJoin('contractors as c', 'c.id', '=', 'orders.customer_id')
-            ->whereNotNull('orders.customer_id')
+        $cellsQuery = DB::table('orders')
+            ->leftJoin('contractors as c', 'c.id', '=', 'orders.'.$contractorColumn)
+            ->whereNotNull('orders.'.$contractorColumn)
             ->whereBetween('orders.order_date', [$start->toDateString(), $end->toDateString()])
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($q) => $q->whereNull('orders.deleted_at'),
             )
-            ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId))
+            ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId));
+
+        $this->applyContractorPartyFilter($cellsQuery, 'c', $party);
+
+        $cells = $cellsQuery
             ->when(
                 DB::getDriverName() === 'sqlite',
                 fn ($q) => $q
                     ->select([
-                        'orders.customer_id',
-                        DB::raw($nameSql.' as customer_name'),
+                        'orders.'.$contractorColumn.' as contractor_id',
+                        DB::raw($nameSql.' as contractor_name'),
                         DB::raw("strftime('%Y-%m', orders.order_date) as ym"),
-                        DB::raw('SUM(COALESCE(orders.customer_rate, 0)) as revenue'),
+                        DB::raw('SUM(COALESCE(orders.'.$amountColumn.', 0)) as revenue'),
                     ])
-                    ->groupBy('orders.customer_id', DB::raw("strftime('%Y-%m', orders.order_date)")),
+                    ->groupBy('orders.'.$contractorColumn, DB::raw("strftime('%Y-%m', orders.order_date)")),
                 fn ($q) => $q
                     ->select([
-                        'orders.customer_id',
-                        DB::raw($nameSql.' as customer_name'),
+                        'orders.'.$contractorColumn.' as contractor_id',
+                        DB::raw($nameSql.' as contractor_name'),
                         DB::raw("DATE_FORMAT(orders.order_date, '%Y-%m') as ym"),
-                        DB::raw('SUM(COALESCE(orders.customer_rate, 0)) as revenue'),
+                        DB::raw('SUM(COALESCE(orders.'.$amountColumn.', 0)) as revenue'),
                     ])
-                    ->groupBy('orders.customer_id', DB::raw("DATE_FORMAT(orders.order_date, '%Y-%m')")),
+                    ->groupBy('orders.'.$contractorColumn, DB::raw("DATE_FORMAT(orders.order_date, '%Y-%m')")),
             )
             ->get();
 
-        $byCustomer = $cells->groupBy('customer_id');
+        $byContractor = $cells->groupBy('contractor_id');
 
-        $rows = $byCustomer->map(function (Collection $group) use ($months): array {
+        $rows = $byContractor->map(function (Collection $group) use ($months): array {
             /** @var object $first */
             $first = $group->first();
             $byMonth = $group->keyBy('ym');
@@ -198,8 +242,8 @@ class FinancialReportsService
             $xyz = $cv === null ? '-' : ($cv < 0.25 ? 'X' : ($cv < 0.75 ? 'Y' : 'Z'));
 
             return [
-                'customer_id' => (int) $first->customer_id,
-                'customer_name' => (string) ($first->customer_name ?? '—'),
+                'contractor_id' => (int) $first->contractor_id,
+                'contractor_name' => (string) ($first->contractor_name ?? '—'),
                 'monthly_revenues' => $series,
                 'mean' => round($mean, 2),
                 'std_dev' => round($std, 2),
@@ -211,6 +255,7 @@ class FinancialReportsService
         return [
             'rows' => $rows,
             'months' => $months,
+            'party' => $party,
         ];
     }
 
@@ -254,5 +299,18 @@ class FinancialReportsService
         }
 
         return "COALESCE({$alias}.name, '')";
+    }
+
+    private function applyContractorPartyFilter(Builder $query, string $alias, string $party): void
+    {
+        if (! Schema::hasTable('contractors') || ! Schema::hasColumn('contractors', 'type')) {
+            return;
+        }
+
+        if ($party === 'carrier') {
+            $query->whereIn("{$alias}.type", ['carrier', 'both']);
+        } else {
+            $query->whereIn("{$alias}.type", ['customer', 'both']);
+        }
     }
 }

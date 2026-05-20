@@ -35,6 +35,58 @@ class LeadProcessReportsService
     }
 
     /**
+     * Объединённый отчёт: просрочен calendar due и/или долго на этапе без перехода.
+     *
+     * @return array{rows: list<array<string, mixed>>, stuck_days: int}
+     */
+    public function processStageIssues(?int $responsibleId = null, int $minStuckDays = self::STUCK_STAGE_DAYS): array
+    {
+        $minStuckDays = max(1, min(365, $minStuckDays));
+
+        $byLeadId = [];
+
+        foreach ($this->stageSlaBreached($responsibleId) as $row) {
+            $id = (int) $row['lead_id'];
+            $byLeadId[$id] = $row;
+            $byLeadId[$id]['issue_flags'] = ['due_overdue'];
+        }
+
+        foreach ($this->stuckOnStage($responsibleId, $minStuckDays) as $row) {
+            $id = (int) $row['lead_id'];
+            if (isset($byLeadId[$id])) {
+                $byLeadId[$id]['days_on_stage'] = $row['days_on_stage'];
+                $byLeadId[$id]['stage_entered_at'] = $row['stage_entered_at'];
+                $byLeadId[$id]['issue_flags'] = ['due_overdue', 'stuck'];
+            } else {
+                $byLeadId[$id] = $row;
+                $byLeadId[$id]['issue_flags'] = ['stuck'];
+            }
+        }
+
+        $rows = collect($byLeadId)
+            ->map(function (array $row): array {
+                $flags = $row['issue_flags'] ?? [];
+
+                return [
+                    ...$row,
+                    'issue_labels' => $this->issueLabels($flags),
+                ];
+            })
+            ->sortBy([
+                fn (array $row): int => in_array('due_overdue', $row['issue_flags'] ?? [], true) ? 0 : 1,
+                fn (array $row): int => -(int) ($row['days_overdue'] ?? 0),
+                fn (array $row): int => -(int) ($row['days_on_stage'] ?? 0),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'rows' => $rows,
+            'stuck_days' => $minStuckDays,
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function stuckOnStage(?int $responsibleId = null, int $minDays = self::STUCK_STAGE_DAYS): array
@@ -99,5 +151,24 @@ class LeadProcessReportsService
             'is_stage_overdue' => $this->leadBusinessProcessService->isStageOverdue($lead),
             'sla_focus' => $slaFocus,
         ];
+    }
+
+    /**
+     * @param  list<string>  $flags
+     * @return list<string>
+     */
+    private function issueLabels(array $flags): array
+    {
+        $labels = [];
+
+        if (in_array('due_overdue', $flags, true)) {
+            $labels[] = 'Срок этапа';
+        }
+
+        if (in_array('stuck', $flags, true)) {
+            $labels[] = 'Долго на этапе';
+        }
+
+        return $labels;
     }
 }

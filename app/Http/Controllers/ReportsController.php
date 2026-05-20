@@ -21,6 +21,7 @@ class ReportsController extends Controller
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'tab' => ['nullable', 'string', 'max:32'],
+            'party' => ['nullable', 'string', 'in:customer,carrier'],
             'stuck_days' => ['nullable', 'integer', 'min:1', 'max:365'],
         ]);
 
@@ -39,41 +40,45 @@ class ReportsController extends Controller
         }
 
         $tab = $validated['tab'] ?? 'abc';
-        if (! in_array($tab, ['abc', 'xyz', 'managers', 'lead-sla', 'lead-stuck'], true)) {
+        if (in_array($tab, ['lead-sla', 'lead-stuck'], true)) {
+            $tab = 'lead-process';
+        }
+        if (! in_array($tab, ['abc', 'xyz', 'managers', 'lead-process'], true)) {
             $tab = 'abc';
         }
+
+        $party = ($validated['party'] ?? 'customer') === 'carrier' ? 'carrier' : 'customer';
 
         $stuckDays = (int) ($validated['stuck_days'] ?? LeadProcessReportsService::STUCK_STAGE_DAYS);
         $stuckDays = max(1, min(365, $stuckDays));
 
-        $leadSlaRows = $hasLeadsAccess ? $leadProcessReports->stageSlaBreached($leadsManagerId) : [];
-        $leadStuckRows = $hasLeadsAccess ? $leadProcessReports->stuckOnStage($leadsManagerId, $stuckDays) : [];
+        $leadProcess = $hasLeadsAccess
+            ? $leadProcessReports->processStageIssues($leadsManagerId, $stuckDays)
+            : ['rows' => [], 'stuck_days' => $stuckDays];
 
         return Inertia::render('Reports/Index', [
             'filters' => [
                 'date_from' => $dateFrom->toDateString(),
                 'date_to' => $dateTo->toDateString(),
+                'party' => $party,
                 'stuck_days' => $stuckDays,
             ],
             'tab' => $tab,
             'order_scope' => $orderScope,
             'leads_scope' => $leadsScope,
             'has_leads_access' => $hasLeadsAccess,
-            'lead_sla' => ['rows' => $leadSlaRows],
-            'lead_stuck' => [
-                'rows' => $leadStuckRows,
-                'stuck_days' => $stuckDays,
-            ],
-            'abc' => $financialReports->abcByCustomer($dateFrom, $dateTo, $managerId),
-            'xyz' => $financialReports->xyzByCustomer($dateFrom, $dateTo, $managerId, 6),
+            'lead_process' => $leadProcess,
+            'abc' => $financialReports->abcByContractorParty($dateFrom, $dateTo, $managerId, $party),
+            'xyz' => $financialReports->xyzByContractorParty($dateFrom, $dateTo, $managerId, 6, $party),
             'managers' => $financialReports->managerStatsByCompletedOrders($dateFrom, $dateTo, $managerId),
             'glossary' => [
-                'abc' => 'ABC: классификация клиентов по доле накопленной выручки (ставка клиента в заказах) за период. A — до 80% накопленной суммы, B — до 95%, C — остальное.',
-                'xyz' => 'XYZ: нестабильность помесячной выручки по клиенту за последние 6 месяцев относительно конца выбранного периода. CV = σ/μ. X (CV < 0,25) — ровный спрос, Y — умеренные колебания, Z — сильная нерегулярность.',
+                'abc_customer' => 'ABC (клиенты): классификация заказчиков по доле накопленной выручки (ставка клиента в заказах) за период. A — до 80% накопленной суммы, B — до 95%, C — остальное. Перевозчики с типом «только перевозчик» не участвуют.',
+                'abc_carrier' => 'ABC (перевозчики): классификация перевозчиков по доле накопленной суммы ставок перевозчика (carrier_rate) в заказах за период. A — до 80%, B — до 95%, C — остальное. Заказчики с типом «только заказчик» не участвуют.',
+                'xyz_customer' => 'XYZ (клиенты): нестабильность помесячной выручки по заказчику за последние 6 месяцев относительно конца выбранного периода. CV = σ/μ. X (CV < 0,25) — ровный спрос, Y — умеренные колебания, Z — сильная нерегулярность.',
+                'xyz_carrier' => 'XYZ (перевозчики): нестабильность помесячных сумм по перевозчику (carrier_rate) за последние 6 месяцев. CV = σ/μ. X — стабильный объём заказов, Y — умеренные колебания, Z — нерегулярность.',
                 'managers' => 'Менеджеры: только заказы в статусе «Завершено» или legacy «completed». Дата в периоде — дата закрытия (или дата заказа, если дата закрытия не задана). Маржа — сумма поля «дельта», средний чек — средняя ставка клиента по заказам.',
-                'lead_sla' => 'Просрочка этапа: текущий срез лидов с активным процессом, у которых календарный срок этапа (stage_due_at) уже прошёл, а этап не финальный. Период сверху не влияет.',
-                'lead_stuck' => sprintf(
-                    'Застряли на этапе: лиды на нефинальном этапе дольше %d дн. без перехода (порог — в панели отчёта). Период дат сверху не влияет. Отличается от «Просрочки этапов»: там смотрим calendar due этапа, здесь — сколько дней лид уже на текущем этапе.',
+                'lead_process' => sprintf(
+                    'Лиды с проблемой на этапе процесса: истёк календарный срок этапа (stage_due_at) и/или лид на нефинальном этапе дольше %d дн. без перехода. Период дат сверху не влияет.',
                     $stuckDays,
                 ),
             ],
