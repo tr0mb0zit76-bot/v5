@@ -37,13 +37,10 @@ class DocumentStorageService
     public function storeOrderUpload(UploadedFile $file, ?int $orderId = null): array
     {
         $originalName = $file->getClientOriginalName();
-        $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
-        $safeSuffix = $ext !== '' && preg_match('/^[a-z0-9]{1,10}$/i', $ext) === 1 ? '.'.$ext : '';
-        $basename = Str::uuid()->toString().$safeSuffix;
         $directory = $orderId !== null
             ? 'order_documents/'.$orderId
             : 'order_documents/misc';
-        $path = trim($directory, '/').'/'.$basename;
+        $path = $this->resolveUniquePathInDirectory($directory, $originalName);
         $contents = $file->get();
         $driver = $this->configuredDriver();
         $this->put($path, $contents, $driver);
@@ -67,13 +64,10 @@ class DocumentStorageService
     public function storeContractorUpload(UploadedFile $file, ?int $contractorId = null): array
     {
         $originalName = $file->getClientOriginalName();
-        $ext = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
-        $safeSuffix = $ext !== '' && preg_match('/^[a-z0-9]{1,10}$/i', $ext) === 1 ? '.'.$ext : '';
-        $basename = Str::uuid()->toString().$safeSuffix;
         $directory = $contractorId !== null
             ? 'contractor_documents/'.$contractorId
             : 'contractor_documents/misc';
-        $path = trim($directory, '/').'/'.$basename;
+        $path = $this->resolveUniquePathInDirectory($directory, $originalName);
         $contents = $file->get();
         $driver = $this->configuredDriver();
         $this->put($path, $contents, $driver);
@@ -156,6 +150,112 @@ class DocumentStorageService
         }
 
         return Storage::disk(self::DRIVER_LOCAL)->exists($path);
+    }
+
+    /**
+     * Путь к файлу заказа с «человеческим» именем (как в Nextcloud), с учётом коллизий в каталоге.
+     */
+    public function resolveOrderDocumentPath(int $orderId, string $preferredFilename, ?string $driver = null): string
+    {
+        return $this->resolveUniquePathInDirectory(
+            'order_documents/'.$orderId,
+            $preferredFilename,
+            $driver,
+        );
+    }
+
+    /**
+     * Вставляет суффикс перед расширением: «договор.pdf» + «-signed» → «договор-signed.pdf».
+     */
+    public function filenameWithVariant(string $filename, string $variant): string
+    {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $basename = pathinfo($filename, PATHINFO_FILENAME);
+
+        if ($basename === '') {
+            $basename = 'document';
+        }
+
+        if ($extension !== '') {
+            return $basename.$variant.'.'.$extension;
+        }
+
+        return $basename.$variant;
+    }
+
+    public function sanitizeStorageFilename(string $filename): string
+    {
+        $basename = basename(str_replace('\\', '/', $filename));
+        $basename = preg_replace('/[\x00-\x1F\x7F]/u', '', $basename) ?? '';
+        $basename = preg_replace('/[\/\\\\:*?"<>|]/u', '-', $basename) ?? '';
+        $basename = preg_replace('/-+/', '-', $basename) ?? '';
+        $basename = preg_replace('/\s+/u', ' ', $basename) ?? '';
+        $basename = trim($basename, " \t\n\r\0\x0B.-");
+
+        while (str_ends_with($basename, '.')) {
+            $basename = rtrim($basename, '.');
+        }
+
+        if ($basename === '' || $basename === '.' || $basename === '..') {
+            $basename = 'document';
+        }
+
+        $extension = strtolower((string) pathinfo($basename, PATHINFO_EXTENSION));
+        $nameWithoutExtension = trim((string) pathinfo($basename, PATHINFO_FILENAME), " \t\n\r\0\x0B.-");
+        $maxBasenameLength = 200;
+
+        if ($extension !== '' && preg_match('/^[a-z0-9]{1,10}$/i', $extension) !== 1) {
+            $extension = '';
+        }
+
+        if ($nameWithoutExtension === '') {
+            $nameWithoutExtension = 'document';
+        }
+
+        if ($extension !== '' && mb_strlen($nameWithoutExtension) > $maxBasenameLength) {
+            $nameWithoutExtension = mb_substr($nameWithoutExtension, 0, $maxBasenameLength);
+        }
+
+        if ($extension !== '') {
+            return $nameWithoutExtension.'.'.$extension;
+        }
+
+        if (mb_strlen($nameWithoutExtension) > $maxBasenameLength) {
+            $nameWithoutExtension = mb_substr($nameWithoutExtension, 0, $maxBasenameLength);
+        }
+
+        return $nameWithoutExtension;
+    }
+
+    private function resolveUniquePathInDirectory(string $directory, string $preferredFilename, ?string $driver = null): string
+    {
+        $sanitized = $this->sanitizeStorageFilename($preferredFilename);
+        $directory = trim(str_replace('\\', '/', $directory), '/');
+        $candidate = $sanitized;
+        $attempt = 1;
+
+        while ($this->exists($directory.'/'.$candidate, $driver)) {
+            $attempt++;
+            $extension = pathinfo($sanitized, PATHINFO_EXTENSION);
+            $basename = pathinfo($sanitized, PATHINFO_FILENAME);
+
+            if ($extension !== '') {
+                $candidate = sprintf('%s (%d).%s', $basename, $attempt, $extension);
+            } else {
+                $candidate = sprintf('%s (%d)', $basename, $attempt);
+            }
+
+            if ($attempt > 99) {
+                $suffix = Str::uuid()->toString();
+                $candidate = $extension !== ''
+                    ? sprintf('%s-%s.%s', $basename, $suffix, $extension)
+                    : sprintf('%s-%s', $basename, $suffix);
+
+                break;
+            }
+        }
+
+        return $directory.'/'.$candidate;
     }
 
     private function resolveDriver(?string $driver): string

@@ -23,7 +23,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -549,10 +548,11 @@ class OrderDocumentWorkflowController extends Controller
             return null;
         }
 
-        $targetPath = sprintf(
-            'order_documents/%d/%s-preview.pdf',
+        $sourceName = $orderDocument->original_name ?: 'draft.docx';
+        $previewFilename = pathinfo($sourceName, PATHINFO_FILENAME).'-preview.pdf';
+        $targetPath = $this->documentStorage->resolveOrderDocumentPath(
             (int) $orderDocument->order_id,
-            (string) Str::uuid()
+            $previewFilename,
         );
         $targetDriver = $this->documentStorage->configuredDriver();
         $this->documentStorage->put($targetPath, $pdfContents, $targetDriver);

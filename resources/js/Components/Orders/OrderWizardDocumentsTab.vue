@@ -14,7 +14,9 @@ import {
 import {
     buildDocumentRequirementRules,
     documentMatchesRequirementRule,
+    findRequirementRuleForUpload,
 } from '@/support/orderDocumentRequirementSlots.js';
+import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import {
     carrierPrintSlots,
     customerPrintSlots,
@@ -100,6 +102,28 @@ const attachForm = reactive({
     file: null,
 });
 
+const showAttachLegPicker = computed(() => {
+    const legs = Array.isArray(props.performers) ? props.performers : [];
+
+    if (legs.length <= 1) {
+        return false;
+    }
+
+    if (props.clientRequestMode === 'split_by_leg') {
+        return true;
+    }
+
+    return attachForm.party === 'carrier';
+});
+
+const attachLegOptions = computed(() => (
+    Array.isArray(props.performers) ? props.performers : []
+).map((performer) => ({
+    stage: performer.stage ?? 'leg_1',
+    label: stageLabel(performer.stage ?? 'leg_1'),
+    contractorName: performer.contractor_name ? String(performer.contractor_name).trim() : '',
+})));
+
 const orderDocumentGlobalFileInputRef = ref(null);
 const orderDocumentGlobalDropActive = ref(false);
 const attachModalFileInputRef = ref(null);
@@ -112,6 +136,13 @@ watch(
         signedDocuments.value = signedRegistryDocuments(docs).map((doc) => ({ ...doc }));
     },
     { immediate: true, deep: true },
+);
+
+watch(
+    () => attachForm.party,
+    (party) => {
+        attachForm.stage = defaultAttachStage(party);
+    },
 );
 
 function templateOptionLabel(template) {
@@ -242,12 +273,27 @@ function confirmDiscardPrintWorkflow(doc) {
     });
 }
 
+function defaultAttachStage(party) {
+    const legs = Array.isArray(props.performers) ? props.performers : [];
+    if (legs.length === 0) {
+        return null;
+    }
+
+    if (party === 'carrier') {
+        const withCarrier = legs.find((p) => p?.contractor_id);
+
+        return withCarrier?.stage ?? legs[0]?.stage ?? null;
+    }
+
+    return legs[0]?.stage ?? null;
+}
+
 async function openAttachModal(preset = {}) {
     attachForm.party = preset.party ?? 'customer';
     attachForm.type = preset.type ?? 'request';
     attachForm.number = '';
     attachForm.document_date = '';
-    attachForm.stage = preset.stage ?? null;
+    attachForm.stage = preset.stage ?? defaultAttachStage(attachForm.party);
     attachForm.file = null;
     attachError.value = '';
     attachDropDepth = 0;
@@ -328,6 +374,32 @@ async function submitAttach() {
     body.append('party', attachForm.party);
     body.append('type', attachForm.type);
     body.append('status', 'signed');
+
+    const performer = (Array.isArray(props.performers) ? props.performers : [])
+        .find((row) => toStageKey(row?.stage ?? '') === toStageKey(attachForm.stage ?? ''));
+    const carrierContractorId = attachForm.party === 'carrier' && performer?.contractor_id
+        ? Number(performer.contractor_id)
+        : null;
+
+    if (showAttachLegPicker.value && attachForm.stage) {
+        body.append('order_leg_stage', toStageKey(String(attachForm.stage)));
+    }
+
+    if (carrierContractorId) {
+        body.append('carrier_contractor_id', String(carrierContractorId));
+    }
+
+    const matchedRule = findRequirementRuleForUpload(effectiveRequiredDocumentRules.value, {
+        party: attachForm.party,
+        type: attachForm.type,
+        stage: attachForm.stage,
+        contractor_id: carrierContractorId,
+    });
+
+    if (matchedRule?.slot_key) {
+        body.append('requirement_slot_key', String(matchedRule.slot_key));
+    }
+
     if (attachForm.number) {
         body.append('number', attachForm.number);
     }
@@ -625,6 +697,18 @@ async function onGlobalDrop(event) {
                         <label class="text-xs font-medium">Тип</label>
                         <select v-model="attachForm.type" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                             <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                        </select>
+                    </div>
+                    <div v-if="showAttachLegPicker" class="space-y-1 sm:col-span-2">
+                        <label class="text-xs font-medium">Плечо маршрута</label>
+                        <select v-model="attachForm.stage" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <option
+                                v-for="leg in attachLegOptions"
+                                :key="`attach-leg-${leg.stage}`"
+                                :value="leg.stage"
+                            >
+                                {{ leg.label }}{{ leg.contractorName ? ` · ${leg.contractorName}` : '' }}
+                            </option>
                         </select>
                     </div>
                     <div class="space-y-1">

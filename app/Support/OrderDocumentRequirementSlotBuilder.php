@@ -104,8 +104,46 @@ final class OrderDocumentRequirementSlotBuilder
      */
     private static function carrierRequestSlots(array $performers, string $clientRequestMode): array
     {
+        $allPerformers = array_values(array_filter($performers, fn (mixed $row): bool => is_array($row)));
+
+        if ($allPerformers === []) {
+            return [[
+                'slotKey' => 'carrier-empty',
+                'orderLegStage' => null,
+                'contractorId' => null,
+                'contractorName' => null,
+                'labelSuffix' => '',
+            ]];
+        }
+
+        if ($clientRequestMode === 'split_by_leg' && count($allPerformers) > 1) {
+            $slots = [];
+            foreach ($allPerformers as $performer) {
+                $stage = self::normalizeStage((string) ($performer['stage'] ?? 'leg_1'));
+                $contractorId = isset($performer['contractor_id']) && (int) $performer['contractor_id'] > 0
+                    ? (int) $performer['contractor_id']
+                    : null;
+                $name = trim((string) ($performer['contractor_name'] ?? ''));
+                $suffix = $name !== ''
+                    ? ' · '.$name.' · '.self::stageLabel($stage)
+                    : ' · '.self::stageLabel($stage);
+                $slotKey = $contractorId !== null
+                    ? "carrier-{$contractorId}-{$stage}"
+                    : "carrier-leg-{$stage}";
+                $slots[] = [
+                    'slotKey' => $slotKey,
+                    'orderLegStage' => $stage,
+                    'contractorId' => $contractorId,
+                    'contractorName' => $name !== '' ? $name : null,
+                    'labelSuffix' => $suffix,
+                ];
+            }
+
+            return $slots;
+        }
+
         $legs = array_values(array_filter(
-            $performers,
+            $allPerformers,
             fn (array $performer): bool => isset($performer['contractor_id']) && (int) $performer['contractor_id'] > 0,
         ));
 
@@ -117,27 +155,6 @@ final class OrderDocumentRequirementSlotBuilder
                 'contractorName' => null,
                 'labelSuffix' => '',
             ]];
-        }
-
-        if ($clientRequestMode === 'split_by_leg' && count($legs) > 1) {
-            $slots = [];
-            foreach ($legs as $performer) {
-                $stage = self::normalizeStage((string) ($performer['stage'] ?? 'leg_1'));
-                $contractorId = (int) $performer['contractor_id'];
-                $name = trim((string) ($performer['contractor_name'] ?? ''));
-                $suffix = $name !== ''
-                    ? ' · '.$name.' · '.self::stageLabel($stage)
-                    : ' · '.self::stageLabel($stage);
-                $slots[] = [
-                    'slotKey' => "carrier-{$contractorId}-{$stage}",
-                    'orderLegStage' => $stage,
-                    'contractorId' => $contractorId,
-                    'contractorName' => $name !== '' ? $name : null,
-                    'labelSuffix' => $suffix,
-                ];
-            }
-
-            return $slots;
         }
 
         $groups = [];

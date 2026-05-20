@@ -40,9 +40,9 @@ export function customerRequestSlots(performers, clientRequestMode) {
  * @param {string} clientRequestMode
  */
 export function carrierRequestSlots(performers, clientRequestMode) {
-    const legs = (Array.isArray(performers) ? performers : []).filter((p) => p?.contractor_id);
+    const allPerformers = Array.isArray(performers) ? performers : [];
 
-    if (legs.length === 0) {
+    if (allPerformers.length === 0) {
         return [{
             slotKey: 'carrier-empty',
             orderLegStage: null,
@@ -52,21 +52,36 @@ export function carrierRequestSlots(performers, clientRequestMode) {
         }];
     }
 
-    if (clientRequestMode === 'split_by_leg' && legs.length > 1) {
-        return legs.map((performer) => {
+    if (clientRequestMode === 'split_by_leg' && allPerformers.length > 1) {
+        return allPerformers.map((performer) => {
             const stage = toStageKey(performer.stage ?? 'leg_1');
-            const contractorId = Number(performer.contractor_id);
+            const contractorId = performer.contractor_id ? Number(performer.contractor_id) : null;
             const name = performer.contractor_name ? String(performer.contractor_name).trim() : '';
             const suffix = name !== '' ? ` · ${name} · ${stageLabel(stage)}` : ` · ${stageLabel(stage)}`;
+            const slotKey = contractorId !== null
+                ? `carrier-${contractorId}-${stage}`
+                : `carrier-leg-${stage}`;
 
             return {
-                slotKey: `carrier-${contractorId}-${stage}`,
+                slotKey,
                 orderLegStage: stage,
                 contractorId,
                 contractorName: name !== '' ? name : null,
                 labelSuffix: suffix,
             };
         });
+    }
+
+    const legs = allPerformers.filter((p) => p?.contractor_id);
+
+    if (legs.length === 0) {
+        return [{
+            slotKey: 'carrier-empty',
+            orderLegStage: null,
+            contractorId: null,
+            contractorName: null,
+            labelSuffix: '',
+        }];
     }
 
     const groups = new Map();
@@ -186,6 +201,43 @@ export function buildDocumentRequirementRules(performers, clientRequestMode = 's
  * @param {Record<string, unknown>} document
  * @param {Record<string, unknown>} rule
  */
+/**
+ * @param {Array<Record<string, unknown>>} rules
+ * @param {Record<string, unknown>} criteria
+ */
+export function findRequirementRuleForUpload(rules, criteria) {
+    const list = Array.isArray(rules) ? rules : [];
+    const party = String(criteria.party ?? '');
+    const type = String(criteria.type ?? '');
+    const stage = criteria.stage ? toStageKey(String(criteria.stage)) : null;
+    const contractorId = criteria.contractor_id != null ? Number(criteria.contractor_id) : null;
+
+    return list.find((rule) => {
+        const accepted = Array.isArray(rule.accepted_types) ? rule.accepted_types : [];
+
+        if (!accepted.includes(type) || String(rule.party ?? '') !== party) {
+            return false;
+        }
+
+        const ruleStage = rule.order_leg_stage ? toStageKey(String(rule.order_leg_stage)) : null;
+        const ruleContractorId = rule.contractor_id != null ? Number(rule.contractor_id) : null;
+
+        if (ruleStage !== null && ruleStage !== stage) {
+            return false;
+        }
+
+        if (ruleContractorId !== null && ruleContractorId !== contractorId) {
+            return false;
+        }
+
+        if (ruleStage === null && stage !== null && party === 'customer' && String(rule.slot_key) === 'customer-all') {
+            return false;
+        }
+
+        return true;
+    }) ?? null;
+}
+
 export function documentMatchesRequirementRule(document, rule) {
     const accepted = Array.isArray(rule.accepted_types) ? rule.accepted_types : [];
     const type = String(document?.type ?? '');
@@ -199,23 +251,34 @@ export function documentMatchesRequirementRule(document, rule) {
     }
 
     const ruleStage = rule.order_leg_stage ? toStageKey(String(rule.order_leg_stage)) : null;
-    const docStage = document?.order_leg_stage ? toStageKey(String(document.order_leg_stage)) : null;
-
-    if (ruleStage !== null) {
-        if (docStage !== ruleStage) {
-            return false;
-        }
-    } else if (docStage !== null && rule.slot_kind !== 'waybill') {
-        return false;
-    }
+    const docStageRaw = document?.order_leg_stage ?? document?.stage ?? null;
+    const docStage = docStageRaw ? toStageKey(String(docStageRaw)) : null;
 
     const ruleContractorId = rule.contractor_id != null ? Number(rule.contractor_id) : null;
     const docContractorId = document?.carrier_contractor_id != null
         ? Number(document.carrier_contractor_id)
         : (document?.contractor_id != null ? Number(document.contractor_id) : null);
 
+    if (ruleStage !== null) {
+        if (docStage !== ruleStage) {
+            return false;
+        }
+    } else if (docStage !== null && rule.slot_kind !== 'waybill') {
+        const slotKey = rule.slot_key ? String(rule.slot_key) : '';
+        const aggregatedCustomer = String(rule.party) === 'customer' && slotKey === 'customer-all';
+        const aggregatedCarrier = String(rule.party) === 'carrier' && ruleContractorId !== null;
+
+        if (aggregatedCustomer || !aggregatedCarrier) {
+            return false;
+        }
+    }
+
     if (ruleContractorId !== null) {
         if (docContractorId !== ruleContractorId) {
+            return false;
+        }
+    } else if (ruleStage !== null && String(rule.party) === 'carrier') {
+        if (docStage !== ruleStage) {
             return false;
         }
     } else if (docContractorId !== null && String(rule.party) === 'carrier') {

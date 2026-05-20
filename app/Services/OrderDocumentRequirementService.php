@@ -274,21 +274,32 @@ class OrderDocumentRequirementService
             : null;
         $docStage = $this->documentLegStageKey($document);
 
+        $ruleContractorId = isset($rule['contractor_id']) && (int) $rule['contractor_id'] > 0
+            ? (int) $rule['contractor_id']
+            : null;
+
         if ($ruleStage !== null) {
             if ($docStage !== $ruleStage) {
                 return false;
             }
         } elseif ($docStage !== null && ($rule['slot_kind'] ?? '') !== 'waybill') {
-            return false;
+            $slotKey = (string) ($rule['slot_key'] ?? '');
+            $aggregatedCustomer = $party === 'customer' && $slotKey === 'customer-all';
+            $aggregatedCarrier = $party === 'carrier' && $ruleContractorId !== null;
+
+            if ($aggregatedCustomer || ! $aggregatedCarrier) {
+                return false;
+            }
         }
 
-        $ruleContractorId = isset($rule['contractor_id']) && (int) $rule['contractor_id'] > 0
-            ? (int) $rule['contractor_id']
-            : null;
         $docContractorId = $this->documentCarrierContractorId($document);
 
         if ($ruleContractorId !== null) {
             if ($docContractorId !== $ruleContractorId) {
+                return false;
+            }
+        } elseif ($ruleStage !== null && $party === 'carrier') {
+            if ($docStage !== $ruleStage) {
                 return false;
             }
         } elseif ($docContractorId !== null && $party === 'carrier') {
@@ -311,8 +322,11 @@ class OrderDocumentRequirementService
     private function documentLegStageKey(OrderDocument|array $document): ?string
     {
         $raw = $document instanceof OrderDocument
-            ? data_get($document->metadata, 'order_leg_stage')
-            : data_get($document, 'order_leg_stage', data_get($document, 'metadata.order_leg_stage'));
+            ? (data_get($document->metadata, 'order_leg_stage') ?? data_get($document->metadata, 'stage'))
+            : (data_get($document, 'order_leg_stage')
+                ?? data_get($document, 'metadata.order_leg_stage')
+                ?? data_get($document, 'stage')
+                ?? data_get($document, 'metadata.stage'));
 
         if (! is_string($raw) || trim($raw) === '') {
             return null;

@@ -921,12 +921,29 @@ class OrderWizardService
             $id = isset($document['id']) ? (int) $document['id'] : 0;
             $storedFile = $this->storeDocumentFile($document['file'] ?? null, $order);
 
+            $stage = filled($document['stage'] ?? null)
+                ? trim((string) $document['stage'])
+                : null;
+            $carrierContractorId = $this->resolveCarrierContractorIdForDocumentStage($order, $stage, $document);
+
             $metadata = [
                 'party' => $document['party'] ?? 'internal',
                 'flow' => 'uploaded',
-                'stage' => $document['stage'] ?? null,
+                'stage' => $stage,
                 'requirement_key' => $document['requirement_key'] ?? null,
             ];
+
+            if ($stage !== null) {
+                $metadata['order_leg_stage'] = $stage;
+            }
+
+            if ($carrierContractorId !== null) {
+                $metadata['carrier_contractor_id'] = $carrierContractorId;
+            }
+
+            if (filled($document['requirement_slot_key'] ?? null)) {
+                $metadata['requirement_slot_key'] = trim((string) $document['requirement_slot_key']);
+            }
 
             $attributes = [
                 'type' => $document['type'],
@@ -988,6 +1005,39 @@ class OrderWizardService
                 'generated_pdf_path' => null,
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $document
+     */
+    private function resolveCarrierContractorIdForDocumentStage(Order $order, ?string $stage, array $document): ?int
+    {
+        if (isset($document['carrier_contractor_id']) && (int) $document['carrier_contractor_id'] > 0) {
+            return (int) $document['carrier_contractor_id'];
+        }
+
+        if ($stage === null || $stage === '') {
+            return null;
+        }
+
+        $performers = is_array($order->performers) ? $order->performers : [];
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            $performerStage = trim((string) ($performer['stage'] ?? ''));
+            if ($performerStage !== $stage) {
+                continue;
+            }
+
+            if (isset($performer['contractor_id']) && (int) $performer['contractor_id'] > 0) {
+                return (int) $performer['contractor_id'];
+            }
+        }
+
+        return null;
     }
 
     private function deleteUploadedDocumentFile(OrderDocument $document): void

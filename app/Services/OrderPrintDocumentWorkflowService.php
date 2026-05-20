@@ -11,7 +11,6 @@ use App\Support\OrderPrintFormContext;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class OrderPrintDocumentWorkflowService
 {
@@ -33,7 +32,10 @@ class OrderPrintDocumentWorkflowService
         $order = $this->draftService->loadOrderContext($order);
         $generated = $this->draftService->generate($template, $order, false, $context);
 
-        $permanentPath = sprintf('order_documents/%d/%s-draft.docx', $order->id, (string) Str::uuid());
+        $permanentPath = $this->documentStorage->resolveOrderDocumentPath(
+            $order->id,
+            $generated['download_name'],
+        );
         $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
         $this->documentStorage->put($permanentPath, $docxContents);
         Storage::disk($generated['disk'])->delete($generated['path']);
@@ -152,7 +154,10 @@ class OrderPrintDocumentWorkflowService
             $this->documentStorage->delete((string) $document->generated_pdf_path, $prevDriver);
         }
 
-        $path = sprintf('order_documents/%d/%s-final.pdf', $document->order_id, (string) Str::uuid());
+        $path = $this->documentStorage->resolveOrderDocumentPath(
+            (int) $document->order_id,
+            $file->getClientOriginalName(),
+        );
         $pdfContents = $file->getContent();
         $this->documentStorage->put($path, $pdfContents);
 
@@ -208,7 +213,10 @@ class OrderPrintDocumentWorkflowService
             $this->documentStorage->delete($document->file_path, $storageDriver);
         }
 
-        $permanentPath = sprintf('order_documents/%d/%s-draft.docx', $order->id, (string) Str::uuid());
+        $permanentPath = $this->documentStorage->resolveOrderDocumentPath(
+            $order->id,
+            $generated['download_name'],
+        );
         $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
         $this->documentStorage->put($permanentPath, $docxContents);
         Storage::disk($generated['disk'])->delete($generated['path']);
@@ -263,7 +271,8 @@ class OrderPrintDocumentWorkflowService
             $this->documentStorage->delete($document->file_path, $storageDriver);
         }
 
-        $permanentPath = sprintf('order_documents/%d/%s-signed.docx', $order->id, (string) Str::uuid());
+        $signedFilename = $this->signedDocxFilename($generated['download_name']);
+        $permanentPath = $this->documentStorage->resolveOrderDocumentPath($order->id, $signedFilename);
         $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
         $this->documentStorage->put($permanentPath, $docxContents);
         Storage::disk($generated['disk'])->delete($generated['path']);
@@ -275,7 +284,10 @@ class OrderPrintDocumentWorkflowService
         $pdfContents = $this->docxPdfPreviewService->convertToPdf($docxContents, $generated['download_name']);
         $pdfPath = null;
         if ($pdfContents !== null) {
-            $pdfPath = sprintf('order_documents/%d/%s-approved.pdf', $order->id, (string) Str::uuid());
+            $pdfPath = $this->documentStorage->resolveOrderDocumentPath(
+                $order->id,
+                $this->approvedPdfFilename($generated['download_name']),
+            );
             $this->documentStorage->put($pdfPath, $pdfContents, $this->documentStorage->configuredDriver());
             $metadata['generated_pdf_storage_driver'] = $this->documentStorage->configuredDriver();
         } else {
@@ -377,6 +389,26 @@ class OrderPrintDocumentWorkflowService
         }
 
         throw new \InvalidArgumentException('Операция доступна только для документов из печатного шаблона.');
+    }
+
+    private function signedDocxFilename(string $downloadName): string
+    {
+        $lower = strtolower($downloadName);
+        if (str_ends_with($lower, '-draft.docx')) {
+            return substr($downloadName, 0, -strlen('-draft.docx')).'-signed.docx';
+        }
+
+        return $this->documentStorage->filenameWithVariant($downloadName, '-signed');
+    }
+
+    private function approvedPdfFilename(string $downloadName): string
+    {
+        $base = pathinfo($downloadName, PATHINFO_FILENAME);
+        if (str_ends_with(strtolower($base), '-draft')) {
+            $base = substr($base, 0, -strlen('-draft'));
+        }
+
+        return $base.'-approved.pdf';
     }
 
     private function resolveMetadataParty(PrintFormTemplate $template): string

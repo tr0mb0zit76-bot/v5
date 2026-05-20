@@ -713,8 +713,10 @@ class OrderWizardController extends Controller
             'flow' => data_get($document->metadata, 'flow', 'uploaded'),
             'party' => data_get($document->metadata, 'party', 'internal'),
             'stage' => data_get($document->metadata, 'stage'),
-            'order_leg_stage' => data_get($document->metadata, 'order_leg_stage'),
+            'order_leg_stage' => data_get($document->metadata, 'order_leg_stage')
+                ?? data_get($document->metadata, 'stage'),
             'carrier_contractor_id' => data_get($document->metadata, 'carrier_contractor_id'),
+            'requirement_slot_key' => data_get($document->metadata, 'requirement_slot_key'),
             'route_legs_as_table_rows' => (bool) data_get($document->metadata, 'route_legs_as_table_rows', false),
             'requirement_key' => data_get($document->metadata, 'requirement_key'),
             'number' => $document->number,
