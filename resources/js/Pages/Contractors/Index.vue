@@ -25,6 +25,7 @@ import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
 import ContractorDocumentsSection from '@/Components/Contractors/ContractorDocumentsSection.vue';
 import ContractorDefaultNormsPenaltiesFields from '@/Components/Contractors/ContractorDefaultNormsPenaltiesFields.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { transliteratedFieldValue } from '@/support/cyrillicTransliteration.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/support/normsPenalties.js';
 
@@ -1209,6 +1210,49 @@ async function fetchBankSuggestionByBik(index) {
     }
 }
 
+const englishTransliterationHint = ref('');
+
+function primaryBankName() {
+    const accounts = Array.isArray(form.bank_accounts) ? form.bank_accounts : [];
+    const primary = accounts.find((row) => row?.is_primary) ?? accounts[0];
+
+    return String(primary?.bank_name ?? form.bank_name ?? '').trim();
+}
+
+function fillEnglishRequisitesFromRussian(overwrite = false) {
+    const mapping = [
+        ['name_en', () => form.name],
+        ['full_name_en', () => form.full_name],
+        ['legal_address_en', () => form.legal_address],
+        ['actual_address_en', () => form.actual_address],
+        ['postal_address_en', () => form.postal_address],
+        ['contact_person_en', () => form.contact_person],
+        ['bank_name_en', () => primaryBankName()],
+        ['signer_name_nominative_en', () => form.signer_name_nominative],
+        ['signer_name_prepositional_en', () => form.signer_name_prepositional],
+        ['signer_position_en', () => form.signer_position],
+        ['signer_authority_basis_en', () => form.signer_authority_basis],
+    ];
+
+    let filled = 0;
+
+    mapping.forEach(([targetKey, sourceGetter]) => {
+        const before = String(form[targetKey] ?? '').trim();
+        const next = transliteratedFieldValue(before, sourceGetter(), overwrite);
+
+        if (next !== before) {
+            form[targetKey] = next;
+            filled += 1;
+        }
+    });
+
+    englishTransliterationHint.value = overwrite
+        ? 'Латиница обновлена по русским полям.'
+        : (filled > 0
+            ? `Заполнено полей: ${filled}. Уже заполненные EN-поля не изменялись.`
+            : 'Нечего заполнять: все EN-поля уже заполнены или нет русских данных.');
+}
+
 function toggleActivityType(activityType) {
     if (!Array.isArray(form.activity_types)) {
         form.activity_types = [];
@@ -2337,91 +2381,31 @@ function handleMobileNavSelect(key) {
                     </div>
 
                     <div v-else-if="activeTab === 'requisites'" class="space-y-4">
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                            <label class="inline-flex items-center gap-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                <input v-model="form.has_english_requisites" type="checkbox" class="rounded border-zinc-300" />
-                                Реквизиты на английском
-                            </label>
-                            <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                                Для печатных форм: переменные с суффиксом <span class="font-mono">_en</span> (например, <span class="font-mono">${customer.full_name_en}</span>).
-                            </p>
-                            <div v-if="form.has_english_requisites" class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое наименование (EN)</label>
-                                    <input v-model="form.name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Полное наименование (EN)</label>
-                                    <input v-model="form.full_name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2 lg:col-span-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Юридический адрес (EN)</label>
-                                    <textarea v-model="form.legal_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2 lg:col-span-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Фактический адрес (EN)</label>
-                                    <textarea v-model="form.actual_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2 lg:col-span-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Почтовый адрес (EN)</label>
-                                    <textarea v-model="form.postal_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контактное лицо (EN)</label>
-                                    <input v-model="form.contact_person_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Банк (EN)</label>
-                                    <input v-model="form.bank_name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант, именительный (EN)</label>
-                                    <input v-model="form.signer_name_nominative_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант, родительный (EN)</label>
-                                    <input v-model="form.signer_name_prepositional_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность подписанта (EN)</label>
-                                    <input v-model="form.signer_position_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                                <div class="space-y-2 lg:col-span-2">
-                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основание права подписи (EN)</label>
-                                    <input v-model="form.signer_authority_basis_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
-                                </div>
-                            </div>
-                        </div>
-
-
+                        <div class="grid grid-cols-1 gap-4 xl:grid-cols-2 xl:items-start">
                             <div class="space-y-4">
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Орг.-правовая форма</label>
-                                        <select
-                                            v-model="form.legal_form"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        >
-                                            <option value="">Не указана</option>
-                                            <option v-for="option in legalFormOptions" :key="option.value" :value="option.value">
-                                                {{ legalFormLabelByValue[option.value] ?? option.label }}
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">КПП</label>
-                                        <input
-                                            v-model="form.kpp"
-                                            type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                                    <div class="min-w-0 space-y-4">
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">Регистрация</div>
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">КПП</label>
+                                            <input
+                                                v-model="form.kpp"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            />
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Орг.-правовая форма</label>
+                                            <select
+                                                v-model="form.legal_form"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            >
+                                                <option value="">Не указана</option>
+                                                <option v-for="option in legalFormOptions" :key="option.value" :value="option.value">
+                                                    {{ legalFormLabelByValue[option.value] ?? option.label }}
+                                                </option>
+                                            </select>
+                                        </div>
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ОГРН</label>
                                             <input
@@ -2439,6 +2423,10 @@ function handleMobileNavSelect(key) {
                                             />
                                         </div>
                                     </div>
+                                </div>
+
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">Адреса</div>
                                     <div class="min-w-0 space-y-3">
                                         <div class="relative space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Юридический адрес</label>
@@ -2694,6 +2682,86 @@ function handleMobileNavSelect(key) {
                                                 <input v-model="account.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                            <label class="inline-flex items-center gap-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                <input v-model="form.has_english_requisites" type="checkbox" class="rounded border-zinc-300" />
+                                Реквизиты на английском
+                            </label>
+                            <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                Для печатных форм: переменные с суффиксом <span class="font-mono">_en</span> (например, <span class="font-mono">${customer.full_name_en}</span>).
+                            </p>
+                            <div v-if="form.has_english_requisites" class="mt-4 space-y-4">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 border border-zinc-300 px-3 py-1.5 text-xs text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                                        @click="fillEnglishRequisitesFromRussian(false)"
+                                    >
+                                        Заполнить латиницей (пустые поля)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 border border-zinc-300 px-3 py-1.5 text-xs text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                                        @click="fillEnglishRequisitesFromRussian(true)"
+                                    >
+                                        Перезаписать все EN-поля
+                                    </button>
+                                </div>
+                                <p v-if="englishTransliterationHint" class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ englishTransliterationHint }}
+                                </p>
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    Автозаполнение — транслитерация по ГОСТ (паспортная схема). Для официальных наименований в договорах при необходимости поправьте вручную.
+                                </p>
+                                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое наименование (EN)</label>
+                                        <input v-model="form.name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Полное наименование (EN)</label>
+                                        <input v-model="form.full_name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2 lg:col-span-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Юридический адрес (EN)</label>
+                                        <textarea v-model="form.legal_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2 lg:col-span-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Фактический адрес (EN)</label>
+                                        <textarea v-model="form.actual_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2 lg:col-span-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Почтовый адрес (EN)</label>
+                                        <textarea v-model="form.postal_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контактное лицо (EN)</label>
+                                        <input v-model="form.contact_person_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Банк (EN)</label>
+                                        <input v-model="form.bank_name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант, именительный (EN)</label>
+                                        <input v-model="form.signer_name_nominative_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант, родительный (EN)</label>
+                                        <input v-model="form.signer_name_prepositional_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность подписанта (EN)</label>
+                                        <input v-model="form.signer_position_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                    </div>
+                                    <div class="space-y-2 lg:col-span-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основание права подписи (EN)</label>
+                                        <input v-model="form.signer_authority_basis_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
                                     </div>
                                 </div>
                             </div>

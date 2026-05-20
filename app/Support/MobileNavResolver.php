@@ -70,4 +70,39 @@ final class MobileNavResolver
             'labels' => MobileNavCatalog::labels(),
         ];
     }
+
+    /**
+     * Оставляет только разрешённые ключи, сохраняя порядок выбора пользователя.
+     *
+     * @param  list<string>  $requestedKeys
+     * @return list<string>
+     */
+    public static function sanitizeUserSelection(User $user, array $requestedKeys): array
+    {
+        $nav = self::forInertiaUser($user);
+        if ($nav === null) {
+            return [];
+        }
+
+        $allowed = array_flip($nav['candidate_keys']);
+        $picked = [];
+
+        foreach ($requestedKeys as $key) {
+            if (! is_string($key) || $key === '' || ! isset($allowed[$key])) {
+                continue;
+            }
+
+            if (in_array($key, $picked, true)) {
+                continue;
+            }
+
+            $picked[] = $key;
+
+            if (count($picked) >= MobileNavCatalog::maxSelectable()) {
+                break;
+            }
+        }
+
+        return $picked;
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Http\Requests\UpdateMobileBottomNavRequest;
 use App\Http\Requests\UpdateUiPreferencesRequest;
+use App\Support\MobileNavResolver;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -52,11 +53,15 @@ class ProfileController extends Controller
             abort(404);
         }
 
-        $keys = $request->validated('mobile_nav_keys');
-        $request->user()->mobile_nav_keys = $keys === [] ? null : array_values($keys);
-        $request->user()->save();
+        $user = $request->user();
+        $keys = MobileNavResolver::sanitizeUserSelection(
+            $user,
+            $request->validated('mobile_nav_keys'),
+        );
+        $user->mobile_nav_keys = $keys === [] ? null : $keys;
+        $user->save();
 
-        return Redirect::back();
+        return Redirect::back(303);
     }
 
     /**

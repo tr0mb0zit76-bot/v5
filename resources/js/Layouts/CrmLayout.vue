@@ -102,7 +102,13 @@
                 <div class="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
                     <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Кнопки внизу экрана</div>
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        До 6 пунктов. Пустой список после «Сбросить» — как задано для роли в администрировании.
+                        До 6 пунктов (выбрано {{ mobileNavDraftKeys.length }}/6). Пустой список после «Сбросить» — как задано для роли в администрировании.
+                    </p>
+                    <p
+                        v-if="mobileNavDraftError"
+                        class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+                    >
+                        {{ mobileNavDraftError }}
                     </p>
                     <div class="mt-4 max-h-[45vh] space-y-2 overflow-y-auto">
                         <label
@@ -114,7 +120,7 @@
                                 type="checkbox"
                                 class="rounded border-zinc-300"
                                 :checked="mobileNavDraftKeys.includes(entry.key)"
-                                @change="toggleMobileNavDraftKey(entry.key)"
+                                @click.prevent="toggleMobileNavDraftKey(entry.key)"
                             >
                             <span>{{ entry.label }}</span>
                         </label>
@@ -124,13 +130,15 @@
                             type="button"
                             :class="crmBtnCreate"
                             class="flex-1"
+                            :disabled="mobileNavSaving"
                             @click="saveMobileNavDraft"
                         >
-                            Сохранить
+                            {{ mobileNavSaving ? 'Сохранение…' : 'Сохранить' }}
                         </button>
                         <button
                             type="button"
                             class="rounded-2xl border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600"
+                            :disabled="mobileNavSaving"
                             @click="resetMobileNavDraft"
                         >
                             Сбросить
@@ -675,6 +683,8 @@ const mobileNavItems = computed(() => {
 
 const mobileNavModalOpen = ref(false);
 const mobileNavDraftKeys = ref([]);
+const mobileNavDraftError = ref('');
+const mobileNavSaving = ref(false);
 
 const mobileNavCandidateEntries = computed(() => {
     const labels = authUser.value?.mobile_nav?.labels ?? {};
@@ -693,35 +703,86 @@ function openMobileNavModal() {
     const cur = authUser.value?.mobile_nav?.resolved_keys;
     const fallback = [...(authUser.value?.mobile_nav?.candidate_keys ?? [])].slice(0, 6);
     mobileNavDraftKeys.value = Array.isArray(cur) && cur.length ? [...cur] : [...fallback];
+    mobileNavDraftError.value = '';
     mobileNavModalOpen.value = true;
 }
 
 function toggleMobileNavDraftKey(key) {
     const arr = [...mobileNavDraftKeys.value];
     const i = arr.indexOf(key);
+
     if (i >= 0) {
         arr.splice(i, 1);
-    } else if (arr.length < 6) {
-        arr.push(key);
+        mobileNavDraftError.value = '';
+        mobileNavDraftKeys.value = arr;
+
+        return;
     }
+
+    if (arr.length >= 6) {
+        mobileNavDraftError.value = 'Можно выбрать не больше 6 пунктов. Снимите галочку с другого пункта.';
+
+        return;
+    }
+
+    arr.push(key);
+    mobileNavDraftError.value = '';
     mobileNavDraftKeys.value = arr;
 }
 
 function saveMobileNavDraft() {
+    if (mobileNavSaving.value) {
+        return;
+    }
+
+    mobileNavDraftError.value = '';
+    mobileNavSaving.value = true;
+
     router.patch(route('profile.mobile-bottom-nav'), { mobile_nav_keys: mobileNavDraftKeys.value }, {
         preserveScroll: true,
+        preserveState: false,
         onSuccess: () => {
             mobileNavModalOpen.value = false;
+            router.reload({ preserveScroll: true });
+        },
+        onError: (errors) => {
+            const messages = Object.values(errors ?? {}).flat().filter(Boolean);
+
+            mobileNavDraftError.value = messages.length
+                ? messages.join(' ')
+                : 'Не удалось сохранить настройки меню.';
+        },
+        onFinish: () => {
+            mobileNavSaving.value = false;
         },
     });
 }
 
 function resetMobileNavDraft() {
+    if (mobileNavSaving.value) {
+        return;
+    }
+
+    mobileNavDraftError.value = '';
+    mobileNavSaving.value = true;
+
     router.patch(route('profile.mobile-bottom-nav'), { mobile_nav_keys: [] }, {
         preserveScroll: true,
+        preserveState: false,
         onSuccess: () => {
             mobileNavDraftKeys.value = [];
             mobileNavModalOpen.value = false;
+            router.reload({ preserveScroll: true });
+        },
+        onError: (errors) => {
+            const messages = Object.values(errors ?? {}).flat().filter(Boolean);
+
+            mobileNavDraftError.value = messages.length
+                ? messages.join(' ')
+                : 'Не удалось сбросить настройки меню.';
+        },
+        onFinish: () => {
+            mobileNavSaving.value = false;
         },
     });
 }
