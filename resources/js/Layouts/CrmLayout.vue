@@ -157,7 +157,7 @@
                         :key="item.key"
                         type="button"
                         class="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-medium transition-colors"
-                        :class="activeKey === item.key
+                        :class="isMobileNavItemActive(item.key)
                             ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
                             : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
                         @click="handleMenuSelect(item.key)"
@@ -582,6 +582,7 @@ const MENU_ROUTES = {
     'finance-cashflow': '/finance?section=cashflow',
     'finance-salary': '/finance/salary',
     reports: '/reports',
+    trainer: '/sales-assistant/trainer',
     modules: '/modules',
     'sales-assistant-scripts': '/scripts',
     'sales-assistant-book': '/sales-assistant/book',
@@ -630,13 +631,14 @@ const MOBILE_NAV_DEF = [
     { key: 'kanban', label: 'Канбан', icon: Kanban },
     { key: 'documents', label: 'Документы', icon: FileText },
     { key: 'reports', label: 'Отчёты', icon: BarChart3 },
+    { key: 'trainer', label: 'Тренажёр', icon: WandSparkles },
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'orders-create', label: 'Новый', icon: SquarePen },
     { key: 'contractors', label: 'База', icon: Users },
 ];
 
 function mobileNavItemsLegacy() {
-    const items = MOBILE_NAV_DEF.filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports'].includes(item.key));
+    const items = MOBILE_NAV_DEF.filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports', 'trainer'].includes(item.key));
 
     return items.filter((item) => {
         if (authUser.value?.role?.name === 'admin') {
@@ -649,6 +651,11 @@ function mobileNavItemsLegacy() {
 
         if (item.key === 'kanban') {
             return visibleAreas.value.includes('kanban') || visibleAreas.value.includes('tasks');
+        }
+
+        if (item.key === 'trainer') {
+            return visibleAreas.value.includes('sales_assistant_trainer')
+                || visibleAreas.value.includes('scripts');
         }
 
         return visibleAreas.value.includes(item.key);
@@ -1047,6 +1054,16 @@ function isFlyoutNavKeyActive(key) {
 function selectFlyoutNav(key) {
     closeCollapsedFlyout();
     handleMenuSelect(key);
+}
+
+function isMobileNavItemActive(key) {
+    if (key === 'trainer') {
+        return props.activeKey === 'sales-assistant'
+            && (props.activeSubKey === 'sales-assistant-trainer'
+                || props.activeSubKey === 'sales-assistant-trainer-analytics');
+    }
+
+    return props.activeKey === key;
 }
 
 function handleMenuSelect(key, event) {

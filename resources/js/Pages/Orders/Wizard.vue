@@ -1272,8 +1272,6 @@
                 :print-form-template-options-customer="printFormTemplateOptionsCustomer"
                 :print-form-template-options-carrier="printFormTemplateOptionsCarrier"
                 :document-type-options="documentTypeOptions"
-                :required-document-rules="requiredDocumentRules"
-                :required-document-checklist="requiredDocumentChecklist"
                 :document-tab-validation-messages="documentTabValidationMessages"
                 :document-storage="documentStorage"
             />
@@ -1411,6 +1409,10 @@ import {
     hasNormsPenaltiesContent,
     normalizePartyNormsPenalties,
 } from '@/support/normsPenalties.js';
+import {
+    buildDocumentRequirementRules,
+    documentMatchesRequirementRule,
+} from '@/support/orderDocumentRequirementSlots.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -3570,27 +3572,34 @@ function paymentSettlementLineLabel(party) {
     return 'не завершено';
 }
 
+const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
+    form.performers,
+    form.financial_term.client_request_mode,
+));
+
 const documentChecklist = computed(() => {
-    if (props.order?.id && Array.isArray(props.requiredDocumentChecklist) && props.requiredDocumentChecklist.length > 0) {
-        return props.requiredDocumentChecklist;
-    }
-
+    const rules = effectiveRequiredDocumentRules.value;
     const documents = Array.isArray(form.documents) ? form.documents : [];
+    const usedIds = new Set();
 
-    return props.requiredDocumentRules.map((rule) => {
+    return rules.map((rule) => {
         const matchedDocument = documents.find((document) => {
-            if (!Array.isArray(rule.accepted_types) || !rule.accepted_types.includes(document.type)) {
-                return false;
-            }
-
-            if (String(document.party ?? 'internal') !== rule.party) {
+            if (document?.id && usedIds.has(document.id)) {
                 return false;
             }
 
             const status = String(document.status ?? '');
 
-            return ['sent', 'signed'].includes(status);
+            if (!['sent', 'signed'].includes(status)) {
+                return false;
+            }
+
+            return documentMatchesRequirementRule(document, rule);
         });
+
+        if (matchedDocument?.id && !rule.allows_multiple) {
+            usedIds.add(matchedDocument.id);
+        }
 
         return {
             ...rule,
@@ -4238,7 +4247,7 @@ const orderDocumentAttachPresetSummary = computed(() => {
 });
 
 function documentRequirementLabel(key) {
-    return props.requiredDocumentRules.find((rule) => rule.key === key)?.label ?? '';
+    return effectiveRequiredDocumentRules.value.find((rule) => rule.key === key)?.label ?? '';
 }
 
 function paymentFormLabel(value) {

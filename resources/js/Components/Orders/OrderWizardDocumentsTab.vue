@@ -12,6 +12,10 @@ import {
     storeDocumentRegistry,
 } from '@/support/documentRegistryClient.js';
 import {
+    buildDocumentRequirementRules,
+    documentMatchesRequirementRule,
+} from '@/support/orderDocumentRequirementSlots.js';
+import {
     carrierPrintSlots,
     customerPrintSlots,
     printWorkflowDocumentsForSlot,
@@ -42,16 +46,41 @@ const documentUploadHint = computed(() => page.props.document_upload_limits?.hin
 const customerSlots = computed(() => customerPrintSlots(props.performers, props.clientRequestMode));
 const carrierSlots = computed(() => carrierPrintSlots(props.performers));
 
-const effectiveDocumentChecklist = computed(() => {
-    if (props.order?.id && Array.isArray(props.requiredDocumentChecklist) && props.requiredDocumentChecklist.length > 0) {
-        return props.requiredDocumentChecklist;
-    }
+const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
+    props.performers,
+    props.clientRequestMode,
+));
 
-    return (props.requiredDocumentRules || []).map((rule) => ({
-        ...rule,
-        completed: false,
-        matched_document_id: null,
-    }));
+const effectiveDocumentChecklist = computed(() => {
+    const rules = effectiveRequiredDocumentRules.value;
+    const documents = signedDocuments.value ?? [];
+    const usedIds = new Set();
+
+    return rules.map((rule) => {
+        const matchedDocument = documents.find((document) => {
+            if (document?.id && usedIds.has(document.id)) {
+                return false;
+            }
+
+            const status = String(document?.status ?? '');
+
+            if (!['sent', 'signed'].includes(status)) {
+                return false;
+            }
+
+            return documentMatchesRequirementRule(document, rule);
+        });
+
+        if (matchedDocument?.id && !rule.allows_multiple) {
+            usedIds.add(matchedDocument.id);
+        }
+
+        return {
+            ...rule,
+            completed: matchedDocument !== undefined,
+            matched_document_id: matchedDocument?.id ?? null,
+        };
+    });
 });
 
 const templateSelection = reactive({});
@@ -570,7 +599,7 @@ async function onGlobalDrop(event) {
             <OrderSignedDocumentsTable
                 :signed-documents="signedDocuments"
                 :document-type-options="documentTypeOptions"
-                :required-document-rules="requiredDocumentRules"
+                :required-document-rules="effectiveRequiredDocumentRules"
                 :required-document-checklist="effectiveDocumentChecklist"
                 :can-edit="isOrderFormEditable"
                 :deleting-id="deletingDocId"

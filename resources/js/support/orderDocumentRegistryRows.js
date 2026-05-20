@@ -1,5 +1,7 @@
+import { documentMatchesRequirementRule } from '@/support/orderDocumentRequirementSlots.js';
+
 /**
- * Строки таблицы учёта документов: 5 обязательных пунктов + доп. подписанные файлы.
+ * Строки таблицы учёта документов: обязательные слоты + доп. подписанные файлы.
  *
  * @param {Array<Record<string, unknown>>} signedDocuments
  * @param {Array<Record<string, unknown>>} requiredDocumentRules
@@ -35,18 +37,22 @@ export function buildRegistryTableRows(
 
         if (!matchedSigned) {
             matchedSigned = signed.find(
-                (doc) => doc?.id && !usedSignedIds.has(doc.id) && documentMatchesRule(doc, rule),
+                (doc) => doc?.id
+                    && !usedSignedIds.has(doc.id)
+                    && documentMatchesRequirementRule(doc, rule),
             ) ?? null;
         }
 
         if (matchedSigned?.id) {
-            usedSignedIds.add(matchedSigned.id);
+            if (!rule.allows_multiple) {
+                usedSignedIds.add(matchedSigned.id);
+            }
 
             return {
                 ...matchedSigned,
                 requirement_key: rule.key,
                 requirement_label: rule.label,
-                type_label: typeLabels.get(matchedSigned.type) ?? rule.label,
+                type_label: registryTypeLabel(matchedSigned, rule, typeLabels),
                 checklist_completed: completed,
                 is_placeholder: false,
             };
@@ -89,14 +95,20 @@ export function buildRegistryTableRows(
 /**
  * @param {Record<string, unknown>} document
  * @param {Record<string, unknown>} rule
+ * @param {Map<string, string>} typeLabels
  */
-export function documentMatchesRule(document, rule) {
-    const accepted = Array.isArray(rule.accepted_types) ? rule.accepted_types : [];
-    const type = String(document?.type ?? '');
+function registryTypeLabel(document, rule, typeLabels) {
+    const base = typeLabels.get(String(document?.type ?? '')) ?? rule.label;
+    const counterparty = rule.counterparty_label ? String(rule.counterparty_label) : '';
 
-    if (!accepted.includes(type)) {
-        return false;
+    if (counterparty !== '' && String(rule.party) !== 'internal') {
+        return `${base} · ${counterparty}`;
     }
 
-    return String(document?.party ?? 'internal') === String(rule.party ?? '');
+    return base;
+}
+
+/** @deprecated use documentMatchesRequirementRule */
+export function documentMatchesRule(document, rule) {
+    return documentMatchesRequirementRule(document, rule);
 }

@@ -353,7 +353,9 @@ class OrderWizardController extends Controller
             'defaultClientPaymentFormCode' => PaymentFormDictionary::defaultClientVatCode(),
             'documentTypeOptions' => $documentRequirementService->documentTypeOptions(),
             'documentPartyOptions' => $documentRequirementService->partyOptions(),
-            'requiredDocumentRules' => $documentRequirementService->requirementRules(),
+            'requiredDocumentRules' => $order === null
+                ? $documentRequirementService->requirementRules()
+                : $documentRequirementService->requirementRulesForOrder($order),
             'requiredDocumentChecklist' => $documentRequirementService->checklistForOrder($order),
             'bonusMultiplier' => $kpiConfigurationService->getBonusMultiplier(),
             'orderStatusOptions' => [

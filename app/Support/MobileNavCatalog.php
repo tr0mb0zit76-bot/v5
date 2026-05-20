@@ -7,7 +7,7 @@ namespace App\Support;
  */
 final class MobileNavCatalog
 {
-    public const ORDER = ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports'];
+    public const ORDER = ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports', 'trainer'];
 
     public const MAX_SELECTABLE = 6;
 
@@ -36,6 +36,7 @@ final class MobileNavCatalog
             'kanban' => 'Канбан',
             'documents' => 'Документы',
             'reports' => 'Отчёты',
+            'trainer' => 'Тренажёр',
         ];
     }
 
@@ -81,6 +82,14 @@ final class MobileNavCatalog
 
             if ($key === 'kanban') {
                 if (isset($areaSet['kanban']) || isset($areaSet['tasks'])) {
+                    $out[] = $key;
+                }
+
+                continue;
+            }
+
+            if ($key === 'trainer') {
+                if (isset($areaSet['sales_assistant_trainer']) || isset($areaSet['scripts'])) {
                     $out[] = $key;
                 }
 

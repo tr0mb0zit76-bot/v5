@@ -88,6 +88,18 @@ class DocumentRegistryController extends Controller
             'storage_driver' => $stored['storage_driver'],
         ];
 
+        if (filled($payload['order_leg_stage'] ?? null)) {
+            $metadata['order_leg_stage'] = trim((string) $payload['order_leg_stage']);
+        }
+
+        if (isset($payload['carrier_contractor_id']) && (int) $payload['carrier_contractor_id'] > 0) {
+            $metadata['carrier_contractor_id'] = (int) $payload['carrier_contractor_id'];
+        }
+
+        if (filled($payload['requirement_slot_key'] ?? null)) {
+            $metadata['requirement_slot_key'] = trim((string) $payload['requirement_slot_key']);
+        }
+
         $attributes = [
             'order_id' => $order->id,
             'type' => $payload['type'],

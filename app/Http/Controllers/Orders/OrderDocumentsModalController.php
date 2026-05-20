@@ -36,7 +36,7 @@ class OrderDocumentsModalController extends Controller
             ],
             'documents' => $documents,
             'document_type_options' => $this->documentRequirementService->documentTypeOptions(),
-            'requiredDocumentRules' => $this->documentRequirementService->requirementRules(),
+            'requiredDocumentRules' => $this->documentRequirementService->requirementRulesForOrder($order),
             'requiredDocumentChecklist' => $this->documentRequirementService->checklistForOrder($order),
         ]);
     }
@@ -58,6 +58,9 @@ class OrderDocumentsModalController extends Controller
             'party' => $party,
             'party_label' => $this->partyLabel($party),
             'stage' => $metadata['stage'] ?? null,
+            'order_leg_stage' => $metadata['order_leg_stage'] ?? null,
+            'carrier_contractor_id' => isset($metadata['carrier_contractor_id']) ? (int) $metadata['carrier_contractor_id'] : null,
+            'requirement_slot_key' => $metadata['requirement_slot_key'] ?? null,
             'number' => $document->number,
             'document_date' => optional($document->document_date)?->toDateString(),
             'status' => $document->status,
