@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class FleetDriverController extends Controller
 {
@@ -91,7 +91,7 @@ class FleetDriverController extends Controller
         return Storage::disk($fleetDriverDocument->disk)->download($fleetDriverDocument->path, $fleetDriverDocument->original_name);
     }
 
-    public function previewDocument(Request $request, FleetDriver $fleetDriver, FleetDriverDocument $fleetDriverDocument): Response
+    public function previewDocument(Request $request, FleetDriver $fleetDriver, FleetDriverDocument $fleetDriverDocument): HttpResponse
     {
         abort_unless(Schema::hasTable('fleet_driver_documents'), 404);
         abort_unless($fleetDriverDocument->fleet_driver_id === $fleetDriver->id, 404);
