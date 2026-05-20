@@ -13,6 +13,7 @@ use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOfferMailController;
+use App\Http\Controllers\LoadingPlannerController;
 use App\Http\Controllers\MailMailboxController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
@@ -433,9 +434,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:leads')
         ->name('leads.status.update');
 
-    Route::get('/modules', function () {
-        return Inertia::render('Dashboard');
-    })->middleware('visibility.area:modules')->name('modules.index');
+    Route::middleware('visibility.area:modules')->group(function () {
+        Route::get('/modules', fn () => Inertia::render('Modules/Index'))->name('modules.index');
+        Route::controller(LoadingPlannerController::class)->prefix('modules/how-much-fits')->name('modules.how-much-fits.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/projects', 'storeProject')->name('projects.store');
+            Route::patch('/projects/{loadingPlannerProject}', 'updateProject')->name('projects.update');
+            Route::delete('/projects/{loadingPlannerProject}', 'destroyProject')->name('projects.destroy');
+            Route::post('/transport-templates', 'storeTransportTemplate')->name('transport-templates.store');
+            Route::patch('/transport-templates/{transportTemplate}', 'updateTransportTemplate')->name('transport-templates.update');
+            Route::delete('/transport-templates/{transportTemplate}', 'destroyTransportTemplate')->name('transport-templates.destroy');
+        });
+    });
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.area:settings')->name('settings.index');
 
