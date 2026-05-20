@@ -592,6 +592,8 @@ const MENU_ROUTES = {
     reports: '/reports',
     trainer: '/sales-assistant/trainer',
     modules: '/modules',
+    'modules-catalog': '/modules',
+    'modules-how-much-fits': '/modules/how-much-fits',
     'sales-assistant-scripts': '/scripts',
     'sales-assistant-book': '/sales-assistant/book',
     'sales-assistant-trainer': '/sales-assistant/trainer',
@@ -869,7 +871,16 @@ const menuItems = computed(() => {
         ...(planningItem ? [planningItem] : []),
         ...(salesAssistantItem ? [salesAssistantItem] : []),
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
-        { key: 'modules', label: 'Модули', icon: Puzzle, visibilityArea: 'modules' },
+        {
+            key: 'modules',
+            label: 'Модули',
+            icon: Puzzle,
+            visibilityArea: 'modules',
+            children: [
+                { key: 'modules-catalog', label: 'Каталог' },
+                { key: 'modules-how-much-fits', label: 'Сколько влезет?' },
+            ],
+        },
         {
             key: 'settings',
             label: 'Настройки',
@@ -1141,7 +1152,7 @@ function handleMenuSelect(key, event) {
 
     closeCollapsedFlyout();
 
-    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning', 'modules'].includes(key)) {
         toggleMenuGroup(key);
     }
 
