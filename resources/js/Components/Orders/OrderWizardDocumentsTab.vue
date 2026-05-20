@@ -7,6 +7,11 @@ import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsT
 import PrintWorkflowDocList from '@/Components/Orders/PrintWorkflowDocList.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import {
+    destroyDocumentRegistry,
+    formatDocumentRegistryError,
+    storeDocumentRegistry,
+} from '@/support/documentRegistryClient.js';
+import {
     carrierPrintSlots,
     customerPrintSlots,
     printWorkflowDocumentsForSlot,
@@ -208,10 +213,6 @@ function confirmDiscardPrintWorkflow(doc) {
     });
 }
 
-function csrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-}
-
 async function openAttachModal(preset = {}) {
     attachForm.party = preset.party ?? 'customer';
     attachForm.type = preset.type ?? 'request';
@@ -307,25 +308,11 @@ async function submitAttach() {
     body.append('file', attachForm.file);
 
     try {
-        const response = await fetch(route('documents.store'), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken(),
-            },
-            body,
-        });
-
-        if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.message ?? `Ошибка загрузки (${response.status})`);
-        }
-
+        await storeDocumentRegistry(body);
         closeAttachModal();
         router.reload({ only: ['order'], preserveScroll: true });
     } catch (error) {
-        attachError.value = error?.message ?? 'Не удалось прикрепить документ';
+        attachError.value = formatDocumentRegistryError(error);
     } finally {
         attachSubmitting.value = false;
     }
@@ -344,24 +331,11 @@ async function deleteSignedDocument(doc) {
     deletingDocId.value = doc.id;
 
     try {
-        const response = await fetch(route('documents.destroy', doc.id), {
-            method: 'DELETE',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken(),
-            },
-        });
-
-        if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.message ?? `Ошибка удаления (${response.status})`);
-        }
-
+        await destroyDocumentRegistry(doc.id);
         signedDocuments.value = signedDocuments.value.filter((row) => row.id !== doc.id);
         router.reload({ only: ['order'], preserveScroll: true });
     } catch (error) {
-        window.alert(error?.message ?? 'Не удалось удалить документ');
+        window.alert(formatDocumentRegistryError(error));
     } finally {
         deletingDocId.value = null;
     }

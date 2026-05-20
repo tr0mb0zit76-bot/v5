@@ -6,6 +6,13 @@ import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsT
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import axios from 'axios';
+import {
+    destroyDocumentRegistry,
+    formatDocumentRegistryError,
+    storeDocumentRegistry,
+    updateDocumentRegistry,
+} from '@/support/documentRegistryClient.js';
 import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 
 const props = defineProps({
@@ -56,10 +63,6 @@ const modalTitle = computed(() => {
 
     return label ? `Документы — ${label}` : 'Документы заказа';
 });
-
-function csrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-}
 
 async function loadDocuments() {
     if (!props.orderId) {
@@ -190,27 +193,14 @@ async function submitAdd() {
     body.append('file', addForm.file);
 
     try {
-        const response = await fetch(route('documents.store'), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken(),
-            },
-            body,
-        });
-
-        if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.message ?? `Ошибка загрузки (${response.status})`);
-        }
+        await storeDocumentRegistry(body);
 
         addForm.file = null;
         addForm.number = '';
         addForm.document_date = '';
         await loadDocuments();
     } catch (error) {
-        addError.value = error?.message ?? 'Не удалось добавить документ';
+        addError.value = formatDocumentRegistryError(error);
     } finally {
         addSubmitting.value = false;
     }
@@ -255,86 +245,40 @@ async function onReplaceFilePicked(event) {
     body.append('file', file);
 
     try {
-        const response = await fetch(route('documents.update', docId), {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken(),
-            },
-            body,
-        });
-
-        if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.message ?? `Ошибка замены (${response.status})`);
-        }
-
+        await updateDocumentRegistry(docId, body);
         await loadDocuments();
     } catch (error) {
-        window.alert(error?.message ?? 'Не удалось заменить файл');
+        window.alert(formatDocumentRegistryError(error));
     }
 }
 
-function deleteDocument(doc) {
+async function deleteDocument(doc) {
     if (!doc?.id || !props.orderId) {
         return;
     }
-
-    deletingDocId.value = doc.id;
 
     const label = doc.original_name || doc.type_label || `#${doc.id}`;
     if (!window.confirm(`Удалить документ «${label}»?`)) {
         return;
     }
 
-    if (doc.is_print_workflow) {
-        fetch(route('orders.documents.discard-print-workflow', [props.orderId, doc.id]), {
-            method: 'DELETE',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': csrfToken(),
-            },
-        })
-            .then(async (response) => {
-                if (!response.ok) {
-                    const payload = await response.json().catch(() => ({}));
-                    throw new Error(payload.message ?? `Ошибка удаления (${response.status})`);
-                }
-                await loadDocuments();
-            })
-            .catch((error) => {
-                window.alert(error?.message ?? 'Не удалось удалить документ');
-            })
-            .finally(() => {
-                deletingDocId.value = null;
+    deletingDocId.value = doc.id;
+
+    try {
+        if (doc.is_print_workflow) {
+            await axios.delete(route('orders.documents.discard-print-workflow', [props.orderId, doc.id], false), {
+                headers: { Accept: 'application/json' },
             });
+        } else {
+            await destroyDocumentRegistry(doc.id);
+        }
 
-        return;
+        await loadDocuments();
+    } catch (error) {
+        window.alert(formatDocumentRegistryError(error));
+    } finally {
+        deletingDocId.value = null;
     }
-
-    fetch(route('documents.destroy', doc.id), {
-        method: 'DELETE',
-        headers: {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': csrfToken(),
-        },
-    })
-        .then(async (response) => {
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
-                throw new Error(payload.message ?? `Ошибка удаления (${response.status})`);
-            }
-            await loadDocuments();
-        })
-        .catch((error) => {
-            window.alert(error?.message ?? 'Не удалось удалить документ');
-        })
-        .finally(() => {
-            deletingDocId.value = null;
-        });
 }
 
 function openWizardDocuments() {
