@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/vue3';
 import { defaultGridDensity, resolveGridDensity } from '@/Components/Grid/grid-density.js';
+import { readLocalCrmAppearance, resolveCrmAppearance } from '@/support/crmAppearance.js';
 
 /** Раньше у каждого грида был свой ключ — один раз переносим в общий. */
 const LEGACY_DENSITY_STORAGE_PREFIXES = [
@@ -83,9 +84,21 @@ export function schedulePersistAgGridDensityToProfile(densityKey) {
 
     window.clearTimeout(persistTimer);
     persistTimer = window.setTimeout(() => {
+        const appearance = resolveCrmAppearance({
+            ui_preferences: {
+                ...readLocalCrmAppearance(),
+                ag_grid_density: densityKey,
+            },
+        });
+
         router.patch(
             '/profile/ui-preferences',
-            { ag_grid_density: densityKey },
+            {
+                button_radius: appearance.button_radius,
+                primary_accent: appearance.primary_accent,
+                tab_style: appearance.tab_style,
+                ag_grid_density: densityKey,
+            },
             {
                 preserveState: true,
                 preserveScroll: true,

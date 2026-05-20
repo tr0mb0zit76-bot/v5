@@ -1,0 +1,126 @@
+/**
+ * Личные настройки внешнего вида CRM (data-атрибуты на <html>).
+ */
+
+.crm-btn-create {
+    @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
+    border-radius: var(--crm-radius-control);
+    border-color: rgb(167 243 208 / 0.9);
+    background-color: rgb(236 253 245);
+    color: rgb(6 78 59);
+}
+
+.crm-btn-create:hover {
+    background-color: rgb(209 250 229);
+}
+
+.dark .crm-btn-create {
+    border-color: rgb(6 78 59 / 0.7);
+    background-color: rgb(6 78 59 / 0.5);
+    color: rgb(236 253 245);
+}
+
+.dark .crm-btn-create:hover {
+    background-color: rgb(6 95 70 / 0.45);
+}
+
+html[data-crm-accent='sky'] .crm-btn-create {
+    border-color: rgb(125 211 252 / 0.9);
+    background-color: rgb(240 249 255);
+    color: rgb(12 74 110);
+}
+
+html[data-crm-accent='sky'] .crm-btn-create:hover {
+    background-color: rgb(224 242 254);
+}
+
+html.dark[data-crm-accent='sky'] .crm-btn-create {
+    border-color: rgb(12 74 110 / 0.7);
+    background-color: rgb(12 74 110 / 0.5);
+    color: rgb(224 242 254);
+}
+
+html.dark[data-crm-accent='sky'] .crm-btn-create:hover {
+    background-color: rgb(7 89 133 / 0.45);
+}
+
+.crm-btn-danger-muted {
+    @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
+    border-radius: var(--crm-radius-control);
+    border-color: rgb(254 205 211 / 0.9);
+    background-color: rgb(255 241 242);
+    color: rgb(136 19 55);
+}
+
+.crm-btn-danger-muted:hover {
+    background-color: rgb(255 228 230);
+}
+
+.dark .crm-btn-danger-muted {
+    border-color: rgb(136 19 55 / 0.7);
+    background-color: rgb(76 5 25 / 0.45);
+    color: rgb(255 228 230);
+}
+
+.crm-btn-neutral,
+.crm-btn-secondary-outline {
+    @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium transition-colors;
+    border-radius: var(--crm-radius-control);
+}
+
+.crm-btn-neutral {
+    @apply border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
+}
+
+.crm-btn-secondary-outline {
+    @apply justify-center border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800;
+}
+
+:root,
+html[data-crm-radius='rounded'] {
+    --crm-radius-control: 0.75rem;
+}
+
+html[data-crm-radius='sharp'] {
+    --crm-radius-control: 0;
+}
+
+html[data-crm-radius='sharp'] .rounded,
+html[data-crm-radius='sharp'] .rounded-sm,
+html[data-crm-radius='sharp'] .rounded-md,
+html[data-crm-radius='sharp'] .rounded-lg,
+html[data-crm-radius='sharp'] .rounded-xl,
+html[data-crm-radius='sharp'] .rounded-2xl,
+html[data-crm-radius='sharp'] .rounded-3xl {
+    border-radius: 0 !important;
+}
+
+html[data-crm-radius='sharp'] .rounded-full {
+    border-radius: 9999px !important;
+}
+
+.crm-tab-btn {
+    @apply inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors;
+    border-radius: var(--crm-radius-control);
+}
+
+.crm-tab-btn--inactive {
+    @apply border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800;
+}
+
+.crm-tab-btn--active-filled {
+    @apply border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900;
+}
+
+html[data-crm-tab-style='underline'] .crm-tab-btn {
+    @apply border-0 border-b-2 bg-transparent px-3 py-2;
+    border-radius: 0;
+}
+
+html[data-crm-tab-style='underline'] .crm-tab-btn--inactive {
+    @apply border-transparent text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100;
+}
+
+html[data-crm-tab-style='underline'] .crm-tab-btn--active-filled {
+    @apply border-b-2 border-zinc-900 bg-transparent text-zinc-900 dark:border-zinc-50 dark:bg-transparent dark:text-zinc-50;
+}

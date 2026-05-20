@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Http\Requests\UpdateMobileBottomNavRequest;
 use App\Http\Requests\UpdateUiPreferencesRequest;
+use App\Support\CrmAppearance;
 use App\Support\MobileNavResolver;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
@@ -73,11 +74,12 @@ class ProfileController extends Controller
             abort(404);
         }
 
-        $validated = $request->validated();
-        $prefs = is_array($request->user()->ui_preferences) ? $request->user()->ui_preferences : [];
-        $prefs['ag_grid_density'] = $validated['ag_grid_density'];
-        $request->user()->ui_preferences = $prefs;
-        $request->user()->save();
+        $user = $request->user();
+        $user->ui_preferences = CrmAppearance::mergeValidated(
+            $request->validated(),
+            is_array($user->ui_preferences) ? $user->ui_preferences : null,
+        );
+        $user->save();
 
         return Redirect::back();
     }

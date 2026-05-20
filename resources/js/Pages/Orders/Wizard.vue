@@ -147,10 +147,8 @@
                         v-for="tab in tabs"
                         :key="tab.key"
                         type="button"
-                        class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
-                        :class="activeTab === tab.key
-                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                            : 'border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800'"
+                        class="inline-flex items-center gap-2 text-sm transition-colors"
+                        :class="crmTabButtonClasses(activeTab === tab.key)"
                         @click="activeTab = tab.key"
                     >
                         <component :is="tab.icon" class="h-4 w-4" />
@@ -1402,6 +1400,7 @@ import {
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
+import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
 import {

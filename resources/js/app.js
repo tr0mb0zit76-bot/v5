@@ -1,5 +1,7 @@
 import './bootstrap';
 import '../css/app.css';
+import '../css/crm-appearance.css';
+import { applyCrmAppearanceToDocument, readLocalCrmAppearance, resolveCrmAppearance } from './support/crmAppearance.js';
 
 import { createApp, h } from 'vue';
 import { createInertiaApp, router } from '@inertiajs/vue3';
@@ -21,6 +23,10 @@ const shouldUseDarkTheme = savedTheme === 'dark' || (savedTheme === null && pref
 
 document.documentElement.classList.toggle('dark', shouldUseDarkTheme);
 document.documentElement.classList.remove('light');
+
+applyCrmAppearanceToDocument({
+    ...resolveCrmAppearance({ ui_preferences: readLocalCrmAppearance() }),
+});
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
     window.addEventListener('load', () => {

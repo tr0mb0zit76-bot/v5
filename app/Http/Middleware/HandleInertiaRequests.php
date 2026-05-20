@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Role;
 use App\Support\CabinetNotificationBadges;
 use App\Support\ContractorTableColumns;
+use App\Support\CrmAppearance;
 use App\Support\DocumentUploadLimits;
 use App\Support\InertiaAppSurface;
 use App\Support\LeadTableColumns;
@@ -73,7 +74,10 @@ class HandleInertiaRequests extends Middleware
 
         return [
             'user' => [
-                ...Arr::except($user->toArray(), ['role']),
+                ...Arr::except($user->toArray(), ['role', 'ui_preferences']),
+                'ui_preferences' => CrmAppearance::resolve(
+                    is_array($user->ui_preferences) ? $user->ui_preferences : null,
+                ),
                 'mobile_nav' => MobileNavResolver::forInertiaUser($user),
                 'role' => $user->role_id === null || ! $hasRolesTable ? null : (function () use ($user, $hasVisibilityAreasColumn, $hasVisibilityScopesColumn): ?array {
                     $roleModel = Role::query()->find($user->role_id);

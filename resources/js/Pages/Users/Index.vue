@@ -23,10 +23,8 @@
                 v-for="tab in tabs"
                 :key="tab.key"
                 type="button"
-                class="rounded-xl border px-3 py-1.5 text-sm transition-colors"
-                :class="activeTab === tab.key
-                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                    : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                class="px-3 py-1.5 text-sm transition-colors"
+                :class="crmTabButtonClasses(activeTab === tab.key)"
                 @click="activeTab = tab.key"
             >
                 {{ tab.label }}
@@ -337,6 +335,7 @@ import { Eye, EyeOff, Pencil, Plus, Power, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
+import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
 
 defineOptions({

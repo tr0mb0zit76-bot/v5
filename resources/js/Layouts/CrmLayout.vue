@@ -78,6 +78,14 @@
                         >
                             <LayoutGrid class="h-4 w-4" />
                         </button>
+                        <button
+                            type="button"
+                            class="flex h-10 w-10 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                            title="Внешний вид"
+                            @click="appearanceModalOpen = true"
+                        >
+                            <Palette class="h-4 w-4" />
+                        </button>
                         <ThemeToggle />
                         <Link
                             :href="route('logout')"
@@ -216,6 +224,15 @@
                 </div>
 
                 <div class="flex shrink-0 items-center gap-1">
+                    <button
+                        v-if="!collapsed"
+                        type="button"
+                        class="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        title="Внешний вид"
+                        @click="appearanceModalOpen = true"
+                    >
+                        <Palette class="h-4 w-4" />
+                    </button>
                     <ThemeToggle v-if="!collapsed" />
 
                     <button
@@ -314,9 +331,16 @@
             <div class="border-t border-zinc-200 p-4 dark:border-zinc-800">
                 <div
                     v-if="collapsed"
-                    class="mb-3 flex justify-center"
-                    title="Тема оформления"
+                    class="mb-3 flex flex-col items-center gap-2"
                 >
+                    <button
+                        type="button"
+                        class="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        title="Внешний вид"
+                        @click="appearanceModalOpen = true"
+                    >
+                        <Palette class="h-4 w-4" />
+                    </button>
                     <ThemeToggle />
                 </div>
                 <div v-if="!collapsed" class="flex items-center gap-3">
@@ -391,6 +415,14 @@
 
                 <div class="min-w-0 flex-1" />
 
+                <button
+                    type="button"
+                    class="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    title="Внешний вид"
+                    @click="appearanceModalOpen = true"
+                >
+                    <Palette class="h-4 w-4" />
+                </button>
                 <ThemeToggle />
             </header>
 
@@ -409,6 +441,8 @@
                 </div>
             </footer>
         </div>
+
+        <CrmAppearanceModal :show="appearanceModalOpen" @close="appearanceModalOpen = false" />
     </div>
 </template>
 
@@ -440,11 +474,17 @@ import {
     Truck,
     Users,
     Wallet,
+    Palette,
     WandSparkles,
 } from 'lucide-vue-next';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
+import CrmAppearanceModal from '@/Components/Crm/CrmAppearanceModal.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
+import {
+    applyCrmAppearanceToDocument,
+    resolveCrmAppearance,
+} from '@/support/crmAppearance.js';
 
 const props = defineProps({
     activeKey: {
@@ -543,6 +583,7 @@ const isStandaloneApp = ref(false);
 const isMobileViewport = ref(false);
 
 const authUser = computed(() => page.props.auth?.user ?? null);
+const appearanceModalOpen = ref(false);
 const dynamicCabinetBadges = ref(null);
 const cabinetBadges = computed(
     () => dynamicCabinetBadges.value ?? page.props.cabinet_notification_badges ?? { total: 0, orders: 0, tasks: 0 },
@@ -1023,7 +1064,16 @@ onBeforeMount(() => {
     applyRouteToExpandedGroups();
 });
 
+watch(
+    () => authUser.value?.ui_preferences,
+    () => {
+        applyCrmAppearanceToDocument(resolveCrmAppearance(authUser.value));
+    },
+    { deep: true },
+);
+
 onMounted(() => {
+    applyCrmAppearanceToDocument(resolveCrmAppearance(authUser.value));
     allowMobileBrowserCabinet.value = readMobileBrowserBypassFromStorage();
     updateMobileEnvironment();
 

@@ -26,6 +26,7 @@ import ContractorDocumentsSection from '@/Components/Contractors/ContractorDocum
 import ContractorDefaultNormsPenaltiesFields from '@/Components/Contractors/ContractorDefaultNormsPenaltiesFields.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { transliteratedFieldValue } from '@/support/cyrillicTransliteration.js';
+import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/support/normsPenalties.js';
 
@@ -1707,10 +1708,8 @@ function handleMobileNavSelect(key) {
                             v-for="tab in tabs"
                             :key="tab.key"
                             type="button"
-                            class="inline-flex items-center gap-2 border px-3 py-2 text-sm transition-colors"
-                            :class="activeTab === tab.key
-                                ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                                : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                            class="inline-flex items-center gap-2 text-sm transition-colors"
+                            :class="crmTabButtonClasses(activeTab === tab.key)"
                             @click="activeTab = tab.key"
                         >
                             <component :is="tab.icon" class="h-4 w-4" />
