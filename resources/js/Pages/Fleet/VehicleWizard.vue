@@ -98,74 +98,24 @@
                 </div>
             </form>
 
-            <div v-if="!isCreating && selectedVehicle" class="mt-10 space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Документы</div>
-                        <p class="text-xs text-zinc-500 dark:text-zinc-400">ПТС, договор аренды, страховка и др.</p>
-                    </div>
-
-                    <button
-                        type="button"
-                        class="rounded-xl border border-zinc-200 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                        @click="triggerDocPicker"
-                    >
-                        Добавить документ
-                    </button>
-                </div>
-
-                <form class="flex flex-wrap items-end gap-3" @submit.prevent="submitDoc">
-                    <div class="space-y-1">
-                        <label class="text-xs text-zinc-500">Тип</label>
-                        <select v-model="docForm.document_type" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" required>
-                            <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                        </select>
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-xs text-zinc-500">Файл</label>
-                        <input ref="docInput" type="file" class="text-sm" required @change="onDocFile" />
-                        <p v-if="docForm.errors.file" class="text-xs text-rose-600 dark:text-rose-400">{{ docForm.errors.file }}</p>
-                        <p v-if="docForm.errors.document_type" class="text-xs text-rose-600 dark:text-rose-400">{{ docForm.errors.document_type }}</p>
-                    </div>
-                    <button
-                        type="submit"
-                        class="rounded-xl border border-zinc-900 px-4 py-2 text-sm dark:border-zinc-50"
-                        :disabled="docForm.processing || !docFile"
-                    >
-                        Загрузить
-                    </button>
-                </form>
-
-                <ul class="space-y-2">
-                    <li
-                        v-for="document in selectedVehicle.documents || []"
-                        :key="document.id"
-                        class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"
-                    >
-                        <a :href="document.download_url" class="min-w-0 flex-1 truncate text-sky-700 underline dark:text-sky-300">{{ document.original_name }}</a>
-                        <div class="flex shrink-0 items-center gap-2">
-                            <span class="text-xs text-zinc-500">{{ document.document_type }}</span>
-                            <button
-                                type="button"
-                                class="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950"
-                                :disabled="deletingDocId === document.id"
-                                @click="destroyVehicleDocument(document)"
-                            >
-                                Удалить
-                            </button>
-                        </div>
-                    </li>
-                </ul>
-            </div>
+            <FleetEntityDocumentsSection
+                v-if="!isCreating && selectedVehicle?.id"
+                entity-kind="vehicle"
+                :entity-id="selectedVehicle.id"
+                :documents="selectedVehicle.documents ?? []"
+                :document-type-options="documentTypeOptions"
+                default-document-type="pts"
+                @saved="emit('saved')"
+            />
         </div>
     </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
 import { X } from 'lucide-vue-next';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import FleetEntityDocumentsSection from '@/Components/Fleet/FleetEntityDocumentsSection.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 
 const props = defineProps({
@@ -176,15 +126,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
-const page = usePage();
-
 const ownerSearch = ref('');
 const ownerResults = ref([]);
 const ownerDropdownOpen = ref(false);
 const ownerPickedLabel = ref('');
-const docInput = ref(null);
-const docFile = ref(null);
-const deletingDocId = ref(null);
 let ownerTimer = null;
 
 const form = useForm({
@@ -194,11 +139,6 @@ const form = useForm({
     tractor_plate: '',
     trailer_plate: '',
     notes: '',
-});
-
-const docForm = useForm({
-    document_type: 'pts',
-    file: null,
 });
 
 function syncFromSelected() {
@@ -224,10 +164,6 @@ function syncFromSelected() {
 }
 
 watch(() => [props.selectedVehicle, props.isCreating], syncFromSelected, { immediate: true });
-
-function triggerDocPicker() {
-    docInput.value?.click();
-}
 
 function onOwnerInput() {
     ownerDropdownOpen.value = true;
@@ -284,51 +220,5 @@ function submitMain() {
     if (props.selectedVehicle?.id) {
         form.patch(route('fleet.vehicles.update', props.selectedVehicle.id), options);
     }
-}
-
-async function onDocFile(event) {
-    const file = event.target?.files?.[0];
-
-    if (file) {
-        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    }
-
-    docFile.value = file ?? null;
-    docForm.file = file ?? null;
-}
-
-function submitDoc() {
-    if (!props.selectedVehicle?.id || !docFile.value) {
-        return;
-    }
-
-    docForm.post(route('fleet.vehicles.documents.store', props.selectedVehicle.id), {
-        preserveScroll: true,
-        forceFormData: true,
-        onSuccess: () => {
-            docForm.reset();
-            docFile.value = null;
-            docForm.document_type = 'pts';
-            emit('saved');
-        },
-    });
-}
-
-function destroyVehicleDocument(document) {
-    if (!props.selectedVehicle?.id || !document?.id) {
-        return;
-    }
-
-    if (!window.confirm(`Удалить файл «${document.original_name}»?`)) {
-        return;
-    }
-
-    deletingDocId.value = document.id;
-    router.delete(route('fleet.vehicles.documents.destroy', [props.selectedVehicle.id, document.id]), {
-        preserveScroll: true,
-        onFinish: () => {
-            deletingDocId.value = null;
-        },
-    });
 }
 </script>

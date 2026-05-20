@@ -362,6 +362,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/fleet/vehicles/{fleetVehicle}/documents', 'storeDocument')->name('fleet.vehicles.documents.store');
         Route::delete('/fleet/vehicles/{fleetVehicle}/documents/{fleetVehicleDocument}', 'destroyDocument')->name('fleet.vehicles.documents.destroy');
         Route::get('/fleet/vehicles/{fleetVehicle}/documents/{fleetVehicleDocument}/download', 'downloadDocument')->name('fleet.vehicles.documents.download');
+        Route::get('/fleet/vehicles/{fleetVehicle}/documents/{fleetVehicleDocument}/preview', 'previewDocument')->name('fleet.vehicles.documents.preview');
     });
 
     Route::controller(FleetDriverController::class)->middleware('visibility.area:drivers')->group(function () {
@@ -372,6 +373,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/fleet/drivers/{fleetDriver}/documents', 'storeDocument')->name('fleet.drivers.documents.store');
         Route::delete('/fleet/drivers/{fleetDriver}/documents/{fleetDriverDocument}', 'destroyDocument')->name('fleet.drivers.documents.destroy');
         Route::get('/fleet/drivers/{fleetDriver}/documents/{fleetDriverDocument}/download', 'downloadDocument')->name('fleet.drivers.documents.download');
+        Route::get('/fleet/drivers/{fleetDriver}/documents/{fleetDriverDocument}/preview', 'previewDocument')->name('fleet.drivers.documents.preview');
     });
 
     Route::get('/fleet/options/vehicles', [FleetVehicleController::class, 'optionsForOrder'])

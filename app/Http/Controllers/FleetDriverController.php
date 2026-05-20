@@ -7,6 +7,7 @@ use App\Http\Requests\StoreFleetDriverRequest;
 use App\Http\Requests\UpdateFleetDriverRequest;
 use App\Models\FleetDriver;
 use App\Models\FleetDriverDocument;
+use App\Support\InlineStoredFileResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class FleetDriverController extends Controller
 {
@@ -87,6 +89,19 @@ class FleetDriverController extends Controller
         abort_unless($fleetDriverDocument->fleet_driver_id === $fleetDriver->id, 404);
 
         return Storage::disk($fleetDriverDocument->disk)->download($fleetDriverDocument->path, $fleetDriverDocument->original_name);
+    }
+
+    public function previewDocument(Request $request, FleetDriver $fleetDriver, FleetDriverDocument $fleetDriverDocument): Response
+    {
+        abort_unless(Schema::hasTable('fleet_driver_documents'), 404);
+        abort_unless($fleetDriverDocument->fleet_driver_id === $fleetDriver->id, 404);
+
+        return InlineStoredFileResponse::fromDisk(
+            $fleetDriverDocument->disk,
+            $fleetDriverDocument->path,
+            $fleetDriverDocument->mime_type,
+            $fleetDriverDocument->original_name,
+        );
     }
 
     public function optionsForOrder(Request $request): JsonResponse
@@ -192,12 +207,28 @@ class FleetDriverController extends Controller
             'license_number' => $driver->license_number,
             'license_categories' => $driver->license_categories,
             'notes' => $driver->notes,
-            'documents' => $driver->documents->map(fn (FleetDriverDocument $d): array => [
-                'id' => $d->id,
-                'document_type' => $d->document_type,
-                'original_name' => $d->original_name,
-                'download_url' => route('fleet.drivers.documents.download', [$driver, $d]),
-            ])->values()->all(),
+            'documents' => $driver->documents
+                ->map(fn (FleetDriverDocument $document): array => $this->formatDriverDocument($driver, $document))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatDriverDocument(FleetDriver $driver, FleetDriverDocument $document): array
+    {
+        $typeLabels = collect(self::documentTypeOptions())->pluck('label', 'value');
+
+        return [
+            'id' => $document->id,
+            'document_type' => $document->document_type,
+            'document_type_label' => $typeLabels->get($document->document_type, $document->document_type),
+            'original_name' => $document->original_name,
+            'created_at' => optional($document->created_at)?->toIso8601String(),
+            'preview_url' => route('fleet.drivers.documents.preview', [$driver, $document]),
+            'download_url' => route('fleet.drivers.documents.download', [$driver, $document]),
         ];
     }
 }

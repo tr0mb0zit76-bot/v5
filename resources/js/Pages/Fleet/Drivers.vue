@@ -3,7 +3,7 @@
         <div class="flex shrink-0 items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Водители</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">Контрагент-перевозчик, паспортные данные, документы.</p>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">Контрагент-перевозчик, реквизиты и документы.</p>
             </div>
             <button
                 type="button"

@@ -3,7 +3,7 @@
         <div class="flex shrink-0 items-start justify-between gap-4">
             <div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Авто</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">Учёт ТС, владельцев и документов (ПТС, аренда и др.).</p>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">Учёт ТС, владельцев и документов.</p>
             </div>
             <button
                 type="button"

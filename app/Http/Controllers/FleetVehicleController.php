@@ -7,6 +7,7 @@ use App\Http\Requests\StoreFleetVehicleRequest;
 use App\Http\Requests\UpdateFleetVehicleRequest;
 use App\Models\FleetVehicle;
 use App\Models\FleetVehicleDocument;
+use App\Support\InlineStoredFileResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FleetVehicleController extends Controller
@@ -89,6 +91,19 @@ class FleetVehicleController extends Controller
         abort_unless($fleetVehicleDocument->fleet_vehicle_id === $fleetVehicle->id, 404);
 
         return Storage::disk($fleetVehicleDocument->disk)->download($fleetVehicleDocument->path, $fleetVehicleDocument->original_name);
+    }
+
+    public function previewDocument(Request $request, FleetVehicle $fleetVehicle, FleetVehicleDocument $fleetVehicleDocument): Response
+    {
+        abort_unless(Schema::hasTable('fleet_vehicle_documents'), 404);
+        abort_unless($fleetVehicleDocument->fleet_vehicle_id === $fleetVehicle->id, 404);
+
+        return InlineStoredFileResponse::fromDisk(
+            $fleetVehicleDocument->disk,
+            $fleetVehicleDocument->path,
+            $fleetVehicleDocument->mime_type,
+            $fleetVehicleDocument->original_name,
+        );
     }
 
     public function optionsForOrder(Request $request): JsonResponse
@@ -192,12 +207,28 @@ class FleetVehicleController extends Controller
             'tractor_plate' => $vehicle->tractor_plate,
             'trailer_plate' => $vehicle->trailer_plate,
             'notes' => $vehicle->notes,
-            'documents' => $vehicle->documents->map(fn (FleetVehicleDocument $d): array => [
-                'id' => $d->id,
-                'document_type' => $d->document_type,
-                'original_name' => $d->original_name,
-                'download_url' => route('fleet.vehicles.documents.download', [$vehicle, $d]),
-            ])->values()->all(),
+            'documents' => $vehicle->documents
+                ->map(fn (FleetVehicleDocument $document): array => $this->formatVehicleDocument($vehicle, $document))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatVehicleDocument(FleetVehicle $vehicle, FleetVehicleDocument $document): array
+    {
+        $typeLabels = collect(self::documentTypeOptions())->pluck('label', 'value');
+
+        return [
+            'id' => $document->id,
+            'document_type' => $document->document_type,
+            'document_type_label' => $typeLabels->get($document->document_type, $document->document_type),
+            'original_name' => $document->original_name,
+            'created_at' => optional($document->created_at)?->toIso8601String(),
+            'preview_url' => route('fleet.vehicles.documents.preview', [$vehicle, $document]),
+            'download_url' => route('fleet.vehicles.documents.download', [$vehicle, $document]),
         ];
     }
 
