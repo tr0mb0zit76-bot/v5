@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityTimelineController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\DashboardController;
@@ -11,6 +12,8 @@ use App\Http\Controllers\FleetVehicleController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
+use App\Http\Controllers\LeadOfferMailController;
+use App\Http\Controllers\MailMailboxController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
@@ -157,6 +160,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/leads/{lead}/process-stage', 'advanceProcessStage')->name('leads.process-stage');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
         Route::post('/leads/{lead}/convert', 'convert')->name('leads.convert');
+        Route::get('/leads/{lead}/activity-timeline', [ActivityTimelineController::class, 'showForLead'])->name('leads.activity-timeline');
+        Route::post('/leads/{lead}/offers/{offer}/send-email', [LeadOfferMailController::class, 'send'])->name('leads.offers.send-email');
+    });
+
+    Route::middleware('visibility.area:mail')->prefix('mail')->name('mail.')->group(function () {
+        Route::get('/', [MailMailboxController::class, 'index'])->name('index');
+        Route::post('/send', [MailMailboxController::class, 'send'])->name('send');
+        Route::patch('/messages/{mailMessage}/importance', [MailMailboxController::class, 'updateImportance'])->name('messages.importance');
     });
 
     Route::middleware('visibility.area:sales_assistant_scripts')->group(function () {

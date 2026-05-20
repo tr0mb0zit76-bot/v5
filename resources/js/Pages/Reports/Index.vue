@@ -4,34 +4,10 @@
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Отчёты</h1>
-                    <p class="mt-1 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
-                        ABC / XYZ по клиентам и сводка по менеджерам по закрытым заказам. Данные по заказам
-                        <span v-if="order_scope === 'own'" class="font-medium text-zinc-800 dark:text-zinc-200">только ваши</span>
-                        <span v-else class="font-medium text-zinc-800 dark:text-zinc-200">по компании</span>.
-                    </p>
                 </div>
             </div>
 
-            <form v-if="tab === 'lead-stuck'" class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyStuckFilters">
-                <div>
-                    <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Порог, дней на этапе</label>
-                    <input
-                        v-model.number="filterForm.stuck_days"
-                        type="number"
-                        min="1"
-                        max="365"
-                        class="mt-1 w-28 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                    >
-                </div>
-                <button
-                    type="submit"
-                    class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
-                    Применить
-                </button>
-            </form>
-
-            <form v-else-if="!isLeadProcessTab" class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyFilters">
+            <form v-if="!isLeadProcessTab" class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyFilters">
                 <div>
                     <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">С</label>
                     <input
@@ -150,6 +126,9 @@
         </section>
 
         <section v-else-if="tab === 'lead-sla'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <p class="border-b border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                Текущий срез: у лида истёк срок этапа (stage_due_at), этап не финальный. Период дат сверху не влияет.
+            </p>
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>
@@ -188,9 +167,29 @@
         </section>
 
         <section v-else-if="tab === 'lead-stuck'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <p class="border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                Показаны лиды на этапе дольше {{ lead_stuck.stuck_days ?? filterForm.stuck_days }} дн.
-            </p>
+            <div class="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Лиды на нефинальном этапе дольше заданного порога без перехода. Период дат сверху не влияет.
+                </p>
+                <form class="flex flex-wrap items-end gap-2" @submit.prevent="applyStuckFilters">
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Порог, дней на этапе</label>
+                        <input
+                            v-model.number="filterForm.stuck_days"
+                            type="number"
+                            min="1"
+                            max="365"
+                            class="mt-1 w-28 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                        >
+                    </div>
+                    <button
+                        type="submit"
+                        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    >
+                        Применить
+                    </button>
+                </form>
+            </div>
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>

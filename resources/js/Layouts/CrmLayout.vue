@@ -419,6 +419,7 @@ import {
     LayoutDashboard,
     LayoutGrid,
     LogOut,
+    Mail,
     Menu,
     Package,
     PanelLeftClose,
@@ -576,6 +577,7 @@ const MENU_ROUTES = {
     'fleet-containers': '/fleet/containers',
     'fleet-drivers': '/drivers',
     documents: '/documents',
+    mail: '/mail',
     finance: '/finance',
     'finance-cashflow': '/finance?section=cashflow',
     'finance-salary': '/finance/salary',
@@ -776,6 +778,7 @@ const menuItems = computed(() => {
             ],
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
+        { key: 'mail', label: 'Почта', icon: Mail, visibilityArea: 'mail' },
         {
             key: 'finance',
             label: 'Финансы',

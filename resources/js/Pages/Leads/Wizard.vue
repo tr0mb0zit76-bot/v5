@@ -259,7 +259,8 @@
             </div>
 
             <div v-else-if="activeTab === 'activities'" class="space-y-4">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммуникации</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">История контактов по лиду.</p></div><button type="button" class="secondary-button" @click="addActivity"><Plus class="h-4 w-4" />Добавить активность</button></div>
+                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммуникации</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">История контактов и единая лента событий.</p></div><button type="button" class="secondary-button" @click="addActivity"><Plus class="h-4 w-4" />Добавить активность</button></div>
+                <ActivityTimeline v-if="selectedLeadId" ref="activityTimelineRef" :lead-id="selectedLeadId" />
                 <div v-for="(activity, index) in form.activities" :key="`activity-${index}`" class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                         <select v-model="activity.type" class="field"><option value="call">Звонок</option><option value="email">Email</option><option value="meeting">Встреча</option><option value="note">Заметка</option></select>
@@ -299,8 +300,19 @@
                 <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                     <h3 class="text-base font-semibold">История КП и конверсии</h3>
                     <div v-for="offer in form.offers" :key="offer.id" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-                        <div class="flex items-center justify-between gap-3"><div class="font-medium">{{ offer.number || 'Черновик КП' }}</div><span class="text-xs text-zinc-500 dark:text-zinc-400">{{ offer.offer_date || '—' }}</span></div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="font-medium">{{ offer.number || 'Черновик КП' }}</div>
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ offer.sent_at ? 'отправлено' : offer.offer_date || '—' }}</span>
+                        </div>
                         <div class="mt-2 text-zinc-500 dark:text-zinc-400">{{ offer.price ? formatMoney(offer.price, offer.currency) : 'Без цены' }}</div>
+                        <button
+                            v-if="!offer.sent_at"
+                            type="button"
+                            class="secondary-button mt-3"
+                            @click="openSendOfferModal(offer)"
+                        >
+                            Отправить по e-mail
+                        </button>
                     </div>
                     <div v-if="form.offers.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Коммерческие предложения ещё не формировались.</div>
                     <div v-if="form.orders.length" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800"><div class="meta">Конвертирован в заказ</div><div class="mt-2 font-medium">{{ form.orders[0].order_number }}</div></div>
@@ -361,6 +373,22 @@
                 </div>
             </div>
         </div>
+        <div
+            v-show="showSendOfferModal"
+            class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+            @click.self="closeSendOfferModal"
+        >
+            <form class="w-full max-w-lg space-y-3 rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900" @submit.prevent="submitSendOffer">
+                <div class="text-lg font-semibold">Отправить КП по e-mail</div>
+                <input v-model="sendOfferForm.to_raw" type="text" class="field" placeholder="Кому (через запятую)" />
+                <input v-model="sendOfferForm.subject" type="text" class="field" placeholder="Тема" />
+                <textarea v-model="sendOfferForm.body" rows="5" class="field" placeholder="Текст письма" />
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="secondary-button" @click="closeSendOfferModal">Отмена</button>
+                    <button type="submit" class="primary-button" :disabled="sendOfferForm.processing">Отправить</button>
+                </div>
+            </form>
+        </div>
     </Teleport>
 </template>
 
@@ -368,6 +396,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
+import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
@@ -759,6 +788,51 @@ function submit() {
 }
 
 function prepareProposal() { if (selectedLeadId.value) router.post(route('leads.proposal', selectedLeadId.value)); }
+
+const showSendOfferModal = ref(false);
+const sendOfferTarget = ref(null);
+const activityTimelineRef = ref(null);
+const sendOfferForm = useForm({
+    to_raw: '',
+    subject: '',
+    body: '',
+});
+
+function openSendOfferModal(offer) {
+    sendOfferTarget.value = offer;
+    const counterparty = contractors.value.find((c) => c.id === form.counterparty_id);
+    const emails = [counterparty?.contact_person_email, counterparty?.email].filter(Boolean);
+    sendOfferForm.to_raw = [...new Set(emails)].join(', ');
+    sendOfferForm.subject = `Коммерческое предложение ${offer.number || ''}`.trim();
+    sendOfferForm.body = `Добрый день!\n\nНаправляем коммерческое предложение по перевозке «${form.title}».`;
+    showSendOfferModal.value = true;
+}
+
+function closeSendOfferModal() {
+    showSendOfferModal.value = false;
+    sendOfferTarget.value = null;
+}
+
+function submitSendOffer() {
+    if (!selectedLeadId.value || !sendOfferTarget.value) {
+        return;
+    }
+
+    const to = sendOfferForm.to_raw
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    sendOfferForm
+        .transform((data) => ({ ...data, to }))
+        .post(route('leads.offers.send-email', [selectedLeadId.value, sendOfferTarget.value.id]), {
+            preserveScroll: true,
+            onSuccess: () => {
+                closeSendOfferModal();
+                activityTimelineRef.value?.reload?.();
+            },
+        });
+}
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
 function destroyLead() { if (selectedLeadId.value) router.delete(route('leads.destroy', selectedLeadId.value)); }
 function createNextStep() {

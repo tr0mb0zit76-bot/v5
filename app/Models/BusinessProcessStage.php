@@ -24,6 +24,7 @@ class BusinessProcessStage extends Model
         'task_description_template',
         'task_due_days_offset',
         'task_priority',
+        'no_reply_nudge_days',
     ];
 
     /**

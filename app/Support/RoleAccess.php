@@ -47,6 +47,7 @@ class RoleAccess
             ['key' => 'dashboard', 'label' => 'Дашборд', 'description' => 'Главная панель и сводные карточки'],
             ['key' => 'dashboard_tiles', 'label' => 'Плитки дашборда', 'description' => 'Доступ к отдельным карточкам на дашборде'],
             ['key' => 'leads', 'label' => 'Лиды', 'description' => 'Воронка до конверсии в заказ'],
+            ['key' => 'mail', 'label' => 'Почта', 'description' => 'Исходящая переписка с клиентами, отправка КП'],
             ['key' => 'orders', 'label' => 'Заказы', 'description' => 'Раздел работы с заказами'],
             ['key' => 'users', 'label' => 'Пользователи', 'description' => 'Управление пользователями'],
             ['key' => 'roles', 'label' => 'Роли', 'description' => 'Управление ролями и правами'],

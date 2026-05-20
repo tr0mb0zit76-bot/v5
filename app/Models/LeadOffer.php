@@ -19,11 +19,14 @@ class LeadOffer extends Model
         'lead_id',
         'status',
         'number',
+        'title',
         'offer_date',
         'price',
         'currency',
         'payload',
         'generated_file_path',
+        'sent_at',
+        'last_mail_thread_id',
         'created_by',
     ];
 
@@ -36,6 +39,7 @@ class LeadOffer extends Model
             'offer_date' => 'date',
             'price' => 'decimal:2',
             'payload' => 'array',
+            'sent_at' => 'datetime',
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Models\Lead;
 use App\Models\LeadProcessStageLog;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\ActivityEventType;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,10 @@ use Illuminate\Support\Str;
 
 class LeadBusinessProcessService
 {
+    public function __construct(
+        private readonly ActivityLedgerService $activityLedger,
+    ) {}
+
     public function tablesReady(): bool
     {
         return Schema::hasTable('business_processes')
@@ -87,6 +92,21 @@ class LeadBusinessProcessService
                 'created_by' => $user?->id,
             ]);
         }
+
+        $this->activityLedger->record(
+            $lead,
+            ActivityEventType::ProcessStageChanged,
+            'Этап бизнес-процесса',
+            sprintf('Переход на этап «%s»', $stage->name),
+            [
+                'stage_id' => $stage->id,
+                'stage_name' => $stage->name,
+                'business_process_id' => $stage->business_process_id,
+            ],
+            $now,
+            $user,
+            $log,
+        );
 
         $this->applyTerminalOutcome($lead, $stage);
     }

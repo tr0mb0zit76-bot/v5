@@ -119,7 +119,7 @@ const tabs = [
     { key: 'requisites', label: 'Реквизиты', icon: ShieldCheck },
     { key: 'cooperation', label: 'Условия сотрудничества', icon: FileText },
     { key: 'contacts', label: 'Контакты', icon: Users },
-    { key: 'history', label: 'История общения', icon: History },
+    { key: 'communications', label: 'Коммуникации', icon: History },
     { key: 'orders', label: 'Заказы', icon: FileText },
     { key: 'documents', label: 'Документы', icon: FileText },
 ];
@@ -1317,6 +1317,34 @@ function formatDate(value) {
     }
 
     return new Date(value).toLocaleDateString('ru-RU');
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return '—';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '—';
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
+function interactionChannelLabel(value) {
+    return interactionChannels.find((channel) => channel.value === value)?.label ?? (value || '—');
+}
+
+function scrollToInteractionCard(index) {
+    const element = document.getElementById(`contractor-interaction-${index}`);
+    element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function formatMoney(value, currency = 'RUB') {
@@ -2731,10 +2759,10 @@ function handleMobileNavSelect(key) {
                         </div>
                     </div>
 
-                    <div v-else-if="activeTab === 'history'" class="space-y-4">
+                    <div v-else-if="activeTab === 'communications'" class="space-y-4">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                История звонков, писем, встреч и результатов коммуникации.
+                                Звонки, письма, встречи и заметки. Сверху — сводная таблица, ниже — редактирование записей.
                             </div>
                             <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addInteraction">
                                 <Plus class="h-4 w-4" />
@@ -2742,8 +2770,41 @@ function handleMobileNavSelect(key) {
                             </button>
                         </div>
 
+                        <div v-if="form.interactions.length > 0" class="overflow-auto border border-zinc-200 dark:border-zinc-800">
+                            <table class="min-w-full border-collapse text-sm">
+                                <thead class="bg-zinc-100 dark:bg-zinc-800">
+                                    <tr class="text-left">
+                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Дата</th>
+                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Канал</th>
+                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Тема</th>
+                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Содержание</th>
+                                        <th class="border-b border-zinc-200 px-3 py-2 font-medium dark:border-zinc-700">Результат</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr
+                                        v-for="(interaction, index) in form.interactions"
+                                        :key="`interaction-row-${index}`"
+                                        class="cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60"
+                                        @click="scrollToInteractionCard(index)"
+                                    >
+                                        <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ formatDateTime(interaction.contacted_at) }}</td>
+                                        <td class="px-3 py-2">{{ interactionChannelLabel(interaction.channel) }}</td>
+                                        <td class="px-3 py-2">{{ interaction.subject || '—' }}</td>
+                                        <td class="max-w-xs truncate px-3 py-2" :title="interaction.summary">{{ interaction.summary || '—' }}</td>
+                                        <td class="px-3 py-2">{{ interaction.result || '—' }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
                         <div class="space-y-3">
-                            <div v-for="(interaction, index) in form.interactions" :key="`interaction-${index}`" class="border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div
+                                v-for="(interaction, index) in form.interactions"
+                                :id="`contractor-interaction-${index}`"
+                                :key="`interaction-${index}`"
+                                class="border border-zinc-200 p-4 dark:border-zinc-800"
+                            >
                                 <div class="mb-3 flex items-center justify-between gap-3">
                                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Событие #{{ index + 1 }}</div>
                                     <button type="button" class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-300" @click="removeItem(form.interactions, index)">
@@ -2784,7 +2845,7 @@ function handleMobileNavSelect(key) {
                             </div>
 
                             <div v-if="form.interactions.length === 0" class="border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                                История общения пока не заполнена.
+                                Коммуникации пока не заполнены.
                             </div>
                         </div>
                     </div>

@@ -15,10 +15,12 @@ use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
 use App\Models\Task;
+use App\Services\ActivityLedgerService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
+use App\Support\ActivityEventType;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\LeadStatus;
@@ -38,6 +40,7 @@ class LeadController extends Controller
 {
     public function __construct(
         private readonly LeadBusinessProcessService $leadBusinessProcessService,
+        private readonly ActivityLedgerService $activityLedger,
     ) {}
 
     public function index(Request $request): Response
@@ -266,9 +269,10 @@ class LeadController extends Controller
         ];
 
         if ($offer === null) {
-            $lead->offers()->create([
+            $offer = $lead->offers()->create([
                 'status' => 'prepared',
                 'number' => 'КП-'.$lead->number,
+                'title' => $lead->title,
                 'offer_date' => now()->toDateString(),
                 'price' => $lead->target_price,
                 'currency' => $lead->target_currency ?: 'RUB',
@@ -278,12 +282,24 @@ class LeadController extends Controller
         } else {
             $offer->update([
                 'status' => 'prepared',
+                'title' => $lead->title,
                 'offer_date' => now()->toDateString(),
                 'price' => $lead->target_price,
                 'currency' => $lead->target_currency ?: 'RUB',
                 'payload' => $payload,
             ]);
         }
+
+        $this->activityLedger->record(
+            $lead,
+            ActivityEventType::OfferPrepared,
+            'КП подготовлено',
+            $offer->number,
+            ['offer_id' => $offer->id, 'price' => $offer->price],
+            null,
+            $request->user(),
+            $offer,
+        );
 
         $lead->forceFill([
             'status' => 'proposal_ready',
@@ -763,10 +779,12 @@ class LeadController extends Controller
                 'id' => $offer->id,
                 'status' => $offer->status,
                 'number' => $offer->number,
+                'title' => $offer->title,
                 'offer_date' => optional($offer->offer_date)->toDateString(),
                 'price' => $offer->price,
                 'currency' => $offer->currency,
                 'generated_file_path' => $offer->generated_file_path,
+                'sent_at' => optional($offer->sent_at)?->toIso8601String(),
             ])->values()->all(),
             'orders' => $lead->orders->map(fn ($order): array => [
                 'id' => $order->id,

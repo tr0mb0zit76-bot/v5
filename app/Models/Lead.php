@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Schema;
 
 class Lead extends Model
@@ -185,5 +186,13 @@ class Lead extends Model
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class)->orderByRaw('case when due_at is null then 1 else 0 end')->orderBy('due_at');
+    }
+
+    /**
+     * @return MorphMany<ActivityEvent, $this>
+     */
+    public function activityEvents(): MorphMany
+    {
+        return $this->morphMany(ActivityEvent::class, 'subject')->orderByDesc('occurred_at');
     }
 }
