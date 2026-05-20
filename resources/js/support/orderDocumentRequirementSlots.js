@@ -205,7 +205,7 @@ export function documentMatchesRequirementRule(document, rule) {
         if (docStage !== ruleStage) {
             return false;
         }
-    } elseif (docStage !== null && rule.slot_kind !== 'waybill') {
+    } else if (docStage !== null && rule.slot_kind !== 'waybill') {
         return false;
     }
 
@@ -218,7 +218,7 @@ export function documentMatchesRequirementRule(document, rule) {
         if (docContractorId !== ruleContractorId) {
             return false;
         }
-    } elseif (docContractorId !== null && String(rule.party) === 'carrier') {
+    } else if (docContractorId !== null && String(rule.party) === 'carrier') {
         return false;
     }
 
