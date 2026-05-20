@@ -210,6 +210,8 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
+import { resolveAgGridBottomScrollbarWidth } from '@/support/agGridHorizontalScroll.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import {
   CRM_AG_GRID_DENSITY_CHANGED,
@@ -248,6 +250,7 @@ const fallbackColumns = [
   { field: 'name', label: 'Название', width: 240, minWidth: 190, type: null },
   { field: 'status_text', label: 'Статус', width: 130, minWidth: 110, type: null },
   { field: 'activity_types_label', label: 'Вид деятельности', width: 220, minWidth: 180, type: null },
+  { field: 'type_label', label: 'Тип', width: 160, minWidth: 140, type: null },
   { field: 'inn', label: 'ИНН', width: 140, minWidth: 120, type: null },
   { field: 'primary_contact', label: 'Основной контакт', width: 220, minWidth: 180, type: null },
   { field: 'owner_name', label: 'Владелец', width: 180, minWidth: 140, type: null },
@@ -266,12 +269,11 @@ const defaultVisibleFields = [
   'current_debt',
 ];
 
-/** Без плавающей строки фильтра (как в реестре заказов — меньше DOM). */
-const CONTRACTORS_NO_FLOATING_FILTER = new Set([
-  'id',
-  'phone',
-  'email',
-  'orders_count',
+/** Только выпадающий список значений (как в гриде «Задачи»). */
+const CONTRACTORS_SET_FILTER_FIELDS = new Set([
+  'status_text',
+  'activity_types_label',
+  'type_label',
 ]);
 
 const agGrid = ref(null);
@@ -370,6 +372,26 @@ const defaultColDef = {
   suppressSizeToFit: true,
 };
 
+function contractorSetFilterLabel(field, row) {
+  if (!row) {
+    return '—';
+  }
+
+  const raw = row[field];
+
+  return raw === null || raw === undefined || raw === '' ? '—' : String(raw);
+}
+
+function collectContractorSetFilterValues(field) {
+  const values = new Set();
+
+  for (const row of props.rows ?? []) {
+    values.add(contractorSetFilterLabel(field, row));
+  }
+
+  return [...values].sort((left, right) => String(left).localeCompare(String(right), 'ru'));
+}
+
 const getAllColumns = () => {
   const sourceColumns = props.availableColumns?.length ? props.availableColumns : fallbackColumns;
 
@@ -451,19 +473,26 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
-      floatingFilter: !CONTRACTORS_NO_FLOATING_FILTER.has(column.field),
+      floatingFilter: false,
       valueFormatter: (params) => formatValue(params.value, column.type),
     };
+
+    if (CONTRACTORS_SET_FILTER_FIELDS.has(column.field)) {
+      applyAgSetListColumn(columnDefinition, {
+        values: collectContractorSetFilterValues(column.field),
+        filterValueGetter: (params) => contractorSetFilterLabel(column.field, params.data),
+      });
+    } else if (column.type === 'numeric' && column.field !== 'id') {
+      columnDefinition.filter = 'agNumberColumnFilter';
+    } else if (column.field !== 'id') {
+      columnDefinition.filter = 'agTextColumnFilter';
+    }
 
     if (column.field === 'name') {
       columnDefinition.pinned = 'left';
       columnDefinition.lockPinned = true;
       columnDefinition.cellClass = 'orders-grid-order-number-cell';
       columnDefinition.headerClass = 'orders-grid-order-number-header';
-    }
-
-    if (column.type === 'numeric' && column.field !== 'id') {
-      columnDefinition.filter = 'agNumberColumnFilter';
     }
 
     if (column.field === 'id') {
@@ -867,7 +896,7 @@ const syncBottomScrollbar = () => {
     return;
   }
 
-  bottomScrollbarWidth.value = Math.max(centerViewport.scrollWidth, centerViewport.clientWidth);
+  bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
   updateGridViewportHeight();
 
   if (bottomScrollbar.value && !isSyncingHorizontalScroll) {

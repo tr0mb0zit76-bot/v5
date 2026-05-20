@@ -7,6 +7,31 @@
  * @property {string} [searchPlaceholder]
  */
 
+/**
+ * @param {string[] | Iterable<string>} values
+ */
+export function setListFilterParams(values) {
+    return {
+        values: [...values],
+        sortValues: true,
+        searchPlaceholder: 'Поиск…',
+    };
+}
+
+/**
+ * @param {object} columnDefinition
+ * @param {{ values: string[], filterValueGetter?: (params: import('ag-grid-community').IDoesFilterPassParams) => string }} options
+ */
+export function applyAgSetListColumn(columnDefinition, options) {
+    columnDefinition.filter = AgSetListFilter;
+    columnDefinition.filterParams = setListFilterParams(options.values);
+    columnDefinition.floatingFilter = false;
+
+    if (typeof options.filterValueGetter === 'function') {
+        columnDefinition.filterValueGetter = options.filterValueGetter;
+    }
+}
+
 export class AgSetListFilter {
     /** @type {AgSetListFilterParams} */
     params = {};

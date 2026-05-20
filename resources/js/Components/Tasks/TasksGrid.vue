@@ -108,7 +108,7 @@ import {
   writeLocalAgGridDensity,
 } from '@/support/agGridUserDensity.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
-import { AgSetListFilter } from '@/Components/Grid/agSetListFilter.js';
+import { AgSetListFilter, setListFilterParams } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -217,14 +217,6 @@ function canEditResponsible(row) {
   }
 
   return Boolean(row.can_mutate) || props.canBulkMutateTasks;
-}
-
-function setListFilterParams(values) {
-  return {
-    values,
-    sortValues: true,
-    searchPlaceholder: 'Поиск…',
-  };
 }
 
 const contextMenu = reactive({

@@ -219,6 +219,7 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import { renderOrderOneCSummaryCell } from '@/support/orderOneCSummaryCell.js';
@@ -303,6 +304,7 @@ const paymentFormValueLabels = computed(() => {
 const fallbackColumns = [
   { field: 'id', label: 'ID', width: 56, minWidth: 48, type: 'numeric' },
   { field: 'order_number', label: '№ заказа', width: 110, minWidth: 95, type: null },
+  { field: 'status_text', label: 'Статус', width: 130, minWidth: 110, type: null },
   { field: 'company_code', label: 'Компания', width: 110, minWidth: 80, type: null },
   { field: 'manager_name', label: 'Менеджер', width: 150, minWidth: 140, type: null },
   { field: 'order_date', label: 'Дата заявки', width: 130, minWidth: 110, type: 'date' },
@@ -321,7 +323,6 @@ const fallbackColumns = [
   { field: 'delta', label: 'Маржа', width: 120, minWidth: 100, type: 'numeric' },
   { field: 'kpi_percent', label: 'KPI %', width: 100, minWidth: 80, type: 'numeric' },
   { field: 'salary_paid', label: 'ЗП выпл.', width: 120, minWidth: 100, type: 'numeric' },
-  { field: 'status_text', label: 'Статус', width: 130, minWidth: 110, type: null },
   { field: 'invoice_number', label: 'Счёт', width: 130, minWidth: 100, type: null },
   { field: 'upd_number', label: 'УПД', width: 120, minWidth: 90, type: null },
   { field: 'waybill_number', label: 'ТТН', width: 120, minWidth: 90, type: null },
@@ -330,6 +331,7 @@ const fallbackColumns = [
 const baseVisibleFields = [
   'id',
   'order_number',
+  'status_text',
   'company_code',
   'manager_name',
   'order_date',
@@ -348,7 +350,6 @@ const baseVisibleFields = [
   'delta',
   'kpi_percent',
   'salary_paid',
-  'status_text',
   'invoice_number',
   'upd_number',
   'waybill_number',
@@ -369,10 +370,15 @@ const ORDERS_GRID_EXCLUDED_FIELDS = new Set([
 ]);
 
 /** Плавающая строка фильтров только у «поисковых» полей; у ставок и дальше — выкл. */
-const FLOATING_FILTER_FIELDS = new Set([
-  'order_number',
+/** Только выпадающий список значений (без плавающей строки фильтра). */
+const ORDERS_SET_FILTER_FIELDS = new Set([
   'company_code',
   'manager_name',
+  'status_text',
+]);
+
+const FLOATING_FILTER_FIELDS = new Set([
+  'order_number',
   'order_date',
   'loading_point',
   'unloading_point',
@@ -381,7 +387,6 @@ const FLOATING_FILTER_FIELDS = new Set([
   'cargo_description',
   'customer_name',
   'carrier_name',
-  'status_text',
 ]);
 
 const agGrid = ref(null);
@@ -563,6 +568,40 @@ const densityClass = computed(() => `orders-grid-density--${currentDensity.value
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 
 const displayData = computed(() => props.rows?.length ? props.rows : props.data ?? []);
+
+function orderSetFilterLabel(field, row) {
+  if (!row) {
+    return '—';
+  }
+
+  if (field === 'status_text') {
+    return resolveOrderStatusLabel(row.status_text, row);
+  }
+
+  if (field === 'manager_name') {
+    const name = String(row.manager_name ?? '').trim();
+
+    return name === '' ? '—' : name;
+  }
+
+  if (field === 'company_code') {
+    const code = String(row.company_code ?? '').trim();
+
+    return code === '' ? '—' : code;
+  }
+
+  return '—';
+}
+
+function collectOrderSetFilterValues(field) {
+  const values = new Set();
+
+  for (const row of displayData.value ?? []) {
+    values.add(orderSetFilterLabel(field, row));
+  }
+
+  return [...values].sort((left, right) => String(left).localeCompare(String(right), 'ru'));
+}
 
 const defaultColDef = {
   sortable: true,
@@ -1060,6 +1099,13 @@ const dynamicColumnDefs = computed(() => {
         confirmed: 'Подтвержден (legacy)',
         completed: 'Завершен (legacy)',
       }[params.value] ?? formatEmpty(params.value));
+    }
+
+    if (ORDERS_SET_FILTER_FIELDS.has(column.field)) {
+      applyAgSetListColumn(columnDefinition, {
+        values: collectOrderSetFilterValues(column.field),
+        filterValueGetter: (params) => orderSetFilterLabel(column.field, params.data),
+      });
     }
 
     return columnDefinition;

@@ -12,6 +12,7 @@ class OrderTableColumns
         return [
             ['field' => 'id', 'label' => 'ID', 'width' => 56, 'minWidth' => 48, 'type' => 'numeric'],
             ['field' => 'order_number', 'label' => '№ заказа', 'width' => 110, 'minWidth' => 95, 'type' => null],
+            ['field' => 'status_text', 'label' => 'Статус', 'width' => 130, 'minWidth' => 110, 'type' => null],
             ['field' => 'one_c_summary', 'label' => 'Сводная информация', 'width' => 420, 'minWidth' => 280, 'type' => 'summary'],
             ['field' => 'company_code', 'label' => 'Компания', 'width' => 110, 'minWidth' => 80, 'type' => null],
             ['field' => 'manager_id', 'label' => 'ID менеджера', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
@@ -42,7 +43,6 @@ class OrderTableColumns
             ['field' => 'salary_paid', 'label' => 'ЗП выпл.', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'status', 'label' => 'Статус системы', 'width' => 140, 'minWidth' => 120, 'type' => null],
             ['field' => 'manual_status', 'label' => 'Статус вручную', 'width' => 150, 'minWidth' => 130, 'type' => null],
-            ['field' => 'status_text', 'label' => 'Статус', 'width' => 130, 'minWidth' => 110, 'type' => null],
             ['field' => 'status_updated_by', 'label' => 'Статус обновил', 'width' => 140, 'minWidth' => 120, 'type' => 'numeric'],
             ['field' => 'status_updated_at', 'label' => 'Статус обновлен', 'width' => 150, 'minWidth' => 130, 'type' => 'datetime'],
             ['field' => 'is_active', 'label' => 'Активен', 'width' => 100, 'minWidth' => 90, 'type' => 'boolean'],
@@ -98,6 +98,7 @@ class OrderTableColumns
         $defaultFields = [
             'id',
             'order_number',
+            'status_text',
             'company_code',
             'manager_name',
             'order_date',
@@ -114,7 +115,6 @@ class OrderTableColumns
             'delta',
             'kpi_percent',
             'salary_paid',
-            'status_text',
             'invoice_number',
             'upd_number',
             'waybill_number',

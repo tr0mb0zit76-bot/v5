@@ -213,6 +213,7 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
@@ -296,12 +297,13 @@ const defaultVisibleFields = [
   'created_at',
 ];
 
-/** Плавающая строка фильтра отключена (меньше DOM), как в реестрах заказов/контрагентов. */
-const LEADS_NO_FLOATING_FILTER = new Set([
-  'id',
-  'title',
-  'planned_shipping_date',
-  'target_price',
+/** Только выпадающий список значений (как в гриде «Задачи»). */
+const LEADS_SET_FILTER_FIELDS = new Set([
+  'status',
+  'source',
+  'responsible_name',
+  'has_offer',
+  'process_name',
 ]);
 
 const agGrid = ref(null);
@@ -411,6 +413,48 @@ const defaultColDef = {
   suppressSizeToFit: true,
 };
 
+function leadSetFilterLabel(field, row) {
+  if (!row) {
+    return '—';
+  }
+
+  if (field === 'status') {
+    return statusLabels[row.status] ?? row.status ?? '—';
+  }
+
+  if (field === 'has_offer') {
+    return row.has_offer ? 'Да' : 'Нет';
+  }
+
+  if (field === 'responsible_name') {
+    const name = String(row.responsible_name ?? '').trim();
+
+    return name === '' ? '—' : name;
+  }
+
+  const raw = row[field];
+
+  return raw === null || raw === undefined || raw === '' ? '—' : String(raw);
+}
+
+function collectLeadSetFilterValues(field) {
+  if (field === 'status') {
+    return Object.values(statusLabels).sort((left, right) => String(left).localeCompare(String(right), 'ru'));
+  }
+
+  if (field === 'has_offer') {
+    return ['Да', 'Нет'];
+  }
+
+  const values = new Set();
+
+  for (const row of props.rows ?? []) {
+    values.add(leadSetFilterLabel(field, row));
+  }
+
+  return [...values].sort((left, right) => String(left).localeCompare(String(right), 'ru'));
+}
+
 const getAllColumns = () => {
   const sourceColumns = props.availableColumns?.length ? props.availableColumns : fallbackColumns;
 
@@ -492,14 +536,21 @@ const dynamicColumnDefs = computed(() => {
       filter: true,
       resizable: true,
       suppressSizeToFit: true,
-      floatingFilter: !LEADS_NO_FLOATING_FILTER.has(column.field),
+      floatingFilter: false,
       valueFormatter: (params) => formatValue(params.value, column.type, column.field, params.data),
     };
 
-    if (column.type === 'numeric' && column.field !== 'id') {
+    if (LEADS_SET_FILTER_FIELDS.has(column.field)) {
+      applyAgSetListColumn(columnDefinition, {
+        values: collectLeadSetFilterValues(column.field),
+        filterValueGetter: (params) => leadSetFilterLabel(column.field, params.data),
+      });
+    } else if (column.type === 'numeric' && column.field !== 'id') {
       columnDefinition.filter = 'agNumberColumnFilter';
-    } else if (column.type === 'date') {
+    } else if (column.type === 'date' || column.type === 'datetime') {
       columnDefinition.filter = 'agDateColumnFilter';
+    } else if (column.field !== 'id') {
+      columnDefinition.filter = 'agTextColumnFilter';
     }
 
     if (column.field === 'id') {
