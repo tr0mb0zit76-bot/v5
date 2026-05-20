@@ -192,7 +192,14 @@
                         <div class="text-sm font-semibold">Расчёт загрузки</div>
                         <div class="text-xs text-zinc-500">{{ selectedTransport ? selectedTransport.name : 'Выберите транспорт' }}</div>
                     </div>
-                    <button type="button" class="secondary-action" @click="activeStep = 'calculation'">Сводка</button>
+                    <div class="flex flex-wrap items-center justify-end gap-2">
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold dark:border-zinc-700 dark:bg-zinc-900">
+                            <input v-model="manualMode" type="checkbox" class="rounded" />
+                            Ручная раскладка
+                        </label>
+                        <button type="button" class="secondary-action" @click="resetManualPlacements">Сбросить позиции</button>
+                        <button type="button" class="secondary-action" @click="activeStep = 'calculation'">Сводка</button>
+                    </div>
                 </div>
 
                 <div class="grid min-h-0 flex-1 grid-rows-[minmax(360px,1fr),auto] overflow-hidden">
@@ -206,8 +213,14 @@
                                         v-for="block in layoutResult.blocks"
                                         :key="block.key"
                                         class="cargo-cube"
+                                        :class="[
+                                            manualMode ? 'cargo-cube-manual' : '',
+                                            selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
+                                            block.manual ? 'cargo-cube-positioned' : '',
+                                        ]"
                                         :style="cubeStyle(block)"
                                         :title="`${block.name}: ${block.count} шт`"
+                                        @click.stop="selectBlock(block)"
                                     >
                                         <span>{{ block.count > 1 ? block.count : '' }}</span>
                                     </div>
@@ -218,10 +231,44 @@
                     </div>
 
                     <div class="max-h-56 overflow-y-auto border-t border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                        <div class="mb-3 flex items-center justify-between">
-                            <div class="text-sm font-semibold">Груз в сцене</div>
-                            <div class="text-xs text-zinc-500">{{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт размещено</div>
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <div class="text-sm font-semibold">Груз в сцене</div>
+                                <div class="text-xs text-zinc-500">{{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт размещено</div>
+                            </div>
+                            <div v-if="manualMode" class="text-xs text-zinc-500">
+                                Выберите блок на сцене и двигайте его по кузову.
+                            </div>
                         </div>
+
+                        <div v-if="manualMode" class="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/40">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="truncate text-sm font-semibold text-sky-950 dark:text-sky-100">
+                                        {{ selectedBlock ? selectedBlock.name : 'Блок не выбран' }}
+                                    </div>
+                                    <div v-if="selectedBlock" class="text-xs text-sky-700 dark:text-sky-300">
+                                        X {{ formatMm(selectedBlock.x) }}, Y {{ formatMm(selectedBlock.y) }}, {{ selectedBlock.rotated ? 'повёрнут' : 'без поворота' }}
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-1">
+                                    <span />
+                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, -250)">↑</button>
+                                    <span />
+                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(-250, 0)">←</button>
+                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="rotateSelectedBlock">↻</button>
+                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(250, 0)">→</button>
+                                    <span />
+                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, 250)">↓</button>
+                                    <span />
+                                </div>
+                            </div>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="lockSelectedBlock">Зафиксировать</button>
+                                <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="releaseSelectedBlock">Вернуть в авто</button>
+                            </div>
+                        </div>
+
                         <div class="grid gap-2 md:grid-cols-2">
                             <div v-for="item in cargoFlat" :key="item.local_id" class="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
                                 <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: item.color }" />
@@ -263,9 +310,13 @@ const activeStep = ref('calculation');
 const projectSearch = ref('');
 const projectForm = ref(cloneProject(props.selectedProject));
 const templateDraft = ref(blankTemplate());
+const manualMode = ref(Boolean(props.selectedProject?.calculation?.manual_mode));
+const selectedBlockKey = ref(props.selectedProject?.calculation?.selected_manual_key ?? null);
 
 watch(() => props.selectedProject, (project) => {
     projectForm.value = cloneProject(project);
+    manualMode.value = Boolean(project?.calculation?.manual_mode);
+    selectedBlockKey.value = project?.calculation?.selected_manual_key ?? null;
 }, { deep: true });
 
 const filteredProjects = computed(() => {
@@ -285,6 +336,7 @@ const cargoFlat = computed(() => {
     return (projectForm.value?.cargo_groups ?? []).flatMap((group) => {
         return (group.items ?? []).map((item) => ({
             ...item,
+            source_key: cargoItemKey(item),
             group_name: group.name,
             recipient_name: group.recipient_name,
             color: item.color || group.color || '#60a5fa',
@@ -292,7 +344,23 @@ const cargoFlat = computed(() => {
     });
 });
 
-const layoutResult = computed(() => calculateLayout(selectedTransport.value, cargoFlat.value));
+const manualPlacements = computed(() => {
+    const placements = projectForm.value?.calculation?.manual_placements ?? {};
+    const validPrefixes = new Set(cargoFlat.value.map((item) => item.source_key));
+    return Object.fromEntries(
+        Object.entries(placements).filter(([key]) => {
+            return [...validPrefixes].some((prefix) => key.startsWith(`${prefix}-`));
+        }),
+    );
+});
+const layoutResult = computed(() => calculateLayout(selectedTransport.value, cargoFlat.value, manualMode.value ? manualPlacements.value : {}));
+const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
+
+watch(layoutResult, (result) => {
+    if (selectedBlockKey.value && !result.blocks.some((block) => block.key === selectedBlockKey.value)) {
+        selectedBlockKey.value = null;
+    }
+});
 
 const salesArgument = computed(() => {
     const transport = selectedTransport.value;
@@ -324,10 +392,14 @@ function cloneProject(project) {
     }
     return {
         ...project,
+        calculation: {
+            ...(project.calculation ?? {}),
+            manual_placements: project.calculation?.manual_placements ?? {},
+        },
         cargo_groups: (project.cargo_groups ?? []).map((group) => ({
             ...group,
             local_id: crypto.randomUUID(),
-            items: (group.items ?? []).map((item) => ({ ...item, local_id: crypto.randomUUID() })),
+            items: (group.items ?? []).map((item) => ({ ...item, client_key: item.client_key || crypto.randomUUID(), local_id: crypto.randomUUID() })),
         })),
     };
 }
@@ -351,6 +423,7 @@ function blankTemplate() {
 function blankCargoItem(color = '#60a5fa') {
     return {
         local_id: crypto.randomUUID(),
+        client_key: crypto.randomUUID(),
         name: 'Новый груз',
         package_type: 'box',
         quantity: 1,
@@ -401,6 +474,9 @@ function projectPayload() {
             used_volume_percent: layoutResult.value.usedVolumePercent,
             used_payload_percent: layoutResult.value.usedPayloadPercent,
             warnings: layoutResult.value.warnings,
+            manual_mode: manualMode.value,
+            selected_manual_key: selectedBlockKey.value,
+            manual_placements: manualPlacements.value,
         },
         cargo_groups: projectForm.value.cargo_groups.map((group) => ({
             name: group.name,
@@ -408,6 +484,7 @@ function projectPayload() {
             color: group.color,
             items: group.items.map((item) => ({
                 name: item.name,
+                client_key: item.client_key,
                 package_type: item.package_type,
                 quantity: Number(item.quantity || 1),
                 length_mm: Number(item.length_mm || 1),
@@ -478,7 +555,7 @@ function deleteTransportTemplate(template) {
     }
 }
 
-function calculateLayout(transport, items) {
+function calculateLayout(transport, items, placements = {}) {
     if (!transport) {
         return emptyLayout();
     }
@@ -502,15 +579,25 @@ function calculateLayout(transport, items) {
         totalVolumeM3 += quantity * item.length_mm * item.width_mm * item.height_mm / 1_000_000_000;
 
         let remaining = quantity;
+        let unitIndex = 0;
         while (remaining > 0) {
-            const orientation = chooseOrientation(transport, item, cursorX, cursorY, rowDepth);
+            const blockKey = `${item.source_key}-${unitIndex}`;
+            const manual = placements[blockKey] ?? null;
+            const orientation = manual
+                ? {
+                    length: manual.rotated ? Number(item.width_mm) : Number(item.length_mm),
+                    width: manual.rotated ? Number(item.length_mm) : Number(item.width_mm),
+                    newRow: false,
+                    manual,
+                }
+                : chooseOrientation(transport, item, cursorX, cursorY, rowDepth);
             if (!orientation) {
                 overflow = true;
                 warnings.push(`${item.name}: не удалось разместить ${remaining} шт.`);
                 break;
             }
 
-            if (orientation.newRow) {
+            if (!manual && orientation.newRow) {
                 cursorX = 0;
                 cursorY += rowDepth;
                 rowDepth = 0;
@@ -521,25 +608,33 @@ function calculateLayout(transport, items) {
                 : 1;
             const count = Math.min(remaining, stackLimit);
             const block = {
-                key: `${item.local_id}-${blocks.length}`,
+                key: blockKey,
                 name: item.name,
                 count,
                 color: item.color,
-                x: cursorX,
-                y: cursorY,
+                x: manual ? Number(manual.x || 0) : cursorX,
+                y: manual ? Number(manual.y || 0) : cursorY,
                 z: 0,
                 length: orientation.length,
                 width: orientation.width,
                 height: item.height_mm * count,
+                base_length: Number(item.length_mm),
+                base_width: Number(item.width_mm),
+                rotated: Boolean(manual?.rotated),
+                locked: Boolean(manual?.locked),
+                manual: Boolean(manual),
             };
             if (blocks.length < maxBlocks) {
                 blocks.push(block);
             }
             placedUnits += count;
             remaining -= count;
-            usedLengthMm = Math.max(usedLengthMm, cursorX + orientation.length);
-            cursorX += orientation.length;
-            rowDepth = Math.max(rowDepth, orientation.width);
+            usedLengthMm = Math.max(usedLengthMm, block.x + orientation.length);
+            if (!manual) {
+                cursorX += orientation.length;
+                rowDepth = Math.max(rowDepth, orientation.width);
+            }
+            unitIndex += count;
         }
     }
 
@@ -549,9 +644,11 @@ function calculateLayout(transport, items) {
     if (blocks.length >= maxBlocks && placedUnits < totalUnits) {
         warnings.push('В 3D-сцене показана часть мест, чтобы интерфейс не тормозил.');
     }
+    const manualWarnings = manualPlacementWarnings(transport, blocks);
+    warnings.push(...manualWarnings);
 
     const transportVolumeM3 = transport.length_mm * transport.width_mm * transport.height_mm / 1_000_000_000;
-    const fits = !overflow && placedUnits === totalUnits && totalWeightKg <= transport.max_payload_kg;
+    const fits = !overflow && placedUnits === totalUnits && totalWeightKg <= transport.max_payload_kg && manualWarnings.length === 0;
 
     return {
         blocks,
@@ -567,6 +664,30 @@ function calculateLayout(transport, items) {
         usedVolumePercent: transportVolumeM3 > 0 ? Math.min(999, totalVolumeM3 / transportVolumeM3 * 100) : 0,
         usedPayloadPercent: transport.max_payload_kg > 0 ? Math.min(999, totalWeightKg / transport.max_payload_kg * 100) : 0,
     };
+}
+
+function manualPlacementWarnings(transport, blocks) {
+    const warnings = [];
+    for (const block of blocks) {
+        if (block.x < 0 || block.y < 0 || block.x + block.length > transport.length_mm || block.y + block.width > transport.width_mm) {
+            warnings.push(`${block.name}: ручная позиция выходит за габариты транспорта.`);
+        }
+    }
+    for (let i = 0; i < blocks.length; i++) {
+        for (let j = i + 1; j < blocks.length; j++) {
+            if (blocksOverlap(blocks[i], blocks[j])) {
+                warnings.push(`${blocks[i].name} пересекается с ${blocks[j].name}.`);
+            }
+        }
+    }
+    return warnings;
+}
+
+function blocksOverlap(a, b) {
+    return a.x < b.x + b.length
+        && a.x + a.length > b.x
+        && a.y < b.y + b.width
+        && a.y + a.width > b.y;
 }
 
 function chooseOrientation(transport, item, cursorX, cursorY, rowDepth) {
@@ -615,7 +736,115 @@ function cubeStyle(block) {
         height: `${block.width / transport.width_mm * 100}%`,
         '--cube-color': block.color || '#60a5fa',
         '--cube-height': `${Math.max(12, block.height * zScale)}px`,
+        '--cube-rotation': block.rotated ? '90deg' : '0deg',
     };
+}
+
+function cargoItemKey(item) {
+    return item.client_key ? `cargo-${item.client_key}` : `local-${item.local_id}`;
+}
+
+function ensureManualPlacement(block) {
+    if (!projectForm.value.calculation) {
+        projectForm.value.calculation = {};
+    }
+    if (!projectForm.value.calculation.manual_placements) {
+        projectForm.value.calculation.manual_placements = {};
+    }
+    const existing = projectForm.value.calculation.manual_placements[block.key] ?? {};
+    projectForm.value.calculation.manual_placements = {
+        ...projectForm.value.calculation.manual_placements,
+        [block.key]: {
+            x: Number(existing.x ?? block.x),
+            y: Number(existing.y ?? block.y),
+            rotated: Boolean(existing.rotated ?? block.rotated),
+            locked: Boolean(existing.locked ?? block.locked),
+        },
+    };
+    return projectForm.value.calculation.manual_placements[block.key];
+}
+
+function selectBlock(block) {
+    if (!manualMode.value) {
+        return;
+    }
+    selectedBlockKey.value = block.key;
+    ensureManualPlacement(block);
+    projectForm.value.calculation.selected_manual_key = block.key;
+}
+
+function nudgeSelectedBlock(deltaX, deltaY) {
+    if (!selectedBlock.value || !selectedTransport.value) {
+        return;
+    }
+    const placement = ensureManualPlacement(selectedBlock.value);
+    const maxX = Math.max(0, selectedTransport.value.length_mm - selectedBlock.value.length);
+    const maxY = Math.max(0, selectedTransport.value.width_mm - selectedBlock.value.width);
+    updateManualPlacement(selectedBlock.value.key, {
+        ...placement,
+        x: clamp(Number(placement.x) + deltaX, 0, maxX),
+        y: clamp(Number(placement.y) + deltaY, 0, maxY),
+    });
+}
+
+function rotateSelectedBlock() {
+    if (!selectedBlock.value || !selectedTransport.value) {
+        return;
+    }
+    const placement = ensureManualPlacement(selectedBlock.value);
+    const nextRotated = !Boolean(placement.rotated);
+    const nextLength = nextRotated ? selectedBlock.value.base_width : selectedBlock.value.base_length;
+    const nextWidth = nextRotated ? selectedBlock.value.base_length : selectedBlock.value.base_width;
+    updateManualPlacement(selectedBlock.value.key, {
+        ...placement,
+        rotated: nextRotated,
+        x: clamp(Number(placement.x), 0, Math.max(0, selectedTransport.value.length_mm - nextLength)),
+        y: clamp(Number(placement.y), 0, Math.max(0, selectedTransport.value.width_mm - nextWidth)),
+    });
+}
+
+function lockSelectedBlock() {
+    if (!selectedBlock.value) {
+        return;
+    }
+    updateManualPlacement(selectedBlock.value.key, {
+        ...ensureManualPlacement(selectedBlock.value),
+        locked: true,
+    });
+}
+
+function releaseSelectedBlock() {
+    if (!selectedBlock.value || !projectForm.value?.calculation?.manual_placements) {
+        return;
+    }
+    const next = { ...projectForm.value.calculation.manual_placements };
+    delete next[selectedBlock.value.key];
+    projectForm.value.calculation.manual_placements = next;
+    projectForm.value.calculation.selected_manual_key = null;
+    selectedBlockKey.value = null;
+}
+
+function resetManualPlacements() {
+    if (!projectForm.value) {
+        return;
+    }
+    projectForm.value.calculation = {
+        ...(projectForm.value.calculation ?? {}),
+        manual_placements: {},
+        selected_manual_key: null,
+    };
+    selectedBlockKey.value = null;
+}
+
+function updateManualPlacement(key, placement) {
+    projectForm.value.calculation.manual_placements = {
+        ...(projectForm.value.calculation.manual_placements ?? {}),
+        [key]: placement,
+    };
+}
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
 }
 
 function randomColor(index) {
@@ -716,6 +945,31 @@ function formatMm(value) {
 .danger-action {
     border: 1px solid rgb(254 202 202);
     color: rgb(220 38 38);
+}
+
+.manual-button {
+    display: flex;
+    height: 2rem;
+    width: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(186 230 253);
+    background: white;
+    font-size: 0.875rem;
+    font-weight: 800;
+    color: rgb(2 132 199);
+}
+
+.manual-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+:global(.dark) .manual-button {
+    border-color: rgb(12 74 110);
+    background: rgb(8 47 73);
+    color: rgb(125 211 252);
 }
 
 .primary-action:disabled,
@@ -851,6 +1105,20 @@ function formatMm(value) {
     font-size: 0.65rem;
     font-weight: 800;
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+
+.cargo-cube-manual {
+    cursor: pointer;
+}
+
+.cargo-cube-positioned {
+    outline: 2px dashed rgb(2 132 199 / 0.5);
+}
+
+.cargo-cube-selected {
+    outline: 3px solid rgb(14 165 233);
+    filter: brightness(1.05) saturate(1.1);
+    z-index: 20;
 }
 
 .cargo-cube::before,

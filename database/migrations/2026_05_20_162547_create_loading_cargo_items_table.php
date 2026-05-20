@@ -47,6 +47,7 @@ return new class extends Migration
         Schema::create('loading_cargo_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('loading_cargo_group_id')->constrained()->cascadeOnDelete();
+            $table->string('client_key', 80)->nullable()->index();
             $table->string('name');
             $table->string('package_type', 40)->default('box');
             $table->unsignedInteger('quantity')->default(1);

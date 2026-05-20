@@ -8,6 +8,7 @@ use App\Models\TransportTemplate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -72,6 +73,7 @@ class LoadingPlannerController extends Controller
         ]);
 
         $group->items()->create([
+            'client_key' => (string) Str::uuid(),
             'name' => 'Паллета EUR',
             'package_type' => 'pallet',
             'quantity' => 10,
@@ -117,6 +119,7 @@ class LoadingPlannerController extends Controller
                 foreach ($groupData['items'] ?? [] as $itemIndex => $itemData) {
                     $group->items()->create([
                         'name' => $itemData['name'],
+                        'client_key' => $itemData['client_key'] ?? (string) Str::uuid(),
                         'package_type' => $itemData['package_type'] ?? 'box',
                         'quantity' => $itemData['quantity'],
                         'length_mm' => $itemData['length_mm'],
@@ -189,6 +192,7 @@ class LoadingPlannerController extends Controller
             'cargo_groups.*.color' => ['nullable', 'string', 'max:20'],
             'cargo_groups.*.items' => ['required', 'array', 'min:1'],
             'cargo_groups.*.items.*.name' => ['required', 'string', 'max:255'],
+            'cargo_groups.*.items.*.client_key' => ['nullable', 'string', 'max:80'],
             'cargo_groups.*.items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag', 'custom'])],
             'cargo_groups.*.items.*.quantity' => ['required', 'integer', 'min:1', 'max:7000'],
             'cargo_groups.*.items.*.length_mm' => ['required', 'integer', 'min:1', 'max:30000'],
@@ -240,7 +244,7 @@ class LoadingPlannerController extends Controller
         ]);
 
         foreach ($this->starterCargoItems() as $index => $item) {
-            $group->items()->create([...$item, 'sort_order' => $index + 1]);
+            $group->items()->create([...$item, 'client_key' => (string) Str::uuid(), 'sort_order' => $index + 1]);
         }
 
         return $project;
@@ -315,6 +319,7 @@ class LoadingPlannerController extends Controller
                 'color' => $group->color,
                 'items' => $group->items->map(fn ($item): array => [
                     'id' => $item->id,
+                    'client_key' => $item->client_key,
                     'name' => $item->name,
                     'package_type' => $item->package_type,
                     'quantity' => $item->quantity,
