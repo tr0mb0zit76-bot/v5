@@ -12,7 +12,12 @@
             </div>
         </div>
 
-        <div class="grid min-h-0 flex-1 gap-3 xl:grid-cols-[290px,minmax(420px,0.9fr),minmax(520px,1.1fr)]">
+        <div
+            class="grid min-h-0 flex-1 gap-3"
+            :class="activeStep === 'calculation'
+                ? 'xl:grid-cols-[290px,minmax(360px,0.65fr),minmax(720px,1.35fr)]'
+                : 'xl:grid-cols-[290px,minmax(0,1fr)]'"
+        >
             <aside class="panel min-h-0 overflow-hidden">
                 <div class="border-b border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Список проектов {{ projects.length }} / 300</div>
@@ -186,7 +191,10 @@
                 </div>
             </section>
 
-            <section class="panel min-h-0 overflow-hidden">
+            <section
+                v-if="activeStep === 'calculation'"
+                class="panel min-h-0 overflow-hidden"
+            >
                 <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <div>
                         <div class="text-sm font-semibold">Расчёт загрузки</div>
@@ -197,17 +205,32 @@
                             <input v-model="manualMode" type="checkbox" class="rounded" />
                             Ручная раскладка
                         </label>
+                        <button type="button" class="secondary-action" @click="rotateScene(-12, 0)">Сцена ←</button>
+                        <button type="button" class="secondary-action" @click="rotateScene(12, 0)">Сцена →</button>
+                        <button type="button" class="secondary-action" @click="rotateScene(0, 8)">Наклон ↑</button>
+                        <button type="button" class="secondary-action" @click="rotateScene(0, -8)">Наклон ↓</button>
+                        <button type="button" class="secondary-action" @click="resetSceneView">Вид по умолчанию</button>
                         <button type="button" class="secondary-action" @click="resetManualPlacements">Сбросить позиции</button>
                         <button type="button" class="secondary-action" @click="activeStep = 'calculation'">Сводка</button>
                     </div>
                 </div>
 
                 <div class="grid min-h-0 flex-1 grid-rows-[minmax(360px,1fr),auto] overflow-hidden">
-                    <div class="relative overflow-hidden bg-gradient-to-br from-slate-50 to-sky-50 dark:from-zinc-950 dark:to-sky-950/30">
+                    <div
+                        ref="sceneViewport"
+                        class="scene-viewport relative overflow-hidden bg-gradient-to-br from-slate-50 to-sky-50 dark:from-zinc-950 dark:to-sky-950/30"
+                        @pointerdown="startSceneRotate"
+                    >
+                        <div class="scene-hint">
+                            Тяните фон мышью, чтобы вращать сцену. Груз тяните мышью по полу прицепа.
+                        </div>
                         <div v-if="selectedTransport" class="scene-shell">
-                            <div class="scene">
+                            <div class="scene" :style="sceneTransformStyle">
                                 <div class="truck-shadow" />
                                 <div class="trailer" :style="trailerStyle">
+                                    <div class="trailer-floor">
+                                        <span class="floor-label">Пол прицепа / зона размещения</span>
+                                    </div>
                                     <div class="trailer-grid" />
                                     <div
                                         v-for="block in layoutResult.blocks"
@@ -220,9 +243,18 @@
                                         ]"
                                         :style="cubeStyle(block)"
                                         :title="`${block.name}: ${block.count} шт`"
+                                        @pointerdown.stop.prevent="startBlockDrag($event, block)"
                                         @click.stop="selectBlock(block)"
                                     >
-                                        <span>{{ block.count > 1 ? block.count : '' }}</span>
+                                        <span class="cargo-face cargo-face-bottom" />
+                                        <span class="cargo-face cargo-face-top">
+                                            <span class="cargo-direction">→</span>
+                                            <span>{{ block.count > 1 ? block.count : '' }}</span>
+                                        </span>
+                                        <span class="cargo-face cargo-face-front" />
+                                        <span class="cargo-face cargo-face-back" />
+                                        <span class="cargo-face cargo-face-left" />
+                                        <span class="cargo-face cargo-face-right" />
                                     </div>
                                 </div>
                             </div>
@@ -248,7 +280,9 @@
                                         {{ selectedBlock ? selectedBlock.name : 'Блок не выбран' }}
                                     </div>
                                     <div v-if="selectedBlock" class="text-xs text-sky-700 dark:text-sky-300">
-                                        X {{ formatMm(selectedBlock.x) }}, Y {{ formatMm(selectedBlock.y) }}, {{ selectedBlock.rotated ? 'повёрнут' : 'без поворота' }}
+                                        X {{ formatMm(selectedBlock.x) }}, Y {{ formatMm(selectedBlock.y) }},
+                                        {{ selectedBlock.rotated ? 'повёрнут' : 'без поворота' }},
+                                        {{ selectedBlock.tilted ? 'наклонён' : 'без наклона' }}
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-3 gap-1">
@@ -266,6 +300,9 @@
                             <div class="mt-3 flex flex-wrap gap-2">
                                 <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="lockSelectedBlock">Зафиксировать</button>
                                 <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="releaseSelectedBlock">Вернуть в авто</button>
+                                <span class="text-xs leading-8 text-sky-700 dark:text-sky-300">
+                                    Клавиатура: ←/→ вокруг вертикали, ↑/↓ вокруг горизонтали.
+                                </span>
                             </div>
                         </div>
 
@@ -284,7 +321,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Boxes, Calculator, FolderOpen, Package, Search, Truck } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -312,11 +349,18 @@ const projectForm = ref(cloneProject(props.selectedProject));
 const templateDraft = ref(blankTemplate());
 const manualMode = ref(Boolean(props.selectedProject?.calculation?.manual_mode));
 const selectedBlockKey = ref(props.selectedProject?.calculation?.selected_manual_key ?? null);
+const sceneViewport = ref(null);
+const sceneRotationX = ref(Number(props.selectedProject?.calculation?.scene_view?.rotation_x ?? 58));
+const sceneRotationZ = ref(Number(props.selectedProject?.calculation?.scene_view?.rotation_z ?? -34));
+const sceneDrag = ref(null);
+const blockDrag = ref(null);
 
 watch(() => props.selectedProject, (project) => {
     projectForm.value = cloneProject(project);
     manualMode.value = Boolean(project?.calculation?.manual_mode);
     selectedBlockKey.value = project?.calculation?.selected_manual_key ?? null;
+    sceneRotationX.value = Number(project?.calculation?.scene_view?.rotation_x ?? 58);
+    sceneRotationZ.value = Number(project?.calculation?.scene_view?.rotation_z ?? -34);
 }, { deep: true });
 
 const filteredProjects = computed(() => {
@@ -386,6 +430,22 @@ const trailerStyle = computed(() => {
     };
 });
 
+const sceneTransformStyle = computed(() => ({
+    transform: `rotateX(${sceneRotationX.value}deg) rotateZ(${sceneRotationZ.value}deg)`,
+}));
+
+onMounted(() => {
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', stopPointerInteractions);
+    window.addEventListener('keydown', onSceneKeydown);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', stopPointerInteractions);
+    window.removeEventListener('keydown', onSceneKeydown);
+});
+
 function cloneProject(project) {
     if (!project) {
         return null;
@@ -395,11 +455,12 @@ function cloneProject(project) {
         calculation: {
             ...(project.calculation ?? {}),
             manual_placements: project.calculation?.manual_placements ?? {},
+            scene_view: project.calculation?.scene_view ?? {},
         },
         cargo_groups: (project.cargo_groups ?? []).map((group) => ({
             ...group,
-            local_id: crypto.randomUUID(),
-            items: (group.items ?? []).map((item) => ({ ...item, client_key: item.client_key || crypto.randomUUID(), local_id: crypto.randomUUID() })),
+            local_id: makeLocalId(),
+            items: (group.items ?? []).map((item) => ({ ...item, client_key: item.client_key || makeLocalId(), local_id: makeLocalId() })),
         })),
     };
 }
@@ -422,8 +483,8 @@ function blankTemplate() {
 
 function blankCargoItem(color = '#60a5fa') {
     return {
-        local_id: crypto.randomUUID(),
-        client_key: crypto.randomUUID(),
+        local_id: makeLocalId(),
+        client_key: makeLocalId(),
         name: 'Новый груз',
         package_type: 'box',
         quantity: 1,
@@ -477,6 +538,10 @@ function projectPayload() {
             manual_mode: manualMode.value,
             selected_manual_key: selectedBlockKey.value,
             manual_placements: manualPlacements.value,
+            scene_view: {
+                rotation_x: sceneRotationX.value,
+                rotation_z: sceneRotationZ.value,
+            },
         },
         cargo_groups: projectForm.value.cargo_groups.map((group) => ({
             name: group.name,
@@ -504,7 +569,7 @@ function projectPayload() {
 function addCargoGroup() {
     const color = randomColor(projectForm.value.cargo_groups.length);
     projectForm.value.cargo_groups.push({
-        local_id: crypto.randomUUID(),
+        local_id: makeLocalId(),
         name: `Грузовая группа #${projectForm.value.cargo_groups.length + 1}`,
         recipient_name: '',
         color,
@@ -621,6 +686,7 @@ function calculateLayout(transport, items, placements = {}) {
                 base_length: Number(item.length_mm),
                 base_width: Number(item.width_mm),
                 rotated: Boolean(manual?.rotated),
+                tilted: Number(manual?.tilted ?? 0),
                 locked: Boolean(manual?.locked),
                 manual: Boolean(manual),
             };
@@ -737,6 +803,7 @@ function cubeStyle(block) {
         '--cube-color': block.color || '#60a5fa',
         '--cube-height': `${Math.max(12, block.height * zScale)}px`,
         '--cube-rotation': block.rotated ? '90deg' : '0deg',
+        '--cube-tilt': `${Number(block.tilted || 0) * 12}deg`,
     };
 }
 
@@ -758,6 +825,7 @@ function ensureManualPlacement(block) {
             x: Number(existing.x ?? block.x),
             y: Number(existing.y ?? block.y),
             rotated: Boolean(existing.rotated ?? block.rotated),
+            tilted: Number(existing.tilted ?? block.tilted ?? 0),
             locked: Boolean(existing.locked ?? block.locked),
         },
     };
@@ -803,6 +871,18 @@ function rotateSelectedBlock() {
     });
 }
 
+function tiltSelectedBlock(direction = 1) {
+    if (!selectedBlock.value) {
+        return;
+    }
+    const placement = ensureManualPlacement(selectedBlock.value);
+    const current = Number(placement.tilted || 0);
+    updateManualPlacement(selectedBlock.value.key, {
+        ...placement,
+        tilted: current === direction ? 0 : direction,
+    });
+}
+
 function lockSelectedBlock() {
     if (!selectedBlock.value) {
         return;
@@ -843,8 +923,119 @@ function updateManualPlacement(key, placement) {
     };
 }
 
+function startBlockDrag(event, block) {
+    if (!manualMode.value || !selectedTransport.value) {
+        return;
+    }
+    event.preventDefault();
+    selectBlock(block);
+    const placement = ensureManualPlacement(block);
+    blockDrag.value = {
+        key: block.key,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: Number(placement.x || 0),
+        startY: Number(placement.y || 0),
+        blockLength: block.length,
+        blockWidth: block.width,
+    };
+    event.currentTarget?.setPointerCapture?.(event.pointerId);
+}
+
+function startSceneRotate(event) {
+    if (event.button !== 0 || blockDrag.value) {
+        return;
+    }
+    if (event.target instanceof Element && event.target.closest('.cargo-cube')) {
+        return;
+    }
+    event.preventDefault();
+    sceneDrag.value = {
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startRotationX: sceneRotationX.value,
+        startRotationZ: sceneRotationZ.value,
+    };
+}
+
+function onPointerMove(event) {
+    if (blockDrag.value && selectedBlock.value && selectedTransport.value && sceneViewport.value) {
+        const viewport = sceneViewport.value.getBoundingClientRect();
+        const deltaX = event.clientX - blockDrag.value.startClientX;
+        const deltaY = event.clientY - blockDrag.value.startClientY;
+        const mmPerPxX = selectedTransport.value.length_mm / Math.max(1, viewport.width * 0.72);
+        const mmPerPxY = selectedTransport.value.width_mm / Math.max(1, viewport.height * 0.56);
+        updateManualPlacement(blockDrag.value.key, {
+            ...ensureManualPlacement(selectedBlock.value),
+            x: Math.round(clamp(
+                blockDrag.value.startX + deltaX * mmPerPxX,
+                0,
+                Math.max(0, selectedTransport.value.length_mm - blockDrag.value.blockLength),
+            ) / 5) * 5,
+            y: Math.round(clamp(
+                blockDrag.value.startY + deltaY * mmPerPxY,
+                0,
+                Math.max(0, selectedTransport.value.width_mm - blockDrag.value.blockWidth),
+            ) / 5) * 5,
+        });
+
+        return;
+    }
+
+    if (sceneDrag.value) {
+        const deltaX = event.clientX - sceneDrag.value.startClientX;
+        const deltaY = event.clientY - sceneDrag.value.startClientY;
+        sceneRotationZ.value = sceneDrag.value.startRotationZ + deltaX * 0.25;
+        sceneRotationX.value = clamp(sceneDrag.value.startRotationX - deltaY * 0.18, 20, 78);
+    }
+}
+
+function stopPointerInteractions() {
+    blockDrag.value = null;
+    sceneDrag.value = null;
+}
+
+function onSceneKeydown(event) {
+    if (!manualMode.value || activeStep.value !== 'calculation' || !selectedBlock.value) {
+        return;
+    }
+    const target = event.target;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+        return;
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        rotateSelectedBlock();
+    }
+    if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        tiltSelectedBlock(1);
+    }
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        tiltSelectedBlock(-1);
+    }
+}
+
+function rotateScene(deltaZ, deltaX) {
+    sceneRotationZ.value += deltaZ;
+    sceneRotationX.value = clamp(sceneRotationX.value + deltaX, 20, 78);
+}
+
+function resetSceneView() {
+    sceneRotationX.value = 58;
+    sceneRotationZ.value = -34;
+}
+
 function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+}
+
+function makeLocalId() {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
+    }
+    return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function randomColor(index) {
@@ -1023,6 +1214,34 @@ function formatMm(value) {
     color: inherit;
 }
 
+.scene-viewport {
+    cursor: grab;
+}
+
+.scene-viewport:active {
+    cursor: grabbing;
+}
+
+.scene-hint {
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+    z-index: 5;
+    max-width: 22rem;
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 0.82);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(3 105 161);
+    box-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
+}
+
+:global(.dark) .scene-hint {
+    background: rgb(12 74 110 / 0.82);
+    color: rgb(224 242 254);
+}
+
 .scene-shell {
     position: absolute;
     inset: 0;
@@ -1053,7 +1272,7 @@ function formatMm(value) {
     position: relative;
     transform-style: preserve-3d;
     border: 3px solid rgb(51 65 85 / 0.85);
-    background: rgb(255 255 255 / 0.48);
+    background: rgb(224 242 254 / 0.26);
     box-shadow: 0 18px 45px rgb(15 23 42 / 0.18);
 }
 
@@ -1090,6 +1309,46 @@ function formatMm(value) {
     background-size: 40px 40px;
 }
 
+.trailer-floor {
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgb(14 165 233 / 0.55);
+    background:
+        linear-gradient(135deg, rgb(14 165 233 / 0.10), rgb(255 255 255 / 0.22)),
+        repeating-linear-gradient(0deg, rgb(14 165 233 / 0.12) 0 2px, transparent 2px 46px);
+}
+
+.floor-label {
+    position: absolute;
+    left: 0.75rem;
+    top: 0.75rem;
+    z-index: 4;
+    transform: translateZ(4px);
+    border-radius: 999px;
+    background: rgb(14 165 233 / 0.92);
+    padding: 0.25rem 0.625rem;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.trailer-floor::after {
+    content: 'ПОЛ ПРИЦЕПА';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateZ(2px);
+    color: rgb(2 132 199 / 0.18);
+    font-size: clamp(1.5rem, 4vw, 4rem);
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    pointer-events: none;
+}
+
 .cargo-cube {
     position: absolute;
     display: flex;
@@ -1097,10 +1356,10 @@ function formatMm(value) {
     justify-content: center;
     min-width: 8px;
     min-height: 8px;
-    transform: translateZ(var(--cube-height));
+    transform: translateZ(var(--cube-height)) rotateZ(var(--cube-rotation)) rotateX(var(--cube-tilt));
     transform-style: preserve-3d;
-    border: 1px solid rgb(15 23 42 / 0.35);
-    background: color-mix(in srgb, var(--cube-color) 78%, white);
+    border: 1px solid rgb(15 23 42 / 0.18);
+    background: transparent;
     color: rgb(15 23 42);
     font-size: 0.65rem;
     font-weight: 800;
@@ -1109,6 +1368,7 @@ function formatMm(value) {
 
 .cargo-cube-manual {
     cursor: pointer;
+    touch-action: none;
 }
 
 .cargo-cube-positioned {
@@ -1121,29 +1381,84 @@ function formatMm(value) {
     z-index: 20;
 }
 
-.cargo-cube::before,
-.cargo-cube::after {
-    content: '';
+.cargo-face {
     position: absolute;
-    background: var(--cube-color);
-    opacity: 0.58;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(15 23 42 / 0.26);
+    background: color-mix(in srgb, var(--cube-color) 76%, white);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
 }
 
-.cargo-cube::before {
+.cargo-face-top {
+    inset: 0;
+    gap: 0.25rem;
+    background:
+        linear-gradient(135deg, rgb(255 255 255 / 0.22), transparent),
+        color-mix(in srgb, var(--cube-color) 78%, white);
+}
+
+.cargo-face-bottom {
+    inset: 0;
+    transform: translateZ(calc(-1 * var(--cube-height)));
+    background: color-mix(in srgb, var(--cube-color) 58%, black);
+    opacity: 0.5;
+}
+
+.cargo-face-front,
+.cargo-face-back {
     left: 0;
     right: 0;
-    bottom: calc(-1 * var(--cube-height));
     height: var(--cube-height);
-    transform: rotateX(90deg);
-    transform-origin: top;
+    opacity: 0.78;
 }
 
-.cargo-cube::after {
+.cargo-face-front {
+    bottom: calc(-1 * var(--cube-height));
+    transform: rotateX(-90deg);
+    transform-origin: top;
+    background: color-mix(in srgb, var(--cube-color) 68%, black);
+}
+
+.cargo-face-back {
+    top: calc(-1 * var(--cube-height));
+    transform: rotateX(90deg);
+    transform-origin: bottom;
+    background: color-mix(in srgb, var(--cube-color) 86%, white);
+}
+
+.cargo-face-left,
+.cargo-face-right {
+    bottom: 0;
     top: 0;
-    right: calc(-1 * var(--cube-height));
     width: var(--cube-height);
-    height: 100%;
+    opacity: 0.7;
+}
+
+.cargo-face-left {
+    left: calc(-1 * var(--cube-height));
+    transform: rotateY(-90deg);
+    transform-origin: right;
+    background: color-mix(in srgb, var(--cube-color) 54%, black);
+}
+
+.cargo-face-right {
+    right: calc(-1 * var(--cube-height));
     transform: rotateY(90deg);
     transform-origin: left;
+    background: color-mix(in srgb, var(--cube-color) 72%, black);
+}
+
+.cargo-direction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.7);
+    color: rgb(15 23 42);
+    font-size: 0.7rem;
 }
 </style>
