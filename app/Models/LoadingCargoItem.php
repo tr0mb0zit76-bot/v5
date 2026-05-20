@@ -12,6 +12,7 @@ class LoadingCargoItem extends Model
      */
     protected $fillable = [
         'loading_cargo_group_id',
+        'client_key',
         'name',
         'package_type',
         'quantity',
