@@ -1,11 +1,6 @@
 <template>
-<<<<<<< HEAD
     <div class="howmuchfits-module flex min-h-0 flex-1 flex-col gap-3">
         <div class="flex shrink-0 flex-wrap items-start justify-between gap-3 print:hidden">
-=======
-    <div class="flex min-h-0 flex-1 flex-col gap-3">
-        <div class="flex shrink-0 flex-wrap items-start justify-between gap-3">
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
             <div>
                 <div class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300">Модуль</div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Сколько влезет?</h1>
@@ -17,7 +12,6 @@
             </div>
         </div>
 
-<<<<<<< HEAD
         <div class="panel workspace flex min-h-0 flex-1 flex-col overflow-hidden">
             <div v-if="!projectForm" class="flex flex-1 items-center justify-center p-8 text-sm text-zinc-500">
                 Выберите или создайте проект на вкладке «Проекты».
@@ -76,124 +70,10 @@
                             <div>
                                 <label class="label">Комментарий менеджера</label>
                                 <textarea v-model="projectForm.notes" rows="4" class="field" placeholder="Заметки по проекту..." />
-=======
-        <div
-            class="grid min-h-0 flex-1 gap-3"
-            :class="activeStep === 'calculation'
-                ? 'xl:grid-cols-[290px,minmax(360px,0.65fr),minmax(720px,1.35fr)]'
-                : 'xl:grid-cols-[290px,minmax(0,1fr)]'"
-        >
-            <aside class="panel min-h-0 overflow-hidden">
-                <div class="border-b border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Список проектов {{ projects.length }} / 300</div>
-                    <div class="relative mt-3">
-                        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                        <input v-model="projectSearch" type="search" class="field pl-9" placeholder="Поиск" />
-                    </div>
-                </div>
-
-                <div class="min-h-0 flex-1 overflow-y-auto p-2">
-                    <button
-                        v-for="project in filteredProjects"
-                        :key="project.id"
-                        type="button"
-                        class="flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/70"
-                        :class="projectForm?.id === project.id ? 'bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-50' : ''"
-                        @click="selectProject(project.id)"
-                    >
-                        <FolderOpen class="mt-0.5 h-5 w-5 shrink-0" />
-                        <span class="min-w-0 flex-1">
-                            <span class="block truncate text-sm font-semibold">{{ project.name }}</span>
-                            <span class="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
-                                добавлено {{ project.created_at }}, обновлено {{ project.updated_at }}
-                            </span>
-                            <span v-if="project.transport_name" class="mt-1 block truncate text-xs text-sky-700 dark:text-sky-300">{{ project.transport_name }}</span>
-                        </span>
-                    </button>
-                </div>
-            </aside>
-
-            <section class="panel min-h-0 overflow-hidden">
-                <div class="border-b border-zinc-200 p-2 dark:border-zinc-800">
-                    <div class="grid grid-cols-4 gap-1">
-                        <button v-for="step in steps" :key="step.key" type="button" class="step-button" :class="activeStep === step.key ? 'step-button-active' : ''" @click="activeStep = step.key">
-                            <component :is="step.icon" class="h-4 w-4" />
-                            <span>{{ step.label }}</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div v-if="projectForm" class="min-h-0 flex-1 overflow-y-auto p-4">
-                    <div v-if="activeStep === 'projects'" class="space-y-4">
-                        <div>
-                            <label class="label">Название проекта</label>
-                            <input v-model="projectForm.name" class="field" />
-                        </div>
-                        <div>
-                            <label class="label">Комментарий менеджера</label>
-                            <textarea v-model="projectForm.notes" rows="5" class="field" placeholder="Что важно объяснить клиенту: почему нужен тент, почему не проходит по высоте, что меняется при штабелировании..." />
-                        </div>
-                        <div class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
-                            <div class="font-semibold">Аргумент для клиента</div>
-                            <div class="mt-1">{{ salesArgument }}</div>
-                        </div>
-                        <button type="button" class="danger-action" :disabled="projects.length <= 1" @click="deleteProject">Удалить проект</button>
-                    </div>
-
-                    <div v-else-if="activeStep === 'cargo'" class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="text-sm font-semibold">Грузовые группы</div>
-                                <div class="text-xs text-zinc-500">Группируйте груз по получателям или партиям.</div>
-                            </div>
-                            <button type="button" class="secondary-action" @click="addCargoGroup">Добавить группу</button>
-                        </div>
-
-                        <div v-for="(group, groupIndex) in projectForm.cargo_groups" :key="group.local_id" class="rounded-3xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="grid gap-2 md:grid-cols-[1fr,1fr,4rem]">
-                                <input v-model="group.name" class="field" placeholder="Группа" />
-                                <input v-model="group.recipient_name" class="field" placeholder="Получатель" />
-                                <input v-model="group.color" type="color" class="h-10 w-full rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900" />
-                            </div>
-
-                            <div class="mt-4 space-y-3">
-                                <div v-for="(item, itemIndex) in group.items" :key="item.local_id" class="rounded-2xl bg-zinc-50 p-3 dark:bg-zinc-950">
-                                    <div class="grid gap-2 lg:grid-cols-12">
-                                        <input v-model="item.name" class="field lg:col-span-3" placeholder="Название" />
-                                        <select v-model="item.package_type" class="field lg:col-span-2">
-                                            <option value="pallet">Паллета</option>
-                                            <option value="box">Коробка</option>
-                                            <option value="crate">Ящик</option>
-                                            <option value="roll">Рулон</option>
-                                            <option value="bag">Мешок</option>
-                                            <option value="custom">Другое</option>
-                                        </select>
-                                        <input v-model.number="item.quantity" type="number" min="1" class="field lg:col-span-1" placeholder="шт" />
-                                        <input v-model.number="item.length_mm" type="number" min="1" class="field lg:col-span-1" placeholder="Д, мм" />
-                                        <input v-model.number="item.width_mm" type="number" min="1" class="field lg:col-span-1" placeholder="Ш, мм" />
-                                        <input v-model.number="item.height_mm" type="number" min="1" class="field lg:col-span-1" placeholder="В, мм" />
-                                        <input v-model.number="item.weight_kg" type="number" min="0" step="0.01" class="field lg:col-span-1" placeholder="кг" />
-                                        <input v-model="item.color" type="color" class="h-10 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900 lg:col-span-1" />
-                                        <button type="button" class="rounded-xl border border-rose-200 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeCargoItem(groupIndex, itemIndex)">×</button>
-                                    </div>
-                                    <div class="mt-3 flex flex-wrap gap-3 text-xs text-zinc-600 dark:text-zinc-300">
-                                        <label class="inline-flex items-center gap-1.5"><input v-model="item.can_rotate" type="checkbox" class="rounded" /> поворот</label>
-                                        <label class="inline-flex items-center gap-1.5"><input v-model="item.stackable" type="checkbox" class="rounded" /> ярусы</label>
-                                        <label class="inline-flex items-center gap-1.5"><input v-model="item.can_tilt" type="checkbox" class="rounded" /> кантование</label>
-                                        <label class="inline-flex items-center gap-1.5">макс. ярус <input v-model.number="item.max_stack" type="number" min="1" max="20" class="h-7 w-16 rounded border border-zinc-200 bg-white px-2 dark:border-zinc-700 dark:bg-zinc-900" /></label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mt-3 flex justify-between gap-2">
-                                <button type="button" class="secondary-action" @click="addCargoItem(groupIndex)">Добавить груз</button>
-                                <button v-if="projectForm.cargo_groups.length > 1" type="button" class="danger-action" @click="removeCargoGroup(groupIndex)">Удалить группу</button>
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
                             </div>
                         </div>
                     </div>
 
-<<<<<<< HEAD
                     <div v-else-if="activeStep === 'cargo'" class="flex h-full flex-col overflow-hidden">
                         <div class="border-b border-zinc-200 px-4 py-4 dark:border-zinc-800 md:px-6">
                             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -547,205 +427,12 @@
                 </div>
             </div>
         </Modal>
-=======
-                    <div v-else-if="activeStep === 'transport'" class="space-y-4">
-                        <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex items-center justify-between gap-3">
-                                <div>
-                                    <div class="text-sm font-semibold">Выбранный транспорт</div>
-                                    <div class="text-xs text-zinc-500">{{ selectedTransport ? transportLabel(selectedTransport) : 'Не выбран' }}</div>
-                                </div>
-                                <button type="button" class="secondary-action" @click="resetTemplateDraft">Добавить шаблон</button>
-                            </div>
-                        </div>
-
-                        <div class="grid gap-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 md:grid-cols-2">
-                            <input v-model="templateDraft.name" class="field md:col-span-2" placeholder="Название транспорта" />
-                            <select v-model="templateDraft.category" class="field">
-                                <option value="truck">Автотранспорт</option>
-                                <option value="container">Контейнер</option>
-                                <option value="pallet">Паллет</option>
-                                <option value="platform">Платформа</option>
-                                <option value="custom">Другое</option>
-                            </select>
-                            <input v-model.number="templateDraft.max_payload_kg" type="number" min="0" class="field" placeholder="Грузоподъёмность, кг" />
-                            <input v-model.number="templateDraft.length_mm" type="number" min="1" class="field" placeholder="Длина, мм" />
-                            <input v-model.number="templateDraft.width_mm" type="number" min="1" class="field" placeholder="Ширина, мм" />
-                            <input v-model.number="templateDraft.height_mm" type="number" min="1" class="field" placeholder="Высота, мм" />
-                            <input v-model.number="templateDraft.axles_count" type="number" min="1" class="field" placeholder="Оси" />
-                            <label class="inline-flex items-center gap-2 text-sm"><input v-model="templateDraft.is_active" type="checkbox" class="rounded" /> Активен</label>
-                            <button type="button" class="primary-action" @click="saveTransportTemplate">{{ templateDraft.id ? 'Сохранить шаблон' : 'Добавить в справочник' }}</button>
-                        </div>
-
-                        <div class="space-y-2">
-                            <div v-for="template in transportTemplates" :key="template.id" class="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                                <button type="button" class="min-w-0 flex-1 text-left" @click="selectTransport(template.id)">
-                                    <div class="truncate text-sm font-semibold">{{ template.name }}</div>
-                                    <div class="text-xs text-zinc-500">{{ transportLabel(template) }}</div>
-                                </button>
-                                <div class="flex shrink-0 gap-2">
-                                    <button type="button" class="secondary-action" @click="editTransportTemplate(template)">Редактировать</button>
-                                    <button type="button" class="danger-action" @click="deleteTransportTemplate(template)">Удалить</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div v-else class="space-y-4">
-                        <div class="grid gap-3 md:grid-cols-2">
-                            <div class="metric-card"><span>Итого</span><strong>{{ layoutResult.totalUnits }} шт / {{ formatKg(layoutResult.totalWeightKg) }}</strong></div>
-                            <div class="metric-card"><span>Занято</span><strong>{{ layoutResult.ldm.toFixed(2) }} LDM / {{ layoutResult.usedVolumePercent.toFixed(1) }}%</strong></div>
-                            <div class="metric-card"><span>Свободно</span><strong>{{ formatMm(layoutResult.freeLengthMm) }} / {{ formatM3(layoutResult.freeVolumeM3) }}</strong></div>
-                            <div class="metric-card" :class="layoutResult.fits ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300' : 'border-rose-300 text-rose-700 dark:text-rose-300'"><span>Статус</span><strong>{{ layoutResult.fits ? 'Влезает' : 'Не влезает' }}</strong></div>
-                        </div>
-                        <div class="rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-                            <div class="font-semibold">Что сказать клиенту</div>
-                            <p class="mt-2 leading-6 text-zinc-600 dark:text-zinc-300">{{ salesArgument }}</p>
-                        </div>
-                        <div v-if="layoutResult.warnings.length" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                            <div class="font-semibold">Предупреждения</div>
-                            <ul class="mt-2 list-disc space-y-1 pl-5">
-                                <li v-for="warning in layoutResult.warnings" :key="warning">{{ warning }}</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section
-                v-if="activeStep === 'calculation'"
-                class="panel min-h-0 overflow-hidden"
-            >
-                <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                    <div>
-                        <div class="text-sm font-semibold">Расчёт загрузки</div>
-                        <div class="text-xs text-zinc-500">{{ selectedTransport ? selectedTransport.name : 'Выберите транспорт' }}</div>
-                    </div>
-                    <div class="flex flex-wrap items-center justify-end gap-2">
-                        <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold dark:border-zinc-700 dark:bg-zinc-900">
-                            <input v-model="manualMode" type="checkbox" class="rounded" />
-                            Ручная раскладка
-                        </label>
-                        <button type="button" class="secondary-action" @click="rotateScene(-12, 0)">Сцена ←</button>
-                        <button type="button" class="secondary-action" @click="rotateScene(12, 0)">Сцена →</button>
-                        <button type="button" class="secondary-action" @click="rotateScene(0, 8)">Наклон ↑</button>
-                        <button type="button" class="secondary-action" @click="rotateScene(0, -8)">Наклон ↓</button>
-                        <button type="button" class="secondary-action" @click="resetSceneView">Вид по умолчанию</button>
-                        <button type="button" class="secondary-action" @click="resetManualPlacements">Сбросить позиции</button>
-                        <button type="button" class="secondary-action" @click="activeStep = 'calculation'">Сводка</button>
-                    </div>
-                </div>
-
-                <div class="grid min-h-0 flex-1 grid-rows-[minmax(360px,1fr),auto] overflow-hidden">
-                    <div
-                        ref="sceneViewport"
-                        class="scene-viewport relative overflow-hidden bg-gradient-to-br from-slate-50 to-sky-50 dark:from-zinc-950 dark:to-sky-950/30"
-                        @pointerdown="startSceneRotate"
-                    >
-                        <div class="scene-hint">
-                            Тяните фон мышью, чтобы вращать сцену. Груз тяните мышью по полу прицепа.
-                        </div>
-                        <div v-if="selectedTransport" class="scene-shell">
-                            <div class="scene" :style="sceneTransformStyle">
-                                <div class="truck-shadow" />
-                                <div class="trailer" :style="trailerStyle">
-                                    <div class="trailer-floor">
-                                        <span class="floor-label">Пол прицепа / зона размещения</span>
-                                    </div>
-                                    <div class="trailer-grid" />
-                                    <div
-                                        v-for="block in layoutResult.blocks"
-                                        :key="block.key"
-                                        class="cargo-cube"
-                                        :class="[
-                                            manualMode ? 'cargo-cube-manual' : '',
-                                            selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
-                                            block.manual ? 'cargo-cube-positioned' : '',
-                                        ]"
-                                        :style="cubeStyle(block)"
-                                        :title="`${block.name}: ${block.count} шт`"
-                                        @pointerdown.stop.prevent="startBlockDrag($event, block)"
-                                        @click.stop="selectBlock(block)"
-                                    >
-                                        <span class="cargo-face cargo-face-bottom" />
-                                        <span class="cargo-face cargo-face-top">
-                                            <span class="cargo-direction">→</span>
-                                            <span>{{ block.count > 1 ? block.count : '' }}</span>
-                                        </span>
-                                        <span class="cargo-face cargo-face-front" />
-                                        <span class="cargo-face cargo-face-back" />
-                                        <span class="cargo-face cargo-face-left" />
-                                        <span class="cargo-face cargo-face-right" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="flex h-full items-center justify-center text-sm text-zinc-500">Выберите транспорт для расчёта.</div>
-                    </div>
-
-                    <div class="max-h-56 overflow-y-auto border-t border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                                <div class="text-sm font-semibold">Груз в сцене</div>
-                                <div class="text-xs text-zinc-500">{{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт размещено</div>
-                            </div>
-                            <div v-if="manualMode" class="text-xs text-zinc-500">
-                                Выберите блок на сцене и двигайте его по кузову.
-                            </div>
-                        </div>
-
-                        <div v-if="manualMode" class="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/40">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div class="min-w-0">
-                                    <div class="truncate text-sm font-semibold text-sky-950 dark:text-sky-100">
-                                        {{ selectedBlock ? selectedBlock.name : 'Блок не выбран' }}
-                                    </div>
-                                    <div v-if="selectedBlock" class="text-xs text-sky-700 dark:text-sky-300">
-                                        X {{ formatMm(selectedBlock.x) }}, Y {{ formatMm(selectedBlock.y) }},
-                                        {{ selectedBlock.rotated ? 'повёрнут' : 'без поворота' }},
-                                        {{ selectedBlock.tilted ? 'наклонён' : 'без наклона' }}
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-3 gap-1">
-                                    <span />
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, -250)">↑</button>
-                                    <span />
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(-250, 0)">←</button>
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="rotateSelectedBlock">↻</button>
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(250, 0)">→</button>
-                                    <span />
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, 250)">↓</button>
-                                    <span />
-                                </div>
-                            </div>
-                            <div class="mt-3 flex flex-wrap gap-2">
-                                <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="lockSelectedBlock">Зафиксировать</button>
-                                <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="releaseSelectedBlock">Вернуть в авто</button>
-                                <span class="text-xs leading-8 text-sky-700 dark:text-sky-300">
-                                    Клавиатура: ←/→ вокруг вертикали, ↑/↓ вокруг горизонтали.
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="grid gap-2 md:grid-cols-2">
-                            <div v-for="item in cargoFlat" :key="item.local_id" class="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
-                                <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: item.color }" />
-                                <span class="min-w-0 flex-1 truncate">{{ item.name }}</span>
-                                <span>{{ item.quantity }} шт</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </div>
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
-<<<<<<< HEAD
 import {
     ArrowLeftRight,
     Boxes,
@@ -764,9 +451,6 @@ import {
     Truck,
 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
-=======
-import { Boxes, Calculator, FolderOpen, Package, Search, Truck } from 'lucide-vue-next';
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -786,7 +470,6 @@ const steps = [
     { key: 'calculation', label: 'Расчёт', icon: Calculator },
 ];
 
-<<<<<<< HEAD
 const activeStep = ref('projects');
 const projectSearch = ref('');
 const projectSortBy = ref('updated');
@@ -803,12 +486,6 @@ const transportSearch = ref('');
 const transportCategoryFilter = ref('all');
 const showPlacementDetails = ref(false);
 const showAxleLoad = ref(false);
-=======
-const activeStep = ref('calculation');
-const projectSearch = ref('');
-const projectForm = ref(cloneProject(props.selectedProject));
-const templateDraft = ref(blankTemplate());
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 const manualMode = ref(Boolean(props.selectedProject?.calculation?.manual_mode));
 const selectedBlockKey = ref(props.selectedProject?.calculation?.selected_manual_key ?? null);
 const sceneViewport = ref(null);
@@ -823,10 +500,7 @@ watch(() => props.selectedProject, (project) => {
     selectedBlockKey.value = project?.calculation?.selected_manual_key ?? null;
     sceneRotationX.value = Number(project?.calculation?.scene_view?.rotation_x ?? 58);
     sceneRotationZ.value = Number(project?.calculation?.scene_view?.rotation_z ?? -34);
-<<<<<<< HEAD
     activeCargoGroupIndex.value = 0;
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 }, { deep: true });
 
 const filteredProjects = computed(() => {
@@ -837,7 +511,6 @@ const filteredProjects = computed(() => {
     return props.projects.filter((project) => [project.name, project.transport_name].filter(Boolean).join(' ').toLowerCase().includes(query));
 });
 
-<<<<<<< HEAD
 const sortedProjects = computed(() => {
     const list = [...filteredProjects.value];
     const dir = projectSortDir.value === 'asc' ? 1 : -1;
@@ -892,8 +565,6 @@ const filteredTransportTemplates = computed(() => {
     });
 });
 
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 const selectedTransport = computed(() => {
     const id = Number(projectForm.value?.selected_transport_template_id);
     return props.transportTemplates.find((template) => Number(template.id) === id) ?? props.transportTemplates[0] ?? null;
@@ -929,21 +600,6 @@ watch(layoutResult, (result) => {
     }
 });
 
-<<<<<<< HEAD
-=======
-const salesArgument = computed(() => {
-    const transport = selectedTransport.value;
-    if (!transport) {
-        return 'Сначала выберите транспорт из справочника, чтобы рассчитать вместимость и подготовить аргумент для клиента.';
-    }
-    const result = layoutResult.value;
-    if (result.fits) {
-        return `Груз помещается в «${transport.name}»: занимает ${result.ldm.toFixed(2)} LDM, ${result.usedVolumePercent.toFixed(1)}% объёма и ${result.usedPayloadPercent.toFixed(1)}% грузоподъёмности. Можно приложить схему как обоснование выбранного прицепа.`;
-    }
-    return `Груз не помещается в «${transport.name}»: размещено ${result.placedUnits} из ${result.totalUnits} мест. Нужен больший прицеп, второй транспорт или изменение условий штабелирования/поворота.`;
-});
-
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 const trailerStyle = computed(() => {
     const transport = selectedTransport.value;
     if (!transport) {
@@ -961,13 +617,10 @@ const sceneTransformStyle = computed(() => ({
 }));
 
 onMounted(() => {
-<<<<<<< HEAD
     const step = new URLSearchParams(window.location.search).get('step');
     if (step && steps.some((entry) => entry.key === step)) {
         activeStep.value = step;
     }
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', stopPointerInteractions);
     window.addEventListener('keydown', onSceneKeydown);
@@ -1041,7 +694,6 @@ function selectProject(projectId) {
     router.get(route('modules.how-much-fits.index'), { project: projectId }, { preserveState: false, preserveScroll: true });
 }
 
-<<<<<<< HEAD
 function openProject(projectId) {
     if (projectForm.value?.id === projectId) {
         activeStep.value = 'cargo';
@@ -1154,8 +806,6 @@ function exportCalculationPdf() {
     window.print();
 }
 
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 function saveProject() {
     if (!projectForm.value?.id) {
         return;
@@ -1164,7 +814,6 @@ function saveProject() {
 }
 
 function deleteProject() {
-<<<<<<< HEAD
     if (!projectForm.value?.id) {
         return;
     }
@@ -1186,12 +835,6 @@ function stepBottomLabel(stepKey) {
         transport: 'Выбор транспорта',
         calculation: 'Расчет загрузки',
     }[stepKey] ?? stepKey;
-=======
-    if (!projectForm.value?.id || !window.confirm(`Удалить проект «${projectForm.value.name}»?`)) {
-        return;
-    }
-    router.delete(route('modules.how-much-fits.projects.destroy', projectForm.value.id));
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 }
 
 function projectPayload() {
@@ -1272,10 +915,7 @@ function resetTemplateDraft() {
 
 function editTransportTemplate(template) {
     templateDraft.value = { ...template };
-<<<<<<< HEAD
     transportModalOpen.value = true;
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 }
 
 function saveTransportTemplate() {
@@ -1324,7 +964,6 @@ function calculateLayout(transport, items, placements = {}) {
         while (remaining > 0) {
             const blockKey = `${item.source_key}-${unitIndex}`;
             const manual = placements[blockKey] ?? null;
-<<<<<<< HEAD
             const rotationZ = manual ? placementRotationZ(manual) : 0;
             const rotationX = manual ? placementRotationX(manual) : 0;
             const footprintSwapped = rotationZ % 180 === 90;
@@ -1332,12 +971,6 @@ function calculateLayout(transport, items, placements = {}) {
                 ? {
                     length: footprintSwapped ? Number(item.width_mm) : Number(item.length_mm),
                     width: footprintSwapped ? Number(item.length_mm) : Number(item.width_mm),
-=======
-            const orientation = manual
-                ? {
-                    length: manual.rotated ? Number(item.width_mm) : Number(item.length_mm),
-                    width: manual.rotated ? Number(item.length_mm) : Number(item.width_mm),
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
                     newRow: false,
                     manual,
                 }
@@ -1371,15 +1004,10 @@ function calculateLayout(transport, items, placements = {}) {
                 height: item.height_mm * count,
                 base_length: Number(item.length_mm),
                 base_width: Number(item.width_mm),
-<<<<<<< HEAD
                 rotated: footprintSwapped,
                 rotation_z: rotationZ,
                 rotation_x: rotationX,
                 tilted: rotationX,
-=======
-                rotated: Boolean(manual?.rotated),
-                tilted: Number(manual?.tilted ?? 0),
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
                 locked: Boolean(manual?.locked),
                 manual: Boolean(manual),
             };
@@ -1485,7 +1113,6 @@ function emptyLayout() {
     };
 }
 
-<<<<<<< HEAD
 function placementRotationZ(placement) {
     if (placement.rotation_z !== undefined && placement.rotation_z !== null) {
         return ((Number(placement.rotation_z) % 360) + 360) % 360;
@@ -1506,18 +1133,12 @@ function placementRotationX(placement) {
 
 function cubePositionStyle(block) {
     const transport = selectedTransport.value;
-=======
-function cubeStyle(block) {
-    const transport = selectedTransport.value;
-    const zScale = 92 / transport.height_mm;
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     return {
         left: `${block.x / transport.length_mm * 100}%`,
         top: `${block.y / transport.width_mm * 100}%`,
         width: `${block.length / transport.length_mm * 100}%`,
         height: `${block.width / transport.width_mm * 100}%`,
         '--cube-color': block.color || '#60a5fa',
-<<<<<<< HEAD
     };
 }
 
@@ -1529,11 +1150,6 @@ function cubeBodyStyle(block) {
     return {
         '--cube-height': `${Math.max(12, block.height * zScale)}px`,
         transform: `translateZ(var(--cube-height)) rotateZ(${rotationZ}deg) rotateX(${rotationX}deg)`,
-=======
-        '--cube-height': `${Math.max(12, block.height * zScale)}px`,
-        '--cube-rotation': block.rotated ? '90deg' : '0deg',
-        '--cube-tilt': `${Number(block.tilted || 0) * 12}deg`,
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     };
 }
 
@@ -1549,25 +1165,17 @@ function ensureManualPlacement(block) {
         projectForm.value.calculation.manual_placements = {};
     }
     const existing = projectForm.value.calculation.manual_placements[block.key] ?? {};
-<<<<<<< HEAD
     const rotationZ = placementRotationZ(existing);
     const rotationX = placementRotationX(existing);
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     projectForm.value.calculation.manual_placements = {
         ...projectForm.value.calculation.manual_placements,
         [block.key]: {
             x: Number(existing.x ?? block.x),
             y: Number(existing.y ?? block.y),
-<<<<<<< HEAD
             rotation_z: rotationZ,
             rotation_x: rotationX,
             rotated: rotationZ % 180 === 90,
             tilted: rotationX,
-=======
-            rotated: Boolean(existing.rotated ?? block.rotated),
-            tilted: Number(existing.tilted ?? block.tilted ?? 0),
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
             locked: Boolean(existing.locked ?? block.locked),
         },
     };
@@ -1597,16 +1205,11 @@ function nudgeSelectedBlock(deltaX, deltaY) {
     });
 }
 
-<<<<<<< HEAD
 function rotateSelectedBlockZ(step) {
-=======
-function rotateSelectedBlock() {
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     if (!selectedBlock.value || !selectedTransport.value) {
         return;
     }
     const placement = ensureManualPlacement(selectedBlock.value);
-<<<<<<< HEAD
     const nextRotationZ = (placementRotationZ(placement) + step * 90 + 360) % 360;
     const footprintSwapped = nextRotationZ % 180 === 90;
     const nextLength = footprintSwapped ? selectedBlock.value.base_width : selectedBlock.value.base_length;
@@ -1615,40 +1218,21 @@ function rotateSelectedBlock() {
         ...placement,
         rotation_z: nextRotationZ,
         rotated: footprintSwapped,
-=======
-    const nextRotated = !Boolean(placement.rotated);
-    const nextLength = nextRotated ? selectedBlock.value.base_width : selectedBlock.value.base_length;
-    const nextWidth = nextRotated ? selectedBlock.value.base_length : selectedBlock.value.base_width;
-    updateManualPlacement(selectedBlock.value.key, {
-        ...placement,
-        rotated: nextRotated,
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
         x: clamp(Number(placement.x), 0, Math.max(0, selectedTransport.value.length_mm - nextLength)),
         y: clamp(Number(placement.y), 0, Math.max(0, selectedTransport.value.width_mm - nextWidth)),
     });
 }
 
-<<<<<<< HEAD
 function rotateSelectedBlockX(step) {
-=======
-function tiltSelectedBlock(direction = 1) {
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     if (!selectedBlock.value) {
         return;
     }
     const placement = ensureManualPlacement(selectedBlock.value);
-<<<<<<< HEAD
     const nextRotationX = (placementRotationX(placement) + step * 90 + 360) % 360;
     updateManualPlacement(selectedBlock.value.key, {
         ...placement,
         rotation_x: nextRotationX,
         tilted: nextRotationX,
-=======
-    const current = Number(placement.tilted || 0);
-    updateManualPlacement(selectedBlock.value.key, {
-        ...placement,
-        tilted: current === direction ? 0 : direction,
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     });
 }
 
@@ -1705,16 +1289,9 @@ function startBlockDrag(event, block) {
         startClientY: event.clientY,
         startX: Number(placement.x || 0),
         startY: Number(placement.y || 0),
-<<<<<<< HEAD
     };
     const cubeElement = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     cubeElement?.setPointerCapture?.(event.pointerId);
-=======
-        blockLength: block.length,
-        blockWidth: block.width,
-    };
-    event.currentTarget?.setPointerCapture?.(event.pointerId);
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 }
 
 function startSceneRotate(event) {
@@ -1740,30 +1317,19 @@ function onPointerMove(event) {
         const deltaY = event.clientY - blockDrag.value.startClientY;
         const mmPerPxX = selectedTransport.value.length_mm / Math.max(1, viewport.width * 0.72);
         const mmPerPxY = selectedTransport.value.width_mm / Math.max(1, viewport.height * 0.56);
-<<<<<<< HEAD
         const blockLength = selectedBlock.value.length;
         const blockWidth = selectedBlock.value.width;
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
         updateManualPlacement(blockDrag.value.key, {
             ...ensureManualPlacement(selectedBlock.value),
             x: Math.round(clamp(
                 blockDrag.value.startX + deltaX * mmPerPxX,
                 0,
-<<<<<<< HEAD
                 Math.max(0, selectedTransport.value.length_mm - blockLength),
-=======
-                Math.max(0, selectedTransport.value.length_mm - blockDrag.value.blockLength),
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
             ) / 5) * 5,
             y: Math.round(clamp(
                 blockDrag.value.startY + deltaY * mmPerPxY,
                 0,
-<<<<<<< HEAD
                 Math.max(0, selectedTransport.value.width_mm - blockWidth),
-=======
-                Math.max(0, selectedTransport.value.width_mm - blockDrag.value.blockWidth),
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
             ) / 5) * 5,
         });
 
@@ -1773,11 +1339,7 @@ function onPointerMove(event) {
     if (sceneDrag.value) {
         const deltaX = event.clientX - sceneDrag.value.startClientX;
         const deltaY = event.clientY - sceneDrag.value.startClientY;
-<<<<<<< HEAD
         sceneRotationZ.value = sceneDrag.value.startRotationZ - deltaX * 0.25;
-=======
-        sceneRotationZ.value = sceneDrag.value.startRotationZ + deltaX * 0.25;
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
         sceneRotationX.value = clamp(sceneDrag.value.startRotationX - deltaY * 0.18, 20, 78);
     }
 }
@@ -1795,7 +1357,6 @@ function onSceneKeydown(event) {
     if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
         return;
     }
-<<<<<<< HEAD
     if (event.key === 'ArrowLeft') {
         event.preventDefault();
         rotateSelectedBlockZ(-1);
@@ -1811,28 +1372,11 @@ function onSceneKeydown(event) {
     if (event.key === 'ArrowDown') {
         event.preventDefault();
         rotateSelectedBlockX(1);
-=======
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-        event.preventDefault();
-        rotateSelectedBlock();
-    }
-    if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        tiltSelectedBlock(1);
-    }
-    if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        tiltSelectedBlock(-1);
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     }
 }
 
 function rotateScene(deltaZ, deltaX) {
-<<<<<<< HEAD
     sceneRotationZ.value -= deltaZ;
-=======
-    sceneRotationZ.value += deltaZ;
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     sceneRotationX.value = clamp(sceneRotationX.value + deltaX, 20, 78);
 }
 
@@ -2165,7 +1709,6 @@ function formatMm(value) {
 
 .cargo-cube {
     position: absolute;
-<<<<<<< HEAD
     min-width: 8px;
     min-height: 8px;
     transform-style: preserve-3d;
@@ -2193,35 +1736,10 @@ function formatMm(value) {
 .cargo-cube-positioned {
     outline: 2px dashed rgb(2 132 199 / 0.5);
     outline-offset: 1px;
-=======
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 8px;
-    min-height: 8px;
-    transform: translateZ(var(--cube-height)) rotateZ(var(--cube-rotation)) rotateX(var(--cube-tilt));
-    transform-style: preserve-3d;
-    border: 1px solid rgb(15 23 42 / 0.18);
-    background: transparent;
-    color: rgb(15 23 42);
-    font-size: 0.65rem;
-    font-weight: 800;
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
-}
-
-.cargo-cube-manual {
-    cursor: pointer;
-    touch-action: none;
-}
-
-.cargo-cube-positioned {
-    outline: 2px dashed rgb(2 132 199 / 0.5);
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 }
 
 .cargo-cube-selected {
     outline: 3px solid rgb(14 165 233);
-<<<<<<< HEAD
     outline-offset: 1px;
     z-index: 20;
 }
@@ -2230,21 +1748,12 @@ function formatMm(value) {
     z-index: 30;
 }
 
-=======
-    filter: brightness(1.05) saturate(1.1);
-    z-index: 20;
-}
-
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 .cargo-face {
     position: absolute;
     display: flex;
     align-items: center;
     justify-content: center;
-<<<<<<< HEAD
     pointer-events: none;
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
     border: 1px solid rgb(15 23 42 / 0.26);
     background: color-mix(in srgb, var(--cube-color) 76%, white);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
@@ -2320,7 +1829,6 @@ function formatMm(value) {
     color: rgb(15 23 42);
     font-size: 0.7rem;
 }
-<<<<<<< HEAD
 
 .workspace {
     min-height: 0;
@@ -2513,6 +2021,4 @@ function formatMm(value) {
         padding: 0;
     }
 }
-=======
->>>>>>> 37d0357560c7d8c42e5b0f1e54b7999a3d066c97
 </style>
