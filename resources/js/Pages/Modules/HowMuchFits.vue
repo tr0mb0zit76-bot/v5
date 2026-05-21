@@ -203,42 +203,66 @@
                                     <label class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-semibold dark:border-zinc-700">
                                         <input v-model="manualMode" type="checkbox" class="rounded" /> Ручная раскладка
                                     </label>
+                                    <label class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-semibold dark:border-zinc-700">
+                                        <input v-model="tightPacking" type="checkbox" class="rounded" /> Без зазоров
+                                    </label>
                                     <button type="button" class="scene-tool" @click="rotateScene(-12, 0)">←</button>
                                     <button type="button" class="scene-tool" @click="rotateScene(12, 0)">→</button>
                                     <button type="button" class="scene-tool" @click="rotateScene(0, 8)">↑</button>
                                     <button type="button" class="scene-tool" @click="rotateScene(0, -8)">↓</button>
                                     <button type="button" class="scene-tool" @click="resetSceneView">Сброс вида</button>
                                     <button type="button" class="scene-tool" @click="resetManualPlacements">Сброс позиций</button>
+                                    <button type="button" class="scene-tool" :disabled="!selectedBlock" @click="lockSelectedBlock">Зафиксировать</button>
                                 </div>
                             </div>
-                            <div ref="sceneViewport" class="scene-viewport relative min-h-[420px] flex-1" @pointerdown="startSceneRotate">
+                            <div
+                                ref="sceneViewport"
+                                tabindex="0"
+                                class="scene-viewport relative min-h-[420px] flex-1 overflow-hidden outline-none"
+                                @pointerdown="startSceneRotate"
+                                @contextmenu.prevent
+                                @wheel.prevent="onSceneWheel"
+                            >
                                 <div class="scene-hint print:hidden">
-                                    Тяните фон — вращение сцены. Груз — по полу прицепа. Стрелки: ←/→ поворот 90° на полу, ↑/↓ наклон 90°.
+                                    Колесо — зум. ЛКМ по фону — вращение. ПКМ — сдвиг. При перетаскивании совпадение с той же серией подсвечивает грани. Отпускание — фиксация.
                                 </div>
-                                <div v-if="selectedTransport" class="scene-shell">
+                                <div v-if="selectedTransport" class="scene-shell" :style="sceneShellStyle">
                                     <div class="scene" :style="sceneTransformStyle">
-                                        <div class="truck-shadow" />
-                                        <div class="trailer" :style="trailerStyle">
-                                            <div class="trailer-floor"><span class="floor-label">Пол прицепа</span></div>
-                                            <div class="trailer-grid" />
+                                        <div class="truck-shadow" :style="truckShadowStyle" />
+                                        <div ref="deckEl" class="scene-deck" :style="deckStyle">
+                                            <div class="staging-pad" />
+                                            <div class="trailer-zone" :style="trailerZoneStyle">
+                                                <div class="trailer-floor"><span class="floor-label">Пол прицепа</span></div>
+                                                <div class="trailer-grid" />
+                                            </div>
                                             <div
-                                                v-for="block in layoutResult.blocks"
+                                                v-for="block in sceneBlocks"
                                                 :key="block.key"
                                                 class="cargo-cube"
                                                 :class="[
                                                     manualMode ? 'cargo-cube-manual' : '',
                                                     selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
-                                                    block.manual ? 'cargo-cube-positioned' : '',
+                                                    block.locked ? 'cargo-cube-locked' : '',
+                                                    block.in_trailer ? '' : 'cargo-cube-staging',
                                                     blockDrag?.key === block.key ? 'cargo-cube-dragging' : '',
+                                                    blockDrag?.key === block.key && blockDrag?.overlapping ? 'cargo-cube-overlap' : '',
+                                                    ...cubeAlignGuideClasses(block),
                                                 ]"
                                                 :style="cubePositionStyle(block)"
-                                                :title="`${block.name}: ${block.count} шт`"
+                                                :title="`${block.name}${block.stack_count > 1 ? `, ярус ${block.stack_count}` : ''}${block.in_trailer ? '' : ' (зона сборки)'}`"
                                                 @pointerdown.stop.prevent="startBlockDrag($event, block)"
                                                 @click.stop="selectBlock(block)"
                                             >
-                                                <div class="cargo-cube-body" :style="cubeBodyStyle(block)">
+                                                <div
+                                                    class="cargo-cube-body"
+                                                    :class="{ 'cargo-cube-body-selected': selectedBlockKey === block.key }"
+                                                    :style="cubeBodyStyle(block)"
+                                                >
                                                     <span class="cargo-face cargo-face-bottom" />
-                                                    <span class="cargo-face cargo-face-top"><span class="cargo-direction">→</span><span>{{ block.count > 1 ? block.count : '' }}</span></span>
+                                                    <span class="cargo-face cargo-face-top">
+                                                        <span class="cargo-direction" :style="cubeDirectionStyle(block)">→</span>
+                                                        <span v-if="block.stack_count > 1">{{ block.stack_count }}</span>
+                                                    </span>
                                                     <span class="cargo-face cargo-face-front" />
                                                     <span class="cargo-face cargo-face-back" />
                                                     <span class="cargo-face cargo-face-left" />
@@ -250,21 +274,10 @@
                                 </div>
                                 <div v-else class="flex h-full items-center justify-center text-sm text-zinc-500">Выберите транспорт.</div>
                             </div>
-                            <div v-if="manualMode" class="border-t border-zinc-200 p-3 dark:border-zinc-800 print:hidden">
-                                <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-                                    <span class="font-semibold">{{ selectedBlock?.name ?? 'Блок не выбран' }}</span>
-                                    <div class="grid grid-cols-3 gap-1">
-                                        <span />
-                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, -250)">↑</button>
-                                        <span />
-                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(-250, 0)">←</button>
-                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="rotateSelectedBlockZ(1)">↻</button>
-                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(250, 0)">→</button>
-                                        <span />
-                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, 250)">↓</button>
-                                        <span />
-                                    </div>
-                                </div>
+                            <div v-if="manualMode && selectedBlock" class="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-300 print:hidden">
+                                <span class="font-semibold">{{ selectedBlock.name }}</span>
+                                <span v-if="selectedBlock.locked" class="ml-2 text-emerald-600">зафиксирован</span>
+                                <span v-else class="ml-2">— отпустите для фиксации, Enter — вручную</span>
                             </div>
                         </div>
 
@@ -291,7 +304,7 @@
                                 <span>Расчёты размещения</span><span>{{ showPlacementDetails ? '−' : '+' }}</span>
                             </button>
                             <div v-if="showPlacementDetails" class="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
-                                <div>Размещено: {{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт</div>
+                                <div>Размещено: {{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт (в кузове {{ layoutResult.placedInTrailer }})</div>
                                 <div>Объём груза: {{ formatM3(layoutResult.totalVolumeM3) }}</div>
                                 <div>Грузоподъёмность: {{ layoutResult.usedPayloadPercent.toFixed(1) }}%</div>
                             </div>
@@ -452,6 +465,20 @@ import {
 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import {
+    blockInTrailer,
+    blocksOverlap3D,
+    blocksOverlapXY,
+    buildSceneBounds,
+    calculateLayout,
+    clientPointToSceneMm,
+    computeSeriesAlignHints,
+    findSupportedZForBlock,
+    findTopSupportedZForBlock,
+    placementRotationY,
+    placementRotationZ,
+    snapshotPlacementsFromBlocks,
+} from '@/support/loadingPlannerLayout.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'modules', activeSubKey: 'modules-how-much-fits' }, () => page),
@@ -487,19 +514,30 @@ const transportCategoryFilter = ref('all');
 const showPlacementDetails = ref(false);
 const showAxleLoad = ref(false);
 const manualMode = ref(Boolean(props.selectedProject?.calculation?.manual_mode));
+const tightPacking = ref(Boolean(props.selectedProject?.calculation?.tight_packing));
 const selectedBlockKey = ref(props.selectedProject?.calculation?.selected_manual_key ?? null);
 const sceneViewport = ref(null);
+const deckEl = ref(null);
 const sceneRotationX = ref(Number(props.selectedProject?.calculation?.scene_view?.rotation_x ?? 58));
 const sceneRotationZ = ref(Number(props.selectedProject?.calculation?.scene_view?.rotation_z ?? -34));
+const sceneZoom = ref(Number(props.selectedProject?.calculation?.scene_view?.zoom ?? 1));
+const scenePanX = ref(Number(props.selectedProject?.calculation?.scene_view?.pan_x ?? 0));
+const scenePanY = ref(Number(props.selectedProject?.calculation?.scene_view?.pan_y ?? 0));
+const basePlacementsCache = ref(props.selectedProject?.calculation?.base_placements ?? {});
 const sceneDrag = ref(null);
 const blockDrag = ref(null);
 
 watch(() => props.selectedProject, (project) => {
     projectForm.value = cloneProject(project);
     manualMode.value = Boolean(project?.calculation?.manual_mode);
+    tightPacking.value = Boolean(project?.calculation?.tight_packing);
     selectedBlockKey.value = project?.calculation?.selected_manual_key ?? null;
     sceneRotationX.value = Number(project?.calculation?.scene_view?.rotation_x ?? 58);
     sceneRotationZ.value = Number(project?.calculation?.scene_view?.rotation_z ?? -34);
+    sceneZoom.value = Number(project?.calculation?.scene_view?.zoom ?? 1);
+    scenePanX.value = Number(project?.calculation?.scene_view?.pan_x ?? 0);
+    scenePanY.value = Number(project?.calculation?.scene_view?.pan_y ?? 0);
+    basePlacementsCache.value = project?.calculation?.base_placements ?? {};
     activeCargoGroupIndex.value = 0;
 }, { deep: true });
 
@@ -591,8 +629,52 @@ const manualPlacements = computed(() => {
         }),
     );
 });
-const layoutResult = computed(() => calculateLayout(selectedTransport.value, cargoFlat.value, manualMode.value ? manualPlacements.value : {}));
+const layoutOptions = computed(() => ({
+    placementGapMm: tightPacking.value ? 0 : null,
+}));
+
+const autoLayoutResult = computed(() => calculateLayout(
+    selectedTransport.value,
+    cargoFlat.value,
+    {},
+    layoutOptions.value,
+));
+
+const layoutResult = computed(() => {
+    if (!selectedTransport.value) {
+        return autoLayoutResult.value;
+    }
+
+    if (!manualMode.value) {
+        return autoLayoutResult.value;
+    }
+
+    const base = Object.keys(basePlacementsCache.value).length > 0
+        ? basePlacementsCache.value
+        : snapshotPlacementsFromBlocks(autoLayoutResult.value.blocks);
+
+    const excludeSettleKeys = blockDrag.value?.key ? new Set([blockDrag.value.key]) : new Set();
+    const freezeSettleKeys = new Set(blockDrag.value?.freezeSettleKeys ?? []);
+
+    return calculateLayout(selectedTransport.value, cargoFlat.value, manualPlacements.value, {
+        basePlacements: base,
+        freezeBase: true,
+        excludeSettleKeys,
+        freezeSettleKeys,
+        placementGapMm: layoutOptions.value.placementGapMm,
+    });
+});
 const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
+
+const sceneBlocks = computed(() => {
+    const blocks = layoutResult.value.blocks;
+    const topKey = blockDrag.value?.key ?? selectedBlockKey.value;
+    if (!topKey) {
+        return blocks;
+    }
+
+    return [...blocks.filter((block) => block.key !== topKey), ...blocks.filter((block) => block.key === topKey)];
+});
 
 watch(layoutResult, (result) => {
     if (selectedBlockKey.value && !result.blocks.some((block) => block.key === selectedBlockKey.value)) {
@@ -600,26 +682,121 @@ watch(layoutResult, (result) => {
     }
 });
 
-const trailerStyle = computed(() => {
+const sceneBounds = computed(() => (selectedTransport.value ? buildSceneBounds(selectedTransport.value) : null));
+
+const deckStyle = computed(() => {
     const transport = selectedTransport.value;
-    if (!transport) {
+    const bounds = sceneBounds.value;
+    if (!transport || !bounds) {
         return {};
     }
-    const ratio = transport.width_mm / transport.length_mm;
+    const trailerRatio = transport.width_mm / transport.length_mm;
+    const baseWidth = 760;
     return {
-        width: '760px',
-        height: `${Math.max(150, 760 * ratio)}px`,
+        width: `${Math.round(baseWidth * (bounds.total_length_mm / bounds.trailer_length_mm))}px`,
+        height: `${Math.max(150, Math.round(baseWidth * trailerRatio * (bounds.total_width_mm / bounds.trailer_width_mm)))}px`,
     };
 });
+
+const trailerZoneStyle = computed(() => {
+    const bounds = sceneBounds.value;
+    if (!bounds) {
+        return {};
+    }
+
+    return {
+        left: `${(-bounds.min_x / bounds.total_length_mm) * 100}%`,
+        top: `${(-bounds.min_y / bounds.total_width_mm) * 100}%`,
+        width: `${(bounds.trailer_length_mm / bounds.total_length_mm) * 100}%`,
+        height: `${(bounds.trailer_width_mm / bounds.total_width_mm) * 100}%`,
+    };
+});
+
+const truckShadowStyle = computed(() => {
+    const bounds = sceneBounds.value;
+    if (!bounds) {
+        return {};
+    }
+
+    return {
+        left: `${((-bounds.min_x - 120) / bounds.total_length_mm) * 100}%`,
+        top: '28%',
+    };
+});
+
+const sceneShellStyle = computed(() => ({
+    transform: `translate(${scenePanX.value}px, ${scenePanY.value}px) scale(${sceneZoom.value})`,
+}));
 
 const sceneTransformStyle = computed(() => ({
     transform: `rotateX(${sceneRotationX.value}deg) rotateZ(${sceneRotationZ.value}deg)`,
 }));
 
+function focusSceneViewport() {
+    sceneViewport.value?.focus({ preventScroll: true });
+}
+
+function syncBasePlacementsFromAuto() {
+    const snapshot = snapshotPlacementsFromBlocks(autoLayoutResult.value.blocks);
+    basePlacementsCache.value = snapshot;
+    if (projectForm.value?.calculation) {
+        projectForm.value.calculation.base_placements = snapshot;
+    }
+}
+
+watch(manualMode, (enabled) => {
+    if (enabled) {
+        syncBasePlacementsFromAuto();
+        if (activeStep.value === 'calculation') {
+            focusSceneViewport();
+        }
+    }
+});
+
+watch(tightPacking, () => {
+    basePlacementsCache.value = {};
+    if (manualMode.value) {
+        syncBasePlacementsFromAuto();
+    }
+});
+
+const cargoLayoutSignature = computed(() => {
+    return (projectForm.value?.cargo_groups ?? [])
+        .flatMap((group) => (group.items ?? []).map((item) => [
+            cargoItemKey(item),
+            item.quantity,
+            item.length_mm,
+            item.width_mm,
+            item.height_mm,
+            item.stackable,
+            item.max_stack,
+        ].join(':')))
+        .join('|');
+});
+
+watch(
+    () => [projectForm.value?.selected_transport_template_id, cargoLayoutSignature.value],
+    () => {
+        basePlacementsCache.value = {};
+        if (manualMode.value) {
+            syncBasePlacementsFromAuto();
+        }
+    },
+);
+
+watch(activeStep, (step) => {
+    if (step === 'calculation' && manualMode.value) {
+        focusSceneViewport();
+    }
+});
+
 onMounted(() => {
     const step = new URLSearchParams(window.location.search).get('step');
     if (step && steps.some((entry) => entry.key === step)) {
         activeStep.value = step;
+    }
+    if (manualMode.value && Object.keys(basePlacementsCache.value).length === 0) {
+        syncBasePlacementsFromAuto();
     }
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', stopPointerInteractions);
@@ -641,6 +818,7 @@ function cloneProject(project) {
         calculation: {
             ...(project.calculation ?? {}),
             manual_placements: project.calculation?.manual_placements ?? {},
+            base_placements: project.calculation?.base_placements ?? {},
             scene_view: project.calculation?.scene_view ?? {},
         },
         cargo_groups: (project.cargo_groups ?? []).map((group) => ({
@@ -851,11 +1029,16 @@ function projectPayload() {
             used_payload_percent: layoutResult.value.usedPayloadPercent,
             warnings: layoutResult.value.warnings,
             manual_mode: manualMode.value,
+            tight_packing: tightPacking.value,
             selected_manual_key: selectedBlockKey.value,
             manual_placements: manualPlacements.value,
+            base_placements: basePlacementsCache.value,
             scene_view: {
                 rotation_x: sceneRotationX.value,
                 rotation_z: sceneRotationZ.value,
+                zoom: sceneZoom.value,
+                pan_x: scenePanX.value,
+                pan_y: scenePanY.value,
             },
         },
         cargo_groups: projectForm.value.cargo_groups.map((group) => ({
@@ -936,221 +1119,94 @@ function deleteTransportTemplate(template) {
     }
 }
 
-function calculateLayout(transport, items, placements = {}) {
-    if (!transport) {
-        return emptyLayout();
-    }
-    const blocks = [];
-    const warnings = [];
-    let cursorX = 0;
-    let cursorY = 0;
-    let rowDepth = 0;
-    let placedUnits = 0;
-    let totalUnits = 0;
-    let totalWeightKg = 0;
-    let totalVolumeM3 = 0;
-    let usedLengthMm = 0;
-    let overflow = false;
-    const maxBlocks = 260;
-
-    for (const item of items) {
-        const quantity = Math.max(0, Number(item.quantity || 0));
-        totalUnits += quantity;
-        totalWeightKg += quantity * Number(item.weight_kg || 0);
-        totalVolumeM3 += quantity * item.length_mm * item.width_mm * item.height_mm / 1_000_000_000;
-
-        let remaining = quantity;
-        let unitIndex = 0;
-        while (remaining > 0) {
-            const blockKey = `${item.source_key}-${unitIndex}`;
-            const manual = placements[blockKey] ?? null;
-            const rotationZ = manual ? placementRotationZ(manual) : 0;
-            const rotationX = manual ? placementRotationX(manual) : 0;
-            const footprintSwapped = rotationZ % 180 === 90;
-            const orientation = manual
-                ? {
-                    length: footprintSwapped ? Number(item.width_mm) : Number(item.length_mm),
-                    width: footprintSwapped ? Number(item.length_mm) : Number(item.width_mm),
-                    newRow: false,
-                    manual,
-                }
-                : chooseOrientation(transport, item, cursorX, cursorY, rowDepth);
-            if (!orientation) {
-                overflow = true;
-                warnings.push(`${item.name}: не удалось разместить ${remaining} шт.`);
-                break;
-            }
-
-            if (!manual && orientation.newRow) {
-                cursorX = 0;
-                cursorY += rowDepth;
-                rowDepth = 0;
-            }
-
-            const stackLimit = item.stackable
-                ? Math.max(1, Math.min(Number(item.max_stack || 1), Math.floor(transport.height_mm / item.height_mm)))
-                : 1;
-            const count = Math.min(remaining, stackLimit);
-            const block = {
-                key: blockKey,
-                name: item.name,
-                count,
-                color: item.color,
-                x: manual ? Number(manual.x || 0) : cursorX,
-                y: manual ? Number(manual.y || 0) : cursorY,
-                z: 0,
-                length: orientation.length,
-                width: orientation.width,
-                height: item.height_mm * count,
-                base_length: Number(item.length_mm),
-                base_width: Number(item.width_mm),
-                rotated: footprintSwapped,
-                rotation_z: rotationZ,
-                rotation_x: rotationX,
-                tilted: rotationX,
-                locked: Boolean(manual?.locked),
-                manual: Boolean(manual),
-            };
-            if (blocks.length < maxBlocks) {
-                blocks.push(block);
-            }
-            placedUnits += count;
-            remaining -= count;
-            usedLengthMm = Math.max(usedLengthMm, block.x + orientation.length);
-            if (!manual) {
-                cursorX += orientation.length;
-                rowDepth = Math.max(rowDepth, orientation.width);
-            }
-            unitIndex += count;
-        }
-    }
-
-    if (totalWeightKg > transport.max_payload_kg) {
-        warnings.push(`Перевес: ${formatKg(totalWeightKg)} при лимите ${formatKg(transport.max_payload_kg)}.`);
-    }
-    if (blocks.length >= maxBlocks && placedUnits < totalUnits) {
-        warnings.push('В 3D-сцене показана часть мест, чтобы интерфейс не тормозил.');
-    }
-    const manualWarnings = manualPlacementWarnings(transport, blocks);
-    warnings.push(...manualWarnings);
-
-    const transportVolumeM3 = transport.length_mm * transport.width_mm * transport.height_mm / 1_000_000_000;
-    const fits = !overflow && placedUnits === totalUnits && totalWeightKg <= transport.max_payload_kg && manualWarnings.length === 0;
-
-    return {
-        blocks,
-        warnings: [...new Set(warnings)],
-        fits,
-        totalUnits,
-        placedUnits,
-        totalWeightKg,
-        totalVolumeM3,
-        ldm: usedLengthMm / 1000,
-        freeLengthMm: Math.max(0, transport.length_mm - usedLengthMm),
-        freeVolumeM3: Math.max(0, transportVolumeM3 - totalVolumeM3),
-        usedVolumePercent: transportVolumeM3 > 0 ? Math.min(999, totalVolumeM3 / transportVolumeM3 * 100) : 0,
-        usedPayloadPercent: transport.max_payload_kg > 0 ? Math.min(999, totalWeightKg / transport.max_payload_kg * 100) : 0,
-    };
-}
-
-function manualPlacementWarnings(transport, blocks) {
-    const warnings = [];
-    for (const block of blocks) {
-        if (block.x < 0 || block.y < 0 || block.x + block.length > transport.length_mm || block.y + block.width > transport.width_mm) {
-            warnings.push(`${block.name}: ручная позиция выходит за габариты транспорта.`);
-        }
-    }
-    for (let i = 0; i < blocks.length; i++) {
-        for (let j = i + 1; j < blocks.length; j++) {
-            if (blocksOverlap(blocks[i], blocks[j])) {
-                warnings.push(`${blocks[i].name} пересекается с ${blocks[j].name}.`);
-            }
-        }
-    }
-    return warnings;
-}
-
-function blocksOverlap(a, b) {
-    return a.x < b.x + b.length
-        && a.x + a.length > b.x
-        && a.y < b.y + b.width
-        && a.y + a.width > b.y;
-}
-
-function chooseOrientation(transport, item, cursorX, cursorY, rowDepth) {
-    const variants = [{ length: item.length_mm, width: item.width_mm }];
-    if (item.can_rotate && item.length_mm !== item.width_mm) {
-        variants.push({ length: item.width_mm, width: item.length_mm });
-    }
-    for (const variant of variants) {
-        if (cursorX + variant.length <= transport.length_mm && cursorY + variant.width <= transport.width_mm && item.height_mm <= transport.height_mm) {
-            return { ...variant, newRow: false };
-        }
-    }
-    for (const variant of variants) {
-        const nextY = cursorY + rowDepth;
-        if (variant.length <= transport.length_mm && nextY + variant.width <= transport.width_mm && item.height_mm <= transport.height_mm) {
-            return { ...variant, newRow: true };
-        }
-    }
-    return null;
-}
-
-function emptyLayout() {
-    return {
-        blocks: [],
-        warnings: [],
-        fits: false,
-        totalUnits: 0,
-        placedUnits: 0,
-        totalWeightKg: 0,
-        totalVolumeM3: 0,
-        ldm: 0,
-        freeLengthMm: 0,
-        freeVolumeM3: 0,
-        usedVolumePercent: 0,
-        usedPayloadPercent: 0,
-    };
-}
-
-function placementRotationZ(placement) {
-    if (placement.rotation_z !== undefined && placement.rotation_z !== null) {
-        return ((Number(placement.rotation_z) % 360) + 360) % 360;
-    }
-    return placement.rotated ? 90 : 0;
-}
-
-function placementRotationX(placement) {
-    if (placement.rotation_x !== undefined && placement.rotation_x !== null) {
-        return ((Number(placement.rotation_x) % 360) + 360) % 360;
-    }
-    const legacyTilt = Number(placement.tilted ?? 0);
-    if (legacyTilt === 0) {
-        return 0;
-    }
-    return legacyTilt > 0 ? 90 : 270;
-}
-
 function cubePositionStyle(block) {
+    const bounds = sceneBounds.value;
     const transport = selectedTransport.value;
+    if (!bounds || !transport) {
+        return {};
+    }
+
+    const zScale = 92 / transport.height_mm;
+    const cubeHeightPx = Math.max(4, block.unit_height * zScale);
+    const zOffsetPx = Number(block.z || 0) * zScale;
+
     return {
-        left: `${block.x / transport.length_mm * 100}%`,
-        top: `${block.y / transport.width_mm * 100}%`,
-        width: `${block.length / transport.length_mm * 100}%`,
-        height: `${block.width / transport.width_mm * 100}%`,
+        left: `${(block.x - bounds.min_x) / bounds.total_length_mm * 100}%`,
+        top: `${(block.y - bounds.min_y) / bounds.total_width_mm * 100}%`,
+        width: `${block.length / bounds.total_length_mm * 100}%`,
+        height: `${block.width / bounds.total_width_mm * 100}%`,
+        zIndex: Math.round(10 + block.y + block.x / 100 + (block.z || 0) / 1000),
+        transform: `translateZ(${zOffsetPx}px)`,
         '--cube-color': block.color || '#60a5fa',
+        '--cube-height': `${cubeHeightPx}px`,
     };
 }
 
 function cubeBodyStyle(block) {
-    const transport = selectedTransport.value;
-    const zScale = 92 / transport.height_mm;
-    const rotationZ = block.rotation_z ?? (block.rotated ? 90 : 0);
-    const rotationX = block.rotation_x ?? 0;
+    const rotationY = block.rotation_y ?? 0;
+
     return {
-        '--cube-height': `${Math.max(12, block.height * zScale)}px`,
-        transform: `translateZ(var(--cube-height)) rotateZ(${rotationZ}deg) rotateX(${rotationX}deg)`,
+        '--cube-rot-y': `${rotationY}deg`,
     };
+}
+
+function cubeDirectionStyle(block) {
+    const rotationZ = block.rotation_z ?? (block.rotated ? 90 : 0);
+
+    return {
+        transform: `rotate(${rotationZ}deg)`,
+    };
+}
+
+function cubeAlignGuideClasses(block) {
+    if (!manualMode.value || !blockDrag.value?.alignHints) {
+        return [];
+    }
+
+    const hints = blockDrag.value.alignHints;
+
+    if (block.key === blockDrag.value.key) {
+        const dragged = hints.dragged;
+
+        return [
+            dragged.stack ? 'cargo-cube-align-self-stack' : '',
+            dragged.left ? 'cargo-cube-align-self-edge-left' : '',
+            dragged.right ? 'cargo-cube-align-self-edge-right' : '',
+            dragged.front ? 'cargo-cube-align-self-edge-front' : '',
+            dragged.back ? 'cargo-cube-align-self-edge-back' : '',
+        ].filter(Boolean);
+    }
+
+    const match = hints.blocks[block.key];
+    if (!match) {
+        return [];
+    }
+
+    return [
+        match.stack && match.below ? 'cargo-cube-align-stack-below' : '',
+        match.stack ? 'cargo-cube-align-stack' : '',
+        !match.stack && (match.left || match.right || match.front || match.back) ? 'cargo-cube-align-edge' : '',
+        match.left ? 'cargo-cube-align-edge-left' : '',
+        match.right ? 'cargo-cube-align-edge-right' : '',
+        match.front ? 'cargo-cube-align-edge-front' : '',
+        match.back ? 'cargo-cube-align-edge-back' : '',
+    ].filter(Boolean);
+}
+
+function refreshDragAlignHints(block, x, y, z) {
+    if (!blockDrag.value) {
+        return;
+    }
+
+    blockDrag.value.alignHints = computeSeriesAlignHints(
+        block,
+        x,
+        y,
+        block.length,
+        block.width,
+        layoutResult.value.blocks,
+        { draggedZ: z },
+    );
 }
 
 function cargoItemKey(item) {
@@ -1166,16 +1222,17 @@ function ensureManualPlacement(block) {
     }
     const existing = projectForm.value.calculation.manual_placements[block.key] ?? {};
     const rotationZ = placementRotationZ(existing);
-    const rotationX = placementRotationX(existing);
+    const rotationY = placementRotationY(existing);
     projectForm.value.calculation.manual_placements = {
         ...projectForm.value.calculation.manual_placements,
         [block.key]: {
             x: Number(existing.x ?? block.x),
             y: Number(existing.y ?? block.y),
+            z: Number(existing.z ?? block.z ?? 0),
             rotation_z: rotationZ,
-            rotation_x: rotationX,
+            rotation_y: rotationY,
             rotated: rotationZ % 180 === 90,
-            tilted: rotationX,
+            tilted: rotationY,
             locked: Boolean(existing.locked ?? block.locked),
         },
     };
@@ -1189,20 +1246,76 @@ function selectBlock(block) {
     selectedBlockKey.value = block.key;
     ensureManualPlacement(block);
     projectForm.value.calculation.selected_manual_key = block.key;
+    focusSceneViewport();
 }
 
-function nudgeSelectedBlock(deltaX, deltaY) {
-    if (!selectedBlock.value || !selectedTransport.value) {
-        return;
+function collectFreezeSettleKeys(key, x, y, length, width, blocks) {
+    const probe = { x, y, length, width };
+
+    return blocks
+        .filter((block) => block.key !== key && blocksOverlapXY(probe, block))
+        .map((block) => block.key);
+}
+
+function resolvePlacementZ(key, x, y, length, width, unitHeight, { preferTop = true } = {}) {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return 0;
     }
-    const placement = ensureManualPlacement(selectedBlock.value);
-    const maxX = Math.max(0, selectedTransport.value.length_mm - selectedBlock.value.length);
-    const maxY = Math.max(0, selectedTransport.value.width_mm - selectedBlock.value.width);
-    updateManualPlacement(selectedBlock.value.key, {
-        ...placement,
-        x: clamp(Number(placement.x) + deltaX, 0, maxX),
-        y: clamp(Number(placement.y) + deltaY, 0, maxY),
+
+    const probe = { x, y, length, width, unit_height: unitHeight };
+    if (!blockInTrailer(probe, transport)) {
+        return 0;
+    }
+
+    const others = layoutResult.value.blocks.filter((block) => block.key !== key);
+
+    if (preferTop) {
+        return findTopSupportedZForBlock(probe, others, transport);
+    }
+
+    return findSupportedZForBlock(probe, others, transport);
+}
+
+function placementWouldOverlap(key, x, y, length, width, unitHeight) {
+    const z = resolvePlacementZ(key, x, y, length, width, unitHeight);
+    const candidate = { x, y, length, width, height: unitHeight, unit_height: unitHeight, z };
+    return layoutResult.value.blocks.some((block) => {
+        if (block.key === key) {
+            return false;
+        }
+
+        return blocksOverlap3D(candidate, block);
     });
+}
+
+function clampPositionToBounds(x, y, length, width) {
+    const bounds = sceneBounds.value;
+    if (!bounds) {
+        return { x, y };
+    }
+
+    return {
+        x: clamp(x, bounds.min_x, bounds.max_x - length),
+        y: clamp(y, bounds.min_y, bounds.max_y - width),
+    };
+}
+
+function applyManualPosition(key, placement, length, width, unitHeight, { allowOverlap = false } = {}) {
+    const bounds = sceneBounds.value;
+    if (!bounds) {
+        return false;
+    }
+
+    const clamped = clampPositionToBounds(Number(placement.x), Number(placement.y), length, width);
+    const z = resolvePlacementZ(key, clamped.x, clamped.y, length, width, unitHeight);
+
+    if (!allowOverlap && placementWouldOverlap(key, clamped.x, clamped.y, length, width, unitHeight)) {
+        return false;
+    }
+
+    updateManualPlacement(key, { ...placement, x: clamped.x, y: clamped.y, z });
+    return true;
 }
 
 function rotateSelectedBlockZ(step) {
@@ -1214,36 +1327,87 @@ function rotateSelectedBlockZ(step) {
     const footprintSwapped = nextRotationZ % 180 === 90;
     const nextLength = footprintSwapped ? selectedBlock.value.base_width : selectedBlock.value.base_length;
     const nextWidth = footprintSwapped ? selectedBlock.value.base_length : selectedBlock.value.base_width;
+    const clamped = clampPositionToBounds(Number(placement.x), Number(placement.y), nextLength, nextWidth);
+    const nextZ = resolvePlacementZ(
+        selectedBlock.value.key,
+        clamped.x,
+        clamped.y,
+        nextLength,
+        nextWidth,
+        selectedBlock.value.unit_height,
+    );
+
     updateManualPlacement(selectedBlock.value.key, {
         ...placement,
         rotation_z: nextRotationZ,
+        rotation_y: placementRotationY(placement),
         rotated: footprintSwapped,
-        x: clamp(Number(placement.x), 0, Math.max(0, selectedTransport.value.length_mm - nextLength)),
-        y: clamp(Number(placement.y), 0, Math.max(0, selectedTransport.value.width_mm - nextWidth)),
+        x: clamped.x,
+        y: clamped.y,
+        z: nextZ,
+        locked: false,
     });
 }
 
-function rotateSelectedBlockX(step) {
+function rotateSelectedBlockY(step) {
     if (!selectedBlock.value) {
         return;
     }
     const placement = ensureManualPlacement(selectedBlock.value);
-    const nextRotationX = (placementRotationX(placement) + step * 90 + 360) % 360;
+    const nextRotationY = (placementRotationY(placement) + step * 90 + 360) % 360;
     updateManualPlacement(selectedBlock.value.key, {
         ...placement,
-        rotation_x: nextRotationX,
-        tilted: nextRotationX,
+        rotation_y: nextRotationY,
+        tilted: nextRotationY,
+        locked: false,
     });
 }
 
 function lockSelectedBlock() {
     if (!selectedBlock.value) {
+        return false;
+    }
+    const block = selectedBlock.value;
+    const placement = ensureManualPlacement(block);
+    if (placementWouldOverlap(block.key, placement.x, placement.y, block.length, block.width, block.unit_height)) {
+        return false;
+    }
+    updateManualPlacement(block.key, { ...placement, locked: true });
+    return true;
+}
+
+function finalizeBlockDrag() {
+    if (!blockDrag.value || !selectedBlock.value) {
         return;
     }
-    updateManualPlacement(selectedBlock.value.key, {
-        ...ensureManualPlacement(selectedBlock.value),
-        locked: true,
-    });
+    const block = selectedBlock.value;
+    const placement = ensureManualPlacement(block);
+    const x = Number(placement.x);
+    const y = Number(placement.y);
+    const z = resolvePlacementZ(block.key, x, y, block.length, block.width, block.unit_height);
+    const overlaps = placementWouldOverlap(block.key, x, y, block.length, block.width, block.unit_height);
+
+    if (overlaps) {
+        const validZ = resolvePlacementZ(
+            block.key,
+            blockDrag.value.lastValidX,
+            blockDrag.value.lastValidY,
+            block.length,
+            block.width,
+            block.unit_height,
+        );
+        updateManualPlacement(block.key, {
+            ...placement,
+            x: blockDrag.value.lastValidX,
+            y: blockDrag.value.lastValidY,
+            z: validZ,
+            locked: false,
+        });
+    } else {
+        updateManualPlacement(block.key, { ...placement, x, y, z, locked: true });
+    }
+
+    blockDrag.value = null;
 }
 
 function releaseSelectedBlock() {
@@ -1261,12 +1425,17 @@ function resetManualPlacements() {
     if (!projectForm.value) {
         return;
     }
+    basePlacementsCache.value = {};
     projectForm.value.calculation = {
         ...(projectForm.value.calculation ?? {}),
         manual_placements: {},
+        base_placements: {},
         selected_manual_key: null,
     };
     selectedBlockKey.value = null;
+    if (manualMode.value) {
+        syncBasePlacementsFromAuto();
+    }
 }
 
 function updateManualPlacement(key, placement) {
@@ -1277,32 +1446,71 @@ function updateManualPlacement(key, placement) {
 }
 
 function startBlockDrag(event, block) {
-    if (!manualMode.value || !selectedTransport.value) {
+    if (!manualMode.value || !selectedTransport.value || !deckEl.value) {
         return;
     }
     event.preventDefault();
     selectBlock(block);
     const placement = ensureManualPlacement(block);
+    updateManualPlacement(block.key, { ...placement, locked: false });
+    const deckRect = deckEl.value.getBoundingClientRect();
+    const pointer = clientPointToSceneMm(event.clientX, event.clientY, deckRect, sceneBounds.value, sceneRotationZ.value);
     blockDrag.value = {
         key: block.key,
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startX: Number(placement.x || 0),
-        startY: Number(placement.y || 0),
+        grabOffsetX: Number(placement.x || 0) - pointer.x,
+        grabOffsetY: Number(placement.y || 0) - pointer.y,
+        lastValidX: Number(placement.x || 0),
+        lastValidY: Number(placement.y || 0),
+        freezeSettleKeys: collectFreezeSettleKeys(
+            block.key,
+            Number(placement.x || 0),
+            Number(placement.y || 0),
+            block.length,
+            block.width,
+            layoutResult.value.blocks,
+        ),
+        overlapping: false,
+        alignHints: computeSeriesAlignHints(
+            block,
+            Number(placement.x || 0),
+            Number(placement.y || 0),
+            block.length,
+            block.width,
+            layoutResult.value.blocks,
+            { draggedZ: Number(placement.z ?? block.z ?? 0) },
+        ),
     };
     const cubeElement = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     cubeElement?.setPointerCapture?.(event.pointerId);
 }
 
 function startSceneRotate(event) {
-    if (event.button !== 0 || blockDrag.value) {
+    if (blockDrag.value) {
         return;
     }
     if (event.target instanceof Element && event.target.closest('.cargo-cube')) {
         return;
     }
+
+    if (event.button === 2) {
+        event.preventDefault();
+        sceneDrag.value = {
+            mode: 'pan',
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            startPanX: scenePanX.value,
+            startPanY: scenePanY.value,
+        };
+        return;
+    }
+
+    if (event.button !== 0) {
+        return;
+    }
+
     event.preventDefault();
     sceneDrag.value = {
+        mode: 'rotate',
         startClientX: event.clientX,
         startClientY: event.clientY,
         startRotationX: sceneRotationX.value,
@@ -1311,42 +1519,74 @@ function startSceneRotate(event) {
 }
 
 function onPointerMove(event) {
-    if (blockDrag.value && selectedBlock.value && selectedTransport.value && sceneViewport.value) {
-        const viewport = sceneViewport.value.getBoundingClientRect();
-        const deltaX = event.clientX - blockDrag.value.startClientX;
-        const deltaY = event.clientY - blockDrag.value.startClientY;
-        const mmPerPxX = selectedTransport.value.length_mm / Math.max(1, viewport.width * 0.72);
-        const mmPerPxY = selectedTransport.value.width_mm / Math.max(1, viewport.height * 0.56);
-        const blockLength = selectedBlock.value.length;
-        const blockWidth = selectedBlock.value.width;
-        updateManualPlacement(blockDrag.value.key, {
-            ...ensureManualPlacement(selectedBlock.value),
-            x: Math.round(clamp(
-                blockDrag.value.startX + deltaX * mmPerPxX,
-                0,
-                Math.max(0, selectedTransport.value.length_mm - blockLength),
-            ) / 5) * 5,
-            y: Math.round(clamp(
-                blockDrag.value.startY + deltaY * mmPerPxY,
-                0,
-                Math.max(0, selectedTransport.value.width_mm - blockWidth),
-            ) / 5) * 5,
-        });
+    if (blockDrag.value && selectedBlock.value && selectedTransport.value && deckEl.value) {
+        const deckRect = deckEl.value.getBoundingClientRect();
+        const pointer = clientPointToSceneMm(event.clientX, event.clientY, deckRect, sceneBounds.value, sceneRotationZ.value);
+        const block = selectedBlock.value;
+        const placement = ensureManualPlacement(block);
+        const nextX = Math.round((pointer.x + blockDrag.value.grabOffsetX) / 5) * 5;
+        const nextY = Math.round((pointer.y + blockDrag.value.grabOffsetY) / 5) * 5;
+        const overlaps = placementWouldOverlap(
+            blockDrag.value.key,
+            nextX,
+            nextY,
+            block.length,
+            block.width,
+            block.unit_height,
+        );
+        const nextZ = resolvePlacementZ(
+            blockDrag.value.key,
+            nextX,
+            nextY,
+            block.length,
+            block.width,
+            block.unit_height,
+        );
+
+        blockDrag.value.overlapping = overlaps;
+        blockDrag.value.freezeSettleKeys = collectFreezeSettleKeys(
+            blockDrag.value.key,
+            nextX,
+            nextY,
+            block.length,
+            block.width,
+            layoutResult.value.blocks,
+        );
+        updateManualPlacement(blockDrag.value.key, { ...placement, x: nextX, y: nextY, z: nextZ, locked: false });
+        refreshDragAlignHints(block, nextX, nextY, nextZ);
+
+        if (!overlaps) {
+            blockDrag.value.lastValidX = nextX;
+            blockDrag.value.lastValidY = nextY;
+        }
 
         return;
     }
 
-    if (sceneDrag.value) {
+    if (sceneDrag.value?.mode === 'pan') {
+        scenePanX.value = sceneDrag.value.startPanX + (event.clientX - sceneDrag.value.startClientX);
+        scenePanY.value = sceneDrag.value.startPanY + (event.clientY - sceneDrag.value.startClientY);
+        return;
+    }
+
+    if (sceneDrag.value?.mode === 'rotate') {
         const deltaX = event.clientX - sceneDrag.value.startClientX;
         const deltaY = event.clientY - sceneDrag.value.startClientY;
         sceneRotationZ.value = sceneDrag.value.startRotationZ - deltaX * 0.25;
-        sceneRotationX.value = clamp(sceneDrag.value.startRotationX - deltaY * 0.18, 20, 78);
+        sceneRotationX.value = clamp(sceneDrag.value.startRotationX - deltaY * 0.28, -12, 112);
     }
 }
 
 function stopPointerInteractions() {
-    blockDrag.value = null;
+    if (blockDrag.value) {
+        finalizeBlockDrag();
+    }
     sceneDrag.value = null;
+}
+
+function onSceneWheel(event) {
+    const delta = event.deltaY > 0 ? -0.08 : 0.08;
+    sceneZoom.value = clamp(sceneZoom.value + delta, 0.45, 2.4);
 }
 
 function onSceneKeydown(event) {
@@ -1367,22 +1607,29 @@ function onSceneKeydown(event) {
     }
     if (event.key === 'ArrowUp') {
         event.preventDefault();
-        rotateSelectedBlockX(-1);
+        rotateSelectedBlockY(-1);
     }
     if (event.key === 'ArrowDown') {
         event.preventDefault();
-        rotateSelectedBlockX(1);
+        rotateSelectedBlockY(1);
+    }
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        lockSelectedBlock();
     }
 }
 
 function rotateScene(deltaZ, deltaX) {
     sceneRotationZ.value -= deltaZ;
-    sceneRotationX.value = clamp(sceneRotationX.value + deltaX, 20, 78);
+    sceneRotationX.value = clamp(sceneRotationX.value + deltaX, -12, 112);
 }
 
 function resetSceneView() {
     sceneRotationX.value = 58;
     sceneRotationZ.value = -34;
+    sceneZoom.value = 1;
+    scenePanX.value = 0;
+    scenePanY.value = 0;
 }
 
 function clamp(value, min, max) {
@@ -1617,38 +1864,58 @@ function formatMm(value) {
 
 .truck-shadow {
     position: absolute;
-    left: -95px;
-    top: 28%;
     width: 120px;
     height: 70px;
     border-radius: 1.5rem 0.5rem 0.5rem 1.5rem;
     background: rgb(15 23 42 / 0.16);
     filter: blur(1px);
-}
-
-.trailer {
-    position: relative;
-    transform-style: preserve-3d;
-    border: 3px solid rgb(51 65 85 / 0.85);
-    background: rgb(224 242 254 / 0.26);
-    box-shadow: 0 18px 45px rgb(15 23 42 / 0.18);
-}
-
-.trailer::before,
-.trailer::after {
-    content: '';
-    position: absolute;
-    inset: 0;
     pointer-events: none;
 }
 
-.trailer::before {
-    transform: translateZ(92px);
-    border: 2px solid rgb(51 65 85 / 0.28);
-    background: rgb(255 255 255 / 0.10);
+.scene-deck {
+    position: relative;
+    transform-style: preserve-3d;
 }
 
-.trailer::after {
+.staging-pad {
+    position: absolute;
+    inset: 0;
+    border-radius: 1rem;
+    background:
+        repeating-linear-gradient(
+            -45deg,
+            rgb(250 250 250 / 0.9),
+            rgb(250 250 250 / 0.9) 12px,
+            rgb(244 244 245 / 0.9) 12px,
+            rgb(244 244 245 / 0.9) 24px
+        );
+    box-shadow: inset 0 0 0 1px rgb(212 212 216 / 0.8);
+    pointer-events: none;
+}
+
+:global(.dark) .staging-pad {
+    background:
+        repeating-linear-gradient(
+            -45deg,
+            rgb(39 39 42 / 0.95),
+            rgb(39 39 42 / 0.95) 12px,
+            rgb(24 24 27 / 0.95) 12px,
+            rgb(24 24 27 / 0.95) 24px
+        );
+}
+
+.trailer-zone {
+    position: absolute;
+    transform-style: preserve-3d;
+    border: 3px solid rgb(51 65 85 / 0.85);
+    background: rgb(224 242 254 / 0.34);
+    box-shadow: 0 18px 45px rgb(15 23 42 / 0.18);
+    pointer-events: none;
+}
+
+.trailer-zone::after {
+    content: '';
+    position: absolute;
     left: -3px;
     right: -3px;
     bottom: -18px;
@@ -1656,6 +1923,7 @@ function formatMm(value) {
     transform: rotateX(90deg);
     transform-origin: top;
     background: rgb(148 163 184 / 0.35);
+    pointer-events: none;
 }
 
 .trailer-grid {
@@ -1665,6 +1933,7 @@ function formatMm(value) {
         linear-gradient(rgb(148 163 184 / 0.26) 1px, transparent 1px),
         linear-gradient(90deg, rgb(148 163 184 / 0.26) 1px, transparent 1px);
     background-size: 40px 40px;
+    pointer-events: none;
 }
 
 .trailer-floor {
@@ -1674,6 +1943,7 @@ function formatMm(value) {
     background:
         linear-gradient(135deg, rgb(14 165 233 / 0.10), rgb(255 255 255 / 0.22)),
         repeating-linear-gradient(0deg, rgb(14 165 233 / 0.12) 0 2px, transparent 2px 46px);
+    pointer-events: none;
 }
 
 .floor-label {
@@ -1721,6 +1991,13 @@ function formatMm(value) {
     position: absolute;
     inset: 0;
     transform-style: preserve-3d;
+    transform-origin: 50% 50% 0;
+    transform: rotateY(var(--cube-rot-y));
+}
+
+.cargo-cube-body-selected .cargo-face-top {
+    outline: 2px solid rgb(14 165 233);
+    outline-offset: -1px;
 }
 
 .cargo-cube-manual {
@@ -1733,19 +2010,87 @@ function formatMm(value) {
     cursor: grabbing;
 }
 
-.cargo-cube-positioned {
-    outline: 2px dashed rgb(2 132 199 / 0.5);
-    outline-offset: 1px;
-}
-
 .cargo-cube-selected {
-    outline: 3px solid rgb(14 165 233);
-    outline-offset: 1px;
     z-index: 20;
 }
 
 .cargo-cube-dragging {
     z-index: 30;
+}
+
+.cargo-cube-staging {
+    outline: 1px dashed rgb(161 161 170 / 0.8);
+    outline-offset: 1px;
+}
+
+.cargo-cube-locked {
+    outline: 3px solid rgb(16 185 129 / 0.9);
+    outline-offset: 1px;
+}
+
+.cargo-cube-overlap {
+    outline: 3px solid rgb(244 63 94 / 0.95);
+    outline-offset: 1px;
+}
+
+.cargo-cube-align-stack-below .cargo-face,
+.cargo-cube-align-stack .cargo-face {
+    filter: brightness(0.7);
+    border-color: rgb(2 132 199 / 0.9);
+}
+
+.cargo-cube-align-stack-below .cargo-face-top {
+    box-shadow: inset 0 0 0 2px rgb(2 132 199 / 0.65);
+}
+
+.cargo-cube-align-edge .cargo-face {
+    filter: brightness(0.82);
+    border-color: rgb(15 23 42 / 0.55);
+}
+
+.cargo-cube-align-edge-left .cargo-face-left,
+.cargo-cube-align-edge-left .cargo-face-top {
+    box-shadow: inset 3px 0 0 rgb(2 132 199 / 0.9);
+}
+
+.cargo-cube-align-edge-right .cargo-face-right,
+.cargo-cube-align-edge-right .cargo-face-top {
+    box-shadow: inset -3px 0 0 rgb(2 132 199 / 0.9);
+}
+
+.cargo-cube-align-edge-front .cargo-face-front,
+.cargo-cube-align-edge-front .cargo-face-top {
+    box-shadow: inset 0 3px 0 rgb(2 132 199 / 0.9);
+}
+
+.cargo-cube-align-edge-back .cargo-face-back,
+.cargo-cube-align-edge-back .cargo-face-top {
+    box-shadow: inset 0 -3px 0 rgb(2 132 199 / 0.9);
+}
+
+.cargo-cube-align-self-stack .cargo-face-top {
+    border-color: rgb(2 132 199);
+    box-shadow: inset 0 0 0 2px rgb(2 132 199 / 0.75);
+}
+
+.cargo-cube-align-self-edge-left .cargo-face-left,
+.cargo-cube-align-self-edge-left .cargo-face-top {
+    box-shadow: inset 3px 0 0 rgb(2 132 199);
+}
+
+.cargo-cube-align-self-edge-right .cargo-face-right,
+.cargo-cube-align-self-edge-right .cargo-face-top {
+    box-shadow: inset -3px 0 0 rgb(2 132 199);
+}
+
+.cargo-cube-align-self-edge-front .cargo-face-front,
+.cargo-cube-align-self-edge-front .cargo-face-top {
+    box-shadow: inset 0 3px 0 rgb(2 132 199);
+}
+
+.cargo-cube-align-self-edge-back .cargo-face-back,
+.cargo-cube-align-self-edge-back .cargo-face-top {
+    box-shadow: inset 0 -3px 0 rgb(2 132 199);
 }
 
 .cargo-face {
@@ -1754,68 +2099,71 @@ function formatMm(value) {
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    border: 1px solid rgb(15 23 42 / 0.26);
+    border: 1px solid rgb(15 23 42 / 0.22);
     background: color-mix(in srgb, var(--cube-color) 76%, white);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+    backface-visibility: hidden;
+    transform-style: preserve-3d;
+}
+
+.cargo-face-bottom {
+    inset: 0;
+    transform: translate3d(0, 0, 0);
+    background: color-mix(in srgb, var(--cube-color) 62%, black);
+    opacity: 0.9;
 }
 
 .cargo-face-top {
     inset: 0;
     gap: 0.25rem;
+    transform: translate3d(0, 0, var(--cube-height));
     background:
         linear-gradient(135deg, rgb(255 255 255 / 0.22), transparent),
         color-mix(in srgb, var(--cube-color) 78%, white);
 }
 
-.cargo-face-bottom {
-    inset: 0;
-    transform: translateZ(calc(-1 * var(--cube-height)));
-    background: color-mix(in srgb, var(--cube-color) 58%, black);
-    opacity: 0.5;
+.cargo-face-front {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--cube-height);
+    transform-origin: bottom center;
+    transform: rotateX(-90deg);
+    background: color-mix(in srgb, var(--cube-color) 68%, black);
+    opacity: 0.8;
 }
 
-.cargo-face-front,
 .cargo-face-back {
     left: 0;
     right: 0;
+    top: 0;
     height: var(--cube-height);
+    transform-origin: top center;
+    transform: rotateX(90deg);
+    background: color-mix(in srgb, var(--cube-color) 86%, white);
     opacity: 0.78;
 }
 
-.cargo-face-front {
-    bottom: calc(-1 * var(--cube-height));
-    transform: rotateX(-90deg);
-    transform-origin: top;
-    background: color-mix(in srgb, var(--cube-color) 68%, black);
-}
-
-.cargo-face-back {
-    top: calc(-1 * var(--cube-height));
-    transform: rotateX(90deg);
-    transform-origin: bottom;
-    background: color-mix(in srgb, var(--cube-color) 86%, white);
-}
-
-.cargo-face-left,
-.cargo-face-right {
-    bottom: 0;
-    top: 0;
-    width: var(--cube-height);
-    opacity: 0.7;
-}
-
 .cargo-face-left {
-    left: calc(-1 * var(--cube-height));
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--cube-height);
+    transform-origin: left center;
     transform: rotateY(-90deg);
-    transform-origin: right;
     background: color-mix(in srgb, var(--cube-color) 54%, black);
+    opacity: 0.76;
 }
 
 .cargo-face-right {
-    right: calc(-1 * var(--cube-height));
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--cube-height);
+    transform-origin: right center;
     transform: rotateY(90deg);
-    transform-origin: left;
     background: color-mix(in srgb, var(--cube-color) 72%, black);
+    opacity: 0.8;
 }
 
 .cargo-direction {
