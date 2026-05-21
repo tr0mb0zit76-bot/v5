@@ -389,6 +389,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->name('finance.index');
     Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');
     Route::patch('/budgeting/scenario', [BudgetingController::class, 'updateScenario'])->name('budgeting.scenario.update');
+    Route::post('/budgeting/opex-articles', [BudgetingController::class, 'storeOpexArticle'])->name('budgeting.opex-articles.store');
+    Route::patch('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'updateOpexArticle'])->name('budgeting.opex-articles.update');
+    Route::delete('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'destroyOpexArticle'])->name('budgeting.opex-articles.destroy');
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area:documents')->name('documents.index');
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');

@@ -1,93 +1,367 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-        <div class="shrink-0 space-y-1">
-            <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Бюджетирование</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                План маржи сверху вниз: безубыточность и целевые дивиденды. Меняйте допущения — график пересчитывается сразу.
-            </p>
+        <div class="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="space-y-1">
+                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Бюджетирование</h1>
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Задаёте цели <strong class="font-medium">или</strong> маржу менеджера — график показывает оба ответа сразу.
+                </p>
+            </div>
+            <div class="flex rounded-xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+                <button
+                    type="button"
+                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                    :class="localInputs.calculation_mode === MODE_TOP_DOWN
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400'"
+                    @click="setMode(MODE_TOP_DOWN)"
+                >
+                    Сверху вниз
+                </button>
+                <button
+                    type="button"
+                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+                    :class="localInputs.calculation_mode === MODE_BOTTOM_UP
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400'"
+                    @click="setMode(MODE_BOTTOM_UP)"
+                >
+                    Снизу вверх
+                </button>
+            </div>
         </div>
 
-        <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(280px,360px)_1fr]">
+        <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(300px,380px)_1fr]">
             <aside class="space-y-4">
                 <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Накладные расходы</h2>
-                    <div class="mt-3 space-y-3">
-                        <label v-for="field in opexFields" :key="field.key" class="block space-y-1">
-                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ field.label }}</span>
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Справочник накладных</h2>
+                        <button
+                            type="button"
+                            class="text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
+                            @click="addOpexArticle"
+                        >
+                            + Статья
+                        </button>
+                    </div>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Фикс ₽/мес или % от маржи компании за месяц. «Первые N мес.» — только в начале (оклады).
+                    </p>
+                    <div class="mt-3 space-y-2">
+                        <div
+                            v-for="article in localOpexArticles"
+                            :key="article.id ?? article._localKey"
+                            class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-700"
+                        >
                             <input
-                                v-model.number="localInputs[field.key]"
+                                v-model="article.name"
+                                type="text"
+                                class="w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                placeholder="Название"
+                                @change="persistOpexArticle(article)"
+                            >
+                            <label class="mt-2 block space-y-0.5">
+                                <span class="text-[10px] uppercase text-zinc-500">Тип</span>
+                                <select
+                                    v-model="article.cost_type"
+                                    class="w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                    @change="persistOpexArticle(article)"
+                                >
+                                    <option value="fixed_monthly">Фиксированная сумма</option>
+                                    <option value="percent_of_margin">% от маржи</option>
+                                </select>
+                            </label>
+                            <div class="mt-2 grid grid-cols-2 gap-2">
+                                <label v-if="article.cost_type !== 'percent_of_margin'" class="space-y-0.5">
+                                    <span class="text-[10px] uppercase text-zinc-500">₽/мес</span>
+                                    <input
+                                        v-model.number="article.amount_monthly"
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        class="w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                        @change="persistOpexArticle(article)"
+                                    >
+                                </label>
+                                <label v-else class="space-y-0.5">
+                                    <span class="text-[10px] uppercase text-zinc-500">% маржи</span>
+                                    <input
+                                        v-model.number="article.percent_of_margin"
+                                        type="number"
+                                        min="0"
+                                        max="99"
+                                        step="0.5"
+                                        class="w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                        @change="persistOpexArticle(article)"
+                                    >
+                                </label>
+                                <label class="space-y-0.5">
+                                    <span class="text-[10px] uppercase text-zinc-500">Первые N мес.</span>
+                                    <input
+                                        v-model.number="article.ramp_months"
+                                        type="number"
+                                        min="1"
+                                        max="36"
+                                        placeholder="всегда"
+                                        class="w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                        @change="persistOpexArticle(article)"
+                                    >
+                                </label>
+                            </div>
+                            <button
+                                v-if="article.id"
+                                type="button"
+                                class="mt-2 text-xs text-rose-600 hover:underline dark:text-rose-400"
+                                @click="removeOpexArticle(article)"
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Команда и вливание</h2>
+                    <div class="mt-3 space-y-3">
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Число менеджеров</span>
+                            <input
+                                v-model.number="localInputs.manager_count"
+                                type="number"
+                                min="1"
+                                max="100"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </label>
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Вливание собственника, ₽</span>
+                            <input
+                                v-model.number="localInputs.owner_investment"
                                 type="number"
                                 min="0"
-                                step="1000"
-                                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                step="10000"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
                             >
                         </label>
+                    </div>
+                </section>
+
+                <section
+                    v-if="localInputs.calculation_mode === MODE_BOTTOM_UP"
+                    class="rounded-2xl border border-sky-200 bg-sky-50/50 p-4 dark:border-sky-900/50 dark:bg-sky-950/20"
+                >
+                    <h2 class="text-sm font-semibold text-sky-900 dark:text-sky-200">Маржа менеджера (ввод)</h2>
+                    <div class="mt-3 space-y-3">
+                        <label class="flex items-start gap-2 text-sm">
+                            <input
+                                v-model="localInputs.use_db_margin_per_manager"
+                                type="checkbox"
+                                class="mt-1 rounded border-zinc-300"
+                            >
+                            <span>Из CRM за {{ db_benchmark.period_months }} мес.
+                                <template v-if="db_benchmark.margin_per_manager_avg">
+                                    ({{ formatMoney(db_benchmark.margin_per_manager_avg) }}/чел)
+                                </template>
+                                <template v-else>— нет данных</template>
+                            </span>
+                        </label>
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Средняя маржа на менеджера, ₽/мес</span>
+                            <input
+                                v-model.number="localInputs.margin_per_manager"
+                                type="number"
+                                min="0"
+                                step="5000"
+                                :disabled="localInputs.use_db_margin_per_manager"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm tabular-nums disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </label>
+                        <p v-if="db_benchmark.company_margin_monthly_avg" class="text-xs text-zinc-600 dark:text-zinc-400">
+                            Средняя маржа компании из базы: {{ formatMoney(db_benchmark.company_margin_monthly_avg) }}/мес
+                            ({{ db_benchmark.active_managers_count }} менеджеров с заказами).
+                        </p>
                     </div>
                 </section>
 
                 <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Менеджеры и старт</h2>
+                    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                        {{ localInputs.calculation_mode === MODE_TOP_DOWN ? 'Цели (сверху вниз)' : 'Хотелки' }}
+                    </h2>
                     <div class="mt-3 space-y-3">
-                        <label v-for="field in teamFields" :key="field.key" class="block space-y-1">
-                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ field.label }}</span>
+                        <label v-if="localInputs.calculation_mode === MODE_TOP_DOWN" class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">План: ноль за месяц, с мес.</span>
                             <input
-                                v-model.number="localInputs[field.key]"
+                                v-model.number="localInputs.breakeven_month"
                                 type="number"
-                                :min="field.min"
-                                :max="field.max"
-                                :step="field.step"
-                                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                min="1"
+                                :max="localInputs.horizon_months"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                            <p class="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                                К месяцу {{ localInputs.breakeven_month }} нужна маржа компании
+                                {{ formatMoney(marginAtPlanMonth) }}
+                                ({{ formatMoney(marginAtPlanMonth / localInputs.manager_count) }} на менеджера), чтобы поток за месяц ≈ 0.
+                                <template v-if="percentRateAtPlanMonth > 0">
+                                    Учтён % от маржи: {{ (percentRateAtPlanMonth * 100).toFixed(1) }}%.
+                                </template>
+                            </p>
+                        </label>
+                        <label v-if="localInputs.calculation_mode === MODE_TOP_DOWN" class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Нулевой денежный поток, мес.</span>
+                            <input
+                                v-model.number="localInputs.cash_zero_month"
+                                type="number"
+                                min="1"
+                                :max="localInputs.horizon_months"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                            <p class="text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                                К месяцу {{ localInputs.cash_zero_month }} накопленный остаток ≥ 0 — маржа компании
+                                {{ formatMoney(marginAtCashZeroMonth) }}
+                                ({{ formatMoney(marginAtCashZeroMonth / localInputs.manager_count) }} / менеджер).
+                                Рампа маржи только растёт: операционный ноль → касса → дивиденды.
+                            </p>
+                        </label>
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Горизонт, мес</span>
+                            <input
+                                v-model.number="localInputs.horizon_months"
+                                type="number"
+                                min="6"
+                                max="36"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </label>
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Дивиденды с мес</span>
+                            <input
+                                v-model.number="localInputs.target_dividends_month"
+                                type="number"
+                                min="1"
+                                :max="localInputs.horizon_months"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </label>
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Дивиденды, ₽/мес</span>
+                            <input
+                                v-model.number="localInputs.target_dividends_amount"
+                                type="number"
+                                min="0"
+                                step="10000"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
                             >
                         </label>
                     </div>
                 </section>
 
-                <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Цели</h2>
-                    <div class="mt-3 space-y-3">
-                        <label v-for="field in goalFields" :key="field.key" class="block space-y-1">
-                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ field.label }}</span>
-                            <input
-                                v-model.number="localInputs[field.key]"
-                                type="number"
-                                :min="field.min"
-                                :max="field.max"
-                                :step="field.step"
-                                class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
-                            >
-                        </label>
-                    </div>
-                </section>
-
-                <div class="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        :disabled="saveForm.processing"
-                        @click="saveScenario"
-                    >
-                        {{ saveForm.processing ? 'Сохранение…' : 'Сохранить сценарий' }}
-                    </button>
-                    <button
-                        type="button"
-                        class="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                        @click="resetToDefaults"
-                    >
-                        Сбросить
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                    :disabled="saveForm.processing"
+                    @click="saveScenario"
+                >
+                    {{ saveForm.processing ? 'Сохранение…' : 'Сохранить параметры' }}
+                </button>
             </aside>
 
             <div class="flex min-h-0 flex-col gap-4">
-                <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <section class="overflow-hidden rounded-2xl border-2 border-sky-200 bg-white shadow-sm dark:border-sky-800 dark:bg-zinc-900">
+                    <div class="border-b border-sky-100 bg-sky-50 px-4 py-3 dark:border-sky-900 dark:bg-sky-950/40">
+                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">План маржи на одного менеджера</h2>
+                        <p class="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                            План на каждого из {{ plan.manager_plan.manager_count }} менеджеров.
+                            <strong class="font-medium">Безубыточность</strong> — накопленный остаток (с вливанием) ≥ 0;
+                            <strong class="font-medium">ноль за месяц</strong> — поток за месяц ≥ 0, касса может быть ещё в минусе.
+                        </p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:bg-zinc-950/60 dark:text-zinc-400">
+                                <tr>
+                                    <th class="px-4 py-3">Месяц</th>
+                                    <th class="px-4 py-3 text-right">Маржа / менеджер</th>
+                                    <th class="px-4 py-3 text-right">Маржа компании</th>
+                                    <th class="px-4 py-3 text-right">Поток за месяц</th>
+                                    <th class="px-4 py-3 text-right">Накоплено</th>
+                                    <th class="px-4 py-3">Отметка</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                <tr
+                                    v-for="row in plan.manager_plan.rows"
+                                    :key="`mp-${row.month}`"
+                                    :class="managerRowClass(row)"
+                                >
+                                    <td class="px-4 py-2.5 font-medium">М{{ row.month }}</td>
+                                    <td class="px-4 py-2.5 text-right text-base font-semibold tabular-nums text-sky-800 dark:text-sky-200">
+                                        {{ formatMoney(row.margin_per_manager) }}
+                                    </td>
+                                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                                        {{ formatMoney(row.margin_company) }}
+                                    </td>
+                                    <td
+                                        class="px-4 py-2.5 text-right tabular-nums"
+                                        :class="row.net_company >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
+                                    >
+                                        {{ formatMoney(row.net_company) }}
+                                    </td>
+                                    <td
+                                        class="px-4 py-2.5 text-right tabular-nums font-medium"
+                                        :class="row.cumulative >= 0 ? 'text-emerald-800 dark:text-emerald-200' : 'text-rose-800 dark:text-rose-300'"
+                                    >
+                                        {{ formatMoney(row.cumulative) }}
+                                    </td>
+                                    <td class="px-4 py-2.5 text-xs text-zinc-500">
+                                        <span v-if="row.tags.includes('cash_be')" class="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Безубыточность</span>
+                                        <span v-if="row.tags.includes('operating_be')" class="ml-1 rounded bg-amber-100 px-2 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Ноль за месяц</span>
+                                        <span v-if="row.tags.includes('plan_milestone')" class="ml-1 rounded bg-sky-100 px-2 py-0.5 text-sky-900 dark:bg-sky-950 dark:text-sky-200">План: покрытие OPEX</span>
+                                        <span v-if="row.tags.includes('cash_zero_plan')" class="ml-1 rounded bg-teal-100 px-2 py-0.5 text-teal-900 dark:bg-teal-950 dark:text-teal-200">Цель: нулевой поток</span>
+                                        <span v-if="row.tags.includes('target')" class="ml-1 rounded bg-violet-100 px-2 py-0.5 text-violet-900 dark:bg-violet-950 dark:text-violet-200">Цель / дивиденды</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section
+                    v-if="planMilestoneCumulativeWarning"
+                    class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+                >
+                    В месяце {{ plan.summary.plan_milestone_month }} по плану маржа покрывает OPEX за этот месяц,
+                    но накопленный остаток ещё {{ formatMoney(planMilestoneCumulativeValue) }} —
+                    прежние убытки и вливание не отбиты.
+                    Цель «нулевой денежный поток» — месяц {{ plan.summary.cash_zero_month ?? localInputs.cash_zero_month }}.
+                    {{ cashBreakevenTimelineText }}.
+                </section>
+
+                <section
+                    v-if="localInputs.calculation_mode === MODE_BOTTOM_UP"
+                    class="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100"
+                >
+                    <strong>Результат «снизу вверх»:</strong>
+                    безубыточность (накопленный остаток ≥ 0) —
+                    <template v-if="plan.summary.breakeven_month_cash">месяц {{ plan.summary.breakeven_month_cash }}</template>
+                    <template v-else-if="plan.summary.breakeven_month_cash_estimated">≈ месяц {{ plan.summary.breakeven_month_cash_estimated }}</template>
+                    <template v-else>не достигается за горизонт</template>;
+                    «ноль за месяц» —
+                    <template v-if="plan.summary.breakeven_month_operating">месяц {{ plan.summary.breakeven_month_operating }}</template>
+                    <template v-else>—</template>;
+                    дивиденды {{ formatMoney(plan.summary.target_dividends_amount) }} возможны с
+                    <template v-if="plan.summary.dividends_feasible_month">месяца {{ plan.summary.dividends_feasible_month }}</template>
+                    <template v-else>— при текущей марже</template>.
+                </section>
+
+                <section class="flex flex-nowrap gap-2 overflow-x-auto pb-0.5">
                     <article
                         v-for="card in summaryCards"
                         :key="card.key"
-                        class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                        class="min-w-[7.5rem] shrink-0 flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
                     >
-                        <div class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{{ card.label }}</div>
-                        <div class="mt-1 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">{{ card.value }}</div>
-                        <p v-if="card.hint" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{{ card.hint }}</p>
+                        <div class="text-[10px] font-medium uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400">{{ card.label }}</div>
+                        <div class="mt-0.5 text-base font-semibold tabular-nums leading-tight text-zinc-900 dark:text-zinc-50">{{ card.value }}</div>
+                        <p v-if="card.hint" class="mt-0.5 text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">{{ card.hint }}</p>
                     </article>
                 </section>
 
@@ -95,53 +369,203 @@
                     v-if="plan.summary.min_cumulative < 0"
                     class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
                 >
-                    Внимание: в модели кассовый остаток уходит в минус ({{ formatMoney(plan.summary.min_cumulative) }}).
-                    Увеличьте вливание, срок выхода на безубыточность или плановую маржу.
+                    Кассовый остаток уходит в минус ({{ formatMoney(plan.summary.min_cumulative) }}). Увеличьте вливание или маржу.
                 </section>
 
                 <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Траектория маржи и кассы</h2>
-                        <div class="flex flex-wrap gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="h-2.5 w-2.5 rounded-sm bg-sky-500" /> Маржа (план)
-                            </span>
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="h-2.5 w-2.5 rounded-sm bg-rose-400" /> OPEX
-                            </span>
-                            <span class="inline-flex items-center gap-1.5">
-                                <span class="h-0.5 w-4 bg-emerald-500" /> Накопленный остаток
-                            </span>
-                        </div>
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Сводный график: два направления расчёта</h2>
+                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                        Один сценарий, два ответа. Линия, которую вы редактируете сейчас, — сплошная; вторая — проверка «а что если».
+                    </p>
+
+                    <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                        <article
+                            class="rounded-xl border-l-4 p-4"
+                            :class="localInputs.calculation_mode === MODE_TOP_DOWN
+                                ? 'border-sky-500 bg-sky-50/80 dark:bg-sky-950/30'
+                                : 'border-zinc-300 bg-zinc-50/50 dark:border-zinc-600 dark:bg-zinc-950/40'"
+                        >
+                            <div class="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200">
+                                Цели → маржа (сверху вниз)
+                            </div>
+                            <ul class="mt-2 space-y-1.5 text-sm text-zinc-800 dark:text-zinc-200">
+                                <li>
+                                    К <strong>мес. {{ localInputs.breakeven_month }}</strong> «ноль за месяц»
+                                    → <strong>{{ formatMoney(dualRead.goalsToMargin.floorPerManager) }}</strong> / менеджер.
+                                </li>
+                                <li>
+                                    К <strong>мес. {{ localInputs.cash_zero_month }}</strong> нулевой денежный поток
+                                    → <strong>{{ formatMoney(dualRead.goalsToMargin.cashPerManager) }}</strong> / менеджер.
+                                </li>
+                                <li>
+                                    Хотите к <strong>мес. {{ localInputs.target_dividends_month }}</strong>
+                                    дивиденды <strong>{{ formatMoney(localInputs.target_dividends_amount) }}</strong>
+                                    → нужно <strong>{{ formatMoney(dualRead.goalsToMargin.targetPerManager) }}</strong> / менеджер (X).
+                                </li>
+                            </ul>
+                        </article>
+
+                        <article
+                            class="rounded-xl border-l-4 p-4"
+                            :class="localInputs.calculation_mode === MODE_BOTTOM_UP
+                                ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-950/30'
+                                : 'border-zinc-300 bg-zinc-50/50 dark:border-zinc-600 dark:bg-zinc-950/40'"
+                        >
+                            <div class="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+                                Маржа → сроки (снизу вверх)
+                            </div>
+                            <p class="mt-2 text-sm text-zinc-800 dark:text-zinc-200">
+                                Если каждый стабильно даёт
+                                <strong>{{ formatMoney(dualRead.marginLevel) }}</strong> / мес:
+                            </p>
+                            <ul class="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                                <li>«Ноль за месяц» — <strong>мес. {{ dualRead.marginToTimeline.operatingMonth ?? '—' }}</strong></li>
+                                <li>Дивиденды {{ formatMoney(localInputs.target_dividends_amount) }} — <strong>мес. {{ dualRead.marginToTimeline.dividendsMonth ?? '—' }}</strong></li>
+                                <li>Безубыточность (касса) — <strong>мес. {{ dualRead.marginToTimeline.cashMonth ?? '—' }}</strong></li>
+                            </ul>
+                        </article>
                     </div>
 
-                    <div class="mt-6 h-64">
+                    <div class="mt-4 flex flex-wrap gap-4 text-xs text-zinc-600 dark:text-zinc-400">
+                        <span class="inline-flex items-center gap-2">
+                            <span
+                                class="h-1 w-6 rounded"
+                                :class="localInputs.calculation_mode === MODE_TOP_DOWN ? 'bg-sky-600' : 'border border-dashed border-sky-600 bg-transparent'"
+                            />
+                            Рампа к целям
+                        </span>
+                        <span class="inline-flex items-center gap-2">
+                            <span
+                                class="h-1 w-6 rounded"
+                                :class="localInputs.calculation_mode === MODE_BOTTOM_UP ? 'bg-amber-500' : 'border border-dashed border-amber-500 bg-transparent'"
+                            />
+                            Стабильная маржа {{ formatManagerShort(dualRead.marginLevel) }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 text-violet-700 dark:text-violet-300">
+                            │ мес. {{ localInputs.target_dividends_month }} — дивиденды
+                        </span>
+                    </div>
+
+                    <div class="mt-3 h-80">
+                        <svg
+                            class="h-full w-full"
+                            :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
+                            preserveAspectRatio="xMidYMid meet"
+                        >
+                            <line
+                                v-for="tick in managerYTicks"
+                                :key="`dual-grid-${tick}`"
+                                :x1="chartPad.left"
+                                :x2="chartWidth - chartPad.right"
+                                :y1="yScaleManager(tick)"
+                                :y2="yScaleManager(tick)"
+                                class="stroke-zinc-200 dark:stroke-zinc-700"
+                                stroke-dasharray="4 4"
+                            />
+
+                            <line
+                                :x1="barX(localInputs.target_dividends_month)"
+                                :x2="barX(localInputs.target_dividends_month)"
+                                :y1="chartPad.top"
+                                :y2="chartHeight - chartPad.bottom"
+                                class="stroke-violet-500/60"
+                                stroke-width="1.5"
+                                stroke-dasharray="5 4"
+                            />
+
+                            <polyline
+                                v-if="goalsRampPolyline"
+                                :points="goalsRampPolyline"
+                                fill="none"
+                                :class="localInputs.calculation_mode === MODE_TOP_DOWN
+                                    ? 'stroke-sky-600 dark:stroke-sky-400'
+                                    : 'stroke-sky-500/50'"
+                                stroke-width="3"
+                                :stroke-dasharray="localInputs.calculation_mode === MODE_TOP_DOWN ? undefined : '8 5'"
+                                stroke-linejoin="round"
+                            />
+
+                            <polyline
+                                v-if="flatMarginPolyline"
+                                :points="flatMarginPolyline"
+                                fill="none"
+                                :class="localInputs.calculation_mode === MODE_BOTTOM_UP
+                                    ? 'stroke-amber-500'
+                                    : 'stroke-amber-500/55'"
+                                stroke-width="2.5"
+                                :stroke-dasharray="localInputs.calculation_mode === MODE_BOTTOM_UP ? undefined : '6 4'"
+                                stroke-linejoin="round"
+                            />
+
+                            <g v-for="point in planFromGoals.months" :key="`goal-dot-${point.month}`">
+                                <circle
+                                    v-if="point.month <= localInputs.target_dividends_month"
+                                    :cx="barX(point.month)"
+                                    :cy="yScaleManager(point.margin_per_manager)"
+                                    r="3.5"
+                                    class="fill-sky-600/90 dark:fill-sky-400"
+                                />
+                            </g>
+
+                            <g v-for="m in timelineMarkers" :key="`tl-${m.kind}-${m.month}`">
+                                <circle
+                                    :cx="barX(m.month)"
+                                    :cy="chartHeight - chartPad.bottom + 6"
+                                    r="4"
+                                    :class="m.dotClass"
+                                />
+                            </g>
+                        </svg>
+                    </div>
+
+                    <div class="mt-2 grid grid-cols-2 gap-1 text-[10px] text-zinc-500 sm:grid-cols-4 sm:text-xs">
+                        <span
+                            v-for="point in planFromGoals.months"
+                            :key="`dual-lbl-${point.month}`"
+                            class="text-center"
+                        >
+                            М{{ point.month }}
+                        </span>
+                    </div>
+
+                    <p
+                        v-if="dualRead.aligned"
+                        class="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    >
+                        Согласовано: при стабильной марже X рампа «от целей» и прогноз «от маржи» дают дивиденды в одном месяце ({{ dualRead.marginToTimeline.dividendsMonth }}).
+                    </p>
+                    <p
+                        v-else-if="dualRead.marginLevel > 0"
+                        class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/40 dark:text-amber-200"
+                    >
+                        Расхождение: рампа требует к мес. {{ localInputs.target_dividends_month }} —
+                        {{ formatMoney(dualRead.goalsToMargin.targetPerManager) }}/менеджер,
+                        а при стабильных {{ formatMoney(dualRead.marginLevel) }} дивиденды наступают в
+                        мес. {{ dualRead.marginToTimeline.dividendsMonth ?? '—' }}.
+                        {{ localInputs.calculation_mode === MODE_TOP_DOWN ? 'Проверьте сроки или маржу.' : 'Подстройте маржу или цели.' }}
+                    </p>
+                </section>
+
+                <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">График: компания (маржа, OPEX, касса)</h2>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Столбцы — маржа и OPEX по месяцам; зелёная линия — накопленный остаток с вливанием.
+                    </p>
+                    <div class="mt-4 h-56">
                         <svg
                             class="h-full w-full"
                             :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
                             preserveAspectRatio="none"
-                            role="img"
-                            aria-label="График плана маржи"
                         >
-                            <line
-                                v-for="tick in yTicks"
-                                :key="`grid-${tick}`"
-                                :x1="chartPad.left"
-                                :x2="chartWidth - chartPad.right"
-                                :y1="yScale(tick)"
-                                :y2="yScale(tick)"
-                                class="stroke-zinc-200 dark:stroke-zinc-700"
-                                stroke-width="1"
-                                stroke-dasharray="4 4"
-                            />
-
                             <g v-for="point in plan.months" :key="`bar-${point.month}`">
                                 <rect
                                     :x="barX(point.month) - barWidth / 2"
                                     :y="yScale(point.margin)"
                                     :width="barWidth * 0.42"
                                     :height="Math.max(0, chartHeight - chartPad.bottom - yScale(point.margin))"
-                                    class="fill-sky-500/80"
+                                    :class="point.month <= localInputs.target_dividends_month
+                                        ? 'fill-sky-500/80'
+                                        : 'fill-sky-500/35'"
                                     rx="2"
                                 />
                                 <rect
@@ -153,63 +577,17 @@
                                     rx="2"
                                 />
                             </g>
-
                             <polyline
                                 :points="cumulativePolyline"
                                 fill="none"
                                 class="stroke-emerald-500"
                                 stroke-width="2.5"
-                                stroke-linejoin="round"
-                            />
-
-                            <circle
-                                v-for="point in plan.months"
-                                :key="`cum-${point.month}`"
-                                :cx="barX(point.month)"
-                                :cy="yScale(point.cumulative)"
-                                r="3"
-                                class="fill-emerald-500"
                             />
                         </svg>
                     </div>
-
-                    <div class="mt-2 flex justify-between gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 sm:text-xs">
-                        <span v-for="point in plan.months" :key="`lbl-${point.month}`" class="flex-1 text-center">
-                            М{{ point.month }}
-                        </span>
+                    <div class="mt-2 flex justify-between text-[10px] text-zinc-500 sm:text-xs">
+                        <span v-for="point in plan.months" :key="`lbl-${point.month}`" class="flex-1 text-center">М{{ point.month }}</span>
                     </div>
-                </section>
-
-                <section class="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                    <table class="min-w-full text-sm">
-                        <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
-                            <tr>
-                                <th class="px-4 py-3">Месяц</th>
-                                <th class="px-4 py-3 text-right">Маржа</th>
-                                <th class="px-4 py-3 text-right">OPEX</th>
-                                <th class="px-4 py-3 text-right">Чистый поток</th>
-                                <th class="px-4 py-3 text-right">Накоплено</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                            <tr
-                                v-for="row in plan.months"
-                                :key="`row-${row.month}`"
-                                :class="highlightRowClass(row.month)"
-                            >
-                                <td class="px-4 py-2 font-medium">М{{ row.month }}</td>
-                                <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.margin) }}</td>
-                                <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.opex) }}</td>
-                                <td
-                                    class="px-4 py-2 text-right tabular-nums"
-                                    :class="row.net >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
-                                >
-                                    {{ formatMoney(row.net) }}
-                                </td>
-                                <td class="px-4 py-2 text-right tabular-nums">{{ formatMoney(row.cumulative) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </section>
             </div>
         </div>
@@ -221,11 +599,17 @@ import { router, useForm } from '@inertiajs/vue3';
 import { computed, reactive, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
-    buildBudgetPlan,
+    MODE_BOTTOM_UP,
+    MODE_TOP_DOWN,
+    buildGoalsToMarginPlan,
+    buildMarginToTimelinePlan,
     defaultBudgetInputs,
     formatBudgetMoney,
+    marginForTargetNet,
+    monthlyFixedOpex,
+    monthlyPercentRate,
     normalizeBudgetInputs,
-} from '@/support/budgetTopDownPlanner';
+} from '@/support/budgetPlanner';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'finance', activeSubKey: 'finance-budgeting' }, () => page),
@@ -234,73 +618,132 @@ defineOptions({
 const props = defineProps({
     inputs: { type: Object, required: true },
     plan: { type: Object, required: true },
+    opex_articles: { type: Array, default: () => [] },
+    db_benchmark: { type: Object, default: () => ({}) },
 });
 
 const localInputs = reactive(normalizeBudgetInputs(props.inputs));
+const localOpexArticles = reactive(props.opex_articles.map((a) => ({
+    cost_type: a.cost_type ?? 'fixed_monthly',
+    ...a,
+})));
 
 watch(
     () => props.inputs,
+    (next) => Object.assign(localInputs, normalizeBudgetInputs(next)),
+    { deep: true },
+);
+
+watch(
+    () => props.opex_articles,
     (next) => {
-        Object.assign(localInputs, normalizeBudgetInputs(next));
+        localOpexArticles.splice(0, localOpexArticles.length, ...next.map((a) => ({
+            cost_type: a.cost_type ?? 'fixed_monthly',
+            ...a,
+        })));
     },
     { deep: true },
 );
 
-const plan = computed(() => buildBudgetPlan(localInputs));
+watch(
+    () => localInputs.breakeven_month,
+    (month) => {
+        if (localInputs.cash_zero_month < month) {
+            localInputs.cash_zero_month = month;
+        }
+    },
+);
 
-const opexFields = [
-    { key: 'office_monthly', label: 'Офис, ₽/мес' },
-    { key: 'accounting_monthly', label: 'Бухгалтерия, ₽/мес' },
-    { key: 'manager_payroll_monthly', label: 'Оклады менеджеров, ₽/мес' },
-    { key: 'manager_payroll_months', label: 'Месяцев с окладами' },
-];
+watch(
+    () => localInputs.cash_zero_month,
+    (month) => {
+        if (localInputs.target_dividends_month < month) {
+            localInputs.target_dividends_month = month;
+        }
+    },
+);
 
-const teamFields = [
-    { key: 'manager_count', label: 'Число менеджеров', min: 1, max: 100, step: 1 },
-    { key: 'owner_investment', label: 'Вливание собственника, ₽', min: 0, max: null, step: 10000 },
-];
+const planFromGoals = computed(() => buildGoalsToMarginPlan(localInputs, localOpexArticles, props.db_benchmark));
 
-const goalFields = [
-    { key: 'horizon_months', label: 'Горизонт, мес', min: 6, max: 36, step: 1 },
-    { key: 'breakeven_month', label: 'Безубыточность, мес', min: 1, max: 36, step: 1 },
-    { key: 'target_dividends_month', label: 'Дивиденды с мес', min: 1, max: 36, step: 1 },
-    { key: 'target_dividends_amount', label: 'Дивиденды, ₽/мес', min: 0, max: null, step: 10000 },
-];
+const mirrorMarginLevel = computed(() => {
+    if (localInputs.calculation_mode === MODE_BOTTOM_UP) {
+        if (localInputs.use_db_margin_per_manager && props.db_benchmark?.margin_per_manager_avg > 0) {
+            return Number(props.db_benchmark.margin_per_manager_avg);
+        }
 
-const summaryCards = computed(() => {
-    const s = plan.value.summary;
+        return Number(localInputs.margin_per_manager) || 0;
+    }
 
-    return [
-        {
-            key: 'margin-be',
-            label: `Маржа компании (мес ${s.breakeven_month})`,
-            value: formatMoney(s.required_margin_breakeven),
-            hint: 'Покрывает накладные — точка безубыточности',
-        },
-        {
-            key: 'margin-target',
-            label: `Маржа компании (мес ${s.target_dividends_month})`,
-            value: formatMoney(s.required_margin_target),
-            hint: 'OPEX + целевые дивиденды',
-        },
-        {
-            key: 'x',
-            label: 'X — цель на менеджера',
-            value: formatMoney(s.manager_target_x),
-            hint: `Средняя маржа при ${s.manager_count} менеджерах`,
-        },
-        {
-            key: 'y',
-            label: 'Y — нижний порог',
-            value: formatMoney(s.manager_floor_y),
-            hint: 'Минимум на безубыточности',
-        },
-    ];
+    return planFromGoals.value.summary.manager_target_x || 0;
 });
 
-const saveForm = useForm({
-    inputs: {},
+const planFromMargin = computed(() => buildMarginToTimelinePlan(
+    localInputs,
+    localOpexArticles,
+    props.db_benchmark,
+    mirrorMarginLevel.value,
+));
+
+const plan = computed(() => (
+    localInputs.calculation_mode === MODE_TOP_DOWN ? planFromGoals.value : planFromMargin.value
+));
+
+const dualRead = computed(() => {
+    const goals = planFromGoals.value.summary;
+    const margin = planFromMargin.value.summary;
+    const level = mirrorMarginLevel.value;
+
+    return {
+        marginLevel: level,
+        goalsToMargin: {
+            floorPerManager: goals.required_margin_breakeven / (goals.manager_count || localInputs.manager_count),
+            cashPerManager: (goals.required_margin_cash_zero ?? 0) / (goals.manager_count || localInputs.manager_count),
+            targetPerManager: goals.manager_target_x,
+        },
+        marginToTimeline: {
+            operatingMonth: margin.breakeven_month_operating,
+            dividendsMonth: margin.dividends_feasible_month,
+            cashMonth: margin.breakeven_month_cash,
+        },
+        aligned: level > 0
+            && margin.dividends_feasible_month !== null
+            && margin.dividends_feasible_month === localInputs.target_dividends_month,
+    };
 });
+
+const timelineMarkers = computed(() => {
+    const m = planFromMargin.value.summary;
+    const markers = [];
+
+    if (m.breakeven_month_operating) {
+        markers.push({ month: m.breakeven_month_operating, kind: 'op', dotClass: 'fill-amber-500' });
+    }
+
+    if (m.dividends_feasible_month) {
+        markers.push({ month: m.dividends_feasible_month, kind: 'div', dotClass: 'fill-violet-500' });
+    }
+
+    if (m.breakeven_month_cash) {
+        markers.push({ month: m.breakeven_month_cash, kind: 'cash', dotClass: 'fill-emerald-500' });
+    }
+
+    return markers;
+});
+
+const marginAtPlanMonth = computed(() => marginForTargetNet(localInputs.breakeven_month, localOpexArticles, 0));
+
+const marginAtCashZeroMonth = computed(() => (
+    planFromGoals.value.summary.required_margin_cash_zero
+    ?? marginForTargetNet(localInputs.cash_zero_month, localOpexArticles, 0)
+));
+
+const percentRateAtPlanMonth = computed(() => monthlyPercentRate(localInputs.breakeven_month, localOpexArticles));
+
+const saveForm = useForm({ inputs: {} });
+
+function setMode(mode) {
+    localInputs.calculation_mode = mode;
+}
 
 function formatMoney(value) {
     return formatBudgetMoney(value);
@@ -308,28 +751,195 @@ function formatMoney(value) {
 
 function saveScenario() {
     saveForm.inputs = normalizeBudgetInputs(localInputs);
-    saveForm.patch(route('budgeting.scenario.update'), {
+    saveForm.patch(route('budgeting.scenario.update'), { preserveScroll: true });
+}
+
+function persistOpexArticle(article) {
+    const payload = {
+        name: article.name,
+        cost_type: article.cost_type || 'fixed_monthly',
+        amount_monthly: article.cost_type === 'percent_of_margin' ? 0 : (Number(article.amount_monthly) || 0),
+        percent_of_margin: article.cost_type === 'percent_of_margin'
+            ? (Number(article.percent_of_margin) || 0)
+            : null,
+        ramp_months: article.ramp_months === '' || article.ramp_months === null ? null : Number(article.ramp_months),
+    };
+
+    if (article.id) {
+        router.patch(route('budgeting.opex-articles.update', article.id), payload, { preserveScroll: true });
+
+        return;
+    }
+
+    router.post(route('budgeting.opex-articles.store'), payload, {
         preserveScroll: true,
+        onSuccess: () => {},
     });
 }
 
-function resetToDefaults() {
-    Object.assign(localInputs, normalizeBudgetInputs(defaultBudgetInputs()));
+function addOpexArticle() {
+    router.post(
+        route('budgeting.opex-articles.store'),
+        { name: 'Новая статья', cost_type: 'fixed_monthly', amount_monthly: 0, percent_of_margin: null, ramp_months: null },
+        { preserveScroll: true },
+    );
 }
 
-function highlightRowClass(month) {
-    const s = plan.value.summary;
+function removeOpexArticle(article) {
+    if (!article.id) {
+        return;
+    }
 
-    if (month === s.breakeven_month || month === s.target_dividends_month) {
-        return 'bg-sky-50/80 dark:bg-sky-950/20';
+    router.delete(route('budgeting.opex-articles.destroy', article.id), { preserveScroll: true });
+}
+
+const planMilestoneCumulativeWarning = computed(() => {
+    if (localInputs.calculation_mode !== MODE_TOP_DOWN || !plan.value.summary.plan_milestone_month) {
+        return false;
+    }
+
+    const row = plan.value.manager_plan.rows.find((r) => r.month === plan.value.summary.plan_milestone_month);
+
+    return row !== undefined && row.cumulative < 0;
+});
+
+const planMilestoneCumulativeValue = computed(() => {
+    const row = plan.value.manager_plan.rows.find((r) => r.month === plan.value.summary.plan_milestone_month);
+
+    return row?.cumulative ?? 0;
+});
+
+const cashBreakevenTimelineText = computed(() => {
+    const s = plan.value.summary;
+    const horizon = localInputs.horizon_months;
+    const plannedCash = s.cash_zero_month ?? localInputs.cash_zero_month;
+
+    if (s.breakeven_month_cash) {
+        if (s.breakeven_month_cash <= plannedCash) {
+            return `Фактическая кассовая безубыточность — месяц ${s.breakeven_month_cash}`;
+        }
+
+        return `По плану касса ≥ 0 к месяцу ${plannedCash}, фактически — месяц ${s.breakeven_month_cash}`;
+    }
+
+    const estimated = s.breakeven_month_cash_estimated;
+
+    if (estimated) {
+        if (estimated <= horizon) {
+            return `При текущей рампе касса ≥ 0 ожидается к месяцу ${estimated} (цель — ${plannedCash})`;
+        }
+
+        return `При текущей рампе касса ≥ 0 достигается в течение ${estimated} месяцев (цель — ${plannedCash}, горизонт ${horizon} мес.)`;
+    }
+
+    return `При текущей рампе касса ≥ 0 не достигается за ${horizon} месяцев (цель — ${plannedCash})`;
+});
+
+function managerRowClass(row) {
+    if (row.tags.includes('cash_be')) {
+        return 'bg-emerald-50/80 dark:bg-emerald-950/25';
+    }
+
+    if (row.tags.includes('cash_zero_plan')) {
+        return 'bg-teal-50/60 dark:bg-teal-950/25';
+    }
+
+    if (row.tags.includes('operating_be') || row.tags.includes('plan_milestone')) {
+        return 'bg-amber-50/50 dark:bg-amber-950/20';
+    }
+
+    if (row.tags.includes('target')) {
+        return 'bg-violet-50/50 dark:bg-violet-950/20';
     }
 
     return '';
 }
 
+const summaryCards = computed(() => {
+    const s = plan.value.summary;
+    const cards = [];
+
+    const cashBeValue = s.breakeven_month_cash
+        ? `Месяц ${s.breakeven_month_cash}`
+        : (s.breakeven_month_cash_estimated ? `~${s.breakeven_month_cash_estimated} мес.` : '—');
+    const cashBeHint = s.breakeven_month_cash
+        ? 'Накопленный остаток ≥ 0'
+        : (s.breakeven_month_cash_estimated ? 'Оценка при текущем потоке' : 'Не в горизонте');
+
+    if (localInputs.calculation_mode === MODE_BOTTOM_UP) {
+        cards.push(
+            {
+                key: 'be-cash',
+                label: 'Безубыточность',
+                value: cashBeValue,
+                hint: cashBeHint,
+            },
+            {
+                key: 'be-op',
+                label: 'Ноль за месяц',
+                value: s.breakeven_month_operating ? `Месяц ${s.breakeven_month_operating}` : '—',
+                hint: 'Поток за месяц ≥ 0',
+            },
+            {
+                key: 'margin-co',
+                label: 'Маржа компании / мес',
+                value: formatMoney(s.company_margin_monthly),
+                hint: `${formatMoney(s.margin_per_manager_used)} × ${s.manager_count} менеджеров`,
+            },
+        );
+    } else {
+        cards.push(
+            {
+                key: 'be-cash',
+                label: 'Безубыточность',
+                value: cashBeValue,
+                hint: cashBeHint,
+            },
+            {
+                key: 'be-op',
+                label: 'Ноль за месяц',
+                value: s.breakeven_month_operating ? `Месяц ${s.breakeven_month_operating}` : '—',
+                hint: 'Первый месяц: поток ≥ 0',
+            },
+            {
+                key: 'cash-plan',
+                label: 'Нулевой поток (план)',
+                value: s.cash_zero_month ? `Месяц ${s.cash_zero_month}` : '—',
+                hint: 'Накопленный остаток ≥ 0',
+            },
+            {
+                key: 'plan-ms',
+                label: 'Ноль за месяц (план)',
+                value: s.plan_milestone_month ? `Месяц ${s.plan_milestone_month}` : '—',
+                hint: 'Поток за месяц ≥ 0',
+            },
+        );
+    }
+
+    cards.push(
+        {
+            key: 'x',
+            label: 'X — цель на менеджера',
+            value: formatMoney(s.manager_target_x),
+            hint: localInputs.calculation_mode === MODE_BOTTOM_UP
+                ? 'Заданная / из CRM маржа'
+                : `К месяцу ${localInputs.target_dividends_month} (дивиденды)`,
+        },
+        {
+            key: 'y',
+            label: 'Y — нижний порог',
+            value: formatMoney(s.manager_floor_y),
+            hint: 'При кассовой безубыточности',
+        },
+    );
+
+    return cards;
+});
+
 const chartWidth = 720;
 const chartHeight = 256;
 const chartPad = { top: 12, right: 12, bottom: 28, left: 12 };
+
 const barWidth = computed(() => {
     const count = plan.value.months.length || 1;
     const inner = chartWidth - chartPad.left - chartPad.right;
@@ -343,12 +953,54 @@ const chartMaxValue = computed(() => {
     return Math.max(1, ...values.map((v) => Math.abs(Number(v) || 0)));
 });
 
-const yTicks = computed(() => {
-    const max = chartMaxValue.value;
-    const step = Math.ceil(max / 4 / 50000) * 50000 || 50000;
+const managerChartMax = computed(() => {
+    const fromGoals = planFromGoals.value.months.map((p) => Number(p.margin_per_manager) || 0);
+    const flat = mirrorMarginLevel.value;
 
-    return [0, step, step * 2, step * 3, step * 4].filter((t) => t <= max * 1.1);
+    return Math.max(1, ...fromGoals, flat);
 });
+
+const managerYTicks = computed(() => {
+    const max = managerChartMax.value * 1.15;
+    const step = Math.ceil(max / 4 / 25000) * 25000 || 25000;
+
+    return [0, step, step * 2, step * 3, step * 4].filter((t) => t <= max);
+});
+
+function yScaleManager(value) {
+    const max = managerChartMax.value * 1.15;
+    const inner = chartHeight - chartPad.top - chartPad.bottom;
+    const ratio = Math.min(1, Math.max(0, Number(value) / max));
+
+    return chartHeight - chartPad.bottom - inner * ratio;
+}
+
+const goalsRampPolyline = computed(() => {
+    const endMonth = localInputs.target_dividends_month;
+
+    return planFromGoals.value.months
+        .filter((p) => p.month <= endMonth)
+        .map((p) => `${barX(p.month)},${yScaleManager(p.margin_per_manager)}`)
+        .join(' ');
+});
+
+const flatMarginPolyline = computed(() => {
+    const level = mirrorMarginLevel.value;
+
+    if (level <= 0) {
+        return '';
+    }
+
+    return planFromGoals.value.months
+        .map((p) => `${barX(p.month)},${yScaleManager(level)}`)
+        .join(' ');
+});
+
+function formatManagerShort(value) {
+    const n = Math.round(Number(value) / 1000);
+
+    return `${n}k`;
+}
 
 function yScale(value) {
     const max = chartMaxValue.value * 1.1;
@@ -361,9 +1013,8 @@ function yScale(value) {
 function barX(month) {
     const count = plan.value.months.length || 1;
     const inner = chartWidth - chartPad.left - chartPad.right;
-    const slot = inner / count;
 
-    return chartPad.left + slot * (month - 0.5);
+    return chartPad.left + (inner / count) * (month - 0.5);
 }
 
 const cumulativePolyline = computed(() => plan.value.months
