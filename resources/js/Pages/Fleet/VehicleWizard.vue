@@ -20,6 +20,15 @@
                     </h2>
                 </div>
             </div>
+            <button
+                type="button"
+                :class="crmBtnCreate"
+                :disabled="form.processing || !form.owner_contractor_id"
+                @click="submitMain"
+            >
+                <Save class="h-4 w-4" />
+                Сохранить
+            </button>
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -86,16 +95,6 @@
                     <textarea v-model="form.notes" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950" />
                 </div>
 
-                <div class="flex justify-end gap-2">
-                    <button type="button" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm dark:border-zinc-700" @click="$emit('close')">Закрыть</button>
-                    <button
-                        type="submit"
-                        :class="crmBtnCreate"
-                        :disabled="form.processing || !form.owner_contractor_id"
-                    >
-                        Сохранить
-                    </button>
-                </div>
             </form>
 
             <FleetEntityDocumentsSection
@@ -114,7 +113,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import { X } from 'lucide-vue-next';
+import { Save, X } from 'lucide-vue-next';
 import FleetEntityDocumentsSection from '@/Components/Fleet/FleetEntityDocumentsSection.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 
