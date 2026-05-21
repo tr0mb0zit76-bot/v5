@@ -120,6 +120,7 @@ class UserManagementController extends Controller
             ],
             'is_active' => $user->is_active,
             'has_signing_authority' => (bool) $user->has_signing_authority,
+            'belongs_to_management' => (bool) $user->belongs_to_management,
             'signing_own_company_ids' => $signingOwnCompanyIds,
             'signing_own_companies_unrestricted' => $user->signingOwnCompaniesUnrestricted(),
             'signing_own_companies_label' => $this->signingOwnCompaniesLabel($user, $signingOwnCompanyIds),

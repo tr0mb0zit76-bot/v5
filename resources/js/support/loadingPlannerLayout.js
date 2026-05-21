@@ -113,6 +113,48 @@ export function snapshotPlacementsFromBlocks(blocks) {
     return placements;
 }
 
+export function verticalStackGapMm(placementGapMm = null) {
+    return placementGapMm === 0 ? 0 : Number(placementGapMm ?? 0);
+}
+
+export function formatRulerMeters(mm) {
+    const meters = mm / 1000;
+    if (Math.abs(meters - Math.round(meters)) < 0.001) {
+        return String(Math.round(meters));
+    }
+
+    return meters.toFixed(2).replace(/\.?0+$/, '');
+}
+
+export function buildLengthRulerTicks(lengthMm) {
+    const ticks = [{ mm: 0, label: '0' }];
+    const stepMm = 3000;
+
+    for (let mm = stepMm; mm < lengthMm; mm += stepMm) {
+        ticks.push({ mm, label: formatRulerMeters(mm) });
+    }
+
+    if (ticks[ticks.length - 1].mm !== lengthMm) {
+        ticks.push({ mm: lengthMm, label: formatRulerMeters(lengthMm) });
+    }
+
+    return ticks;
+}
+
+export function buildWidthRulerTicks(widthMm) {
+    const ticks = [{ mm: 0, label: '0' }];
+
+    if (widthMm > 1000) {
+        ticks.push({ mm: 1000, label: '1' });
+    }
+
+    if (ticks[ticks.length - 1].mm !== widthMm) {
+        ticks.push({ mm: widthMm, label: formatRulerMeters(widthMm) });
+    }
+
+    return ticks;
+}
+
 export function placementGridStep(length, width, placementGapMm = null) {
     if (placementGapMm === 0) {
         return 1;
@@ -221,8 +263,9 @@ export function placementAllowedForItem(item, placedBlocks, candidate, transport
 /**
  * Верхняя точка укладки при ручном переносе в кузов (кладём на стопку, а не под неё).
  */
-export function findTopSupportedZForBlock(footprint, others, transport) {
+export function findTopSupportedZForBlock(footprint, others, transport, options = {}) {
     const unitHeight = Number(footprint.unit_height ?? footprint.height ?? 1);
+    const stackGapMm = verticalStackGapMm(options.placementGapMm ?? null);
     let stackTop = 0;
 
     for (const other of others) {
@@ -230,11 +273,14 @@ export function findTopSupportedZForBlock(footprint, others, transport) {
             continue;
         }
 
-        stackTop = Math.max(stackTop, Number(other.z || 0) + Number(other.unit_height || other.height || 0));
+        stackTop = Math.max(
+            stackTop,
+            Number(other.z || 0) + Number(other.unit_height || other.height || 0) + stackGapMm,
+        );
     }
 
     if (stackTop + unitHeight > transport.height_mm) {
-        return findSupportedZForBlock(footprint, others, transport);
+        return findSupportedZForBlock(footprint, others, transport, options);
     }
 
     const candidate = {
@@ -248,7 +294,7 @@ export function findTopSupportedZForBlock(footprint, others, transport) {
     };
 
     if (others.some((other) => blocksOverlap3D(candidate, other))) {
-        return findSupportedZForBlock(footprint, others, transport);
+        return findSupportedZForBlock(footprint, others, transport, options);
     }
 
     return stackTop;
@@ -294,7 +340,7 @@ export function findBestAutoPlacement(bounds, placedBlocks, item, transport, opt
                         width,
                         unit_height: unitHeight,
                     };
-                    const z = findSupportedZForBlock(probe, placedBlocks, transport);
+                    const z = findSupportedZForBlock(probe, placedBlocks, transport, { placementGapMm });
                     const candidate = {
                         ...probe,
                         z,
@@ -339,14 +385,35 @@ export function unitIndexFromKey(key) {
 }
 
 /**
+ * Ключ порядка отрисовки в изометрии: дальние/нижние ярусы раньше, ближние и верхние — позже.
+ */
+export function sceneBlockPaintOrder(block) {
+    return Number(block.x ?? 0)
+        + Number(block.y ?? 0)
+        + Number(block.z ?? 0) * 2;
+}
+
+export function sortBlocksForScenePaint(blocks) {
+    return [...blocks].sort((left, right) => {
+        const orderDiff = sceneBlockPaintOrder(left) - sceneBlockPaintOrder(right);
+        if (orderDiff !== 0) {
+            return orderDiff;
+        }
+
+        return unitIndexFromKey(left.key) - unitIndexFromKey(right.key);
+    });
+}
+
+/**
  * Находит нижний допустимый Z для footprint с учётом уже занятых мест (пол, ярусы, разный размер).
  */
-export function findSupportedZForBlock(footprint, others, transport) {
+export function findSupportedZForBlock(footprint, others, transport, options = {}) {
     const x = Number(footprint.x);
     const y = Number(footprint.y);
     const length = Number(footprint.length);
     const width = Number(footprint.width);
     const unitHeight = Number(footprint.unit_height ?? footprint.height ?? 1);
+    const stackGapMm = verticalStackGapMm(options.placementGapMm ?? null);
     const candidates = [0];
 
     for (const other of others) {
@@ -354,7 +421,7 @@ export function findSupportedZForBlock(footprint, others, transport) {
             continue;
         }
 
-        const top = Number(other.z || 0) + Number(other.unit_height || other.height || 0);
+        const top = Number(other.z || 0) + Number(other.unit_height || other.height || 0) + stackGapMm;
         if (top + unitHeight <= transport.height_mm) {
             candidates.push(top);
         }
@@ -384,6 +451,33 @@ export function findSupportedZForBlock(footprint, others, transport) {
 /**
  * Один столбик: центр места попадает в footprint соседа (или наоборот), без «зацепа» соседних рядов.
  */
+const LIFT_CLEARANCE_MM = 5;
+
+export function blockHasCargoAbove(block, blocks, tolerance = LIFT_CLEARANCE_MM) {
+    const blockTop = Number(block.z || 0) + Number(block.unit_height || block.height || 0);
+
+    return blocks.some((other) => {
+        if (other.key === block.key) {
+            return false;
+        }
+
+        if (!blocksOverlapXY(block, other)) {
+            return false;
+        }
+
+        return Number(other.z || 0) >= blockTop - tolerance;
+    });
+}
+
+/** Маджонг: снять можно только место без груза сверху (в кузове). */
+export function blockCanBeLifted(block, blocks, transport, tolerance = LIFT_CLEARANCE_MM) {
+    if (!blockInTrailer(block, transport)) {
+        return true;
+    }
+
+    return !blockHasCargoAbove(block, blocks, tolerance);
+}
+
 export function blocksShareStackColumn(a, b) {
     if (!blocksOverlapXY(a, b)) {
         return false;
@@ -454,7 +548,7 @@ export function settleTrailerBlocks(blocks, transport, options = {}) {
             }
 
             const others = blocks.filter((other) => other.key !== block.key);
-            const nextZ = findSupportedZForBlock(block, others, transport);
+            const nextZ = findSupportedZForBlock(block, others, transport, options);
 
             if (Number(block.z) !== nextZ) {
                 block.z = nextZ;
@@ -695,6 +789,7 @@ function buildLayoutFromFrozenBase(transport, items, basePlacements, manualOverr
     settleTrailerBlocks(blocks, transport, {
         excludeKeys: options.excludeSettleKeys ?? new Set(),
         freezeKeys: options.freezeSettleKeys ?? new Set(),
+        placementGapMm: options.placementGapMm ?? null,
     });
 
     const warnings = manualPlacementWarnings(transport, bounds, blocks);
@@ -863,6 +958,7 @@ export function calculateLayout(transport, items, manualOverrides = {}, options 
         return buildLayoutFromFrozenBase(transport, items, basePlacements, manualOverrides, {
             excludeSettleKeys,
             freezeSettleKeys,
+            placementGapMm,
         });
     }
 

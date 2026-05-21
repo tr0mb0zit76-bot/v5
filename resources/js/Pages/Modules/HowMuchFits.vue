@@ -232,15 +232,50 @@
                                         <div ref="deckEl" class="scene-deck" :style="deckStyle">
                                             <div class="staging-pad" />
                                             <div class="trailer-zone" :style="trailerZoneStyle">
-                                                <div class="trailer-floor"><span class="floor-label">Пол прицепа</span></div>
-                                                <div class="trailer-grid" />
+                                                <div class="trailer-cage" :style="trailerCageStyle">
+                                                    <span class="trailer-cage-face trailer-cage-face-bottom" />
+                                                    <span class="trailer-cage-face trailer-cage-face-top" />
+                                                    <span class="trailer-cage-face trailer-cage-face-front" />
+                                                    <span class="trailer-cage-face trailer-cage-face-back" />
+                                                    <span class="trailer-cage-face trailer-cage-face-left" />
+                                                    <span class="trailer-cage-face trailer-cage-face-right" />
+                                                </div>
+                                                <div class="trailer-floor" />
+                                                <div class="trailer-grid" :style="trailerGridStyle" />
+                                                <div class="trailer-rulers" aria-hidden="true">
+                                                    <div class="trailer-ruler trailer-ruler-length">
+                                                        <span
+                                                            v-for="tick in lengthRulerTicks"
+                                                            :key="`len-${tick.mm}`"
+                                                            class="trailer-ruler-tick"
+                                                            :style="{ left: `${(tick.mm / selectedTransport.length_mm) * 100}%` }"
+                                                        >
+                                                            <span class="trailer-ruler-mark" />
+                                                            <span class="trailer-ruler-label">{{ tick.label }}</span>
+                                                        </span>
+                                                    </div>
+                                                    <div class="trailer-ruler trailer-ruler-width">
+                                                        <span
+                                                            v-for="tick in widthRulerTicks"
+                                                            :key="`wid-${tick.mm}`"
+                                                            class="trailer-ruler-tick"
+                                                            :style="{ top: `${(tick.mm / selectedTransport.width_mm) * 100}%` }"
+                                                        >
+                                                            <span class="trailer-ruler-mark" />
+                                                            <span class="trailer-ruler-label">{{ tick.label }}</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div
                                                 v-for="block in sceneBlocks"
                                                 :key="block.key"
                                                 class="cargo-cube"
                                                 :class="[
-                                                    manualMode ? 'cargo-cube-manual' : '',
+                                                    Number(block.z) > 0 ? 'cargo-cube-elevated' : '',
+                                                    blockUnderStack(block) ? 'cargo-cube-under-stack' : '',
+                                                    manualMode && canLiftBlock(block) ? 'cargo-cube-manual' : '',
+                                                    manualMode && !canLiftBlock(block) ? 'cargo-cube-covered' : '',
                                                     selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
                                                     block.locked ? 'cargo-cube-locked' : '',
                                                     block.in_trailer ? '' : 'cargo-cube-staging',
@@ -253,20 +288,22 @@
                                                 @pointerdown.stop.prevent="startBlockDrag($event, block)"
                                                 @click.stop="selectBlock(block)"
                                             >
-                                                <div
-                                                    class="cargo-cube-body"
-                                                    :class="{ 'cargo-cube-body-selected': selectedBlockKey === block.key }"
-                                                    :style="cubeBodyStyle(block)"
-                                                >
-                                                    <span class="cargo-face cargo-face-bottom" />
-                                                    <span class="cargo-face cargo-face-top">
-                                                        <span class="cargo-direction" :style="cubeDirectionStyle(block)">→</span>
-                                                        <span v-if="block.stack_count > 1">{{ block.stack_count }}</span>
-                                                    </span>
-                                                    <span class="cargo-face cargo-face-front" />
-                                                    <span class="cargo-face cargo-face-back" />
-                                                    <span class="cargo-face cargo-face-left" />
-                                                    <span class="cargo-face cargo-face-right" />
+                                                <div class="cargo-cube-lift" :style="cubeLiftStyle(block)">
+                                                    <div
+                                                        class="cargo-cube-body"
+                                                        :class="{ 'cargo-cube-body-selected': selectedBlockKey === block.key }"
+                                                        :style="cubeBodyStyle(block)"
+                                                    >
+                                                        <span class="cargo-face cargo-face-bottom" />
+                                                        <span class="cargo-face cargo-face-top">
+                                                            <span class="cargo-direction" :style="cubeDirectionStyle(block)">→</span>
+                                                            <span v-if="block.stack_count > 1">{{ block.stack_count }}</span>
+                                                        </span>
+                                                        <span class="cargo-face cargo-face-front" />
+                                                        <span class="cargo-face cargo-face-back" />
+                                                        <span class="cargo-face cargo-face-left" />
+                                                        <span class="cargo-face cargo-face-right" />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -276,7 +313,8 @@
                             </div>
                             <div v-if="manualMode && selectedBlock" class="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:text-zinc-300 print:hidden">
                                 <span class="font-semibold">{{ selectedBlock.name }}</span>
-                                <span v-if="selectedBlock.locked" class="ml-2 text-emerald-600">зафиксирован</span>
+                                <span v-if="selectedBlock.locked" class="ml-2 text-emerald-600 dark:text-emerald-400">зафиксирован</span>
+                                <span v-else-if="!canLiftBlock(selectedBlock)" class="ml-2 text-amber-700 dark:text-amber-300">— сверху есть груз, снять нельзя</span>
                                 <span v-else class="ml-2">— отпустите для фиксации, Enter — вручную</span>
                             </div>
                         </div>
@@ -405,7 +443,7 @@
                     </div>
                     <div v-if="cargoItemDraft.stackable">
                         <label class="label">Макс. ярусов</label>
-                        <input v-model.number="cargoItemDraft.max_stack" type="number" min="1" max="20" class="field" />
+                        <input v-model.number="cargoItemDraft.max_stack" type="number" min="1" max="20" class="field" :placeholder="String(DEFAULT_MAX_STACK)" />
                     </div>
                 </div>
                 <div class="mt-6 flex justify-between gap-3">
@@ -472,17 +510,23 @@ import {
     buildSceneBounds,
     calculateLayout,
     clientPointToSceneMm,
+    blockCanBeLifted,
+    buildLengthRulerTicks,
+    buildWidthRulerTicks,
     computeSeriesAlignHints,
     findSupportedZForBlock,
     findTopSupportedZForBlock,
     placementRotationY,
     placementRotationZ,
     snapshotPlacementsFromBlocks,
+    sortBlocksForScenePaint,
 } from '@/support/loadingPlannerLayout.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'modules', activeSubKey: 'modules-how-much-fits' }, () => page),
 });
+
+const DEFAULT_MAX_STACK = 5;
 
 const props = defineProps({
     projects: { type: Array, default: () => [] },
@@ -667,7 +711,7 @@ const layoutResult = computed(() => {
 const selectedBlock = computed(() => layoutResult.value.blocks.find((block) => block.key === selectedBlockKey.value) ?? null);
 
 const sceneBlocks = computed(() => {
-    const blocks = layoutResult.value.blocks;
+    let blocks = sortBlocksForScenePaint(layoutResult.value.blocks);
     const topKey = blockDrag.value?.key ?? selectedBlockKey.value;
     if (!topKey) {
         return blocks;
@@ -724,6 +768,53 @@ const truckShadowStyle = computed(() => {
     };
 });
 
+const trailerCageStyle = computed(() => {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return {};
+    }
+
+    const cageHeightPx = Math.max(8, transport.height_mm * sceneZScalePxPerMm(transport));
+
+    return {
+        '--cage-height': `${cageHeightPx}px`,
+    };
+});
+
+const trailerGridStyle = computed(() => {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return {};
+    }
+
+    const minorX = (1000 / transport.length_mm) * 100;
+    const minorY = (1000 / transport.width_mm) * 100;
+    const majorX = (3000 / transport.length_mm) * 100;
+    const majorY = (3000 / transport.width_mm) * 100;
+
+    return {
+        backgroundSize: `${minorX}% ${minorY}%, ${majorX}% ${majorY}%`,
+    };
+});
+
+const lengthRulerTicks = computed(() => {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return [];
+    }
+
+    return buildLengthRulerTicks(transport.length_mm);
+});
+
+const widthRulerTicks = computed(() => {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return [];
+    }
+
+    return buildWidthRulerTicks(transport.width_mm);
+});
+
 const sceneShellStyle = computed(() => ({
     transform: `translate(${scenePanX.value}px, ${scenePanY.value}px) scale(${sceneZoom.value})`,
 }));
@@ -752,6 +843,20 @@ watch(manualMode, (enabled) => {
         }
     }
 });
+
+watch(
+    () => cargoItemDraft.value?.stackable,
+    (stackable, previous) => {
+        if (!cargoItemDraft.value || !stackable || previous === stackable) {
+            return;
+        }
+
+        const current = Number(cargoItemDraft.value.max_stack || 0);
+        if (current < DEFAULT_MAX_STACK) {
+            cargoItemDraft.value.max_stack = DEFAULT_MAX_STACK;
+        }
+    },
+);
 
 watch(tightPacking, () => {
     basePlacementsCache.value = {};
@@ -858,7 +963,7 @@ function blankCargoItem(color = '#60a5fa') {
         weight_kg: 100,
         can_rotate: true,
         stackable: false,
-        max_stack: 1,
+        max_stack: DEFAULT_MAX_STACK,
         can_tilt: false,
         color,
     };
@@ -1032,7 +1137,9 @@ function projectPayload() {
             tight_packing: tightPacking.value,
             selected_manual_key: selectedBlockKey.value,
             manual_placements: manualPlacements.value,
-            base_placements: basePlacementsCache.value,
+            base_placements: manualMode.value
+                ? snapshotPlacementsFromBlocks(layoutResult.value.blocks)
+                : basePlacementsCache.value,
             scene_view: {
                 rotation_x: sceneRotationX.value,
                 rotation_z: sceneRotationZ.value,
@@ -1056,7 +1163,7 @@ function projectPayload() {
                 weight_kg: Number(item.weight_kg || 0),
                 can_rotate: Boolean(item.can_rotate),
                 stackable: Boolean(item.stackable),
-                max_stack: Number(item.max_stack || 1),
+                max_stack: Number(item.stackable ? (item.max_stack || DEFAULT_MAX_STACK) : (item.max_stack || 1)),
                 can_tilt: Boolean(item.can_tilt),
                 color: item.color,
             })),
@@ -1119,25 +1226,41 @@ function deleteTransportTemplate(template) {
     }
 }
 
+function sceneZScalePxPerMm(transport) {
+    return 92 / transport.height_mm;
+}
+
+function layoutZOptions() {
+    return { placementGapMm: layoutOptions.value.placementGapMm };
+}
+
 function cubePositionStyle(block) {
     const bounds = sceneBounds.value;
-    const transport = selectedTransport.value;
-    if (!bounds || !transport) {
+    if (!bounds) {
         return {};
     }
-
-    const zScale = 92 / transport.height_mm;
-    const cubeHeightPx = Math.max(4, block.unit_height * zScale);
-    const zOffsetPx = Number(block.z || 0) * zScale;
 
     return {
         left: `${(block.x - bounds.min_x) / bounds.total_length_mm * 100}%`,
         top: `${(block.y - bounds.min_y) / bounds.total_width_mm * 100}%`,
         width: `${block.length / bounds.total_length_mm * 100}%`,
         height: `${block.width / bounds.total_width_mm * 100}%`,
-        zIndex: Math.round(10 + block.y + block.x / 100 + (block.z || 0) / 1000),
-        transform: `translateZ(${zOffsetPx}px)`,
         '--cube-color': block.color || '#60a5fa',
+    };
+}
+
+function cubeLiftStyle(block) {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return {};
+    }
+
+    const zScale = sceneZScalePxPerMm(transport);
+    const cubeHeightPx = Math.max(4, block.unit_height * zScale);
+    const zOffsetPx = Number(block.z || 0) * zScale;
+
+    return {
+        transform: `translateZ(${zOffsetPx}px)`,
         '--cube-height': `${cubeHeightPx}px`,
     };
 }
@@ -1191,6 +1314,22 @@ function cubeAlignGuideClasses(block) {
         match.front ? 'cargo-cube-align-edge-front' : '',
         match.back ? 'cargo-cube-align-edge-back' : '',
     ].filter(Boolean);
+}
+
+function canLiftBlock(block) {
+    if (!selectedTransport.value) {
+        return true;
+    }
+
+    return blockCanBeLifted(block, layoutResult.value.blocks, selectedTransport.value);
+}
+
+function blockUnderStack(block) {
+    if (!selectedTransport.value || !block.in_trailer) {
+        return false;
+    }
+
+    return !blockCanBeLifted(block, layoutResult.value.blocks, selectedTransport.value);
 }
 
 function refreshDragAlignHints(block, x, y, z) {
@@ -1271,10 +1410,10 @@ function resolvePlacementZ(key, x, y, length, width, unitHeight, { preferTop = t
     const others = layoutResult.value.blocks.filter((block) => block.key !== key);
 
     if (preferTop) {
-        return findTopSupportedZForBlock(probe, others, transport);
+        return findTopSupportedZForBlock(probe, others, transport, layoutZOptions());
     }
 
-    return findSupportedZForBlock(probe, others, transport);
+    return findSupportedZForBlock(probe, others, transport, layoutZOptions());
 }
 
 function placementWouldOverlap(key, x, y, length, width, unitHeight) {
@@ -1449,6 +1588,12 @@ function startBlockDrag(event, block) {
     if (!manualMode.value || !selectedTransport.value || !deckEl.value) {
         return;
     }
+
+    if (!canLiftBlock(block)) {
+        selectBlock(block);
+        return;
+    }
+
     event.preventDefault();
     selectBlock(block);
     const placement = ensureManualPlacement(block);
@@ -1524,8 +1669,9 @@ function onPointerMove(event) {
         const pointer = clientPointToSceneMm(event.clientX, event.clientY, deckRect, sceneBounds.value, sceneRotationZ.value);
         const block = selectedBlock.value;
         const placement = ensureManualPlacement(block);
-        const nextX = Math.round((pointer.x + blockDrag.value.grabOffsetX) / 5) * 5;
-        const nextY = Math.round((pointer.y + blockDrag.value.grabOffsetY) / 5) * 5;
+        const snapStep = tightPacking.value ? 1 : 5;
+        const nextX = Math.round((pointer.x + blockDrag.value.grabOffsetX) / snapStep) * snapStep;
+        const nextY = Math.round((pointer.y + blockDrag.value.grabOffsetY) / snapStep) * snapStep;
         const overlaps = placementWouldOverlap(
             blockDrag.value.key,
             nextX,
@@ -1678,35 +1824,25 @@ function formatMm(value) {
 .panel {
     display: flex;
     flex-direction: column;
-    border: 1px solid rgb(228 228 231);
-    border-radius: 1.5rem;
-    background: white;
-    box-shadow: 0 10px 30px rgb(15 23 42 / 0.06);
-}
-
-:global(.dark) .panel {
-    border-color: rgb(39 39 42);
-    background: rgb(24 24 27);
+    border: 1px solid rgb(var(--crm-border));
+    border-radius: var(--crm-radius-xl);
+    background: rgb(var(--crm-surface));
+    box-shadow: 0 10px 30px rgb(var(--crm-shadow) / 0.06);
 }
 
 .field {
     width: 100%;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(228 228 231);
-    background: white;
+    border-radius: var(--crm-radius-md);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     outline: none;
 }
 
 .field:focus {
-    border-color: rgb(14 165 233);
-}
-
-:global(.dark) .field {
-    border-color: rgb(63 63 70);
-    background: rgb(9 9 11);
-    color: rgb(244 244 245);
+    border-color: rgb(var(--crm-accent));
 }
 
 .label {
@@ -1714,7 +1850,7 @@ function formatMm(value) {
     display: block;
     font-size: 0.75rem;
     font-weight: 600;
-    color: rgb(82 82 91);
+    color: rgb(var(--crm-text-muted));
 }
 
 .primary-action,
@@ -1728,14 +1864,14 @@ function formatMm(value) {
 }
 
 .primary-action {
-    background: rgb(2 132 199);
+    background: rgb(var(--crm-accent));
     color: white;
 }
 
 .secondary-action {
-    border: 1px solid rgb(228 228 231);
-    background: white;
-    color: rgb(39 39 42);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
 }
 
 .danger-action {
@@ -1749,12 +1885,12 @@ function formatMm(value) {
     width: 2rem;
     align-items: center;
     justify-content: center;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(186 230 253);
-    background: white;
+    border-radius: var(--crm-radius-md);
+    border: 1px solid rgb(var(--crm-accent) / 0.35);
+    background: rgb(var(--crm-surface));
     font-size: 0.875rem;
     font-weight: 800;
-    color: rgb(2 132 199);
+    color: rgb(var(--crm-accent));
 }
 
 .manual-button:disabled {
@@ -1762,23 +1898,11 @@ function formatMm(value) {
     opacity: 0.4;
 }
 
-:global(.dark) .manual-button {
-    border-color: rgb(12 74 110);
-    background: rgb(8 47 73);
-    color: rgb(125 211 252);
-}
-
 .primary-action:disabled,
 .secondary-action:disabled,
 .danger-action:disabled {
     cursor: not-allowed;
     opacity: 0.45;
-}
-
-:global(.dark) .secondary-action {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27);
-    color: rgb(244 244 245);
 }
 
 .step-button {
@@ -1794,24 +1918,20 @@ function formatMm(value) {
 }
 
 .step-button-active {
-    background: rgb(224 242 254);
-    color: rgb(2 132 199);
-}
-
-:global(.dark) .step-button-active {
-    background: rgb(12 74 110 / 0.45);
-    color: rgb(125 211 252);
+    background: rgb(var(--crm-accent-soft) / 1);
+    color: rgb(var(--crm-accent));
 }
 
 .metric-card {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    border: 1px solid rgb(228 228 231);
-    border-radius: 1rem;
+    border: 1px solid rgb(var(--crm-border));
+    border-radius: var(--crm-radius-lg);
+    background: rgb(var(--crm-surface));
     padding: 0.875rem;
     font-size: 0.75rem;
-    color: rgb(82 82 91);
+    color: rgb(var(--crm-text-muted));
 }
 
 .metric-card strong {
@@ -1821,6 +1941,8 @@ function formatMm(value) {
 
 .scene-viewport {
     cursor: grab;
+    background: rgb(var(--crm-surface-muted));
+    overflow: visible;
 }
 
 .scene-viewport:active {
@@ -1833,18 +1955,14 @@ function formatMm(value) {
     top: 1rem;
     z-index: 5;
     max-width: 22rem;
-    border-radius: 1rem;
-    background: rgb(255 255 255 / 0.82);
+    border-radius: var(--crm-radius-lg);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface) / 0.92);
     padding: 0.625rem 0.875rem;
     font-size: 0.75rem;
     font-weight: 600;
-    color: rgb(3 105 161);
-    box-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
-}
-
-:global(.dark) .scene-hint {
-    background: rgb(12 74 110 / 0.82);
-    color: rgb(224 242 254);
+    color: rgb(var(--crm-accent));
+    box-shadow: 0 8px 24px rgb(var(--crm-shadow) / 0.12);
 }
 
 .scene-shell {
@@ -1853,6 +1971,7 @@ function formatMm(value) {
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: visible;
     perspective: 1200px;
 }
 
@@ -1875,106 +1994,213 @@ function formatMm(value) {
 .scene-deck {
     position: relative;
     transform-style: preserve-3d;
+    overflow: visible;
 }
 
 .staging-pad {
     position: absolute;
     inset: 0;
-    border-radius: 1rem;
+    border-radius: var(--crm-radius-lg);
     background:
         repeating-linear-gradient(
             -45deg,
-            rgb(250 250 250 / 0.9),
-            rgb(250 250 250 / 0.9) 12px,
-            rgb(244 244 245 / 0.9) 12px,
-            rgb(244 244 245 / 0.9) 24px
+            rgb(var(--crm-surface-muted) / 0.95),
+            rgb(var(--crm-surface-muted) / 0.95) 12px,
+            rgb(var(--crm-surface) / 0.95) 12px,
+            rgb(var(--crm-surface) / 0.95) 24px
         );
-    box-shadow: inset 0 0 0 1px rgb(212 212 216 / 0.8);
+    box-shadow: inset 0 0 0 1px rgb(var(--crm-border) / 0.65);
     pointer-events: none;
-}
-
-:global(.dark) .staging-pad {
-    background:
-        repeating-linear-gradient(
-            -45deg,
-            rgb(39 39 42 / 0.95),
-            rgb(39 39 42 / 0.95) 12px,
-            rgb(24 24 27 / 0.95) 12px,
-            rgb(24 24 27 / 0.95) 24px
-        );
 }
 
 .trailer-zone {
     position: absolute;
     transform-style: preserve-3d;
-    border: 3px solid rgb(51 65 85 / 0.85);
-    background: rgb(224 242 254 / 0.34);
-    box-shadow: 0 18px 45px rgb(15 23 42 / 0.18);
+    border: 1px dashed rgb(15 23 42 / 0.28);
+    background: rgb(var(--crm-accent-soft) / 0.22);
+    box-shadow: 0 14px 36px rgb(var(--crm-shadow) / 0.16);
     pointer-events: none;
 }
 
-.trailer-zone::after {
-    content: '';
+.trailer-cage {
     position: absolute;
-    left: -3px;
-    right: -3px;
-    bottom: -18px;
-    height: 14px;
-    transform: rotateX(90deg);
-    transform-origin: top;
-    background: rgb(148 163 184 / 0.35);
+    inset: 0;
+    transform-style: preserve-3d;
+    transform-origin: 50% 50% 0;
     pointer-events: none;
+}
+
+.trailer-cage-face {
+    position: absolute;
+    border: 1px solid rgb(15 23 42 / 0.82);
+    background: transparent;
+    box-shadow: none;
+    backface-visibility: visible;
+}
+
+.trailer-cage-face-bottom {
+    inset: 0;
+    transform: translate3d(0, 0, 0);
+}
+
+.trailer-cage-face-top {
+    inset: 0;
+    transform: translate3d(0, 0, var(--cage-height));
+}
+
+.trailer-cage-face-front {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--cage-height);
+    transform-origin: bottom center;
+    transform: rotateX(-90deg);
+}
+
+.trailer-cage-face-back {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--cage-height);
+    transform-origin: top center;
+    transform: rotateX(90deg);
+}
+
+.trailer-cage-face-left {
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--cage-height);
+    transform-origin: left center;
+    transform: rotateY(-90deg);
+}
+
+.trailer-cage-face-right {
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--cage-height);
+    transform-origin: right center;
+    transform: rotateY(90deg);
 }
 
 .trailer-grid {
     position: absolute;
     inset: 0;
+    transform: translateZ(1px);
+    background-color: rgb(var(--crm-surface) / 0.08);
     background-image:
-        linear-gradient(rgb(148 163 184 / 0.26) 1px, transparent 1px),
-        linear-gradient(90deg, rgb(148 163 184 / 0.26) 1px, transparent 1px);
-    background-size: 40px 40px;
+        linear-gradient(rgb(15 23 42 / 0.14) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(15 23 42 / 0.14) 1px, transparent 1px),
+        linear-gradient(rgb(15 23 42 / 0.32) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(15 23 42 / 0.32) 1px, transparent 1px);
     pointer-events: none;
 }
 
 .trailer-floor {
     position: absolute;
     inset: 0;
-    border: 2px solid rgb(14 165 233 / 0.55);
-    background:
-        linear-gradient(135deg, rgb(14 165 233 / 0.10), rgb(255 255 255 / 0.22)),
-        repeating-linear-gradient(0deg, rgb(14 165 233 / 0.12) 0 2px, transparent 2px 46px);
+    transform: translateZ(0.5px);
+    background: rgb(var(--crm-surface) / 0.12);
     pointer-events: none;
 }
 
-.floor-label {
-    position: absolute;
-    left: 0.75rem;
-    top: 0.75rem;
-    z-index: 4;
-    transform: translateZ(4px);
-    border-radius: 999px;
-    background: rgb(14 165 233 / 0.92);
-    padding: 0.25rem 0.625rem;
-    color: white;
-    font-size: 0.65rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.trailer-floor::after {
-    content: 'ПОЛ ПРИЦЕПА';
+.trailer-rulers {
     position: absolute;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transform: translateZ(2px);
-    color: rgb(2 132 199 / 0.18);
-    font-size: clamp(1.5rem, 4vw, 4rem);
-    font-weight: 900;
-    letter-spacing: 0.18em;
+    transform-style: preserve-3d;
     pointer-events: none;
+}
+
+.trailer-ruler {
+    position: absolute;
+    color: rgb(15 23 42 / 0.88);
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.trailer-ruler-length {
+    left: 0;
+    right: 0;
+    bottom: -1.35rem;
+    height: 1.1rem;
+    transform: translateZ(3px);
+    border-bottom: 1px solid rgb(15 23 42 / 0.55);
+}
+
+.trailer-ruler-width {
+    top: 0;
+    bottom: 0;
+    left: -1.65rem;
+    width: 1.35rem;
+    transform: translateZ(3px);
+    border-left: 1px solid rgb(15 23 42 / 0.55);
+}
+
+.trailer-ruler-tick {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translate(-50%, 0);
+}
+
+.trailer-ruler-width .trailer-ruler-tick {
+    flex-direction: row;
+    align-items: center;
+    transform: translate(0, -50%);
+}
+
+.trailer-ruler-mark {
+    display: block;
+    background: rgb(15 23 42 / 0.82);
+}
+
+.trailer-ruler-length .trailer-ruler-mark {
+    width: 1px;
+    height: 0.45rem;
+}
+
+.trailer-ruler-width .trailer-ruler-mark {
+    width: 0.45rem;
+    height: 1px;
+}
+
+.trailer-ruler-label {
+    margin-top: 0.12rem;
+    white-space: nowrap;
+}
+
+.trailer-ruler-width .trailer-ruler-label {
+    margin-top: 0;
+    margin-right: 0.2rem;
+    text-align: right;
+}
+
+:global(.dark) .trailer-zone {
+    border-color: rgb(226 232 240 / 0.22);
+}
+
+:global(.dark) .trailer-cage-face {
+    border-color: rgb(226 232 240 / 0.78);
+}
+
+:global(.dark) .trailer-ruler {
+    color: rgb(226 232 240 / 0.92);
+    border-color: rgb(226 232 240 / 0.55);
+}
+
+:global(.dark) .trailer-ruler-mark {
+    background: rgb(226 232 240 / 0.82);
+}
+
+:global(.dark) .trailer-grid {
+    background-image:
+        linear-gradient(rgb(226 232 240 / 0.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(226 232 240 / 0.16) 1px, transparent 1px),
+        linear-gradient(rgb(226 232 240 / 0.38) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(226 232 240 / 0.38) 1px, transparent 1px);
 }
 
 .cargo-cube {
@@ -1985,6 +2211,13 @@ function formatMm(value) {
     color: rgb(15 23 42);
     font-size: 0.65rem;
     font-weight: 800;
+}
+
+.cargo-cube-lift {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform-origin: 50% 50% 0;
 }
 
 .cargo-cube-body {
@@ -2000,6 +2233,10 @@ function formatMm(value) {
     outline-offset: -1px;
 }
 
+.cargo-cube-elevated .cargo-face-bottom {
+    display: none;
+}
+
 .cargo-cube-manual {
     cursor: grab;
     touch-action: none;
@@ -2008,6 +2245,21 @@ function formatMm(value) {
 .cargo-cube-manual:active,
 .cargo-cube-dragging {
     cursor: grabbing;
+}
+
+.cargo-cube-covered {
+    cursor: not-allowed;
+}
+
+.cargo-cube-covered .cargo-face-top {
+    box-shadow: inset 0 0 0 2px rgb(245 158 11 / 0.85);
+}
+
+.cargo-cube-under-stack .cargo-face-front,
+.cargo-cube-under-stack .cargo-face-left,
+.cargo-cube-under-stack .cargo-face-right {
+    outline: 2px solid rgb(2 132 199 / 0.55);
+    outline-offset: -1px;
 }
 
 .cargo-cube-selected {
@@ -2099,9 +2351,9 @@ function formatMm(value) {
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    border: 1px solid rgb(15 23 42 / 0.22);
-    background: color-mix(in srgb, var(--cube-color) 76%, white);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+    border: 1px solid rgb(var(--crm-border) / 0.55);
+    background: color-mix(in srgb, var(--cube-color) 72%, rgb(var(--crm-surface)));
+    box-shadow: inset 0 0 0 1px rgb(var(--crm-surface) / 0.22);
     backface-visibility: hidden;
     transform-style: preserve-3d;
 }
@@ -2183,11 +2435,8 @@ function formatMm(value) {
 }
 
 .bottom-steps {
-    background: white;
-}
-
-:global(.dark) .bottom-steps {
-    background: rgb(24 24 27);
+    background: rgb(var(--crm-surface));
+    border-color: rgb(var(--crm-border));
 }
 
 .bottom-step {
@@ -2198,35 +2447,31 @@ function formatMm(value) {
     padding: 0.75rem 0.5rem;
     font-size: 0.7rem;
     font-weight: 700;
-    color: rgb(113 113 122);
+    color: rgb(var(--crm-text-muted));
 }
 
 .bottom-step-active {
-    color: rgb(2 132 199);
-    background: rgb(224 242 254 / 0.65);
-}
-
-:global(.dark) .bottom-step-active {
-    color: rgb(125 211 252);
-    background: rgb(12 74 110 / 0.35);
+    color: rgb(var(--crm-accent));
+    background: rgb(var(--crm-accent-soft) / 0.65);
 }
 
 .sort-pill,
 .group-tab,
 .category-tab {
     border-radius: 999px;
-    border: 1px solid rgb(228 228 231);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
     padding: 0.375rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 600;
-    color: rgb(82 82 91);
+    color: rgb(var(--crm-text-muted));
 }
 
 .sort-pill-active,
 .group-tab-active {
-    border-color: rgb(186 230 253);
-    background: rgb(224 242 254);
-    color: rgb(2 132 199);
+    border-color: rgb(var(--crm-accent) / 0.35);
+    background: rgb(var(--crm-accent-soft));
+    color: rgb(var(--crm-accent));
 }
 
 .category-tab {
@@ -2237,15 +2482,15 @@ function formatMm(value) {
 }
 
 .category-tab-active {
-    color: rgb(2 132 199);
-    border-bottom-color: rgb(2 132 199);
+    color: rgb(var(--crm-accent));
+    border-bottom-color: rgb(var(--crm-accent));
     background: transparent;
 }
 
 .text-link {
     font-size: 0.75rem;
     font-weight: 700;
-    color: rgb(2 132 199);
+    color: rgb(var(--crm-accent));
 }
 
 .icon-button {
@@ -2254,9 +2499,10 @@ function formatMm(value) {
     width: 2rem;
     align-items: center;
     justify-content: center;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(228 228 231);
-    color: rgb(82 82 91);
+    border-radius: var(--crm-radius-md);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text-muted));
 }
 
 .cargo-row {
@@ -2264,18 +2510,14 @@ function formatMm(value) {
     width: 100%;
     grid-template-columns: auto 1fr auto;
     gap: 0.75rem;
-    border-radius: 1rem;
+    border-radius: var(--crm-radius-lg);
     padding: 0.875rem 0.5rem;
     text-align: left;
     transition: background 0.15s ease;
 }
 
 .cargo-row:hover {
-    background: rgb(250 250 250);
-}
-
-:global(.dark) .cargo-row:hover {
-    background: rgb(39 39 42 / 0.5);
+    background: rgb(var(--crm-surface-muted));
 }
 
 .cargo-swatch {
@@ -2295,15 +2537,16 @@ function formatMm(value) {
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(228 228 231);
-    background: white;
+    border-radius: var(--crm-radius-md);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
     padding: 0.5rem 0.625rem;
+    color: rgb(var(--crm-text-muted));
 }
 
 .summary-chip strong {
     font-size: 0.75rem;
-    color: rgb(24 24 27);
+    color: rgb(var(--crm-text));
 }
 
 .summary-chip-ok {
@@ -2316,17 +2559,18 @@ function formatMm(value) {
     color: rgb(220 38 38);
 }
 
-:global(.dark) .summary-chip {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27);
-}
-
 .scene-tool {
     border-radius: 0.5rem;
-    border: 1px solid rgb(228 228 231);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
     padding: 0.25rem 0.5rem;
     font-size: 0.65rem;
     font-weight: 700;
+}
+
+.scene-tool:disabled {
+    opacity: 0.45;
 }
 
 .qty-button {
@@ -2335,8 +2579,10 @@ function formatMm(value) {
     width: 2.5rem;
     align-items: center;
     justify-content: center;
-    border-radius: 0.75rem;
-    border: 1px solid rgb(228 228 231);
+    border-radius: var(--crm-radius-md);
+    border: 1px solid rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
     font-size: 1.125rem;
     font-weight: 700;
 }

@@ -613,6 +613,7 @@ const hasSettingsMotivationAccess = computed(() => {
     return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
 });
 const hasFinanceSalaryAccess = computed(() => authUser.value?.role?.name === 'admin' || visibleAreas.value.includes('finance_salary'));
+const hasManagementAccess = computed(() => authUser.value?.role?.name === 'admin' || Boolean(authUser.value?.belongs_to_management));
 
 const MENU_ROUTES = {
     dashboard: '/dashboard',
@@ -630,6 +631,7 @@ const MENU_ROUTES = {
     finance: '/finance',
     'finance-cashflow': '/finance?section=cashflow',
     'finance-salary': '/finance/salary',
+    'finance-budgeting': '/budgeting',
     reports: '/reports',
     trainer: '/sales-assistant/trainer',
     modules: '/modules',
@@ -906,6 +908,10 @@ const menuItems = computed(() => {
                     children.push({ key: 'finance-salary', label: 'Зарплата' });
                 }
 
+                if (hasManagementAccess.value) {
+                    children.push({ key: 'finance-budgeting', label: 'Бюджетирование' });
+                }
+
                 return children;
             })(),
         },
@@ -981,7 +987,7 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'finance') {
-            return (item.children?.length ?? 0) > 0;
+            return (item.children?.length ?? 0) > 0 || hasManagementAccess.value;
         }
 
         if (item.key === 'fleet') {

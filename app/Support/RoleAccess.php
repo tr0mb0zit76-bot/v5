@@ -495,6 +495,22 @@ class RoleAccess
     }
 
     /**
+     * Модуль «Бюджетирование» — только группа «Управление» (флаг пользователя) или admin.
+     */
+    public static function canAccessBudgeting(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $user->belongsToManagement();
+    }
+
+    /**
      * Просмотр раздела «График оплат» (страница финансов / API чтения).
      */
     public static function canViewPaymentSchedules(?User $user): bool

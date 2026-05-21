@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityTimelineController;
+use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\DashboardController;
@@ -386,6 +387,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('fleet.options.drivers');
 
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->name('finance.index');
+    Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');
+    Route::patch('/budgeting/scenario', [BudgetingController::class, 'updateScenario'])->name('budgeting.scenario.update');
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area:documents')->name('documents.index');
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');

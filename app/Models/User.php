@@ -29,6 +29,7 @@ class User extends Authenticatable
         'theme',
         'is_active',
         'has_signing_authority',
+        'belongs_to_management',
         'ai_preferences',
         'ai_learning_enabled',
         'mobile_nav_keys',
@@ -53,6 +54,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'has_signing_authority' => 'boolean',
+            'belongs_to_management' => 'boolean',
             'ai_learning_enabled' => 'boolean',
             'ai_preferences' => 'array',
             'mobile_nav_keys' => 'array',
@@ -101,6 +103,11 @@ class User extends Authenticatable
     public function hasSigningAuthority(): bool
     {
         return (bool) $this->has_signing_authority;
+    }
+
+    public function belongsToManagement(): bool
+    {
+        return (bool) $this->belongs_to_management;
     }
 
     /**

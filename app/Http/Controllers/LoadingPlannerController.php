@@ -83,7 +83,7 @@ class LoadingPlannerController extends Controller
             'weight_kg' => 350,
             'can_rotate' => true,
             'stackable' => false,
-            'max_stack' => 1,
+            'max_stack' => 5,
             'can_tilt' => false,
             'color' => '#8b5cf6',
             'sort_order' => 1,
@@ -128,7 +128,9 @@ class LoadingPlannerController extends Controller
                         'weight_kg' => $itemData['weight_kg'] ?? 0,
                         'can_rotate' => (bool) ($itemData['can_rotate'] ?? true),
                         'stackable' => (bool) ($itemData['stackable'] ?? false),
-                        'max_stack' => $itemData['max_stack'] ?? 1,
+                        'max_stack' => ($itemData['stackable'] ?? false)
+                            ? ($itemData['max_stack'] ?? 5)
+                            : ($itemData['max_stack'] ?? 1),
                         'can_tilt' => (bool) ($itemData['can_tilt'] ?? false),
                         'color' => $itemData['color'] ?? ($groupData['color'] ?? '#60a5fa'),
                         'sort_order' => $itemIndex + 1,
@@ -283,7 +285,7 @@ class LoadingPlannerController extends Controller
         return [
             ['name' => 'Electric Motorcycle', 'package_type' => 'box', 'quantity' => 30, 'length_mm' => 1415, 'width_mm' => 455, 'height_mm' => 770, 'weight_kg' => 85, 'can_rotate' => true, 'stackable' => true, 'max_stack' => 2, 'can_tilt' => false, 'color' => '#86efac'],
             ['name' => 'Electric ATV', 'package_type' => 'box', 'quantity' => 24, 'length_mm' => 1150, 'width_mm' => 700, 'height_mm' => 610, 'weight_kg' => 99, 'can_rotate' => true, 'stackable' => true, 'max_stack' => 2, 'can_tilt' => false, 'color' => '#a78bfa'],
-            ['name' => 'Electric Bicycle', 'package_type' => 'box', 'quantity' => 18, 'length_mm' => 1350, 'width_mm' => 270, 'height_mm' => 700, 'weight_kg' => 28, 'can_rotate' => true, 'stackable' => true, 'max_stack' => 3, 'can_tilt' => false, 'color' => '#f9e8c9'],
+            ['name' => 'Electric Bicycle', 'package_type' => 'box', 'quantity' => 18, 'length_mm' => 1350, 'width_mm' => 270, 'height_mm' => 700, 'weight_kg' => 28, 'can_rotate' => true, 'stackable' => true, 'max_stack' => 5, 'can_tilt' => false, 'color' => '#f9e8c9'],
         ];
     }
 

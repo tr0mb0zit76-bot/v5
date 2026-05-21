@@ -33,6 +33,7 @@ class UpdateUserRequest extends FormRequest
             'role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'is_active' => ['required', 'boolean'],
             'has_signing_authority' => ['nullable', 'boolean'],
+            'belongs_to_management' => ['nullable', 'boolean'],
             'signing_own_company_ids' => ['nullable', 'array'],
             'signing_own_company_ids.*' => [
                 'integer',

@@ -203,6 +203,20 @@
                         </div>
                     </label>
 
+                    <label class="flex items-start gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
+                        <input
+                            v-model="form.belongs_to_management"
+                            type="checkbox"
+                            class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                        />
+                        <div>
+                            <div class="font-medium text-zinc-900 dark:text-zinc-50">Относится к управлению</div>
+                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                Доступ к модулю «Бюджетирование» и управленческому планированию. Не зависит от роли.
+                            </div>
+                        </div>
+                    </label>
+
                     <div
                         v-if="form.has_signing_authority && ownCompanies.length > 0"
                         class="rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20"
@@ -397,6 +411,7 @@ const form = useForm({
     role_id: null,
     is_active: true,
     has_signing_authority: false,
+    belongs_to_management: false,
     signing_own_company_ids: [],
     password: '',
     password_confirmation: '',
@@ -424,6 +439,7 @@ function resetForm() {
     form.role_id = null;
     form.is_active = true;
     form.has_signing_authority = false;
+    form.belongs_to_management = false;
     form.signing_own_company_ids = [];
     form.password = '';
     form.password_confirmation = '';
@@ -446,6 +462,7 @@ function openEditModal(user) {
     form.role_id = user.role_id;
     form.is_active = user.is_active;
     form.has_signing_authority = Boolean(user.has_signing_authority);
+    form.belongs_to_management = Boolean(user.belongs_to_management);
     form.signing_own_company_ids = Array.isArray(user.signing_own_company_ids)
         ? user.signing_own_company_ids.map((id) => Number(id))
         : [];
@@ -516,6 +533,7 @@ function buildUpdatePayload(user, overrides = {}) {
         role_id: user.role_id,
         is_active: user.is_active,
         has_signing_authority: user.has_signing_authority,
+        belongs_to_management: user.belongs_to_management,
         signing_own_company_ids: Array.isArray(user.signing_own_company_ids)
             ? [...user.signing_own_company_ids]
             : [],
