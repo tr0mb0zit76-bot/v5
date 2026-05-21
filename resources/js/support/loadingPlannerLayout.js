@@ -381,23 +381,58 @@ export function findSupportedZForBlock(footprint, others, transport) {
     return unique[unique.length - 1] ?? 0;
 }
 
-export function assignStackCounts(blocks, transport) {
-    for (const block of blocks) {
-        if (!blockInTrailer(block, transport)) {
-            block.stack_count = 1;
-            block.height = block.unit_height;
-            continue;
-        }
+/**
+ * Один столбик: центр места попадает в footprint соседа (или наоборот), без «зацепа» соседних рядов.
+ */
+export function blocksShareStackColumn(a, b) {
+    if (!blocksOverlapXY(a, b)) {
+        return false;
+    }
 
-        const layer = blocks.filter((other) => {
-            if (other.key === block.key || !blockInTrailer(other, transport)) {
-                return false;
+    const aCenterX = Number(a.x) + Number(a.length) / 2;
+    const aCenterY = Number(a.y) + Number(a.width) / 2;
+    const bCenterX = Number(b.x) + Number(b.length) / 2;
+    const bCenterY = Number(b.y) + Number(b.width) / 2;
+
+    const aCenterInB = aCenterX >= Number(b.x)
+        && aCenterX <= Number(b.x) + Number(b.length)
+        && aCenterY >= Number(b.y)
+        && aCenterY <= Number(b.y) + Number(b.width);
+    const bCenterInA = bCenterX >= Number(a.x)
+        && bCenterX <= Number(a.x) + Number(a.length)
+        && bCenterY >= Number(a.y)
+        && bCenterY <= Number(a.y) + Number(a.width);
+
+    return aCenterInB || bCenterInA;
+}
+
+/**
+ * Номер яруса = позиция в столбике по Z (1 — пол), а не «все соседи с z ≤».
+ */
+export function stackTierForBlock(block, blocks, transport) {
+    if (!blockInTrailer(block, transport)) {
+        return 1;
+    }
+
+    const column = blocks
+        .filter((other) => blockInTrailer(other, transport) && blocksShareStackColumn(block, other))
+        .sort((left, right) => {
+            const zDiff = Number(left.z) - Number(right.z);
+            if (zDiff !== 0) {
+                return zDiff;
             }
 
-            return blocksOverlapXY(block, other) && Number(other.z) <= Number(block.z);
-        }).length;
+            return unitIndexFromKey(left.key) - unitIndexFromKey(right.key);
+        });
 
-        block.stack_count = layer + 1;
+    const index = column.findIndex((entry) => entry.key === block.key);
+
+    return index >= 0 ? index + 1 : 1;
+}
+
+export function assignStackCounts(blocks, transport) {
+    for (const block of blocks) {
+        block.stack_count = stackTierForBlock(block, blocks, transport);
         block.height = block.unit_height;
     }
 }
