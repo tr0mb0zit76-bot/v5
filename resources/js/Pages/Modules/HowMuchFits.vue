@@ -265,6 +265,17 @@
                                                             <span class="trailer-ruler-label">{{ tick.label }}</span>
                                                         </span>
                                                     </div>
+                                                    <div class="trailer-ruler trailer-ruler-height">
+                                                        <span
+                                                            v-for="tick in heightRulerTicks"
+                                                            :key="`h-${tick.mm}`"
+                                                            class="trailer-ruler-tick"
+                                                            :style="{ bottom: `${(tick.mm / selectedTransport.height_mm) * 100}%` }"
+                                                        >
+                                                            <span class="trailer-ruler-mark" />
+                                                            <span class="trailer-ruler-label">{{ tick.label }}</span>
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div
@@ -511,8 +522,10 @@ import {
     calculateLayout,
     clientPointToSceneMm,
     blockCanBeLifted,
+    buildHeightRulerTicks,
     buildLengthRulerTicks,
     buildWidthRulerTicks,
+    footprintPositionAfterRotation,
     computeSeriesAlignHints,
     findSupportedZForBlock,
     findTopSupportedZForBlock,
@@ -813,6 +826,15 @@ const widthRulerTicks = computed(() => {
     }
 
     return buildWidthRulerTicks(transport.width_mm);
+});
+
+const heightRulerTicks = computed(() => {
+    const transport = selectedTransport.value;
+    if (!transport) {
+        return [];
+    }
+
+    return buildHeightRulerTicks(transport.height_mm);
 });
 
 const sceneShellStyle = computed(() => ({
@@ -1466,7 +1488,15 @@ function rotateSelectedBlockZ(step) {
     const footprintSwapped = nextRotationZ % 180 === 90;
     const nextLength = footprintSwapped ? selectedBlock.value.base_width : selectedBlock.value.base_length;
     const nextWidth = footprintSwapped ? selectedBlock.value.base_length : selectedBlock.value.base_width;
-    const clamped = clampPositionToBounds(Number(placement.x), Number(placement.y), nextLength, nextWidth);
+    const centered = footprintPositionAfterRotation(
+        placement.x,
+        placement.y,
+        selectedBlock.value.length,
+        selectedBlock.value.width,
+        nextLength,
+        nextWidth,
+    );
+    const clamped = clampPositionToBounds(centered.x, centered.y, nextLength, nextWidth);
     const nextZ = resolvePlacementZ(
         selectedBlock.value.key,
         clamped.x,
@@ -2138,6 +2168,15 @@ function formatMm(value) {
     border-left: 1px solid rgb(15 23 42 / 0.55);
 }
 
+.trailer-ruler-height {
+    top: 0;
+    bottom: 0;
+    right: -1.65rem;
+    width: 1.35rem;
+    transform: translateZ(3px);
+    border-right: 1px solid rgb(15 23 42 / 0.55);
+}
+
 .trailer-ruler-tick {
     position: absolute;
     display: flex;
@@ -2150,6 +2189,12 @@ function formatMm(value) {
     flex-direction: row;
     align-items: center;
     transform: translate(0, -50%);
+}
+
+.trailer-ruler-height .trailer-ruler-tick {
+    flex-direction: row-reverse;
+    align-items: center;
+    transform: translate(50%, 0);
 }
 
 .trailer-ruler-mark {
@@ -2176,6 +2221,17 @@ function formatMm(value) {
     margin-top: 0;
     margin-right: 0.2rem;
     text-align: right;
+}
+
+.trailer-ruler-height .trailer-ruler-mark {
+    width: 0.45rem;
+    height: 1px;
+}
+
+.trailer-ruler-height .trailer-ruler-label {
+    margin-top: 0;
+    margin-left: 0.2rem;
+    white-space: nowrap;
 }
 
 :global(.dark) .trailer-zone {
@@ -2224,7 +2280,7 @@ function formatMm(value) {
     position: absolute;
     inset: 0;
     transform-style: preserve-3d;
-    transform-origin: 50% 50% 0;
+    transform-origin: 50% 50% calc(var(--cube-height) / 2);
     transform: rotateY(var(--cube-rot-y));
 }
 

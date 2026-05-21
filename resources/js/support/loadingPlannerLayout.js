@@ -155,6 +155,35 @@ export function buildWidthRulerTicks(widthMm) {
     return ticks;
 }
 
+export function buildHeightRulerTicks(heightMm) {
+    const ticks = [{ mm: 0, label: '0' }];
+
+    for (let mm = 1000; mm < heightMm; mm += 1000) {
+        ticks.push({ mm, label: formatRulerMeters(mm) });
+    }
+
+    if (ticks[ticks.length - 1].mm !== heightMm) {
+        ticks.push({ mm: heightMm, label: formatRulerMeters(heightMm) });
+    }
+
+    return ticks;
+}
+
+/**
+ * Координаты левого нижнего угла footprint после поворота вокруг центра (x/y — угол, не центр).
+ *
+ * @return {{ x: number, y: number }}
+ */
+export function footprintPositionAfterRotation(x, y, length, width, nextLength, nextWidth) {
+    const centerX = Number(x) + Number(length) / 2;
+    const centerY = Number(y) + Number(width) / 2;
+
+    return {
+        x: centerX - Number(nextLength) / 2,
+        y: centerY - Number(nextWidth) / 2,
+    };
+}
+
 export function placementGridStep(length, width, placementGapMm = null) {
     if (placementGapMm === 0) {
         return 1;
