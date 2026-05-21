@@ -1,6 +1,6 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-3">
-        <div class="flex shrink-0 flex-wrap items-start justify-between gap-3">
+    <div class="howmuchfits-module flex min-h-0 flex-1 flex-col gap-3">
+        <div class="flex shrink-0 flex-wrap items-start justify-between gap-3 print:hidden">
             <div>
                 <div class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300">Модуль</div>
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Сколько влезет?</h1>
@@ -12,318 +12,445 @@
             </div>
         </div>
 
-        <div
-            class="grid min-h-0 flex-1 gap-3"
-            :class="activeStep === 'calculation'
-                ? 'xl:grid-cols-[290px,minmax(360px,0.65fr),minmax(720px,1.35fr)]'
-                : 'xl:grid-cols-[290px,minmax(0,1fr)]'"
-        >
-            <aside class="panel min-h-0 overflow-hidden">
-                <div class="border-b border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Список проектов {{ projects.length }} / 300</div>
-                    <div class="relative mt-3">
-                        <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                        <input v-model="projectSearch" type="search" class="field pl-9" placeholder="Поиск" />
-                    </div>
-                </div>
+        <div class="panel workspace flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div v-if="!projectForm" class="flex flex-1 items-center justify-center p-8 text-sm text-zinc-500">
+                Выберите или создайте проект на вкладке «Проекты».
+            </div>
 
-                <div class="min-h-0 flex-1 overflow-y-auto p-2">
-                    <button
-                        v-for="project in filteredProjects"
-                        :key="project.id"
-                        type="button"
-                        class="flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/70"
-                        :class="projectForm?.id === project.id ? 'bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-50' : ''"
-                        @click="selectProject(project.id)"
-                    >
-                        <FolderOpen class="mt-0.5 h-5 w-5 shrink-0" />
-                        <span class="min-w-0 flex-1">
-                            <span class="block truncate text-sm font-semibold">{{ project.name }}</span>
-                            <span class="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
-                                добавлено {{ project.created_at }}, обновлено {{ project.updated_at }}
-                            </span>
-                            <span v-if="project.transport_name" class="mt-1 block truncate text-xs text-sky-700 dark:text-sky-300">{{ project.transport_name }}</span>
-                        </span>
-                    </button>
-                </div>
-            </aside>
-
-            <section class="panel min-h-0 overflow-hidden">
-                <div class="border-b border-zinc-200 p-2 dark:border-zinc-800">
-                    <div class="grid grid-cols-4 gap-1">
-                        <button v-for="step in steps" :key="step.key" type="button" class="step-button" :class="activeStep === step.key ? 'step-button-active' : ''" @click="activeStep = step.key">
-                            <component :is="step.icon" class="h-4 w-4" />
-                            <span>{{ step.label }}</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div v-if="projectForm" class="min-h-0 flex-1 overflow-y-auto p-4">
-                    <div v-if="activeStep === 'projects'" class="space-y-4">
-                        <div>
-                            <label class="label">Название проекта</label>
-                            <input v-model="projectForm.name" class="field" />
-                        </div>
-                        <div>
-                            <label class="label">Комментарий менеджера</label>
-                            <textarea v-model="projectForm.notes" rows="5" class="field" placeholder="Что важно объяснить клиенту: почему нужен тент, почему не проходит по высоте, что меняется при штабелировании..." />
-                        </div>
-                        <div class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
-                            <div class="font-semibold">Аргумент для клиента</div>
-                            <div class="mt-1">{{ salesArgument }}</div>
-                        </div>
-                        <button type="button" class="danger-action" :disabled="projects.length <= 1" @click="deleteProject">Удалить проект</button>
-                    </div>
-
-                    <div v-else-if="activeStep === 'cargo'" class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="text-sm font-semibold">Грузовые группы</div>
-                                <div class="text-xs text-zinc-500">Группируйте груз по получателям или партиям.</div>
+            <template v-else>
+                <div class="min-h-0 flex-1 overflow-hidden">
+                    <div v-if="activeStep === 'projects'" class="flex h-full flex-col overflow-y-auto p-4 md:p-6">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                Список проектов {{ projects.length }} / 300
                             </div>
-                            <button type="button" class="secondary-action" @click="addCargoGroup">Добавить группу</button>
+                            <HelpCircle class="h-5 w-5 text-zinc-400" />
                         </div>
-
-                        <div v-for="(group, groupIndex) in projectForm.cargo_groups" :key="group.local_id" class="rounded-3xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="grid gap-2 md:grid-cols-[1fr,1fr,4rem]">
-                                <input v-model="group.name" class="field" placeholder="Группа" />
-                                <input v-model="group.recipient_name" class="field" placeholder="Получатель" />
-                                <input v-model="group.color" type="color" class="h-10 w-full rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900" />
-                            </div>
-
-                            <div class="mt-4 space-y-3">
-                                <div v-for="(item, itemIndex) in group.items" :key="item.local_id" class="rounded-2xl bg-zinc-50 p-3 dark:bg-zinc-950">
-                                    <div class="grid gap-2 lg:grid-cols-12">
-                                        <input v-model="item.name" class="field lg:col-span-3" placeholder="Название" />
-                                        <select v-model="item.package_type" class="field lg:col-span-2">
-                                            <option value="pallet">Паллета</option>
-                                            <option value="box">Коробка</option>
-                                            <option value="crate">Ящик</option>
-                                            <option value="roll">Рулон</option>
-                                            <option value="bag">Мешок</option>
-                                            <option value="custom">Другое</option>
-                                        </select>
-                                        <input v-model.number="item.quantity" type="number" min="1" class="field lg:col-span-1" placeholder="шт" />
-                                        <input v-model.number="item.length_mm" type="number" min="1" class="field lg:col-span-1" placeholder="Д, мм" />
-                                        <input v-model.number="item.width_mm" type="number" min="1" class="field lg:col-span-1" placeholder="Ш, мм" />
-                                        <input v-model.number="item.height_mm" type="number" min="1" class="field lg:col-span-1" placeholder="В, мм" />
-                                        <input v-model.number="item.weight_kg" type="number" min="0" step="0.01" class="field lg:col-span-1" placeholder="кг" />
-                                        <input v-model="item.color" type="color" class="h-10 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900 lg:col-span-1" />
-                                        <button type="button" class="rounded-xl border border-rose-200 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40" @click="removeCargoItem(groupIndex, itemIndex)">×</button>
-                                    </div>
-                                    <div class="mt-3 flex flex-wrap gap-3 text-xs text-zinc-600 dark:text-zinc-300">
-                                        <label class="inline-flex items-center gap-1.5"><input v-model="item.can_rotate" type="checkbox" class="rounded" /> поворот</label>
-                                        <label class="inline-flex items-center gap-1.5"><input v-model="item.stackable" type="checkbox" class="rounded" /> ярусы</label>
-                                        <label class="inline-flex items-center gap-1.5"><input v-model="item.can_tilt" type="checkbox" class="rounded" /> кантование</label>
-                                        <label class="inline-flex items-center gap-1.5">макс. ярус <input v-model.number="item.max_stack" type="number" min="1" max="20" class="h-7 w-16 rounded border border-zinc-200 bg-white px-2 dark:border-zinc-700 dark:bg-zinc-900" /></label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mt-3 flex justify-between gap-2">
-                                <button type="button" class="secondary-action" @click="addCargoItem(groupIndex)">Добавить груз</button>
-                                <button v-if="projectForm.cargo_groups.length > 1" type="button" class="danger-action" @click="removeCargoGroup(groupIndex)">Удалить группу</button>
-                            </div>
+                        <div class="relative mt-4">
+                            <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                            <input v-model="projectSearch" type="search" class="field pl-11" placeholder="Поиск" />
                         </div>
-                    </div>
-
-                    <div v-else-if="activeStep === 'transport'" class="space-y-4">
-                        <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="flex items-center justify-between gap-3">
-                                <div>
-                                    <div class="text-sm font-semibold">Выбранный транспорт</div>
-                                    <div class="text-xs text-zinc-500">{{ selectedTransport ? transportLabel(selectedTransport) : 'Не выбран' }}</div>
-                                </div>
-                                <button type="button" class="secondary-action" @click="resetTemplateDraft">Добавить шаблон</button>
-                            </div>
-                        </div>
-
-                        <div class="grid gap-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 md:grid-cols-2">
-                            <input v-model="templateDraft.name" class="field md:col-span-2" placeholder="Название транспорта" />
-                            <select v-model="templateDraft.category" class="field">
-                                <option value="truck">Автотранспорт</option>
-                                <option value="container">Контейнер</option>
-                                <option value="pallet">Паллет</option>
-                                <option value="platform">Платформа</option>
-                                <option value="custom">Другое</option>
+                        <div class="mt-4 flex flex-wrap items-center gap-2">
+                            <button type="button" class="sort-pill" :class="projectSortBy === 'name' ? 'sort-pill-active' : ''" @click="setProjectSort('name')">по названию</button>
+                            <button type="button" class="sort-pill" :class="projectSortBy === 'created' ? 'sort-pill-active' : ''" @click="setProjectSort('created')">по дате добавления</button>
+                            <button type="button" class="sort-pill" :class="projectSortBy === 'updated' ? 'sort-pill-active' : ''" @click="setProjectSort('updated')">по дате изменения</button>
+                            <select v-model="projectSortDir" class="field ml-auto w-auto min-w-[9rem]">
+                                <option value="desc">по убыванию</option>
+                                <option value="asc">по возрастанию</option>
                             </select>
-                            <input v-model.number="templateDraft.max_payload_kg" type="number" min="0" class="field" placeholder="Грузоподъёмность, кг" />
-                            <input v-model.number="templateDraft.length_mm" type="number" min="1" class="field" placeholder="Длина, мм" />
-                            <input v-model.number="templateDraft.width_mm" type="number" min="1" class="field" placeholder="Ширина, мм" />
-                            <input v-model.number="templateDraft.height_mm" type="number" min="1" class="field" placeholder="Высота, мм" />
-                            <input v-model.number="templateDraft.axles_count" type="number" min="1" class="field" placeholder="Оси" />
-                            <label class="inline-flex items-center gap-2 text-sm"><input v-model="templateDraft.is_active" type="checkbox" class="rounded" /> Активен</label>
-                            <button type="button" class="primary-action" @click="saveTransportTemplate">{{ templateDraft.id ? 'Сохранить шаблон' : 'Добавить в справочник' }}</button>
                         </div>
-
-                        <div class="space-y-2">
-                            <div v-for="template in transportTemplates" :key="template.id" class="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                                <button type="button" class="min-w-0 flex-1 text-left" @click="selectTransport(template.id)">
-                                    <div class="truncate text-sm font-semibold">{{ template.name }}</div>
-                                    <div class="text-xs text-zinc-500">{{ transportLabel(template) }}</div>
-                                </button>
-                                <div class="flex shrink-0 gap-2">
-                                    <button type="button" class="secondary-action" @click="editTransportTemplate(template)">Редактировать</button>
-                                    <button type="button" class="danger-action" @click="deleteTransportTemplate(template)">Удалить</button>
+                        <div class="mt-4 divide-y divide-zinc-100 dark:divide-zinc-800">
+                            <div
+                                v-for="project in sortedProjects"
+                                :key="project.id"
+                                class="flex items-start gap-3 py-4"
+                                :class="projectForm.id === project.id ? 'rounded-2xl bg-sky-50 px-2 dark:bg-sky-950/40' : ''"
+                            >
+                                <FolderOpen class="mt-1 h-5 w-5 shrink-0 text-sky-600" />
+                                <div class="min-w-0 flex-1">
+                                    <div class="truncate text-sm font-semibold">{{ project.name }}</div>
+                                    <div class="mt-1 text-xs text-zinc-500">добавлено {{ project.created_at }}, обновлено {{ project.updated_at }}</div>
+                                    <div v-if="project.transport_name" class="mt-1 truncate text-xs text-sky-700 dark:text-sky-300">{{ project.transport_name }}</div>
+                                </div>
+                                <div class="flex shrink-0 items-center gap-2">
+                                    <button type="button" class="text-link" @click="openProject(project.id)">открыть</button>
+                                    <button type="button" class="icon-button" title="Выбрать" @click="selectProject(project.id)"><Copy class="h-4 w-4" /></button>
+                                    <button type="button" class="icon-button text-rose-600" title="Удалить" :disabled="projects.length <= 1" @click="deleteProjectById(project.id)"><Trash2 class="h-4 w-4" /></button>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <div v-else class="space-y-4">
-                        <div class="grid gap-3 md:grid-cols-2">
-                            <div class="metric-card"><span>Итого</span><strong>{{ layoutResult.totalUnits }} шт / {{ formatKg(layoutResult.totalWeightKg) }}</strong></div>
-                            <div class="metric-card"><span>Занято</span><strong>{{ layoutResult.ldm.toFixed(2) }} LDM / {{ layoutResult.usedVolumePercent.toFixed(1) }}%</strong></div>
-                            <div class="metric-card"><span>Свободно</span><strong>{{ formatMm(layoutResult.freeLengthMm) }} / {{ formatM3(layoutResult.freeVolumeM3) }}</strong></div>
-                            <div class="metric-card" :class="layoutResult.fits ? 'border-emerald-300 text-emerald-700 dark:text-emerald-300' : 'border-rose-300 text-rose-700 dark:text-rose-300'"><span>Статус</span><strong>{{ layoutResult.fits ? 'Влезает' : 'Не влезает' }}</strong></div>
+                        <div class="mt-6 flex justify-center">
+                            <button type="button" class="primary-action inline-flex items-center gap-2 px-6" @click="createProject"><Plus class="h-4 w-4" /> Добавить новый проект</button>
                         </div>
-                        <div class="rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-                            <div class="font-semibold">Что сказать клиенту</div>
-                            <p class="mt-2 leading-6 text-zinc-600 dark:text-zinc-300">{{ salesArgument }}</p>
-                        </div>
-                        <div v-if="layoutResult.warnings.length" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                            <div class="font-semibold">Предупреждения</div>
-                            <ul class="mt-2 list-disc space-y-1 pl-5">
-                                <li v-for="warning in layoutResult.warnings" :key="warning">{{ warning }}</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section
-                v-if="activeStep === 'calculation'"
-                class="panel min-h-0 overflow-hidden"
-            >
-                <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-                    <div>
-                        <div class="text-sm font-semibold">Расчёт загрузки</div>
-                        <div class="text-xs text-zinc-500">{{ selectedTransport ? selectedTransport.name : 'Выберите транспорт' }}</div>
-                    </div>
-                    <div class="flex flex-wrap items-center justify-end gap-2">
-                        <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold dark:border-zinc-700 dark:bg-zinc-900">
-                            <input v-model="manualMode" type="checkbox" class="rounded" />
-                            Ручная раскладка
-                        </label>
-                        <button type="button" class="secondary-action" @click="rotateScene(-12, 0)">Сцена ←</button>
-                        <button type="button" class="secondary-action" @click="rotateScene(12, 0)">Сцена →</button>
-                        <button type="button" class="secondary-action" @click="rotateScene(0, 8)">Наклон ↑</button>
-                        <button type="button" class="secondary-action" @click="rotateScene(0, -8)">Наклон ↓</button>
-                        <button type="button" class="secondary-action" @click="resetSceneView">Вид по умолчанию</button>
-                        <button type="button" class="secondary-action" @click="resetManualPlacements">Сбросить позиции</button>
-                        <button type="button" class="secondary-action" @click="activeStep = 'calculation'">Сводка</button>
-                    </div>
-                </div>
-
-                <div class="grid min-h-0 flex-1 grid-rows-[minmax(360px,1fr),auto] overflow-hidden">
-                    <div
-                        ref="sceneViewport"
-                        class="scene-viewport relative overflow-hidden bg-gradient-to-br from-slate-50 to-sky-50 dark:from-zinc-950 dark:to-sky-950/30"
-                        @pointerdown="startSceneRotate"
-                    >
-                        <div class="scene-hint">
-                            Тяните фон мышью, чтобы вращать сцену. Груз тяните мышью по полу прицепа.
-                        </div>
-                        <div v-if="selectedTransport" class="scene-shell">
-                            <div class="scene" :style="sceneTransformStyle">
-                                <div class="truck-shadow" />
-                                <div class="trailer" :style="trailerStyle">
-                                    <div class="trailer-floor">
-                                        <span class="floor-label">Пол прицепа / зона размещения</span>
-                                    </div>
-                                    <div class="trailer-grid" />
-                                    <div
-                                        v-for="block in layoutResult.blocks"
-                                        :key="block.key"
-                                        class="cargo-cube"
-                                        :class="[
-                                            manualMode ? 'cargo-cube-manual' : '',
-                                            selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
-                                            block.manual ? 'cargo-cube-positioned' : '',
-                                        ]"
-                                        :style="cubeStyle(block)"
-                                        :title="`${block.name}: ${block.count} шт`"
-                                        @pointerdown.stop.prevent="startBlockDrag($event, block)"
-                                        @click.stop="selectBlock(block)"
-                                    >
-                                        <span class="cargo-face cargo-face-bottom" />
-                                        <span class="cargo-face cargo-face-top">
-                                            <span class="cargo-direction">→</span>
-                                            <span>{{ block.count > 1 ? block.count : '' }}</span>
-                                        </span>
-                                        <span class="cargo-face cargo-face-front" />
-                                        <span class="cargo-face cargo-face-back" />
-                                        <span class="cargo-face cargo-face-left" />
-                                        <span class="cargo-face cargo-face-right" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-else class="flex h-full items-center justify-center text-sm text-zinc-500">Выберите транспорт для расчёта.</div>
-                    </div>
-
-                    <div class="max-h-56 overflow-y-auto border-t border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div class="mt-8 space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
                             <div>
-                                <div class="text-sm font-semibold">Груз в сцене</div>
-                                <div class="text-xs text-zinc-500">{{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт размещено</div>
+                                <label class="label">Название проекта</label>
+                                <input v-model="projectForm.name" class="field" />
                             </div>
-                            <div v-if="manualMode" class="text-xs text-zinc-500">
-                                Выберите блок на сцене и двигайте его по кузову.
+                            <div>
+                                <label class="label">Комментарий менеджера</label>
+                                <textarea v-model="projectForm.notes" rows="4" class="field" placeholder="Заметки по проекту..." />
                             </div>
                         </div>
+                    </div>
 
-                        <div v-if="manualMode" class="mb-4 rounded-2xl border border-sky-200 bg-sky-50 p-3 dark:border-sky-900 dark:bg-sky-950/40">
+                    <div v-else-if="activeStep === 'cargo'" class="flex h-full flex-col overflow-hidden">
+                        <div class="border-b border-zinc-200 px-4 py-4 dark:border-zinc-800 md:px-6">
                             <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div class="min-w-0">
-                                    <div class="truncate text-sm font-semibold text-sky-950 dark:text-sky-100">
-                                        {{ selectedBlock ? selectedBlock.name : 'Блок не выбран' }}
-                                    </div>
-                                    <div v-if="selectedBlock" class="text-xs text-sky-700 dark:text-sky-300">
-                                        X {{ formatMm(selectedBlock.x) }}, Y {{ formatMm(selectedBlock.y) }},
-                                        {{ selectedBlock.rotated ? 'повёрнут' : 'без поворота' }},
-                                        {{ selectedBlock.tilted ? 'наклонён' : 'без наклона' }}
-                                    </div>
+                                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                                    Список грузовых мест {{ cargoListTotals.units }} / 7000
                                 </div>
-                                <div class="grid grid-cols-3 gap-1">
-                                    <span />
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, -250)">↑</button>
-                                    <span />
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(-250, 0)">←</button>
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="rotateSelectedBlock">↻</button>
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(250, 0)">→</button>
-                                    <span />
-                                    <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, 250)">↓</button>
-                                    <span />
+                                <div class="text-xs text-zinc-500">
+                                    {{ cargoListTotals.units }} шт, {{ formatKg(cargoListTotals.weight) }}, {{ formatM3(cargoListTotals.volume) }}
                                 </div>
+                            </div>
+                            <div class="relative mt-3">
+                                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                <input v-model="cargoSearch" type="search" class="field pl-9" placeholder="Поиск" />
                             </div>
                             <div class="mt-3 flex flex-wrap gap-2">
-                                <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="lockSelectedBlock">Зафиксировать</button>
-                                <button type="button" class="secondary-action" :disabled="!selectedBlock" @click="releaseSelectedBlock">Вернуть в авто</button>
-                                <span class="text-xs leading-8 text-sky-700 dark:text-sky-300">
-                                    Клавиатура: ←/→ вокруг вертикали, ↑/↓ вокруг горизонтали.
-                                </span>
+                                <button
+                                    v-for="(group, groupIndex) in projectForm.cargo_groups"
+                                    :key="group.local_id"
+                                    type="button"
+                                    class="group-tab"
+                                    :class="activeCargoGroupIndex === groupIndex ? 'group-tab-active' : ''"
+                                    @click="activeCargoGroupIndex = groupIndex"
+                                >
+                                    {{ group.name }}
+                                </button>
+                                <button type="button" class="secondary-action" @click="addCargoGroup">+ группа</button>
                             </div>
                         </div>
-
-                        <div class="grid gap-2 md:grid-cols-2">
-                            <div v-for="item in cargoFlat" :key="item.local_id" class="flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
-                                <span class="h-3 w-3 rounded-full" :style="{ backgroundColor: item.color }" />
-                                <span class="min-w-0 flex-1 truncate">{{ item.name }}</span>
-                                <span>{{ item.quantity }} шт</span>
+                        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 md:px-6">
+                            <div v-if="activeCargoGroup" class="mb-3 grid gap-2 md:grid-cols-[1fr,1fr,4rem]">
+                                <input v-model="activeCargoGroup.name" class="field" placeholder="Группа" />
+                                <input v-model="activeCargoGroup.recipient_name" class="field" placeholder="Получатель" />
+                                <input v-model="activeCargoGroup.color" type="color" class="h-10 w-full rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900" />
+                            </div>
+                            <div class="cargo-table-head hidden text-xs font-semibold uppercase tracking-wide text-zinc-500 md:grid">
+                                <span>Груз</span>
+                                <span>Параметры</span>
+                                <span class="text-right">Действия</span>
+                            </div>
+                            <button
+                                v-for="{ item, itemIndex, groupIndex } in cargoListItems"
+                                :key="item.local_id"
+                                type="button"
+                                class="cargo-row"
+                                @click="openCargoItemEditor(groupIndex, itemIndex)"
+                            >
+                                <span class="cargo-swatch" :style="{ backgroundColor: item.color || activeCargoGroup?.color }" />
+                                <span class="min-w-0 flex-1 text-left">
+                                    <span class="block truncate text-sm font-semibold">{{ item.name }}</span>
+                                    <span class="mt-1 block text-xs text-zinc-500">
+                                        {{ packageTypeLabel(item.package_type) }},
+                                        {{ item.length_mm }} × {{ item.width_mm }} × {{ item.height_mm }} мм,
+                                        {{ formatKg(item.weight_kg) }}, {{ item.quantity }} шт
+                                    </span>
+                                    <span class="mt-1 flex flex-wrap gap-2 text-[11px] text-zinc-400">
+                                        <span>ярусы: {{ cargoConstraintLabel(item, 'stackable') }}</span>
+                                        <span>поворот: {{ cargoConstraintLabel(item, 'can_rotate') }}</span>
+                                        <span>кантование: {{ cargoConstraintLabel(item, 'can_tilt') }}</span>
+                                    </span>
+                                </span>
+                                <span class="flex shrink-0 gap-1" @click.stop>
+                                    <button type="button" class="icon-button" @click="openCargoItemEditor(groupIndex, itemIndex)"><Pencil class="h-4 w-4" /></button>
+                                    <button type="button" class="icon-button text-rose-600" @click="removeCargoItem(groupIndex, itemIndex)"><Trash2 class="h-4 w-4" /></button>
+                                </span>
+                            </button>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <button type="button" class="primary-action inline-flex items-center gap-2" @click="addCargoItem(activeCargoGroupIndex)"><Plus class="h-4 w-4" /> Добавить груз</button>
+                                <button v-if="projectForm.cargo_groups.length > 1" type="button" class="danger-action" @click="removeCargoGroup(activeCargoGroupIndex)">Удалить группу</button>
                             </div>
                         </div>
                     </div>
+
+                    <div v-else-if="activeStep === 'transport'" class="h-full overflow-y-auto p-4 md:p-6">
+                        <div class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                            Сравните размещение груза в разных видах транспорта. Добавьте транспорт из шаблона или вручную, чтобы выбрать оптимальный вариант.
+                        </div>
+                        <div class="mt-4 overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                            <div class="bg-sky-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white">
+                                Список транспорта {{ selectedTransport ? 1 : 0 }} / 10
+                            </div>
+                            <div v-if="selectedTransport" class="flex items-start gap-3 bg-white px-4 py-4 dark:bg-zinc-900">
+                                <Truck class="mt-1 h-5 w-5 shrink-0 text-sky-600" />
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-sm font-semibold">{{ selectedTransport.name }}</div>
+                                    <div class="mt-1 text-xs text-zinc-500">{{ transportLabel(selectedTransport) }}</div>
+                                </div>
+                                <div class="flex shrink-0 gap-2">
+                                    <button type="button" class="text-link" @click="openManualTransportModal">редактировать</button>
+                                    <button type="button" class="icon-button" @click="editTransportTemplate(selectedTransport)"><Pencil class="h-4 w-4" /></button>
+                                </div>
+                            </div>
+                            <div v-else class="px-4 py-6 text-sm text-zinc-500">Транспорт не выбран.</div>
+                        </div>
+                        <div class="mt-4 flex justify-center">
+                            <button type="button" class="primary-action inline-flex items-center gap-2 px-6" @click="openManualTransportModal"><Plus class="h-4 w-4" /> Добавить транспорт вручную</button>
+                        </div>
+                        <div class="mt-8">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Выбрать шаблон транспорта</div>
+                            <div class="relative mt-3">
+                                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                <input v-model="transportSearch" type="search" class="field pl-9" placeholder="Поиск" />
+                            </div>
+                            <div class="mt-3 flex flex-wrap gap-4 border-b border-zinc-200 text-sm font-semibold dark:border-zinc-800">
+                                <button type="button" class="category-tab" :class="transportCategoryFilter === 'all' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'all'">Все</button>
+                                <button type="button" class="category-tab" :class="transportCategoryFilter === 'truck' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'truck'">Автотранспорт</button>
+                                <button type="button" class="category-tab" :class="transportCategoryFilter === 'container' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'container'">Контейнер</button>
+                                <button type="button" class="category-tab" :class="transportCategoryFilter === 'pallet' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'pallet'">Паллет</button>
+                            </div>
+                            <div class="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+                                <div v-for="template in filteredTransportTemplates" :key="template.id" class="flex items-center gap-3 py-3">
+                                    <Truck class="h-5 w-5 shrink-0 text-zinc-400" />
+                                    <div class="min-w-0 flex-1">
+                                        <div class="truncate text-sm font-semibold">{{ template.name }}</div>
+                                        <div class="text-xs text-zinc-500">{{ transportLabel(template) }}</div>
+                                    </div>
+                                    <button type="button" class="text-link" @click="addTransportFromTemplate(template)">добавить</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-else class="print-area grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr),300px]">
+                        <div class="flex min-h-0 flex-col overflow-hidden border-b border-zinc-200 xl:border-b-0 xl:border-r dark:border-zinc-800">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 print:hidden">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Расчёт загрузки</div>
+                                <div class="flex flex-wrap items-center gap-1">
+                                    <label class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-semibold dark:border-zinc-700">
+                                        <input v-model="manualMode" type="checkbox" class="rounded" /> Ручная раскладка
+                                    </label>
+                                    <button type="button" class="scene-tool" @click="rotateScene(-12, 0)">←</button>
+                                    <button type="button" class="scene-tool" @click="rotateScene(12, 0)">→</button>
+                                    <button type="button" class="scene-tool" @click="rotateScene(0, 8)">↑</button>
+                                    <button type="button" class="scene-tool" @click="rotateScene(0, -8)">↓</button>
+                                    <button type="button" class="scene-tool" @click="resetSceneView">Сброс вида</button>
+                                    <button type="button" class="scene-tool" @click="resetManualPlacements">Сброс позиций</button>
+                                </div>
+                            </div>
+                            <div ref="sceneViewport" class="scene-viewport relative min-h-[420px] flex-1" @pointerdown="startSceneRotate">
+                                <div class="scene-hint print:hidden">
+                                    Тяните фон — вращение сцены. Груз — по полу прицепа. Стрелки: ←/→ поворот 90° на полу, ↑/↓ наклон 90°.
+                                </div>
+                                <div v-if="selectedTransport" class="scene-shell">
+                                    <div class="scene" :style="sceneTransformStyle">
+                                        <div class="truck-shadow" />
+                                        <div class="trailer" :style="trailerStyle">
+                                            <div class="trailer-floor"><span class="floor-label">Пол прицепа</span></div>
+                                            <div class="trailer-grid" />
+                                            <div
+                                                v-for="block in layoutResult.blocks"
+                                                :key="block.key"
+                                                class="cargo-cube"
+                                                :class="[
+                                                    manualMode ? 'cargo-cube-manual' : '',
+                                                    selectedBlockKey === block.key ? 'cargo-cube-selected' : '',
+                                                    block.manual ? 'cargo-cube-positioned' : '',
+                                                    blockDrag?.key === block.key ? 'cargo-cube-dragging' : '',
+                                                ]"
+                                                :style="cubePositionStyle(block)"
+                                                :title="`${block.name}: ${block.count} шт`"
+                                                @pointerdown.stop.prevent="startBlockDrag($event, block)"
+                                                @click.stop="selectBlock(block)"
+                                            >
+                                                <div class="cargo-cube-body" :style="cubeBodyStyle(block)">
+                                                    <span class="cargo-face cargo-face-bottom" />
+                                                    <span class="cargo-face cargo-face-top"><span class="cargo-direction">→</span><span>{{ block.count > 1 ? block.count : '' }}</span></span>
+                                                    <span class="cargo-face cargo-face-front" />
+                                                    <span class="cargo-face cargo-face-back" />
+                                                    <span class="cargo-face cargo-face-left" />
+                                                    <span class="cargo-face cargo-face-right" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else class="flex h-full items-center justify-center text-sm text-zinc-500">Выберите транспорт.</div>
+                            </div>
+                            <div v-if="manualMode" class="border-t border-zinc-200 p-3 dark:border-zinc-800 print:hidden">
+                                <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <span class="font-semibold">{{ selectedBlock?.name ?? 'Блок не выбран' }}</span>
+                                    <div class="grid grid-cols-3 gap-1">
+                                        <span />
+                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, -250)">↑</button>
+                                        <span />
+                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(-250, 0)">←</button>
+                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="rotateSelectedBlockZ(1)">↻</button>
+                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(250, 0)">→</button>
+                                        <span />
+                                        <button type="button" class="manual-button" :disabled="!selectedBlock" @click="nudgeSelectedBlock(0, 250)">↓</button>
+                                        <span />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <aside class="calc-sidebar flex min-h-0 flex-col overflow-y-auto bg-zinc-50/80 p-4 dark:bg-zinc-950/50">
+                            <div v-if="selectedTransport" class="text-xs font-semibold uppercase leading-5 tracking-wide text-zinc-700 dark:text-zinc-200">
+                                {{ selectedTransport.name }}
+                            </div>
+                            <div v-if="selectedTransport" class="mt-1 text-[11px] leading-5 text-zinc-500">{{ transportLabel(selectedTransport) }}</div>
+                            <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                <div class="summary-chip"><span>Итого</span><strong>{{ layoutResult.totalUnits }} шт</strong><strong>{{ formatKg(layoutResult.totalWeightKg) }}</strong></div>
+                                <div class="summary-chip"><span>Занято</span><strong>{{ layoutResult.ldm.toFixed(2) }} LDM</strong><strong>{{ layoutResult.usedVolumePercent.toFixed(1) }}%</strong></div>
+                                <div class="summary-chip"><span>Свободно</span><strong>{{ formatMm(layoutResult.freeLengthMm) }}</strong><strong>{{ formatM3(layoutResult.freeVolumeM3) }}</strong></div>
+                                <div class="summary-chip" :class="layoutResult.fits ? 'summary-chip-ok' : 'summary-chip-bad'">
+                                    <span>Статус</span><strong>{{ layoutResult.fits ? 'Влезает' : 'Не влезает' }}</strong>
+                                </div>
+                            </div>
+                            <div v-if="layoutResult.warnings.length" class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                                <div class="font-semibold">Предупреждения</div>
+                                <ul class="mt-1 space-y-1">
+                                    <li v-for="warning in layoutResult.warnings" :key="warning">{{ warning }}</li>
+                                </ul>
+                            </div>
+                            <button type="button" class="mt-4 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-600" @click="showPlacementDetails = !showPlacementDetails">
+                                <span>Расчёты размещения</span><span>{{ showPlacementDetails ? '−' : '+' }}</span>
+                            </button>
+                            <div v-if="showPlacementDetails" class="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                                <div>Размещено: {{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт</div>
+                                <div>Объём груза: {{ formatM3(layoutResult.totalVolumeM3) }}</div>
+                                <div>Грузоподъёмность: {{ layoutResult.usedPayloadPercent.toFixed(1) }}%</div>
+                            </div>
+                            <button type="button" class="mt-3 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-600" @click="showAxleLoad = !showAxleLoad">
+                                <span>Нагрузка на оси</span><span>{{ showAxleLoad ? '−' : '+' }}</span>
+                            </button>
+                            <div v-if="showAxleLoad" class="mt-2 text-xs text-zinc-500">Автоматический расчёт осевой нагрузки появится в следующей версии.</div>
+                            <div class="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto">
+                                <div v-for="group in projectForm.cargo_groups" :key="group.local_id">
+                                    <div class="truncate text-[11px] font-semibold uppercase text-zinc-500">{{ group.recipient_name || group.name }}</div>
+                                    <div v-for="(item, index) in group.items" :key="item.local_id" class="mt-2 flex items-start gap-2 text-xs">
+                                        <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: item.color || group.color }" />
+                                        <span class="min-w-0 flex-1">
+                                            <span class="font-semibold">{{ index + 1 }}. {{ item.name }}</span>
+                                            <span class="mt-0.5 block text-zinc-500">{{ item.length_mm }} × {{ item.width_mm }} × {{ item.height_mm }} мм, {{ formatKg(item.weight_kg) }}, {{ item.quantity }} шт</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white print:hidden" @click="exportCalculationPdf">
+                                <FileDown class="h-4 w-4" /> Сохранить в PDF
+                            </button>
+                        </aside>
+                    </div>
                 </div>
-            </section>
+
+                <nav class="bottom-steps grid shrink-0 grid-cols-4 border-t border-zinc-200 dark:border-zinc-800 print:hidden">
+                    <button v-for="step in steps" :key="step.key" type="button" class="bottom-step" :class="activeStep === step.key ? 'bottom-step-active' : ''" @click="activeStep = step.key">
+                        <component :is="step.icon" class="h-5 w-5" />
+                        <span>{{ stepBottomLabel(step.key) }}</span>
+                    </button>
+                </nav>
+            </template>
         </div>
+
+        <Modal :show="cargoItemModalOpen" max-width="3xl" @close="closeCargoItemModal">
+            <div v-if="cargoItemDraft" class="p-5 md:p-6">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Параметры</div>
+                    <HelpCircle class="h-5 w-5 text-zinc-400" />
+                </div>
+                <div class="mt-4 grid gap-4 md:grid-cols-[1fr,7rem]">
+                    <div>
+                        <label class="label">Название или маркировка места</label>
+                        <input v-model="cargoItemDraft.name" class="field" maxlength="110" />
+                    </div>
+                    <div>
+                        <label class="label">Количество</label>
+                        <div class="flex items-center gap-2">
+                            <button type="button" class="qty-button" @click="adjustCargoQuantity(-1)">−</button>
+                            <input v-model.number="cargoItemDraft.quantity" type="number" min="1" class="field text-center" />
+                            <button type="button" class="qty-button" @click="adjustCargoQuantity(1)">+</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 grid gap-3 md:grid-cols-4">
+                    <div><label class="label">Длина, мм</label><input v-model.number="cargoItemDraft.length_mm" type="number" min="1" class="field" /></div>
+                    <div><label class="label">Ширина, мм</label><input v-model.number="cargoItemDraft.width_mm" type="number" min="1" class="field" /></div>
+                    <div><label class="label">Высота, мм</label><input v-model.number="cargoItemDraft.height_mm" type="number" min="1" class="field" /></div>
+                    <div><label class="label">Масса брутто, кг</label><input v-model.number="cargoItemDraft.weight_kg" type="number" min="0" step="0.01" class="field" /></div>
+                </div>
+                <div class="mt-4 grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label class="label">Тип упаковки</label>
+                        <select v-model="cargoItemDraft.package_type" class="field">
+                            <option value="pallet">Паллета</option>
+                            <option value="box">Коробка</option>
+                            <option value="crate">Ящик</option>
+                            <option value="roll">Рулон</option>
+                            <option value="bag">Мешок</option>
+                            <option value="custom">Другое</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label">Цвет в сцене</label>
+                        <input v-model="cargoItemDraft.color" type="color" class="h-10 w-full rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900" />
+                    </div>
+                    <div>
+                        <label class="label inline-flex items-center gap-2"><Layers class="h-4 w-4" /> Ярусы</label>
+                        <select v-model="cargoItemDraft.stackable" class="field">
+                            <option :value="true">Да</option>
+                            <option :value="false">Нет</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label inline-flex items-center gap-2"><RotateCw class="h-4 w-4" /> Поворот</label>
+                        <select v-model="cargoItemDraft.can_rotate" class="field">
+                            <option :value="true">Да</option>
+                            <option :value="false">Нет</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label inline-flex items-center gap-2"><ArrowLeftRight class="h-4 w-4" /> Кантование</label>
+                        <select v-model="cargoItemDraft.can_tilt" class="field">
+                            <option :value="true">Да</option>
+                            <option :value="false">Нет</option>
+                        </select>
+                    </div>
+                    <div v-if="cargoItemDraft.stackable">
+                        <label class="label">Макс. ярусов</label>
+                        <input v-model.number="cargoItemDraft.max_stack" type="number" min="1" max="20" class="field" />
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-between gap-3">
+                    <button type="button" class="secondary-action" @click="closeCargoItemModal">Отменить</button>
+                    <button type="button" class="primary-action" @click="saveCargoItemFromModal">Сохранить</button>
+                </div>
+            </div>
+        </Modal>
+
+        <Modal :show="transportModalOpen" max-width="3xl" @close="closeTransportModal">
+            <div class="p-5 md:p-6">
+                <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Параметры транспорта</div>
+                <div class="mt-4 grid gap-3 md:grid-cols-2">
+                    <input v-model="templateDraft.name" class="field md:col-span-2" placeholder="Название или маркировка" />
+                    <select v-model="templateDraft.category" class="field">
+                        <option value="truck">Автотранспорт</option>
+                        <option value="container">Контейнер</option>
+                        <option value="pallet">Паллет</option>
+                        <option value="platform">Платформа</option>
+                        <option value="custom">Другое</option>
+                    </select>
+                    <input v-model.number="templateDraft.max_payload_kg" type="number" min="0" class="field" placeholder="Тоннаж, кг" />
+                    <input v-model.number="templateDraft.length_mm" type="number" min="1" class="field" placeholder="Длина, мм" />
+                    <input v-model.number="templateDraft.width_mm" type="number" min="1" class="field" placeholder="Ширина, мм" />
+                    <input v-model.number="templateDraft.height_mm" type="number" min="1" class="field" placeholder="Высота, мм" />
+                    <input v-model.number="templateDraft.axles_count" type="number" min="1" class="field" placeholder="Оси" />
+                    <label class="inline-flex items-center gap-2 text-sm"><input v-model="templateDraft.is_active" type="checkbox" class="rounded" /> Активен в справочнике</label>
+                </div>
+                <div class="mt-6 flex justify-between gap-3">
+                    <button type="button" class="secondary-action" @click="closeTransportModal">Отменить</button>
+                    <button type="button" class="primary-action" @click="saveManualTransport">Сохранить</button>
+                </div>
+            </div>
+        </Modal>
     </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { Boxes, Calculator, FolderOpen, Package, Search, Truck } from 'lucide-vue-next';
+import {
+    ArrowLeftRight,
+    Boxes,
+    Calculator,
+    Copy,
+    FileDown,
+    FolderOpen,
+    HelpCircle,
+    Layers,
+    Package,
+    Pencil,
+    Plus,
+    RotateCw,
+    Search,
+    Trash2,
+    Truck,
+} from 'lucide-vue-next';
+import Modal from '@/Components/Modal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
@@ -343,10 +470,22 @@ const steps = [
     { key: 'calculation', label: 'Расчёт', icon: Calculator },
 ];
 
-const activeStep = ref('calculation');
+const activeStep = ref('projects');
 const projectSearch = ref('');
+const projectSortBy = ref('updated');
+const projectSortDir = ref('desc');
 const projectForm = ref(cloneProject(props.selectedProject));
 const templateDraft = ref(blankTemplate());
+const activeCargoGroupIndex = ref(0);
+const cargoSearch = ref('');
+const cargoItemModalOpen = ref(false);
+const cargoItemDraft = ref(null);
+const cargoItemEdit = ref({ groupIndex: 0, itemIndex: 0 });
+const transportModalOpen = ref(false);
+const transportSearch = ref('');
+const transportCategoryFilter = ref('all');
+const showPlacementDetails = ref(false);
+const showAxleLoad = ref(false);
 const manualMode = ref(Boolean(props.selectedProject?.calculation?.manual_mode));
 const selectedBlockKey = ref(props.selectedProject?.calculation?.selected_manual_key ?? null);
 const sceneViewport = ref(null);
@@ -361,6 +500,7 @@ watch(() => props.selectedProject, (project) => {
     selectedBlockKey.value = project?.calculation?.selected_manual_key ?? null;
     sceneRotationX.value = Number(project?.calculation?.scene_view?.rotation_x ?? 58);
     sceneRotationZ.value = Number(project?.calculation?.scene_view?.rotation_z ?? -34);
+    activeCargoGroupIndex.value = 0;
 }, { deep: true });
 
 const filteredProjects = computed(() => {
@@ -369,6 +509,60 @@ const filteredProjects = computed(() => {
         return props.projects;
     }
     return props.projects.filter((project) => [project.name, project.transport_name].filter(Boolean).join(' ').toLowerCase().includes(query));
+});
+
+const sortedProjects = computed(() => {
+    const list = [...filteredProjects.value];
+    const dir = projectSortDir.value === 'asc' ? 1 : -1;
+    list.sort((left, right) => {
+        if (projectSortBy.value === 'name') {
+            return left.name.localeCompare(right.name, 'ru') * dir;
+        }
+        const leftDate = projectSortBy.value === 'created' ? left.created_at : left.updated_at;
+        const rightDate = projectSortBy.value === 'created' ? right.created_at : right.updated_at;
+        return String(leftDate).localeCompare(String(rightDate), 'ru') * dir;
+    });
+    return list;
+});
+
+const activeCargoGroup = computed(() => projectForm.value?.cargo_groups?.[activeCargoGroupIndex.value] ?? null);
+
+const cargoListItems = computed(() => {
+    const group = activeCargoGroup.value;
+    if (!group) {
+        return [];
+    }
+    const query = cargoSearch.value.trim().toLowerCase();
+    return (group.items ?? [])
+        .map((item, itemIndex) => ({ item, itemIndex, groupIndex: activeCargoGroupIndex.value }))
+        .filter(({ item }) => {
+            if (!query) {
+                return true;
+            }
+            const haystack = [item.name, packageTypeLabel(item.package_type)].join(' ').toLowerCase();
+            return haystack.includes(query);
+        });
+});
+
+const cargoListTotals = computed(() => {
+    const items = (projectForm.value?.cargo_groups ?? []).flatMap((group) => group.items ?? []);
+    const units = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const weight = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.weight_kg || 0), 0);
+    const volume = items.reduce((sum, item) => sum + Number(item.quantity || 0) * item.length_mm * item.width_mm * item.height_mm / 1_000_000_000, 0);
+    return { units, weight, volume };
+});
+
+const filteredTransportTemplates = computed(() => {
+    const query = transportSearch.value.trim().toLowerCase();
+    return props.transportTemplates.filter((template) => {
+        if (transportCategoryFilter.value !== 'all' && template.category !== transportCategoryFilter.value) {
+            return false;
+        }
+        if (!query) {
+            return true;
+        }
+        return [template.name, categoryLabel(template.category), transportLabel(template)].join(' ').toLowerCase().includes(query);
+    });
 });
 
 const selectedTransport = computed(() => {
@@ -406,18 +600,6 @@ watch(layoutResult, (result) => {
     }
 });
 
-const salesArgument = computed(() => {
-    const transport = selectedTransport.value;
-    if (!transport) {
-        return 'Сначала выберите транспорт из справочника, чтобы рассчитать вместимость и подготовить аргумент для клиента.';
-    }
-    const result = layoutResult.value;
-    if (result.fits) {
-        return `Груз помещается в «${transport.name}»: занимает ${result.ldm.toFixed(2)} LDM, ${result.usedVolumePercent.toFixed(1)}% объёма и ${result.usedPayloadPercent.toFixed(1)}% грузоподъёмности. Можно приложить схему как обоснование выбранного прицепа.`;
-    }
-    return `Груз не помещается в «${transport.name}»: размещено ${result.placedUnits} из ${result.totalUnits} мест. Нужен больший прицеп, второй транспорт или изменение условий штабелирования/поворота.`;
-});
-
 const trailerStyle = computed(() => {
     const transport = selectedTransport.value;
     if (!transport) {
@@ -435,6 +617,10 @@ const sceneTransformStyle = computed(() => ({
 }));
 
 onMounted(() => {
+    const step = new URLSearchParams(window.location.search).get('step');
+    if (step && steps.some((entry) => entry.key === step)) {
+        activeStep.value = step;
+    }
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', stopPointerInteractions);
     window.addEventListener('keydown', onSceneKeydown);
@@ -508,6 +694,118 @@ function selectProject(projectId) {
     router.get(route('modules.how-much-fits.index'), { project: projectId }, { preserveState: false, preserveScroll: true });
 }
 
+function openProject(projectId) {
+    if (projectForm.value?.id === projectId) {
+        activeStep.value = 'cargo';
+        return;
+    }
+    router.get(route('modules.how-much-fits.index'), { project: projectId, step: 'cargo' }, { preserveState: false, preserveScroll: true });
+}
+
+function setProjectSort(field) {
+    if (projectSortBy.value === field) {
+        projectSortDir.value = projectSortDir.value === 'asc' ? 'desc' : 'asc';
+        return;
+    }
+    projectSortBy.value = field;
+    projectSortDir.value = field === 'name' ? 'asc' : 'desc';
+}
+
+function openCargoItemEditor(groupIndex, itemIndex) {
+    const item = projectForm.value?.cargo_groups?.[groupIndex]?.items?.[itemIndex];
+    if (!item) {
+        return;
+    }
+    cargoItemEdit.value = { groupIndex, itemIndex };
+    cargoItemDraft.value = { ...item };
+    cargoItemModalOpen.value = true;
+}
+
+function closeCargoItemModal() {
+    cargoItemModalOpen.value = false;
+    cargoItemDraft.value = null;
+}
+
+function saveCargoItemFromModal() {
+    const { groupIndex, itemIndex } = cargoItemEdit.value;
+    const group = projectForm.value?.cargo_groups?.[groupIndex];
+    if (!group || !cargoItemDraft.value) {
+        return;
+    }
+    group.items[itemIndex] = { ...group.items[itemIndex], ...cargoItemDraft.value };
+    closeCargoItemModal();
+}
+
+function adjustCargoQuantity(delta) {
+    if (!cargoItemDraft.value) {
+        return;
+    }
+    cargoItemDraft.value.quantity = Math.max(1, Number(cargoItemDraft.value.quantity || 1) + delta);
+}
+
+function openManualTransportModal() {
+    templateDraft.value = selectedTransport.value ? { ...selectedTransport.value } : blankTemplate();
+    transportModalOpen.value = true;
+}
+
+function closeTransportModal() {
+    transportModalOpen.value = false;
+}
+
+function saveManualTransport() {
+    const payload = { ...templateDraft.value };
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeTransportModal();
+            if (payload.id) {
+                selectTransport(payload.id);
+            }
+        },
+    };
+    if (payload.id) {
+        router.patch(route('modules.how-much-fits.transport-templates.update', payload.id), payload, options);
+        return;
+    }
+    router.post(route('modules.how-much-fits.transport-templates.store'), payload, options);
+}
+
+function addTransportFromTemplate(template) {
+    selectTransport(template.id);
+}
+
+function packageTypeLabel(type) {
+    return {
+        pallet: 'Паллета',
+        box: 'Коробка',
+        crate: 'Ящик',
+        roll: 'Рулон',
+        bag: 'Мешок',
+        custom: 'Другое',
+    }[type] ?? type;
+}
+
+function cargoConstraintLabel(item, key) {
+    if (key === 'stackable') {
+        return item.stackable ? 'да' : 'нет';
+    }
+    if (key === 'can_rotate') {
+        return item.can_rotate ? 'да' : 'нет';
+    }
+    if (key === 'can_tilt') {
+        return item.can_tilt ? 'да' : 'нет';
+    }
+    return 'нет';
+}
+
+function exportCalculationPdf() {
+    if (!selectedTransport.value) {
+        window.alert('Сначала выберите транспорт для расчёта.');
+        return;
+    }
+    window.print();
+}
+
 function saveProject() {
     if (!projectForm.value?.id) {
         return;
@@ -516,10 +814,27 @@ function saveProject() {
 }
 
 function deleteProject() {
-    if (!projectForm.value?.id || !window.confirm(`Удалить проект «${projectForm.value.name}»?`)) {
+    if (!projectForm.value?.id) {
         return;
     }
-    router.delete(route('modules.how-much-fits.projects.destroy', projectForm.value.id));
+    deleteProjectById(projectForm.value.id);
+}
+
+function deleteProjectById(projectId) {
+    const project = props.projects.find((entry) => Number(entry.id) === Number(projectId));
+    if (!project || !window.confirm(`Удалить проект «${project.name}»?`)) {
+        return;
+    }
+    router.delete(route('modules.how-much-fits.projects.destroy', projectId));
+}
+
+function stepBottomLabel(stepKey) {
+    return {
+        projects: 'Выбор проекта',
+        cargo: 'Выбор груза',
+        transport: 'Выбор транспорта',
+        calculation: 'Расчет загрузки',
+    }[stepKey] ?? stepKey;
 }
 
 function projectPayload() {
@@ -600,6 +915,7 @@ function resetTemplateDraft() {
 
 function editTransportTemplate(template) {
     templateDraft.value = { ...template };
+    transportModalOpen.value = true;
 }
 
 function saveTransportTemplate() {
@@ -648,10 +964,13 @@ function calculateLayout(transport, items, placements = {}) {
         while (remaining > 0) {
             const blockKey = `${item.source_key}-${unitIndex}`;
             const manual = placements[blockKey] ?? null;
+            const rotationZ = manual ? placementRotationZ(manual) : 0;
+            const rotationX = manual ? placementRotationX(manual) : 0;
+            const footprintSwapped = rotationZ % 180 === 90;
             const orientation = manual
                 ? {
-                    length: manual.rotated ? Number(item.width_mm) : Number(item.length_mm),
-                    width: manual.rotated ? Number(item.length_mm) : Number(item.width_mm),
+                    length: footprintSwapped ? Number(item.width_mm) : Number(item.length_mm),
+                    width: footprintSwapped ? Number(item.length_mm) : Number(item.width_mm),
                     newRow: false,
                     manual,
                 }
@@ -685,8 +1004,10 @@ function calculateLayout(transport, items, placements = {}) {
                 height: item.height_mm * count,
                 base_length: Number(item.length_mm),
                 base_width: Number(item.width_mm),
-                rotated: Boolean(manual?.rotated),
-                tilted: Number(manual?.tilted ?? 0),
+                rotated: footprintSwapped,
+                rotation_z: rotationZ,
+                rotation_x: rotationX,
+                tilted: rotationX,
                 locked: Boolean(manual?.locked),
                 manual: Boolean(manual),
             };
@@ -792,18 +1113,43 @@ function emptyLayout() {
     };
 }
 
-function cubeStyle(block) {
+function placementRotationZ(placement) {
+    if (placement.rotation_z !== undefined && placement.rotation_z !== null) {
+        return ((Number(placement.rotation_z) % 360) + 360) % 360;
+    }
+    return placement.rotated ? 90 : 0;
+}
+
+function placementRotationX(placement) {
+    if (placement.rotation_x !== undefined && placement.rotation_x !== null) {
+        return ((Number(placement.rotation_x) % 360) + 360) % 360;
+    }
+    const legacyTilt = Number(placement.tilted ?? 0);
+    if (legacyTilt === 0) {
+        return 0;
+    }
+    return legacyTilt > 0 ? 90 : 270;
+}
+
+function cubePositionStyle(block) {
     const transport = selectedTransport.value;
-    const zScale = 92 / transport.height_mm;
     return {
         left: `${block.x / transport.length_mm * 100}%`,
         top: `${block.y / transport.width_mm * 100}%`,
         width: `${block.length / transport.length_mm * 100}%`,
         height: `${block.width / transport.width_mm * 100}%`,
         '--cube-color': block.color || '#60a5fa',
+    };
+}
+
+function cubeBodyStyle(block) {
+    const transport = selectedTransport.value;
+    const zScale = 92 / transport.height_mm;
+    const rotationZ = block.rotation_z ?? (block.rotated ? 90 : 0);
+    const rotationX = block.rotation_x ?? 0;
+    return {
         '--cube-height': `${Math.max(12, block.height * zScale)}px`,
-        '--cube-rotation': block.rotated ? '90deg' : '0deg',
-        '--cube-tilt': `${Number(block.tilted || 0) * 12}deg`,
+        transform: `translateZ(var(--cube-height)) rotateZ(${rotationZ}deg) rotateX(${rotationX}deg)`,
     };
 }
 
@@ -819,13 +1165,17 @@ function ensureManualPlacement(block) {
         projectForm.value.calculation.manual_placements = {};
     }
     const existing = projectForm.value.calculation.manual_placements[block.key] ?? {};
+    const rotationZ = placementRotationZ(existing);
+    const rotationX = placementRotationX(existing);
     projectForm.value.calculation.manual_placements = {
         ...projectForm.value.calculation.manual_placements,
         [block.key]: {
             x: Number(existing.x ?? block.x),
             y: Number(existing.y ?? block.y),
-            rotated: Boolean(existing.rotated ?? block.rotated),
-            tilted: Number(existing.tilted ?? block.tilted ?? 0),
+            rotation_z: rotationZ,
+            rotation_x: rotationX,
+            rotated: rotationZ % 180 === 90,
+            tilted: rotationX,
             locked: Boolean(existing.locked ?? block.locked),
         },
     };
@@ -855,31 +1205,34 @@ function nudgeSelectedBlock(deltaX, deltaY) {
     });
 }
 
-function rotateSelectedBlock() {
+function rotateSelectedBlockZ(step) {
     if (!selectedBlock.value || !selectedTransport.value) {
         return;
     }
     const placement = ensureManualPlacement(selectedBlock.value);
-    const nextRotated = !Boolean(placement.rotated);
-    const nextLength = nextRotated ? selectedBlock.value.base_width : selectedBlock.value.base_length;
-    const nextWidth = nextRotated ? selectedBlock.value.base_length : selectedBlock.value.base_width;
+    const nextRotationZ = (placementRotationZ(placement) + step * 90 + 360) % 360;
+    const footprintSwapped = nextRotationZ % 180 === 90;
+    const nextLength = footprintSwapped ? selectedBlock.value.base_width : selectedBlock.value.base_length;
+    const nextWidth = footprintSwapped ? selectedBlock.value.base_length : selectedBlock.value.base_width;
     updateManualPlacement(selectedBlock.value.key, {
         ...placement,
-        rotated: nextRotated,
+        rotation_z: nextRotationZ,
+        rotated: footprintSwapped,
         x: clamp(Number(placement.x), 0, Math.max(0, selectedTransport.value.length_mm - nextLength)),
         y: clamp(Number(placement.y), 0, Math.max(0, selectedTransport.value.width_mm - nextWidth)),
     });
 }
 
-function tiltSelectedBlock(direction = 1) {
+function rotateSelectedBlockX(step) {
     if (!selectedBlock.value) {
         return;
     }
     const placement = ensureManualPlacement(selectedBlock.value);
-    const current = Number(placement.tilted || 0);
+    const nextRotationX = (placementRotationX(placement) + step * 90 + 360) % 360;
     updateManualPlacement(selectedBlock.value.key, {
         ...placement,
-        tilted: current === direction ? 0 : direction,
+        rotation_x: nextRotationX,
+        tilted: nextRotationX,
     });
 }
 
@@ -936,10 +1289,9 @@ function startBlockDrag(event, block) {
         startClientY: event.clientY,
         startX: Number(placement.x || 0),
         startY: Number(placement.y || 0),
-        blockLength: block.length,
-        blockWidth: block.width,
     };
-    event.currentTarget?.setPointerCapture?.(event.pointerId);
+    const cubeElement = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    cubeElement?.setPointerCapture?.(event.pointerId);
 }
 
 function startSceneRotate(event) {
@@ -965,17 +1317,19 @@ function onPointerMove(event) {
         const deltaY = event.clientY - blockDrag.value.startClientY;
         const mmPerPxX = selectedTransport.value.length_mm / Math.max(1, viewport.width * 0.72);
         const mmPerPxY = selectedTransport.value.width_mm / Math.max(1, viewport.height * 0.56);
+        const blockLength = selectedBlock.value.length;
+        const blockWidth = selectedBlock.value.width;
         updateManualPlacement(blockDrag.value.key, {
             ...ensureManualPlacement(selectedBlock.value),
             x: Math.round(clamp(
                 blockDrag.value.startX + deltaX * mmPerPxX,
                 0,
-                Math.max(0, selectedTransport.value.length_mm - blockDrag.value.blockLength),
+                Math.max(0, selectedTransport.value.length_mm - blockLength),
             ) / 5) * 5,
             y: Math.round(clamp(
                 blockDrag.value.startY + deltaY * mmPerPxY,
                 0,
-                Math.max(0, selectedTransport.value.width_mm - blockDrag.value.blockWidth),
+                Math.max(0, selectedTransport.value.width_mm - blockWidth),
             ) / 5) * 5,
         });
 
@@ -985,7 +1339,7 @@ function onPointerMove(event) {
     if (sceneDrag.value) {
         const deltaX = event.clientX - sceneDrag.value.startClientX;
         const deltaY = event.clientY - sceneDrag.value.startClientY;
-        sceneRotationZ.value = sceneDrag.value.startRotationZ + deltaX * 0.25;
+        sceneRotationZ.value = sceneDrag.value.startRotationZ - deltaX * 0.25;
         sceneRotationX.value = clamp(sceneDrag.value.startRotationX - deltaY * 0.18, 20, 78);
     }
 }
@@ -1003,22 +1357,26 @@ function onSceneKeydown(event) {
     if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
         return;
     }
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        rotateSelectedBlock();
+        rotateSelectedBlockZ(-1);
+    }
+    if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        rotateSelectedBlockZ(1);
     }
     if (event.key === 'ArrowUp') {
         event.preventDefault();
-        tiltSelectedBlock(1);
+        rotateSelectedBlockX(-1);
     }
     if (event.key === 'ArrowDown') {
         event.preventDefault();
-        tiltSelectedBlock(-1);
+        rotateSelectedBlockX(1);
     }
 }
 
 function rotateScene(deltaZ, deltaX) {
-    sceneRotationZ.value += deltaZ;
+    sceneRotationZ.value -= deltaZ;
     sceneRotationX.value = clamp(sceneRotationX.value + deltaX, 20, 78);
 }
 
@@ -1351,34 +1709,43 @@ function formatMm(value) {
 
 .cargo-cube {
     position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     min-width: 8px;
     min-height: 8px;
-    transform: translateZ(var(--cube-height)) rotateZ(var(--cube-rotation)) rotateX(var(--cube-tilt));
     transform-style: preserve-3d;
-    border: 1px solid rgb(15 23 42 / 0.18);
-    background: transparent;
     color: rgb(15 23 42);
     font-size: 0.65rem;
     font-weight: 800;
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+
+.cargo-cube-body {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
 }
 
 .cargo-cube-manual {
-    cursor: pointer;
+    cursor: grab;
     touch-action: none;
+}
+
+.cargo-cube-manual:active,
+.cargo-cube-dragging {
+    cursor: grabbing;
 }
 
 .cargo-cube-positioned {
     outline: 2px dashed rgb(2 132 199 / 0.5);
+    outline-offset: 1px;
 }
 
 .cargo-cube-selected {
     outline: 3px solid rgb(14 165 233);
-    filter: brightness(1.05) saturate(1.1);
+    outline-offset: 1px;
     z-index: 20;
+}
+
+.cargo-cube-dragging {
+    z-index: 30;
 }
 
 .cargo-face {
@@ -1386,6 +1753,7 @@ function formatMm(value) {
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: none;
     border: 1px solid rgb(15 23 42 / 0.26);
     background: color-mix(in srgb, var(--cube-color) 76%, white);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.22);
@@ -1460,5 +1828,197 @@ function formatMm(value) {
     background: rgb(255 255 255 / 0.7);
     color: rgb(15 23 42);
     font-size: 0.7rem;
+}
+
+.workspace {
+    min-height: 0;
+}
+
+.bottom-steps {
+    background: white;
+}
+
+:global(.dark) .bottom-steps {
+    background: rgb(24 24 27);
+}
+
+.bottom-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: rgb(113 113 122);
+}
+
+.bottom-step-active {
+    color: rgb(2 132 199);
+    background: rgb(224 242 254 / 0.65);
+}
+
+:global(.dark) .bottom-step-active {
+    color: rgb(125 211 252);
+    background: rgb(12 74 110 / 0.35);
+}
+
+.sort-pill,
+.group-tab,
+.category-tab {
+    border-radius: 999px;
+    border: 1px solid rgb(228 228 231);
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(82 82 91);
+}
+
+.sort-pill-active,
+.group-tab-active {
+    border-color: rgb(186 230 253);
+    background: rgb(224 242 254);
+    color: rgb(2 132 199);
+}
+
+.category-tab {
+    border: none;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0;
+}
+
+.category-tab-active {
+    color: rgb(2 132 199);
+    border-bottom-color: rgb(2 132 199);
+    background: transparent;
+}
+
+.text-link {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: rgb(2 132 199);
+}
+
+.icon-button {
+    display: inline-flex;
+    height: 2rem;
+    width: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(228 228 231);
+    color: rgb(82 82 91);
+}
+
+.cargo-row {
+    display: grid;
+    width: 100%;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    border-radius: 1rem;
+    padding: 0.875rem 0.5rem;
+    text-align: left;
+    transition: background 0.15s ease;
+}
+
+.cargo-row:hover {
+    background: rgb(250 250 250);
+}
+
+:global(.dark) .cargo-row:hover {
+    background: rgb(39 39 42 / 0.5);
+}
+
+.cargo-swatch {
+    margin-top: 0.25rem;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 0.25rem;
+}
+
+.cargo-table-head {
+    grid-template-columns: 1fr 1.4fr auto;
+    gap: 0.75rem;
+    padding: 0 0.5rem 0.5rem;
+}
+
+.summary-chip {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(228 228 231);
+    background: white;
+    padding: 0.5rem 0.625rem;
+}
+
+.summary-chip strong {
+    font-size: 0.75rem;
+    color: rgb(24 24 27);
+}
+
+.summary-chip-ok {
+    border-color: rgb(167 243 208);
+    color: rgb(4 120 87);
+}
+
+.summary-chip-bad {
+    border-color: rgb(254 202 202);
+    color: rgb(220 38 38);
+}
+
+:global(.dark) .summary-chip {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+}
+
+.scene-tool {
+    border-radius: 0.5rem;
+    border: 1px solid rgb(228 228 231);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.qty-button {
+    display: inline-flex;
+    height: 2.5rem;
+    width: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(228 228 231);
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.calc-sidebar {
+    max-height: 100%;
+}
+
+@media print {
+    :global(body *) {
+        visibility: hidden;
+    }
+
+    :global(.print-area),
+    :global(.print-area *) {
+        visibility: visible;
+    }
+
+    :global(.print-area) {
+        position: absolute;
+        inset: 0;
+        display: grid !important;
+        grid-template-columns: 1fr 280px !important;
+        width: 100%;
+        height: auto;
+        background: white;
+    }
+
+    .howmuchfits-module {
+        padding: 0;
+    }
 }
 </style>
