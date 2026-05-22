@@ -1,12 +1,10 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
-        <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Помощник продаж</div>
-            <h1 class="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Аналитика тренажёра</h1>
-            <p class="mt-2 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-                <span v-if="filters.can_view_all">Сводка по всем менеджерам. Используйте фильтры по сотруднику, периоду и сценарию.</span>
-                <span v-else>Ваши тренировки за выбранный период.</span>
-            </p>
+        <CrmPageHeader
+            :lead="filters.can_view_all ? 'Сводка по всем менеджерам. Фильтры по сотруднику, периоду и сценарию.' : 'Ваши тренировки за выбранный период.'"
+            title="Аналитика тренажёра"
+        />
+        <section :class="`${crmPanel} space-y-3 p-6`">
             <p class="mt-4 text-sm">
                 <Link
                     :href="route('sales-assistant.trainer')"
@@ -17,14 +15,14 @@
             </p>
         </section>
 
-        <section class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-6">
+        <section :class="`${crmPanel} p-4 md:p-6`">
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Фильтры</h2>
             <div class="mt-4 flex flex-wrap items-end gap-4">
                 <label class="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                     <span class="font-medium">Период</span>
                     <select
                         v-model.number="localDays"
-                        class="min-w-[10rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        :class="`${crmField} min-w-[10rem]`"
                     >
                         <option :value="7">7 дней</option>
                         <option :value="30">30 дней</option>
@@ -36,7 +34,7 @@
                     <span class="font-medium">Менеджер</span>
                     <select
                         v-model="localUserId"
-                        class="min-w-[14rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        :class="`${crmField} min-w-[14rem]`"
                     >
                         <option value="">Все</option>
                         <option v-for="u in filterUsers" :key="u.id" :value="String(u.id)">{{ u.name }}</option>
@@ -46,7 +44,7 @@
                     <span class="font-medium">Профиль клиента</span>
                     <select
                         v-model="localProfileKey"
-                        class="min-w-[12rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        :class="`${crmField} min-w-[12rem]`"
                     >
                         <option value="">Все</option>
                         <option v-for="p in profile_options" :key="p.key" :value="p.key">{{ p.title }}</option>
@@ -56,7 +54,7 @@
                     <span class="font-medium">Сценарий</span>
                     <select
                         v-model="localVersionId"
-                        class="min-w-[14rem] max-w-[20rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        :class="`${crmField} min-w-[14rem] max-w-[20rem]`"
                     >
                         <option value="">Все</option>
                         <option v-for="v in version_options" :key="v.id" :value="String(v.id)">{{ v.label }}</option>
@@ -66,7 +64,7 @@
                     <span class="font-medium">Исход</span>
                     <select
                         v-model="localOutcome"
-                        class="min-w-[11rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        :class="`${crmField} min-w-[11rem]`"
                     >
                         <option value="">Любой</option>
                         <option v-for="o in outcomeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
@@ -76,7 +74,7 @@
                     <span class="font-medium">Оценка тренировки</span>
                     <select
                         v-model="localDialogQuality"
-                        class="min-w-[12rem] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        :class="`${crmField} min-w-[12rem]`"
                     >
                         <option value="">Любая</option>
                         <option v-for="q in trainerDialogQualityOptions" :key="q.value" :value="q.value">{{ q.label }}</option>
@@ -195,7 +193,7 @@
             </div>
         </section>
 
-        <section class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-6">
+        <section :class="`${crmPanel} p-4 md:p-6`">
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Последние сессии</h2>
             <div v-if="recent_sessions.length === 0" class="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Нет данных.</div>
             <div v-else class="mt-4 overflow-x-auto">
@@ -247,7 +245,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmField, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>

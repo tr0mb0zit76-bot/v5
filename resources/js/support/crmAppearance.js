@@ -3,10 +3,10 @@ import { router } from '@inertiajs/vue3';
 export const CRM_APPEARANCE_CHANGED = 'crm-appearance-changed';
 
 export const CRM_APPEARANCE_DEFAULTS = {
-    button_radius: 'sharp',
-    primary_accent: 'emerald',
+    button_radius: 'rounded',
+    primary_accent: 'sky',
     tab_style: 'filled',
-    workspace_skin: 'classic',
+    workspace_skin: 'sky',
 };
 
 const STORAGE_KEY = 'crm_appearance_v1';
@@ -17,15 +17,22 @@ let persistTimer = null;
  * @param {{ ui_preferences?: Record<string, unknown> }|null|undefined} authUser
  */
 export function resolveCrmAppearance(authUser) {
-    const fromServer = authUser?.ui_preferences ?? {};
-    const fromLocal = readLocalCrmAppearance();
+    const fromServer = pickAppearanceFields(authUser?.ui_preferences ?? {});
+    const fromLocal = pickAppearanceFields(readLocalCrmAppearance());
+    const hasAuthenticatedPreferences = authUser?.ui_preferences != null
+        && typeof authUser.ui_preferences === 'object';
 
-    return {
-        ...CRM_APPEARANCE_DEFAULTS,
-        ...pickAppearanceFields(fromServer),
-        ...pickAppearanceFields(fromLocal),
-        ag_grid_density: fromServer.ag_grid_density ?? fromLocal.ag_grid_density,
-    };
+    const appearance = hasAuthenticatedPreferences
+        ? { ...CRM_APPEARANCE_DEFAULTS, ...fromServer }
+        : { ...CRM_APPEARANCE_DEFAULTS, ...fromLocal };
+
+    const density = authUser?.ui_preferences?.ag_grid_density ?? readLocalCrmAppearance().ag_grid_density;
+
+    if (density === 'compact' || density === 'normal' || density === 'comfortable') {
+        appearance.ag_grid_density = density;
+    }
+
+    return appearance;
 }
 
 /**

@@ -12,10 +12,10 @@
                         v-for="dictionary in dictionaries"
                         :key="dictionary.key"
                         type="button"
-                        class="flex w-full items-start justify-between gap-3 border px-3 py-3 text-left transition-colors"
-                        :class="activeDictionary?.key === dictionary.key
-                            ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-800'
-                            : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/70'"
+                        :class="[
+                            activeDictionary?.key === dictionary.key ? crmListItemActive : crmListItemIdle,
+                            'justify-between',
+                        ]"
                         @click="activeKey = dictionary.key"
                     >
                         <div class="space-y-1">
@@ -183,7 +183,7 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmPanel } from '@/support/crmUi.js';
+import { crmListItemActive, crmListItemIdle, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'dictionaries' }, () => page),

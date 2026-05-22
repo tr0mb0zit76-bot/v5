@@ -1,13 +1,11 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
-        <div class="shrink-0 space-y-1">
-            <h1 class="text-2xl font-semibold">Настройки KPI</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Пороги KPI по прямым и кривым сделкам и множитель бонуса в формуле delta.
-            </p>
-        </div>
+        <CrmPageHeader
+            lead="Пороги KPI по прямым и кривым сделкам и множитель бонуса в формуле delta."
+            title="Настройки KPI"
+        />
 
-        <section class="flex min-h-0 flex-col border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <section :class="`${crmPanel} flex min-h-0 flex-col p-5`">
             <div class="mb-4 flex items-start justify-between gap-3">
                 <div class="space-y-1">
                     <h2 class="text-lg font-semibold">Пороги KPI и delta</h2>
@@ -18,7 +16,7 @@
 
                 <button
                     type="button"
-                    class="inline-flex items-center rounded-lg border border-zinc-200 px-3 py-2 text-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    :class="crmBtnSecondary"
                     @click="addThresholdRow"
                 >
                     Добавить диапазон
@@ -33,7 +31,7 @@
                         type="number"
                         step="0.01"
                         min="0"
-                        class="w-full border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                        :class="crmFieldFluid"
                     >
                 </label>
 
@@ -63,7 +61,7 @@
                                     step="0.01"
                                     min="0"
                                     max="1"
-                                    class="w-24 border border-zinc-300 px-2 py-1.5 outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                    :class="`${crmField} w-24`"
                                 >
                             </td>
                             <td class="px-3 py-2">
@@ -73,7 +71,7 @@
                                     step="0.01"
                                     min="0"
                                     max="1"
-                                    class="w-24 border border-zinc-300 px-2 py-1.5 outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                    :class="`${crmField} w-24`"
                                 >
                             </td>
                             <td class="px-3 py-2">
@@ -83,7 +81,7 @@
                                         type="number"
                                         min="0"
                                         max="100"
-                                        class="w-20 border border-zinc-300 px-2 py-1.5 outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                        :class="`${crmField} w-20`"
                                     >
                                     <span class="text-zinc-500 dark:text-zinc-400">%</span>
                                 </div>
@@ -95,7 +93,7 @@
                                         type="number"
                                         min="0"
                                         max="100"
-                                        class="w-20 border border-zinc-300 px-2 py-1.5 outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                        :class="`${crmField} w-20`"
                                     >
                                     <span class="text-zinc-500 dark:text-zinc-400">%</span>
                                 </div>
@@ -138,8 +136,9 @@
 <script setup>
 import { computed } from 'vue';
 import { useForm } from '@inertiajs/vue3';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnSecondary, crmField, crmFieldFluid, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'motivation', activeLeafKey: 'kpi-settings' }, () => page),

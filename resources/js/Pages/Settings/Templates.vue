@@ -26,21 +26,21 @@
         </div>
 
         <div class="grid gap-3 md:grid-cols-3">
-            <section class="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Всего шаблонов</div>
                 <div class="mt-2 text-2xl font-semibold">{{ templates.length }}</div>
             </section>
-            <section class="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">DOCX контрагентов</div>
                 <div class="mt-2 text-2xl font-semibold">{{ externalTemplateCount }}</div>
             </section>
-            <section class="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">По умолчанию</div>
                 <div class="mt-2 text-2xl font-semibold">{{ defaultTemplateCount }}</div>
             </section>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div :class="`${crmPanel} min-h-0 flex-1 overflow-hidden`">
             <div class="h-full overflow-auto">
                 <table class="min-w-full border-collapse text-sm">
                     <thead class="sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-800">
@@ -170,7 +170,7 @@
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
                 @click.self="closeModal"
             >
-                <div class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmModalFormShell} w-full max-w-5xl shadow-2xl`">
                     <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
                         <div>
                             <div class="text-lg font-semibold">
@@ -193,9 +193,7 @@
                         <button
                             type="button"
                             class="rounded-t-lg px-3 py-2 text-sm font-medium"
-                            :class="templateModalTab === 'main'
-                                ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                                : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+                            :class="templateModalTab === 'main' ? crmPillActive : crmPill"
                             @click="templateModalTab = 'main'"
                         >
                             Основное
@@ -203,9 +201,7 @@
                         <button
                             type="button"
                             class="rounded-t-lg px-3 py-2 text-sm font-medium"
-                            :class="templateModalTab === 'placeholders'
-                                ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
-                                : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200'"
+                            :class="templateModalTab === 'placeholders' ? crmPillActive : crmPill"
                             @click="templateModalTab = 'placeholders'"
                         >
                             Плейсхолдеры
@@ -218,12 +214,12 @@
                                 <div class="grid gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Код</label>
-                                        <input v-model="form.code" type="text" class="field" placeholder="customer_contract_request" />
+                                        <input v-model="form.code" type="text" :class="crmFieldFluid" placeholder="customer_contract_request" />
                                         <div v-if="form.errors.code" class="text-sm text-rose-600">{{ form.errors.code }}</div>
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Название</label>
-                                        <input v-model="form.name" type="text" class="field" placeholder="Договор-заявка заказчика" />
+                                        <input v-model="form.name" type="text" :class="crmFieldFluid" placeholder="Договор-заявка заказчика" />
                                         <div v-if="form.errors.name" class="text-sm text-rose-600">{{ form.errors.name }}</div>
                                     </div>
                                 </div>
@@ -231,7 +227,7 @@
                                 <div class="grid gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Сущность</label>
-                                        <select v-model="form.entity_type" class="field">
+                                        <select v-model="form.entity_type" :class="crmFieldFluid">
                                             <option v-for="option in entityTypeOptions" :key="option.value" :value="option.value">
                                                 {{ option.label }}
                                             </option>
@@ -239,7 +235,7 @@
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Источник</label>
-                                        <select v-model="form.source_type" class="field">
+                                        <select v-model="form.source_type" :class="crmFieldFluid">
                                             <option v-for="option in sourceTypeOptions" :key="option.value" :value="option.value">
                                                 {{ option.label }}
                                             </option>
@@ -250,7 +246,7 @@
                                 <div class="grid gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Тип документа</label>
-                                        <select v-model="form.document_type" class="field">
+                                        <select v-model="form.document_type" :class="crmFieldFluid">
                                             <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">
                                                 {{ option.label }}
                                             </option>
@@ -258,7 +254,7 @@
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Группа документа</label>
-                                        <select v-model="form.document_group" class="field">
+                                        <select v-model="form.document_group" :class="crmFieldFluid">
                                             <option v-for="option in documentGroupOptions" :key="option.value" :value="option.value">
                                                 {{ option.label }}
                                             </option>
@@ -269,7 +265,7 @@
                                 <div class="grid gap-4 md:grid-cols-2">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Сторона</label>
-                                        <select v-model="form.party" class="field">
+                                        <select v-model="form.party" :class="crmFieldFluid">
                                             <option v-for="option in partyOptions" :key="option.value" :value="option.value">
                                                 {{ option.label }}
                                             </option>
@@ -277,7 +273,7 @@
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Контрагент</label>
-                                        <select v-model="form.contractor_id" class="field">
+                                        <select v-model="form.contractor_id" :class="crmFieldFluid">
                                             <option :value="null">Без привязки</option>
                                             <option v-for="option in contractorOptions" :key="option.id" :value="option.id">
                                                 {{ option.name }}
@@ -373,35 +369,35 @@
                                     <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: ширина, мм</label>
-                                            <input v-model.number="form.signature_image_width_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.signature_image_width_mm" type="number" min="5" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: высота, мм</label>
-                                            <input v-model.number="form.signature_image_height_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.signature_image_height_mm" type="number" min="5" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: ширина, мм</label>
-                                            <input v-model.number="form.stamp_image_width_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.stamp_image_width_mm" type="number" min="5" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: высота, мм</label>
-                                            <input v-model.number="form.stamp_image_height_mm" type="number" min="5" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.stamp_image_height_mm" type="number" min="5" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: сдвиг X, мм</label>
-                                            <input v-model.number="form.signature_image_offset_x_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.signature_image_offset_x_mm" type="number" min="-200" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Подпись: сдвиг Y, мм</label>
-                                            <input v-model.number="form.signature_image_offset_y_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.signature_image_offset_y_mm" type="number" min="-200" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: сдвиг X, мм</label>
-                                            <input v-model.number="form.stamp_image_offset_x_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.stamp_image_offset_x_mm" type="number" min="-200" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                         <div class="space-y-1">
                                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Печать: сдвиг Y, мм</label>
-                                            <input v-model.number="form.stamp_image_offset_y_mm" type="number" min="-200" max="200" step="0.1" class="field" />
+                                            <input v-model.number="form.stamp_image_offset_y_mm" type="number" min="-200" max="200" step="0.1" :class="crmFieldFluid" />
                                         </div>
                                     </div>
 
@@ -423,7 +419,7 @@
                                     <div v-if="form.entity_type === 'order'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID заказа</label>
-                                            <input v-model="previewOrderId" type="number" min="1" class="field" placeholder="Например, 125" />
+                                            <input v-model="previewOrderId" type="number" min="1" :class="crmFieldFluid" placeholder="Например, 125" />
                                         </div>
                                         <div class="flex flex-wrap gap-2">
                                             <button
@@ -446,7 +442,7 @@
                                     <div v-else-if="form.entity_type === 'lead'" class="space-y-3">
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">ID лида</label>
-                                            <input v-model="previewLeadId" type="number" min="1" class="field" placeholder="Например, 18" />
+                                            <input v-model="previewLeadId" type="number" min="1" :class="crmFieldFluid" placeholder="Например, 18" />
                                         </div>
                                         <div class="flex flex-wrap gap-2">
                                             <button
@@ -544,7 +540,7 @@
                                         </div>
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium">Поле источника</label>
-                                            <select v-model="form.variable_mappings[index].source_path" class="field">
+                                            <select v-model="form.variable_mappings[index].source_path" :class="crmFieldFluid">
                                                 <option value="">Не сопоставлено</option>
                                                 <option v-for="option in activeVariableOptions" :key="option.value" :value="option.value">
                                                     {{ option.label }}
@@ -565,7 +561,7 @@
                         <div class="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
                             <button
                                 type="button"
-                                class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :class="crmBtnNeutral"
                                 @click="closeModal"
                             >
                                 Отмена
@@ -579,7 +575,7 @@
                             </button>
                         </div>
                     </form>
-                </div>
+                </section>
             </div>
         </Teleport>
     </div>
@@ -591,7 +587,17 @@ import { router, useForm } from '@inertiajs/vue3';
 import { FileText, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnNeutral, crmPageTitleSm } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmFieldFluid,
+    crmModalFormShell,
+    crmPageTitleSm,
+    crmPanel,
+    crmPill,
+    crmPillActive,
+    crmStatCard,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'templates' }, () => page),
@@ -1103,8 +1109,3 @@ function downloadLeadDraft() {
 }
 </script>
 
-<style scoped>
-.field {
-    @apply w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50;
-}
-</style>

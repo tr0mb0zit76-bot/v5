@@ -1,5 +1,6 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import { crmBtnPrimary } from '@/support/crmUi.js';
 
 defineProps({
     docs: { type: Array, default: () => [] },
@@ -74,7 +75,7 @@ function title(doc) {
             <button
                 v-if="doc.can_request_approval"
                 type="button"
-                class="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white dark:bg-zinc-100 dark:text-zinc-900"
+                :class="`${crmBtnPrimary} px-3 py-1.5 text-xs`"
                 :disabled="!isEditable"
                 @click="emit('workflow-action', 'request-approval', doc.id)"
             >

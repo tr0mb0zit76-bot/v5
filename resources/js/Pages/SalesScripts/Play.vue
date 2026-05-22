@@ -205,7 +205,8 @@
                             </div>
                             <button
                                 type="submit"
-                                class="inline-flex items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                                :class="crmBtnPrimary"
+                                class="disabled:cursor-not-allowed disabled:opacity-60"
                                 :disabled="trainerSending || trainerDraft.trim().length === 0"
                             >
                                 {{ trainerSending ? 'Отправка...' : 'Отправить' }}
@@ -415,7 +416,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnPrimary } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>

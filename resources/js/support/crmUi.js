@@ -64,8 +64,55 @@ export const crmSegmentedBtn = 'crm-segmented-btn';
 
 export const crmSegmentedBtnActive = 'crm-segmented-btn crm-segmented-btn--active';
 
+/** Элемент списка в боковой панели настроек */
+export const crmListItem = 'crm-list-item';
+
+export const crmListItemIdle = 'crm-list-item crm-list-item--idle';
+
+export const crmListItemActive = 'crm-list-item crm-list-item--active';
+
+export const crmListItemActiveSoft = 'crm-list-item crm-list-item--active-soft';
+
 /** @deprecated используйте crmField */
 export const crmFieldCompact = 'crm-field';
 
 /** @deprecated используйте crmBtnPrimary */
 export const crmBtnPrimaryCompact = 'crm-btn-primary';
+
+/** Оболочка мастера в модалке (ТС, водитель, заказ) */
+export const crmWizardShell = 'crm-wizard-shell';
+
+export const crmWizardHeader = 'crm-wizard-header';
+
+export const crmWizardBack = 'crm-wizard-back';
+
+export const crmWizardBody = 'crm-wizard-body';
+
+/** Контейнер AG Grid на странице реестра */
+export const crmGridPanel = 'crm-grid-panel min-h-0 flex-1 overflow-hidden p-1';
+
+/** Внутренняя оболочка AG Grid (без дублирующей рамки — её даёт crmGridPanel) */
+export const crmGridInnerPanel = 'flex min-h-0 flex-1 flex-col overflow-hidden';
+
+/** Поиск в тулбаре грида */
+export const crmGridSearchField = 'crm-field w-72 py-1.5 pl-10';
+
+/** Кнопка тулбара грида (колонки, сброс, плотность) */
+export const crmGridToolbarBtn = 'crm-btn-neutral inline-flex items-center gap-2 px-2.5 py-1.5 text-sm';
+
+/** Выпадающее меню тулбара грида */
+export const crmGridDropdown = 'crm-panel absolute left-0 top-full z-20 mt-2 w-40 p-1.5 shadow-xl';
+
+/** Панель модального окна (подключается к <Modal>) */
+export const crmModalPanel = 'crm-modal-panel';
+
+/** Мастер в модалке: лиды, контрагенты, автопарк (7xl, высокий) */
+export const crmModalEntityShell = 'crm-modal-entity-shell';
+
+/** Форма в модалке: пользователи, документы (5xl, скролл тела) */
+export const crmModalFormShell = 'crm-modal-form-shell';
+
+export const crmModalFormBody = 'crm-modal-form-body';
+
+/** Чекбокс в формах CRM */
+export const crmCheckbox = 'crm-checkbox';

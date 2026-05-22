@@ -1,10 +1,10 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+    <div :class="`${crmWizardShell} h-full min-h-0`">
+        <div :class="crmWizardHeader">
             <div class="flex items-center gap-3">
                 <button
                     type="button"
-                    class="inline-flex h-11 w-11 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                    :class="crmWizardBack"
                     title="Назад"
                     @click="$emit('close')"
                 >
@@ -31,7 +31,7 @@
             </button>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div :class="crmWizardBody">
             <form class="space-y-5" @submit.prevent="submitMain">
                 <div class="space-y-2">
                     <label class="text-xs font-semibold uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">Контрагент-перевозчик</label>
@@ -127,6 +127,12 @@
                 default-document-type="passport"
                 @saved="emit('saved')"
             />
+            <section
+                v-else
+                :class="`${crmPanel} mt-8 border-dashed p-6 text-center text-sm text-zinc-500 dark:text-zinc-400`"
+            >
+                Сохраните карточку водителя — после этого здесь появятся загрузка документов и таблица вложений.
+            </section>
         </div>
     </div>
 </template>
@@ -136,7 +142,7 @@ import { ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import { Save, X } from 'lucide-vue-next';
 import FleetEntityDocumentsSection from '@/Components/Fleet/FleetEntityDocumentsSection.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmPanel, crmWizardBack, crmWizardBody, crmWizardHeader, crmWizardShell } from '@/support/crmUi.js';
 
 const props = defineProps({
     selectedDriver: { type: Object, default: null },

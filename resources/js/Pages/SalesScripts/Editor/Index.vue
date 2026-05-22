@@ -53,7 +53,7 @@
                 <div class="flex items-end">
                     <button
                         type="submit"
-                        class="inline-flex w-full items-center justify-center rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        :class="`${crmBtnPrimary} w-full`"
                     >
                         Создать
                     </button>
@@ -133,6 +133,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { reactive } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnPrimary } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),

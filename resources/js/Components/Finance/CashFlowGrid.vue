@@ -13,15 +13,41 @@
                 </div>
             </div>
 
-            <div class="flex shrink-0 items-center gap-2">
+            <div class="flex shrink-0 flex-wrap items-center gap-2">
                 <div class="relative">
                     <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                     <input
                         v-model="quickSearch"
                         type="text"
                         placeholder="Поиск по реестру"
-                        class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
+                        :class="crmGridSearchField"
                     />
+                </div>
+
+                <div class="relative">
+                    <button
+                        type="button"
+                        :class="`${crmGridToolbarBtn} justify-center p-2`"
+                        :title="`Плотность таблицы: ${currentDensityLabel}`"
+                        @click="toggleDensityMenu"
+                    >
+                        <Rows3 class="h-4 w-4" />
+                    </button>
+                    <div
+                        v-if="showDensityMenu"
+                        :class="crmGridDropdown"
+                    >
+                        <button
+                            v-for="option in gridDensityOptions"
+                            :key="option.key"
+                            type="button"
+                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                            @click="applyDensity(option.key)"
+                        >
+                            <span>{{ option.label }}</span>
+                            <span v-if="currentDensity === option.key" class="text-xs text-zinc-500 dark:text-zinc-400">Текущая</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -32,9 +58,9 @@
         <div
             v-else
             ref="gridPanel"
-            class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            :class="crmGridInnerPanel"
         >
-            <div class="ag-theme-alpine orders-grid-theme orders-grid-density--comfortable" :style="gridContainerStyle">
+            <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
                 <AgGridVue
                     ref="agGrid"
                     :gridOptions="gridOptions"
@@ -74,7 +100,14 @@ import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Search } from 'lucide-vue-next';
+import { Rows3, Search } from 'lucide-vue-next';
+import { gridDensityOptions, resolveGridDensity, defaultGridDensity } from '@/Components/Grid/grid-density.js';
+import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
+import {
+    CRM_AG_GRID_DENSITY_CHANGED,
+    readPersistedAgGridDensity,
+    writeLocalAgGridDensity,
+} from '@/support/agGridUserDensity.js';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -82,6 +115,7 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
+import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -124,6 +158,9 @@ const props = defineProps({
     },
 });
 
+const PAYMENT_TYPE_FILTER_VALUES = ['Предоплата', 'Финальный платёж'];
+const STATUS_FILTER_VALUES = ['По плану', 'Оплачено', 'Просрочено', 'Отменено'];
+
 const presetFilterModels = {
     customer_overdue: {
         direction: {
@@ -132,12 +169,15 @@ const presetFilterModels = {
             filter: 'Нам',
         },
         status: {
-            filterType: 'text',
-            type: 'equals',
-            filter: 'Просрочено',
+            values: ['Просрочено'],
         },
     },
 };
+
+const currentDensity = ref(defaultGridDensity);
+const showDensityMenu = ref(false);
+const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
+const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
 
 const quickSearch = ref('');
 const agGrid = ref(null);
@@ -274,7 +314,30 @@ class PaymentScheduleCell {
     }
 }
 
-const baseColumnDefs = [
+function buildBaseColumnDefs() {
+    const paymentTypeCol = {
+        colId: 'payment_type',
+        field: 'payment_type',
+        headerName: 'Тип',
+        minWidth: 120,
+        sortable: true,
+    };
+    applyAgSetListColumn(paymentTypeCol, { values: PAYMENT_TYPE_FILTER_VALUES });
+
+    const statusCol = {
+        colId: 'status',
+        headerName: 'Статус',
+        minWidth: 120,
+        sortable: true,
+        valueGetter: (p) => statusLabel(p.data?.status),
+        cellRenderer: statusCellRenderer,
+    };
+    applyAgSetListColumn(statusCol, {
+        values: STATUS_FILTER_VALUES,
+        filterValueGetter: (p) => statusLabel(p.data?.status),
+    });
+
+    return [
     applyAgGridIdColumnSizing({
         colId: 'id',
         field: 'id',
@@ -312,13 +375,7 @@ const baseColumnDefs = [
         sortable: true,
         valueFormatter: (p) => p.value || '—',
     },
-    {
-        colId: 'payment_type',
-        field: 'payment_type',
-        headerName: 'Тип',
-        minWidth: 120,
-        sortable: true,
-    },
+    paymentTypeCol,
     {
         colId: 'invoice_number',
         field: 'invoice_number',
@@ -353,35 +410,30 @@ const baseColumnDefs = [
         sortable: true,
         valueFormatter: (p) => formatMoneyValue(p.value),
     },
-    {
-        colId: 'status',
-        headerName: 'Статус',
-        minWidth: 120,
-        sortable: true,
-        valueGetter: (p) => statusLabel(p.data?.status),
-        cellRenderer: statusCellRenderer,
-    },
+    statusCol,
     {
         colId: 'actions',
         headerName: 'Действия',
-        width: 160,
-        minWidth: 140,
-        maxWidth: 200,
+        width: 88,
+        minWidth: 72,
+        maxWidth: 112,
         pinned: 'right',
         sortable: false,
         filter: false,
         resizable: false,
+        suppressSizeToFit: true,
         cellRenderer: PaymentScheduleCell,
     },
-];
+    ];
+}
 
 const dynamicColumnDefs = computed(() => {
-    const baseById = new Map(baseColumnDefs.map((column) => [column.colId, { ...column }]));
+    const baseById = new Map(buildBaseColumnDefs().map((column) => [column.colId, { ...column }]));
     const roleState = Array.isArray(props.roleColumnsConfig?.payment_schedule)
         ? props.roleColumnsConfig.payment_schedule
         : [];
 
-    let ordered = [...baseColumnDefs];
+    let ordered = [...buildBaseColumnDefs()];
     if (roleState.length > 0) {
         const sortedState = [...roleState].sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0));
         const seen = new Set();
@@ -400,7 +452,7 @@ const dynamicColumnDefs = computed(() => {
             })
             .filter(Boolean);
 
-        baseColumnDefs.forEach((column) => {
+        buildBaseColumnDefs().forEach((column) => {
             if (!seen.has(column.colId)) {
                 ordered.push({ ...column });
             }
@@ -414,8 +466,13 @@ const dynamicColumnDefs = computed(() => {
 
     return ordered.map((column) => {
         if (column.colId === 'actions') {
+            const savedWidth = Number(column.width) || 88;
+
             return {
                 ...column,
+                width: Math.min(Math.max(savedWidth, 72), 112),
+                minWidth: 72,
+                maxWidth: 112,
                 hide: Boolean(column.hide) || !props.canShowActionsColumn,
                 cellRendererParams: {
                     canRecordPayment: props.canRecordPayment,
@@ -647,15 +704,50 @@ watch(() => props.rows, async () => {
     syncBottomScrollbar();
 }, { deep: true });
 
+const loadDensity = () => {
+    currentDensity.value = readPersistedAgGridDensity(props.userId);
+};
+
+const applyDensity = (densityKey) => {
+    currentDensity.value = resolveGridDensity(densityKey).key;
+    writeLocalAgGridDensity(props.userId, currentDensity.value);
+    showDensityMenu.value = false;
+
+    nextTick(() => {
+        gridApi.value?.resetRowHeights();
+    });
+};
+
+const toggleDensityMenu = () => {
+    showDensityMenu.value = !showDensityMenu.value;
+};
+
+const onGlobalDensityChanged = (event) => {
+    const next = event?.detail?.density;
+
+    if (!next) {
+        return;
+    }
+
+    currentDensity.value = resolveGridDensity(next).key;
+
+    nextTick(() => {
+        gridApi.value?.resetRowHeights();
+    });
+};
+
 onMounted(() => {
+    loadDensity();
     updateGridViewportHeight();
     window.addEventListener('resize', updateGridViewportHeight);
     window.addEventListener('resize', syncBottomScrollbar);
+    window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onGlobalDensityChanged);
 });
 
 onUnmounted(() => {
     window.removeEventListener('resize', updateGridViewportHeight);
     window.removeEventListener('resize', syncBottomScrollbar);
+    window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onGlobalDensityChanged);
     removeCenterViewportListener?.();
 
     if (filterModelSaveTimeout) {

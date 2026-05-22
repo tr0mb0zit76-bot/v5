@@ -26,10 +26,10 @@ final class CrmAppearance
     public static function defaults(): array
     {
         return [
-            'button_radius' => self::BUTTON_RADIUS_SHARP,
-            'primary_accent' => self::PRIMARY_ACCENT_EMERALD,
+            'button_radius' => self::BUTTON_RADIUS_ROUNDED,
+            'primary_accent' => self::PRIMARY_ACCENT_SKY,
             'tab_style' => self::TAB_STYLE_FILLED,
-            'workspace_skin' => self::WORKSPACE_SKIN_CLASSIC,
+            'workspace_skin' => self::WORKSPACE_SKIN_SKY,
             'ag_grid_density' => 'normal',
         ];
     }

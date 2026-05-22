@@ -1,14 +1,12 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
-        <div class="shrink-0">
-            <h1 class="text-2xl font-semibold">Управление таблицами</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Здесь задаётся разрешённый набор колонок для ролей в таблицах заказов, лидов, контрагентов и графика оплат. Пользователь видит и настраивает только те поля, которые разрешены его роли.
-            </p>
-        </div>
+        <CrmPageHeader
+            title="Управление таблицами"
+            lead="Здесь задаётся разрешённый набор колонок для ролей в таблицах заказов, лидов, контрагентов и графика оплат. Пользователь видит и настраивает только те поля, которые разрешены его роли."
+        />
 
         <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <section class="min-h-0 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmPanel} min-h-0 overflow-hidden`">
                 <div class="border-b border-zinc-200 px-4 py-3 text-sm font-medium dark:border-zinc-800">
                     Роли
                 </div>
@@ -19,7 +17,7 @@
                         type="button"
                         class="flex items-center justify-between gap-3 px-3 py-3 text-left transition-colors"
                         :class="selectedRoleId === role.id
-                            ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+                            ? crmListItemActiveSoft
                             : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/70'"
                         @click="selectRole(role.id)"
                     >
@@ -31,7 +29,7 @@
                 </div>
             </section>
 
-            <section class="min-h-0 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmPanel} min-h-0 overflow-hidden`">
                 <div class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <div>
                         <div class="font-medium">
@@ -45,7 +43,7 @@
                     <div class="flex items-center gap-2">
                         <button
                             type="button"
-                            class="rounded-xl border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                            :class="crmBtnNeutral"
                             @click="resetSelectedRole"
                         >
                             Сбросить
@@ -66,10 +64,7 @@
                         v-for="table in tableDefinitions"
                         :key="table.key"
                         type="button"
-                        class="rounded-xl border px-3 py-2 text-sm transition-colors"
-                        :class="selectedTableKey === table.key
-                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                        :class="selectedTableKey === table.key ? crmPillActive : crmPill"
                         @click="selectTable(table.key)"
                     >
                         {{ table.label }}
@@ -150,8 +145,16 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmListItemActiveSoft,
+    crmPanel,
+    crmPill,
+    crmPillActive,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, {

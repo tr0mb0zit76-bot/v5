@@ -1,10 +1,25 @@
+@php
+    $crmHtmlAppearance = \App\Support\CrmAppearance::defaults();
+    if (auth()->check()) {
+        $crmHtmlAppearance = \App\Support\CrmAppearance::resolve(
+            is_array(auth()->user()->ui_preferences) ? auth()->user()->ui_preferences : null,
+        );
+    }
+    $crmThemeColor = ($crmHtmlAppearance['workspace_skin'] ?? 'classic') === 'sky' ? '#0284c7' : '#18181b';
+@endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html
+    lang="{{ str_replace('_', '-', app()->getLocale()) }}"
+    data-crm-radius="{{ $crmHtmlAppearance['button_radius'] }}"
+    data-crm-accent="{{ $crmHtmlAppearance['primary_accent'] }}"
+    data-crm-tab-style="{{ $crmHtmlAppearance['tab_style'] }}"
+    data-crm-workspace-skin="{{ $crmHtmlAppearance['workspace_skin'] }}"
+>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <meta name="theme-color" content="#18181b">
+        <meta name="theme-color" content="{{ $crmThemeColor }}">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

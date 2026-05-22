@@ -18,6 +18,7 @@
 
 <script setup>
 import axios from 'axios';
+import { crmSegmentedBtn, crmSegmentedBtnActive } from '@/support/crmUi.js';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
@@ -133,8 +134,8 @@ const toolbarItems = computed(() => {
 
 function buttonClass(active) {
     return active
-        ? 'rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900'
-        : 'rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800';
+        ? `${crmSegmentedBtnActive} px-2 py-1 text-xs`
+        : `${crmSegmentedBtn} px-2 py-1 text-xs`;
 }
 
 function setLink() {

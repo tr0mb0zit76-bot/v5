@@ -148,7 +148,7 @@
                 </template>
             </CrmPageHeader>
 
-            <div class="min-h-0 flex-1 overflow-hidden">
+            <div :class="crmGridPanel">
                 <OrdersGrid
                     :rows="displayedRows"
                     :available-columns="availableColumns"
@@ -190,7 +190,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmGridPanel } from '@/support/crmUi.js';
 import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
 import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 

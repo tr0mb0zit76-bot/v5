@@ -13,7 +13,16 @@ import {
     storeDocumentRegistry,
     updateDocumentRegistry,
 } from '@/support/documentRegistryClient.js';
-import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmBtnSecondary,
+    crmFieldFluid,
+    crmLabel,
+    crmModalFormBody,
+    crmModalFormShell,
+    crmPanel,
+} from '@/support/crmUi.js';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -292,20 +301,20 @@ function openWizardDocuments() {
 
 <template>
     <Modal :show="show" max-width="2xl" @close="closeModal">
-        <section class="flex max-h-[min(90vh,820px)] flex-col overflow-hidden bg-white dark:bg-zinc-900">
+        <section :class="crmModalFormShell">
             <CrmModalHeader :title="modalTitle" @close="closeModal">
                 Добавление файлов и список документов по заказу. Печатные формы по шаблону можно открыть в мастере заказа.
             </CrmModalHeader>
 
-            <div class="min-h-0 flex-1 overflow-y-auto border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6">
-                <form class="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40" @submit.prevent="submitAdd">
+            <div :class="`${crmModalFormBody} border-t border-zinc-200 px-5 py-5 dark:border-zinc-800 sm:px-6`">
+                <form :class="`${crmPanel} space-y-4 p-4`" @submit.prevent="submitAdd">
                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Добавить документ</div>
                     <p v-if="documentUploadHint" class="text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
 
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="space-y-1">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Сторона</label>
-                            <select v-model="addForm.party" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <select v-model="addForm.party" :class="crmFieldFluid">
                                 <option value="customer">Заказчик</option>
                                 <option value="carrier">Перевозчик</option>
                                 <option value="internal">Внутренний</option>
@@ -313,13 +322,13 @@ function openWizardDocuments() {
                         </div>
                         <div class="space-y-1">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип</label>
-                            <select v-model="addForm.type" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <select v-model="addForm.type" :class="crmFieldFluid">
                                 <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                             </select>
                         </div>
                         <div class="space-y-1">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Статус</label>
-                            <select v-model="addForm.status" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <select v-model="addForm.status" :class="crmFieldFluid">
                                 <option value="draft">Черновик</option>
                                 <option value="pending">Ожидает</option>
                                 <option value="signed">Подписан</option>
@@ -328,11 +337,11 @@ function openWizardDocuments() {
                         </div>
                         <div class="space-y-1">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Номер</label>
-                            <input v-model="addForm.number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            <input v-model="addForm.number" type="text" :class="crmFieldFluid" />
                         </div>
                         <div class="space-y-1 sm:col-span-2">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Дата документа</label>
-                            <input v-model="addForm.document_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                            <input v-model="addForm.document_date" type="date" :class="crmFieldFluid" />
                         </div>
                     </div>
 
@@ -358,7 +367,7 @@ function openWizardDocuments() {
                         </p>
                         <button
                             type="button"
-                            class="mt-3 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmBtnSecondary} mt-3`"
                             @click="triggerAddFilePick"
                         >
                             <Paperclip class="h-4 w-4 text-zinc-500" />

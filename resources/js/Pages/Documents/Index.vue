@@ -35,12 +35,14 @@
             </button>
         </div>
 
-        <DocumentsGrid
-            :rows="visibleRows"
-            :user-id="userId"
-            @open-create="openCreateModal"
-            @open-order-documents="openOrderDocumentsFromGrid"
-        />
+        <div :class="crmGridPanel">
+            <DocumentsGrid
+                :rows="visibleRows"
+                :user-id="userId"
+                @open-create="openCreateModal"
+                @open-order-documents="openOrderDocumentsFromGrid"
+            />
+        </div>
 
         <OrderDocumentsModal
             :show="orderDocumentsModal.show"
@@ -49,18 +51,18 @@
             @close="closeOrderDocumentsModal"
         />
 
-        <Modal :show="showDocumentModal" max-width="xl" @close="closeDocumentModal">
-            <section class="overflow-y-auto bg-white dark:bg-zinc-900">
+        <Modal :show="showDocumentModal" max-width="5xl" @close="closeDocumentModal">
+            <section :class="crmModalFormShell">
                 <CrmModalHeader
                     :eyebrow="modalMode === 'create' ? 'Новый документ' : 'Редактирование документа'"
                     :title="modalMode === 'create' ? 'Добавить документ' : 'Редактировать документ'"
                     @close="closeDocumentModal"
                 />
-                <form class="space-y-4 px-6 pb-6 pt-2" @submit.prevent="submitDocument">
+                <form :class="`${crmModalFormBody} space-y-4 px-6 pb-6 pt-2`" @submit.prevent="submitDocument">
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Заказ</label>
-                            <select v-model="documentForm.order_id" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
+                            <select v-model="documentForm.order_id" :class="`mt-2 ${crmFieldFluid}`" required>
                                 <option :value="null" disabled>Выберите заказ</option>
                                 <option v-for="order in props.orders" :key="`ord-${order.id}`" :value="order.id">{{ orderLabel(order) }}</option>
                             </select>
@@ -68,7 +70,7 @@
                         </div>
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Сторона</label>
-                            <select v-model="documentForm.party" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
+                            <select v-model="documentForm.party" :class="`mt-2 ${crmFieldFluid}`" required>
                                 <option value="customer">Заказчик</option>
                                 <option value="carrier">Перевозчик</option>
                                 <option value="internal">Внутренний</option>
@@ -79,14 +81,14 @@
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Тип документа</label>
-                            <select v-model="documentForm.type" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
+                            <select v-model="documentForm.type" :class="`mt-2 ${crmFieldFluid}`" required>
                                 <option v-for="type in documentTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
                             </select>
                             <p v-if="documentForm.errors.type" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.type }}</p>
                         </div>
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Статус</label>
-                            <select v-model="documentForm.status" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50" required>
+                            <select v-model="documentForm.status" :class="`mt-2 ${crmFieldFluid}`" required>
                                 <option value="draft">Черновик</option>
                                 <option value="pending">Ожидает</option>
                                 <option value="signed">Подписан</option>
@@ -98,12 +100,12 @@
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Номер документа</label>
-                            <input v-model="documentForm.number" type="text" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                            <input v-model="documentForm.number" type="text" :class="`mt-2 ${crmFieldFluid}`">
                             <p v-if="documentForm.errors.number" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.number }}</p>
                         </div>
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Дата документа</label>
-                            <input v-model="documentForm.document_date" type="date" class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50">
+                            <input v-model="documentForm.document_date" type="date" :class="`mt-2 ${crmFieldFluid}`">
                             <p v-if="documentForm.errors.document_date" class="mt-1 text-xs text-rose-600">{{ documentForm.errors.document_date }}</p>
                         </div>
                     </div>
@@ -166,7 +168,16 @@ import DocumentsGrid from '@/Components/Documents/DocumentsGrid.vue';
 import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmBtnNeutral, crmPill, crmPillActive } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmFieldFluid,
+    crmGridPanel,
+    crmModalFormBody,
+    crmModalFormShell,
+    crmPill,
+    crmPillActive,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'documents' }, () => page),

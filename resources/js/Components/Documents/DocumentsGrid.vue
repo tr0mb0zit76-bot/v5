@@ -7,12 +7,12 @@
                     <input
                         v-model="quickSearch"
                         type="text"
-                        class="w-80 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
+                        :class="`${crmGridSearchField} w-80`"
                         placeholder="Фильтр по реестру"
                     >
                 </div>
 
-                <button type="button" class="toolbar-button" @click="openColumnModal">
+                <button type="button" :class="crmGridToolbarBtn" @click="openColumnModal">
                     <Settings2 class="h-4 w-4" />
                     Колонки
                 </button>
@@ -20,7 +20,7 @@
                 <div class="relative">
                     <button
                         type="button"
-                        class="toolbar-button px-2"
+                        :class="`${crmGridToolbarBtn} px-2`"
                         :title="`Плотность таблицы: ${currentDensityLabel}`"
                         @click="toggleDensityMenu"
                     >
@@ -29,7 +29,7 @@
 
                     <div
                         v-if="showDensityMenu"
-                        class="absolute left-0 top-full z-20 mt-2 w-40 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                        :class="crmGridDropdown"
                     >
                         <button
                             v-for="option in gridDensityOptions"
@@ -44,7 +44,7 @@
                     </div>
                 </div>
 
-                <button type="button" class="toolbar-button" @click="resetColumns">
+                <button type="button" :class="crmGridToolbarBtn" @click="resetColumns">
                     <RotateCcw class="h-4 w-4" />
                     Сбросить
                 </button>
@@ -57,7 +57,7 @@
 
         <div
             ref="gridPanel"
-            class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            :class="crmGridInnerPanel"
             @contextmenu.capture="suppressNativeContextMenuCapture"
             @contextmenu="onGridPanelEmptyContextMenu"
         >
@@ -96,7 +96,7 @@
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
                 @click.self="closeColumnModal"
             >
-                <div class="w-full max-w-2xl rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+                <div :class="`${crmModalPanel} w-full max-w-2xl shadow-2xl`">
                     <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
                         <div>
                             <div class="text-lg font-semibold">Настройка колонок</div>
@@ -169,6 +169,15 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmGridDropdown,
+    crmGridInnerPanel,
+    crmGridSearchField,
+    crmGridToolbarBtn,
+    crmModalPanel,
+} from '@/support/crmUi.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
     readPersistedAgGridDensity,
@@ -826,8 +835,3 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
-.toolbar-button {
-    @apply inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
-}
-</style>

@@ -1,9 +1,11 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
-        <div class="shrink-0 space-y-2">
-            <h1 class="text-2xl font-semibold">{{ pageTitle }}</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ pageDescription }}</p>
-            <nav v-if="isFinanceModule" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <CrmPageHeader
+            :title="pageTitle"
+            :lead="pageDescription"
+        />
+
+        <nav v-if="isFinanceModule" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <Link
                     :href="route('finance.index')"
                     class="text-zinc-600 underline decoration-zinc-300 underline-offset-2 transition hover:text-zinc-900 dark:text-zinc-400 dark:decoration-zinc-600 dark:hover:text-zinc-100"
@@ -17,8 +19,8 @@
                 >
                     Условия и коэффициенты
                 </Link>
-            </nav>
-            <nav v-else class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        </nav>
+        <nav v-else class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                 <Link
                     :href="route('settings.motivation.index')"
                     class="text-zinc-600 underline decoration-zinc-300 underline-offset-2 transition hover:text-zinc-900 dark:text-zinc-400 dark:decoration-zinc-600 dark:hover:text-zinc-100"
@@ -32,10 +34,9 @@
                 >
                     Зарплата: периоды и выплаты
                 </Link>
-            </nav>
-        </div>
+        </nav>
 
-        <section v-if="isFinanceModule" class="border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <section v-if="isFinanceModule" :class="`${crmPanel} p-5`">
             <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div class="space-y-1">
                     <div class="flex flex-wrap items-center gap-2">
@@ -55,7 +56,7 @@
                 <div class="flex flex-wrap items-center gap-2">
                     <select
                         v-model="selectedSalaryUserId"
-                        class="border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                        :class="crmFieldFluid"
                         @change="selectSalaryPeriod"
                     >
                         <option :value="null">Все сотрудники</option>
@@ -65,7 +66,7 @@
                     </select>
                     <select
                         v-model="selectedSalaryPeriodId"
-                        class="border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                        :class="crmFieldFluid"
                         @change="selectSalaryPeriod"
                     >
                         <option :value="null">Выберите период</option>
@@ -84,15 +85,16 @@
             </p>
 
             <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))]">
-                <input v-model="createPeriodForm.period_start" type="date" class="border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                <input v-model="createPeriodForm.period_end" type="date" class="border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
-                <select v-model="createPeriodForm.period_type" class="border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                <input v-model="createPeriodForm.period_start" type="date" :class="crmFieldFluid">
+                <input v-model="createPeriodForm.period_end" type="date" :class="crmFieldFluid">
+                <select v-model="createPeriodForm.period_type" :class="crmFieldFluid">
                     <option value="h1">1-15 (H1)</option>
                     <option value="h2">16-last (H2)</option>
                 </select>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white transition hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    :class="crmBtnPrimary"
+                    class="disabled:opacity-60"
                     :disabled="createPeriodForm.processing"
                     @click="storeSalaryPeriod"
                 >
@@ -103,7 +105,7 @@
             <div v-if="selectedSalaryPeriodId !== null" class="mb-4 flex flex-wrap gap-2">
                 <button
                     type="button"
-                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    :class="`${crmBtnNeutral} px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50`"
                     :disabled="!selectedSalaryPeriodId || selectedPeriod?.status !== 'draft'"
                     @click="recalculateSalaryPeriod"
                 >
@@ -345,9 +347,9 @@
         </section>
 
         <div v-if="!isFinanceModule" class="grid min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(360px,0.42fr)_minmax(0,0.58fr)]">
-            <section class="border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmPanel} p-5`">
                 <div class="mb-4 space-y-1">
-                    <h2 class="text-lg font-semibold">Новое условие</h2>
+                    <h2 :class="crmSectionTitle">Новое условие</h2>
                     <p class="text-sm text-zinc-500 dark:text-zinc-400">
                         Добавьте персональные параметры для сотрудника.
                     </p>
@@ -358,7 +360,7 @@
                         <span class="text-sm font-medium">Сотрудник</span>
                         <select
                             v-model="createSalaryForm.manager_id"
-                            class="w-full border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                            :class="crmFieldFluid"
                         >
                             <option value="">Выберите сотрудника</option>
                             <option v-for="employee in employees" :key="employee.id" :value="employee.id">
@@ -374,7 +376,7 @@
                                 v-model.number="createSalaryForm.base_salary"
                                 type="number"
                                 min="0"
-                                class="w-full border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                :class="crmFieldFluid"
                             >
                         </label>
 
@@ -385,7 +387,7 @@
                                 type="number"
                                 min="0"
                                 max="100"
-                                class="w-full border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                :class="crmFieldFluid"
                             >
                         </label>
                     </div>
@@ -396,7 +398,7 @@
                             <input
                                 v-model="createSalaryForm.effective_from"
                                 type="date"
-                                class="w-full border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                :class="crmFieldFluid"
                             >
                         </label>
 
@@ -405,7 +407,7 @@
                             <input
                                 v-model="createSalaryForm.effective_to"
                                 type="date"
-                                class="w-full border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
+                                :class="crmFieldFluid"
                             >
                         </label>
                     </div>
@@ -418,7 +420,8 @@
                     <div class="flex justify-end">
                         <button
                             type="button"
-                            class="inline-flex items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                            :class="crmBtnPrimary"
+                            class="disabled:cursor-not-allowed disabled:opacity-60"
                             :disabled="createSalaryForm.processing"
                             @click="storeSalaryCoefficient"
                         >
@@ -428,7 +431,7 @@
                 </div>
             </section>
 
-            <section class="min-h-0 overflow-auto border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <section :class="`${crmPanel} min-h-0 overflow-auto`">
                 <table class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
                     <thead class="bg-zinc-50 dark:bg-zinc-950/60">
                         <tr>
@@ -528,8 +531,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmFieldFluid, crmPanel, crmSectionTitle } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => {

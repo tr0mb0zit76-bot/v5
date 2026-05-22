@@ -44,7 +44,7 @@
                     <button
                         v-if="script.active_version"
                         type="button"
-                        class="inline-flex w-full items-center justify-center rounded-xl border border-zinc-900 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 dark:border-zinc-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        :class="`${crmBtnPrimary} w-full`"
                         @click="startSession(script.active_version.id)"
                     >
                         Начать сессию
@@ -63,7 +63,7 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmModuleCard, crmPageEyebrow, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
+import { crmBtnPrimary, crmModuleCard, crmPageEyebrow, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),

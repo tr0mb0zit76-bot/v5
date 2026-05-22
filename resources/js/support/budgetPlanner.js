@@ -245,10 +245,6 @@ function managerPlanFromMonths(months, managerCount, planMilestoneMonth = null, 
             tags.push('plan_milestone');
         }
 
-        if (cashZeroPlanMonth !== null && row.month === cashZeroPlanMonth) {
-            tags.push('cash_zero_plan');
-        }
-
         if (firstOperating !== null && row.month === firstOperating) {
             tags.push('operating_be');
         }

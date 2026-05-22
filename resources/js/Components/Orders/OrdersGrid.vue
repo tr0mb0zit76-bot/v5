@@ -8,13 +8,13 @@
             v-model="quickSearch"
             type="text"
             placeholder="Поиск по реестру"
-            class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
+            :class="crmGridSearchField"
           />
         </div>
 
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          :class="crmGridToolbarBtn"
           @click="openColumnModal"
         >
           <Settings2 class="h-4 w-4" />
@@ -24,7 +24,7 @@
         <div class="relative">
           <button
             type="button"
-            class="inline-flex items-center justify-center rounded-none border border-zinc-200 bg-white p-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+            :class="`${crmGridToolbarBtn} justify-center p-2`"
             :title="`Плотность таблицы: ${currentDensityLabel}`"
             @click="toggleDensityMenu"
           >
@@ -33,7 +33,7 @@
 
           <div
             v-if="showDensityMenu"
-            class="absolute left-0 top-full z-20 mt-2 w-40 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+            :class="crmGridDropdown"
           >
             <button
               v-for="option in gridDensityOptions"
@@ -50,7 +50,7 @@
 
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          :class="crmGridToolbarBtn"
           @click="resetToRoleDefaults"
         >
           <RotateCcw class="h-4 w-4" />
@@ -61,7 +61,7 @@
 
     <div
       ref="gridPanel"
-      class="flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      :class="crmGridInnerPanel"
       @contextmenu.capture="suppressNativeContextMenuCapture"
       @contextmenu="onGridPanelEmptyContextMenu"
     >
@@ -118,7 +118,7 @@
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
         @click.self="closeColumnModal"
       >
-        <div class="w-full max-w-2xl rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+        <div :class="`${crmModalPanel} w-full max-w-2xl shadow-2xl`">
           <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
             <div>
               <div class="text-lg font-semibold">Настройка колонок</div>
@@ -167,7 +167,7 @@
           <div class="flex items-center justify-between border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
             <button
               type="button"
-              class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              :class="crmBtnNeutral"
               @click="stageRoleDefaults"
             >
               Сбросить по роли
@@ -176,7 +176,7 @@
             <div class="flex items-center gap-3">
               <button
                 type="button"
-                class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                :class="crmBtnNeutral"
                 @click="closeColumnModal"
               >
                 Закрыть
@@ -221,7 +221,15 @@ import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/sup
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmGridDropdown,
+    crmGridInnerPanel,
+    crmGridSearchField,
+    crmGridToolbarBtn,
+    crmModalPanel,
+} from '@/support/crmUi.js';
 import { renderOrderOneCSummaryCell } from '@/support/orderOneCSummaryCell.js';
 import { renderOrderStatusTextCell, resolveOrderStatusLabel } from '@/support/orderStatusDisplay.js';
 import {

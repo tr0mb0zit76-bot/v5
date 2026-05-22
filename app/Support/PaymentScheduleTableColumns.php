@@ -20,7 +20,7 @@ class PaymentScheduleTableColumns
             ['field' => 'actual_date', 'label' => 'Факт', 'width' => 130, 'minWidth' => 110],
             ['field' => 'amount', 'label' => 'Сумма', 'width' => 130, 'minWidth' => 110],
             ['field' => 'status', 'label' => 'Статус', 'width' => 130, 'minWidth' => 110],
-            ['field' => 'actions', 'label' => 'Действия', 'width' => 160, 'minWidth' => 140],
+            ['field' => 'actions', 'label' => 'Действия', 'width' => 88, 'minWidth' => 72],
         ];
     }
 
@@ -57,7 +57,7 @@ class PaymentScheduleTableColumns
             'actual_date' => ['width' => 130, 'hide' => false],
             'amount' => ['width' => 130, 'hide' => false],
             'status' => ['width' => 130, 'hide' => false],
-            'actions' => ['width' => 160, 'hide' => false],
+            'actions' => ['width' => 88, 'hide' => false],
         ];
 
         if ($roleName === 'viewer') {

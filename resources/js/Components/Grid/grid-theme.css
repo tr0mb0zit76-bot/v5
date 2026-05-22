@@ -215,3 +215,31 @@
   --orders-grid-cell-grid: #52525b;
   --ag-selected-row-background-color: rgba(255, 255, 255, 0.08);
 }
+
+/* Тема Sky: таблицы в тон оболочки CRM */
+html[data-crm-workspace-skin='sky'] .orders-grid-theme {
+  --ag-background-color: rgb(var(--crm-surface));
+  --ag-foreground-color: rgb(var(--crm-text));
+  --ag-header-background-color: rgb(var(--crm-accent-soft) / 0.55);
+  --ag-header-foreground-color: rgb(12 74 110);
+  --ag-odd-row-background-color: rgb(var(--crm-surface-muted));
+  --ag-border-color: rgb(var(--crm-border));
+  --ag-row-border-color: rgb(var(--crm-border));
+  --orders-grid-cell-grid: rgb(var(--crm-border));
+  --ag-selected-row-background-color: rgb(var(--crm-accent-soft) / 0.65);
+}
+
+html.dark[data-crm-workspace-skin='sky'] .orders-grid-theme {
+  --ag-header-foreground-color: rgb(var(--crm-accent));
+  --ag-selected-row-background-color: rgb(var(--crm-accent-soft) / 0.35);
+}
+
+html[data-crm-workspace-skin='sky'] .orders-grid-bottom-scroll {
+  background: rgb(var(--crm-surface));
+  border-top-color: rgb(var(--crm-border));
+  scrollbar-color: rgb(var(--crm-accent)) rgb(var(--crm-surface-muted));
+}
+
+html.dark[data-crm-workspace-skin='sky'] .orders-grid-bottom-scroll {
+  background: rgb(var(--crm-surface-muted));
+}

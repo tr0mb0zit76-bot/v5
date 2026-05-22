@@ -71,7 +71,7 @@
 
                 <button
                     type="submit"
-                    class="rounded-xl bg-zinc-900 px-4 py-1.5 text-sm text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    :class="crmBtnPrimary"
                     :disabled="createForm.processing"
                 >
                     {{ createForm.processing ? 'Создание...' : 'Создать' }}
@@ -124,8 +124,7 @@
 
                                     <button
                                         type="button"
-                                        :class="crmBtnCreate"
-                                        class="w-full py-1.5"
+                                        :class="`${crmBtnCreate} w-full justify-center py-1.5`"
                                         :disabled="savingRoleId === role.id"
                                         @click="saveRole(role)"
                                     >
@@ -368,7 +367,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import { Plus, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnNeutral, crmPageTitleSm, crmPanel } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPageTitleSm, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'roles' }, () => page),
@@ -393,6 +392,10 @@ const childAreaMap = {
         'sales_assistant_trainer',
         'sales_assistant_trainer_analytics',
     ],
+    modules: [
+        'modules_catalog',
+        'modules_how_much_fits',
+    ],
 };
 const scopeAreaKeys = [
     'orders',
@@ -405,7 +408,7 @@ const scopeAreaKeys = [
     'dashboard_tiles',
 ];
 const visibilityGroupDefinitions = [
-    { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'orders', 'tasks', 'kanban'] },
+    { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'mail', 'orders', 'tasks', 'kanban'] },
     { id: 'directories', label: 'Реестры и справочники', description: 'Списки и карточки', keys: ['contractors', 'drivers', 'documents', 'users', 'roles'] },
     { id: 'analytics', label: 'Финансы и аналитика', description: 'Отчёты и сводные показатели', keys: ['finance_salary', 'payment_schedules', 'reports'] },
     { id: 'sales_assistant', label: 'Помощник продавца', description: 'Скрипты, книга продаж, тренажёр и аналитика', keys: ['scripts'] },

@@ -251,7 +251,7 @@
 
                 <button
                     type="button"
-                    class="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                    :class="`${crmBtnCreate} w-full justify-center`"
                     :disabled="saveForm.processing"
                     @click="saveScenario"
                 >
@@ -260,7 +260,7 @@
             </aside>
 
             <div class="flex min-h-0 flex-col gap-4">
-                <section class="overflow-hidden rounded-2xl border-2 border-sky-200 bg-white shadow-sm dark:border-sky-800 dark:bg-zinc-900">
+                <section :class="`${crmPanel} overflow-hidden border-2 border-sky-200 dark:border-sky-800`">
                     <div class="border-b border-sky-100 bg-sky-50 px-4 py-3 dark:border-sky-900 dark:bg-sky-950/40">
                         <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">План маржи на одного менеджера</h2>
                         <p class="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
@@ -310,7 +310,6 @@
                                         <span v-if="row.tags.includes('cash_be')" class="rounded bg-emerald-100 px-2 py-0.5 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">Безубыточность</span>
                                         <span v-if="row.tags.includes('operating_be')" class="ml-1 rounded bg-amber-100 px-2 py-0.5 text-amber-900 dark:bg-amber-950 dark:text-amber-200">Ноль за месяц</span>
                                         <span v-if="row.tags.includes('plan_milestone')" class="ml-1 rounded bg-sky-100 px-2 py-0.5 text-sky-900 dark:bg-sky-950 dark:text-sky-200">План: покрытие OPEX</span>
-                                        <span v-if="row.tags.includes('cash_zero_plan')" class="ml-1 rounded bg-teal-100 px-2 py-0.5 text-teal-900 dark:bg-teal-950 dark:text-teal-200">Цель: нулевой поток</span>
                                         <span v-if="row.tags.includes('target')" class="ml-1 rounded bg-violet-100 px-2 py-0.5 text-violet-900 dark:bg-violet-950 dark:text-violet-200">Цель / дивиденды</span>
                                     </td>
                                 </tr>
@@ -351,7 +350,7 @@
                     <article
                         v-for="card in summaryCards"
                         :key="card.key"
-                        class="min-w-[7.5rem] shrink-0 flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                        :class="`${crmPanel} min-w-[7.5rem] shrink-0 flex-1 p-2.5`"
                     >
                         <div class="text-[10px] font-medium uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400">{{ card.label }}</div>
                         <div class="mt-0.5 text-base font-semibold tabular-nums leading-tight text-zinc-900 dark:text-zinc-50">{{ card.value }}</div>
@@ -366,7 +365,7 @@
                     Кассовый остаток уходит в минус ({{ formatMoney(plan.summary.min_cumulative) }}). Увеличьте вливание или маржу.
                 </section>
 
-                <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmPanel} p-5`">
                     <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Сводный график: два направления расчёта</h2>
                     <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
                         Один сценарий, два ответа. Линия, которую вы редактируете сейчас, — сплошная; вторая — проверка «а что если».
@@ -512,11 +511,14 @@
                         </svg>
                     </div>
 
-                    <div class="mt-2 grid grid-cols-2 gap-1 text-[10px] text-zinc-500 sm:grid-cols-4 sm:text-xs">
+                    <div
+                        class="mt-2 grid gap-1 text-[10px] text-zinc-500 sm:text-xs"
+                        :style="{ gridTemplateColumns: `repeat(${planFromGoals.months.length}, minmax(0, 1fr))` }"
+                    >
                         <span
                             v-for="point in planFromGoals.months"
                             :key="`dual-lbl-${point.month}`"
-                            class="text-center"
+                            class="text-center tabular-nums"
                         >
                             М{{ point.month }}
                         </span>
@@ -540,7 +542,7 @@
                     </p>
                 </section>
 
-                <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmPanel} p-5`">
                     <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">График: компания (маржа, OPEX, касса)</h2>
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         Столбцы — маржа и OPEX по месяцам; зелёная линия — накопленный остаток с вливанием.
@@ -842,10 +844,6 @@ function managerRowClass(row) {
         return 'bg-emerald-50/80 dark:bg-emerald-950/25';
     }
 
-    if (row.tags.includes('cash_zero_plan')) {
-        return 'bg-teal-50/60 dark:bg-teal-950/25';
-    }
-
     if (row.tags.includes('operating_be') || row.tags.includes('plan_milestone')) {
         return 'bg-amber-50/50 dark:bg-amber-950/20';
     }
@@ -864,9 +862,14 @@ const summaryCards = computed(() => {
     const cashBeValue = s.breakeven_month_cash
         ? `Месяц ${s.breakeven_month_cash}`
         : (s.breakeven_month_cash_estimated ? `~${s.breakeven_month_cash_estimated} мес.` : '—');
+    const plannedCashMonth = s.cash_zero_month ?? localInputs.cash_zero_month;
     const cashBeHint = s.breakeven_month_cash
-        ? 'Накопленный остаток ≥ 0'
-        : (s.breakeven_month_cash_estimated ? 'Оценка при текущем потоке' : 'Не в горизонте');
+        ? (s.breakeven_month_cash === plannedCashMonth
+            ? 'Накопленный остаток ≥ 0'
+            : `Факт: мес. ${s.breakeven_month_cash}, цель — мес. ${plannedCashMonth}`)
+        : (s.breakeven_month_cash_estimated
+            ? `Оценка при текущем потоке; цель — мес. ${plannedCashMonth}`
+            : `Цель — мес. ${plannedCashMonth}`);
 
     if (localInputs.calculation_mode === MODE_BOTTOM_UP) {
         cards.push(
@@ -902,12 +905,6 @@ const summaryCards = computed(() => {
                 label: 'Ноль за месяц',
                 value: s.breakeven_month_operating ? `Месяц ${s.breakeven_month_operating}` : '—',
                 hint: 'Первый месяц: поток ≥ 0',
-            },
-            {
-                key: 'cash-plan',
-                label: 'Нулевой поток (план)',
-                value: s.cash_zero_month ? `Месяц ${s.cash_zero_month}` : '—',
-                hint: 'Накопленный остаток ≥ 0',
             },
             {
                 key: 'plan-ms',

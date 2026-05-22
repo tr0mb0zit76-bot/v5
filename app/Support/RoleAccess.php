@@ -59,7 +59,9 @@ class RoleAccess
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
-            ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей'],
+            ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей; при выборе компонентов уточните строки ниже'],
+            ['key' => 'modules_catalog', 'label' => 'Модули: каталог', 'description' => 'Страница со списком модулей'],
+            ['key' => 'modules_how_much_fits', 'label' => 'Модули: «Сколько влезет?»', 'description' => '3D-планировщик загрузки транспорта'],
             ['key' => 'scripts', 'label' => 'Помощник продавца', 'description' => 'Общий доступ к модулю; при выборе компонентов уточните строки ниже'],
             ['key' => 'sales_assistant_scripts', 'label' => 'Помощник продавца: скрипты', 'description' => 'Список сценариев и прохождение шагов (в т.ч. из тренажёра)'],
             ['key' => 'sales_assistant_book', 'label' => 'Помощник продавца: книга продаж', 'description' => 'База знаний и статьи'],
@@ -286,10 +288,41 @@ class RoleAccess
         }
 
         $expanded = static::expandLegacySalesAssistantVisibilityAreas(array_values(array_unique($filtered)));
+        $expanded = static::expandLegacyModulesVisibilityAreas($expanded);
 
         return $expanded !== []
             ? $expanded
             : static::defaultVisibilityAreas($roleName);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function modulesComponentKeys(): array
+    {
+        return [
+            'modules_catalog',
+            'modules_how_much_fits',
+        ];
+    }
+
+    /**
+     * @param  list<string>  $areas
+     * @return list<string>
+     */
+    public static function expandLegacyModulesVisibilityAreas(array $areas): array
+    {
+        if (! in_array('modules', $areas, true)) {
+            return array_values(array_unique($areas));
+        }
+
+        foreach (static::modulesComponentKeys() as $key) {
+            if (in_array($key, $areas, true)) {
+                return array_values(array_unique($areas));
+            }
+        }
+
+        return array_values(array_unique([...$areas, ...static::modulesComponentKeys()]));
     }
 
     /**
@@ -344,6 +377,19 @@ class RoleAccess
 
         if ($required === 'scripts') {
             foreach ($assistantKeys as $key) {
+                if (in_array($key, $areas, true)) {
+                    return true;
+                }
+            }
+        }
+
+        $moduleKeys = static::modulesComponentKeys();
+        if (in_array($required, $moduleKeys, true) && in_array('modules', $areas, true)) {
+            return true;
+        }
+
+        if ($required === 'modules') {
+            foreach ($moduleKeys as $key) {
                 if (in_array($key, $areas, true)) {
                     return true;
                 }

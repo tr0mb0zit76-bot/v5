@@ -4,6 +4,8 @@
 
 .crm-btn-create {
     @apply inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60;
+    border-width: 1px;
+    border-style: solid;
     border-radius: var(--crm-radius-control);
     border-color: rgb(167 243 208 / 0.9);
     background-color: rgb(236 253 245);
@@ -123,4 +125,13 @@ html[data-crm-tab-style='underline'] .crm-tab-btn--inactive {
 
 html[data-crm-tab-style='underline'] .crm-tab-btn--active-filled {
     @apply border-b-2 border-zinc-900 bg-transparent text-zinc-900 dark:border-zinc-50 dark:bg-transparent dark:text-zinc-50;
+}
+
+html[data-crm-accent='sky'][data-crm-tab-style='underline'] .crm-tab-btn--active-filled {
+    @apply border-sky-600 text-sky-800 dark:border-sky-400 dark:text-sky-200;
+}
+
+html[data-crm-workspace-skin='sky'][data-crm-tab-style='underline'] .crm-tab-btn--active-filled {
+    border-bottom-color: rgb(var(--crm-accent));
+    color: rgb(var(--crm-accent));
 }

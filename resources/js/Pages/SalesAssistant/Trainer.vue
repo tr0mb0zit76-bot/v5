@@ -1,13 +1,10 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
-        <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Помощник продаж</div>
-            <h1 class="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Тренажер переговоров</h1>
-            <p class="mt-2 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
-                Тренажер работает в три шага: сначала выберите <span class="font-medium text-zinc-700 dark:text-zinc-300">вашу роль</span>, затем
-                <span class="font-medium text-zinc-700 dark:text-zinc-300">профиль покупателя</span>, после этого — <span class="font-medium text-zinc-700 dark:text-zinc-300">сценарий</span>.
-                На каждом шаге справа отображается контекст и подсказки, чтобы быстрее подготовиться к запуску диалога.
-            </p>
+        <CrmPageHeader
+            lead="Три шага: ваша роль → профиль покупателя → сценарий. Справа на каждом шаге — контекст и подсказки."
+            title="Тренажер переговоров"
+        />
+        <section :class="`${crmPanel} space-y-3 p-6`">
             <p class="mt-2 text-sm">
                 <Link
                     :href="route('sales-assistant.trainer.analytics')"
@@ -40,19 +37,19 @@
         </section>
 
         <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <article :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Сессии (30д)</div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{{ trainerSummary.total_sessions }}</div>
             </article>
-            <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <article :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Завершено</div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{{ trainerSummary.completed_sessions }}</div>
             </article>
-            <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <article :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Средний score</div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{{ trainerSummary.avg_score }}</div>
             </article>
-            <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <article :class="`${crmStatCard} p-4`">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Успех / КП</div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
                     {{ trainerSummary.won_sessions }} / {{ trainerSummary.quote_sessions }}
@@ -61,7 +58,7 @@
         </section>
 
         <section class="space-y-3">
-            <div class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <div :class="`${crmPanel} p-4`">
                 <div class="flex items-center justify-between gap-3">
                     <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
                         Прогресс настройки
@@ -74,7 +71,7 @@
             </div>
 
             <div class="grid gap-4 xl:grid-cols-3">
-            <article class="border border-zinc-200 bg-white p-4 shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950">
+            <article :class="`${crmPanel} p-4 transition-all duration-300`">
                 <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">1. Роль пользователя</h2>
                 <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Сначала выберите, кого играете вы, а кого — ассистент.</p>
                 <div class="mt-3 space-y-2">
@@ -96,7 +93,7 @@
                 </div>
             </article>
 
-            <article ref="profileStepRef" class="border border-zinc-200 bg-white p-4 shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950" :class="{ 'opacity-60': !selectedTrainingRoleMode, 'translate-y-1': !selectedTrainingRoleMode }">
+            <article ref="profileStepRef" :class="[`${crmPanel} p-4 transition-all duration-300`, { 'opacity-60': !selectedTrainingRoleMode, 'translate-y-1': !selectedTrainingRoleMode }]" >
                 <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">2. Профиль покупателя</h2>
                 <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">После роли выберите, с каким типом собеседника тренируемся.</p>
                 <div class="mt-3 max-h-64 space-y-2 overflow-auto pr-1">
@@ -127,7 +124,7 @@
                 </div>
             </article>
 
-            <article ref="scenarioStepRef" class="border border-zinc-200 bg-white p-4 shadow-sm transition-all duration-300 dark:border-zinc-800 dark:bg-zinc-950" :class="{ 'opacity-60': !selectedProfile, 'translate-y-1': !selectedProfile }">
+            <article ref="scenarioStepRef" :class="[`${crmPanel} p-4 transition-all duration-300`, { 'opacity-60': !selectedProfile, 'translate-y-1': !selectedProfile }]" >
                 <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">3. Сценарий</h2>
                 <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Финальный шаг — выбрать сценарий и запустить тренировку.</p>
                 <div class="mt-3 max-h-64 space-y-2 overflow-auto pr-1">
@@ -138,7 +135,7 @@
                         class="w-full rounded-xl border px-3 py-2 text-left text-sm transition"
                         :disabled="!selectedProfile"
                         :class="selectedScriptId === script.id
-                            ? 'border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-100 dark:bg-zinc-800 dark:text-zinc-50'
+                            ? 'border-sky-500 bg-sky-50 text-sky-950 dark:border-sky-400 dark:bg-sky-950/30 dark:text-sky-100'
                             : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900'"
                         @click="selectedScriptId = script.id"
                     >
@@ -186,7 +183,9 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmPanel, crmStatCard } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-trainer' }, () => page),

@@ -37,7 +37,7 @@
             </template>
         </CrmPageHeader>
 
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div :class="crmGridPanel">
             <div class="border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                 Колонки можно растягивать справа, горизонтальный скролл сохраняется.
             </div>
@@ -125,7 +125,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmBtnSecondaryOutline } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnSecondaryOutline, crmGridPanel } from '@/support/crmUi.js';
 
 const page = usePage();
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));

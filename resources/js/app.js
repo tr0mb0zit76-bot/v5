@@ -31,8 +31,7 @@ const shouldUseDarkTheme = savedTheme === 'dark' || (savedTheme === null && pref
 document.documentElement.classList.toggle('dark', shouldUseDarkTheme);
 document.documentElement.classList.remove('light');
 
-const bootAppearance = resolveCrmAppearance({ ui_preferences: readLocalCrmAppearance() });
-applyCrmAppearanceToDocument(bootAppearance);
+applyCrmAppearanceToDocument(resolveCrmAppearance({ ui_preferences: readLocalCrmAppearance() }));
 
 window.addEventListener(CRM_APPEARANCE_CHANGED, (event) => {
     applyCrmAppearanceToDocument(resolveCrmAppearance({
@@ -102,6 +101,14 @@ createInertiaApp({
             .mount(el);
     },
     progress: {
-        color: '#18181b',
+        color: '#0284c7',
     },
+});
+
+router.on('success', (event) => {
+    const user = event.detail.page.props?.auth?.user ?? null;
+
+    if (user) {
+        applyCrmAppearanceToDocument(resolveCrmAppearance(user));
+    }
 });

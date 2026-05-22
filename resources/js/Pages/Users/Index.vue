@@ -30,7 +30,7 @@
             </button>
         </div>
 
-        <div class="crm-panel min-h-0 flex-1 overflow-hidden dark:border-zinc-800 dark:bg-zinc-900">
+        <div :class="crmGridPanel">
             <div class="h-full overflow-auto">
                 <table class="min-w-full border-collapse text-sm">
                     <thead class="sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-800">
@@ -118,8 +118,8 @@
             </div>
         </div>
 
-        <Modal :show="showModal" max-width="xl" @close="closeModal">
-            <section class="max-h-[90vh] overflow-y-auto bg-white dark:bg-zinc-900">
+        <Modal :show="showModal" max-width="5xl" @close="closeModal">
+            <section :class="crmModalFormShell">
                 <CrmModalHeader
                     eyebrow="Пользователи"
                     :title="editingUser === null ? 'Новый пользователь' : 'Редактирование пользователя'"
@@ -128,13 +128,13 @@
                     {{ editingUser === null ? 'Создание учётной записи и назначение роли' : 'Изменение роли, статуса и базовых данных' }}
                 </CrmModalHeader>
 
-                <form class="space-y-4 px-6 py-5" @submit.prevent="submit">
+                <form :class="`${crmModalFormBody} space-y-4 px-6 py-5`" @submit.prevent="submit">
                     <div>
                         <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Имя</label>
                         <input
                             v-model="form.name"
                             type="text"
-                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                            :class="`mt-2 ${crmFieldFluid}`"
                         />
                         <div v-if="form.errors.name" class="mt-1 text-sm text-rose-600">{{ form.errors.name }}</div>
                     </div>
@@ -144,7 +144,7 @@
                         <input
                             v-model="form.email"
                             type="email"
-                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                            :class="`mt-2 ${crmFieldFluid}`"
                         />
                         <div v-if="form.errors.email" class="mt-1 text-sm text-rose-600">{{ form.errors.email }}</div>
                     </div>
@@ -155,7 +155,7 @@
                             v-model="form.phone"
                             type="tel"
                             autocomplete="tel"
-                            class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                            :class="`mt-2 ${crmFieldFluid}`"
                         />
                         <div v-if="form.errors.phone" class="mt-1 text-sm text-rose-600">{{ form.errors.phone }}</div>
                         <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -168,7 +168,7 @@
                             <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Роль</label>
                             <select
                                 v-model="form.role_id"
-                                class="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                                :class="`mt-2 ${crmFieldFluid}`"
                             >
                                 <option :value="null">Без роли</option>
                                 <option v-for="role in roles" :key="role.id" :value="role.id">
@@ -182,7 +182,7 @@
                             <input
                                 v-model="form.is_active"
                                 type="checkbox"
-                                class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                                :class="crmCheckbox"
                             />
                             Активный пользователь
                         </label>
@@ -350,7 +350,16 @@ import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmBtnNeutral, crmPageTitleSm } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmCheckbox,
+    crmFieldFluid,
+    crmGridPanel,
+    crmModalFormBody,
+    crmModalFormShell,
+    crmPageTitleSm,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'users' }, () => page),

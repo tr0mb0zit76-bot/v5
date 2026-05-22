@@ -91,7 +91,7 @@
             </div>
         </section>
 
-        <section v-if="tab === 'abc'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section v-if="tab === 'abc'" :class="`${crmPanel} overflow-x-auto`">
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>
@@ -131,7 +131,7 @@
             </table>
         </section>
 
-        <section v-else-if="tab === 'xyz'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section v-else-if="tab === 'xyz'" :class="`${crmPanel} overflow-x-auto`">
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>
@@ -164,7 +164,7 @@
             </table>
         </section>
 
-        <section v-else-if="tab === 'lead-process'" class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section v-else-if="tab === 'lead-process'" :class="`${crmPanel} overflow-x-auto`">
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>
@@ -217,7 +217,7 @@
             </table>
         </section>
 
-        <section v-else class="overflow-x-auto border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section v-else :class="`${crmPanel} overflow-x-auto`">
             <table class="min-w-full text-sm">
                 <thead class="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase text-zinc-600 dark:border-zinc-700 dark:bg-zinc-950/50 dark:text-zinc-400">
                     <tr>

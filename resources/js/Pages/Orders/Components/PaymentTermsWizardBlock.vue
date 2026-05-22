@@ -1,6 +1,15 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import * as ps from '../../../support/orderPaymentScheduleUi.js';
+import {
+    crmCheckbox,
+    crmField,
+    crmFieldFluid,
+    crmPanel,
+    crmSegmented,
+    crmSegmentedBtn,
+    crmSegmentedBtnActive,
+} from '@/support/crmUi.js';
 
 const props = defineProps({
     /** Объект графика (мутируется по месту, как в мастере). */
@@ -138,43 +147,43 @@ function onInstallmentAmountInput(index) {
 </script>
 
 <template>
-    <div class="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/40">
+    <div :class="`${crmPanel} space-y-3 p-4`">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
         </div>
 
-        <div class="flex flex-wrap gap-2 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900">
+        <div :class="crmSegmented">
             <button
                 type="button"
-                class="rounded-lg px-3 py-1.5 text-xs font-medium"
-                :class="termsMode === 'standard' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                :class="termsMode === 'standard' ? crmSegmentedBtnActive : crmSegmentedBtn"
+                class="text-xs"
                 @click="setTermsMode('standard')"
             >
                 Условия стандарт
             </button>
             <button
                 type="button"
-                class="rounded-lg px-3 py-1.5 text-xs font-medium"
-                :class="termsMode === 'detailed' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                :class="termsMode === 'detailed' ? crmSegmentedBtnActive : crmSegmentedBtn"
+                class="text-xs"
                 @click="setTermsMode('detailed')"
             >
                 Условия подробно
             </button>
         </div>
 
-        <div v-if="termsMode === 'detailed'" class="flex flex-wrap gap-2 rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-900">
+        <div v-if="termsMode === 'detailed'" :class="crmSegmented">
             <button
                 type="button"
-                class="rounded-lg px-3 py-1.5 text-xs font-medium"
-                :class="installmentPairMode === 'single' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                :class="installmentPairMode === 'single' ? crmSegmentedBtnActive : crmSegmentedBtn"
+                class="text-xs"
                 @click="setInstallmentPairMode('single')"
             >
                 Один транш
             </button>
             <button
                 type="button"
-                class="rounded-lg px-3 py-1.5 text-xs font-medium"
-                :class="installmentPairMode === 'pair' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                :class="installmentPairMode === 'pair' ? crmSegmentedBtnActive : crmSegmentedBtn"
+                class="text-xs"
                 @click="setInstallmentPairMode('pair')"
             >
                 Два транша
@@ -185,7 +194,7 @@ function onInstallmentAmountInput(index) {
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="text-xs text-zinc-500 dark:text-zinc-400">Сроки в календарных днях после выбранного базиса</div>
                 <label class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
-                    <input v-model="schedule.has_prepayment" type="checkbox" class="h-3.5 w-3.5 shrink-0 rounded border-zinc-300" />
+                    <input v-model="schedule.has_prepayment" type="checkbox" :class="crmCheckbox" />
                     Доля предоплаты
                 </label>
             </div>
@@ -197,12 +206,12 @@ function onInstallmentAmountInput(index) {
                         type="number"
                         min="0"
                         step="1"
-                        class="w-full rounded-xl border border-zinc-200 bg-white px-2 py-2 text-center text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                        :class="`${crmFieldFluid} text-center tabular-nums`"
                     />
                 </div>
                 <div class="min-w-0 space-y-1.5">
                     <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                    <select v-model="schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <select v-model="schedule.postpayment_mode" :class="crmFieldFluid">
                         <option v-for="option in ps.PAYMENT_BASIS_OPTIONS" :key="`${option.value}-std`" :value="option.value">{{ option.label }}</option>
                     </select>
                 </div>
@@ -217,7 +226,7 @@ function onInstallmentAmountInput(index) {
                             min="1"
                             max="99"
                             step="1"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-2 py-2 text-center text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmFieldFluid} text-center tabular-nums`"
                         />
                     </div>
                     <div class="min-w-0 space-y-1.5">
@@ -227,12 +236,12 @@ function onInstallmentAmountInput(index) {
                             type="number"
                             min="0"
                             step="1"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-2 py-2 text-center text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmFieldFluid} text-center tabular-nums`"
                         />
                     </div>
                     <div class="min-w-0 space-y-1.5">
                         <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                        <select v-model="schedule.prepayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <select v-model="schedule.prepayment_mode" :class="crmFieldFluid">
                             <option v-for="option in ps.PAYMENT_BASIS_OPTIONS" :key="`${option.value}-pre`" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
@@ -254,12 +263,12 @@ function onInstallmentAmountInput(index) {
                             type="number"
                             min="0"
                             step="1"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-2 py-2 text-center text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmFieldFluid} text-center tabular-nums`"
                         />
                     </div>
                     <div class="min-w-0 space-y-1.5">
                         <label class="block text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-100">Оплата по</label>
-                        <select v-model="schedule.postpayment_mode" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                        <select v-model="schedule.postpayment_mode" :class="crmFieldFluid">
                             <option v-for="option in ps.PAYMENT_BASIS_OPTIONS" :key="`${option.value}-post`" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
@@ -283,7 +292,7 @@ function onInstallmentAmountInput(index) {
                             min="0"
                             max="100"
                             step="0.01"
-                            class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[11px] tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmField} h-7 min-w-0 px-1 py-0.5 text-center text-[11px] tabular-nums`"
                             :disabled="schedule.installments.length === 1"
                             @input="onInstallmentPercentInput(instIndex)"
                         />
@@ -295,7 +304,7 @@ function onInstallmentAmountInput(index) {
                             type="number"
                             min="0"
                             step="0.01"
-                            class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[11px] tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmField} h-7 min-w-0 px-1 py-0.5 text-center text-[11px] tabular-nums`"
                             :disabled="schedule.installments.length === 1"
                             @change="onInstallmentAmountInput(instIndex)"
                         />
@@ -308,19 +317,19 @@ function onInstallmentAmountInput(index) {
                             min="-730"
                             max="730"
                             step="1"
-                            class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 py-0.5 text-center text-[11px] tabular-nums dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="`${crmField} h-7 min-w-0 px-1 py-0.5 text-center text-[11px] tabular-nums`"
                         />
                     </div>
                     <div class="min-w-0 space-y-0.5">
                         <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Дни</label>
-                        <select v-model="inst.offset_unit" class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 text-[10px] dark:border-zinc-700 dark:bg-zinc-950">
+                        <select v-model="inst.offset_unit" :class="`${crmField} h-7 min-w-0 px-1 text-[10px]`">
                             <option value="calendar_days">кал.</option>
                             <option value="bank_days">банк.</option>
                         </select>
                     </div>
                     <div class="min-w-0 space-y-0.5">
                         <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Якорь</label>
-                        <select v-model="inst.anchor" class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 text-[10px] dark:border-zinc-700 dark:bg-zinc-950">
+                        <select v-model="inst.anchor" :class="`${crmField} h-7 min-w-0 px-1 text-[10px]`">
                             <option v-for="opt in ps.PAYMENT_ANCHOR_OPTIONS" :key="`anchor-${opt.value}`" :value="opt.value">
                                 {{ opt.shortLabel || opt.label }}
                             </option>
@@ -328,7 +337,7 @@ function onInstallmentAmountInput(index) {
                     </div>
                     <div class="min-w-0 space-y-0.5">
                         <label class="block text-[10px] font-medium leading-tight text-zinc-600 dark:text-zinc-400">Базис</label>
-                        <select v-model="inst.basis" class="h-7 w-full min-w-0 rounded-md border border-zinc-200 bg-white px-1 text-[10px] dark:border-zinc-700 dark:bg-zinc-950">
+                        <select v-model="inst.basis" :class="`${crmField} h-7 min-w-0 px-1 text-[10px]`">
                             <option v-for="option in ps.PAYMENT_BASIS_OPTIONS" :key="`i-${option.value}`" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>

@@ -107,7 +107,7 @@
             </label>
         </div>
 
-        <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div :class="crmGridPanel">
             <TasksGrid
                 :rows="visibleTasks"
                 :user-id="userId"
@@ -424,7 +424,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldWide } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldWide, crmGridPanel } from '@/support/crmUi.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';

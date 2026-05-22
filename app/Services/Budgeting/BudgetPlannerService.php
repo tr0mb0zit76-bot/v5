@@ -412,10 +412,6 @@ final class BudgetPlannerService
                 $tags[] = 'plan_milestone';
             }
 
-            if ($cashZeroPlanMonth !== null && $month === $cashZeroPlanMonth) {
-                $tags[] = 'cash_zero_plan';
-            }
-
             if ($firstOperating !== null && $month === $firstOperating) {
                 $tags[] = 'operating_be';
             }

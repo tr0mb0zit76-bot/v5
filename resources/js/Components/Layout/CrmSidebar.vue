@@ -1,13 +1,13 @@
 <template>
     <aside
         :class="[
-            'h-screen border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all duration-200 flex flex-col',
+            'crm-sidebar h-screen border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-all duration-200 flex flex-col',
             collapsed ? 'w-20' : 'w-72',
         ]"
     >
         <div class="h-16 px-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div class="flex items-center gap-3 min-w-0">
-                <div class="h-10 w-10 rounded-2xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 flex items-center justify-center font-semibold">
+                <div class="crm-sidebar-logo flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-900 font-semibold text-white dark:bg-white dark:text-zinc-900">
                     V5
                 </div>
 

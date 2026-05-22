@@ -79,6 +79,38 @@ html.dark[data-crm-workspace-skin='sky'] {
         border-color: rgb(var(--crm-border));
     }
 
+    .crm-list-item {
+        @apply flex w-full items-start gap-3 border px-3 py-3 text-left transition-colors;
+    }
+
+    .crm-list-item--idle {
+        @apply border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/70;
+    }
+
+    .crm-list-item--active {
+        @apply border-zinc-900 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-800;
+    }
+
+    .crm-list-item--active-soft {
+        @apply border-transparent bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100;
+    }
+
+    html[data-crm-workspace-skin='sky'] .crm-list-item--active {
+        border-color: rgb(var(--crm-accent) / 0.4);
+        background: rgb(var(--crm-accent-soft));
+        color: rgb(var(--crm-accent));
+    }
+
+    html[data-crm-workspace-skin='sky'] .crm-list-item--active-soft {
+        background: rgb(var(--crm-accent-soft));
+        color: rgb(var(--crm-accent));
+    }
+
+    .crm-btn-primary.w-full {
+        width: 100%;
+        justify-content: center;
+    }
+
     html[data-crm-workspace-skin='sky'] .crm-btn-create {
         border-color: rgb(var(--crm-accent) / 0.4);
         background: rgb(var(--crm-accent-soft));
@@ -492,4 +524,176 @@ html[data-crm-workspace-skin='sky'] .crm-pill--active {
     border-color: rgb(var(--crm-accent) / 0.35);
     background: rgb(var(--crm-accent-soft));
     color: rgb(var(--crm-accent));
+}
+
+/* ——— Карточки / модалки (автопарк, заказы) ——— */
+
+.crm-wizard-shell {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900;
+}
+
+.crm-wizard-header {
+    @apply flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800;
+}
+
+.crm-wizard-back {
+    @apply inline-flex h-11 w-11 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100;
+    @apply dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60;
+}
+
+.crm-wizard-body {
+    @apply min-h-0 flex-1 overflow-y-auto px-5 py-5;
+}
+
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell {
+    border-color: rgb(var(--crm-border));
+    border-radius: var(--crm-radius-xl);
+    background: rgb(var(--crm-surface));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-wizard-header {
+    border-color: rgb(var(--crm-border));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-wizard-body {
+    background: rgb(var(--crm-surface));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-grid-panel {
+    border-color: rgb(var(--crm-border));
+    border-radius: var(--crm-radius-xl);
+    background: rgb(var(--crm-surface));
+    box-shadow: 0 12px 36px rgb(var(--crm-shadow) / 0.08);
+}
+
+/* ——— Модальные окна и формы (единые токены) ——— */
+
+.crm-modal-panel {
+    @apply bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100;
+    border-radius: var(--crm-radius-control, 0.75rem);
+}
+
+.crm-modal-entity-shell {
+    @apply flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col overflow-hidden;
+}
+
+.crm-modal-form-shell {
+    @apply flex max-h-[min(85dvh,52rem)] flex-col overflow-hidden;
+}
+
+.crm-modal-form-body {
+    @apply min-h-0 flex-1 overflow-y-auto;
+}
+
+.crm-modal-panel .crm-field,
+.crm-modal-panel .crm-field--fluid,
+.crm-wizard-shell .crm-field,
+.crm-wizard-shell .crm-field--fluid {
+    @apply w-full outline-none transition;
+}
+
+.crm-modal-panel input[type='date'],
+.crm-modal-panel input[type='datetime-local'],
+.crm-modal-panel input[type='time'],
+.crm-wizard-shell input[type='date'],
+.crm-wizard-shell input[type='datetime-local'],
+.crm-wizard-shell input[type='time'] {
+    @apply w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition;
+    border-radius: var(--crm-radius-control, 0.75rem);
+}
+
+.crm-modal-panel input[type='date']:focus,
+.crm-modal-panel input[type='datetime-local']:focus,
+.crm-wizard-shell input[type='date']:focus {
+    @apply border-zinc-900 dark:border-zinc-50;
+}
+
+.crm-checkbox,
+.crm-modal-panel input[type='checkbox']:not(.crm-checkbox),
+.crm-wizard-shell input[type='checkbox']:not(.crm-checkbox) {
+    @apply h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 dark:bg-zinc-950;
+    accent-color: rgb(24 24 27);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-modal-backdrop {
+    background: rgb(15 23 42 / 0.45);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-modal-panel {
+    border: 1px solid rgb(var(--crm-border));
+    border-radius: var(--crm-radius-xl);
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
+    box-shadow: 0 24px 48px rgb(var(--crm-shadow) / 0.12);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-modal-panel input[type='date'],
+html[data-crm-workspace-skin='sky'] .crm-modal-panel input[type='datetime-local'],
+html[data-crm-workspace-skin='sky'] .crm-modal-panel input[type='time'],
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input[type='date'],
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input[type='datetime-local'],
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input[type='time'],
+html[data-crm-workspace-skin='sky'] .crm-modal-panel .crm-field,
+html[data-crm-workspace-skin='sky'] .crm-modal-panel .crm-field--fluid,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell .crm-field,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell .crm-field--fluid {
+    border-color: rgb(var(--crm-border));
+    border-radius: calc(var(--crm-radius-md) * 0.9);
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-modal-panel input[type='date']:focus,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input[type='date']:focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-panel .crm-field:focus,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell .crm-field:focus {
+    border-color: rgb(var(--crm-accent));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-checkbox,
+html[data-crm-workspace-skin='sky'] .crm-modal-panel input[type='checkbox'],
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input[type='checkbox'] {
+    accent-color: rgb(var(--crm-accent));
+    border-color: rgb(var(--crm-border));
+}
+
+/* Поля мастера без явного crm-field (legacy-классы Tailwind) */
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell select,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell textarea,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox) {
+    border-color: rgb(var(--crm-border)) !important;
+    border-radius: calc(var(--crm-radius-md) * 0.9) !important;
+    background: rgb(var(--crm-surface)) !important;
+    color: rgb(var(--crm-text)) !important;
+}
+
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell select:focus,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell textarea:focus,
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):focus {
+    border-color: rgb(var(--crm-accent)) !important;
+    outline: none;
+}
+
+html[data-crm-workspace-skin='sky'] .crm-grid-panel .crm-btn-neutral,
+html[data-crm-workspace-skin='sky'] .crm-grid-panel .crm-field {
+    border-radius: calc(var(--crm-radius-md) * 0.9);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-sidebar {
+    border-color: rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-sidebar .crm-sidebar-logo {
+    background: rgb(var(--crm-accent));
+    color: rgb(var(--crm-accent-contrast, 255 255 255));
+}
+
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell {
+    border-radius: var(--crm-radius-xl);
+}
+
+html[data-crm-radius='sharp'] .crm-modal-panel,
+html[data-crm-radius='sharp'] .crm-wizard-shell {
+    border-radius: 0;
 }

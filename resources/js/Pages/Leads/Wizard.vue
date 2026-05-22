@@ -1,10 +1,10 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto border border-zinc-200 bg-white lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900">
-        <div class="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+    <div :class="crmWizardShell">
+        <div :class="crmWizardHeader">
             <div class="flex items-center gap-3">
                 <button
                     type="button"
-                    class="inline-flex h-11 w-11 items-center justify-center border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                    :class="crmWizardBack"
                     title="К реестру"
                     @click="goBack"
                 >
@@ -12,12 +12,17 @@
                     <span class="sr-only">К реестру</span>
                 </button>
                 <div class="min-w-0">
-                    <h1 class="truncate text-lg font-semibold">{{ selectedLeadId ? form.number || 'Лид' : 'Новый лид' }}</h1>
+                    <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                        {{ selectedLeadId ? 'Карточка лида' : 'Новый лид' }}
+                    </div>
+                    <h1 class="mt-1 truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                        {{ selectedLeadId ? form.number || 'Лид' : 'Добавление' }}
+                    </h1>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button type="button" class="secondary-button" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать коммерческое</button>
-                <button type="button" class="primary-button" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
+                <button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать коммерческое</button>
+                <button type="button" :class="crmBtnPrimary" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
                 <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
         </div>
@@ -38,7 +43,7 @@
             </div>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div :class="crmWizardBody">
             <div v-if="activeTab === 'main'" class="space-y-5">
                 <LeadProcessPanel
                     v-if="businessProcessesEnabled"
@@ -53,44 +58,44 @@
                 />
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="space-y-2">
-                        <label class="label">Статус</label>
-                        <select v-model="form.status" class="field">
+                        <label :class="crmLabel">Статус</label>
+                        <select v-model="form.status" :class="crmFieldFluid">
                             <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Источник</label>
-                        <select v-model="form.source" class="field">
+                        <label :class="crmLabel">Источник</label>
+                        <select v-model="form.source" :class="crmFieldFluid">
                             <option value="">Не выбрано</option>
                             <option v-for="option in sourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Ответственный</label>
-                        <select v-model="form.responsible_id" class="field" :disabled="!canAssignResponsible">
+                        <label :class="crmLabel">Ответственный</label>
+                        <select v-model="form.responsible_id" :class="crmFieldFluid" :disabled="!canAssignResponsible">
                             <option v-for="user in responsibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
                         </select>
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Плановая отгрузка</label>
-                        <input v-model="form.planned_shipping_date" type="date" class="field" />
+                        <label :class="crmLabel">Плановая отгрузка</label>
+                        <input v-model="form.planned_shipping_date" type="date" :class="crmFieldFluid" />
                     </div>
                 </div>
 
                 <div class="space-y-2">
-                    <label class="label">Тема лида</label>
-                    <input v-model="form.title" type="text" class="field" />
+                    <label :class="crmLabel">Тема лида</label>
+                    <input v-model="form.title" type="text" :class="crmFieldFluid" />
                 </div>
 
                 <div class="space-y-2">
-                    <label class="label">Описание</label>
-                    <textarea v-model="form.description" rows="4" class="field" />
+                    <label :class="crmLabel">Описание</label>
+                    <textarea v-model="form.description" rows="4" :class="crmFieldFluid" />
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="space-y-2">
                         <div class="flex items-center justify-between gap-2">
-                            <label class="label">Контрагент</label>
+                            <label :class="crmLabel">Контрагент</label>
                             <button
                                 type="button"
                                 class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
@@ -103,7 +108,7 @@
                             <input
                                 v-model="counterpartySearch"
                                 type="text"
-                                class="field"
+                                :class="crmFieldFluid"
                                 placeholder="Поиск по названию, ИНН, телефону, email"
                                 @focus="showCounterpartyResults = true"
                                 @blur="hideCounterpartyResultsWithDelay"
@@ -146,19 +151,19 @@
                         </p>
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Тип перевозки</label>
-                        <select v-model="form.transport_type" class="field">
+                        <label :class="crmLabel">Тип перевозки</label>
+                        <select v-model="form.transport_type" :class="crmFieldFluid">
                             <option value="">Не выбрано</option>
                             <option v-for="option in transportTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Цена клиента</label>
-                        <input v-model="form.target_price" type="number" min="0" step="0.01" class="field" />
+                        <label :class="crmLabel">Цена клиента</label>
+                        <input v-model="form.target_price" type="number" min="0" step="0.01" :class="crmFieldFluid" />
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Валюта</label>
-                        <select v-model="form.target_currency" class="field">
+                        <label :class="crmLabel">Валюта</label>
+                        <select v-model="form.target_currency" :class="crmFieldFluid">
                             <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                         </select>
                     </div>
@@ -166,20 +171,20 @@
 
                 <div class="grid gap-4 md:grid-cols-2">
                     <div class="space-y-2">
-                        <label class="label">Следующий контакт</label>
-                        <input v-model="form.next_contact_at" type="datetime-local" class="field" />
+                        <label :class="crmLabel">Следующий контакт</label>
+                        <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" />
                     </div>
                     <div class="space-y-2">
-                        <label class="label">Причина потери</label>
-                        <input v-model="form.lost_reason" type="text" class="field" placeholder="Заполняется для проигранных лидов" />
+                        <label :class="crmLabel">Причина потери</label>
+                        <input v-model="form.lost_reason" type="text" :class="crmFieldFluid" placeholder="Заполняется для проигранных лидов" />
                     </div>
                 </div>
 
                 <div class="grid gap-4 xl:grid-cols-4">
-                    <div class="space-y-2"><label class="label">Потребность</label><input v-model="form.qualification.need" type="text" class="field" /></div>
-                    <div class="space-y-2"><label class="label">Срок</label><input v-model="form.qualification.timeline" type="text" class="field" /></div>
-                    <div class="space-y-2"><label class="label">ЛПР</label><input v-model="form.qualification.authority" type="text" class="field" /></div>
-                    <div class="space-y-2"><label class="label">Бюджет</label><input v-model="form.qualification.budget" type="text" class="field" /></div>
+                    <div class="space-y-2"><label :class="crmLabel">Потребность</label><input v-model="form.qualification.need" type="text" :class="crmFieldFluid" /></div>
+                    <div class="space-y-2"><label :class="crmLabel">Срок</label><input v-model="form.qualification.timeline" type="text" :class="crmFieldFluid" /></div>
+                    <div class="space-y-2"><label :class="crmLabel">ЛПР</label><input v-model="form.qualification.authority" type="text" :class="crmFieldFluid" /></div>
+                    <div class="space-y-2"><label :class="crmLabel">Бюджет</label><input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" /></div>
                 </div>
 
                 <section v-if="selectedLeadId" class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
@@ -192,12 +197,12 @@
                     </div>
 
                     <div v-if="canUseLeadTasks" class="grid gap-3 xl:grid-cols-[minmax(0,1.4fr),220px,220px,160px]">
-                        <input v-model="nextStepForm.title" type="text" class="field" placeholder="Например: перезвонить клиенту после расчёта" />
-                        <input v-model="nextStepForm.due_at" type="datetime-local" class="field" />
-                        <select v-model="nextStepForm.responsible_id" class="field" :disabled="!canAssignResponsible">
+                        <input v-model="nextStepForm.title" type="text" :class="crmFieldFluid" placeholder="Например: перезвонить клиенту после расчёта" />
+                        <input v-model="nextStepForm.due_at" type="datetime-local" :class="crmFieldFluid" />
+                        <select v-model="nextStepForm.responsible_id" :class="crmFieldFluid" :disabled="!canAssignResponsible">
                             <option v-for="user in responsibleUsers" :key="`next-step-${user.id}`" :value="user.id">{{ user.name }}</option>
                         </select>
-                        <button type="button" class="secondary-button justify-center" :disabled="nextStepForm.processing || !nextStepForm.title" @click="createNextStep">Создать шаг</button>
+                        <button type="button" :class="`${crmBtnSecondary} justify-center`" :disabled="nextStepForm.processing || !nextStepForm.title" @click="createNextStep">Создать шаг</button>
                     </div>
 
                     <div v-else class="text-sm text-zinc-500 dark:text-zinc-400">
@@ -212,7 +217,7 @@
                                     {{ task.status_label }} · {{ task.responsible_name || '—' }} · {{ formatDateTime(task.due_at) }}
                                 </div>
                             </div>
-                            <button type="button" class="secondary-button" @click="openTask(task.id)">Открыть задачи</button>
+                            <button type="button" :class="crmBtnSecondary" @click="openTask(task.id)">Открыть задачи</button>
                         </div>
                         <div v-if="openTasks.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Открытых следующих шагов пока нет.</div>
                     </div>
@@ -224,61 +229,61 @@
             </div>
 
             <div v-else-if="activeTab === 'route'" class="space-y-4">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Маршрут</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Точки до конверсии в заказ.</p></div><button type="button" class="secondary-button" @click="addRoutePoint('loading')"><Plus class="h-4 w-4" />Погрузка</button></div>
+                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Маршрут</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Точки до конверсии в заказ.</p></div><button type="button" :class="crmBtnSecondary" @click="addRoutePoint('loading')"><Plus class="h-4 w-4" />Погрузка</button></div>
                 <div v-for="(point, index) in form.route_points" :key="`point-${index}`" class="grid gap-3 border border-zinc-200 p-4 dark:border-zinc-800 xl:grid-cols-[140px,1fr,170px,170px,170px,44px]">
-                    <select v-model="point.type" class="field"><option value="loading">Погрузка</option><option value="unloading">Выгрузка</option></select>
-                    <input v-model="point.address" type="text" class="field" placeholder="Адрес" />
-                    <input v-model="point.planned_date" type="date" class="field" />
-                    <input v-model="point.contact_person" type="text" class="field" placeholder="Контакт" />
-                    <input v-model="point.contact_phone" type="text" class="field" placeholder="Телефон" />
-                    <button type="button" class="icon-danger" @click="removeRoutePoint(index)"><Trash2 class="h-4 w-4" /></button>
+                    <select v-model="point.type" :class="crmFieldFluid"><option value="loading">Погрузка</option><option value="unloading">Выгрузка</option></select>
+                    <input v-model="point.address" type="text" :class="crmFieldFluid" placeholder="Адрес" />
+                    <input v-model="point.planned_date" type="date" :class="crmFieldFluid" />
+                    <input v-model="point.contact_person" type="text" :class="crmFieldFluid" placeholder="Контакт" />
+                    <input v-model="point.contact_phone" type="text" :class="crmFieldFluid" placeholder="Телефон" />
+                    <button type="button" :class="`${crmBtnDangerMuted} inline-flex h-11 w-11 shrink-0 items-center justify-center`" @click="removeRoutePoint(index)"><Trash2 class="h-4 w-4" /></button>
                 </div>
             </div>
 
             <div v-else-if="activeTab === 'cargo'" class="space-y-4">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Груз</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Позиции груза для просчёта.</p></div><button type="button" class="secondary-button" @click="addCargoItem"><Plus class="h-4 w-4" />Добавить груз</button></div>
+                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Груз</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Позиции груза для просчёта.</p></div><button type="button" :class="crmBtnSecondary" @click="addCargoItem"><Plus class="h-4 w-4" />Добавить груз</button></div>
                 <div v-for="(cargo, index) in form.cargo_items" :key="`cargo-${index}`" class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <input v-model="cargo.name" type="text" class="field" placeholder="Наименование" />
-                        <input v-model="cargo.weight_kg" type="number" min="0" step="0.01" class="field" placeholder="Вес, кг" />
-                        <input v-model="cargo.volume_m3" type="number" min="0" step="0.01" class="field" placeholder="Объём, м3" />
-                        <input v-model="cargo.package_count" type="number" min="0" step="1" class="field" placeholder="Кол-во мест" />
+                        <input v-model="cargo.name" type="text" :class="crmFieldFluid" placeholder="Наименование" />
+                        <input v-model="cargo.weight_kg" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Вес, кг" />
+                        <input v-model="cargo.volume_m3" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Объём, м3" />
+                        <input v-model="cargo.package_count" type="number" min="0" step="1" :class="crmFieldFluid" placeholder="Кол-во мест" />
                     </div>
                     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <select v-model="cargo.package_type" class="field"><option value="">Упаковка</option><option value="pallet">Паллета</option><option value="box">Короб</option><option value="crate">Ящик</option><option value="roll">Рулон</option><option value="bag">Мешок</option></select>
-                        <select v-model="cargo.cargo_type" class="field"><option value="general">Общий</option><option value="dangerous">Опасный</option><option value="temperature_controlled">Температурный</option><option value="oversized">Негабарит</option><option value="fragile">Хрупкий</option></select>
-                        <input v-model="cargo.hs_code" type="text" class="field" placeholder="Код ТН ВЭД" />
+                        <select v-model="cargo.package_type" :class="crmFieldFluid"><option value="">Упаковка</option><option value="pallet">Паллета</option><option value="box">Короб</option><option value="crate">Ящик</option><option value="roll">Рулон</option><option value="bag">Мешок</option></select>
+                        <select v-model="cargo.cargo_type" :class="crmFieldFluid"><option value="general">Общий</option><option value="dangerous">Опасный</option><option value="temperature_controlled">Температурный</option><option value="oversized">Негабарит</option><option value="fragile">Хрупкий</option></select>
+                        <input v-model="cargo.hs_code" type="text" :class="crmFieldFluid" placeholder="Код ТН ВЭД" />
                         <label class="flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"><input v-model="cargo.dangerous_goods" type="checkbox" class="h-4 w-4" />Опасный груз</label>
                     </div>
                     <div class="grid gap-3 xl:grid-cols-[1fr,180px,44px]">
-                        <textarea v-model="cargo.description" rows="2" class="field" placeholder="Описание" />
-                        <input v-model="cargo.dangerous_class" type="text" class="field" placeholder="Класс опасности" />
-                        <button type="button" class="icon-danger" @click="removeCargoItem(index)"><Trash2 class="h-4 w-4" /></button>
+                        <textarea v-model="cargo.description" rows="2" :class="crmFieldFluid" placeholder="Описание" />
+                        <input v-model="cargo.dangerous_class" type="text" :class="crmFieldFluid" placeholder="Класс опасности" />
+                        <button type="button" :class="`${crmBtnDangerMuted} inline-flex h-11 w-11 shrink-0 items-center justify-center`" @click="removeCargoItem(index)"><Trash2 class="h-4 w-4" /></button>
                     </div>
                 </div>
             </div>
 
             <div v-else-if="activeTab === 'activities'" class="space-y-4">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммуникации</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">История контактов и единая лента событий.</p></div><button type="button" class="secondary-button" @click="addActivity"><Plus class="h-4 w-4" />Добавить активность</button></div>
+                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммуникации</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">История контактов и единая лента событий.</p></div><button type="button" :class="crmBtnSecondary" @click="addActivity"><Plus class="h-4 w-4" />Добавить активность</button></div>
                 <ActivityTimeline v-if="selectedLeadId" ref="activityTimelineRef" :lead-id="selectedLeadId" />
                 <div v-for="(activity, index) in form.activities" :key="`activity-${index}`" class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <select v-model="activity.type" class="field"><option value="call">Звонок</option><option value="email">Email</option><option value="meeting">Встреча</option><option value="note">Заметка</option></select>
-                        <input v-model="activity.subject" type="text" class="field" placeholder="Тема" />
-                        <input v-model="activity.next_action_at" type="datetime-local" class="field" />
-                        <button type="button" class="icon-danger" @click="removeActivity(index)"><Trash2 class="h-4 w-4" /></button>
+                        <select v-model="activity.type" :class="crmFieldFluid"><option value="call">Звонок</option><option value="email">Email</option><option value="meeting">Встреча</option><option value="note">Заметка</option></select>
+                        <input v-model="activity.subject" type="text" :class="crmFieldFluid" placeholder="Тема" />
+                        <input v-model="activity.next_action_at" type="datetime-local" :class="crmFieldFluid" />
+                        <button type="button" :class="`${crmBtnDangerMuted} inline-flex h-11 w-11 shrink-0 items-center justify-center`" @click="removeActivity(index)"><Trash2 class="h-4 w-4" /></button>
                     </div>
-                    <textarea v-model="activity.content" rows="3" class="field" placeholder="Комментарий" />
+                    <textarea v-model="activity.content" rows="3" :class="crmFieldFluid" placeholder="Комментарий" />
                 </div>
             </div>
 
             <div v-else class="grid gap-4 xl:grid-cols-[1.4fr,0.9fr]">
                 <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммерческое предложение</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Для лида доступны только коммерческие шаблоны и черновики DOCX.</p></div><button type="button" class="secondary-button" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать</button></div>
+                    <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммерческое предложение</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Для лида доступны только коммерческие шаблоны и черновики DOCX.</p></div><button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать</button></div>
                     <div class="grid gap-3 md:grid-cols-[minmax(0,1fr),auto]">
                         <div class="space-y-2">
-                            <label class="label">Шаблон коммерческого</label>
-                            <select v-model="selectedTemplateId" class="field">
+                            <label :class="crmLabel">Шаблон коммерческого</label>
+                            <select v-model="selectedTemplateId" :class="crmFieldFluid">
                                 <option value="">Не выбран</option>
                                 <option v-for="template in printFormTemplateOptions" :key="template.id" :value="String(template.id)">
                                     {{ templateOptionLabel(template) }}
@@ -286,15 +291,15 @@
                             </select>
                         </div>
                         <div class="flex items-end">
-                            <button type="button" class="secondary-button" :disabled="!selectedLeadId || !selectedTemplateId" @click="previewCommercialDraft"><FileText class="h-4 w-4" />Предпросмотр</button>
-                            <button type="button" class="secondary-button" :disabled="!selectedLeadId || !selectedTemplateId" @click="downloadCommercialDraft"><FileText class="h-4 w-4" />Скачать DOCX</button>
+                            <button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId || !selectedTemplateId" @click="previewCommercialDraft"><FileText class="h-4 w-4" />Предпросмотр</button>
+                            <button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId || !selectedTemplateId" @click="downloadCommercialDraft"><FileText class="h-4 w-4" />Скачать DOCX</button>
                         </div>
                     </div>
                     <div class="grid gap-3 md:grid-cols-2">
-                        <div><div class="meta">Тема</div><div class="text-sm">{{ form.title || '—' }}</div></div>
-                        <div><div class="meta">Цена</div><div class="text-sm">{{ form.target_price ? formatMoney(form.target_price, form.target_currency) : '—' }}</div></div>
-                        <div><div class="meta">Маршрут</div><div class="text-sm">{{ form.loading_location || '—' }} → {{ form.unloading_location || '—' }}</div></div>
-                        <div><div class="meta">Контрагент</div><div class="text-sm">{{ selectedCounterpartyName }}</div></div>
+                        <div><div :class="crmPageEyebrow">Тема</div><div class="text-sm">{{ form.title || '—' }}</div></div>
+                        <div><div :class="crmPageEyebrow">Цена</div><div class="text-sm">{{ form.target_price ? formatMoney(form.target_price, form.target_currency) : '—' }}</div></div>
+                        <div><div :class="crmPageEyebrow">Маршрут</div><div class="text-sm">{{ form.loading_location || '—' }} → {{ form.unloading_location || '—' }}</div></div>
+                        <div><div :class="crmPageEyebrow">Контрагент</div><div class="text-sm">{{ selectedCounterpartyName }}</div></div>
                     </div>
                 </div>
                 <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
@@ -308,21 +313,21 @@
                         <button
                             v-if="!offer.sent_at"
                             type="button"
-                            class="secondary-button mt-3"
+                            :class="`${crmBtnSecondary} mt-3`"
                             @click="openSendOfferModal(offer)"
                         >
                             Отправить по e-mail
                         </button>
                     </div>
                     <div v-if="form.offers.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Коммерческие предложения ещё не формировались.</div>
-                    <div v-if="form.orders.length" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800"><div class="meta">Конвертирован в заказ</div><div class="mt-2 font-medium">{{ form.orders[0].order_number }}</div></div>
+                    <div v-if="form.orders.length" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800"><div :class="crmPageEyebrow">Конвертирован в заказ</div><div class="mt-2 font-medium">{{ form.orders[0].order_number }}</div></div>
                 </div>
             </div>
         </div>
 
         <div v-if="selectedLeadId" class="flex items-center justify-between gap-4 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
             <div class="text-sm text-zinc-500 dark:text-zinc-400">Удаление используется для чистки воронки.</div>
-            <button type="button" class="danger-button" @click="destroyLead"><Trash2 class="h-4 w-4" />Удалить</button>
+            <button type="button" :class="crmBtnDangerMuted" @click="destroyLead"><Trash2 class="h-4 w-4" />Удалить</button>
         </div>
     </div>
 
@@ -332,7 +337,7 @@
             class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
             @click.self="closeLeadCounterpartyModal"
         >
-            <div class="w-full max-w-xl rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900" @click.stop>
+            <div :class="`${crmModalPanel} w-full max-w-xl p-5 shadow-2xl`" @click.stop>
                 <div class="mb-4 flex items-center justify-between">
                     <div>
                         <div class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Новый контрагент</div>
@@ -349,22 +354,22 @@
                         v-model="counterpartyForm.name"
                         type="text"
                         placeholder="Название"
-                        class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2"
+                        :class="`${crmFieldFluid} md:col-span-2`"
                     />
-                    <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
-                    <input v-model="counterpartyForm.phone" type="text" placeholder="Телефон" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.email" type="email" placeholder="Email" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.contact_person" type="text" placeholder="Контактное лицо" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
+                    <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" :class="`${crmFieldFluid} md:col-span-2`" />
+                    <input v-model="counterpartyForm.phone" type="text" placeholder="Телефон" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.email" type="email" placeholder="Email" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.contact_person" type="text" placeholder="Контактное лицо" :class="`${crmFieldFluid} md:col-span-2`" />
                 </div>
                 <p v-if="inlineContractorError" class="mt-2 text-xs text-rose-600 dark:text-rose-400">{{ inlineContractorError }}</p>
 
                 <div class="mt-5 flex justify-end gap-3">
-                    <button type="button" class="secondary-button" @click="closeLeadCounterpartyModal">Отмена</button>
+                    <button type="button" :class="crmBtnSecondary" @click="closeLeadCounterpartyModal">Отмена</button>
                     <button
                         type="button"
-                        class="primary-button"
+                        :class="crmBtnPrimary"
                         :disabled="inlineContractorSaving || !counterpartyForm.name?.trim()"
                         @click="createInlineLeadCounterparty"
                     >
@@ -378,14 +383,14 @@
             class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
             @click.self="closeSendOfferModal"
         >
-            <form class="w-full max-w-lg space-y-3 rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900" @submit.prevent="submitSendOffer">
+            <form :class="`${crmModalPanel} w-full max-w-lg space-y-3 p-5 shadow-2xl`" @submit.prevent="submitSendOffer">
                 <div class="text-lg font-semibold">Отправить КП по e-mail</div>
-                <input v-model="sendOfferForm.to_raw" type="text" class="field" placeholder="Кому (через запятую)" />
-                <input v-model="sendOfferForm.subject" type="text" class="field" placeholder="Тема" />
-                <textarea v-model="sendOfferForm.body" rows="5" class="field" placeholder="Текст письма" />
+                <input v-model="sendOfferForm.to_raw" type="text" :class="crmFieldFluid" placeholder="Кому (через запятую)" />
+                <input v-model="sendOfferForm.subject" type="text" :class="crmFieldFluid" placeholder="Тема" />
+                <textarea v-model="sendOfferForm.body" rows="5" :class="crmFieldFluid" placeholder="Текст письма" />
                 <div class="flex justify-end gap-2">
-                    <button type="button" class="secondary-button" @click="closeSendOfferModal">Отмена</button>
-                    <button type="submit" class="primary-button" :disabled="sendOfferForm.processing">Отправить</button>
+                    <button type="button" :class="crmBtnSecondary" @click="closeSendOfferModal">Отмена</button>
+                    <button type="submit" :class="crmBtnPrimary" :disabled="sendOfferForm.processing">Отправить</button>
                 </div>
             </form>
         </div>
@@ -400,7 +405,20 @@ import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeli
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnDangerMuted,
+    crmBtnPrimary,
+    crmBtnSecondary,
+    crmFieldFluid,
+    crmLabel,
+    crmWizardBack,
+    crmWizardBody,
+    crmWizardHeader,
+    crmWizardShell,
+    crmModalPanel,
+    crmPageEyebrow,
+} from '@/support/crmUi.js';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });
 
@@ -892,12 +910,3 @@ function downloadCommercialDraft() {
 }
 </script>
 
-<style scoped>
-.field { @apply w-full border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-zinc-900 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400 dark:disabled:bg-zinc-900; }
-.label { @apply text-sm font-medium; }
-.meta { @apply text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400; }
-.secondary-button { @apply inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800; }
-.primary-button { @apply inline-flex items-center gap-2 border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200; }
-.danger-button { @apply inline-flex items-center gap-2 border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/40; }
-.icon-danger { @apply inline-flex h-11 w-11 items-center justify-center border border-rose-200 text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/40; }
-</style>

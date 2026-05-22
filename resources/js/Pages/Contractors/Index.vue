@@ -28,7 +28,19 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { transliteratedFieldValue } from '@/support/cyrillicTransliteration.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate, crmPageTitleSm } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnDangerMuted,
+    crmBtnNeutral,
+    crmCheckbox,
+    crmFieldFluid,
+    crmGridPanel,
+    crmModalEntityShell,
+    crmPageTitleSm,
+    crmWizardBack,
+    crmWizardBody,
+    crmWizardHeader,
+} from '@/support/crmUi.js';
 import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/support/normsPenalties.js';
 
 defineOptions({
@@ -1636,7 +1648,7 @@ function handleMobileNavSelect(key) {
             </template>
         </CrmPageHeader>
 
-        <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div :class="crmGridPanel">
             <ContractorsGrid
                 :rows="contractors"
                 :available-columns="availableColumns"
@@ -1648,12 +1660,12 @@ function handleMobileNavSelect(key) {
         </div>
 
             <Modal :show="isContractorModalOpen" max-width="7xl" @close="closeContractorModal">
-                <section class="flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col gap-3 overflow-hidden bg-transparent">
-                <div class="flex items-center justify-between gap-4 border border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmModalEntityShell} gap-3`">
+                <div :class="crmWizardHeader">
                     <div class="flex min-w-0 items-center gap-3">
                         <button
                             type="button"
-                            class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                            :class="crmWizardBack"
                             title="К реестру"
                             @click="closeContractorModal"
                         >
@@ -1677,7 +1689,7 @@ function handleMobileNavSelect(key) {
                     <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
                         <button
                             type="button"
-                            class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                            :class="crmBtnNeutral"
                             @click="resetToSelected"
                         >
                             Сбросить
@@ -1685,7 +1697,7 @@ function handleMobileNavSelect(key) {
                         <button
                             v-if="selectedContractorId !== null"
                             type="button"
-                            class="inline-flex items-center gap-2 border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                            :class="crmBtnDangerMuted"
                             @click="removeContractor"
                         >
                             <Trash2 class="h-4 w-4" />
@@ -1703,7 +1715,7 @@ function handleMobileNavSelect(key) {
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2 border border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                <div class="flex flex-wrap gap-2 border-b border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="flex flex-wrap gap-2">
                         <button
                             v-for="tab in tabs"
@@ -1719,7 +1731,7 @@ function handleMobileNavSelect(key) {
                     </div>
                 </div>
 
-                <div class="min-h-0 flex-1 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5">
+                <div :class="crmWizardBody">
                     <div v-if="false" class="space-y-4">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
                             <div class="space-y-4">
@@ -1729,7 +1741,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.name"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                         <div v-if="form.errors.name" class="text-sm text-rose-600">{{ form.errors.name }}</div>
                                     </div>
@@ -1739,7 +1751,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.full_name"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                     </div>
                                 </div>
@@ -1757,7 +1769,7 @@ function handleMobileNavSelect(key) {
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тип контрагента</label>
                                             <select
                                                 v-model="form.type"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             >
                                                 <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
                                                     {{ type.label }}
@@ -1767,15 +1779,15 @@ function handleMobileNavSelect(key) {
 
                                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                                <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
+                                                <input v-model="form.is_active" type="checkbox" :class="crmCheckbox" />
                                                 Активен
                                             </label>
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                                <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
+                                                <input v-model="form.is_verified" type="checkbox" :class="crmCheckbox" />
                                                 Проверен
                                             </label>
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100 sm:col-span-2">
-                                                <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
+                                                <input v-model="form.is_own_company" type="checkbox" :class="crmCheckbox" />
                                                 Своя компания
                                             </label>
                                         </div>
@@ -1789,7 +1801,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.inn"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                                 После ввода корректного ИНН DaData подставит реквизиты автоматически.
@@ -1801,7 +1813,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.phone"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                     </div>
@@ -1817,7 +1829,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.email"
                                             type="email"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                     </div>
 
@@ -1826,7 +1838,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.website"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                     </div>
                                 </div>
@@ -1837,7 +1849,7 @@ function handleMobileNavSelect(key) {
                                         v-model="form.short_description"
                                         rows="4"
                                         placeholder="Коротко: чем занимается компания, сильные стороны, профиль работы"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
                             </div>
@@ -1850,7 +1862,7 @@ function handleMobileNavSelect(key) {
                                     <input
                                         v-model="form.contact_person"
                                         type="text"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
 
@@ -1859,7 +1871,7 @@ function handleMobileNavSelect(key) {
                                     <input
                                         v-model="form.contact_person_position"
                                         type="text"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
 
@@ -1868,7 +1880,7 @@ function handleMobileNavSelect(key) {
                                     <input
                                         v-model="form.contact_person_phone"
                                         type="text"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
 
@@ -1877,7 +1889,7 @@ function handleMobileNavSelect(key) {
                                     <input
                                         v-model="form.contact_person_email"
                                         type="email"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
                                 </div>
@@ -1895,7 +1907,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.name"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                         <div v-if="form.errors.name" class="text-sm text-rose-600">{{ form.errors.name }}</div>
                                     </div>
@@ -1905,7 +1917,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.full_name"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                     </div>
                                 </div>
@@ -1924,7 +1936,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.inn"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                                 После ввода корректного ИНН DaData попробует заполнить реквизиты автоматически.
@@ -1936,7 +1948,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.phone"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
 
@@ -1945,7 +1957,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.email"
                                                 type="email"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
 
@@ -1954,7 +1966,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.website"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                     </div>
@@ -1971,7 +1983,7 @@ function handleMobileNavSelect(key) {
                                         v-model="form.short_description"
                                         rows="4"
                                         placeholder="Коротко: чем занимается компания, ключевой профиль, сильные стороны и особенности работы."
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
                             </div>
@@ -1989,7 +2001,7 @@ function handleMobileNavSelect(key) {
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тип контрагента</label>
                                         <select
                                             v-model="form.type"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         >
                                             <option v-for="type in contractorTypes" :key="type.value" :value="type.value">
                                                 {{ type.label }}
@@ -2002,7 +2014,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.ati_id"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                     </div>
 
@@ -2010,7 +2022,7 @@ function handleMobileNavSelect(key) {
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Владелец</label>
                                         <select
                                             v-model="form.owner_id"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         >
                                             <option :value="null">Не назначен</option>
                                             <option v-for="user in users" :key="user.id" :value="user.id">
@@ -2021,15 +2033,15 @@ function handleMobileNavSelect(key) {
 
                                     <div class="grid grid-cols-1 gap-3">
                                         <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                            <input v-model="form.is_active" type="checkbox" class="rounded border-zinc-300" />
+                                            <input v-model="form.is_active" type="checkbox" :class="crmCheckbox" />
                                             Активен
                                         </label>
                                         <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                            <input v-model="form.is_verified" type="checkbox" class="rounded border-zinc-300" />
+                                            <input v-model="form.is_verified" type="checkbox" :class="crmCheckbox" />
                                             Проверен
                                         </label>
                                         <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                            <input v-model="form.is_own_company" type="checkbox" class="rounded border-zinc-300" />
+                                            <input v-model="form.is_own_company" type="checkbox" :class="crmCheckbox" />
                                             Своя компания
                                         </label>
                                     </div>
@@ -2088,7 +2100,7 @@ function handleMobileNavSelect(key) {
                                         </div>
                                     </div>
                                     <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-                                        <input v-model="form.stop_on_limit" type="checkbox" class="rounded border-zinc-300 dark:border-zinc-600" />
+                                        <input v-model="form.stop_on_limit" type="checkbox" :class="crmCheckbox" />
                                         Стоп-работа по лимиту
                                     </label>
                                 </div>
@@ -2096,11 +2108,11 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                     <div class="space-y-2 md:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Лимит задолженности</label>
-                                        <input v-model="form.debt_limit" type="number" min="0" step="0.01" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.debt_limit" type="number" min="0" step="0.01" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Валюта</label>
-                                        <select v-model="form.debt_limit_currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                        <select v-model="form.debt_limit_currency" :class="crmFieldFluid">
                                             <option v-for="option in currencySelectOptions" :key="option.value" :value="option.value">{{ option.value }}</option>
                                         </select>
                                     </div>
@@ -2115,7 +2127,7 @@ function handleMobileNavSelect(key) {
                                             <div class="min-w-0 space-y-3">
                                                 <div class="space-y-2">
                                                     <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты заказчика</label>
-                                                    <select v-model="form.default_customer_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                    <select v-model="form.default_customer_payment_form" :class="crmFieldFluid">
                                                         <option value="">Не задана</option>
                                                         <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                                     </select>
@@ -2131,7 +2143,7 @@ function handleMobileNavSelect(key) {
                                                 <div class="flex flex-wrap items-center justify-between gap-3">
                                                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
                                                     <label class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
-                                                        <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" class="h-3.5 w-3.5 shrink-0 rounded border-zinc-300" />
+                                                        <input v-model="form.default_customer_payment_schedule.has_prepayment" type="checkbox" :class="crmCheckbox" />
                                                         Предоплата
                                                     </label>
                                                 </div>
@@ -2204,7 +2216,7 @@ function handleMobileNavSelect(key) {
                                             <div class="min-w-0 space-y-3">
                                                 <div class="space-y-2">
                                                     <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Форма оплаты перевозчика</label>
-                                                    <select v-model="form.default_carrier_payment_form" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                    <select v-model="form.default_carrier_payment_form" :class="crmFieldFluid">
                                                         <option value="">Не задана</option>
                                                         <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                                     </select>
@@ -2220,7 +2232,7 @@ function handleMobileNavSelect(key) {
                                                 <div class="flex flex-wrap items-center justify-between gap-3">
                                                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Сроки и условия оплаты</div>
                                                     <label class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
-                                                        <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" class="h-3.5 w-3.5 shrink-0 rounded border-zinc-300" />
+                                                        <input v-model="form.default_carrier_payment_schedule.has_prepayment" type="checkbox" :class="crmCheckbox" />
                                                         Предоплата
                                                     </label>
                                                 </div>
@@ -2288,7 +2300,7 @@ function handleMobileNavSelect(key) {
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Условия сотрудничества</label>
-                                    <textarea v-model="form.cooperation_terms_notes" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
+                                    <textarea v-model="form.cooperation_terms_notes" rows="4" :class="crmFieldFluid"></textarea>
                                 </div>
 
                                 <div class="space-y-2">
@@ -2297,7 +2309,7 @@ function handleMobileNavSelect(key) {
                                         v-model="transportRequirementsText"
                                         rows="6"
                                         placeholder="По одному требованию на строку"
-                                        class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                        :class="crmFieldFluid"
                                     />
                                 </div>
                             </div>
@@ -2391,14 +2403,14 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.kpp"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Орг.-правовая форма</label>
                                             <select
                                                 v-model="form.legal_form"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             >
                                                 <option value="">Не указана</option>
                                                 <option v-for="option in legalFormOptions" :key="option.value" :value="option.value">
@@ -2411,7 +2423,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.ogrn"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                         <div class="space-y-2">
@@ -2419,7 +2431,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.okpo"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                     </div>
@@ -2430,7 +2442,7 @@ function handleMobileNavSelect(key) {
                                     <div class="min-w-0 space-y-3">
                                         <div class="relative space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Юридический адрес</label>
-                                            <textarea v-model="form.legal_address" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="queueAddressLookup('legal_address')"></textarea>
+                                            <textarea v-model="form.legal_address" rows="2" :class="crmFieldFluid" @input="queueAddressLookup('legal_address')"></textarea>
                                             <div v-if="addressSuggestions.legal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                                                 <button v-for="suggestion in addressSuggestions.legal_address" :key="suggestion.value" type="button" class="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60" @click="selectAddress('legal_address', suggestion)">
                                                     {{ suggestion.value }}
@@ -2454,7 +2466,7 @@ function handleMobileNavSelect(key) {
                                                 <textarea
                                                     v-model="form.actual_address"
                                                     rows="2"
-                                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                    :class="crmFieldFluid"
                                                     @input="queueAddressLookup('actual_address')"
                                                 ></textarea>
                                                 <div v-if="addressSuggestions.actual_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
@@ -2492,7 +2504,7 @@ function handleMobileNavSelect(key) {
                                                 <textarea
                                                     v-model="form.postal_address"
                                                     rows="2"
-                                                    class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                    :class="crmFieldFluid"
                                                     @input="queueAddressLookup('postal_address')"
                                                 ></textarea>
                                                 <div v-if="addressSuggestions.postal_address.length > 0" class="absolute z-20 w-full border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
@@ -2513,7 +2525,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.signer_name_nominative"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                         <div class="space-y-2">
@@ -2521,7 +2533,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.signer_name_prepositional"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                         <div class="space-y-2">
@@ -2529,7 +2541,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.signer_position"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                         <div class="space-y-2">
@@ -2537,7 +2549,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.signer_authority_basis"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                     </div>
@@ -2548,7 +2560,7 @@ function handleMobileNavSelect(key) {
                                 <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">Банковские реквизиты</div>
                                 <div class="mb-3 flex flex-wrap items-center gap-3">
                                     <label class="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                                        <input v-model="form.is_non_resident" type="checkbox" class="rounded border-zinc-300" />
+                                        <input v-model="form.is_non_resident" type="checkbox" :class="crmCheckbox" />
                                         Нерезидент
                                     </label>
                                     <button type="button" class="inline-flex items-center gap-1 border border-zinc-300 px-2 py-1 text-xs text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addBankAccount">
@@ -2566,7 +2578,7 @@ function handleMobileNavSelect(key) {
                                         <input
                                             v-model="form.non_resident_corr_bank_name"
                                             type="text"
-                                            class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            :class="crmFieldFluid"
                                         />
                                     </div>
                                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -2588,7 +2600,7 @@ function handleMobileNavSelect(key) {
                                                 maxlength="20"
                                                 inputmode="numeric"
                                                 autocomplete="off"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                                 @input="form.cnaps_code = String(form.cnaps_code || '').replace(/\D/g, '')"
                                             />
                                         </div>
@@ -2602,7 +2614,7 @@ function handleMobileNavSelect(key) {
                                                 maxlength="34"
                                                 inputmode="numeric"
                                                 autocomplete="off"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                                 @input="form.non_resident_corr_settlement_account = String(form.non_resident_corr_settlement_account || '').replace(/\D/g, '')"
                                             />
                                         </div>
@@ -2611,7 +2623,7 @@ function handleMobileNavSelect(key) {
                                             <input
                                                 v-model="form.non_resident_corr_bank_account"
                                                 type="text"
-                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                                :class="crmFieldFluid"
                                             />
                                         </div>
                                     </div>
@@ -2639,7 +2651,7 @@ function handleMobileNavSelect(key) {
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Метка счёта</label>
-                                                <input v-model="account.label" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                                <input v-model="account.label" type="text" :class="crmFieldFluid" />
                                             </div>
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Страна банка</label>
@@ -2647,7 +2659,7 @@ function handleMobileNavSelect(key) {
                                             </div>
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Валюта</label>
-                                                <select v-model="account.currency" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                                <select v-model="account.currency" :class="crmFieldFluid">
                                                     <option v-for="option in currencySelectOptions" :key="option.value" :value="option.value">{{ option.value }}</option>
                                                 </select>
                                             </div>
@@ -2658,12 +2670,12 @@ function handleMobileNavSelect(key) {
                                         </div>
                                         <div class="space-y-2">
                                             <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Банк</label>
-                                            <input v-model="account.bank_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                            <input v-model="account.bank_name" type="text" :class="crmFieldFluid" />
                                         </div>
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">БИК</label>
-                                                <input v-model="account.bik" type="text" maxlength="9" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.bik = String(account.bik || '').replace(/\\D/g, ''); scheduleBankLookup(bankIndex)" />
+                                                <input v-model="account.bik" type="text" maxlength="9" :class="crmFieldFluid" @input="account.bik = String(account.bik || '').replace(/\\D/g, ''); scheduleBankLookup(bankIndex)" />
                                                 <div v-if="bankLookupLoading[bankIndex]" class="text-xs text-zinc-500 dark:text-zinc-400">Поиск банка по БИК...</div>
                                                 <div v-if="bankLookupErrors[bankIndex]" class="text-xs text-rose-600">{{ bankLookupErrors[bankIndex] }}</div>
                                             </div>
@@ -2675,11 +2687,11 @@ function handleMobileNavSelect(key) {
                                         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Расчётный счёт / Account</label>
-                                                <input v-model="account.account_number" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.account_number = String(account.account_number || '').replace(/\\s+/g, '')" />
+                                                <input v-model="account.account_number" type="text" :class="crmFieldFluid" @input="account.account_number = String(account.account_number || '').replace(/\\s+/g, '')" />
                                             </div>
                                             <div class="space-y-2">
                                                 <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Корр. счёт</label>
-                                                <input v-model="account.correspondent_account" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
+                                                <input v-model="account.correspondent_account" type="text" :class="crmFieldFluid" @input="account.correspondent_account = String(account.correspondent_account || '').replace(/\\D/g, '')" />
                                             </div>
                                         </div>
                                     </div>
@@ -2689,7 +2701,7 @@ function handleMobileNavSelect(key) {
 
                         <div class="border border-zinc-200 p-4 dark:border-zinc-800">
                             <label class="inline-flex items-center gap-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                <input v-model="form.has_english_requisites" type="checkbox" class="rounded border-zinc-300" />
+                                <input v-model="form.has_english_requisites" type="checkbox" :class="crmCheckbox" />
                                 Реквизиты на английском
                             </label>
                             <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -2721,47 +2733,47 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое наименование (EN)</label>
-                                        <input v-model="form.name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.name_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Полное наименование (EN)</label>
-                                        <input v-model="form.full_name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.full_name_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 lg:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Юридический адрес (EN)</label>
-                                        <textarea v-model="form.legal_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <textarea v-model="form.legal_address_en" rows="2" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 lg:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Фактический адрес (EN)</label>
-                                        <textarea v-model="form.actual_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <textarea v-model="form.actual_address_en" rows="2" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 lg:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Почтовый адрес (EN)</label>
-                                        <textarea v-model="form.postal_address_en" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <textarea v-model="form.postal_address_en" rows="2" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контактное лицо (EN)</label>
-                                        <input v-model="form.contact_person_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.contact_person_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Банк (EN)</label>
-                                        <input v-model="form.bank_name_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.bank_name_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант, именительный (EN)</label>
-                                        <input v-model="form.signer_name_nominative_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.signer_name_nominative_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Подписант, родительный (EN)</label>
-                                        <input v-model="form.signer_name_prepositional_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.signer_name_prepositional_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность подписанта (EN)</label>
-                                        <input v-model="form.signer_position_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.signer_position_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 lg:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основание права подписи (EN)</label>
-                                        <input v-model="form.signer_authority_basis_en" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="form.signer_authority_basis_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                 </div>
                             </div>
@@ -2790,33 +2802,33 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <div class="space-y-2 xl:col-start-1 xl:row-start-1">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">ФИО</label>
-                                        <input v-model="contact.full_name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="contact.full_name" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 xl:col-start-2 xl:row-start-1">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Должность</label>
-                                        <input v-model="contact.position" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="contact.position" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="flex flex-col gap-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:row-span-2">
                                         <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-                                            <input v-model="contact.is_primary" type="checkbox" class="rounded border-zinc-300 dark:border-zinc-600" />
+                                            <input v-model="contact.is_primary" type="checkbox" :class="crmCheckbox" />
                                             Основной контакт
                                         </label>
                                         <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-                                            <input v-model="contact.is_decision_maker" type="checkbox" class="rounded border-zinc-300 dark:border-zinc-600" />
+                                            <input v-model="contact.is_decision_maker" type="checkbox" :class="crmCheckbox" />
                                             ЛПР
                                         </label>
                                     </div>
                                     <div class="space-y-2 xl:col-start-1 xl:row-start-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Телефон</label>
-                                        <input v-model="contact.phone" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="contact.phone" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 xl:col-start-2 xl:row-start-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Email</label>
-                                        <input v-model="contact.email" type="email" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="contact.email" type="email" :class="crmFieldFluid" />
                                     </div>
                                     <div class="col-span-full space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Комментарий</label>
-                                        <input v-model="contact.notes" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="contact.notes" type="text" :class="crmFieldFluid" />
                                     </div>
                                 </div>
                             </div>
@@ -2883,11 +2895,11 @@ function handleMobileNavSelect(key) {
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Дата и время</label>
-                                        <input v-model="interaction.contacted_at" type="datetime-local" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="interaction.contacted_at" type="datetime-local" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Канал</label>
-                                        <select v-model="interaction.channel" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50">
+                                        <select v-model="interaction.channel" :class="crmFieldFluid">
                                             <option value="">Не указан</option>
                                             <option v-for="channel in interactionChannels" :key="channel.value" :value="channel.value">
                                                 {{ channel.label }}
@@ -2896,18 +2908,18 @@ function handleMobileNavSelect(key) {
                                     </div>
                                     <div class="space-y-2 md:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Тема</label>
-                                        <input v-model="interaction.subject" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="interaction.subject" type="text" :class="crmFieldFluid" />
                                     </div>
                                 </div>
 
                                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Краткое содержание</label>
-                                        <textarea v-model="interaction.summary" rows="4" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"></textarea>
+                                        <textarea v-model="interaction.summary" rows="4" :class="crmFieldFluid"></textarea>
                                     </div>
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Результат</label>
-                                        <input v-model="interaction.result" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50" />
+                                        <input v-model="interaction.result" type="text" :class="crmFieldFluid" />
                                     </div>
                                 </div>
                             </div>

@@ -8,14 +8,14 @@
             v-model="quickSearch"
             type="text"
             placeholder="Поиск по ФИО, телефону, перевозчику"
-            class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
+            :class="crmGridSearchField"
           />
         </div>
 
         <div class="relative">
           <button
             type="button"
-            class="toolbar-button px-2"
+            :class="`${crmGridToolbarBtn} px-2`"
             :title="`Плотность таблицы: ${currentDensityLabel}`"
             @click="toggleDensityMenu"
           >
@@ -39,7 +39,7 @@
           </div>
         </div>
 
-        <button type="button" class="toolbar-button" @click="resetFilters">
+        <button type="button" :class="crmGridToolbarBtn" @click="resetFilters">
           <RotateCcw class="h-4 w-4" />
           Сбросить
         </button>
@@ -52,7 +52,7 @@
 
     <div
       ref="gridPanel"
-      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      :class="crmGridInnerPanel"
       @contextmenu.capture="suppressNativeContextMenuCapture"
       @contextmenu="onGridPanelEmptyContextMenu"
     >
@@ -116,6 +116,7 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import {
   CRM_AG_GRID_DENSITY_CHANGED,
   readPersistedAgGridDensity,
@@ -511,8 +512,3 @@ function onFirstDataRendered() {
 }
 </script>
 
-<style scoped>
-.toolbar-button {
-  @apply inline-flex items-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
-}
-</style>

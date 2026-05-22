@@ -62,7 +62,7 @@
                                 type="text"
                                 maxlength="255"
                                 placeholder="Название группы"
-                                class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-sky-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                                :class="crmFieldFluid"
                             >
                             <div class="max-h-32 space-y-1 overflow-y-auto text-sm">
                                 <label
@@ -76,7 +76,7 @@
                             </div>
                             <button
                                 type="button"
-                                class="w-full rounded-xl bg-zinc-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                                :class="`${crmBtnCreate} w-full justify-center text-xs`"
                                 :disabled="groupCreating || !groupTitle.trim() || groupMemberIds.length === 0"
                                 @click="createGroup"
                             >
@@ -299,7 +299,7 @@
                             />
                             <button
                                 type="button"
-                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                                :class="`${crmBtnPrimary} flex h-9 w-9 shrink-0 items-center justify-center !gap-0 !px-0`"
                                 :disabled="isDisabled"
                                 @click="submit"
                             >
@@ -394,7 +394,7 @@
 
                     <button
                         type="button"
-                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                        :class="`${crmBtnPrimary} flex h-9 w-9 shrink-0 items-center justify-center !gap-0 !px-0`"
                         :disabled="isDisabled"
                         @click="submit"
                     >
@@ -425,6 +425,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import CrmNotificationBell from '@/Components/Layout/CrmNotificationBell.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { crmBtnCreate, crmBtnPrimary, crmFieldFluid } from '@/support/crmUi.js';
 import {
     ClipboardList,
     FileText,

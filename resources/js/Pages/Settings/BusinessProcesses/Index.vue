@@ -1,19 +1,17 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:min-h-0">
-        <div class="shrink-0 space-y-1">
-            <h1 class="text-2xl font-semibold">Бизнес-процессы</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Справочник воронок для лидов: этапы, нормативные сроки и финальные исходы.
-            </p>
-        </div>
+        <CrmPageHeader
+            title="Бизнес-процессы"
+            lead="Справочник воронок для лидов: этапы, нормативные сроки и финальные исходы."
+        />
 
         <div class="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
-            <aside class="space-y-3 border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <aside :class="`${crmPanel} space-y-3 p-4`">
                 <form class="space-y-2 border border-dashed border-zinc-300 p-3 dark:border-zinc-700" @submit.prevent="submitNewProcess">
                     <div class="text-xs font-medium uppercase tracking-wide text-zinc-500">Новый процесс</div>
-                    <input v-model="newProcessForm.name" type="text" placeholder="Название" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50" required />
-                    <textarea v-model="newProcessForm.description" rows="2" placeholder="Описание" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50" />
-                    <button type="submit" class="w-full border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" :disabled="newProcessForm.processing">
+                    <input v-model="newProcessForm.name" type="text" placeholder="Название" :class="crmFieldFluid" required />
+                    <textarea v-model="newProcessForm.description" rows="2" placeholder="Описание" :class="crmFieldFluid" />
+                    <button type="submit" :class="`${crmBtnCreate} w-full justify-center`" :disabled="newProcessForm.processing">
                         Добавить
                     </button>
                 </form>
@@ -22,10 +20,10 @@
                     v-for="process in processes"
                     :key="process.id"
                     type="button"
-                    class="flex w-full items-start justify-between gap-3 border px-3 py-3 text-left transition-colors"
-                    :class="selectedProcessId === process.id
-                        ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-500 dark:bg-zinc-800'
-                        : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/70'"
+                    :class="[
+                        selectedProcessId === process.id ? crmListItemActive : crmListItemIdle,
+                        'justify-between',
+                    ]"
                     @click="selectProcess(process.id)"
                 >
                     <div class="space-y-1">
@@ -36,19 +34,19 @@
                 </button>
             </aside>
 
-            <section v-if="selectedProcess" class="flex min-h-0 flex-col gap-4 border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <section v-if="selectedProcess" :class="`${crmPanel} flex min-h-0 flex-col gap-4 p-4`">
                 <form class="grid gap-3 md:grid-cols-2" @submit.prevent="saveProcess">
                     <div class="space-y-1 md:col-span-2">
-                        <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Название</label>
-                        <input v-model="processForm.name" type="text" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50" required />
+                        <label :class="crmLabel">Название</label>
+                        <input v-model="processForm.name" type="text" :class="crmFieldFluid" required />
                     </div>
                     <div class="space-y-1 md:col-span-2">
-                        <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Описание</label>
-                        <textarea v-model="processForm.description" rows="2" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50" />
+                        <label :class="crmLabel">Описание</label>
+                        <textarea v-model="processForm.description" rows="2" :class="crmFieldFluid" />
                     </div>
                     <div class="space-y-1">
-                        <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Порядок</label>
-                        <input v-model.number="processForm.sort_order" type="number" min="0" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50" />
+                        <label :class="crmLabel">Порядок</label>
+                        <input v-model.number="processForm.sort_order" type="number" min="0" :class="crmFieldFluid" />
                     </div>
                     <div class="flex items-end gap-2">
                         <label class="inline-flex items-center gap-2 text-sm">
@@ -57,17 +55,17 @@
                         </label>
                     </div>
                     <div class="flex flex-wrap gap-2 md:col-span-2">
-                        <button type="submit" class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" :disabled="processForm.processing">
+                        <button type="submit" :class="crmBtnCreate" :disabled="processForm.processing">
                             Сохранить процесс
                         </button>
-                        <button type="button" class="border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300" @click="deleteProcess">
+                        <button type="button" :class="crmBtnDangerMuted" @click="deleteProcess">
                             Удалить процесс
                         </button>
                     </div>
                 </form>
 
                 <div class="space-y-3">
-                    <h2 class="text-lg font-semibold">Этапы</h2>
+                    <h2 :class="crmSectionTitle">Этапы</h2>
 
                     <form class="space-y-3 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700" @submit.prevent="submitStage">
                         <div class="flex items-center justify-between gap-2">
@@ -77,88 +75,99 @@
                             </button>
                         </div>
                         <div class="grid gap-2 md:grid-cols-6">
-                            <input v-model="stageForm.name" type="text" placeholder="Название этапа" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950" required />
-                            <input v-model.number="stageForm.duration_days" type="number" min="0" max="365" placeholder="Норматив, дней" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" title="Норматив SLA этапа" />
-                            <label class="inline-flex items-center gap-2 text-sm">
+                            <input v-model="stageForm.name" type="text" placeholder="Название этапа" :class="`${crmFieldFluid} md:col-span-2`" required />
+                            <input v-model.number="stageForm.sequence" type="number" min="1" placeholder="Порядок" :class="crmFieldFluid" />
+                            <input v-model.number="stageForm.duration_days" type="number" min="0" max="365" placeholder="Норматив, дней" :class="crmFieldFluid" title="Норматив SLA этапа" />
+                            <label class="inline-flex items-center gap-2 text-sm md:col-span-2">
                                 <input v-model="stageForm.is_terminal" type="checkbox" class="rounded border-zinc-300" />
-                                Финал
+                                Финальный этап
                             </label>
-                            <select v-model="stageForm.terminal_outcome" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" :disabled="!stageForm.is_terminal">
-                                <option :value="null">—</option>
+                            <select
+                                v-if="stageForm.is_terminal"
+                                v-model="stageForm.terminal_outcome"
+                                :class="crmFieldFluid"
+                            >
+                                <option :value="null">Исход</option>
                                 <option value="won">Выигран</option>
                                 <option value="lost">Проигран</option>
                                 <option value="neutral">Нейтрально</option>
                             </select>
-                            <button type="submit" class="border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700" :disabled="stageForm.processing">
-                                {{ editingStageId ? 'Сохранить' : 'Добавить' }}
-                            </button>
                         </div>
+                        <textarea v-model="stageForm.description" rows="2" placeholder="Описание этапа" :class="crmFieldFluid" />
                         <div class="grid gap-2 md:grid-cols-2">
                             <label class="inline-flex items-center gap-2 text-sm">
                                 <input v-model="stageForm.auto_create_task" type="checkbox" class="rounded border-zinc-300" />
-                                Создавать задачу при входе на этап
+                                Создавать задачу при входе
                             </label>
-                            <select v-model="stageForm.task_priority" class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" :disabled="!stageForm.auto_create_task">
+                            <select v-model="stageForm.task_priority" :class="crmFieldFluid" :disabled="!stageForm.auto_create_task">
                                 <option value="low">Низкий</option>
                                 <option value="medium">Средний</option>
                                 <option value="high">Высокий</option>
                                 <option value="critical">Срочный</option>
                             </select>
-                            <input
-                                v-model="stageForm.task_title_template"
-                                type="text"
-                                placeholder="Шаблон задачи: {stage_name} — {lead_number}"
-                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm md:col-span-2 dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!stageForm.auto_create_task"
-                            />
-                            <input
-                                v-model.number="stageForm.task_due_days_offset"
-                                type="number"
-                                min="0"
-                                max="365"
-                                placeholder="Срок задачи, дней от входа"
-                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
-                                :disabled="!stageForm.auto_create_task"
-                            />
                         </div>
+                        <input
+                            v-model="stageForm.task_title_template"
+                            type="text"
+                            placeholder="Шаблон задачи: {stage_name} — {lead_number}"
+                            :class="crmFieldFluid"
+                            :disabled="!stageForm.auto_create_task"
+                        />
+                        <textarea
+                            v-model="stageForm.task_description_template"
+                            rows="2"
+                            placeholder="Шаблон описания задачи"
+                            :class="crmFieldFluid"
+                            :disabled="!stageForm.auto_create_task"
+                        />
+                        <input
+                            v-model.number="stageForm.task_due_days_offset"
+                            type="number"
+                            min="0"
+                            max="365"
+                            placeholder="Срок задачи, дней от входа"
+                            :class="crmFieldFluid"
+                            :disabled="!stageForm.auto_create_task"
+                        />
                         <p class="text-xs text-zinc-500 dark:text-zinc-400">
                             Плейсхолдеры: {stage_name}, {process_name}, {lead_number}, {lead_title}
                         </p>
+                        <button type="submit" :class="`${crmBtnCreate} w-full justify-center md:w-auto`">
+                            {{ editingStageId ? 'Сохранить этап' : 'Добавить этап' }}
+                        </button>
                     </form>
 
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
-                            <thead class="border-b border-zinc-200 text-left text-xs uppercase text-zinc-500 dark:border-zinc-700">
-                                <tr>
-                                    <th class="px-2 py-2">№</th>
-                                    <th class="px-2 py-2">Этап</th>
-                                    <th class="px-2 py-2">Дней</th>
-                                    <th class="px-2 py-2">Финал</th>
-                                    <th class="px-2 py-2" />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="stage in selectedProcess.stages" :key="stage.id" class="border-b border-zinc-100 dark:border-zinc-800">
-                                    <td class="px-2 py-2 text-zinc-500">{{ stage.sequence }}</td>
-                                    <td class="px-2 py-2 font-medium">{{ stage.name }}</td>
-                                    <td class="px-2 py-2">{{ stage.duration_days || '—' }}</td>
-                                    <td class="px-2 py-2">
-                                        <span v-if="stage.is_terminal">{{ terminalLabels[stage.terminal_outcome] ?? 'финал' }}</span>
-                                        <span v-else class="text-zinc-400">—</span>
-                                    </td>
-                                    <td class="px-2 py-2 text-right">
-                                        <button type="button" class="mr-2 text-zinc-600 hover:underline" @click="editStage(stage)">Изменить</button>
-                                        <button type="button" class="text-rose-600 hover:underline" @click="deleteStage(stage.id)">Удалить</button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="space-y-2">
+                        <div
+                            v-for="stage in selectedProcess.stages"
+                            :key="stage.id"
+                            class="flex flex-wrap items-center justify-between gap-3 border border-zinc-200 px-3 py-3 dark:border-zinc-800"
+                        >
+                            <div class="min-w-0 space-y-1">
+                                <div class="font-medium">{{ stage.sequence }}. {{ stage.name }}</div>
+                                <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ stage.duration_days }} дн.
+                                    <span v-if="stage.is_terminal"> · {{ terminalLabels[stage.terminal_outcome] ?? 'Финал' }}</span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" :class="crmBtnNeutral" class="px-3 py-1.5 text-xs" @click="editStage(stage)">
+                                    Изменить
+                                </button>
+                                <button type="button" :class="crmBtnDangerMuted" class="px-3 py-1.5 text-xs" @click="deleteStage(stage.id)">
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="selectedProcess.stages.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
+                            Этапы ещё не добавлены.
+                        </p>
                     </div>
                 </div>
             </section>
 
-            <section v-else class="flex items-center justify-center border border-dashed border-zinc-300 p-8 text-sm text-zinc-500 dark:border-zinc-700">
-                Выберите процесс слева или создайте новый.
+            <section v-else :class="`${crmPanel} flex items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400`">
+                Выберите бизнес-процесс слева или создайте новый.
             </section>
         </div>
     </div>
@@ -167,7 +176,19 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import {
+    crmBtnCreate,
+    crmBtnDangerMuted,
+    crmBtnNeutral,
+    crmFieldFluid,
+    crmLabel,
+    crmListItemActive,
+    crmListItemIdle,
+    crmPanel,
+    crmSectionTitle,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'administration', activeLeafKey: 'business-processes' }, () => page),

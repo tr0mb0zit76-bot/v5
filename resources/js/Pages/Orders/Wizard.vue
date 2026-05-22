@@ -1,14 +1,14 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
+    <div :class="crmWizardShell">
         <div
             v-if="isMobileStandalone"
-            class="space-y-3 rounded-[28px] border border-zinc-200 bg-white px-4 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+            :class="`${crmPanel} space-y-3 px-4 py-4`"
         >
             <div class="flex items-start justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-3">
                     <button
                         type="button"
-                        class="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                        :class="crmWizardBack"
                         title="К реестру"
                         @click="goBack"
                     >
@@ -17,7 +17,7 @@
                     </button>
 
                     <div class="min-w-0">
-                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">Мобильный мастер</div>
+                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Мобильный мастер</div>
                         <h1 class="truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                             {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
                         </h1>
@@ -45,23 +45,17 @@
                             <span class="h-4 w-px shrink-0 bg-zinc-200 dark:bg-zinc-600" aria-hidden="true" />
                             <div class="flex items-center gap-1.5">
                                 <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Перевозка</span>
-                                <div class="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+                                <div :class="crmSegmented">
                                     <button
                                         type="button"
-                                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors"
-                                        :class="!form.is_international_transport
-                                            ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                                            : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                        :class="[!form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
                                         @click="form.is_international_transport = false"
                                     >
                                         Внутренняя
                                     </button>
                                     <button
                                         type="button"
-                                        class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors"
-                                        :class="form.is_international_transport
-                                            ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                                            : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                        :class="[form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
                                         @click="form.is_international_transport = true"
                                     >
                                         Международная
@@ -95,7 +89,7 @@
                 <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Шаг</label>
                 <select
                     v-model="activeTab"
-                    class="w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                    :class="crmFieldFluid"
                 >
                     <option v-for="tab in tabs" :key="tab.key" :value="tab.key">{{ tab.label }}</option>
                 </select>
@@ -103,11 +97,11 @@
         </div>
 
         <template v-else>
-            <div class="flex items-center justify-between gap-4 border border-zinc-200 bg-white px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div :class="crmWizardHeader">
                 <div class="flex items-center gap-3">
                     <button
                         type="button"
-                        class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
+                        :class="crmWizardBack"
                         title="К реестру"
                         @click="goBack"
                     >
@@ -116,8 +110,11 @@
                     </button>
 
                     <div class="min-w-0">
-                        <h1 class="truncate text-lg font-semibold">
-                            {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Новый заказ' }}
+                        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                            {{ isEditing ? 'Карточка заказа' : 'Новый заказ' }}
+                        </div>
+                        <h1 class="mt-1 truncate text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ isEditing ? form.order_number || `Заказ #${order.id}` : 'Добавление' }}
                         </h1>
                     </div>
                 </div>
@@ -141,7 +138,7 @@
                 </div>
             </div>
 
-            <div class="flex flex-col gap-2 border border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
+            <div class="flex flex-col gap-2 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2">
                 <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                     <button
                         v-for="tab in tabs"
@@ -158,23 +155,17 @@
                 <div class="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-t border-zinc-200 pt-2.5 sm:w-auto sm:min-w-0 sm:flex-nowrap sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0 dark:border-zinc-700">
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Перевозка</span>
-                        <div class="inline-flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700">
+                        <div :class="crmSegmented">
                             <button
                                 type="button"
-                                class="rounded-md px-3 py-2 text-sm font-medium leading-none transition-colors"
-                                :class="!form.is_international_transport
-                                    ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                :class="!form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn"
                                 @click="form.is_international_transport = false"
                             >
                                 Внутренняя
                             </button>
                             <button
                                 type="button"
-                                class="rounded-md px-3 py-2 text-sm font-medium leading-none transition-colors"
-                                :class="form.is_international_transport
-                                    ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                                :class="form.is_international_transport ? crmSegmentedBtnActive : crmSegmentedBtn"
                                 @click="form.is_international_transport = true"
                             >
                                 Международная
@@ -207,7 +198,7 @@
         </template>
 
         <div
-            class="min-h-0 overflow-auto border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 md:p-5"
+            :class="crmWizardBody"
             :inert="isEditing && !isOrderFormEditable"
         >
             <p
@@ -241,7 +232,7 @@
                         <label class="text-sm font-medium">Расчётный счёт своей компании</label>
                         <select
                             v-model="form.own_company_bank_account_id"
-                            class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                            :class="crmFieldFluid"
                         >
                             <option :value="null">Основной (по умолчанию)</option>
                             <option
@@ -312,7 +303,7 @@
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Номер</label>
-                            <input v-model="form.order_number" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="Сгенерируется автоматически" />
+                            <input v-model="form.order_number" type="text" :class="crmFieldFluid" placeholder="Сгенерируется автоматически" />
                         </div>
                     </div>
 
@@ -352,7 +343,7 @@
 
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Особые отметки</label>
-                        <textarea v-model="form.special_notes" rows="4" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                        <textarea v-model="form.special_notes" rows="4" :class="crmFieldFluid" />
                     </div>
                 </div>
                 </div>
@@ -496,7 +487,7 @@
                                     <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
                                     <select
                                         v-model="performer.fleet_vehicle_id"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="crmFieldFluid"
                                         :disabled="normalizeNullableNumber(performer.contractor_id) === null"
                                         @focus="loadFleetOptionsForLeg(legIndex)"
                                     >
@@ -508,7 +499,7 @@
                                     <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
                                     <select
                                         v-model="performer.fleet_driver_id"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="crmFieldFluid"
                                         :disabled="normalizeNullableNumber(performer.contractor_id) === null"
                                         @focus="loadFleetOptionsForLeg(legIndex)"
                                     >
@@ -629,7 +620,7 @@
                                     <input
                                         :value="routePointCityValue(item.point)"
                                         type="text"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="crmFieldFluid"
                                         placeholder="Нормализованное название"
                                         @input="setRoutePointCity(item.point, $event.target.value)"
                                     />
@@ -637,17 +628,17 @@
 
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Плановая дата</label>
-                                    <input v-model="item.point.planned_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input v-model="item.point.planned_date" type="date" :class="crmFieldFluid" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Фактическая дата</label>
-                                    <input v-model="item.point.actual_date" type="date" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input v-model="item.point.actual_date" type="date" :class="crmFieldFluid" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">{{ routePointTimeBlockHeading(item.point.type) }}</label>
                                     <div class="grid grid-cols-2 gap-2">
-                                        <input v-model="item.point.planned_time_from" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Время с" />
-                                        <input v-model="item.point.planned_time_to" type="time" class="w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" aria-label="Время до" />
+                                        <input v-model="item.point.planned_time_from" type="time" :class="crmFieldFluid" aria-label="Время с" />
+                                        <input v-model="item.point.planned_time_to" type="time" :class="crmFieldFluid" aria-label="Время до" />
                                     </div>
                                 </div>
                             </div>
@@ -655,14 +646,14 @@
                             <div v-if="item.point.type === 'loading'" class="grid gap-3 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Отправитель</label>
-                                    <input v-model="item.point.sender_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input v-model="item.point.sender_name" type="text" :class="crmFieldFluid" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Контакт на загрузке</label>
                                     <input
                                         :value="routePointCombinedContact(item.point)"
                                         type="text"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="crmFieldFluid"
                                         placeholder="Имя и телефон"
                                         @input="setRoutePointCombinedContact(item.point, $event.target.value)"
                                     />
@@ -672,14 +663,14 @@
                             <div v-if="item.point.type === 'unloading'" class="grid gap-3 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Получатель</label>
-                                    <input v-model="item.point.recipient_name" type="text" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                    <input v-model="item.point.recipient_name" type="text" :class="crmFieldFluid" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Контакт на выгрузке</label>
                                     <input
                                         :value="routePointCombinedContact(item.point)"
                                         type="text"
-                                        class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        :class="crmFieldFluid"
                                         placeholder="Имя и телефон"
                                         @input="setRoutePointCombinedContact(item.point, $event.target.value)"
                                     />
@@ -754,22 +745,22 @@
                             </div>
                             <div class="space-y-1 lg:col-span-1">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Мест</label>
-                                <input v-model="item.package_count" type="number" min="0" step="1" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <input v-model="item.package_count" type="number" min="0" step="1" :class="crmFieldFluid" />
                             </div>
                             <div class="space-y-1 lg:col-span-1">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Упаковка</label>
-                                <select v-model="item.pack_type_id" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" @change="applyPackageTypeOption(item)">
+                                <select v-model="item.pack_type_id" :class="crmFieldFluid" @change="applyPackageTypeOption(item)">
                                     <option :value="null">—</option>
                                     <option v-for="option in packageTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
                             <div class="space-y-1 lg:col-span-1">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">ТН ВЭД</label>
-                                <input v-model="item.hs_code" type="text" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <input v-model="item.hs_code" type="text" :class="crmFieldFluid" />
                             </div>
                             <div class="space-y-1 lg:col-span-1">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Класс опасн.</label>
-                                <input v-model="item.dangerous_class" type="text" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <input v-model="item.dangerous_class" type="text" :class="crmFieldFluid" />
                             </div>
                         </div>
 
@@ -875,7 +866,7 @@
                         <div class="grid gap-3 md:grid-cols-12">
                             <div class="space-y-2 md:col-span-8">
                                 <label class="text-sm font-medium">Описание</label>
-                                <textarea v-model="item.description" rows="2" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+                                <textarea v-model="item.description" rows="2" :class="crmFieldFluid" />
                             </div>
                             <div class="rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900/40 md:col-span-4">
                                 <div class="font-medium text-zinc-700 dark:text-zinc-200">Сводка позиции</div>
@@ -939,7 +930,7 @@
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Форма оплаты</label>
-                                <select v-model="form.financial_term.client_payment_form" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                <select v-model="form.financial_term.client_payment_form" :class="crmFieldFluid">
                                     <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
@@ -976,23 +967,23 @@
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
                                 <div class="min-w-0 space-y-2 md:col-span-4">
                                     <label class="text-sm font-medium">Плечо маршрута</label>
-                                    <select v-model="cost.stage" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <select v-model="cost.stage" :class="crmFieldFluid">
                                         <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
                                     </select>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
                                     <label class="text-sm font-medium">Стоимость перевозки</label>
-                                    <input v-model="cost.amount" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                                    <input v-model="cost.amount" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
                                     <label class="text-sm font-medium">Валюта</label>
-                                    <select v-model="cost.currency" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <select v-model="cost.currency" :class="crmFieldFluid">
                                         <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                     </select>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-4">
                                     <label class="text-sm font-medium">Форма оплаты</label>
-                                    <select v-model="cost.payment_form" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                                    <select v-model="cost.payment_form" :class="crmFieldFluid">
                                         <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                     </select>
                                 </div>
@@ -1020,15 +1011,15 @@
                 <div class="grid gap-4 md:grid-cols-3">
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Доп. расходы</label>
-                        <input v-model="form.additional_expenses" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                        <input v-model="form.additional_expenses" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
                     </div>
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Страховка</label>
-                        <input v-model="form.insurance" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                        <input v-model="form.insurance" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
                     </div>
                     <div class="space-y-2">
                         <label class="text-sm font-medium">Бонус</label>
-                        <input v-model="form.bonus" type="number" min="0" step="0.01" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" placeholder="0" />
+                        <input v-model="form.bonus" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
                         <p class="text-xs text-zinc-500">
                             В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
                         </p>
@@ -1282,7 +1273,7 @@
             style="z-index: 2147483647;"
             @click.self="closeCounterpartyModal"
         >
-            <div class="w-full max-w-xl rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900" @click.stop>
+            <div :class="`${crmModalPanel} w-full max-w-xl p-5 shadow-2xl`" @click.stop>
                 <div class="mb-4 flex items-center justify-between">
                     <div>
                         <div class="text-lg font-semibold">Новый контрагент</div>
@@ -1298,20 +1289,20 @@
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2">
-                    <input ref="counterpartyNameInput" v-model="counterpartyForm.name" type="text" placeholder="Название" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
-                    <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
-                    <input v-model="counterpartyForm.phone" type="text" placeholder="Телефон" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.email" type="email" placeholder="Email" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
-                    <input v-model="counterpartyForm.contact_person" type="text" placeholder="Контактное лицо" class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950 md:col-span-2" />
+                    <input ref="counterpartyNameInput" v-model="counterpartyForm.name" type="text" placeholder="Название" :class="`${crmFieldFluid} md:col-span-2`" />
+                    <input v-model="counterpartyForm.inn" type="text" placeholder="ИНН" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.kpp" type="text" placeholder="КПП" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.address" type="text" placeholder="Адрес" :class="`${crmFieldFluid} md:col-span-2`" />
+                    <input v-model="counterpartyForm.phone" type="text" placeholder="Телефон" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.email" type="email" placeholder="Email" :class="crmFieldFluid" />
+                    <input v-model="counterpartyForm.contact_person" type="text" placeholder="Контактное лицо" :class="`${crmFieldFluid} md:col-span-2`" />
                 </div>
 
                 <div class="mt-5 flex justify-end gap-3">
-                    <button type="button" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="closeCounterpartyModal">
+                    <button type="button" :class="crmBtnNeutral" @click="closeCounterpartyModal">
                         Отмена
                     </button>
-                    <button type="button" class="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200" :disabled="inlineContractorSaving" @click="createInlineCounterparty">
+                    <button type="button" :class="crmBtnCreate" :disabled="inlineContractorSaving" @click="createInlineCounterparty">
                         {{ inlineContractorSaving ? 'Создание...' : 'Создать' }}
                     </button>
                 </div>
@@ -1353,20 +1344,20 @@
             <div v-if="orderDocumentAttachPresetIndex === null" class="grid gap-4 sm:grid-cols-2">
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Чей документ</label>
-                    <select v-model="orderDocumentAttachTargetKind" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <select v-model="orderDocumentAttachTargetKind" :class="crmFieldFluid">
                         <option value="customer">Заказчик</option>
                         <option value="carrier" :disabled="form.performers.length === 0">Плечо (перевозчик)</option>
                     </select>
                 </div>
                 <div v-if="orderDocumentAttachTargetKind === 'carrier'" class="space-y-2">
                     <label class="text-sm font-medium">Плечо</label>
-                    <select v-model="orderDocumentAttachStage" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <select v-model="orderDocumentAttachStage" :class="crmFieldFluid">
                         <option v-for="(p, idx) in form.performers" :key="`attach-leg-${idx}`" :value="p.stage">{{ stageLabel(p.stage) }}</option>
                     </select>
                 </div>
                 <div class="space-y-2 sm:col-span-2">
                     <label class="text-sm font-medium">Тип документа</label>
-                    <select v-model="orderDocumentAttachNewDocType" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                    <select v-model="orderDocumentAttachNewDocType" :class="crmFieldFluid">
                         <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                     </select>
                 </div>
@@ -1401,7 +1392,21 @@ import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
-import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnNeutral,
+    crmField,
+    crmFieldFluid,
+    crmModalPanel,
+    crmPanel,
+    crmSegmented,
+    crmSegmentedBtn,
+    crmSegmentedBtnActive,
+    crmWizardBack,
+    crmWizardBody,
+    crmWizardHeader,
+    crmWizardShell,
+} from '@/support/crmUi.js';
 import * as orderPs from '@/support/orderPaymentScheduleUi.js';
 import {
     blankPartyNormsPenalties,

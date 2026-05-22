@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { ExternalLink, Paperclip, Trash2 } from 'lucide-vue-next';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmFieldFluid, crmPanel, crmSectionTitle } from '@/support/crmUi.js';
 
 const props = defineProps({
     entityKind: {
@@ -160,7 +160,8 @@ function destroyDocument(document) {
 
 <template>
     <section class="mt-10 space-y-6 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <form class="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-900/40" @submit.prevent="submitUpload">
+        <h3 :class="crmSectionTitle">Документы</h3>
+        <form :class="`${crmPanel} space-y-4 p-4`" @submit.prevent="submitUpload">
             <div>
                 <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Добавить документ</div>
                 <p v-if="documentUploadHint" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{{ documentUploadHint }}</p>
@@ -170,7 +171,7 @@ function destroyDocument(document) {
                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Тип документа</label>
                 <select
                     v-model="uploadForm.document_type"
-                    class="w-full max-w-xs rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    :class="`${crmFieldFluid} max-w-xs`"
                     required
                 >
                     <option v-for="option in documentTypeOptions" :key="option.value" :value="option.value">
@@ -228,7 +229,7 @@ function destroyDocument(document) {
         <div class="space-y-3">
             <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Сохранённые документы</div>
 
-            <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <div :class="`${crmPanel} overflow-x-auto`">
                 <table class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
                     <thead class="bg-zinc-50/80 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400">
                         <tr>

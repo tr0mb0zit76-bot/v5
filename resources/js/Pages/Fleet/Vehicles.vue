@@ -16,7 +16,7 @@
             </template>
         </CrmPageHeader>
 
-        <div class="min-h-0 flex-1 overflow-hidden">
+        <div :class="crmGridPanel">
             <FleetVehiclesGrid
                 :rows="rows"
                 :user-id="userId"
@@ -26,7 +26,7 @@
         </div>
 
         <Modal :show="isModalOpen" max-width="7xl" @close="closeModal">
-            <section class="flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
+            <section :class="crmModalEntityShell">
                 <VehicleWizard
                     :selected-vehicle="selectedVehicle"
                     :is-creating="isCreateOpen"
@@ -45,7 +45,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmGridPanel, crmModalEntityShell } from '@/support/crmUi.js';
 import Modal from '@/Components/Modal.vue';
 import FleetVehiclesGrid from '@/Components/Fleet/FleetVehiclesGrid.vue';
 import VehicleWizard from '@/Pages/Fleet/VehicleWizard.vue';

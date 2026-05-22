@@ -14,7 +14,7 @@
                     <button
                         v-if="!payload.version.is_active || !payload.version.published_at"
                         type="button"
-                        class="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                        :class="crmBtnPrimary"
                         @click="publish"
                     >
                         Опубликовать
@@ -111,7 +111,7 @@
                     <input v-model.number="newNode.sort_order" type="number" min="0" class="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
                 </div>
                 <div class="flex items-end">
-                    <button type="submit" class="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900">Добавить шаг</button>
+                    <button type="submit" :class="`${crmBtnPrimary} w-full`">Добавить шаг</button>
                 </div>
             </form>
 
@@ -241,7 +241,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { reactive, ref, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnPrimary } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),

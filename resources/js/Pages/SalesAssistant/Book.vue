@@ -1,6 +1,6 @@
 <template>
     <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px,1fr]">
-        <aside class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <aside :class="`${crmPanel} p-4`">
             <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Книга продаж</h1>
             <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Пространство в стиле Notion: вложенные страницы, импорт markdown и визуальный редактор.</p>
 
@@ -24,7 +24,7 @@
                 <button
                     type="submit"
                     :disabled="createForm.processing"
-                    class="inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-50 dark:text-zinc-900"
+                    :class="`${crmBtnPrimary} w-full disabled:cursor-not-allowed disabled:opacity-60`"
                 >
                     Создать страницу
                 </button>
@@ -49,7 +49,7 @@
                 <button
                     type="submit"
                     :disabled="importForm.processing"
-                    class="inline-flex w-full items-center justify-center rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-900"
+                    :class="`${crmBtnNeutral} w-full justify-center disabled:cursor-not-allowed disabled:opacity-60`"
                 >
                     Импорт .md
                 </button>
@@ -64,7 +64,7 @@
                     :style="{ paddingLeft: `${entry.depth * 14 + 10}px` }"
                     class="mb-1 flex w-full items-center rounded-lg px-2 py-1.5 text-left text-sm transition"
                     :class="selectedArticle?.id === entry.id
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        ? crmListItemActiveSoft
                         : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800'"
                     @click="openArticle(entry.id)"
                 >
@@ -73,7 +73,7 @@
             </div>
         </aside>
 
-        <section class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <section :class="`${crmPanel} p-5`">
             <p
                 v-if="page.props.flash?.message"
                 class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
@@ -136,7 +136,8 @@
                 <p class="mt-1 text-sm text-zinc-500">Создайте первую страницу и начните писать сразу.</p>
                 <button
                     type="button"
-                    class="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
+                    :class="crmBtnPrimary"
+                    class="mt-4"
                     @click="createUntitled"
                 >
                     Создать первую страницу
@@ -151,7 +152,7 @@ import { computed, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmListItemActiveSoft, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book' }, () => page),

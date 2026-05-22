@@ -912,16 +912,25 @@ const menuItems = computed(() => {
         ...(planningItem ? [planningItem] : []),
         ...(salesAssistantItem ? [salesAssistantItem] : []),
         { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
-        {
-            key: 'modules',
-            label: 'Модули',
-            icon: Puzzle,
-            visibilityArea: 'modules',
-            children: [
-                { key: 'modules-catalog', label: 'Каталог' },
-                { key: 'modules-how-much-fits', label: 'Сколько влезет?' },
-            ],
-        },
+        ...(() => {
+            const moduleParts = [
+                { area: 'modules_catalog', key: 'modules-catalog', label: 'Каталог' },
+                { area: 'modules_how_much_fits', key: 'modules-how-much-fits', label: 'Сколько влезет?' },
+            ];
+            const moduleChildren = moduleParts.filter(
+                (part) => isAdmin || areas.includes('modules') || areas.includes(part.area),
+            );
+
+            return moduleChildren.length > 0
+                ? [{
+                    key: 'modules',
+                    label: 'Модули',
+                    icon: Puzzle,
+                    visibilityArea: 'modules',
+                    children: moduleChildren.map(({ key, label }) => ({ key, label })),
+                }]
+                : [];
+        })(),
         {
             key: 'settings',
             label: 'Настройки',
@@ -993,6 +1002,10 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'sales-assistant') {
+            return (item.children?.length ?? 0) > 0;
+        }
+
+        if (item.key === 'modules') {
             return (item.children?.length ?? 0) > 0;
         }
 

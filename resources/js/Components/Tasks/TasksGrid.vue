@@ -7,14 +7,14 @@
             v-model="quickSearch"
             type="text"
             placeholder="Поиск по задачам"
-            class="w-72 rounded-xl border border-zinc-200 bg-white py-1.5 pl-10 pr-3 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-50"
+            :class="crmGridSearchField"
           />
         </div>
 
         <div class="relative">
           <button
             type="button"
-            class="toolbar-button px-2"
+            :class="`${crmGridToolbarBtn} px-2`"
             :title="`Плотность таблицы: ${currentDensityLabel}`"
             @click="showDensityMenu = !showDensityMenu"
           >
@@ -23,7 +23,7 @@
 
           <div
             v-if="showDensityMenu"
-            class="absolute left-0 top-full z-20 mt-2 w-40 rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+            :class="crmGridDropdown"
           >
             <button
               v-for="option in gridDensityOptions"
@@ -41,7 +41,7 @@
 
     <div
       ref="gridPanel"
-      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+      :class="crmGridInnerPanel"
       @contextmenu.capture="suppressNativeContextMenuCapture"
     >
       <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
@@ -110,6 +110,7 @@ import {
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { AgSetListFilter, setListFilterParams } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
+import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 

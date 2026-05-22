@@ -1,18 +1,17 @@
 <template>
     <div class="howmuchfits-module flex min-h-0 flex-1 flex-col gap-3">
         <div class="flex shrink-0 flex-wrap items-start justify-between gap-3 print:hidden">
-            <div>
-                <div class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300">Модуль</div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Сколько влезет?</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">3D-схема загрузки для аргументации ставки и выбора прицепа.</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                <button type="button" class="primary-action" @click="createProject">Новый расчёт</button>
-                <button type="button" class="secondary-action" :disabled="!projectForm?.id" @click="saveProject">Сохранить</button>
+            <CrmPageHeader
+                lead="3D-схема загрузки для аргументации ставки и выбора прицепа."
+                title="Сколько влезет?"
+            />
+            <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" :class="crmBtnPrimary" @click="createProject">Новый расчёт</button>
+                <button type="button" :class="crmBtnSecondary" :disabled="!projectForm?.id" @click="saveProject">Сохранить</button>
             </div>
         </div>
 
-        <div class="panel workspace flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div :class="`${crmPanel} workspace flex min-h-0 flex-1 flex-col overflow-hidden`">
             <div v-if="!projectForm" class="flex flex-1 items-center justify-center p-8 text-sm text-zinc-500">
                 Выберите или создайте проект на вкладке «Проекты».
             </div>
@@ -60,7 +59,7 @@
                             </div>
                         </div>
                         <div class="mt-6 flex justify-center">
-                            <button type="button" class="primary-action inline-flex items-center gap-2 px-6" @click="createProject"><Plus class="h-4 w-4" /> Добавить новый проект</button>
+                            <button type="button" :class="`${crmBtnPrimary} inline-flex items-center gap-2 px-6`" @click="createProject"><Plus class="h-4 w-4" /> Добавить новый проект</button>
                         </div>
                         <div class="mt-8 space-y-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
                             <div>
@@ -99,7 +98,7 @@
                                 >
                                     {{ group.name }}
                                 </button>
-                                <button type="button" class="secondary-action" @click="addCargoGroup">+ группа</button>
+                                <button type="button" :class="crmBtnSecondary" @click="addCargoGroup">+ группа</button>
                             </div>
                         </div>
                         <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3 md:px-6">
@@ -140,8 +139,8 @@
                                 </span>
                             </button>
                             <div class="mt-4 flex flex-wrap gap-2">
-                                <button type="button" class="primary-action inline-flex items-center gap-2" @click="addCargoItem(activeCargoGroupIndex)"><Plus class="h-4 w-4" /> Добавить груз</button>
-                                <button v-if="projectForm.cargo_groups.length > 1" type="button" class="danger-action" @click="removeCargoGroup(activeCargoGroupIndex)">Удалить группу</button>
+                                <button type="button" :class="`${crmBtnPrimary} inline-flex items-center gap-2`" @click="addCargoItem(activeCargoGroupIndex)"><Plus class="h-4 w-4" /> Добавить груз</button>
+                                <button v-if="projectForm.cargo_groups.length > 1" type="button" :class="crmBtnDangerMuted" @click="removeCargoGroup(activeCargoGroupIndex)">Удалить группу</button>
                             </div>
                         </div>
                     </div>
@@ -168,7 +167,7 @@
                             <div v-else class="px-4 py-6 text-sm text-zinc-500">Транспорт не выбран.</div>
                         </div>
                         <div class="mt-4 flex justify-center">
-                            <button type="button" class="primary-action inline-flex items-center gap-2 px-6" @click="openManualTransportModal"><Plus class="h-4 w-4" /> Добавить транспорт вручную</button>
+                            <button type="button" :class="`${crmBtnPrimary} inline-flex items-center gap-2 px-6`" @click="openManualTransportModal"><Plus class="h-4 w-4" /> Добавить транспорт вручную</button>
                         </div>
                         <div class="mt-8">
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Выбрать шаблон транспорта</div>
@@ -458,8 +457,8 @@
                     </div>
                 </div>
                 <div class="mt-6 flex justify-between gap-3">
-                    <button type="button" class="secondary-action" @click="closeCargoItemModal">Отменить</button>
-                    <button type="button" class="primary-action" @click="saveCargoItemFromModal">Сохранить</button>
+                    <button type="button" :class="crmBtnSecondary" @click="closeCargoItemModal">Отменить</button>
+                    <button type="button" :class="crmBtnPrimary" @click="saveCargoItemFromModal">Сохранить</button>
                 </div>
             </div>
         </Modal>
@@ -484,8 +483,8 @@
                     <label class="inline-flex items-center gap-2 text-sm"><input v-model="templateDraft.is_active" type="checkbox" class="rounded" /> Активен в справочнике</label>
                 </div>
                 <div class="mt-6 flex justify-between gap-3">
-                    <button type="button" class="secondary-action" @click="closeTransportModal">Отменить</button>
-                    <button type="button" class="primary-action" @click="saveManualTransport">Сохранить</button>
+                    <button type="button" :class="crmBtnSecondary" @click="closeTransportModal">Отменить</button>
+                    <button type="button" :class="crmBtnPrimary" @click="saveManualTransport">Сохранить</button>
                 </div>
             </div>
         </Modal>
@@ -512,8 +511,10 @@ import {
     Trash2,
     Truck,
 } from 'lucide-vue-next';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnDangerMuted, crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmPanel } from '@/support/crmUi.js';
 import {
     blockInTrailer,
     blocksOverlap3D,
@@ -1883,27 +1884,6 @@ function formatMm(value) {
     color: rgb(var(--crm-text-muted));
 }
 
-.primary-action,
-.secondary-action,
-.danger-action {
-    border-radius: 0.875rem;
-    padding: 0.5rem 0.875rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition: 0.15s ease;
-}
-
-.primary-action {
-    background: rgb(var(--crm-accent));
-    color: white;
-}
-
-.secondary-action {
-    border: 1px solid rgb(var(--crm-border));
-    background: rgb(var(--crm-surface));
-    color: rgb(var(--crm-text));
-}
-
 .danger-action {
     border: 1px solid rgb(254 202 202);
     color: rgb(220 38 38);
@@ -1928,8 +1908,6 @@ function formatMm(value) {
     opacity: 0.4;
 }
 
-.primary-action:disabled,
-.secondary-action:disabled,
 .danger-action:disabled {
     cursor: not-allowed;
     opacity: 0.45;

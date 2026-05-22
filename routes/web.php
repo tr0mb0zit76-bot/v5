@@ -442,8 +442,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:leads')
         ->name('leads.status.update');
 
-    Route::middleware('visibility.area:modules')->group(function () {
-        Route::get('/modules', fn () => Inertia::render('Modules/Index'))->name('modules.index');
+    Route::get('/modules', fn () => Inertia::render('Modules/Index'))
+        ->middleware('visibility.area:modules_catalog')
+        ->name('modules.index');
+
+    Route::middleware('visibility.area:modules_how_much_fits')->group(function () {
         Route::controller(LoadingPlannerController::class)->prefix('modules/how-much-fits')->name('modules.how-much-fits.')->group(function () {
             Route::get('/', 'index')->name('index');
             Route::post('/projects', 'storeProject')->name('projects.store');

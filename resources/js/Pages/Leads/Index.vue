@@ -21,7 +21,7 @@
             </template>
         </CrmPageHeader>
 
-        <div class="min-h-0 flex-1 overflow-hidden">
+        <div :class="crmGridPanel">
             <LeadsGrid
                 :rows="rows"
                 :available-columns="availableColumns"
@@ -64,7 +64,7 @@ import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmGridPanel } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import Modal from '@/Components/Modal.vue';
