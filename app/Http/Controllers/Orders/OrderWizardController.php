@@ -1121,13 +1121,18 @@ class OrderWizardController extends Controller
 
                     return [
                         'stage' => $leg->description,
+                        'carrier_mode' => (string) ($metadataPerformer['carrier_mode'] ?? 'single'),
                         'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
+                        'contractor_name' => isset($metadataPerformer['contractor_name']) ? (string) $metadataPerformer['contractor_name'] : null,
                         'fleet_vehicle_id' => isset($metadataPerformer['fleet_vehicle_id']) && $metadataPerformer['fleet_vehicle_id'] !== null
                             ? (int) $metadataPerformer['fleet_vehicle_id']
                             : null,
                         'fleet_driver_id' => isset($metadataPerformer['fleet_driver_id']) && $metadataPerformer['fleet_driver_id'] !== null
                             ? (int) $metadataPerformer['fleet_driver_id']
                             : null,
+                        'split_carriers' => is_array($metadataPerformer['split_carriers'] ?? null)
+                            ? $metadataPerformer['split_carriers']
+                            : [],
                     ];
                 })
                 ->all()

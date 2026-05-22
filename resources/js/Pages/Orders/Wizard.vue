@@ -421,101 +421,216 @@
                         :key="`leg-route-${legIndex}`"
                         class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800"
                     >
-                        <div class="space-y-3 border-b border-zinc-100 pb-4 dark:border-zinc-800 sm:space-y-0 sm:flex sm:flex-nowrap sm:items-end sm:gap-x-3 sm:gap-y-2">
-                            <div class="flex items-center justify-between gap-3 sm:hidden">
+                        <div class="space-y-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
                                 <span class="text-base font-semibold text-zinc-900 dark:text-zinc-50">{{ stageLabel(performer.stage) }}</span>
-                                <button
-                                    v-if="form.performers.length > 1"
-                                    type="button"
-                                    class="shrink-0 rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
-                                    @click="removePerformer(legIndex)"
-                                >
-                                    Удалить плечо
-                                </button>
-                            </div>
-                            <span class="hidden text-base font-semibold leading-none text-zinc-900 dark:text-zinc-50 sm:inline sm:shrink-0">{{ stageLabel(performer.stage) }}</span>
-                            <div class="grid min-w-0 w-full flex-1 grid-cols-1 gap-2 sm:grid-cols-12 sm:gap-3">
-                                <div class="space-y-1 sm:col-span-5">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <div :class="crmSegmented">
                                         <button
                                             type="button"
-                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                            @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
+                                            :class="[!isPerformerSplit(performer) ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
+                                            @click="setPerformerCarrierMode(legIndex, CARRIER_MODE_SINGLE)"
                                         >
-                                            + Новый
+                                            Один исполнитель
+                                        </button>
+                                        <button
+                                            type="button"
+                                            :class="[isPerformerSplit(performer) ? crmSegmentedBtnActive : crmSegmentedBtn, 'px-2.5 py-1 text-[11px]']"
+                                            @click="setPerformerCarrierMode(legIndex, CARRIER_MODE_SPLIT)"
+                                        >
+                                            Несколько исполнителей
                                         </button>
                                     </div>
-                                    <div class="relative">
-                                        <input
-                                            :value="carrierSearchValue('performer', legIndex)"
-                                            type="text"
-                                            :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField('performer_carrier', performer.contractor_id)]"
-                                            placeholder="Поиск перевозчика"
-                                            @focus="setCarrierResultsVisible('performer', legIndex, true)"
-                                            @input="onPerformerCarrierInput(legIndex, $event.target.value)"
-                                            @blur="restorePerformerCarrierSearch(legIndex)"
-                                        />
-                                        <button
-                                            v-if="normalizeNullableNumber(form.performers[legIndex]?.contractor_id) !== null"
-                                            type="button"
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                                            title="Очистить перевозчика"
-                                            @click="clearPerformerContractor(legIndex)"
-                                        >
-                                            <X class="h-4 w-4" />
-                                        </button>
-                                        <div
-                                            v-if="isCarrierResultsVisible('performer', legIndex) && filteredCarrierResults('performer', legIndex).length > 0"
-                                            class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
-                                        >
+                                    <button
+                                        v-if="form.performers.length > 1"
+                                        type="button"
+                                        class="shrink-0 rounded-xl border border-rose-200 px-3 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+                                        @click="removePerformer(legIndex)"
+                                    >
+                                        Удалить плечо
+                                    </button>
+                                </div>
+                            </div>
+
+                            <template v-if="!isPerformerSplit(performer)">
+                                <div class="grid min-w-0 w-full grid-cols-1 gap-2 sm:grid-cols-12 sm:gap-3">
+                                    <div class="space-y-1 sm:col-span-5">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
                                             <button
-                                                v-for="contractor in filteredCarrierResults('performer', legIndex)"
-                                                :key="contractor.id"
                                                 type="button"
-                                                class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                                                @mousedown.prevent
-                                                @click="selectPerformerContractor(legIndex, contractor)"
+                                                class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
                                             >
-                                                <span class="text-sm font-medium">{{ contractor.name }}</span>
-                                                <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                                + Новый
                                             </button>
+                                        </div>
+                                        <div class="relative">
+                                            <input
+                                                :value="carrierSearchValue('performer', legIndex)"
+                                                type="text"
+                                                :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField('performer_carrier', performer.contractor_id)]"
+                                                placeholder="Поиск перевозчика"
+                                                @focus="setCarrierResultsVisible('performer', legIndex, true)"
+                                                @input="onPerformerCarrierInput(legIndex, $event.target.value)"
+                                                @blur="restorePerformerCarrierSearch(legIndex)"
+                                            />
+                                            <button
+                                                v-if="normalizeNullableNumber(form.performers[legIndex]?.contractor_id) !== null"
+                                                type="button"
+                                                class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                                title="Очистить перевозчика"
+                                                @click="clearPerformerContractor(legIndex)"
+                                            >
+                                                <X class="h-4 w-4" />
+                                            </button>
+                                            <div
+                                                v-if="isCarrierResultsVisible('performer', legIndex) && filteredCarrierResults('performer', legIndex).length > 0"
+                                                class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                            >
+                                                <button
+                                                    v-for="contractor in filteredCarrierResults('performer', legIndex)"
+                                                    :key="contractor.id"
+                                                    type="button"
+                                                    class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                                    @mousedown.prevent
+                                                    @click="selectPerformerContractor(legIndex, contractor)"
+                                                >
+                                                    <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                                    <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1 sm:col-span-3">
+                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
+                                        <select
+                                            v-model="performer.fleet_vehicle_id"
+                                            :class="crmFieldFluid"
+                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
+                                            @focus="loadFleetOptionsForLeg(legIndex)"
+                                        >
+                                            <option :value="null">—</option>
+                                            <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1 sm:col-span-4">
+                                        <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
+                                        <select
+                                            v-model="performer.fleet_driver_id"
+                                            :class="crmFieldFluid"
+                                            :disabled="normalizeNullableNumber(performer.contractor_id) === null"
+                                            @focus="loadFleetOptionsForLeg(legIndex)"
+                                        >
+                                            <option :value="null">—</option>
+                                            <option v-for="d in fleetDriverOptionsForLeg(legIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <p class="text-xs text-zinc-500">Точки маршрута ниже общие для всех исполнителей этого плеча.</p>
+                                <div
+                                    v-for="(slot, slotIndex) in performer.split_carriers"
+                                    :key="`leg-${legIndex}-slot-${slot.slot}`"
+                                    class="space-y-3 rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/40"
+                                >
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ splitCarrierSlotLabel(slot.slot) }}</span>
+                                        <button
+                                            v-if="performer.split_carriers.length > 2"
+                                            type="button"
+                                            class="rounded-lg border border-rose-200 px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+                                            @click="removeSplitCarrier(legIndex, slotIndex)"
+                                        >
+                                            Удалить
+                                        </button>
+                                    </div>
+                                    <div class="grid min-w-0 w-full grid-cols-1 gap-2 sm:grid-cols-12 sm:gap-3">
+                                        <div class="space-y-1 sm:col-span-5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
+                                                <button
+                                                    type="button"
+                                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                    @click.stop="openCounterpartyModal({ kind: 'performer-slot', index: `${legIndex}-${slotIndex}`, type: 'carrier' })"
+                                                >
+                                                    + Новый
+                                                </button>
+                                            </div>
+                                            <div class="relative">
+                                                <input
+                                                    :value="carrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`)"
+                                                    type="text"
+                                                    :class="['w-full rounded-xl border bg-white px-3 py-2 pr-10 text-sm dark:bg-zinc-950', highlightRequiredField(`performer_carrier_${legIndex}_${slotIndex}`, slot.contractor_id)]"
+                                                    placeholder="Поиск перевозчика"
+                                                    @focus="setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, true)"
+                                                    @input="onSplitPerformerCarrierInput(legIndex, slotIndex, $event.target.value)"
+                                                    @blur="restoreSplitPerformerCarrierSearch(legIndex, slotIndex)"
+                                                />
+                                                <button
+                                                    v-if="normalizeNullableNumber(slot.contractor_id) !== null"
+                                                    type="button"
+                                                    class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                                                    title="Очистить перевозчика"
+                                                    @click="clearSplitPerformerContractor(legIndex, slotIndex)"
+                                                >
+                                                    <X class="h-4 w-4" />
+                                                </button>
+                                                <div
+                                                    v-if="isCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`) && filteredCarrierResults('performer-slot', `${legIndex}-${slotIndex}`).length > 0"
+                                                    class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+                                                >
+                                                    <button
+                                                        v-for="contractor in filteredCarrierResults('performer-slot', `${legIndex}-${slotIndex}`)"
+                                                        :key="contractor.id"
+                                                        type="button"
+                                                        class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                                        @mousedown.prevent
+                                                        @click="selectSplitPerformerContractor(legIndex, slotIndex, contractor)"
+                                                    >
+                                                        <span class="text-sm font-medium">{{ contractor.name }}</span>
+                                                        <span class="text-xs text-zinc-500">{{ contractor.inn || 'Без ИНН' }}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="space-y-1 sm:col-span-3">
+                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
+                                            <select
+                                                v-model="slot.fleet_vehicle_id"
+                                                :class="crmFieldFluid"
+                                                :disabled="normalizeNullableNumber(slot.contractor_id) === null"
+                                                @focus="loadFleetOptionsForLeg(legIndex, slotIndex)"
+                                            >
+                                                <option :value="null">—</option>
+                                                <option v-for="v in fleetVehicleOptionsForLeg(legIndex, slotIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="space-y-1 sm:col-span-4">
+                                            <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
+                                            <select
+                                                v-model="slot.fleet_driver_id"
+                                                :class="crmFieldFluid"
+                                                :disabled="normalizeNullableNumber(slot.contractor_id) === null"
+                                                @focus="loadFleetOptionsForLeg(legIndex, slotIndex)"
+                                            >
+                                                <option :value="null">—</option>
+                                                <option v-for="d in fleetDriverOptionsForLeg(legIndex, slotIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="space-y-1 sm:col-span-3">
-                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Авто</label>
-                                    <select
-                                        v-model="performer.fleet_vehicle_id"
-                                        :class="crmFieldFluid"
-                                        :disabled="normalizeNullableNumber(performer.contractor_id) === null"
-                                        @focus="loadFleetOptionsForLeg(legIndex)"
-                                    >
-                                        <option :value="null">—</option>
-                                        <option v-for="v in fleetVehicleOptionsForLeg(legIndex)" :key="v.id" :value="v.id">{{ v.label }}</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-1 sm:col-span-4">
-                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Водитель</label>
-                                    <select
-                                        v-model="performer.fleet_driver_id"
-                                        :class="crmFieldFluid"
-                                        :disabled="normalizeNullableNumber(performer.contractor_id) === null"
-                                        @focus="loadFleetOptionsForLeg(legIndex)"
-                                    >
-                                        <option :value="null">—</option>
-                                        <option v-for="d in fleetDriverOptionsForLeg(legIndex)" :key="d.id" :value="d.id">{{ d.label }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <button
-                                v-if="form.performers.length > 1"
-                                type="button"
-                                class="hidden shrink-0 rounded-xl border border-rose-200 px-3 py-2 text-sm leading-none text-rose-600 hover:bg-rose-50 sm:inline-flex dark:border-rose-900 dark:hover:bg-rose-950/40"
-                                @click="removePerformer(legIndex)"
-                            >
-                                Удалить плечо
-                            </button>
+                                <button
+                                    v-if="performer.split_carriers.length < 4"
+                                    type="button"
+                                    class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                    @click="addSplitCarrier(legIndex)"
+                                >
+                                    Добавить исполнителя
+                                </button>
+                            </template>
                         </div>
 
                         <div
@@ -961,8 +1076,10 @@
                     <div class="space-y-3">
                         <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                             <div class="min-w-0">
-                                <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ stageLabel(cost.stage) }}</div>
-                                <p class="text-xs text-zinc-500">Перевозчик и условия оплаты для этого плеча.</p>
+                                <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                    {{ stageLabel(cost.stage) }}<span v-if="cost.carrier_slot"> · {{ splitCarrierSlotLabel(cost.carrier_slot) }}</span>
+                                </div>
+                                <p class="text-xs text-zinc-500">Перевозчик и условия оплаты{{ cost.carrier_slot ? ' для выбранного исполнителя на плече' : ' для этого плеча' }}.</p>
                             </div>
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
                                 <div class="min-w-0 space-y-2 md:col-span-4">
@@ -1417,6 +1534,18 @@ import {
     buildDocumentRequirementRules,
     documentMatchesRequirementRule,
 } from '@/support/orderDocumentRequirementSlots.js';
+import {
+    blankPerformer,
+    blankSplitCarrier,
+    CARRIER_MODE_SINGLE,
+    CARRIER_MODE_SPLIT,
+    contractorCostRowsFromPerformers,
+    costMatchesPerformerSlot,
+    isPerformerSplit,
+    normalizePerformer,
+    performerFleetCacheKey,
+    splitCarrierSlotLabel,
+} from '@/support/orderPerformers.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -1711,8 +1840,10 @@ const counterpartyForm = useForm({
 
 async function openCounterpartyModal(options = {}) {
     counterpartyTarget.value = {
-        kind: options.kind === 'performer' ? 'performer' : 'client',
-        index: Number.isInteger(options.index) ? options.index : null,
+        kind: options.kind === 'performer-slot'
+            ? 'performer-slot'
+            : (options.kind === 'performer' ? 'performer' : 'client'),
+        index: options.index ?? null,
     };
     counterpartyForm.type = options.type === 'carrier' ? 'carrier' : 'customer';
     showCounterpartyModal.value = true;
@@ -1810,6 +1941,7 @@ function downloadDocumentDraft(document) {
 function normalizeContractorCost(cost = {}) {
     const merged = {
         stage: '',
+        carrier_slot: null,
         contractor_id: null,
         amount: null,
         currency: 'RUB',
@@ -1896,7 +2028,7 @@ function blankOrder() {
         cargo_recipient_contact: '',
         cargo_recipient_phone: '',
         performers: [
-            { stage: stageLabel('leg_1'), contractor_id: null, contractor_name: null, fleet_vehicle_id: null, fleet_driver_id: null },
+            blankPerformer(stageLabel('leg_1')),
         ],
         route_points: [
             blankRoutePoint('loading', 1, stageLabel('leg_1')),
@@ -2263,12 +2395,22 @@ function selectedLoadingTypeCodes() {
 }
 
 const initialWizardPerformers = Array.isArray(props.order?.performers)
-    ? props.order.performers.map((performer) => ({
+    ? props.order.performers.map((performer) => normalizePerformer({
+        ...performer,
         stage: stageLabel(performer.stage ?? 'leg_1'),
         contractor_id: normalizeNullableNumber(performer.contractor_id),
         contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
         fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
         fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
+        split_carriers: Array.isArray(performer.split_carriers)
+            ? performer.split_carriers.map((slot, index) => ({
+                ...slot,
+                slot: Number(slot?.slot ?? index + 1),
+                contractor_id: normalizeNullableNumber(slot?.contractor_id),
+                fleet_vehicle_id: normalizeNullableNumber(slot?.fleet_vehicle_id),
+                fleet_driver_id: normalizeNullableNumber(slot?.fleet_driver_id),
+            }))
+            : [],
     }))
     : blankOrder().performers;
 
@@ -2917,15 +3059,88 @@ function selectClient(contractor) {
 function addPerformer() {
     const stage = stageLabel(`leg_${form.performers.length + 1}`);
 
-    form.performers.push({
-        stage,
-        contractor_id: null,
-        contractor_name: null,
-        fleet_vehicle_id: null,
-        fleet_driver_id: null,
-    });
+    form.performers.push(blankPerformer(stage));
     syncContractorCostsFromPerformers();
     syncRoutePointsFromPerformers();
+}
+
+function setPerformerCarrierMode(legIndex, mode) {
+    const performer = form.performers[legIndex];
+
+    if (!performer || performer.carrier_mode === mode) {
+        return;
+    }
+
+    if (mode === CARRIER_MODE_SPLIT) {
+        const firstCarrier = performer.contractor_id
+            ? {
+                contractor_id: performer.contractor_id,
+                contractor_name: performer.contractor_name,
+                fleet_vehicle_id: performer.fleet_vehicle_id,
+                fleet_driver_id: performer.fleet_driver_id,
+            }
+            : {};
+
+        performer.carrier_mode = CARRIER_MODE_SPLIT;
+        performer.split_carriers = [
+            { ...blankSplitCarrier(1), ...firstCarrier },
+            blankSplitCarrier(2),
+        ];
+        performer.contractor_id = null;
+        performer.contractor_name = null;
+        performer.fleet_vehicle_id = null;
+        performer.fleet_driver_id = null;
+    } else {
+        const firstSlot = performer.split_carriers?.[0] ?? blankSplitCarrier(1);
+        performer.carrier_mode = CARRIER_MODE_SINGLE;
+        performer.contractor_id = firstSlot.contractor_id ?? null;
+        performer.contractor_name = firstSlot.contractor_name ?? null;
+        performer.fleet_vehicle_id = firstSlot.fleet_vehicle_id ?? null;
+        performer.fleet_driver_id = firstSlot.fleet_driver_id ?? null;
+        performer.split_carriers = [];
+    }
+
+    syncContractorCostsFromPerformers();
+}
+
+function addSplitCarrier(legIndex) {
+    const performer = form.performers[legIndex];
+
+    if (!performer || !isPerformerSplit(performer) || performer.split_carriers.length >= 4) {
+        return;
+    }
+
+    performer.split_carriers.push(blankSplitCarrier(performer.split_carriers.length + 1));
+    syncContractorCostsFromPerformers();
+}
+
+function removeSplitCarrier(legIndex, slotIndex) {
+    const performer = form.performers[legIndex];
+
+    if (!performer || !isPerformerSplit(performer) || performer.split_carriers.length <= 2) {
+        return;
+    }
+
+    performer.split_carriers.splice(slotIndex, 1);
+    performer.split_carriers = performer.split_carriers.map((slot, index) => ({
+        ...slot,
+        slot: index + 1,
+    }));
+    syncContractorCostsFromPerformers();
+}
+
+function parsePerformerCarrierTarget(kind, index) {
+    if (kind === 'performer-slot') {
+        const [legIndex, slotIndex] = String(index).split('-').map((value) => Number(value));
+
+        return { legIndex, slotIndex, kind };
+    }
+
+    return { legIndex: Number(index), slotIndex: null, kind };
+}
+
+function splitCarrierAt(legIndex, slotIndex) {
+    return form.performers[legIndex]?.split_carriers?.[slotIndex] ?? null;
 }
 
 function removePerformer(index) {
@@ -3054,7 +3269,7 @@ function pruneEmptyLegPerformers() {
     form.performers = filtered;
 
     if (form.performers.length === 0) {
-        form.performers = [{ stage: stageLabel('leg_1'), contractor_id: null, contractor_name: null, fleet_vehicle_id: null, fleet_driver_id: null }];
+        form.performers = [blankPerformer(stageLabel('leg_1'))];
         syncRoutePointsFromPerformers();
     } else {
         reindexLegStagesAndRemap();
@@ -3143,9 +3358,17 @@ function isCarrierResultsVisible(kind, index) {
 
 function filteredCarrierResults(kind, index) {
     const query = carrierSearchValue(kind, index).trim().toLowerCase();
-    const selectedContractorId = kind === 'performer'
-        ? normalizeNullableNumber(form.performers[index]?.contractor_id)
-        : normalizeNullableNumber(form.financial_term.contractors_costs[index]?.contractor_id);
+    let selectedContractorId = null;
+
+    if (kind === 'performer-slot') {
+        const target = parsePerformerCarrierTarget(kind, index);
+        selectedContractorId = normalizeNullableNumber(splitCarrierAt(target.legIndex, target.slotIndex)?.contractor_id);
+    } else if (kind === 'performer') {
+        selectedContractorId = normalizeNullableNumber(form.performers[index]?.contractor_id);
+    } else {
+        selectedContractorId = normalizeNullableNumber(form.financial_term.contractors_costs[index]?.contractor_id);
+    }
+
     const selectedContractor = getContractorById(selectedContractorId);
     
     // Get server search results for this specific field
@@ -3274,14 +3497,24 @@ function applyCarrierNormsDefaultsByStage(stage, contractorId) {
     }
 }
 
-function applyCarrierDefaultsByStage(stage, contractorId) {
+function applyCarrierDefaultsByStage(stage, contractorId, carrierSlot = null) {
     const contractor = getContractorById(contractorId);
 
     if (!contractor) {
         return;
     }
 
-    const costRow = form.financial_term.contractors_costs.find((row) => stageMatches(row.stage, stage));
+    const costRow = form.financial_term.contractors_costs.find((row) => {
+        if (!stageMatches(row.stage, stage)) {
+            return false;
+        }
+
+        if (carrierSlot == null) {
+            return row.carrier_slot == null || row.carrier_slot === '';
+        }
+
+        return Number(row.carrier_slot) === Number(carrierSlot);
+    });
 
     if (!costRow) {
         return;
@@ -3294,6 +3527,108 @@ function applyCarrierDefaultsByStage(stage, contractorId) {
     costRow.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
 
     applyCarrierNormsDefaultsByStage(stage, contractorId);
+}
+
+function splitCarrierSearchLabel(legIndex, slotIndex, contractorId) {
+    const id = normalizeNullableNumber(contractorId);
+    if (id === null) {
+        return '';
+    }
+
+    const contractor = getContractorById(id);
+    const fromLookup = contractor?.name ? String(contractor.name).trim() : '';
+    if (fromLookup) {
+        return fromLookup;
+    }
+
+    const slot = splitCarrierAt(legIndex, slotIndex);
+    const fromRow = slot?.contractor_name ? String(slot.contractor_name).trim() : '';
+
+    return fromRow || '';
+}
+
+function selectSplitPerformerContractor(legIndex, slotIndex, contractor) {
+    ensureContractorInLocalList(contractor);
+
+    const slot = splitCarrierAt(legIndex, slotIndex);
+    if (!slot) {
+        return;
+    }
+
+    slot.contractor_id = Number(contractor.id);
+    slot.contractor_name = contractor.name ? String(contractor.name).trim() || null : null;
+    slot.fleet_vehicle_id = null;
+    slot.fleet_driver_id = null;
+
+    setCarrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`, contractor.name);
+    setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, false);
+    syncContractorCostsFromPerformers();
+    applyCarrierDefaultsByStage(form.performers[legIndex].stage, contractor.id, slot.slot);
+    loadFleetOptionsForLeg(legIndex, slotIndex);
+}
+
+function clearSplitPerformerContractor(legIndex, slotIndex) {
+    const slot = splitCarrierAt(legIndex, slotIndex);
+    if (!slot) {
+        return;
+    }
+
+    slot.contractor_id = null;
+    slot.contractor_name = null;
+    slot.fleet_vehicle_id = null;
+    slot.fleet_driver_id = null;
+
+    setCarrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`, '');
+    setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, false);
+    syncContractorCostsFromPerformers();
+    fleetOptionsCache.value = {
+        ...fleetOptionsCache.value,
+        [performerFleetCacheKey(legIndex, slotIndex)]: { vehicles: [], drivers: [] },
+    };
+}
+
+function onSplitPerformerCarrierInput(legIndex, slotIndex, value) {
+    setCarrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`, value);
+    setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, true);
+
+    const slot = splitCarrierAt(legIndex, slotIndex);
+    if (!slot) {
+        return;
+    }
+
+    const typed = String(value ?? '').trim().toLowerCase();
+    const selectedContractor = getContractorById(slot.contractor_id);
+    const selectedName = String(selectedContractor?.name ?? slot.contractor_name ?? '').trim().toLowerCase();
+
+    if (typed === '') {
+        clearSplitPerformerContractor(legIndex, slotIndex);
+
+        return;
+    }
+
+    if (normalizeNullableNumber(slot.contractor_id) !== null && selectedName !== '' && selectedName !== typed) {
+        slot.contractor_id = null;
+        slot.contractor_name = null;
+        slot.fleet_vehicle_id = null;
+        slot.fleet_driver_id = null;
+        syncContractorCostsFromPerformers();
+    }
+}
+
+function restoreSplitPerformerCarrierSearch(legIndex, slotIndex) {
+    window.setTimeout(() => {
+        const slot = splitCarrierAt(legIndex, slotIndex);
+        if (!slot) {
+            return;
+        }
+
+        setCarrierSearchValue(
+            'performer-slot',
+            `${legIndex}-${slotIndex}`,
+            splitCarrierSearchLabel(legIndex, slotIndex, slot.contractor_id),
+        );
+        setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, false);
+    }, 120);
 }
 
 function selectPerformerContractor(index, contractor) {
@@ -3384,10 +3719,18 @@ function restorePerformerCarrierSearch(index) {
     }, 120);
 }
 
-async function loadFleetOptionsForLeg(legIndex) {
-    const contractorId = normalizeNullableNumber(form.performers[legIndex]?.contractor_id);
+async function loadFleetOptionsForLeg(legIndex, slotIndex = null) {
+    const cacheKey = performerFleetCacheKey(legIndex, slotIndex);
+    let contractorId = null;
+
+    if (slotIndex !== null) {
+        contractorId = normalizeNullableNumber(splitCarrierAt(legIndex, slotIndex)?.contractor_id);
+    } else {
+        contractorId = normalizeNullableNumber(form.performers[legIndex]?.contractor_id);
+    }
+
     if (!contractorId) {
-        fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles: [], drivers: [] } };
+        fleetOptionsCache.value = { ...fleetOptionsCache.value, [cacheKey]: { vehicles: [], drivers: [] } };
 
         return;
     }
@@ -3422,15 +3765,15 @@ async function loadFleetOptionsForLeg(legIndex) {
         .catch(() => []);
 
     const [vehicles, drivers] = await Promise.all([loadVehicles, loadDrivers]);
-    fleetOptionsCache.value = { ...fleetOptionsCache.value, [legIndex]: { vehicles, drivers } };
+    fleetOptionsCache.value = { ...fleetOptionsCache.value, [cacheKey]: { vehicles, drivers } };
 }
 
-function fleetVehicleOptionsForLeg(legIndex) {
-    return fleetOptionsCache.value[legIndex]?.vehicles ?? [];
+function fleetVehicleOptionsForLeg(legIndex, slotIndex = null) {
+    return fleetOptionsCache.value[performerFleetCacheKey(legIndex, slotIndex)]?.vehicles ?? [];
 }
 
-function fleetDriverOptionsForLeg(legIndex) {
-    return fleetOptionsCache.value[legIndex]?.drivers ?? [];
+function fleetDriverOptionsForLeg(legIndex, slotIndex = null) {
+    return fleetOptionsCache.value[performerFleetCacheKey(legIndex, slotIndex)]?.drivers ?? [];
 }
 
 const routeChainLabel = computed(() => {
@@ -3906,18 +4249,18 @@ function syncContractorCostsFromPerformers() {
         ? form.financial_term.contractors_costs
         : [];
 
-    form.financial_term.contractors_costs = form.performers.map((performer) => {
-        const existingRow = existingRows.find((row) => stageMatches(row.stage, performer.stage));
+    form.financial_term.contractors_costs = contractorCostRowsFromPerformers(form.performers).map((row) => {
+        const existingRow = existingRows.find((cost) => costMatchesPerformerSlot(cost, row.performer, row.slot));
 
         const nextRow = normalizeContractorCost({
             ...existingRow,
-            stage: performer.stage,
-            contractor_id: performer.contractor_id,
+            stage: row.stage,
+            carrier_slot: row.carrier_slot,
+            contractor_id: row.contractor_id,
         });
 
-        // Apply carrier defaults when contractor is set (even if row already exists)
-        if (performer.contractor_id) {
-            const contractor = getContractorById(performer.contractor_id);
+        if (row.contractor_id) {
+            const contractor = getContractorById(row.contractor_id);
 
             if (contractor?.default_carrier_payment_form) {
                 nextRow.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
@@ -3931,6 +4274,16 @@ function syncContractorCostsFromPerformers() {
     syncCarrierNormsByLegFromPerformers();
 
     form.performers.forEach((performer) => {
+        if (isPerformerSplit(performer)) {
+            performer.split_carriers.forEach((slot) => {
+                if (slot.contractor_id) {
+                    applyCarrierNormsDefaultsByStage(performer.stage, slot.contractor_id);
+                }
+            });
+
+            return;
+        }
+
         if (performer.contractor_id) {
             applyCarrierNormsDefaultsByStage(performer.stage, performer.contractor_id);
         }
@@ -3968,44 +4321,95 @@ function syncCarrierNormsByLegFromPerformers() {
 // );
 
 if (Array.isArray(props.order?.performers)) {
-    props.order.performers.forEach((p) => {
-        const id = normalizeNullableNumber(p.contractor_id);
-        const name = p.contractor_name ? String(p.contractor_name).trim() : '';
-        if (id !== null && name !== '') {
-            ensureContractorInLocalList({
-                id,
-                name,
-                type: 'carrier',
-                inn: null,
-                phone: null,
-                email: null,
-                is_own_company: false,
+    props.order.performers.forEach((p, legIndex) => {
+        const registerCarrier = (id, name) => {
+            const normalizedId = normalizeNullableNumber(id);
+            const normalizedName = name ? String(name).trim() : '';
+
+            if (normalizedId !== null && normalizedName !== '') {
+                ensureContractorInLocalList({
+                    id: normalizedId,
+                    name: normalizedName,
+                    type: 'carrier',
+                    inn: null,
+                    phone: null,
+                    email: null,
+                    is_own_company: false,
+                });
+            }
+        };
+
+        if (p.carrier_mode === CARRIER_MODE_SPLIT && Array.isArray(p.split_carriers)) {
+            p.split_carriers.forEach((slot, slotIndex) => {
+                registerCarrier(slot.contractor_id, slot.contractor_name);
+                setCarrierSearchValue(
+                    'performer-slot',
+                    `${legIndex}-${slotIndex}`,
+                    splitCarrierSearchLabel(legIndex, slotIndex, slot.contractor_id),
+                );
             });
+
+            return;
         }
+
+        registerCarrier(p.contractor_id, p.contractor_name);
     });
 }
 
 watch(
-    () => form.performers.map((performer) => [performer.stage, performer.contractor_id, performer.contractor_name]),
+    () => form.performers.map((performer) => ({
+        stage: performer.stage,
+        mode: performer.carrier_mode,
+        contractor_id: performer.contractor_id,
+        contractor_name: performer.contractor_name,
+        split_carriers: (performer.split_carriers ?? []).map((slot) => [
+            slot.slot,
+            slot.contractor_id,
+            slot.contractor_name,
+            slot.fleet_vehicle_id,
+            slot.fleet_driver_id,
+        ]),
+    })),
     (performers, prev) => {
-        performers.forEach(([stage, contractorId], index) => {
-            setCarrierSearchValue('performer', index, performerCarrierSearchLabel(index, contractorId));
-            const costIndex = form.financial_term.contractors_costs.findIndex((row) => stageMatches(row.stage, stage));
+        performers.forEach((row, index) => {
+            const performer = form.performers[index];
+            if (!performer) {
+                return;
+            }
+
+            if (isPerformerSplit(performer)) {
+                performer.split_carriers.forEach((slot, slotIndex) => {
+                    setCarrierSearchValue(
+                        'performer-slot',
+                        `${index}-${slotIndex}`,
+                        splitCarrierSearchLabel(index, slotIndex, slot.contractor_id),
+                    );
+
+                    const prevSlot = prev?.[index]?.split_carriers?.[slotIndex];
+                    if (!prevSlot || prevSlot[1] !== slot.contractor_id) {
+                        slot.fleet_vehicle_id = null;
+                        slot.fleet_driver_id = null;
+                        loadFleetOptionsForLeg(index, slotIndex);
+                    }
+                });
+
+                return;
+            }
+
+            setCarrierSearchValue('performer', index, performerCarrierSearchLabel(index, row.contractor_id));
+            const costIndex = form.financial_term.contractors_costs.findIndex((cost) => stageMatches(cost.stage, row.stage));
 
             if (costIndex !== -1) {
-                setCarrierSearchValue('cost', costIndex, performerCarrierSearchLabel(index, contractorId));
+                setCarrierSearchValue('cost', costIndex, performerCarrierSearchLabel(index, row.contractor_id));
             }
 
             const prevRow = prev?.[index];
-            if (prevRow && prevRow[1] !== contractorId) {
-                const performerRow = form.performers[index];
-                if (performerRow) {
-                    performerRow.fleet_vehicle_id = null;
-                    performerRow.fleet_driver_id = null;
-                }
+            if (prevRow && prevRow.contractor_id !== row.contractor_id) {
+                performer.fleet_vehicle_id = null;
+                performer.fleet_driver_id = null;
             }
 
-            if (!prevRow || prevRow[1] !== contractorId) {
+            if (!prevRow || prevRow.contractor_id !== row.contractor_id) {
                 loadFleetOptionsForLeg(index);
             }
         });
@@ -4354,7 +4758,10 @@ async function createInlineCounterparty() {
         if (contractor.is_own_company) {
             ownCompanyOptions.value.unshift(contractor);
         }
-        if (counterpartyTarget.value.kind === 'performer' && counterpartyTarget.value.index !== null) {
+        if (counterpartyTarget.value.kind === 'performer-slot' && counterpartyTarget.value.index !== null) {
+            const target = parsePerformerCarrierTarget('performer-slot', counterpartyTarget.value.index);
+            selectSplitPerformerContractor(target.legIndex, target.slotIndex, contractor);
+        } else if (counterpartyTarget.value.kind === 'performer' && counterpartyTarget.value.index !== null) {
             selectPerformerContractor(counterpartyTarget.value.index, contractor);
         } else {
             selectClient(contractor);

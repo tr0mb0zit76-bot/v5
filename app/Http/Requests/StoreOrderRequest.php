@@ -144,7 +144,16 @@ class StoreOrderRequest extends FormRequest
                 $performers = $this->input('performers', []);
                 $performerCarrierIds = collect(is_array($performers) ? $performers : [])
                     ->filter(fn (mixed $item): bool => is_array($item))
-                    ->map(fn (array $item): int => (int) ($item['contractor_id'] ?? 0));
+                    ->flatMap(function (array $item): array {
+                        if (($item['carrier_mode'] ?? 'single') === 'split' && is_array($item['split_carriers'] ?? null)) {
+                            return collect($item['split_carriers'])
+                                ->filter(fn (mixed $slot): bool => is_array($slot))
+                                ->map(fn (array $slot): int => (int) ($slot['contractor_id'] ?? 0))
+                                ->all();
+                        }
+
+                        return [(int) ($item['contractor_id'] ?? 0)];
+                    });
 
                 $contractorCosts = Arr::get($this->input('financial_term', []), 'contractors_costs', []);
                 $costCarrierIds = collect(is_array($contractorCosts) ? $contractorCosts : [])
@@ -157,6 +166,20 @@ class StoreOrderRequest extends FormRequest
 
                 if (! $hasCarrier) {
                     $validator->errors()->add('performers', 'Укажите хотя бы одного перевозчика.');
+                }
+
+                foreach (is_array($performers) ? $performers : [] as $i => $performer) {
+                    if (! is_array($performer) || ($performer['carrier_mode'] ?? 'single') !== 'split') {
+                        continue;
+                    }
+
+                    $slots = is_array($performer['split_carriers'] ?? null) ? $performer['split_carriers'] : [];
+                    if (count($slots) < 2) {
+                        $validator->errors()->add(
+                            "performers.$i.split_carriers",
+                            'Для режима «Несколько исполнителей» укажите минимум двух перевозчиков на плече.'
+                        );
+                    }
                 }
 
                 $clientPrice = Arr::get($this->input('financial_term', []), 'client_price');
@@ -203,25 +226,45 @@ class StoreOrderRequest extends FormRequest
                         continue;
                     }
 
-                    $carrierId = isset($performer['contractor_id']) ? (int) $performer['contractor_id'] : null;
-                    $vehicleId = isset($performer['fleet_vehicle_id']) ? (int) $performer['fleet_vehicle_id'] : null;
-                    $driverId = isset($performer['fleet_driver_id']) ? (int) $performer['fleet_driver_id'] : null;
+                    $fleetRows = (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null))
+                        ? collect($performer['split_carriers'])
+                            ->filter(fn (mixed $slot): bool => is_array($slot))
+                            ->map(fn (array $slot, int $slotIndex): array => [
+                                'prefix' => "performers.$i.split_carriers.$slotIndex",
+                                'carrier_id' => isset($slot['contractor_id']) ? (int) $slot['contractor_id'] : null,
+                                'vehicle_id' => isset($slot['fleet_vehicle_id']) ? (int) $slot['fleet_vehicle_id'] : null,
+                                'driver_id' => isset($slot['fleet_driver_id']) ? (int) $slot['fleet_driver_id'] : null,
+                            ])
+                            ->all()
+                        : [[
+                            'prefix' => "performers.$i",
+                            'carrier_id' => isset($performer['contractor_id']) ? (int) $performer['contractor_id'] : null,
+                            'vehicle_id' => isset($performer['fleet_vehicle_id']) ? (int) $performer['fleet_vehicle_id'] : null,
+                            'driver_id' => isset($performer['fleet_driver_id']) ? (int) $performer['fleet_driver_id'] : null,
+                        ]];
 
-                    if ($vehicleId > 0) {
-                        $vehicle = FleetVehicle::query()->find($vehicleId);
-                        if ($vehicle === null) {
-                            $validator->errors()->add("performers.$i.fleet_vehicle_id", 'Транспортное средство не найдено.');
-                        } elseif ($carrierId && (int) $vehicle->owner_contractor_id !== $carrierId) {
-                            $validator->errors()->add("performers.$i.fleet_vehicle_id", 'ТС должно принадлежать выбранному перевозчику (владелец в карточке ТС).');
+                    foreach ($fleetRows as $row) {
+                        $carrierId = $row['carrier_id'];
+                        $vehicleId = $row['vehicle_id'];
+                        $driverId = $row['driver_id'];
+                        $prefix = $row['prefix'];
+
+                        if ($vehicleId > 0) {
+                            $vehicle = FleetVehicle::query()->find($vehicleId);
+                            if ($vehicle === null) {
+                                $validator->errors()->add("{$prefix}.fleet_vehicle_id", 'Транспортное средство не найдено.');
+                            } elseif ($carrierId && (int) $vehicle->owner_contractor_id !== $carrierId) {
+                                $validator->errors()->add("{$prefix}.fleet_vehicle_id", 'ТС должно принадлежать выбранному перевозчику (владелец в карточке ТС).');
+                            }
                         }
-                    }
 
-                    if ($driverId > 0) {
-                        $driver = FleetDriver::query()->find($driverId);
-                        if ($driver === null) {
-                            $validator->errors()->add("performers.$i.fleet_driver_id", 'Водитель не найден.');
-                        } elseif ($carrierId && (int) $driver->carrier_contractor_id !== $carrierId) {
-                            $validator->errors()->add("performers.$i.fleet_driver_id", 'Водитель должен быть привязан к выбранному контрагенту-перевозчику.');
+                        if ($driverId > 0) {
+                            $driver = FleetDriver::query()->find($driverId);
+                            if ($driver === null) {
+                                $validator->errors()->add("{$prefix}.fleet_driver_id", 'Водитель не найден.');
+                            } elseif ($carrierId && (int) $driver->carrier_contractor_id !== $carrierId) {
+                                $validator->errors()->add("{$prefix}.fleet_driver_id", 'Водитель должен быть привязан к выбранному контрагенту-перевозчику.');
+                            }
                         }
                     }
                 }
@@ -390,9 +433,15 @@ class StoreOrderRequest extends FormRequest
 
             'performers' => ['nullable', 'array'],
             'performers.*.stage' => ['nullable', 'string', 'max:50'],
+            'performers.*.carrier_mode' => ['nullable', 'string', Rule::in(['single', 'split'])],
             'performers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'performers.*.fleet_vehicle_id' => ['nullable', 'integer'],
             'performers.*.fleet_driver_id' => ['nullable', 'integer'],
+            'performers.*.split_carriers' => ['nullable', 'array', 'max:4'],
+            'performers.*.split_carriers.*.slot' => ['nullable', 'integer', 'min:1', 'max:9'],
+            'performers.*.split_carriers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'performers.*.split_carriers.*.fleet_vehicle_id' => ['nullable', 'integer'],
+            'performers.*.split_carriers.*.fleet_driver_id' => ['nullable', 'integer'],
 
             'route_points' => ['nullable', 'array'],
             'route_points.*.type' => ['nullable', Rule::in(['loading', 'unloading', 'border_crossing'])],
@@ -483,6 +532,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.kpi_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'financial_term.contractors_costs' => ['nullable', 'array'],
             'financial_term.contractors_costs.*.stage' => ['nullable', 'string', 'max:50'],
+            'financial_term.contractors_costs.*.carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],

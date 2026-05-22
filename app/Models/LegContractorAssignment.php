@@ -15,6 +15,7 @@ class LegContractorAssignment extends Model
      */
     protected $fillable = [
         'order_leg_id',
+        'carrier_slot',
         'contractor_id',
         'assigned_at',
         'assigned_by',

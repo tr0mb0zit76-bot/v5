@@ -284,12 +284,25 @@ class OrderWizardService
                 if (! is_array($extra)) {
                     return $p;
                 }
-                foreach (['fleet_vehicle_id', 'fleet_driver_id'] as $key) {
+                foreach (['fleet_vehicle_id', 'fleet_driver_id', 'carrier_mode', 'split_carriers', 'contractor_id', 'contractor_name'] as $key) {
                     if (! array_key_exists($key, $extra)) {
                         continue;
                     }
+
+                    if ($key === 'split_carriers') {
+                        $p[$key] = is_array($extra[$key]) ? $extra[$key] : [];
+
+                        continue;
+                    }
+
                     $val = $extra[$key];
-                    $p[$key] = $val !== null && $val !== '' ? (int) $val : null;
+                    if (in_array($key, ['fleet_vehicle_id', 'fleet_driver_id', 'contractor_id'], true)) {
+                        $p[$key] = $val !== null && $val !== '' ? (int) $val : null;
+
+                        continue;
+                    }
+
+                    $p[$key] = $val;
                 }
 
                 return $p;
@@ -304,11 +317,41 @@ class OrderWizardService
      */
     private function performersForLegSync(array $validated): array
     {
+        $formPerformers = collect($validated['performers'] ?? [])
+            ->filter(fn (mixed $performer): bool => is_array($performer))
+            ->values();
+
+        if ($formPerformers->isNotEmpty()) {
+            return $formPerformers
+                ->map(function (array $performer): array {
+                    $id = $performer['contractor_id'] ?? null;
+
+                    if (($performer['carrier_mode'] ?? 'single') === 'split') {
+                        $firstWithCarrier = collect($performer['split_carriers'] ?? [])
+                            ->first(fn (mixed $slot): bool => is_array($slot)
+                                && isset($slot['contractor_id'])
+                                && $slot['contractor_id'] !== null
+                                && $slot['contractor_id'] !== '');
+
+                        if (is_array($firstWithCarrier)) {
+                            $id = $firstWithCarrier['contractor_id'];
+                        }
+                    }
+
+                    return [
+                        'stage' => (string) ($performer['stage'] ?? 'leg_1'),
+                        'contractor_id' => $id !== null && $id !== '' ? (int) $id : null,
+                    ];
+                })
+                ->all();
+        }
+
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $costs = Arr::get($financialTerm, 'contractors_costs', []);
 
         if (is_array($costs) && $costs !== []) {
             return collect($costs)
+                ->unique(fn (array $cost): string => $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1')))
                 ->map(function (array $cost): array {
                     $id = $cost['contractor_id'] ?? null;
 
@@ -321,21 +364,7 @@ class OrderWizardService
                 ->all();
         }
 
-        return collect($validated['performers'] ?? [])
-            ->map(function ($performer): array {
-                if (! is_array($performer)) {
-                    return ['stage' => 'leg_1', 'contractor_id' => null];
-                }
-
-                $id = $performer['contractor_id'] ?? null;
-
-                return [
-                    'stage' => (string) ($performer['stage'] ?? 'leg_1'),
-                    'contractor_id' => $id !== null && $id !== '' ? (int) $id : null,
-                ];
-            })
-            ->values()
-            ->all();
+        return [['stage' => 'leg_1', 'contractor_id' => null]];
     }
 
     /**
@@ -1378,8 +1407,11 @@ class OrderWizardService
         $performersByStage = collect($performers)
             ->keyBy(fn (array $performer): string => $this->normalizeStageIdentifier((string) ($performer['stage'] ?? 'leg_1')));
 
-        $costsByStage = collect($contractorsCosts)
-            ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1')));
+        $costsByStageSlot = collect($contractorsCosts)
+            ->keyBy(fn (array $cost): string => $this->contractorCostLookupKey(
+                (string) ($cost['stage'] ?? 'leg_1'),
+                $cost['carrier_slot'] ?? null,
+            ));
 
         $hasAssignmentsTable = Schema::hasTable('leg_contractor_assignments');
         $hasLegCostsTable = Schema::hasTable('leg_costs');
@@ -1387,16 +1419,8 @@ class OrderWizardService
         foreach ($legs as $leg) {
             $stage = $this->normalizeStageIdentifier($leg->description);
             $performer = $performersByStage->get($stage);
-            $cost = $costsByStage->get($stage);
-            $resolvedContractorId = null;
+            $carrierRows = $this->carrierRowsForLegAssignment($performer, $costsByStageSlot, $stage);
 
-            if (is_array($cost) && array_key_exists('contractor_id', $cost) && $cost['contractor_id'] !== null) {
-                $resolvedContractorId = (int) $cost['contractor_id'];
-            } elseif (is_array($performer) && array_key_exists('contractor_id', $performer) && $performer['contractor_id'] !== null) {
-                $resolvedContractorId = (int) $performer['contractor_id'];
-            }
-
-            // Удаляем старые записи для этого плеча
             if ($hasAssignmentsTable) {
                 LegContractorAssignment::query()->where('order_leg_id', $leg->id)->delete();
             }
@@ -1409,47 +1433,117 @@ class OrderWizardService
                 continue;
             }
 
-            $assignment = null;
-            if ($resolvedContractorId !== null) {
-                if ($hasAssignmentsTable) {
-                    $assignment = LegContractorAssignment::query()->create([
+            $primaryAssignment = null;
+            $aggregatedLegCost = null;
+
+            foreach ($carrierRows as $carrierRow) {
+                $resolvedContractorId = $carrierRow['contractor_id'];
+                $cost = $carrierRow['cost'];
+                $carrierSlot = (int) ($carrierRow['carrier_slot'] ?? 1);
+
+                if ($resolvedContractorId !== null && $hasAssignmentsTable) {
+                    $createdAssignment = LegContractorAssignment::query()->create([
                         'order_leg_id' => $leg->id,
+                        'carrier_slot' => $carrierSlot,
                         'contractor_id' => $resolvedContractorId,
                         'assigned_at' => now(),
                         'assigned_by' => $user->id,
                         'status' => 'confirmed',
                         'notes' => is_array($performer) ? ($performer['notes'] ?? null) : null,
                     ]);
+
+                    if ($primaryAssignment === null) {
+                        $primaryAssignment = $createdAssignment;
+                    }
                 }
 
-                // Создаем стоимость, если есть данные о стоимости
-                if ($cost && $hasLegCostsTable) {
-                    LegCost::query()->create([
-                        'order_leg_id' => $leg->id,
-                        'amount' => $cost['amount'] ?? null,
-                        'currency' => $cost['currency'] ?? 'RUB',
-                        'payment_form' => $cost['payment_form'] ?? null,
-                        'payment_schedule' => $cost['payment_schedule'] ?? null,
-                        'status' => 'draft',
-                        'calculated_at' => now(),
-                        'calculated_by' => $user->id,
-                        'leg_contractor_assignment_id' => $assignment?->id,
-                    ]);
+                if ($cost) {
+                    $aggregatedLegCost = [
+                        'amount' => (float) ($aggregatedLegCost['amount'] ?? 0) + (float) ($cost['amount'] ?? 0),
+                        'currency' => (string) ($cost['currency'] ?? $aggregatedLegCost['currency'] ?? 'RUB'),
+                        'payment_form' => $cost['payment_form'] ?? $aggregatedLegCost['payment_form'] ?? null,
+                        'payment_schedule' => $cost['payment_schedule'] ?? $aggregatedLegCost['payment_schedule'] ?? null,
+                    ];
                 }
-            } elseif ($cost && $hasLegCostsTable) {
-                // Если есть только стоимость без исполнителя
+            }
+
+            if ($aggregatedLegCost && $hasLegCostsTable) {
                 LegCost::query()->create([
                     'order_leg_id' => $leg->id,
-                    'amount' => $cost['amount'] ?? null,
-                    'currency' => $cost['currency'] ?? 'RUB',
-                    'payment_form' => $cost['payment_form'] ?? null,
-                    'payment_schedule' => $cost['payment_schedule'] ?? null,
+                    'amount' => $aggregatedLegCost['amount'] > 0 ? $aggregatedLegCost['amount'] : null,
+                    'currency' => $aggregatedLegCost['currency'],
+                    'payment_form' => $aggregatedLegCost['payment_form'],
+                    'payment_schedule' => $aggregatedLegCost['payment_schedule'],
                     'status' => 'draft',
                     'calculated_at' => now(),
                     'calculated_by' => $user->id,
+                    'leg_contractor_assignment_id' => $primaryAssignment?->id,
                 ]);
             }
         }
+    }
+
+    private function contractorCostLookupKey(string $stage, mixed $carrierSlot): string
+    {
+        $normalizedStage = $this->normalizeStageIdentifier($stage);
+        $slot = $carrierSlot !== null && $carrierSlot !== '' ? (int) $carrierSlot : 0;
+
+        return "{$normalizedStage}#{$slot}";
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $performer
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $costsByStageSlot
+     * @return list<array{carrier_slot: int, contractor_id: int|null, cost: array<string, mixed>|null}>
+     */
+    private function carrierRowsForLegAssignment(?array $performer, $costsByStageSlot, string $stage): array
+    {
+        if (! is_array($performer)) {
+            $fallbackCost = $costsByStageSlot->get($this->contractorCostLookupKey($stage, null));
+
+            return [[
+                'carrier_slot' => 1,
+                'contractor_id' => isset($fallbackCost['contractor_id']) && $fallbackCost['contractor_id'] !== null
+                    ? (int) $fallbackCost['contractor_id']
+                    : null,
+                'cost' => is_array($fallbackCost) ? $fallbackCost : null,
+            ]];
+        }
+
+        if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+            return collect($performer['split_carriers'])
+                ->filter(fn (mixed $slot): bool => is_array($slot))
+                ->map(function (array $slot) use ($costsByStageSlot, $stage, $performer): array {
+                    $carrierSlot = (int) ($slot['slot'] ?? 1);
+                    $cost = $costsByStageSlot->get($this->contractorCostLookupKey($stage, $carrierSlot));
+                    $contractorId = $slot['contractor_id'] ?? null;
+
+                    if ($contractorId === null && is_array($cost) && array_key_exists('contractor_id', $cost) && $cost['contractor_id'] !== null) {
+                        $contractorId = (int) $cost['contractor_id'];
+                    }
+
+                    return [
+                        'carrier_slot' => $carrierSlot,
+                        'contractor_id' => $contractorId !== null && $contractorId !== '' ? (int) $contractorId : null,
+                        'cost' => is_array($cost) ? $cost : null,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        $cost = $costsByStageSlot->get($this->contractorCostLookupKey($stage, null));
+        $contractorId = $performer['contractor_id'] ?? null;
+
+        if ($contractorId === null && is_array($cost) && array_key_exists('contractor_id', $cost) && $cost['contractor_id'] !== null) {
+            $contractorId = (int) $cost['contractor_id'];
+        }
+
+        return [[
+            'carrier_slot' => 1,
+            'contractor_id' => $contractorId !== null && $contractorId !== '' ? (int) $contractorId : null,
+            'cost' => is_array($cost) ? $cost : null,
+        ]];
     }
 
     private function normalizeLoadingType(mixed $value): ?string

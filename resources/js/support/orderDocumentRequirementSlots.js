@@ -1,4 +1,5 @@
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
+import { expandPerformersForCarrierSlots, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
 
 const REQUEST_TYPES = ['request', 'contract_request'];
 const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
@@ -41,8 +42,9 @@ export function customerRequestSlots(performers, clientRequestMode) {
  */
 export function carrierRequestSlots(performers, clientRequestMode) {
     const allPerformers = Array.isArray(performers) ? performers : [];
+    const expanded = expandPerformersForCarrierSlots(allPerformers);
 
-    if (allPerformers.length === 0) {
+    if (expanded.length === 0) {
         return [{
             slotKey: 'carrier-empty',
             orderLegStage: null,
@@ -52,15 +54,22 @@ export function carrierRequestSlots(performers, clientRequestMode) {
         }];
     }
 
-    if (clientRequestMode === 'split_by_leg' && allPerformers.length > 1) {
-        return allPerformers.map((performer) => {
+    const hasSplitOnLeg = expanded.some((row) => row.carrier_slot != null);
+    const multiplePhysicalLegs = allPerformers.length > 1;
+
+    if ((clientRequestMode === 'split_by_leg' && multiplePhysicalLegs) || hasSplitOnLeg) {
+        return expanded.map((performer) => {
             const stage = toStageKey(performer.stage ?? 'leg_1');
             const contractorId = performer.contractor_id ? Number(performer.contractor_id) : null;
             const name = performer.contractor_name ? String(performer.contractor_name).trim() : '';
-            const suffix = name !== '' ? ` · ${name} · ${stageLabel(stage)}` : ` · ${stageLabel(stage)}`;
+            const slotLabel = performer.carrier_slot ? ` · ${splitCarrierSlotLabel(performer.carrier_slot)}` : '';
+            const suffix = name !== ''
+                ? ` · ${name}${slotLabel} · ${stageLabel(stage)}`
+                : `${slotLabel} · ${stageLabel(stage)}`;
+            const slotPart = performer.carrier_slot ? `-slot${performer.carrier_slot}` : '';
             const slotKey = contractorId !== null
-                ? `carrier-${contractorId}-${stage}`
-                : `carrier-leg-${stage}`;
+                ? `carrier-${contractorId}-${stage}${slotPart}`
+                : `carrier-leg-${stage}${slotPart}`;
 
             return {
                 slotKey,
@@ -72,7 +81,7 @@ export function carrierRequestSlots(performers, clientRequestMode) {
         });
     }
 
-    const legs = allPerformers.filter((p) => p?.contractor_id);
+    const legs = expanded.filter((p) => p?.contractor_id);
 
     if (legs.length === 0) {
         return [{

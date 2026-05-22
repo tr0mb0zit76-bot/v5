@@ -105,8 +105,9 @@ final class OrderDocumentRequirementSlotBuilder
     private static function carrierRequestSlots(array $performers, string $clientRequestMode): array
     {
         $allPerformers = array_values(array_filter($performers, fn (mixed $row): bool => is_array($row)));
+        $expanded = self::expandCarrierPerformers($allPerformers);
 
-        if ($allPerformers === []) {
+        if ($expanded === []) {
             return [[
                 'slotKey' => 'carrier-empty',
                 'orderLegStage' => null,
@@ -116,20 +117,26 @@ final class OrderDocumentRequirementSlotBuilder
             ]];
         }
 
-        if ($clientRequestMode === 'split_by_leg' && count($allPerformers) > 1) {
+        $hasSplitOnLeg = collect($expanded)->contains(fn (array $row): bool => ($row['carrier_slot'] ?? null) !== null);
+        $multiplePhysicalLegs = count($allPerformers) > 1;
+
+        if (($clientRequestMode === 'split_by_leg' && $multiplePhysicalLegs) || $hasSplitOnLeg) {
             $slots = [];
-            foreach ($allPerformers as $performer) {
+            foreach ($expanded as $performer) {
                 $stage = self::normalizeStage((string) ($performer['stage'] ?? 'leg_1'));
+                $carrierSlot = $performer['carrier_slot'] ?? null;
                 $contractorId = isset($performer['contractor_id']) && (int) $performer['contractor_id'] > 0
                     ? (int) $performer['contractor_id']
                     : null;
                 $name = trim((string) ($performer['contractor_name'] ?? ''));
+                $slotLabel = $carrierSlot !== null ? ' · Исполнитель '.$carrierSlot : '';
                 $suffix = $name !== ''
-                    ? ' · '.$name.' · '.self::stageLabel($stage)
-                    : ' · '.self::stageLabel($stage);
+                    ? ' · '.$name.$slotLabel.' · '.self::stageLabel($stage)
+                    : $slotLabel.' · '.self::stageLabel($stage);
+                $slotPart = $carrierSlot !== null ? '-slot'.$carrierSlot : '';
                 $slotKey = $contractorId !== null
-                    ? "carrier-{$contractorId}-{$stage}"
-                    : "carrier-leg-{$stage}";
+                    ? "carrier-{$contractorId}-{$stage}{$slotPart}"
+                    : "carrier-leg-{$stage}{$slotPart}";
                 $slots[] = [
                     'slotKey' => $slotKey,
                     'orderLegStage' => $stage,
@@ -143,7 +150,7 @@ final class OrderDocumentRequirementSlotBuilder
         }
 
         $legs = array_values(array_filter(
-            $allPerformers,
+            $expanded,
             fn (array $performer): bool => isset($performer['contractor_id']) && (int) $performer['contractor_id'] > 0,
         ));
 
@@ -227,6 +234,47 @@ final class OrderDocumentRequirementSlotBuilder
             'order_leg_stage' => $slot['orderLegStage'],
             'counterparty_label' => $slot['contractorName'],
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array{stage: string, carrier_slot: int|null, contractor_id: int|null, contractor_name: string|null}>
+     */
+    private static function expandCarrierPerformers(array $performers): array
+    {
+        $expanded = [];
+
+        foreach ($performers as $performer) {
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $expanded[] = [
+                        'stage' => (string) ($performer['stage'] ?? 'leg_1'),
+                        'carrier_slot' => isset($slot['slot']) ? (int) $slot['slot'] : null,
+                        'contractor_id' => isset($slot['contractor_id']) && $slot['contractor_id'] !== null
+                            ? (int) $slot['contractor_id']
+                            : null,
+                        'contractor_name' => isset($slot['contractor_name']) ? (string) $slot['contractor_name'] : null,
+                    ];
+                }
+
+                continue;
+            }
+
+            $expanded[] = [
+                'stage' => (string) ($performer['stage'] ?? 'leg_1'),
+                'carrier_slot' => null,
+                'contractor_id' => isset($performer['contractor_id']) && $performer['contractor_id'] !== null
+                    ? (int) $performer['contractor_id']
+                    : null,
+                'contractor_name' => isset($performer['contractor_name']) ? (string) $performer['contractor_name'] : null,
+            ];
+        }
+
+        return $expanded;
     }
 
     private static function normalizeStage(string $stage): string
