@@ -217,6 +217,7 @@ class OrderPrintFormDraftService
         $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? $cargo->pallet_count ?? 0));
 
         $paymentTermsPayload = $this->decodeOrderPaymentTermsPayload($order);
+        $scopedPaymentTermsPayload = $this->paymentTermsPayloadForPrintContext($order, $paymentTermsPayload, $context);
 
         return [
             'order' => [
@@ -227,19 +228,19 @@ class OrderPrintFormDraftService
                 'unloading_date' => $this->formatDate($order->unloading_date),
                 'status' => $order->status,
                 'customer_rate' => $this->formatMoney($order->customer_rate),
-                'carrier_rate' => $this->formatMoney($this->resolveCarrierRateValue($order)),
+                'carrier_rate' => $this->formatMoney($this->resolveCarrierRateValue($order, $context)),
                 'customer_rate_with_currency' => $this->formatMoneyWithCurrency(
                     $order->customer_rate,
                     $this->resolveCustomerCurrencyCode($order, $paymentTermsPayload),
                 ),
                 'carrier_rate_with_currency' => $this->formatMoneyWithCurrency(
-                    $this->resolveCarrierRateValue($order),
-                    $this->resolveCarrierCurrencyCode($order, $paymentTermsPayload),
+                    $this->resolveCarrierRateValue($order, $context),
+                    $this->resolveCarrierCurrencyCode($order, $scopedPaymentTermsPayload),
                 ),
                 'customer_payment_form' => $this->resolveCustomerPaymentFormDisplay($order, $paymentTermsPayload),
                 'customer_payment_term' => $this->resolveCustomerPaymentTermDisplay($order, $paymentTermsPayload),
-                'carrier_payment_form' => $this->resolveCarrierPaymentFormDisplay($order, $paymentTermsPayload),
-                'carrier_payment_term' => $this->resolveCarrierPaymentTermDisplay($order, $paymentTermsPayload),
+                'carrier_payment_form' => $this->resolveCarrierPaymentFormDisplay($order, $scopedPaymentTermsPayload),
+                'carrier_payment_term' => $this->resolveCarrierPaymentTermDisplay($order, $scopedPaymentTermsPayload),
                 'invoice_number' => $order->invoice_number,
                 'waybill_number' => $order->waybill_number,
                 'special_notes' => $order->special_notes,
@@ -390,8 +391,19 @@ class OrderPrintFormDraftService
         ];
     }
 
-    private function resolveCarrierRateValue(Order $order): ?float
+    private function resolveCarrierRateValue(Order $order, ?OrderPrintFormContext $context = null): ?float
     {
+        if ($this->printContextScopesCarrierFinancials($context)) {
+            $fromCosts = $this->sumCarrierAmountFromContractorsCosts($order, $context);
+            if ($fromCosts !== null) {
+                return $fromCosts;
+            }
+
+            $fromLegs = $this->sumCarrierAmountFromLegCosts($order, $context);
+
+            return $fromLegs;
+        }
+
         if ($order->carrier_rate !== null && $order->carrier_rate !== '') {
             return (float) $order->carrier_rate;
         }
@@ -405,17 +417,171 @@ class OrderPrintFormDraftService
             }
         }
 
-        if ($order->relationLoaded('financialTerms')) {
-            $costs = $order->financialTerms->first()?->contractors_costs;
-            if (is_array($costs)) {
-                $sumFromCosts = collect($costs)->sum(fn (array $cost): float => (float) ($cost['amount'] ?? 0));
-                if ($sumFromCosts > 0) {
-                    return $sumFromCosts;
-                }
+        $costs = $this->contractorsCostsRows($order);
+        if ($costs !== []) {
+            $sumFromCosts = collect($costs)->sum(fn (array $cost): float => (float) ($cost['amount'] ?? 0));
+            if ($sumFromCosts > 0) {
+                return $sumFromCosts;
             }
         }
 
         return null;
+    }
+
+    private function printContextScopesCarrierFinancials(?OrderPrintFormContext $context): bool
+    {
+        return $context !== null
+            && (
+                ($context->carrierContractorId !== null && $context->carrierContractorId > 0)
+                || ($context->legStage !== null && $context->legStage !== '')
+            );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function contractorsCostsRows(Order $order): array
+    {
+        if ($order->relationLoaded('financialTerms')) {
+            $costs = $order->financialTerms->first()?->contractors_costs;
+            if (is_array($costs) && $costs !== []) {
+                return $costs;
+            }
+        }
+
+        $wizard = is_array($order->wizard_state) ? $order->wizard_state : [];
+        $wizardCosts = data_get($wizard, 'financial_term.contractors_costs');
+
+        return is_array($wizardCosts) ? $wizardCosts : [];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $costs
+     * @return list<array<string, mixed>>
+     */
+    private function filterContractorsCostsForPrintContext(array $costs, ?OrderPrintFormContext $context): array
+    {
+        if (! $this->printContextScopesCarrierFinancials($context)) {
+            return $costs;
+        }
+
+        return collect($costs)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->filter(function (array $cost) use ($context): bool {
+                if ($context->carrierContractorId !== null && $context->carrierContractorId > 0) {
+                    $contractorId = isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
+                        ? (int) $cost['contractor_id']
+                        : 0;
+
+                    if ($contractorId !== $context->carrierContractorId) {
+                        return false;
+                    }
+                }
+
+                if ($context->legStage !== null && $context->legStage !== '') {
+                    $costStage = $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1'));
+                    $ctxStage = $this->normalizeStageIdentifier($context->legStage);
+
+                    if ($costStage !== $ctxStage) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->values()
+            ->all();
+    }
+
+    private function sumCarrierAmountFromContractorsCosts(Order $order, ?OrderPrintFormContext $context): ?float
+    {
+        $filtered = $this->filterContractorsCostsForPrintContext($this->contractorsCostsRows($order), $context);
+
+        if ($filtered === []) {
+            return null;
+        }
+
+        return collect($filtered)->sum(fn (array $cost): float => (float) ($cost['amount'] ?? 0));
+    }
+
+    private function sumCarrierAmountFromLegCosts(Order $order, ?OrderPrintFormContext $context): ?float
+    {
+        if ($context === null || ! $order->relationLoaded('legs') || ! Schema::hasTable('leg_costs')) {
+            return null;
+        }
+
+        $legs = $order->legs;
+
+        if ($context->legStage !== null && $context->legStage !== '') {
+            $legId = $this->resolveLegIdForStage($order, $context->legStage);
+            if ($legId === null) {
+                return null;
+            }
+
+            $legs = $legs->where('id', $legId);
+        } elseif ($context->carrierContractorId !== null && $context->carrierContractorId > 0) {
+            $legIds = $this->legIdsForCarrierContractor($order, $context->carrierContractorId);
+            if ($legIds === []) {
+                return null;
+            }
+
+            $legs = $legs->whereIn('id', $legIds);
+        } else {
+            return null;
+        }
+
+        if ($legs->isEmpty()) {
+            return null;
+        }
+
+        return $legs->sum(fn ($leg): float => (float) ($leg->cost?->amount ?? 0));
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $paymentTermsPayload
+     * @return array<string, mixed>|null
+     */
+    private function paymentTermsPayloadForPrintContext(
+        Order $order,
+        ?array $paymentTermsPayload,
+        ?OrderPrintFormContext $context,
+    ): ?array {
+        if ($paymentTermsPayload === null || ! $this->printContextScopesCarrierFinancials($context)) {
+            return $paymentTermsPayload;
+        }
+
+        $filtered = $this->filterContractorsCostsForPrintContext($this->contractorsCostsRows($order), $context);
+        if ($filtered === []) {
+            return $paymentTermsPayload;
+        }
+
+        $payload = $paymentTermsPayload;
+        $payload['carriers'] = collect($filtered)
+            ->map(function (array $cost): array {
+                $schedule = $cost['payment_schedule'] ?? [];
+                if (! is_array($schedule)) {
+                    $schedule = [];
+                }
+
+                return [
+                    'stage' => $cost['stage'] ?? null,
+                    'carrier_slot' => isset($cost['carrier_slot']) && $cost['carrier_slot'] !== null && $cost['carrier_slot'] !== ''
+                        ? (int) $cost['carrier_slot']
+                        : null,
+                    'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null
+                        ? (int) $cost['contractor_id']
+                        : null,
+                    'amount' => isset($cost['amount']) ? (float) $cost['amount'] : null,
+                    'payment_form' => $cost['payment_form'] ?? null,
+                    'currency' => $cost['currency'] ?? null,
+                    'payment_terms' => $cost['payment_terms'] ?? null,
+                    'payment_schedule' => $schedule,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return $payload;
     }
 
     /**
