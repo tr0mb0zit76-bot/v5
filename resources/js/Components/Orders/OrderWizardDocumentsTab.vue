@@ -23,7 +23,7 @@ import {
     printWorkflowDocumentsForSlot,
     signedRegistryDocuments,
 } from '@/support/orderPrintFormSlots.js';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import { crmBtnCreate, crmModalPanel } from '@/support/crmUi.js';
 
 const signedDocuments = defineModel('signedDocuments', { type: Array, default: () => [] });
 
@@ -40,6 +40,7 @@ const props = defineProps({
     requiredDocumentChecklist: { type: Array, default: () => [] },
     documentTabValidationMessages: { type: Array, default: () => [] },
     documentStorage: { type: Object, default: () => ({}) },
+    savedPrintFormTemplateSelection: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -151,6 +152,53 @@ function defaultTemplateForOptions(options) {
     return list.find((template) => template.is_default) ?? list[0] ?? null;
 }
 
+function hydrateTemplateSelectionFromSavedState() {
+    const saved = props.savedPrintFormTemplateSelection;
+    if (!saved || typeof saved !== 'object') {
+        return;
+    }
+
+    Object.entries(saved).forEach(([slotKey, templateId]) => {
+        if (templateId != null && templateId !== '') {
+            templateSelection[slotKey] = Number(templateId);
+        }
+    });
+}
+
+function hydrateTemplateSelectionFromWorkflowDocuments() {
+    const docs = Array.isArray(props.allDocuments) ? props.allDocuments : [];
+
+    customerSlots.value.forEach((slot) => {
+        if (templateSelection[slot.slotKey]) {
+            return;
+        }
+
+        const match = docsForCustomerSlot(slot).find((doc) => doc?.template_id);
+        if (match?.template_id) {
+            templateSelection[slot.slotKey] = Number(match.template_id);
+        }
+    });
+
+    carrierSlots.value.forEach((slot) => {
+        if (!slot.carrierContractorId || templateSelection[slot.slotKey]) {
+            return;
+        }
+
+        const match = docsForCarrierSlot(slot).find((doc) => doc?.template_id);
+        if (match?.template_id) {
+            templateSelection[slot.slotKey] = Number(match.template_id);
+        }
+    });
+}
+
+function exportPrintFormTemplateSelection() {
+    return { ...templateSelection };
+}
+
+defineExpose({
+    exportPrintFormTemplateSelection,
+});
+
 function ensureDefaultTemplateSelection() {
     customerSlots.value.forEach((slot) => {
         if (templateSelection[slot.slotKey]) {
@@ -178,9 +226,19 @@ function ensureDefaultTemplateSelection() {
 watch(
     [customerSlots, carrierSlots, () => props.printFormTemplateOptionsCustomer, () => props.printFormTemplateOptionsCarrier],
     () => {
+        hydrateTemplateSelectionFromSavedState();
+        hydrateTemplateSelectionFromWorkflowDocuments();
         ensureDefaultTemplateSelection();
     },
     { immediate: true, deep: true },
+);
+
+watch(
+    () => props.allDocuments,
+    () => {
+        hydrateTemplateSelectionFromWorkflowDocuments();
+    },
+    { deep: true },
 );
 
 function printCreateDisabledReason(slot, party) {
@@ -237,6 +295,7 @@ function createPrintWorkflow(slot, party) {
 
     const payload = {
         print_form_template_id: templateId,
+        print_party: party,
     };
 
     if (slot.orderLegStage) {
@@ -564,6 +623,12 @@ async function onGlobalDrop(event) {
 
         <section class="space-y-4">
             <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Печатные формы</h3>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                Каталог шаблонов — в разделе «Настройки → Шаблоны печати» (файлы шаблонов на диске сервера CRM, не в Nextcloud).
+                Здесь выбираете шаблон и нажимаете «Создать в карточке» — черновик появится в списке ниже.
+                Файлы заявок: {{ documentStorage.label ?? 'хранилище' }}<template v-if="documentStorage.folder_hint">, папка «{{ documentStorage.folder_hint }}»</template>.
+                Выбор шаблона сохраняется вместе с заказом.
+            </p>
 
             <div
                 v-for="slot in customerSlots"
@@ -743,7 +808,7 @@ async function onGlobalDrop(event) {
         </section>
 
         <Modal :show="showAttachModal" max-width="xl" @close="closeAttachModal">
-            <section class="space-y-4 bg-white p-6 dark:bg-zinc-900">
+            <section :class="`${crmModalPanel} space-y-4 p-6`">
                 <h3 class="text-base font-semibold">Прикрепить подписанный документ</h3>
                 <p v-if="documentUploadHint" class="text-xs text-zinc-500">{{ documentUploadHint }}</p>
                 <div class="grid gap-3 sm:grid-cols-2">

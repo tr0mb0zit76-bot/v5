@@ -27,6 +27,7 @@ class OrderWizardStateService
             'version' => 1,
             'financial_term' => Arr::get($validated, 'financial_term', []),
             'performers' => Arr::get($validated, 'performers', []),
+            'print_form_template_selection' => Arr::get($validated, 'print_form_template_selection', []),
             'additional_expenses' => Arr::get($validated, 'additional_expenses'),
             'insurance' => Arr::get($validated, 'insurance'),
             'bonus' => Arr::get($validated, 'bonus'),

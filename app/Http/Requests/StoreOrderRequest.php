@@ -443,6 +443,9 @@ class StoreOrderRequest extends FormRequest
             'performers.*.split_carriers.*.fleet_vehicle_id' => ['nullable', 'integer'],
             'performers.*.split_carriers.*.fleet_driver_id' => ['nullable', 'integer'],
 
+            'print_form_template_selection' => ['nullable', 'array'],
+            'print_form_template_selection.*' => ['nullable', 'integer', 'exists:print_form_templates,id'],
+
             'route_points' => ['nullable', 'array'],
             'route_points.*.type' => ['nullable', Rule::in(['loading', 'unloading', 'border_crossing'])],
             'route_points.*.stage' => ['nullable', 'string', 'max:50'],

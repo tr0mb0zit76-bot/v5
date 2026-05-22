@@ -170,7 +170,7 @@
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
                 @click.self="closeModal"
             >
-                <section :class="`${crmModalFormShell} w-full max-w-5xl shadow-2xl`">
+                <section :class="`${crmModalPanel} ${crmModalFormShell} w-full max-w-5xl shadow-2xl`">
                     <div class="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
                         <div>
                             <div class="text-lg font-semibold">
@@ -592,6 +592,7 @@ import {
     crmBtnNeutral,
     crmFieldFluid,
     crmModalFormShell,
+    crmModalPanel,
     crmPageTitleSm,
     crmPanel,
     crmPill,

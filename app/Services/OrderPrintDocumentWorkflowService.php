@@ -60,7 +60,9 @@ class OrderPrintDocumentWorkflowService
             'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'metadata' => array_filter([
                 'flow' => 'print_template_workflow',
-                'party' => $this->resolveMetadataParty($template),
+                'party' => in_array($context?->printParty, ['customer', 'carrier'], true)
+                    ? $context->printParty
+                    : $this->resolveMetadataParty($template),
                 'template_code' => $template->code,
                 'template_name' => $template->name,
                 'storage_driver' => $this->documentStorage->configuredDriver(),

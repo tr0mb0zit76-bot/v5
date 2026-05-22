@@ -678,6 +678,9 @@ class OrderWizardController extends Controller
                     : [],
             ],
             'payment_settlement' => $this->buildPaymentSettlementSummary((int) $order->id),
+            'print_form_template_selection' => is_array($wizardState) && is_array($wizardState['print_form_template_selection'] ?? null)
+                ? $wizardState['print_form_template_selection']
+                : [],
             'documents' => $documents->map(fn (OrderDocument $document): array => $this->serializeOrderDocument(
                 $document,
                 $order,
@@ -709,7 +712,7 @@ class OrderWizardController extends Controller
             'id' => $document->id,
             'type' => $document->type,
             'flow' => data_get($document->metadata, 'flow', 'uploaded'),
-            'party' => data_get($document->metadata, 'party', 'internal'),
+            'party' => $this->resolveWizardDocumentParty($document, $templatesById),
             'stage' => data_get($document->metadata, 'stage'),
             'order_leg_stage' => data_get($document->metadata, 'order_leg_stage')
                 ?? data_get($document->metadata, 'stage'),
@@ -1588,7 +1591,11 @@ class OrderWizardController extends Controller
             ->where('entity_type', 'order')
             ->when(
                 $party !== null && Schema::hasColumn('print_form_templates', 'party'),
-                fn ($query) => $query->where('party', $party)
+                fn ($query) => $query->where(function ($partyQuery) use ($party): void {
+                    $partyQuery->where('party', $party)
+                        ->orWhere('party', 'internal')
+                        ->orWhereNull('party');
+                })
             )
             ->where('is_active', true)
             ->whereNotNull('file_path')
@@ -2562,6 +2569,63 @@ class OrderWizardController extends Controller
         return [
             'driver' => $driver,
             'label' => $label,
+            'folder_hint' => $this->printWorkflowStorageFolderHint($driver),
         ];
+    }
+
+    private function printWorkflowStorageFolderHint(string $driver): string
+    {
+        if ($driver === DocumentStorageService::DRIVER_NEXTCLOUD) {
+            $root = trim(str_replace('\\', '/', (string) config('document_storage.nextcloud.webdav_root', '')), '/');
+            $parts = array_values(array_filter(explode('/', $root), static fn (string $part): bool => $part !== ''));
+            $filesIndex = array_search('files', $parts, true);
+            $tail = $filesIndex !== false
+                ? array_slice($parts, $filesIndex + 2)
+                : [];
+            $prefix = $tail !== [] ? implode('/', $tail).'/' : '';
+
+            return $prefix.'order_documents/{номер_заказа}/';
+        }
+
+        return 'storage/app/private/order_documents/{номер_заказа}/';
+    }
+
+    private function resolveWizardDocumentParty(OrderDocument $document, Collection $templatesById): string
+    {
+        $party = (string) data_get($document->metadata, 'party', 'internal');
+
+        if (in_array($party, ['customer', 'carrier'], true)) {
+            return $party;
+        }
+
+        if ($document->template_id !== null && $templatesById->has($document->template_id)) {
+            /** @var PrintFormTemplate $template */
+            $template = $templatesById->get($document->template_id);
+            $templateParty = (string) ($template->party ?? '');
+
+            if (in_array($templateParty, ['customer', 'carrier'], true)) {
+                return $templateParty;
+            }
+        }
+
+        if (data_get($document->metadata, 'carrier_contractor_id')) {
+            return 'carrier';
+        }
+
+        $code = strtolower((string) data_get($document->metadata, 'template_code', ''));
+
+        if (str_contains($code, 'perevoz') || str_contains($code, 'carrier') || str_contains($code, 'перевоз')) {
+            return 'carrier';
+        }
+
+        if (str_contains($code, 'zak') || str_contains($code, 'kl') || str_contains($code, 'client') || str_contains($code, 'зак')) {
+            return 'customer';
+        }
+
+        if (in_array($document->type, ['request', 'contract_request'], true)) {
+            return 'customer';
+        }
+
+        return 'internal';
     }
 }

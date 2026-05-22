@@ -11,6 +11,7 @@ final readonly class OrderPrintFormContext
         public ?string $legStage = null,
         public ?int $carrierContractorId = null,
         public bool $routeLegsAsTableRows = false,
+        public ?string $printParty = null,
     ) {}
 
     public static function forCustomerLeg(string $legStage): self

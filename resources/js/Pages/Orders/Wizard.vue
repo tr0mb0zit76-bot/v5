@@ -1369,6 +1369,7 @@
 
             <OrderWizardDocumentsTab
                 v-else-if="activeTab === 'documents'"
+                ref="documentsTabRef"
                 v-model:signed-documents="form.documents"
                 :order="order"
                 :performers="form.performers"
@@ -1380,6 +1381,7 @@
                 :document-type-options="documentTypeOptions"
                 :document-tab-validation-messages="documentTabValidationMessages"
                 :document-storage="documentStorage"
+                :saved-print-form-template-selection="order?.print_form_template_selection ?? {}"
             />
         </div>
 
@@ -2473,6 +2475,8 @@ const form = useForm({
     customs_post_code: props.order?.customs_post_code ?? '',
     is_international_transport: props.order?.is_international_transport === true,
 });
+
+const documentsTabRef = ref(null);
 
 watch(() => form.own_company_id, () => {
     form.own_company_bank_account_id = null;
@@ -4445,9 +4449,12 @@ watch(
                     );
 
                     const prevSlot = prev?.[index]?.split_carriers?.[slotIndex];
-                    if (!prevSlot || prevSlot[1] !== slot.contractor_id) {
+                    const contractorChanged = prevSlot != null && prevSlot[1] !== slot.contractor_id;
+                    if (contractorChanged) {
                         slot.fleet_vehicle_id = null;
                         slot.fleet_driver_id = null;
+                    }
+                    if (prevSlot == null || contractorChanged) {
                         loadFleetOptionsForLeg(index, slotIndex);
                     }
                 });
@@ -4877,6 +4884,10 @@ function buildSubmitPayload() {
         additional_expenses: form.additional_expenses,
         insurance: form.insurance,
         bonus: form.bonus,
+
+        print_form_template_selection: documentsTabRef.value?.exportPrintFormTemplateSelection?.()
+            ?? props.order?.print_form_template_selection
+            ?? {},
 
         // Performers: полный снимок (split_carriers / carrier_mode), иначе «Несколько исполнителей» не доходит до сервера.
         performers: form.performers.map((performer) => {

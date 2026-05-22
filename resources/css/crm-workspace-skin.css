@@ -578,7 +578,8 @@ html[data-crm-workspace-skin='sky'] .crm-grid-panel {
 }
 
 .crm-modal-form-shell {
-    @apply flex max-h-[min(85dvh,52rem)] flex-col overflow-hidden;
+    @apply flex max-h-[min(85dvh,52rem)] flex-col overflow-hidden bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100;
+    border-radius: var(--crm-radius-control, 0.75rem);
 }
 
 .crm-modal-form-body {
@@ -619,7 +620,9 @@ html[data-crm-workspace-skin='sky'] .crm-modal-backdrop {
     background: rgb(15 23 42 / 0.45);
 }
 
-html[data-crm-workspace-skin='sky'] .crm-modal-panel {
+html[data-crm-workspace-skin='sky'] .crm-modal-panel,
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell,
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell {
     border: 1px solid rgb(var(--crm-border));
     border-radius: var(--crm-radius-xl);
     background: rgb(var(--crm-surface));
