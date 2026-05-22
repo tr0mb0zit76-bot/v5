@@ -4996,27 +4996,9 @@ function submit(options = {}) {
         return;
     }
 
-    const costsByStage = new Map(
-        form.financial_term.contractors_costs.map((cost) => [toStageKey(cost.stage), cost]),
-    );
-    form.performers = form.performers.map((performer) => {
-        const syncedCost = costsByStage.get(toStageKey(performer.stage));
-        const prevId = normalizeNullableNumber(performer.contractor_id);
-        const nextId = normalizeNullableNumber(syncedCost?.contractor_id ?? performer.contractor_id ?? null);
-        let nextName = performer.contractor_name ?? null;
-        if (nextId === null) {
-            nextName = null;
-        } else if (nextId !== prevId) {
-            const resolved = getContractorById(nextId);
-            nextName = resolved?.name ? String(resolved.name).trim() || null : null;
-        }
-
-        return {
-            ...performer,
-            contractor_id: nextId,
-            contractor_name: nextName,
-        };
-    });
+    // Источник перевозчика — вкладка «Маршрут» (performers). Синхронизируем costs перед отправкой;
+    // не перезаписываем performer пустым contractor_id из устаревшего wizard_state.
+    syncContractorCostsFromPerformers();
 
     const hasNewDocumentFiles = form.documents.some((document) => document.file instanceof File);
 

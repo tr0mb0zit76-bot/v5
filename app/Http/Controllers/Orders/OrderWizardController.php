@@ -1024,7 +1024,6 @@ class OrderWizardController extends Controller
 
     /**
      * @param  list<array<string, mixed>>  $serializedPerformers
-     * @param  mixed  $wizardPerformers
      * @return list<array<string, mixed>>
      */
     private function mergePerformersFromWizardState(array $serializedPerformers, mixed $wizardPerformers): array
@@ -1172,7 +1171,7 @@ class OrderWizardController extends Controller
             ->keyBy(fn (array $row): string => $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1')));
 
         $costsByNormalizedStage = collect($costRows)
-            ->keyBy(fn (array $cost): string => $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? 'leg_1')));
+            ->keyBy(fn (array $cost): string => $this->contractorCostSnapshotKey($cost));
 
         if (Schema::hasTable('order_legs')) {
             if (Schema::hasTable('leg_contractor_assignments')) {
@@ -1219,8 +1218,11 @@ class OrderWizardController extends Controller
                     }
 
                     if ($contractorId === null && $carrierMode !== 'split') {
-                        $fromCost = $costsByNormalizedStage->get($normalized);
-                        $contractorId = $fromCost['contractor_id'] ?? null;
+                        $fromCost = $costsByNormalizedStage->get($this->contractorCostSnapshotKey([
+                            'stage' => $normalized,
+                            'carrier_slot' => null,
+                        ]));
+                        $contractorId = is_array($fromCost) ? ($fromCost['contractor_id'] ?? null) : null;
                     }
 
                     if ($contractorId === null && $index === 0 && $order->carrier_id !== null && $carrierMode !== 'split') {
@@ -1812,17 +1814,26 @@ class OrderWizardController extends Controller
      * @param  list<array<string, mixed>>  $wizardCosts
      * @return list<array<string, mixed>>
      */
+    private function contractorCostSnapshotKey(array $row): string
+    {
+        $stage = $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1'));
+        $slot = isset($row['carrier_slot']) && $row['carrier_slot'] !== null && $row['carrier_slot'] !== ''
+            ? (int) $row['carrier_slot']
+            : 0;
+
+        return "{$stage}#{$slot}";
+    }
+
     private function mergeContractorsCostsSnapshots(array $dbCosts, array $wizardCosts): array
     {
-        $byStage = [];
+        $byKey = [];
 
         foreach ($dbCosts as $row) {
             if (! is_array($row)) {
                 continue;
             }
 
-            $key = $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? ''));
-            $byStage[$key] = $row;
+            $byKey[$this->contractorCostSnapshotKey($row)] = $row;
         }
 
         foreach ($wizardCosts as $row) {
@@ -1830,9 +1841,13 @@ class OrderWizardController extends Controller
                 continue;
             }
 
-            $key = $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1'));
-            $base = $byStage[$key] ?? [];
+            $key = $this->contractorCostSnapshotKey($row);
+            $base = $byKey[$key] ?? [];
             $merged = array_merge($base, $row);
+
+            if (! array_key_exists('contractor_id', $row) || $row['contractor_id'] === null || $row['contractor_id'] === '') {
+                $merged['contractor_id'] = $base['contractor_id'] ?? null;
+            }
 
             if (! array_key_exists('amount', $row) || $row['amount'] === null || $row['amount'] === '') {
                 $merged['amount'] = $base['amount'] ?? null;
@@ -1852,11 +1867,11 @@ class OrderWizardController extends Controller
                 $merged['payment_schedule'] = is_array($schedule) ? $schedule : [];
             }
 
-            $merged['stage'] = $row['stage'] ?? $base['stage'] ?? $key;
-            $byStage[$key] = $merged;
+            $merged['stage'] = $row['stage'] ?? $base['stage'] ?? null;
+            $byKey[$key] = $merged;
         }
 
-        return array_values($byStage);
+        return array_values($byKey);
     }
 
     /**
