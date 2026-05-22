@@ -4819,13 +4819,38 @@ function buildSubmitPayload() {
         insurance: form.insurance,
         bonus: form.bonus,
 
-        // Performers array (the server expects this field)
-        performers: form.performers.map((performer) => ({
-            stage: performer.stage,
-            contractor_id: normalizeNullableNumber(performer.contractor_id),
-            fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
-            fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
-        })),
+        // Performers: полный снимок (split_carriers / carrier_mode), иначе «Несколько исполнителей» не доходит до сервера.
+        performers: form.performers.map((performer) => {
+            const carrierMode = performer.carrier_mode === CARRIER_MODE_SPLIT ? CARRIER_MODE_SPLIT : CARRIER_MODE_SINGLE;
+
+            if (carrierMode === CARRIER_MODE_SPLIT) {
+                return {
+                    stage: performer.stage,
+                    carrier_mode: CARRIER_MODE_SPLIT,
+                    contractor_id: null,
+                    contractor_name: null,
+                    fleet_vehicle_id: null,
+                    fleet_driver_id: null,
+                    split_carriers: (performer.split_carriers ?? []).map((slot, index) => ({
+                        slot: Number(slot?.slot ?? index + 1),
+                        contractor_id: normalizeNullableNumber(slot.contractor_id),
+                        contractor_name: slot.contractor_name ? String(slot.contractor_name).trim() || null : null,
+                        fleet_vehicle_id: normalizeNullableNumber(slot.fleet_vehicle_id),
+                        fleet_driver_id: normalizeNullableNumber(slot.fleet_driver_id),
+                    })),
+                };
+            }
+
+            return {
+                stage: performer.stage,
+                carrier_mode: CARRIER_MODE_SINGLE,
+                contractor_id: normalizeNullableNumber(performer.contractor_id),
+                contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
+                fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
+                fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
+                split_carriers: [],
+            };
+        }),
 
         // Route points
         route_points: form.route_points.map((point) => ({
@@ -4899,6 +4924,7 @@ function buildSubmitPayload() {
             client_payment_terms: rawFinancial.client_payment_terms ?? '',
             contractors_costs: (rawFinancial.contractors_costs || []).map((cost) => ({
                 stage: cost.stage,
+                carrier_slot: cost.carrier_slot != null && cost.carrier_slot !== '' ? Number(cost.carrier_slot) : null,
                 contractor_id: normalizeNullableNumber(cost.contractor_id),
                 amount: cost.amount,
                 currency: cost.currency || 'RUB',

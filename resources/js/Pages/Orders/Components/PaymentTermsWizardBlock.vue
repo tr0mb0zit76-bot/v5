@@ -25,6 +25,8 @@ const summaryText = defineModel('summaryText', { type: String, default: '' });
 
 /** Последняя автосводка, которую мы подставили в поле; чтобы не затирать ручной текст при повторных пересчётах. */
 const lastAutoSummaryPushed = ref(null);
+/** true, если пользователь правил текст сводки вручную (не перезаписываем при смене сроков). */
+const summaryEditedManually = ref(false);
 
 const termsMode = ref('standard');
 /** 'single' | 'pair' — число траншей в режиме «подробно». */
@@ -34,27 +36,24 @@ const autoSummary = computed(() =>
     ps.paymentScheduleSummaryHuman(props.schedule, Number(props.totalAmount || 0), props.currency, props.routePoints, props.orderDate),
 );
 
-/**
- * Подставляем автосводку только пока пользователь не ушёл от последней автосводки:
- * иначе любой повторный пересчёт autoSummary затирал ручной текст до сохранения и после открытия карточки.
- */
-watch(autoSummary, (val, oldVal) => {
+function pushAutoSummary(force = false) {
     if (!props.editableSummary) {
         return;
     }
-    if (oldVal === undefined) {
-        if (!String(summaryText.value ?? '').trim()) {
-            summaryText.value = val;
-        }
-        lastAutoSummaryPushed.value = val;
-        return;
-    }
-    const current = String(summaryText.value ?? '').trim();
-    const prevAuto = String(lastAutoSummaryPushed.value ?? '').trim();
-    if (current === '' || current === prevAuto) {
+
+    const val = autoSummary.value;
+    if (force || !summaryEditedManually.value) {
         summaryText.value = val;
+        lastAutoSummaryPushed.value = val;
     }
-    lastAutoSummaryPushed.value = val;
+}
+
+function onSummaryTextInput() {
+    summaryEditedManually.value = true;
+}
+
+watch(autoSummary, () => {
+    pushAutoSummary(false);
 });
 
 function syncFromPropsSchedule() {
@@ -70,6 +69,7 @@ watch(
     () => props.schedule,
     () => {
         syncFromPropsSchedule();
+        pushAutoSummary(false);
     },
     { deep: true, immediate: true },
 );
@@ -80,32 +80,45 @@ watch(
         if (ps.usesInstallments(props.schedule)) {
             ps.syncInstallmentAmountsFromPercents(props.schedule, Number(props.totalAmount || 0));
         }
+        pushAutoSummary(false);
     },
     { deep: true },
 );
 
 function setTermsMode(mode) {
+    summaryEditedManually.value = false;
+
     if (mode === 'standard') {
         termsMode.value = 'standard';
         ps.applyStandardScheduleShape(props.schedule);
+        pushAutoSummary(true);
+
         return;
     }
+
     if (termsMode.value !== 'detailed') {
         termsMode.value = 'detailed';
         applyDetailed();
     }
+
+    pushAutoSummary(true);
 }
 
 function setInstallmentPairMode(mode) {
+    summaryEditedManually.value = false;
     installmentPairMode.value = mode;
+
     if (termsMode.value === 'detailed') {
         applyDetailed();
     }
+
+    pushAutoSummary(true);
 }
 
 function applyDetailed() {
     ps.applyDetailedScheduleShape(props.schedule, installmentPairMode.value === 'pair');
     ps.syncInstallmentAmountsFromPercents(props.schedule, Number(props.totalAmount || 0));
+    pushAutoSummary(true);
 }
 
 function onInstallmentPercentInput(index) {
@@ -353,6 +366,7 @@ function onInstallmentAmountInput(index) {
                 rows="2"
                 maxlength="255"
                 class="mt-1 w-full resize-y rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs leading-snug text-zinc-800 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                @input="onSummaryTextInput"
             />
             <textarea
                 v-else

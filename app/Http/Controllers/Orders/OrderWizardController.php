@@ -1117,7 +1117,10 @@ class OrderWizardController extends Controller
             return [
                 ...$base,
                 'carrier_mode' => 'split',
-                'split_carriers' => $wizard['split_carriers'] ?? ($base['split_carriers'] ?? []),
+                'split_carriers' => $this->mergeSplitCarriersFromWizardState(
+                    is_array($base['split_carriers'] ?? null) ? $base['split_carriers'] : [],
+                    is_array($wizard['split_carriers'] ?? null) ? $wizard['split_carriers'] : [],
+                ),
                 'contractor_id' => null,
                 'contractor_name' => null,
                 'fleet_vehicle_id' => null,
@@ -1134,6 +1137,53 @@ class OrderWizardController extends Controller
             'fleet_vehicle_id' => $wizard['fleet_vehicle_id'] ?? $base['fleet_vehicle_id'] ?? null,
             'fleet_driver_id' => $wizard['fleet_driver_id'] ?? $base['fleet_driver_id'] ?? null,
         ];
+    }
+
+    /**
+     * Слоты из wizard_state не должны затирать перевозчиков, уже восстановленных из БД.
+     *
+     * @param  list<array<string, mixed>>  $baseSlots
+     * @param  list<array<string, mixed>>  $wizardSlots
+     * @return list<array<string, mixed>>
+     */
+    private function mergeSplitCarriersFromWizardState(array $baseSlots, array $wizardSlots): array
+    {
+        if ($wizardSlots === []) {
+            return $baseSlots;
+        }
+
+        $baseBySlot = collect($baseSlots)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->keyBy(fn (array $row): int => (int) ($row['slot'] ?? 1));
+
+        return collect($wizardSlots)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->values()
+            ->map(function (array $wizardSlot) use ($baseBySlot): array {
+                $slot = (int) ($wizardSlot['slot'] ?? 1);
+                $baseSlot = $baseBySlot->get($slot);
+                $wizardContractorId = isset($wizardSlot['contractor_id']) && $wizardSlot['contractor_id'] !== null && $wizardSlot['contractor_id'] !== ''
+                    ? (int) $wizardSlot['contractor_id']
+                    : null;
+                $baseContractorId = is_array($baseSlot) && isset($baseSlot['contractor_id']) && $baseSlot['contractor_id'] !== null && $baseSlot['contractor_id'] !== ''
+                    ? (int) $baseSlot['contractor_id']
+                    : null;
+
+                return [
+                    'slot' => $slot,
+                    'contractor_id' => $wizardContractorId ?? $baseContractorId,
+                    'contractor_name' => filled($wizardSlot['contractor_name'] ?? null)
+                        ? (string) $wizardSlot['contractor_name']
+                        : (is_array($baseSlot) ? ($baseSlot['contractor_name'] ?? null) : null),
+                    'fleet_vehicle_id' => isset($wizardSlot['fleet_vehicle_id']) && $wizardSlot['fleet_vehicle_id'] !== null && $wizardSlot['fleet_vehicle_id'] !== ''
+                        ? (int) $wizardSlot['fleet_vehicle_id']
+                        : (is_array($baseSlot) && isset($baseSlot['fleet_vehicle_id']) ? $baseSlot['fleet_vehicle_id'] : null),
+                    'fleet_driver_id' => isset($wizardSlot['fleet_driver_id']) && $wizardSlot['fleet_driver_id'] !== null && $wizardSlot['fleet_driver_id'] !== ''
+                        ? (int) $wizardSlot['fleet_driver_id']
+                        : (is_array($baseSlot) && isset($baseSlot['fleet_driver_id']) ? $baseSlot['fleet_driver_id'] : null),
+                ];
+            })
+            ->all();
     }
 
     /**
