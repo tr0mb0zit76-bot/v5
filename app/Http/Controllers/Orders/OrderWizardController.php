@@ -11,6 +11,7 @@ use App\Models\AtiDictionaryItem;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
+use App\Models\LegContractorAssignment;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PaymentSchedule;
@@ -1114,13 +1115,15 @@ class OrderWizardController extends Controller
     private function mergePerformerRow(array $base, array $wizard): array
     {
         if (($wizard['carrier_mode'] ?? 'single') === 'split') {
+            $baseSlots = is_array($base['split_carriers'] ?? null) ? $base['split_carriers'] : [];
+            $wizardSlots = is_array($wizard['split_carriers'] ?? null) ? $wizard['split_carriers'] : [];
+
             return [
                 ...$base,
                 'carrier_mode' => 'split',
-                'split_carriers' => $this->mergeSplitCarriersFromWizardState(
-                    is_array($base['split_carriers'] ?? null) ? $base['split_carriers'] : [],
-                    is_array($wizard['split_carriers'] ?? null) ? $wizard['split_carriers'] : [],
-                ),
+                'split_carriers' => $wizardSlots === [] && $baseSlots !== []
+                    ? $baseSlots
+                    : $this->mergeSplitCarriersFromWizardState($baseSlots, $wizardSlots),
                 'contractor_id' => null,
                 'contractor_name' => null,
                 'fleet_vehicle_id' => null,
@@ -1137,6 +1140,63 @@ class OrderWizardController extends Controller
             'fleet_vehicle_id' => $wizard['fleet_vehicle_id'] ?? $base['fleet_vehicle_id'] ?? null,
             'fleet_driver_id' => $wizard['fleet_driver_id'] ?? $base['fleet_driver_id'] ?? null,
         ];
+    }
+
+    /**
+     * @param  Collection<int, LegContractorAssignment>  $assignments
+     * @param  array<string, mixed>  $metadataPerformer
+     * @return list<array<string, mixed>>
+     */
+    private function splitCarriersFromAssignmentsAndMetadata($assignments, array $metadataPerformer): array
+    {
+        $metadataSlots = collect(is_array($metadataPerformer['split_carriers'] ?? null) ? $metadataPerformer['split_carriers'] : [])
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->keyBy(fn (array $row): int => (int) ($row['slot'] ?? 1));
+
+        if ($assignments->isNotEmpty()) {
+            return $assignments
+                ->sortBy('carrier_slot')
+                ->map(function ($assignment) use ($metadataSlots): array {
+                    $slot = (int) ($assignment->carrier_slot ?? 1);
+                    $meta = $metadataSlots->get($slot, []);
+
+                    return [
+                        'slot' => $slot,
+                        'contractor_id' => $assignment->contractor_id !== null ? (int) $assignment->contractor_id : null,
+                        'contractor_name' => filled($meta['contractor_name'] ?? null) ? (string) $meta['contractor_name'] : null,
+                        'fleet_vehicle_id' => isset($meta['fleet_vehicle_id']) && $meta['fleet_vehicle_id'] !== null && $meta['fleet_vehicle_id'] !== ''
+                            ? (int) $meta['fleet_vehicle_id']
+                            : null,
+                        'fleet_driver_id' => isset($meta['fleet_driver_id']) && $meta['fleet_driver_id'] !== null && $meta['fleet_driver_id'] !== ''
+                            ? (int) $meta['fleet_driver_id']
+                            : null,
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        if ($metadataSlots->isNotEmpty()) {
+            return $metadataSlots
+                ->sortKeys()
+                ->map(fn (array $meta, int $slot): array => [
+                    'slot' => $slot,
+                    'contractor_id' => isset($meta['contractor_id']) && $meta['contractor_id'] !== null && $meta['contractor_id'] !== ''
+                        ? (int) $meta['contractor_id']
+                        : null,
+                    'contractor_name' => filled($meta['contractor_name'] ?? null) ? (string) $meta['contractor_name'] : null,
+                    'fleet_vehicle_id' => isset($meta['fleet_vehicle_id']) && $meta['fleet_vehicle_id'] !== null && $meta['fleet_vehicle_id'] !== ''
+                        ? (int) $meta['fleet_vehicle_id']
+                        : null,
+                    'fleet_driver_id' => isset($meta['fleet_driver_id']) && $meta['fleet_driver_id'] !== null && $meta['fleet_driver_id'] !== ''
+                        ? (int) $meta['fleet_driver_id']
+                        : null,
+                ])
+                ->values()
+                ->all();
+        }
+
+        return [];
     }
 
     /**
@@ -1250,16 +1310,7 @@ class OrderWizardController extends Controller
                         $assignments = $leg->contractorAssignments;
                         if ($assignments->count() > 1 || $carrierMode === 'split') {
                             $carrierMode = 'split';
-                            $splitCarriers = $assignments
-                                ->map(fn ($assignment): array => [
-                                    'slot' => (int) ($assignment->carrier_slot ?? 1),
-                                    'contractor_id' => $assignment->contractor_id !== null ? (int) $assignment->contractor_id : null,
-                                    'contractor_name' => null,
-                                    'fleet_vehicle_id' => null,
-                                    'fleet_driver_id' => null,
-                                ])
-                                ->values()
-                                ->all();
+                            $splitCarriers = $this->splitCarriersFromAssignmentsAndMetadata($assignments, $metadataPerformer);
                         } elseif ($assignments->count() === 1) {
                             $contractorId = $assignments->first()?->contractor_id;
                         }
@@ -1915,6 +1966,15 @@ class OrderWizardController extends Controller
                 || (is_array($row['payment_schedule']) && $row['payment_schedule'] === [])) {
                 $schedule = $base['payment_schedule'] ?? [];
                 $merged['payment_schedule'] = is_array($schedule) ? $schedule : [];
+            } elseif ($this->shouldPreserveBaseContractorCostPaymentSchedule(
+                $row['payment_schedule'] ?? null,
+                $base['payment_schedule'] ?? null,
+            )) {
+                $merged['payment_schedule'] = $base['payment_schedule'];
+            }
+
+            if (! array_key_exists('payment_terms', $row) || trim((string) ($row['payment_terms'] ?? '')) === '') {
+                $merged['payment_terms'] = $base['payment_terms'] ?? '';
             }
 
             $merged['stage'] = $row['stage'] ?? $base['stage'] ?? null;
@@ -1922,6 +1982,37 @@ class OrderWizardController extends Controller
         }
 
         return array_values($byKey);
+    }
+
+    private function shouldPreserveBaseContractorCostPaymentSchedule(mixed $wizardSchedule, mixed $baseSchedule): bool
+    {
+        if (! is_array($baseSchedule) || $baseSchedule === []) {
+            return false;
+        }
+
+        if (! is_array($wizardSchedule) || $wizardSchedule === []) {
+            return true;
+        }
+
+        $baseInstallments = isset($baseSchedule['installments']) && is_array($baseSchedule['installments'])
+            ? $baseSchedule['installments']
+            : [];
+        $wizardInstallments = isset($wizardSchedule['installments']) && is_array($wizardSchedule['installments'])
+            ? $wizardSchedule['installments']
+            : [];
+
+        if ($baseInstallments !== [] && $wizardInstallments === []) {
+            return true;
+        }
+
+        if ($baseInstallments === [] && $wizardInstallments === []) {
+            $baseDays = (int) ($baseSchedule['postpayment_days'] ?? 0);
+            $wizardDays = (int) ($wizardSchedule['postpayment_days'] ?? 0);
+
+            return $baseDays > 0 && $wizardDays === 0;
+        }
+
+        return false;
     }
 
     /**

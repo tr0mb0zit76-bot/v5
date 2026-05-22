@@ -3081,6 +3081,11 @@ function setPerformerCarrierMode(legIndex, mode) {
             }
             : {};
 
+        const stage = performer.stage;
+        const singleCostRow = form.financial_term.contractors_costs.find(
+            (cost) => costMatchesPerformerSlot(cost, performer, null),
+        );
+
         performer.carrier_mode = CARRIER_MODE_SPLIT;
         performer.split_carriers = [
             { ...blankSplitCarrier(1), ...firstCarrier },
@@ -3090,6 +3095,31 @@ function setPerformerCarrierMode(legIndex, mode) {
         performer.contractor_name = null;
         performer.fleet_vehicle_id = null;
         performer.fleet_driver_id = null;
+
+        if (singleCostRow) {
+            const sharedPayment = {
+                payment_form: singleCostRow.payment_form,
+                payment_schedule: JSON.parse(JSON.stringify(singleCostRow.payment_schedule ?? blankPaymentSchedule())),
+                payment_terms: singleCostRow.payment_terms,
+            };
+            form.financial_term.contractors_costs = form.financial_term.contractors_costs.filter(
+                (cost) => !stageMatches(cost.stage, stage),
+            );
+            performer.split_carriers.forEach((slot) => {
+                if (!normalizeNullableNumber(slot.contractor_id)) {
+                    return;
+                }
+
+                form.financial_term.contractors_costs.push(normalizeContractorCost({
+                    ...sharedPayment,
+                    stage,
+                    carrier_slot: Number(slot.slot ?? 1),
+                    contractor_id: slot.contractor_id,
+                    amount: singleCostRow.amount,
+                    currency: singleCostRow.currency ?? 'RUB',
+                }));
+            });
+        }
     } else {
         const firstSlot = performer.split_carriers?.[0] ?? blankSplitCarrier(1);
         performer.carrier_mode = CARRIER_MODE_SINGLE;
@@ -4244,6 +4274,29 @@ function removeItem(collection, index) {
     }
 }
 
+function contractorCostRowHasPaymentDetails(costRow) {
+    if (!costRow || typeof costRow !== 'object') {
+        return false;
+    }
+
+    if (String(costRow.payment_terms ?? '').trim() !== '') {
+        return true;
+    }
+
+    const schedule = costRow.payment_schedule;
+    if (!schedule || typeof schedule !== 'object') {
+        return false;
+    }
+
+    if (orderPs.usesInstallments(schedule)) {
+        return true;
+    }
+
+    return Boolean(schedule.has_prepayment)
+        || Number(schedule.postpayment_days || 0) > 0
+        || Number(schedule.prepayment_days || 0) > 0;
+}
+
 function syncContractorCostsFromPerformers() {
     const existingRows = Array.isArray(form.financial_term.contractors_costs)
         ? form.financial_term.contractors_costs
@@ -4259,8 +4312,14 @@ function syncContractorCostsFromPerformers() {
             contractor_id: row.contractor_id,
         });
 
-        if (row.contractor_id) {
-            const contractor = getContractorById(row.contractor_id);
+        const previousContractorId = normalizeNullableNumber(existingRow?.contractor_id);
+        const nextContractorId = normalizeNullableNumber(row.contractor_id);
+        const contractorChanged = previousContractorId !== nextContractorId;
+        const shouldApplyCarrierDefaults = nextContractorId !== null
+            && (contractorChanged || !contractorCostRowHasPaymentDetails(existingRow));
+
+        if (shouldApplyCarrierDefaults) {
+            const contractor = getContractorById(nextContractorId);
 
             if (contractor?.default_carrier_payment_form) {
                 nextRow.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
