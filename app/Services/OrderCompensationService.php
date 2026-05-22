@@ -502,6 +502,8 @@ class OrderCompensationService
         $installments = array_values(array_filter($schedule['installments'] ?? [], static fn ($r): bool => is_array($r)));
         $rows = [];
 
+        $installmentCount = count($installments);
+
         foreach ($installments as $index => $row) {
             $slot = $index + 1;
             $planned = PaymentInstallmentPlanner::plannedDateForInstallment($row, $order, $ctx);
@@ -513,7 +515,7 @@ class OrderCompensationService
             $rows[] = $this->paymentScheduleRowAttributes(
                 $order,
                 $party,
-                'installment_'.$slot,
+                $this->paymentScheduleTypeForInstallmentSlot($slot, $installmentCount),
                 $partAmount,
                 $planned,
                 $carrierContractorId,
@@ -522,6 +524,18 @@ class OrderCompensationService
         }
 
         return $rows;
+    }
+
+    /**
+     * Колонка payment_schedules.type — enum('prepayment', 'final').
+     */
+    private function paymentScheduleTypeForInstallmentSlot(int $slot, int $totalSlots): string
+    {
+        if ($totalSlots <= 1) {
+            return 'final';
+        }
+
+        return $slot === 1 ? 'prepayment' : 'final';
     }
 
     /**
