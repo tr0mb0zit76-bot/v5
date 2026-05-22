@@ -12,7 +12,7 @@
             <section class="grid grid-cols-2 gap-3">
                 <Link
                     href="/orders/create"
-                    class="rounded-[24px] border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
+                    :class="crmMobileTile"
                 >
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900">
                         <SquarePen class="h-5 w-5" />
@@ -23,7 +23,7 @@
 
                 <Link
                     href="/contractors/create"
-                    class="rounded-[24px] border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
+                    :class="crmMobileTile"
                 >
                     <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50">
                         <Building2 class="h-5 w-5" />
@@ -70,34 +70,31 @@
         </div>
 
         <div v-else class="space-y-6">
-            <section class="rounded-none border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <section class="crm-panel p-6">
                 <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div class="space-y-2">
-                        <div class="text-xs uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">Дашборд</div>
-                        <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Ключевые показатели</h1>
+                        <div :class="crmPageEyebrow">Дашборд</div>
+                        <h1 :class="crmPageTitle">Ключевые показатели</h1>
                     </div>
 
-                    <form class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" @submit.prevent="applyFilters">
-                        <label class="space-y-2">
-                            <span class="text-sm font-medium text-zinc-700 dark:text-zinc-200">С даты</span>
+                    <form class="crm-filter-bar" @submit.prevent="applyFilters">
+                        <label :class="crmFilterField">
+                            <span :class="crmLabelCompact">С даты</span>
                             <input
                                 v-model="filterForm.date_from"
                                 type="date"
-                                class="w-full rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                                :class="crmField"
                             />
                         </label>
-                        <label class="space-y-2">
-                            <span class="text-sm font-medium text-zinc-700 dark:text-zinc-200">По дату</span>
+                        <label :class="crmFilterField">
+                            <span :class="crmLabelCompact">По дату</span>
                             <input
                                 v-model="filterForm.date_to"
                                 type="date"
-                                class="w-full rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                                :class="crmField"
                             />
                         </label>
-                        <button
-                            type="submit"
-                            class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                        >
+                        <button type="submit" :class="crmBtnPrimary">
                             Применить
                         </button>
                     </form>
@@ -106,24 +103,21 @@
 
             <section
                 v-if="showFinanceFlowSection"
-                class="rounded-none border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                class="crm-panel p-6"
             >
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="space-y-1">
-                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Денежный поток</h2>
+                        <h2 :class="crmSectionTitle">Денежный поток</h2>
                     </div>
                     <div
                         v-if="financeFlowMode === 'full'"
-                        class="flex flex-wrap gap-1 rounded-2xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950"
+                        :class="crmSegmented"
                     >
                         <button
                             v-for="opt in chartMetricOptions"
                             :key="opt.key"
                             type="button"
-                            class="rounded-xl px-3 py-1.5 text-sm font-medium transition"
-                            :class="chartMetric === opt.key
-                                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'"
+                            :class="chartMetric === opt.key ? crmSegmentedBtnActive : crmSegmentedBtn"
                             @click="chartMetric = opt.key"
                         >
                             {{ opt.label }}
@@ -153,7 +147,7 @@
             </section>
 
             <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <article class="crm-stat-card p-5">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Сделок за период</div>
                     <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
                     <Link
@@ -167,7 +161,7 @@
                     </p>
                 </article>
 
-                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <article class="crm-stat-card p-5">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">Задач на сегодня</div>
                     <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
                     <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ metrics.tasks_today }}</div>
@@ -201,7 +195,7 @@
                     </p>
                 </article>
 
-                <article class="rounded-none border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <article class="crm-stat-card p-5">
                     <div class="text-sm text-zinc-500 dark:text-zinc-400">План выполнен на</div>
                     <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
                     <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">{{ formatPercent(metrics.plan_completion_percent) }}</div>
@@ -211,7 +205,7 @@
                     </p>
                 </article>
 
-                <article class="rounded-none border border-rose-200 bg-rose-50/70 p-5 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/20">
+                <article :class="`${crmStatCardRose} p-5`">
                     <div class="text-sm font-medium text-rose-800 dark:text-rose-200">На этой неделе надо вернуть от клиентов</div>
                     <div class="mt-1 text-[11px] uppercase tracking-wide text-rose-600/80 dark:text-rose-400/80">{{ primaryScopeLabel }}</div>
                     <div class="mt-2 text-3xl font-semibold text-rose-900 dark:text-rose-100">{{ formatCurrency(metrics.weekly_client_returns) }}</div>
@@ -241,6 +235,21 @@ import { computed, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import { BarChart3, Bot, Building2, FileText, Package, SquarePen } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import {
+    crmBtnPrimary,
+    crmField,
+    crmFilterBar,
+    crmFilterField,
+    crmLabelCompact,
+    crmSectionTitle,
+    crmMobileTile,
+    crmPageEyebrow,
+    crmPageTitle,
+    crmSegmented,
+    crmSegmentedBtn,
+    crmSegmentedBtnActive,
+    crmStatCardRose,
+} from '@/support/crmUi.js';
 
 const props = defineProps({
     filters: {

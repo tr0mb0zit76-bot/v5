@@ -1,8 +1,8 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto">
-        <section class="border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section :class="`${crmPanel} p-5`">
             <div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Отчёты</h1>
+                <h1 :class="crmPageTitle">Отчёты</h1>
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
@@ -10,10 +10,7 @@
                     v-for="t in tabs"
                     :key="t.key"
                     type="button"
-                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                    :class="tab === t.key
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                        : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'"
+                    :class="crmTabButtonClasses(tab === t.key)"
                     @click="switchTab(t.key)"
                 >
                     {{ t.label }}
@@ -30,20 +27,14 @@
                     <div v-if="usesPartyFilter" class="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            class="rounded-lg px-3 py-1 text-xs font-medium transition"
-                            :class="filterForm.party === 'customer'
-                                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                                : 'border border-zinc-300 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                            :class="filterForm.party === 'customer' ? crmPillActive : crmPill"
                             @click="switchParty('customer')"
                         >
                             Заказчики
                         </button>
                         <button
                             type="button"
-                            class="rounded-lg px-3 py-1 text-xs font-medium transition"
-                            :class="filterForm.party === 'carrier'
-                                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                                : 'border border-zinc-300 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800'"
+                            :class="filterForm.party === 'carrier' ? crmPillActive : crmPill"
                             @click="switchParty('carrier')"
                         >
                             Перевозчики
@@ -53,52 +44,47 @@
 
                 <form
                     v-if="usesDateRange"
-                    class="flex shrink-0 flex-wrap items-end gap-2"
+                    class="crm-filter-bar shrink-0"
                     @submit.prevent="applyFilters"
                 >
-                    <div>
-                        <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">С</label>
+                    <label :class="crmFilterField">
+                        <span :class="crmLabelCompact">С</span>
                         <input
                             v-model="filterForm.date_from"
                             type="date"
-                            class="mt-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            :class="crmField"
                         >
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">По</label>
+                    </label>
+                    <label :class="crmFilterField">
+                        <span :class="crmLabelCompact">По</span>
                         <input
                             v-model="filterForm.date_to"
                             type="date"
-                            class="mt-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            :class="crmField"
                         >
-                    </div>
-                    <button
-                        type="submit"
-                        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                    >
+                    </label>
+                    <button type="submit" :class="crmBtnPrimary">
                         Применить
                     </button>
                 </form>
 
                 <form
                     v-else-if="tab === 'lead-process'"
-                    class="flex shrink-0 flex-wrap items-end gap-2"
+                    class="crm-filter-bar shrink-0"
                     @submit.prevent="applyLeadProcessFilters"
                 >
-                    <div>
-                        <label class="block text-xs font-medium text-zinc-500 dark:text-zinc-400">Порог «долго на этапе», дн.</label>
+                    <label :class="crmFilterField">
+                        <span :class="crmLabelCompact">Порог «долго на этапе», дн.</span>
                         <input
                             v-model.number="filterForm.stuck_days"
                             type="number"
                             min="1"
                             max="365"
-                            class="mt-1 w-28 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            class="w-28"
+                            :class="crmField"
                         >
-                    </div>
-                    <button
-                        type="submit"
-                        class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                    >
+                    </label>
+                    <button type="submit" :class="crmBtnPrimary">
                         Применить
                     </button>
                 </form>
@@ -261,6 +247,18 @@
 import { computed, reactive } from 'vue';
 import { router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmTabButtonClasses } from '@/support/crmAppearance.js';
+import {
+    crmBtnPrimary,
+    crmField,
+    crmFilterBar,
+    crmFilterField,
+    crmLabelCompact,
+    crmPageTitle,
+    crmPanel,
+    crmPill,
+    crmPillActive,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'reports' }, () => page),

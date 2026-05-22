@@ -1,39 +1,34 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div class="flex items-center justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Реестр документов</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Единый список документов по заказам: по подписи документа открывается предпросмотр файла (или экран печатной формы для заявок по шаблону). Состав строк совпадает с доступом в разделе «Заказы».
-                    Заявки и договоры из мастера — колонки «Заявка …» / «Договор …».
-                </p>
-            </div>
-            <button
-                type="button"
-                :class="crmBtnCreate"
-                @click="openCreateModal()"
-            >
-                Добавить документ
-            </button>
-        </div>
+        <CrmPageHeader
+            lead="Единый список документов по заказам: по подписи документа открывается предпросмотр файла (или экран печатной формы для заявок по шаблону). Состав строк совпадает с доступом в разделе «Заказы». Заявки и договоры из мастера — колонки «Заявка …» / «Договор …»."
+            title="Реестр документов"
+        >
+            <template #actions>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreateModal()"
+                >
+                    Добавить документ
+                </button>
+            </template>
+        </CrmPageHeader>
 
         <div class="flex flex-wrap items-center gap-2">
             <button
                 type="button"
-                class="inline-flex items-center rounded-xl border px-3 py-1.5 text-sm transition"
-                :class="viewMode === 'all'
-                    ? 'border-zinc-800 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
-                    : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                :class="viewMode === 'all' ? crmPillActive : crmPill"
                 @click="viewMode = 'all'"
             >
                 Все документы ({{ props.rows.length }})
             </button>
             <button
                 type="button"
-                class="inline-flex items-center rounded-xl border px-3 py-1.5 text-sm transition"
+                class="inline-flex items-center text-sm transition"
                 :class="viewMode === 'etrn'
-                    ? 'border-emerald-800 bg-emerald-900 text-white dark:border-emerald-200 dark:bg-emerald-200 dark:text-emerald-950'
-                    : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'"
+                    ? 'rounded-full border border-emerald-800 bg-emerald-900 px-3 py-1.5 text-white dark:border-emerald-200 dark:bg-emerald-200 dark:text-emerald-950'
+                    : crmPill"
                 @click="viewMode = 'etrn'"
             >
                 Журнал ЭТрН ({{ etrnRows.length }})
@@ -170,7 +165,8 @@ import Modal from '@/Components/Modal.vue';
 import DocumentsGrid from '@/Components/Documents/DocumentsGrid.vue';
 import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import { crmBtnCreate, crmBtnNeutral, crmPill, crmPillActive } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'documents' }, () => page),

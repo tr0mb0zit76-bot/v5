@@ -1,12 +1,13 @@
 <template>
-    <div class="rounded-xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контейнера</h1>
-        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Раздел в разработке.</p>
+    <div :class="`${crmPanel} p-8`">
+        <h1 :class="crmPageTitleSm">Контейнера</h1>
+        <p :class="`${crmPageLead} mt-2`">Раздел в разработке.</p>
     </div>
 </template>
 
 <script setup>
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmPageLead, crmPageTitleSm, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-containers' }, () => page),

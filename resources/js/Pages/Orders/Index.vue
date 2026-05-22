@@ -132,28 +132,21 @@
         </div>
 
         <template v-else>
-            <div class="flex items-start justify-between gap-4">
-                <div class="shrink-0">
-                    <h1 class="text-2xl font-semibold">Заказы</h1>
-                    <p class="text-sm text-zinc-500">
-                        <template v-if="hasOrderPeriodFilter">
-                            За период {{ orderDateFrom }} — {{ orderDateTo }}: {{ displayedRows.length }} из {{ rows.length }}
-                        </template>
-                        <template v-else>
-                            Всего заказов: {{ rows.length }}
-                        </template>
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    :class="crmBtnCreate"
-                    @click="openCreateOrder"
-                >
-                    <Plus class="h-4 w-4" />
-                    Добавить
-                </button>
-            </div>
+            <CrmPageHeader
+                :lead="ordersPageLead"
+                title="Заказы"
+            >
+                <template #actions>
+                    <button
+                        type="button"
+                        :class="crmBtnCreate"
+                        @click="openCreateOrder"
+                    >
+                        <Plus class="h-4 w-4" />
+                        Добавить
+                    </button>
+                </template>
+            </CrmPageHeader>
 
             <div class="min-h-0 flex-1 overflow-hidden">
                 <OrdersGrid
@@ -195,8 +188,9 @@ const MOBILE_SORT_OPTIONS = [
 ];
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus, Search } from 'lucide-vue-next';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
 import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 
@@ -233,6 +227,14 @@ const displayedRows = computed(() => {
 
         return date >= orderDateFrom.value && date <= orderDateTo.value;
     });
+});
+
+const ordersPageLead = computed(() => {
+    if (hasOrderPeriodFilter.value) {
+        return `За период ${orderDateFrom.value} — ${orderDateTo.value}: ${displayedRows.value.length} из ${rows.value.length}`;
+    }
+
+    return `Всего заказов: ${rows.value.length}`;
 });
 
 const paymentFormOptions = computed(() => page.props.paymentFormOptions ?? []);

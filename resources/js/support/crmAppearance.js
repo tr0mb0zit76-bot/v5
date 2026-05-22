@@ -6,6 +6,7 @@ export const CRM_APPEARANCE_DEFAULTS = {
     button_radius: 'sharp',
     primary_accent: 'emerald',
     tab_style: 'filled',
+    workspace_skin: 'classic',
 };
 
 const STORAGE_KEY = 'crm_appearance_v1';
@@ -47,6 +48,10 @@ function pickAppearanceFields(source) {
 
     if (source.tab_style === 'filled' || source.tab_style === 'underline') {
         result.tab_style = source.tab_style;
+    }
+
+    if (source.workspace_skin === 'classic' || source.workspace_skin === 'sky') {
+        result.workspace_skin = source.workspace_skin;
     }
 
     return result;
@@ -105,6 +110,7 @@ export function applyCrmAppearanceToDocument(appearance) {
     html.dataset.crmRadius = resolved.button_radius;
     html.dataset.crmAccent = resolved.primary_accent;
     html.dataset.crmTabStyle = resolved.tab_style;
+    html.dataset.crmWorkspaceSkin = resolved.workspace_skin;
 }
 
 /**

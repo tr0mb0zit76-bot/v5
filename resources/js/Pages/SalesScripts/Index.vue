@@ -1,9 +1,9 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
-        <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Модуль</div>
-            <h1 class="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Скрипты продаж</h1>
-            <p class="mt-2 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">
+        <section :class="`${crmPanel} p-6`">
+            <div :class="crmPageEyebrow">Модуль</div>
+            <h1 :class="`${crmPageTitle} mt-1`">Скрипты продаж</h1>
+            <p :class="`${crmPageLead} mt-2 max-w-3xl`">
                 Сценарии диалогов для звонков и переписок. Выберите сценарий и пройдите шаги; в конце зафиксируйте исход — это основа для статистики и подсказок команде.
             </p>
             <p
@@ -26,7 +26,7 @@
             <article
                 v-for="script in scripts"
                 :key="script.id"
-                class="flex flex-col border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                :class="`${crmModuleCard} flex flex-col`"
             >
                 <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ script.title }}</h2>
                 <p v-if="script.description" class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ script.description }}</p>
@@ -63,6 +63,7 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmModuleCard, crmPageEyebrow, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),

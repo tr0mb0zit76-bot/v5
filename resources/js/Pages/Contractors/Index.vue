@@ -27,7 +27,8 @@ import ContractorDefaultNormsPenaltiesFields from '@/Components/Contractors/Cont
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { transliteratedFieldValue } from '@/support/cyrillicTransliteration.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import { crmBtnCreate, crmPageTitleSm } from '@/support/crmUi.js';
 import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/support/normsPenalties.js';
 
 defineOptions({
@@ -1618,22 +1619,22 @@ function handleMobileNavSelect(key) {
     </div>
 
     <div v-else class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Контрагенты</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы.
-                </p>
-            </div>
-            <button
-                type="button"
-                :class="crmBtnCreate"
-                @click="openCreateForm"
-            >
-                <Plus class="h-4 w-4" />
-                Добавить
-            </button>
-        </div>
+        <CrmPageHeader
+            lead="Реестр контрагентов на всю ширину экрана. Карточка открывается поверх таблицы."
+            title="Контрагенты"
+            :title-class="crmPageTitleSm"
+        >
+            <template #actions>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreateForm"
+                >
+                    <Plus class="h-4 w-4" />
+                    Добавить
+                </button>
+            </template>
+        </CrmPageHeader>
 
         <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
             <ContractorsGrid

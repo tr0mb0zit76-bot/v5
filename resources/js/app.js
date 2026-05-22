@@ -1,7 +1,14 @@
 import './bootstrap';
 import '../css/app.css';
+import '../css/crm-sky-theme.css';
+import '../css/crm-workspace-skin.css';
 import '../css/crm-appearance.css';
-import { applyCrmAppearanceToDocument, readLocalCrmAppearance, resolveCrmAppearance } from './support/crmAppearance.js';
+import {
+    applyCrmAppearanceToDocument,
+    CRM_APPEARANCE_CHANGED,
+    readLocalCrmAppearance,
+    resolveCrmAppearance,
+} from './support/crmAppearance.js';
 
 import { createApp, h } from 'vue';
 import { createInertiaApp, router } from '@inertiajs/vue3';
@@ -24,8 +31,16 @@ const shouldUseDarkTheme = savedTheme === 'dark' || (savedTheme === null && pref
 document.documentElement.classList.toggle('dark', shouldUseDarkTheme);
 document.documentElement.classList.remove('light');
 
-applyCrmAppearanceToDocument({
-    ...resolveCrmAppearance({ ui_preferences: readLocalCrmAppearance() }),
+const bootAppearance = resolveCrmAppearance({ ui_preferences: readLocalCrmAppearance() });
+applyCrmAppearanceToDocument(bootAppearance);
+
+window.addEventListener(CRM_APPEARANCE_CHANGED, (event) => {
+    applyCrmAppearanceToDocument(resolveCrmAppearance({
+        ui_preferences: {
+            ...readLocalCrmAppearance(),
+            ...(event.detail ?? {}),
+        },
+    }));
 });
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

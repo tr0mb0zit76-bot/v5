@@ -32,6 +32,10 @@ class UpdateUiPreferencesRequest extends FormRequest
                 CrmAppearance::TAB_STYLE_FILLED,
                 CrmAppearance::TAB_STYLE_UNDERLINE,
             ])],
+            'workspace_skin' => ['sometimes', Rule::in([
+                CrmAppearance::WORKSPACE_SKIN_CLASSIC,
+                CrmAppearance::WORKSPACE_SKIN_SKY,
+            ])],
             'ag_grid_density' => ['sometimes', Rule::in(['compact', 'normal', 'comfortable'])],
         ];
     }

@@ -1,13 +1,10 @@
 ﻿<template>
     <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div class="flex shrink-0 flex-wrap items-start justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Задачи</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Контроль задач менеджеров. Всего: {{ (tasks ?? []).length }}
-                </p>
-            </div>
-            <div class="flex flex-wrap items-center justify-end gap-2">
+        <CrmPageHeader
+            :lead="`Контроль задач менеджеров. Всего: ${(tasks ?? []).length}`"
+            title="Задачи"
+        >
+            <template #actions>
                 <Link
                     :class="crmBtnSecondaryOutline"
                     :href="route('kanban.index')"
@@ -22,8 +19,8 @@
                     <Plus class="h-4 w-4" />
                     Создать задачу
                 </button>
-            </div>
-        </div>
+            </template>
+        </CrmPageHeader>
 
         <div v-if="selectedTaskIds.length > 0" class="flex shrink-0 flex-wrap items-center gap-2">
             <button
@@ -37,7 +34,7 @@
             <template v-if="canBulkMutateTasks && selectedTaskIds.length > 0">
                 <select
                     v-model="bulkAssignUserId"
-                    class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    :class="crmFieldWide"
                 >
                     <option :value="null" disabled>Назначить на…</option>
                     <option v-for="user in users" :key="user.id" :value="user.id">{{ user.name }}</option>
@@ -54,7 +51,7 @@
             <template v-if="selectedTaskIds.length > 0">
                 <select
                     v-model="bulkStatus"
-                    class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    :class="crmFieldWide"
                 >
                     <option value="" disabled>Статус для выбранных…</option>
                     <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -70,7 +67,7 @@
                 <input
                     v-model="bulkDueAt"
                     type="datetime-local"
-                    class="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    :class="crmFieldWide"
                 >
                 <button
                     type="button"
@@ -426,7 +423,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
-import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline } from '@/support/crmUi.js';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import { crmBtnCreate, crmBtnDangerMuted, crmBtnNeutral, crmBtnSecondaryOutline, crmFieldWide } from '@/support/crmUi.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import TasksGrid from '@/Components/Tasks/TasksGrid.vue';

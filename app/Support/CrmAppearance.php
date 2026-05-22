@@ -16,8 +16,12 @@ final class CrmAppearance
 
     public const TAB_STYLE_UNDERLINE = 'underline';
 
+    public const WORKSPACE_SKIN_CLASSIC = 'classic';
+
+    public const WORKSPACE_SKIN_SKY = 'sky';
+
     /**
-     * @return array{button_radius: string, primary_accent: string, tab_style: string, ag_grid_density: string}
+     * @return array{button_radius: string, primary_accent: string, tab_style: string, workspace_skin: string, ag_grid_density: string}
      */
     public static function defaults(): array
     {
@@ -25,6 +29,7 @@ final class CrmAppearance
             'button_radius' => self::BUTTON_RADIUS_SHARP,
             'primary_accent' => self::PRIMARY_ACCENT_EMERALD,
             'tab_style' => self::TAB_STYLE_FILLED,
+            'workspace_skin' => self::WORKSPACE_SKIN_CLASSIC,
             'ag_grid_density' => 'normal',
         ];
     }
@@ -63,8 +68,19 @@ final class CrmAppearance
     }
 
     /**
+     * @return list<array{value: string, label: string}>
+     */
+    public static function workspaceSkinOptions(): array
+    {
+        return [
+            ['value' => self::WORKSPACE_SKIN_CLASSIC, 'label' => 'Классический'],
+            ['value' => self::WORKSPACE_SKIN_SKY, 'label' => 'Sky (как «Сколько влезет»)'],
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>|null  $stored
-     * @return array{button_radius: string, primary_accent: string, tab_style: string, ag_grid_density: string}
+     * @return array{button_radius: string, primary_accent: string, tab_style: string, workspace_skin: string, ag_grid_density: string}
      */
     public static function resolve(?array $stored): array
     {
@@ -75,6 +91,7 @@ final class CrmAppearance
             'button_radius' => self::normalizeButtonRadius($stored['button_radius'] ?? null) ?? $defaults['button_radius'],
             'primary_accent' => self::normalizePrimaryAccent($stored['primary_accent'] ?? null) ?? $defaults['primary_accent'],
             'tab_style' => self::normalizeTabStyle($stored['tab_style'] ?? null) ?? $defaults['tab_style'],
+            'workspace_skin' => self::normalizeWorkspaceSkin($stored['workspace_skin'] ?? null) ?? $defaults['workspace_skin'],
             'ag_grid_density' => self::normalizeAgGridDensity($stored['ag_grid_density'] ?? null) ?? $defaults['ag_grid_density'],
         ];
     }
@@ -95,6 +112,9 @@ final class CrmAppearance
                 : null,
             'tab_style' => isset($validated['tab_style'])
                 ? self::normalizeTabStyle($validated['tab_style'])
+                : null,
+            'workspace_skin' => isset($validated['workspace_skin'])
+                ? self::normalizeWorkspaceSkin($validated['workspace_skin'])
                 : null,
             'ag_grid_density' => isset($validated['ag_grid_density'])
                 ? self::normalizeAgGridDensity($validated['ag_grid_density'])
@@ -119,6 +139,13 @@ final class CrmAppearance
     private static function normalizeTabStyle(mixed $value): ?string
     {
         return in_array($value, [self::TAB_STYLE_FILLED, self::TAB_STYLE_UNDERLINE], true)
+            ? (string) $value
+            : null;
+    }
+
+    private static function normalizeWorkspaceSkin(mixed $value): ?string
+    {
+        return in_array($value, [self::WORKSPACE_SKIN_CLASSIC, self::WORKSPACE_SKIN_SKY], true)
             ? (string) $value
             : null;
     }

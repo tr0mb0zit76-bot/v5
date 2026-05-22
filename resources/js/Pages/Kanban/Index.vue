@@ -14,14 +14,11 @@
             Режим просмотра: у вас нет права менять статусы задач (нужна область «Задачи»).
         </div>
 
-        <div class="flex shrink-0 flex-wrap items-start justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Канбан</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Задачи по статусам. Колонки можно растягивать; те же записи что в списке «Задачи».
-                </p>
-            </div>
-            <div class="flex flex-wrap items-center justify-end gap-2">
+        <CrmPageHeader
+            lead="Задачи по статусам. Колонки можно растягивать; те же записи что в списке «Задачи»."
+            title="Канбан"
+        >
+            <template #actions>
                 <Link
                     :class="crmBtnSecondaryOutline"
                     :href="route('tasks.index')"
@@ -37,8 +34,8 @@
                     <Plus class="h-4 w-4" />
                     Создать задачу
                 </button>
-            </div>
-        </div>
+            </template>
+        </CrmPageHeader>
 
         <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div class="border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
@@ -127,6 +124,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmBtnSecondaryOutline } from '@/support/crmUi.js';
 
 const page = usePage();

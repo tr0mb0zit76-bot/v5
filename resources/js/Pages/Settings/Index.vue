@@ -1,11 +1,9 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:min-h-0">
-        <div class="shrink-0 space-y-1">
-            <h1 class="text-2xl font-semibold">Настройки</h1>
-            <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Администрирование пользователей, ролей и базовых представлений системы.
-            </p>
-        </div>
+        <CrmPageHeader
+            lead="Администрирование пользователей, ролей и базовых представлений системы."
+            title="Настройки"
+        />
 
         <div class="flex min-h-0 flex-col gap-5">
             <section v-for="group in groupedSections" :key="group.name" class="space-y-3">
@@ -22,7 +20,7 @@
                         v-for="section in group.items"
                         :key="section.key"
                         :href="section.href"
-                        class="group flex min-h-[190px] flex-col justify-between border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-500 dark:hover:bg-zinc-800"
+                        :class="`${crmModuleCard} flex min-h-[190px] flex-col justify-between`"
                     >
                         <div class="space-y-3">
                             <div class="flex items-start justify-between gap-3">
@@ -57,7 +55,9 @@
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
 import { BookOpen, Files, Shield, Table2, TrendingUp, Users } from 'lucide-vue-next';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmModuleCard } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings' }, () => page),

@@ -2,28 +2,22 @@
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <div class="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="space-y-1">
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Бюджетирование</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                <h1 :class="crmPageTitle">Бюджетирование</h1>
+                <p :class="crmPageLead">
                     Задаёте цели <strong class="font-medium">или</strong> маржу менеджера — график показывает оба ответа сразу.
                 </p>
             </div>
-            <div class="flex rounded-xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+            <div :class="crmSegmented">
                 <button
                     type="button"
-                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                    :class="localInputs.calculation_mode === MODE_TOP_DOWN
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                        : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400'"
+                    :class="localInputs.calculation_mode === MODE_TOP_DOWN ? crmSegmentedBtnActive : crmSegmentedBtn"
                     @click="setMode(MODE_TOP_DOWN)"
                 >
                     Сверху вниз
                 </button>
                 <button
                     type="button"
-                    class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                    :class="localInputs.calculation_mode === MODE_BOTTOM_UP
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                        : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400'"
+                    :class="localInputs.calculation_mode === MODE_BOTTOM_UP ? crmSegmentedBtnActive : crmSegmentedBtn"
                     @click="setMode(MODE_BOTTOM_UP)"
                 >
                     Снизу вверх
@@ -33,7 +27,7 @@
 
         <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(300px,380px)_1fr]">
             <aside class="space-y-4">
-                <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmPanel} p-4`">
                     <div class="flex items-center justify-between gap-2">
                         <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Справочник накладных</h2>
                         <button
@@ -120,7 +114,7 @@
                     </div>
                 </section>
 
-                <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmPanel} p-4`">
                     <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Команда и вливание</h2>
                     <div class="mt-3 space-y-3">
                         <label class="block space-y-1">
@@ -183,7 +177,7 @@
                     </div>
                 </section>
 
-                <section class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <section :class="`${crmPanel} p-4`">
                     <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                         {{ localInputs.calculation_mode === MODE_TOP_DOWN ? 'Цели (сверху вниз)' : 'Хотелки' }}
                     </h2>
@@ -598,6 +592,14 @@
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, reactive, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import {
+    crmPageLead,
+    crmPageTitle,
+    crmPanel,
+    crmSegmented,
+    crmSegmentedBtn,
+    crmSegmentedBtnActive,
+} from '@/support/crmUi.js';
 import {
     MODE_BOTTOM_UP,
     MODE_TOP_DOWN,

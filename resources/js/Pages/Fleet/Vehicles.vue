@@ -1,19 +1,20 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-2">
-        <div class="flex shrink-0 items-start justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Авто</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">Учёт ТС, владельцев и документов.</p>
-            </div>
-            <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-xl border border-emerald-200/90 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/45"
-                @click="openCreate"
-            >
-                <Plus class="h-4 w-4" />
-                Добавить
-            </button>
-        </div>
+        <CrmPageHeader
+            lead="Учёт ТС, владельцев и документов."
+            title="Авто"
+        >
+            <template #actions>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreate"
+                >
+                    <Plus class="h-4 w-4" />
+                    Добавить
+                </button>
+            </template>
+        </CrmPageHeader>
 
         <div class="min-h-0 flex-1 overflow-hidden">
             <FleetVehiclesGrid
@@ -42,7 +43,9 @@
 import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmBtnCreate } from '@/support/crmUi.js';
 import Modal from '@/Components/Modal.vue';
 import FleetVehiclesGrid from '@/Components/Fleet/FleetVehiclesGrid.vue';
 import VehicleWizard from '@/Pages/Fleet/VehicleWizard.vue';

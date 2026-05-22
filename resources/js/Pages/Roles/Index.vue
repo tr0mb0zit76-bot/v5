@@ -1,24 +1,25 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:min-h-0">
-        <div class="flex items-center justify-between gap-3">
-            <div>
-                <h1 class="text-xl font-semibold">Роли</h1>
-                <p class="text-sm text-zinc-500">Роли по колонкам, права и области видимости по строкам</p>
-            </div>
-
-            <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                @click="showCreateForm = !showCreateForm"
-            >
-                <Plus class="h-4 w-4" />
-                {{ showCreateForm ? 'Скрыть форму' : 'Добавить роль' }}
-            </button>
-        </div>
+        <CrmPageHeader
+            lead="Роли по колонкам, права и области видимости по строкам"
+            title="Роли"
+            :title-class="crmPageTitleSm"
+        >
+            <template #actions>
+                <button
+                    type="button"
+                    :class="crmBtnNeutral"
+                    @click="showCreateForm = !showCreateForm"
+                >
+                    <Plus class="h-4 w-4" />
+                    {{ showCreateForm ? 'Скрыть форму' : 'Добавить роль' }}
+                </button>
+            </template>
+        </CrmPageHeader>
 
         <div
             v-if="showCreateForm"
-            class="rounded-2xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900"
+            :class="`${crmPanel} p-3`"
         >
             <div class="mb-4">
                 <div class="text-sm font-medium">Новая роль</div>
@@ -366,7 +367,8 @@ import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { Plus, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import { crmBtnNeutral, crmPageTitleSm, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'roles' }, () => page),

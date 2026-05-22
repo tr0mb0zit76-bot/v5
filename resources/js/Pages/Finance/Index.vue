@@ -5,12 +5,12 @@
     >
     <section
         v-if="activeSubmodule === 'overview'"
-        class="space-y-3 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+        :class="`${crmPanel} space-y-3 p-5`"
     >
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Финансы</h1>
-                    <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    <h1 :class="crmPageTitle">Финансы</h1>
+                    <p :class="crmPageLead">
                         Номера счетов и УПД ведутся в карточке заказа (вкладка «Документы»). Здесь — график оплат и
                         зарплатный модуль.
                     </p>
@@ -22,7 +22,7 @@
                     v-for="tile in submoduleTiles"
                     :key="tile.key"
                     :href="tile.href"
-                    class="group flex min-h-[190px] flex-col justify-between border border-zinc-200 bg-white p-5 transition hover:border-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-500 dark:hover:bg-zinc-800"
+                    :class="`${crmModuleCard} flex min-h-[190px] flex-col justify-between`"
                 >
                     <div class="space-y-3">
                         <div class="flex items-start justify-between gap-3">
@@ -181,6 +181,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, ArrowLeft, BarChart3, Clock, TrendingDown, TrendingUp, Wallet } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import { crmModuleCard, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 import CashFlowGrid from '@/Components/Finance/CashFlowGrid.vue';
 
 function defaultCashFlowStats() {

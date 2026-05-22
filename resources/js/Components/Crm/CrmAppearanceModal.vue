@@ -20,6 +20,7 @@ const page = usePage();
 const authUser = computed(() => page.props.auth?.user ?? null);
 
 const form = reactive({
+    workspace_skin: 'classic',
     button_radius: 'sharp',
     primary_accent: 'emerald',
     tab_style: 'filled',
@@ -27,6 +28,7 @@ const form = reactive({
 
 function syncFormFromUser() {
     const resolved = resolveCrmAppearance(authUser.value);
+    form.workspace_skin = resolved.workspace_skin;
     form.button_radius = resolved.button_radius;
     form.primary_accent = resolved.primary_accent;
     form.tab_style = resolved.tab_style;
@@ -49,6 +51,7 @@ function save() {
 
     const density = authUser.value?.ui_preferences?.ag_grid_density ?? 'normal';
     schedulePersistCrmAppearance({
+        workspace_skin: form.workspace_skin,
         button_radius: form.button_radius,
         primary_accent: form.primary_accent,
         tab_style: form.tab_style,
@@ -72,6 +75,19 @@ const tabOptions = [
     { value: 'filled', label: 'Заливка' },
     { value: 'underline', label: 'Подчёркивание' },
 ];
+
+const workspaceSkinOptions = [
+    {
+        value: 'classic',
+        label: 'Классический',
+        hint: 'Текущий вид CRM: zinc, таблицы, как сейчас у всех страниц.',
+    },
+    {
+        value: 'sky',
+        label: 'Sky',
+        hint: 'Мягкие карточки и голубой акцент, как в модуле «Сколько влезет».',
+    },
+];
 </script>
 
 <template>
@@ -85,6 +101,28 @@ const tabOptions = [
             </div>
 
             <div class="space-y-6 px-5 py-5">
+                <div class="space-y-2">
+                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Общий вид интерфейса</div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Можно вернуться к классическому оформлению в любой момент — настройка личная, для каждого пользователя.
+                    </p>
+                    <div class="grid gap-2">
+                        <button
+                            v-for="option in workspaceSkinOptions"
+                            :key="option.value"
+                            type="button"
+                            class="rounded-xl border px-3 py-3 text-left text-sm transition"
+                            :class="form.workspace_skin === option.value
+                                ? 'border-zinc-900 bg-zinc-50 dark:border-zinc-100 dark:bg-zinc-800'
+                                : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800'"
+                            @click="form.workspace_skin = option.value; preview()"
+                        >
+                            <div class="font-medium">{{ option.label }}</div>
+                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{{ option.hint }}</div>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="space-y-2">
                     <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Углы элементов</div>
                     <div class="grid gap-2 sm:grid-cols-2">

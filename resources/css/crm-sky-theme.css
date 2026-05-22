@@ -1,9 +1,8 @@
 /**
- * CRM Sky — визуальная тема по мотивам модуля «Сколько влезет».
- * Подключена глобально; на страницах можно использовать классы crm-panel, crm-btn-* и CSS-переменные.
+ * Общие радиусы CRM и локальные токены для модулей (например «Сколько влезет»).
+ * Глобальная тема Sky включается через data-crm-workspace-skin (см. crm-workspace-skin.css).
  */
-@layer base {
-    :root {
+:root {
         --crm-radius-md: 0.75rem;
         --crm-radius-lg: 1rem;
         --crm-radius-xl: 1.5rem;
@@ -27,59 +26,3 @@
         --crm-text-muted: 161 161 170;
         --crm-shadow: 0 0 0;
     }
-}
-
-@layer components {
-    .crm-panel {
-        border: 1px solid rgb(var(--crm-border));
-        border-radius: var(--crm-radius-xl);
-        background: rgb(var(--crm-surface));
-        box-shadow: 0 10px 30px rgb(var(--crm-shadow) / 0.06);
-    }
-
-    .crm-btn-primary {
-        border-radius: var(--crm-radius-md);
-        background: rgb(var(--crm-accent));
-        padding: 0.5rem 0.875rem;
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: white;
-        transition: opacity 0.15s ease;
-    }
-
-    .crm-btn-primary:hover {
-        opacity: 0.92;
-    }
-
-    .crm-btn-secondary {
-        border-radius: var(--crm-radius-md);
-        border: 1px solid rgb(var(--crm-border));
-        background: rgb(var(--crm-surface));
-        padding: 0.5rem 0.875rem;
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: rgb(var(--crm-text));
-        transition: background-color 0.15s ease;
-    }
-
-    .crm-btn-secondary:hover {
-        background: rgb(var(--crm-surface-muted));
-    }
-
-    .crm-chip {
-        display: flex;
-        flex-direction: column;
-        gap: 0.125rem;
-        border-radius: var(--crm-radius-md);
-        border: 1px solid rgb(var(--crm-border));
-        background: rgb(var(--crm-surface));
-        padding: 0.5rem 0.625rem;
-        font-size: 0.75rem;
-        color: rgb(var(--crm-text-muted));
-    }
-
-    .crm-chip strong {
-        font-size: 0.75rem;
-        color: rgb(var(--crm-text));
-    }
-}

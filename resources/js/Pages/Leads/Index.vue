@@ -4,21 +4,22 @@
             Модуль лидов отключен для текущей схемы БД: таблицы лидов еще не развернуты.
         </div>
 
-        <div v-if="!featureUnavailable" class="flex shrink-0 items-start justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Лиды</h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">Всего лидов: {{ rows.length }}</p>
-            </div>
-
-            <button
-                type="button"
-                :class="crmBtnCreate"
-                @click="openCreateLead"
-            >
-                <Plus class="h-4 w-4" />
-                Добавить
-            </button>
-        </div>
+        <CrmPageHeader
+            v-if="!featureUnavailable"
+            :lead="`Всего лидов: ${rows.length}`"
+            title="Лиды"
+        >
+            <template #actions>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreateLead"
+                >
+                    <Plus class="h-4 w-4" />
+                    Добавить
+                </button>
+            </template>
+        </CrmPageHeader>
 
         <div class="min-h-0 flex-1 overflow-hidden">
             <LeadsGrid
@@ -62,6 +63,7 @@
 import { computed, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Plus } from 'lucide-vue-next';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';

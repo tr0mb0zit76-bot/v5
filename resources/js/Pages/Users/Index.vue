@@ -1,22 +1,21 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto lg:min-h-0">
-        <div class="flex items-center justify-between gap-3">
-            <div>
-                <h1 class="text-xl font-semibold">Пользователи</h1>
-                <p class="text-sm text-zinc-500">
-                    Всего: {{ users.length }} · Активных: {{ activeUsers.length }} · Неактивных: {{ inactiveUsers.length }}
-                </p>
-            </div>
-
-            <button
-                type="button"
-                :class="crmBtnCreate"
-                @click="openCreateModal"
-            >
-                <Plus class="h-4 w-4" />
-                Добавить пользователя
-            </button>
-        </div>
+        <CrmPageHeader
+            :lead="`Всего: ${users.length} · Активных: ${activeUsers.length} · Неактивных: ${inactiveUsers.length}`"
+            title="Пользователи"
+            :title-class="crmPageTitleSm"
+        >
+            <template #actions>
+                <button
+                    type="button"
+                    :class="crmBtnCreate"
+                    @click="openCreateModal"
+                >
+                    <Plus class="h-4 w-4" />
+                    Добавить пользователя
+                </button>
+            </template>
+        </CrmPageHeader>
 
         <div class="flex items-center gap-2">
             <button
@@ -31,7 +30,7 @@
             </button>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-hidden border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        <div class="crm-panel min-h-0 flex-1 overflow-hidden dark:border-zinc-800 dark:bg-zinc-900">
             <div class="h-full overflow-auto">
                 <table class="min-w-full border-collapse text-sm">
                     <thead class="sticky top-0 z-10 bg-zinc-100 dark:bg-zinc-800">
@@ -350,7 +349,8 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
-import { crmBtnCreate, crmBtnNeutral } from '@/support/crmUi.js';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import { crmBtnCreate, crmBtnNeutral, crmPageTitleSm } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'users' }, () => page),
