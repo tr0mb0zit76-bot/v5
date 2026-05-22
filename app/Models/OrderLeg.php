@@ -56,7 +56,17 @@ class OrderLeg extends Model
      */
     public function contractorAssignment(): HasOne
     {
-        return $this->hasOne(LegContractorAssignment::class, 'order_leg_id');
+        return $this->hasOne(LegContractorAssignment::class, 'order_leg_id')
+            ->orderBy('carrier_slot');
+    }
+
+    /**
+     * @return HasMany<LegContractorAssignment, $this>
+     */
+    public function contractorAssignments(): HasMany
+    {
+        return $this->hasMany(LegContractorAssignment::class, 'order_leg_id')
+            ->orderBy('carrier_slot');
     }
 
     /**

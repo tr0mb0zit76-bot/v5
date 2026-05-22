@@ -529,12 +529,7 @@ class OrderWizardController extends Controller
 
         $performers = $this->serializePerformersPayload($order, $financialTerm);
         if ($useWizardState && is_array($wizardState) && filled($wizardState['performers'] ?? null)) {
-            $normalizedPerformers = $this->normalizePerformersFromWizardState($wizardState['performers']);
-            $wizardHasAssignedContractor = collect($normalizedPerformers)
-                ->contains(fn (array $performer): bool => filled($performer['contractor_id'] ?? null));
-            if ($normalizedPerformers !== [] && ($performers === [] || $wizardHasAssignedContractor)) {
-                $performers = $normalizedPerformers;
-            }
+            $performers = $this->mergePerformersFromWizardState($performers, $wizardState['performers']);
         }
 
         $financialTermForNormalize = $financialTerm;
@@ -561,11 +556,13 @@ class OrderWizardController extends Controller
         $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTermForNormalize, $performers))
             ->map(fn (array $cost): array => [
                 'stage' => $cost['stage'] ?? null,
+                'carrier_slot' => $cost['carrier_slot'] ?? null,
                 'contractor_id' => $cost['contractor_id'] ?? null,
                 'amount' => $cost['amount'] ?? null,
                 'currency' => $cost['currency'] ?? 'RUB',
                 'payment_form' => $this->normalizePaymentFormCodeForWizard($cost['payment_form'] ?? null, 'no_vat'),
                 'payment_schedule' => $cost['payment_schedule'] ?? [],
+                'payment_terms' => $cost['payment_terms'] ?? '',
             ])
             ->values()
             ->all();
@@ -1026,28 +1023,118 @@ class OrderWizardController extends Controller
     }
 
     /**
-     * @param  list<array<string, mixed>>|mixed  $performers
-     * @return list<array{stage: string|null, contractor_id: int|null}>
+     * @param  list<array<string, mixed>>  $serializedPerformers
+     * @param  mixed  $wizardPerformers
+     * @return list<array<string, mixed>>
      */
-    private function normalizePerformersFromWizardState(mixed $performers): array
+    private function mergePerformersFromWizardState(array $serializedPerformers, mixed $wizardPerformers): array
     {
-        if (! is_array($performers) || $performers === []) {
-            return [];
+        if (! is_array($wizardPerformers) || $wizardPerformers === []) {
+            return $serializedPerformers;
         }
 
-        return collect($performers)
-            ->map(function (mixed $p): array {
-                if (! is_array($p)) {
-                    return ['stage' => null, 'contractor_id' => null];
-                }
+        $wizardByStage = collect($wizardPerformers)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->keyBy(fn (array $row): string => $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1')));
 
-                return [
-                    'stage' => $p['stage'] ?? null,
-                    'contractor_id' => isset($p['contractor_id']) && $p['contractor_id'] !== null ? (int) $p['contractor_id'] : null,
-                ];
-            })
-            ->values()
-            ->all();
+        if ($serializedPerformers === []) {
+            return $this->performersPayloadWithContractorLabels(
+                $wizardByStage->values()->map(fn (array $row): array => $this->normalizePerformerRowFromWizardState($row))->all()
+            );
+        }
+
+        return $this->performersPayloadWithContractorLabels(
+            collect($serializedPerformers)
+                ->map(function (array $serialized) use ($wizardByStage): array {
+                    $stageKey = $this->normalizeStageIdentifierForWizard((string) ($serialized['stage'] ?? 'leg_1'));
+                    $wizardRow = $wizardByStage->get($stageKey);
+
+                    if (! is_array($wizardRow)) {
+                        return $serialized;
+                    }
+
+                    return $this->mergePerformerRow($serialized, $this->normalizePerformerRowFromWizardState($wizardRow));
+                })
+                ->values()
+                ->all()
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function normalizePerformerRowFromWizardState(array $row): array
+    {
+        $normalized = [
+            'stage' => $row['stage'] ?? null,
+            'carrier_mode' => ($row['carrier_mode'] ?? 'single') === 'split' ? 'split' : 'single',
+            'contractor_id' => isset($row['contractor_id']) && $row['contractor_id'] !== null && $row['contractor_id'] !== ''
+                ? (int) $row['contractor_id']
+                : null,
+            'contractor_name' => isset($row['contractor_name']) ? (string) $row['contractor_name'] : null,
+            'fleet_vehicle_id' => isset($row['fleet_vehicle_id']) && $row['fleet_vehicle_id'] !== null && $row['fleet_vehicle_id'] !== ''
+                ? (int) $row['fleet_vehicle_id']
+                : null,
+            'fleet_driver_id' => isset($row['fleet_driver_id']) && $row['fleet_driver_id'] !== null && $row['fleet_driver_id'] !== ''
+                ? (int) $row['fleet_driver_id']
+                : null,
+            'split_carriers' => [],
+        ];
+
+        if ($normalized['carrier_mode'] === 'split' && is_array($row['split_carriers'] ?? null)) {
+            $normalized['split_carriers'] = collect($row['split_carriers'])
+                ->filter(fn (mixed $slot): bool => is_array($slot))
+                ->values()
+                ->map(function (array $slot, int $index): array {
+                    return [
+                        'slot' => (int) ($slot['slot'] ?? ($index + 1)),
+                        'contractor_id' => isset($slot['contractor_id']) && $slot['contractor_id'] !== null && $slot['contractor_id'] !== ''
+                            ? (int) $slot['contractor_id']
+                            : null,
+                        'contractor_name' => isset($slot['contractor_name']) ? (string) $slot['contractor_name'] : null,
+                        'fleet_vehicle_id' => isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null && $slot['fleet_vehicle_id'] !== ''
+                            ? (int) $slot['fleet_vehicle_id']
+                            : null,
+                        'fleet_driver_id' => isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null && $slot['fleet_driver_id'] !== ''
+                            ? (int) $slot['fleet_driver_id']
+                            : null,
+                    ];
+                })
+                ->all();
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>  $wizard
+     * @return array<string, mixed>
+     */
+    private function mergePerformerRow(array $base, array $wizard): array
+    {
+        if (($wizard['carrier_mode'] ?? 'single') === 'split') {
+            return [
+                ...$base,
+                'carrier_mode' => 'split',
+                'split_carriers' => $wizard['split_carriers'] ?? ($base['split_carriers'] ?? []),
+                'contractor_id' => null,
+                'contractor_name' => null,
+                'fleet_vehicle_id' => null,
+                'fleet_driver_id' => null,
+            ];
+        }
+
+        return [
+            ...$base,
+            'carrier_mode' => 'single',
+            'split_carriers' => [],
+            'contractor_id' => $wizard['contractor_id'] ?? $base['contractor_id'] ?? null,
+            'contractor_name' => $wizard['contractor_name'] ?? $base['contractor_name'] ?? null,
+            'fleet_vehicle_id' => $wizard['fleet_vehicle_id'] ?? $base['fleet_vehicle_id'] ?? null,
+            'fleet_driver_id' => $wizard['fleet_driver_id'] ?? $base['fleet_driver_id'] ?? null,
+        ];
     }
 
     /**
@@ -1089,7 +1176,7 @@ class OrderWizardController extends Controller
 
         if (Schema::hasTable('order_legs')) {
             if (Schema::hasTable('leg_contractor_assignments')) {
-                $order->loadMissing(['legs.contractorAssignment']);
+                $order->loadMissing(['legs.contractorAssignments', 'legs.contractorAssignment']);
             } else {
                 $order->loadMissing(['legs']);
             }
@@ -1105,24 +1192,45 @@ class OrderWizardController extends Controller
                     $metadataPerformer = is_array($leg->metadata ?? null)
                         ? (is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : [])
                         : [];
+                    $carrierMode = (string) ($metadataPerformer['carrier_mode'] ?? 'single');
+                    $splitCarriers = is_array($metadataPerformer['split_carriers'] ?? null)
+                        ? $metadataPerformer['split_carriers']
+                        : [];
 
-                    if (Schema::hasTable('leg_contractor_assignments')) {
+                    if (Schema::hasTable('leg_contractor_assignments') && $leg->relationLoaded('contractorAssignments')) {
+                        $assignments = $leg->contractorAssignments;
+                        if ($assignments->count() > 1 || $carrierMode === 'split') {
+                            $carrierMode = 'split';
+                            $splitCarriers = $assignments
+                                ->map(fn ($assignment): array => [
+                                    'slot' => (int) ($assignment->carrier_slot ?? 1),
+                                    'contractor_id' => $assignment->contractor_id !== null ? (int) $assignment->contractor_id : null,
+                                    'contractor_name' => null,
+                                    'fleet_vehicle_id' => null,
+                                    'fleet_driver_id' => null,
+                                ])
+                                ->values()
+                                ->all();
+                        } elseif ($assignments->count() === 1) {
+                            $contractorId = $assignments->first()?->contractor_id;
+                        }
+                    } elseif (Schema::hasTable('leg_contractor_assignments')) {
                         $contractorId = $leg->contractorAssignment?->contractor_id;
                     }
 
-                    if ($contractorId === null) {
+                    if ($contractorId === null && $carrierMode !== 'split') {
                         $fromCost = $costsByNormalizedStage->get($normalized);
                         $contractorId = $fromCost['contractor_id'] ?? null;
                     }
 
-                    if ($contractorId === null && $index === 0 && $order->carrier_id !== null) {
+                    if ($contractorId === null && $index === 0 && $order->carrier_id !== null && $carrierMode !== 'split') {
                         $contractorId = $order->carrier_id;
                     }
 
                     return [
                         'stage' => $leg->description,
-                        'carrier_mode' => (string) ($metadataPerformer['carrier_mode'] ?? 'single'),
-                        'contractor_id' => $contractorId !== null ? (int) $contractorId : null,
+                        'carrier_mode' => $carrierMode,
+                        'contractor_id' => $carrierMode === 'split' ? null : ($contractorId !== null ? (int) $contractorId : null),
                         'contractor_name' => isset($metadataPerformer['contractor_name']) ? (string) $metadataPerformer['contractor_name'] : null,
                         'fleet_vehicle_id' => isset($metadataPerformer['fleet_vehicle_id']) && $metadataPerformer['fleet_vehicle_id'] !== null
                             ? (int) $metadataPerformer['fleet_vehicle_id']
@@ -1130,16 +1238,16 @@ class OrderWizardController extends Controller
                         'fleet_driver_id' => isset($metadataPerformer['fleet_driver_id']) && $metadataPerformer['fleet_driver_id'] !== null
                             ? (int) $metadataPerformer['fleet_driver_id']
                             : null,
-                        'split_carriers' => is_array($metadataPerformer['split_carriers'] ?? null)
-                            ? $metadataPerformer['split_carriers']
-                            : [],
+                        'split_carriers' => $splitCarriers,
                     ];
                 })
                 ->all()
             : [];
 
         if ($fromLegs !== []) {
-            return $this->performersPayloadWithContractorLabels($fromLegs);
+            return $this->performersPayloadWithContractorLabels(
+                $this->mergeSavedPerformersIntoLegPayload($fromLegs, $savedPerformers)
+            );
         }
 
         if ($costRows !== []) {
@@ -1186,9 +1294,21 @@ class OrderWizardController extends Controller
         }
 
         $ids = collect($performers)
-            ->pluck('contractor_id')
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id): int => (int) $id)
+            ->flatMap(function (array $performer): array {
+                if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                    return collect($performer['split_carriers'])
+                        ->filter(fn (mixed $slot): bool => is_array($slot))
+                        ->map(fn (array $slot): ?int => isset($slot['contractor_id']) && $slot['contractor_id'] !== null
+                            ? (int) $slot['contractor_id']
+                            : null)
+                        ->all();
+                }
+
+                $id = $performer['contractor_id'] ?? null;
+
+                return $id !== null && $id !== '' ? [(int) $id] : [];
+            })
+            ->filter()
             ->unique()
             ->values()
             ->all();
@@ -1203,15 +1323,68 @@ class OrderWizardController extends Controller
 
         return collect($performers)
             ->map(function (array $p) use ($names): array {
+                if (($p['carrier_mode'] ?? 'single') === 'split' && is_array($p['split_carriers'] ?? null)) {
+                    $p['split_carriers'] = collect($p['split_carriers'])
+                        ->map(function (array $slot) use ($names): array {
+                            $idInt = isset($slot['contractor_id']) && $slot['contractor_id'] !== null
+                                ? (int) $slot['contractor_id']
+                                : null;
+                            $label = $idInt !== null ? $names->get($idInt) : null;
+                            $slotName = trim((string) ($slot['contractor_name'] ?? ''));
+
+                            return [
+                                ...$slot,
+                                'contractor_name' => $slotName !== ''
+                                    ? $slotName
+                                    : ($label !== null && $label !== '' ? (string) $label : null),
+                            ];
+                        })
+                        ->all();
+
+                    return $p;
+                }
+
                 $id = $p['contractor_id'] ?? null;
                 $idInt = $id !== null && $id !== '' ? (int) $id : null;
                 $label = $idInt !== null ? $names->get($idInt) : null;
+                $existingName = trim((string) ($p['contractor_name'] ?? ''));
 
                 return [
                     ...$p,
-                    'contractor_name' => $label !== null && $label !== '' ? (string) $label : null,
+                    'contractor_name' => $existingName !== ''
+                        ? $existingName
+                        : ($label !== null && $label !== '' ? (string) $label : null),
                 ];
             })
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $fromLegs
+     * @param  list<array<string, mixed>>  $savedPerformers
+     * @return list<array<string, mixed>>
+     */
+    private function mergeSavedPerformersIntoLegPayload(array $fromLegs, array $savedPerformers): array
+    {
+        if ($savedPerformers === []) {
+            return $fromLegs;
+        }
+
+        $savedByStage = collect($savedPerformers)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->keyBy(fn (array $row): string => $this->normalizeStageIdentifierForWizard((string) ($row['stage'] ?? 'leg_1')));
+
+        return collect($fromLegs)
+            ->map(function (array $legRow) use ($savedByStage): array {
+                $saved = $savedByStage->get($this->normalizeStageIdentifierForWizard((string) ($legRow['stage'] ?? 'leg_1')));
+
+                if (! is_array($saved)) {
+                    return $legRow;
+                }
+
+                return $this->mergePerformerRow($legRow, $this->normalizePerformerRowFromWizardState($saved));
+            })
+            ->values()
             ->all();
     }
 
@@ -1266,6 +1439,7 @@ class OrderWizardController extends Controller
         $relations = ['client', 'ownCompany', 'manager', 'legs.routePoints'];
 
         if (Schema::hasTable('leg_contractor_assignments')) {
+            $relations[] = 'legs.contractorAssignments';
             $relations[] = 'legs.contractorAssignment';
         }
 
@@ -1370,10 +1544,39 @@ class OrderWizardController extends Controller
 
         if ($order->relationLoaded('legs') && Schema::hasTable('leg_contractor_assignments')) {
             foreach ($order->legs as $leg) {
-                $cid = $leg->contractorAssignment?->contractor_id;
-                if ($cid !== null) {
-                    $ids->push($cid);
+                if ($leg->relationLoaded('contractorAssignments')) {
+                    foreach ($leg->contractorAssignments as $assignment) {
+                        if ($assignment->contractor_id !== null) {
+                            $ids->push($assignment->contractor_id);
+                        }
+                    }
+                } else {
+                    $cid = $leg->contractorAssignment?->contractor_id;
+                    if ($cid !== null) {
+                        $ids->push($cid);
+                    }
                 }
+            }
+        }
+
+        $savedPerformers = is_array($order->performers) ? $order->performers : [];
+        foreach ($savedPerformers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (is_array($slot) && isset($slot['contractor_id']) && $slot['contractor_id'] !== null) {
+                        $ids->push($slot['contractor_id']);
+                    }
+                }
+
+                continue;
+            }
+
+            if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
+                $ids->push($performer['contractor_id']);
             }
         }
 
@@ -1668,38 +1871,75 @@ class OrderWizardController extends Controller
             $savedCosts = [];
         }
 
+        if ($savedCosts !== []) {
+            $contractorsCosts = collect($savedCosts)
+                ->filter(fn (mixed $cost): bool => is_array($cost))
+                ->values()
+                ->map(function (array $cost) use ($financialTerm, $order): array {
+                    return [
+                        'stage' => $cost['stage'] ?? 'leg_1',
+                        'carrier_slot' => isset($cost['carrier_slot']) && $cost['carrier_slot'] !== null && $cost['carrier_slot'] !== ''
+                            ? (int) $cost['carrier_slot']
+                            : null,
+                        'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
+                            ? (int) $cost['contractor_id']
+                            : null,
+                        'amount' => $cost['amount'] ?? null,
+                        'currency' => $cost['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
+                        'payment_form' => $cost['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
+                        'payment_schedule' => is_array($cost['payment_schedule'] ?? null) ? $cost['payment_schedule'] : [],
+                        'payment_terms' => $cost['payment_terms'] ?? '',
+                    ];
+                })
+                ->all();
+
+            return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
+        }
+
         $contractorsCosts = collect($serializedPerformers)
             ->values()
-            ->map(function ($performer, int $index) use ($financialTerm, $savedCosts, $order): array {
+            ->flatMap(function ($performer, int $index) use ($financialTerm, $order): array {
                 if (! is_array($performer)) {
-                    return [
+                    return [[
                         'stage' => 'leg_'.($index + 1),
+                        'carrier_slot' => null,
                         'contractor_id' => null,
                         'amount' => null,
                         'currency' => $financialTerm?->client_currency ?? 'RUB',
                         'payment_form' => $order->carrier_payment_form ?? 'no_vat',
                         'payment_schedule' => [],
                         'payment_terms' => '',
-                    ];
+                    ]];
                 }
 
-                $stageKey = $this->normalizeStageIdentifierForWizard((string) ($performer['stage'] ?? 'leg_'.($index + 1)));
-                $existingCost = collect($savedCosts)
-                    ->first(function (array $cost) use ($stageKey): bool {
-                        return $this->normalizeStageIdentifierForWizard((string) ($cost['stage'] ?? '')) === $stageKey;
-                    });
+                if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                    return collect($performer['split_carriers'])
+                        ->filter(fn (mixed $slot): bool => is_array($slot))
+                        ->map(fn (array $slot): array => [
+                            'stage' => $performer['stage'] ?? 'leg_1',
+                            'carrier_slot' => (int) ($slot['slot'] ?? 1),
+                            'contractor_id' => isset($slot['contractor_id']) && $slot['contractor_id'] !== null
+                                ? (int) $slot['contractor_id']
+                                : null,
+                            'amount' => null,
+                            'currency' => $financialTerm?->client_currency ?? 'RUB',
+                            'payment_form' => $order->carrier_payment_form ?? 'no_vat',
+                            'payment_schedule' => [],
+                            'payment_terms' => '',
+                        ])
+                        ->all();
+                }
 
-                $ec = is_array($existingCost) ? $existingCost : [];
-
-                return [
+                return [[
                     'stage' => $performer['stage'] ?? 'leg_'.($index + 1),
+                    'carrier_slot' => null,
                     'contractor_id' => $performer['contractor_id'] ?? null,
-                    'amount' => $ec['amount'] ?? null,
-                    'currency' => $ec['currency'] ?? $financialTerm?->client_currency ?? 'RUB',
-                    'payment_form' => $ec['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
-                    'payment_schedule' => $ec['payment_schedule'] ?? [],
-                    'payment_terms' => $ec['payment_terms'] ?? '',
-                ];
+                    'amount' => null,
+                    'currency' => $financialTerm?->client_currency ?? 'RUB',
+                    'payment_form' => $order->carrier_payment_form ?? 'no_vat',
+                    'payment_schedule' => [],
+                    'payment_terms' => '',
+                ]];
             })
             ->all();
 

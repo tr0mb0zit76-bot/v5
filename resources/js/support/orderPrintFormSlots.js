@@ -22,6 +22,35 @@ export function stageMatches(left, right) {
     return toStageKey(left) === toStageKey(right);
 }
 
+function expandCarrierPerformersForPrint(performers) {
+    const list = Array.isArray(performers) ? performers : [];
+    const expanded = [];
+
+    list.forEach((performer) => {
+        if (performer?.carrier_mode === 'split' && Array.isArray(performer.split_carriers) && performer.split_carriers.length > 0) {
+            performer.split_carriers.forEach((slot) => {
+                expanded.push({
+                    stage: performer.stage,
+                    carrier_slot: Number(slot?.slot ?? 1),
+                    contractor_id: slot?.contractor_id ?? null,
+                    contractor_name: slot?.contractor_name ?? null,
+                });
+            });
+
+            return;
+        }
+
+        expanded.push({
+            stage: performer.stage,
+            carrier_slot: null,
+            contractor_id: performer?.contractor_id ?? null,
+            contractor_name: performer?.contractor_name ?? null,
+        });
+    });
+
+    return expanded;
+}
+
 /**
  * @param {Array<{stage?: string}>} performers
  * @param {string} clientRequestMode
@@ -48,9 +77,11 @@ export function customerPrintSlots(performers, clientRequestMode) {
  * @param {Array<{stage?: string, contractor_id?: number|null, contractor_name?: string|null}>} performers
  */
 export function carrierPrintSlots(performers) {
-    const legs = (Array.isArray(performers) ? performers : []).filter((p) => p?.contractor_id);
+    const physicalLegs = Array.isArray(performers) ? performers : [];
+    const expanded = expandCarrierPerformersForPrint(physicalLegs);
+    const withCarrier = expanded.filter((row) => row?.contractor_id);
 
-    if (legs.length === 0) {
+    if (withCarrier.length === 0) {
         return [{
             slotKey: 'carrier-empty',
             label: 'Печатная форма перевозчик',
@@ -60,25 +91,46 @@ export function carrierPrintSlots(performers) {
         }];
     }
 
+    const hasSplitOnLeg = expanded.some((row) => row.carrier_slot != null);
+
+    if (hasSplitOnLeg) {
+        return withCarrier.map((row) => {
+            const stage = toStageKey(row.stage ?? 'leg_1');
+            const contractorId = Number(row.contractor_id);
+            const name = row.contractor_name ? String(row.contractor_name).trim() : '';
+            const slotLabel = row.carrier_slot ? ` · Исполнитель ${row.carrier_slot}` : '';
+
+            return {
+                slotKey: `carrier-${contractorId}-${stage}-slot${row.carrier_slot ?? 1}`,
+                label: name !== ''
+                    ? `Печатная форма перевозчик · ${name}${slotLabel} · ${stageLabel(stage)}`
+                    : `Печатная форма перевозчик${slotLabel} · ${stageLabel(stage)}`,
+                carrierContractorId: contractorId,
+                routeLegsAsTableRows: false,
+                orderLegStage: stage,
+            };
+        });
+    }
+
     const groups = new Map();
 
-    legs.forEach((performer) => {
-        const contractorId = Number(performer.contractor_id);
+    withCarrier.forEach((row) => {
+        const contractorId = Number(row.contractor_id);
         if (!groups.has(contractorId)) {
             groups.set(contractorId, []);
         }
-        groups.get(contractorId).push(performer);
+        groups.get(contractorId).push(row);
     });
 
     if (groups.size <= 1) {
-        const contractorId = Number(legs[0].contractor_id);
-        const name = legs[0].contractor_name ? String(legs[0].contractor_name).trim() : '';
+        const contractorId = Number(withCarrier[0].contractor_id);
+        const name = withCarrier[0].contractor_name ? String(withCarrier[0].contractor_name).trim() : '';
 
         return [{
             slotKey: `carrier-${contractorId}`,
             label: name !== '' ? `Печатная форма перевозчик · ${name}` : 'Печатная форма перевозчик',
             carrierContractorId: contractorId,
-            routeLegsAsTableRows: legs.length > 1,
+            routeLegsAsTableRows: physicalLegs.length > 1,
             orderLegStage: null,
         }];
     }

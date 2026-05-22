@@ -155,6 +155,28 @@ class OrderWizardService
                     $performer['contractor_id'] = (int) $performer['contractor_id'];
                 }
 
+                if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                    $performer['split_carriers'] = collect($performer['split_carriers'])
+                        ->filter(fn (mixed $slot): bool => is_array($slot))
+                        ->values()
+                        ->map(function (array $slot, int $index): array {
+                            return [
+                                'slot' => (int) ($slot['slot'] ?? ($index + 1)),
+                                'contractor_id' => isset($slot['contractor_id']) && $slot['contractor_id'] !== null && $slot['contractor_id'] !== ''
+                                    ? (int) $slot['contractor_id']
+                                    : null,
+                                'contractor_name' => isset($slot['contractor_name']) ? (string) $slot['contractor_name'] : null,
+                                'fleet_vehicle_id' => isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null && $slot['fleet_vehicle_id'] !== ''
+                                    ? (int) $slot['fleet_vehicle_id']
+                                    : null,
+                                'fleet_driver_id' => isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null && $slot['fleet_driver_id'] !== ''
+                                    ? (int) $slot['fleet_driver_id']
+                                    : null,
+                            ];
+                        })
+                        ->all();
+                }
+
                 return $performer;
             })
             ->all();
@@ -381,6 +403,28 @@ class OrderWizardService
             ->map(function (array $performer): array {
                 if (isset($performer['contractor_id']) && $performer['contractor_id'] !== null) {
                     $performer['contractor_id'] = (int) $performer['contractor_id'];
+                }
+
+                if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                    $performer['split_carriers'] = collect($performer['split_carriers'])
+                        ->filter(fn (mixed $slot): bool => is_array($slot))
+                        ->values()
+                        ->map(function (array $slot, int $index): array {
+                            return [
+                                'slot' => (int) ($slot['slot'] ?? ($index + 1)),
+                                'contractor_id' => isset($slot['contractor_id']) && $slot['contractor_id'] !== null && $slot['contractor_id'] !== ''
+                                    ? (int) $slot['contractor_id']
+                                    : null,
+                                'contractor_name' => isset($slot['contractor_name']) ? (string) $slot['contractor_name'] : null,
+                                'fleet_vehicle_id' => isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null && $slot['fleet_vehicle_id'] !== ''
+                                    ? (int) $slot['fleet_vehicle_id']
+                                    : null,
+                                'fleet_driver_id' => isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null && $slot['fleet_driver_id'] !== ''
+                                    ? (int) $slot['fleet_driver_id']
+                                    : null,
+                            ];
+                        })
+                        ->all();
                 }
 
                 return $performer;

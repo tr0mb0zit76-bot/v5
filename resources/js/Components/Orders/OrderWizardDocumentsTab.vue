@@ -145,6 +145,60 @@ watch(
     },
 );
 
+function defaultTemplateForOptions(options) {
+    const list = Array.isArray(options) ? options : [];
+
+    return list.find((template) => template.is_default) ?? list[0] ?? null;
+}
+
+function ensureDefaultTemplateSelection() {
+    customerSlots.value.forEach((slot) => {
+        if (templateSelection[slot.slotKey]) {
+            return;
+        }
+
+        const template = defaultTemplateForOptions(props.printFormTemplateOptionsCustomer);
+        if (template?.id) {
+            templateSelection[slot.slotKey] = template.id;
+        }
+    });
+
+    carrierSlots.value.forEach((slot) => {
+        if (!slot.carrierContractorId || templateSelection[slot.slotKey]) {
+            return;
+        }
+
+        const template = defaultTemplateForOptions(props.printFormTemplateOptionsCarrier);
+        if (template?.id) {
+            templateSelection[slot.slotKey] = template.id;
+        }
+    });
+}
+
+watch(
+    [customerSlots, carrierSlots, () => props.printFormTemplateOptionsCustomer, () => props.printFormTemplateOptionsCarrier],
+    () => {
+        ensureDefaultTemplateSelection();
+    },
+    { immediate: true, deep: true },
+);
+
+function printCreateDisabledReason(slot, party) {
+    if (!props.isOrderFormEditable) {
+        return 'Карточка закрыта для правок: все печатные формы финализированы.';
+    }
+
+    if (!templateSelection[slot.slotKey]) {
+        return 'Выберите шаблон в списке.';
+    }
+
+    if (party === 'carrier' && !slot.carrierContractorId) {
+        return 'Укажите перевозчика на вкладке «Маршрут».';
+    }
+
+    return '';
+}
+
 function templateOptionLabel(template) {
     const parts = [template.name];
 
@@ -547,10 +601,14 @@ async function onGlobalDrop(event) {
                             type="button"
                             class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 dark:bg-emerald-600"
                             :disabled="!templateSelection[slot.slotKey] || !isOrderFormEditable"
+                            :title="printCreateDisabledReason(slot, 'customer')"
                             @click="createPrintWorkflow(slot, 'customer')"
                         >
                             Создать в карточке
                         </button>
+                        <p v-if="printCreateDisabledReason(slot, 'customer')" class="text-xs text-zinc-500">
+                            {{ printCreateDisabledReason(slot, 'customer') }}
+                        </p>
                     </div>
                     <PrintWorkflowDocList
                         :docs="docsForCustomerSlot(slot)"
@@ -608,10 +666,14 @@ async function onGlobalDrop(event) {
                             type="button"
                             class="rounded-xl bg-rose-700 px-4 py-2 text-sm font-medium text-white hover:bg-rose-800 disabled:opacity-50 dark:bg-rose-600"
                             :disabled="!templateSelection[slot.slotKey] || !isOrderFormEditable"
+                            :title="printCreateDisabledReason(slot, 'carrier')"
                             @click="createPrintWorkflow(slot, 'carrier')"
                         >
                             Создать в карточке
                         </button>
+                        <p v-if="printCreateDisabledReason(slot, 'carrier')" class="text-xs text-zinc-500">
+                            {{ printCreateDisabledReason(slot, 'carrier') }}
+                        </p>
                     </div>
                     <PrintWorkflowDocList
                         :docs="docsForCarrierSlot(slot)"
