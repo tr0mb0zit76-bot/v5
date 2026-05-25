@@ -62,11 +62,13 @@ class RoleAccess
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей; при выборе компонентов уточните строки ниже'],
             ['key' => 'modules_catalog', 'label' => 'Модули: каталог', 'description' => 'Страница со списком модулей'],
             ['key' => 'modules_how_much_fits', 'label' => 'Модули: «Сколько влезет?»', 'description' => '3D-планировщик загрузки транспорта'],
+            ['key' => 'modules_how_much_costs', 'label' => 'Модули: «Сколько стоит?»', 'description' => 'Калькулятор маржи и дельты сделки'],
             ['key' => 'scripts', 'label' => 'Помощник продавца', 'description' => 'Общий доступ к модулю; при выборе компонентов уточните строки ниже'],
             ['key' => 'sales_assistant_scripts', 'label' => 'Помощник продавца: скрипты', 'description' => 'Список сценариев и прохождение шагов (в т.ч. из тренажёра)'],
             ['key' => 'sales_assistant_book', 'label' => 'Помощник продавца: книга продаж', 'description' => 'База знаний и статьи'],
             ['key' => 'sales_assistant_trainer', 'label' => 'Помощник продавца: тренажёр', 'description' => 'Запуск тренировок по сценариям'],
             ['key' => 'sales_assistant_trainer_analytics', 'label' => 'Помощник продавца: аналитика тренажёра', 'description' => 'Сводки и отчёты по тренировкам'],
+            ['key' => 'sales_assistant_counter', 'label' => 'Помощник продавца: считалка', 'description' => 'Калькулятор маржи и ставок для переговоров'],
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
             ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI и персональные условия (коэффициенты). Учёт зарплатных периодов — в модуле «Финансы»'],
@@ -303,6 +305,7 @@ class RoleAccess
         return [
             'modules_catalog',
             'modules_how_much_fits',
+            'modules_how_much_costs',
         ];
     }
 
@@ -335,6 +338,7 @@ class RoleAccess
             'sales_assistant_book',
             'sales_assistant_trainer',
             'sales_assistant_trainer_analytics',
+            'sales_assistant_counter',
         ];
     }
 
@@ -743,6 +747,19 @@ class RoleAccess
     public static function userHasPermission(?User $user, string $permission): bool
     {
         return in_array($permission, static::userPermissions($user), true);
+    }
+
+    public static function canAccessSalesAssistantCounter(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_counter');
     }
 
     public static function canReadSalesBook(?User $user): bool

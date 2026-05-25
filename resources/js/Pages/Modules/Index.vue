@@ -27,13 +27,35 @@
                     Открыть модуль
                 </div>
             </button>
+
+            <button
+                type="button"
+                :class="crmModuleCard"
+                @click="router.visit(route('modules.how-much-costs.index'))"
+            >
+                <div class="flex items-start justify-between gap-4">
+                    <div class="crm-module-card__icon flex h-12 w-12 items-center justify-center rounded-2xl">
+                        <Calculator class="h-6 w-6" />
+                    </div>
+                    <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                        Скоро
+                    </span>
+                </div>
+                <div class="mt-5 text-xl font-semibold">Сколько стоит?</div>
+                <p class="mt-2 text-sm leading-6">
+                    Калькулятор ставки на перевозку: маршрут, тариф и условия рейса для быстрой оценки стоимости.
+                </p>
+                <div class="crm-module-card__cta mt-5 text-sm font-medium group-hover:underline">
+                    Открыть модуль
+                </div>
+            </button>
         </div>
     </div>
 </template>
 
 <script setup>
 import { router } from '@inertiajs/vue3';
-import { Boxes } from 'lucide-vue-next';
+import { Boxes, Calculator } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmModuleCard } from '@/support/crmUi.js';

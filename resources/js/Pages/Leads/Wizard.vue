@@ -21,7 +21,6 @@
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать коммерческое</button>
                 <button type="button" :class="crmBtnPrimary" :disabled="!selectedLeadId || !form.counterparty_id" @click="convertLead"><ArrowRightLeft class="h-4 w-4" />Конвертировать в заказ</button>
                 <button type="button" :class="crmBtnCreate" @click="submit"><Save class="h-4 w-4" />Сохранить</button>
             </div>
@@ -99,6 +98,7 @@
                             <button
                                 type="button"
                                 class="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                @mousedown.prevent
                                 @click.stop="openLeadCounterpartyModal"
                             >
                                 Новый контрагент
@@ -277,64 +277,25 @@
                 </div>
             </div>
 
-            <div v-else class="grid gap-4 xl:grid-cols-[1.4fr,0.9fr]">
-                <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммерческое предложение</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Для лида доступны только коммерческие шаблоны и черновики DOCX.</p></div><button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId" @click="prepareProposal"><FileText class="h-4 w-4" />Сформировать</button></div>
-                    <div class="grid gap-3 md:grid-cols-[minmax(0,1fr),auto]">
-                        <div class="space-y-2">
-                            <label :class="crmLabel">Шаблон коммерческого</label>
-                            <select v-model="selectedTemplateId" :class="crmFieldFluid">
-                                <option value="">Не выбран</option>
-                                <option v-for="template in printFormTemplateOptions" :key="template.id" :value="String(template.id)">
-                                    {{ templateOptionLabel(template) }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="flex items-end">
-                            <button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId || !selectedTemplateId" @click="previewCommercialDraft"><FileText class="h-4 w-4" />Предпросмотр</button>
-                            <button type="button" :class="crmBtnSecondary" :disabled="!selectedLeadId || !selectedTemplateId" @click="downloadCommercialDraft"><FileText class="h-4 w-4" />Скачать DOCX</button>
-                        </div>
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-2">
-                        <div><div :class="crmPageEyebrow">Тема</div><div class="text-sm">{{ form.title || '—' }}</div></div>
-                        <div><div :class="crmPageEyebrow">Цена</div><div class="text-sm">{{ form.target_price ? formatMoney(form.target_price, form.target_currency) : '—' }}</div></div>
-                        <div><div :class="crmPageEyebrow">Маршрут</div><div class="text-sm">{{ form.loading_location || '—' }} → {{ form.unloading_location || '—' }}</div></div>
-                        <div><div :class="crmPageEyebrow">Контрагент</div><div class="text-sm">{{ selectedCounterpartyName }}</div></div>
-                    </div>
-                </div>
-                <div class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                    <h3 class="text-base font-semibold">История КП и конверсии</h3>
-                    <div v-for="offer in form.offers" :key="offer.id" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="font-medium">{{ offer.number || 'Черновик КП' }}</div>
-                            <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ offer.sent_at ? 'отправлено' : offer.offer_date || '—' }}</span>
-                        </div>
-                        <div class="mt-2 text-zinc-500 dark:text-zinc-400">{{ offer.price ? formatMoney(offer.price, offer.currency) : 'Без цены' }}</div>
-                        <button
-                            v-if="!offer.sent_at"
-                            type="button"
-                            :class="`${crmBtnSecondary} mt-3`"
-                            @click="openSendOfferModal(offer)"
-                        >
-                            Отправить по e-mail
-                        </button>
-                    </div>
-                    <div v-if="form.offers.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Коммерческие предложения ещё не формировались.</div>
-                    <div v-if="form.orders.length" class="border border-zinc-200 p-3 text-sm dark:border-zinc-800"><div :class="crmPageEyebrow">Конвертирован в заказ</div><div class="mt-2 font-medium">{{ form.orders[0].order_number }}</div></div>
-                </div>
-            </div>
+            <LeadWizardCommercialTab
+                v-else
+                v-model:selected-template-id="selectedTemplateId"
+                :lead-id="selectedLeadId"
+                :offers="form.offers"
+                :orders="form.orders"
+                :print-form-template-options="printFormTemplateOptions"
+                @send-offer="openSendOfferModal"
+            />
         </div>
 
         <div v-if="selectedLeadId" class="flex items-center justify-between gap-4 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
             <div class="text-sm text-zinc-500 dark:text-zinc-400">Удаление используется для чистки воронки.</div>
             <button type="button" :class="crmBtnDangerMuted" @click="destroyLead"><Trash2 class="h-4 w-4" />Удалить</button>
         </div>
-    </div>
 
-    <Teleport to="body">
         <div
             v-show="showCounterpartyModal"
-            class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
             @click.self="closeLeadCounterpartyModal"
         >
             <div :class="`${crmModalPanel} w-full max-w-xl p-5 shadow-2xl`" @click.stop>
@@ -380,7 +341,7 @@
         </div>
         <div
             v-show="showSendOfferModal"
-            class="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4"
             @click.self="closeSendOfferModal"
         >
             <form :class="`${crmModalPanel} w-full max-w-lg space-y-3 p-5 shadow-2xl`" @submit.prevent="submitSendOffer">
@@ -394,7 +355,7 @@
                 </div>
             </form>
         </div>
-    </Teleport>
+</div>
 </template>
 
 <script setup>
@@ -404,6 +365,7 @@ import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, P
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
+import LeadWizardCommercialTab from '@/Components/Leads/LeadWizardCommercialTab.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -417,7 +379,6 @@ import {
     crmWizardHeader,
     crmWizardShell,
     crmModalPanel,
-    crmPageEyebrow,
 } from '@/support/crmUi.js';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page) });
@@ -541,7 +502,6 @@ const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
 const businessProcessesEnabled = computed(() => Boolean(props.businessProcessesEnabled));
 const selectedCounterparty = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.counterparty_id)) ?? null);
-const selectedCounterpartyName = computed(() => selectedCounterparty.value?.name ?? 'Не выбран');
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
 const openTasks = computed(() => (form.tasks ?? []).filter((task) => task.status !== 'done'));
@@ -806,8 +766,6 @@ function submit() {
     router.post(route('leads.store'), payload);
 }
 
-function prepareProposal() { if (selectedLeadId.value) router.post(route('leads.proposal', selectedLeadId.value)); }
-
 const showSendOfferModal = ref(false);
 const sendOfferTarget = ref(null);
 const activityTimelineRef = ref(null);
@@ -868,45 +826,11 @@ function createNextStep() {
         },
     });
 }
-function formatMoney(value, currency = 'RUB') { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value)); }
 function formatDateTime(value) {
     if (!value) { return '—'; }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) { return value; }
     return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
-}
-function templateOptionLabel(template) {
-    if (template.contractor_name) {
-        return `${template.name} • ${template.contractor_name}`;
-    }
-
-    if (template.is_default) {
-        return `${template.name} • по умолчанию`;
-    }
-
-    return template.name;
-}
-function previewCommercialDraft() {
-    if (!selectedLeadId.value || !selectedTemplateId.value) { return; }
-
-    window.open(
-        route('leads.templates.generate-draft', {
-            lead: selectedLeadId.value,
-            printFormTemplate: selectedTemplateId.value,
-            preview: 1,
-            preview_mode: 'browser',
-        }),
-        '_blank'
-    );
-}
-
-function downloadCommercialDraft() {
-    if (!selectedLeadId.value || !selectedTemplateId.value) { return; }
-
-    window.location.href = route('leads.templates.generate-draft', {
-        lead: selectedLeadId.value,
-        printFormTemplate: selectedTemplateId.value,
-    });
 }
 </script>
 

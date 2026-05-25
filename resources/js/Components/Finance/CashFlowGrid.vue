@@ -19,7 +19,6 @@
                     <input
                         v-model="quickSearch"
                         type="text"
-                        placeholder="Поиск по реестру"
                         :class="crmGridSearchField"
                     />
                 </div>

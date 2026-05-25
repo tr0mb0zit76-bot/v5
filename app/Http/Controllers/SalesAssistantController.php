@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\SalesPlaySessionOutcome;
 use App\Enums\SalesTrainerDialogQuality;
+use App\Http\Requests\CalculateSalesMarginCounterRequest;
 use App\Http\Requests\ImportSalesBookArticleRequest;
 use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
@@ -12,6 +13,8 @@ use App\Models\SalesBookArticle;
 use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
+use App\Services\SalesMarginCounterService;
+use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -30,6 +33,33 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class SalesAssistantController extends Controller
 {
     private const string BOOK_ASSET_PREFIX = 'sales-book-assets/';
+
+    public function counter(Request $request): Response
+    {
+        abort_unless(RoleAccess::canAccessSalesAssistantCounter($request->user()), 403);
+
+        return Inertia::render('SalesAssistant/Counter', [
+            'paymentFormOptions' => PaymentFormDictionary::options(),
+            'defaultMinMarginPercent' => SalesMarginCounterService::DEFAULT_MIN_MARGIN_PERCENT,
+            'defaultCustomerPaymentForm' => PaymentFormDictionary::defaultClientVatCode(),
+            'orderDate' => now()->toDateString(),
+        ]);
+    }
+
+    public function calculateCounter(
+        CalculateSalesMarginCounterRequest $request,
+        SalesMarginCounterService $salesMarginCounterService,
+    ): JsonResponse {
+        abort_unless(RoleAccess::canAccessSalesAssistantCounter($request->user()), 403);
+
+        $payload = $request->validated();
+        $payload['manager_id'] = $request->user()?->id;
+        $payload['order_date'] = $payload['order_date'] ?? now()->toDateString();
+
+        return response()->json(
+            $salesMarginCounterService->calculate($payload),
+        );
+    }
 
     public function book(Request $request): Response
     {

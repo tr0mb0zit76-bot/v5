@@ -158,6 +158,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/leads/{lead}', 'update')->name('leads.update');
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
         Route::post('/leads/{lead}/proposal', 'prepareProposal')->name('leads.proposal');
+        Route::post('/leads/{lead}/commercial/from-template', 'storeCommercialFromTemplate')->name('leads.commercial.from-template');
+        Route::get('/leads/{lead}/offers/{offer}/draft', 'downloadOfferDraft')->name('leads.offers.draft');
         Route::post('/leads/{lead}/next-step', 'storeNextStep')->name('leads.next-step.store');
         Route::patch('/leads/{lead}/process-stage', 'advanceProcessStage')->name('leads.process-stage');
         Route::get('/leads/{lead}/templates/{printFormTemplate}/draft', 'generateCommercialDraft')->name('leads.templates.generate-draft');
@@ -195,6 +197,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::post('/book/import', 'importBookArticle')->name('book.import');
                 Route::post('/book/assets', 'uploadBookAsset')->name('book.assets.upload');
                 Route::get('/book/assets', 'showBookAsset')->name('book.assets.show');
+            });
+        });
+
+        Route::middleware('visibility.area:sales_assistant_counter')->group(function () {
+            Route::controller(SalesAssistantController::class)->group(function () {
+                Route::get('/counter', 'counter')->name('counter');
+                Route::post('/counter/calculate', 'calculateCounter')->name('counter.calculate');
             });
         });
 
@@ -457,6 +466,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/transport-templates/{transportTemplate}', 'destroyTransportTemplate')->name('transport-templates.destroy');
         });
     });
+
+    Route::get('/modules/how-much-costs', fn () => Inertia::render('Modules/HowMuchCosts'))
+        ->middleware('visibility.area:modules_how_much_costs')
+        ->name('modules.how-much-costs.index');
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.area:settings')->name('settings.index');
 

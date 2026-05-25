@@ -8,7 +8,6 @@
             v-model="quickSearch"
             type="text"
             :class="crmGridSearchField"
-            placeholder="Поиск по реестру"
           />
         </div>
 

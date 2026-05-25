@@ -13,6 +13,7 @@ use App\Models\BusinessProcess;
 use App\Models\BusinessProcessStage;
 use App\Models\Contractor;
 use App\Models\Lead;
+use App\Models\LeadOffer;
 use App\Models\PrintFormTemplate;
 use App\Models\Task;
 use App\Services\ActivityLedgerService;
@@ -27,6 +28,7 @@ use App\Support\LeadStatus;
 use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -255,40 +257,7 @@ class LeadController extends Controller
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
 
-        $offer = $lead->offers()->latest('id')->first();
-
-        $payload = [
-            'title' => $lead->title,
-            'description' => $lead->description,
-            'target_price' => $lead->target_price,
-            'target_currency' => $lead->target_currency,
-            'route' => [
-                'loading_location' => $lead->loading_location,
-                'unloading_location' => $lead->unloading_location,
-            ],
-        ];
-
-        if ($offer === null) {
-            $offer = $lead->offers()->create([
-                'status' => 'prepared',
-                'number' => 'КП-'.$lead->number,
-                'title' => $lead->title,
-                'offer_date' => now()->toDateString(),
-                'price' => $lead->target_price,
-                'currency' => $lead->target_currency ?: 'RUB',
-                'payload' => $payload,
-                'created_by' => $request->user()?->id,
-            ]);
-        } else {
-            $offer->update([
-                'status' => 'prepared',
-                'title' => $lead->title,
-                'offer_date' => now()->toDateString(),
-                'price' => $lead->target_price,
-                'currency' => $lead->target_currency ?: 'RUB',
-                'payload' => $payload,
-            ]);
-        }
+        $offer = $this->prepareOrUpdateLeadOffer($lead, $request->user());
 
         $this->activityLedger->record(
             $lead,
@@ -307,6 +276,83 @@ class LeadController extends Controller
         ])->save();
 
         return to_route('leads.show', $lead);
+    }
+
+    public function storeCommercialFromTemplate(
+        Request $request,
+        Lead $lead,
+        LeadPrintFormDraftService $draftService,
+    ): RedirectResponse {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        $validated = $request->validate([
+            'print_form_template_id' => ['required', 'integer', 'exists:print_form_templates,id'],
+        ]);
+
+        $template = PrintFormTemplate::query()->findOrFail($validated['print_form_template_id']);
+        abort_if($template->entity_type !== 'lead', 422, 'Черновик можно сформировать только для шаблона лида.');
+        abort_if($template->document_type !== 'offer' || $template->document_group !== 'commercial', 422, 'В лидах доступны только коммерческие шаблоны.');
+        abort_if(blank($template->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
+        abort_unless($this->isTemplateAvailableForLead($template, $lead), 404);
+
+        $offer = $this->prepareOrUpdateLeadOffer($lead, $request->user(), $template);
+        $generatedFile = $draftService->generate($template, $lead);
+
+        $offer->update([
+            'generated_file_path' => $generatedFile['path'],
+            'payload' => array_merge(is_array($offer->payload) ? $offer->payload : [], [
+                'print_form_template_id' => $template->id,
+                'print_form_template_name' => $template->name,
+                'generated_disk' => $generatedFile['disk'],
+            ]),
+        ]);
+
+        $this->activityLedger->record(
+            $lead,
+            ActivityEventType::OfferPrepared,
+            'Черновик КП сохранён в карточке',
+            $offer->number,
+            [
+                'offer_id' => $offer->id,
+                'print_form_template_id' => $template->id,
+                'generated_file_path' => $generatedFile['path'],
+            ],
+            null,
+            $request->user(),
+            $offer,
+        );
+
+        $lead->forceFill([
+            'status' => 'proposal_ready',
+            'updated_by' => $request->user()?->id,
+        ])->save();
+
+        return to_route('leads.show', $lead)
+            ->with('flash', ['type' => 'success', 'message' => 'Черновик КП сохранён в карточке лида.']);
+    }
+
+    public function downloadOfferDraft(
+        Request $request,
+        Lead $lead,
+        LeadOffer $offer,
+        PrintFormDraftResponseBuilder $draftResponseBuilder,
+    ): \Symfony\Component\HttpFoundation\Response {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless($offer->lead_id === $lead->id, 404);
+        abort_if(blank($offer->generated_file_path), 404);
+
+        $payload = is_array($offer->payload) ? $offer->payload : [];
+        $disk = (string) ($payload['generated_disk'] ?? 'local');
+        $downloadName = ($offer->number ?: 'offer-'.$offer->id).'.docx';
+
+        return $draftResponseBuilder->fromStoredDocx(
+            $request,
+            $disk,
+            (string) $offer->generated_file_path,
+            $downloadName,
+        );
     }
 
     public function convert(ConvertLeadRequest $request, Lead $lead, LeadConversionService $leadConversionService): RedirectResponse
@@ -784,6 +830,7 @@ class LeadController extends Controller
                 'price' => $offer->price,
                 'currency' => $offer->currency,
                 'generated_file_path' => $offer->generated_file_path,
+                'print_template_name' => is_array($offer->payload) ? ($offer->payload['print_form_template_name'] ?? null) : null,
                 'sent_at' => optional($offer->sent_at)?->toIso8601String(),
             ])->values()->all(),
             'orders' => $lead->orders->map(fn ($order): array => [
@@ -846,5 +893,51 @@ class LeadController extends Controller
                 'status' => $lead->status,
             ],
         ]);
+    }
+
+    private function prepareOrUpdateLeadOffer(Lead $lead, ?Authenticatable $user, ?PrintFormTemplate $template = null): LeadOffer
+    {
+        $offer = $lead->offers()->latest('id')->first();
+
+        $payload = [
+            'title' => $lead->title,
+            'description' => $lead->description,
+            'target_price' => $lead->target_price,
+            'target_currency' => $lead->target_currency,
+            'route' => [
+                'loading_location' => $lead->loading_location,
+                'unloading_location' => $lead->unloading_location,
+            ],
+        ];
+
+        if ($template !== null) {
+            $payload['print_form_template_id'] = $template->id;
+            $payload['print_form_template_name'] = $template->name;
+        }
+
+        if ($offer === null) {
+            return $lead->offers()->create([
+                'status' => 'prepared',
+                'number' => 'КП-'.$lead->number,
+                'title' => $lead->title,
+                'offer_date' => now()->toDateString(),
+                'price' => $lead->target_price,
+                'currency' => $lead->target_currency ?: 'RUB',
+                'payload' => $payload,
+                'created_by' => $user?->id,
+            ]);
+        }
+
+        $existingPayload = is_array($offer->payload) ? $offer->payload : [];
+        $offer->update([
+            'status' => 'prepared',
+            'title' => $lead->title,
+            'offer_date' => now()->toDateString(),
+            'price' => $lead->target_price,
+            'currency' => $lead->target_currency ?: 'RUB',
+            'payload' => array_merge($existingPayload, $payload),
+        ]);
+
+        return $offer->refresh();
     }
 }

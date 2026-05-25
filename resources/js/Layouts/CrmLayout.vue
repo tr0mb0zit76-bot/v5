@@ -631,10 +631,12 @@ const MENU_ROUTES = {
     modules: '/modules',
     'modules-catalog': '/modules',
     'modules-how-much-fits': '/modules/how-much-fits',
+    'modules-how-much-costs': '/modules/how-much-costs',
     'sales-assistant-scripts': '/scripts',
     'sales-assistant-book': '/sales-assistant/book',
     'sales-assistant-trainer': '/sales-assistant/trainer',
     'sales-assistant-trainer-analytics': '/sales-assistant/trainer/analytics',
+    'sales-assistant-counter': '/sales-assistant/counter',
     settings: '/settings',
     users: '/settings/users',
     roles: '/settings/roles',
@@ -854,6 +856,7 @@ const menuItems = computed(() => {
         { area: 'sales_assistant_book', key: 'sales-assistant-book', label: 'Книга продаж' },
         { area: 'sales_assistant_trainer', key: 'sales-assistant-trainer', label: 'Тренажёр' },
         { area: 'sales_assistant_trainer_analytics', key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
+        { area: 'sales_assistant_counter', key: 'sales-assistant-counter', label: 'Считалка' },
     ];
     const salesAssistantChildren = assistantParts.filter(
         (p) => isAdmin || areas.includes('scripts') || areas.includes(p.area),
@@ -916,6 +919,7 @@ const menuItems = computed(() => {
             const moduleParts = [
                 { area: 'modules_catalog', key: 'modules-catalog', label: 'Каталог' },
                 { area: 'modules_how_much_fits', key: 'modules-how-much-fits', label: 'Сколько влезет?' },
+                { area: 'modules_how_much_costs', key: 'modules-how-much-costs', label: 'Сколько стоит?' },
             ];
             const moduleChildren = moduleParts.filter(
                 (part) => isAdmin || areas.includes('modules') || areas.includes(part.area),

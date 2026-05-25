@@ -1,44 +1,45 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
-        <section class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <section :class="`${crmPanel} space-y-4 p-6`">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Версия {{ payload.version.version_number }}</div>
-                    <h1 class="mt-1 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">Визуальный редактор</h1>
-                    <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ payload.script.title }}</p>
+                    <div :class="crmPageEyebrow">Версия {{ payload.version.version_number }}</div>
+                    <h1 :class="crmPageTitle">Визуальный редактор</h1>
+                    <p :class="`${crmPageLead} mt-2`">{{ payload.script.title }}</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        class="rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                        @click="addNode"
-                    >
+                    <button type="button" :class="crmBtnSecondary" @click="addNode">
                         Добавить шаг
                     </button>
-                    <button
-                        type="button"
-                        :class="crmBtnCreate"
-                        @click="saveGraph"
-                    >
+                    <button type="button" :class="crmBtnCreate" @click="saveGraph">
                         Сохранить граф
                     </button>
                 </div>
             </div>
-            <div class="mt-4 flex flex-wrap gap-4 text-sm">
-                <Link :href="route('scripts.editor.versions.show', payload.version.id)" class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300">
+            <div class="flex flex-wrap gap-4 text-sm">
+                <Link
+                    :href="route('scripts.editor.versions.show', payload.version.id)"
+                    class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+                >
                     ← К форме редактора
                 </Link>
-                <Link :href="route('scripts.editor.index')" class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300">
+                <Link
+                    :href="route('scripts.editor.index')"
+                    class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+                >
                     К списку сценариев
                 </Link>
             </div>
             <p
                 v-if="page.props.flash?.message"
-                class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
             >
                 {{ page.props.flash.message }}
             </p>
-            <div v-if="page.props.errors && Object.keys(page.props.errors).length" class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
+            <div
+                v-if="page.props.errors && Object.keys(page.props.errors).length"
+                class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200"
+            >
                 <ul class="list-inside list-disc space-y-1">
                     <li v-for="(msg, key) in page.props.errors" :key="key">
                         {{ key }}: {{ Array.isArray(msg) ? msg[0] : msg }}
@@ -48,16 +49,32 @@
         </section>
 
         <section class="grid gap-6 xl:grid-cols-[1fr_340px]">
-            <div class="border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                <div class="mb-3 rounded-xl border border-zinc-100 p-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                    Перетаскивайте карточки за верхнюю панель. Выберите шаг и редактируйте поля справа. Переходы рисуются из ключей шагов.
+            <div :class="`${crmPanel} p-3`">
+                <div :class="`${crmPanel} mb-3 p-3 text-xs`">
+                    <p :class="crmPageLead">
+                        Перетаскивайте карточки за верхнюю панель. Выберите шаг и редактируйте поля справа. Переходы рисуются из ключей шагов.
+                    </p>
                 </div>
 
-                <div ref="canvasRef" class="relative h-[720px] overflow-auto rounded-xl border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+                <div
+                    ref="canvasRef"
+                    class="crm-graph-canvas relative h-[720px] overflow-auto rounded-xl border p-0"
+                >
                     <svg class="pointer-events-none absolute inset-0 h-full w-full">
                         <g v-for="edge in edgeLines" :key="edge.id">
-                            <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-zinc-400 dark:stroke-zinc-600" stroke-width="2" />
-                            <text :x="edge.labelX" :y="edge.labelY" class="fill-zinc-600 text-[11px] dark:fill-zinc-300">
+                            <line
+                                :x1="edge.x1"
+                                :y1="edge.y1"
+                                :x2="edge.x2"
+                                :y2="edge.y2"
+                                class="stroke-zinc-400 dark:stroke-zinc-600"
+                                stroke-width="2"
+                            />
+                            <text
+                                :x="edge.labelX"
+                                :y="edge.labelY"
+                                class="fill-zinc-600 text-[11px] dark:fill-zinc-300"
+                            >
                                 {{ edge.label }}
                             </text>
                         </g>
@@ -66,36 +83,36 @@
                     <article
                         v-for="node in graphNodes"
                         :key="node.client_key"
-                        class="absolute w-[280px] rounded-xl border bg-white p-3 shadow-sm transition dark:bg-zinc-950"
-                        :class="selectedNodeKey === node.client_key ? 'border-sky-500 ring-2 ring-sky-200 dark:ring-sky-900' : 'border-zinc-200 dark:border-zinc-700'"
+                        class="crm-graph-node absolute w-[280px] p-3 shadow-sm transition"
+                        :class="selectedNodeKey === node.client_key ? 'crm-graph-node--selected' : ''"
                         :style="{ left: `${node.canvas_x}px`, top: `${node.canvas_y}px` }"
                         @click="selectNode(node.client_key)"
                     >
                         <header
-                            class="cursor-grab rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                            class="crm-graph-node__handle cursor-grab rounded-lg border px-2 py-1.5 text-xs font-medium"
                             @mousedown="startDrag($event, node.client_key)"
                         >
                             {{ node.client_key }} · {{ kindLabel(node.kind) }}
                         </header>
-                        <p class="mt-2 line-clamp-5 whitespace-pre-wrap text-sm text-zinc-800 dark:text-zinc-200">{{ node.body }}</p>
+                        <p class="mt-2 line-clamp-5 whitespace-pre-wrap text-sm">{{ node.body }}</p>
                     </article>
                 </div>
             </div>
 
             <div class="space-y-4">
-                <section class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Стартовый шаг</h2>
+                <section :class="`${crmPanel} space-y-2 p-4`">
+                    <h2 :class="crmSectionTitle">Стартовый шаг</h2>
                     <input
                         v-model="entryNodeKey"
                         type="text"
-                        class="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                        :class="crmFieldFluid"
                         placeholder="client_key"
                     />
                 </section>
 
-                <section class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <section :class="`${crmPanel} space-y-3 p-4`">
                     <div class="flex items-center justify-between gap-2">
-                        <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Шаг</h2>
+                        <h2 :class="crmSectionTitle">Шаг</h2>
                         <button
                             v-if="selectedNode"
                             type="button"
@@ -106,54 +123,64 @@
                         </button>
                     </div>
 
-                    <div v-if="selectedNode" class="mt-3 space-y-3">
+                    <div v-if="selectedNode" class="space-y-3">
                         <div>
-                            <label class="text-xs text-zinc-500">Ключ</label>
-                            <input v-model="selectedNode.client_key" type="text" class="mt-1 w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                            <label :class="crmLabelCompact">Ключ</label>
+                            <input v-model="selectedNode.client_key" type="text" :class="`${crmFieldFluid} mt-1`" />
                         </div>
                         <div>
-                            <label class="text-xs text-zinc-500">Тип</label>
-                            <select v-model="selectedNode.kind" class="mt-1 w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                            <label :class="crmLabelCompact">Тип</label>
+                            <select v-model="selectedNode.kind" :class="`${crmFieldFluid} mt-1`">
                                 <option v-for="kind in nodeKinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option>
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs text-zinc-500">Текст</label>
-                            <textarea v-model="selectedNode.body" rows="4" class="mt-1 w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                            <label :class="crmLabelCompact">Текст</label>
+                            <textarea v-model="selectedNode.body" rows="4" :class="`${crmFieldFluid} mt-1`" />
                         </div>
                         <div>
-                            <label class="text-xs text-zinc-500">Подсказка</label>
-                            <input v-model="selectedNode.hint" type="text" class="mt-1 w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+                            <label :class="crmLabelCompact">Подсказка</label>
+                            <input v-model="selectedNode.hint" type="text" :class="`${crmFieldFluid} mt-1`" />
                         </div>
                     </div>
-                    <p v-else class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Выберите шаг на схеме.</p>
+                    <p v-else :class="crmPageLead">Выберите шаг на схеме.</p>
                 </section>
 
-                <section class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                    <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Переходы</h2>
-                    <form class="mt-3 grid gap-2" @submit.prevent="addTransition">
-                        <select v-model="newTransition.from_client_key" class="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <section :class="`${crmPanel} space-y-3 p-4`">
+                    <h2 :class="crmSectionTitle">Переходы</h2>
+                    <form class="grid gap-2" @submit.prevent="addTransition">
+                        <select v-model="newTransition.from_client_key" :class="crmFieldFluid">
                             <option disabled value="">Из шага</option>
                             <option v-for="node in graphNodes" :key="`from-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
                         </select>
-                        <select v-model="newTransition.to_client_key" class="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                        <select v-model="newTransition.to_client_key" :class="crmFieldFluid">
                             <option disabled value="">В шаг</option>
                             <option v-for="node in graphNodes" :key="`to-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
                         </select>
-                        <select v-model="newTransition.sales_script_reaction_class_id" class="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+                        <select v-model="newTransition.sales_script_reaction_class_id" :class="crmFieldFluid">
                             <option :value="null">Дальше</option>
                             <option v-for="reaction in reactionClasses" :key="reaction.id" :value="reaction.id">{{ reaction.label }}</option>
                         </select>
-                        <button type="submit" class="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800">
+                        <button type="submit" :class="crmBtnSecondary">
                             Добавить переход
                         </button>
                     </form>
 
-                    <ul class="mt-3 space-y-2 text-xs">
-                        <li v-for="transition in graphTransitions" :key="transition.local_id" class="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700">
-                            <div class="font-medium text-zinc-800 dark:text-zinc-100">{{ transition.from_client_key }} → {{ transition.to_client_key }}</div>
-                            <div class="mt-1 text-zinc-500 dark:text-zinc-400">{{ transitionLabel(transition.sales_script_reaction_class_id) }}</div>
-                            <button type="button" class="mt-1 text-rose-700 hover:underline dark:text-rose-300" @click="removeTransition(transition.local_id)">Удалить</button>
+                    <ul class="space-y-2 text-xs">
+                        <li
+                            v-for="transition in graphTransitions"
+                            :key="transition.local_id"
+                            class="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700"
+                        >
+                            <div class="font-medium">{{ transition.from_client_key }} → {{ transition.to_client_key }}</div>
+                            <div :class="`${crmPageLead} mt-1`">{{ transitionLabel(transition.sales_script_reaction_class_id) }}</div>
+                            <button
+                                type="button"
+                                class="mt-1 text-rose-700 hover:underline dark:text-rose-300"
+                                @click="removeTransition(transition.local_id)"
+                            >
+                                Удалить
+                            </button>
                         </li>
                     </ul>
                 </section>
@@ -166,7 +193,17 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate } from '@/support/crmUi.js';
+import {
+    crmBtnCreate,
+    crmBtnSecondary,
+    crmFieldFluid,
+    crmLabelCompact,
+    crmPageEyebrow,
+    crmPageLead,
+    crmPageTitle,
+    crmPanel,
+    crmSectionTitle,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),
@@ -230,6 +267,7 @@ const nodeByKey = computed(() => {
     for (const node of graphNodes) {
         map.set(node.client_key, node);
     }
+
     return map;
 });
 
@@ -274,6 +312,7 @@ function transitionLabel(reactionId) {
     if (reactionId === null || reactionId === undefined) {
         return 'Дальше';
     }
+
     return props.reactionClasses.find((item) => item.id === reactionId)?.label ?? 'Реакция';
 }
 
@@ -433,3 +472,67 @@ onBeforeUnmount(() => {
     window.removeEventListener('mousemove', onDragMove);
 });
 </script>
+
+<style scoped>
+.crm-graph-canvas {
+    border-color: rgb(228 228 231);
+    background: rgb(250 250 250);
+}
+
+.dark .crm-graph-canvas {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27 / 0.65);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-graph-canvas {
+    border-color: rgb(var(--crm-border));
+    background: rgb(var(--crm-surface-muted) / 0.85);
+}
+
+.crm-graph-node {
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.75rem;
+    background: rgb(255 255 255);
+    color: rgb(24 24 27);
+}
+
+.dark .crm-graph-node {
+    border-color: rgb(63 63 70);
+    background: rgb(9 9 11);
+    color: rgb(244 244 245);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-graph-node {
+    border-color: rgb(var(--crm-border));
+    background: rgb(var(--crm-surface));
+    color: rgb(var(--crm-text));
+}
+
+.crm-graph-node--selected {
+    border-color: rgb(14 165 233);
+    box-shadow: 0 0 0 2px rgb(14 165 233 / 0.25);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-graph-node--selected {
+    border-color: rgb(var(--crm-accent));
+    box-shadow: 0 0 0 2px rgb(var(--crm-accent) / 0.28);
+}
+
+.crm-graph-node__handle {
+    border-color: rgb(228 228 231);
+    background: rgb(250 250 250);
+    color: rgb(63 63 70);
+}
+
+.dark .crm-graph-node__handle {
+    border-color: rgb(63 63 70);
+    background: rgb(24 24 27);
+    color: rgb(212 212 216);
+}
+
+html[data-crm-workspace-skin='sky'] .crm-graph-node__handle {
+    border-color: rgb(var(--crm-border));
+    background: rgb(var(--crm-surface-muted));
+    color: rgb(var(--crm-text-muted));
+}
+</style>

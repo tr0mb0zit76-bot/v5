@@ -391,10 +391,12 @@ const childAreaMap = {
         'sales_assistant_book',
         'sales_assistant_trainer',
         'sales_assistant_trainer_analytics',
+        'sales_assistant_counter',
     ],
     modules: [
         'modules_catalog',
         'modules_how_much_fits',
+        'modules_how_much_costs',
     ],
 };
 const scopeAreaKeys = [
