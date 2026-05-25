@@ -25,6 +25,7 @@ use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\OrderWizardService;
 use App\Services\OrderWizardStateService;
+use App\Services\OwnFleetContractorService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
@@ -33,6 +34,7 @@ use App\Support\CurrencyDictionary;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintWorkflowLock;
+use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\RoutePointNormalizedData;
@@ -344,6 +346,7 @@ class OrderWizardController extends Controller
             'ownCompanies' => Schema::hasColumn('contractors', 'is_own_company')
                 ? $contractors->where('is_own_company', true)->values()
                 : collect(),
+            'ownFleetContractor' => $this->ownFleetContractorPayload(),
             'cargoTypeOptions' => $this->atiDictionaryOptions('cargo_type', $this->fallbackCargoTypeOptions()),
             'packageTypeOptions' => $this->atiDictionaryOptions('pack_type', $this->fallbackPackageTypeOptions()),
             'loadingTypeOptions' => $this->atiDictionaryOptions('loading_type', $this->fallbackLoadingTypeOptions()),
@@ -399,6 +402,24 @@ class OrderWizardController extends Controller
                 ->pluck('title')
                 ->values(),
         ]);
+    }
+
+    /**
+     * @return array{id: int, name: string, inn: string|null, is_own_company: bool}|null
+     */
+    private function ownFleetContractorPayload(): ?array
+    {
+        $contractor = app(OwnFleetContractorService::class)->ensureContractor();
+        if ($contractor === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $contractor->id,
+            'name' => (string) $contractor->name,
+            'inn' => $contractor->inn !== null ? (string) $contractor->inn : null,
+            'is_own_company' => (bool) ($contractor->is_own_company ?? false),
+        ];
     }
 
     private function canDeleteOrder(Request $request, Order $order): bool
@@ -1082,6 +1103,12 @@ class OrderWizardController extends Controller
             'fleet_driver_id' => isset($row['fleet_driver_id']) && $row['fleet_driver_id'] !== null && $row['fleet_driver_id'] !== ''
                 ? (int) $row['fleet_driver_id']
                 : null,
+            'execution_mode' => OwnFleetCatalog::isOwnFleetExecutionMode(isset($row['execution_mode']) ? (string) $row['execution_mode'] : null)
+                ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
+                : null,
+            'fleet_trip_id' => isset($row['fleet_trip_id']) && $row['fleet_trip_id'] !== null && $row['fleet_trip_id'] !== ''
+                ? (int) $row['fleet_trip_id']
+                : null,
             'split_carriers' => [],
         ];
 
@@ -1101,6 +1128,12 @@ class OrderWizardController extends Controller
                             : null,
                         'fleet_driver_id' => isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null && $slot['fleet_driver_id'] !== ''
                             ? (int) $slot['fleet_driver_id']
+                            : null,
+                        'execution_mode' => OwnFleetCatalog::isOwnFleetExecutionMode(isset($slot['execution_mode']) ? (string) $slot['execution_mode'] : null)
+                            ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
+                            : null,
+                        'fleet_trip_id' => isset($slot['fleet_trip_id']) && $slot['fleet_trip_id'] !== null && $slot['fleet_trip_id'] !== ''
+                            ? (int) $slot['fleet_trip_id']
                             : null,
                     ];
                 })
@@ -2052,6 +2085,9 @@ class OrderWizardController extends Controller
                         'payment_form' => $cost['payment_form'] ?? $order->carrier_payment_form ?? 'no_vat',
                         'payment_schedule' => is_array($cost['payment_schedule'] ?? null) ? $cost['payment_schedule'] : [],
                         'payment_terms' => $cost['payment_terms'] ?? '',
+                        'execution_mode' => OwnFleetCatalog::isOwnFleetExecutionMode($cost['execution_mode'] ?? null)
+                            ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
+                            : null,
                     ];
                 })
                 ->all();

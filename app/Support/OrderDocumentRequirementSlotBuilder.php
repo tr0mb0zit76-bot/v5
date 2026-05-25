@@ -105,16 +105,20 @@ final class OrderDocumentRequirementSlotBuilder
     private static function carrierRequestSlots(array $performers, string $clientRequestMode): array
     {
         $allPerformers = array_values(array_filter($performers, fn (mixed $row): bool => is_array($row)));
-        $expanded = self::expandCarrierPerformers($allPerformers);
+        $expanded = self::filterExternalCarrierExpanded(self::expandCarrierPerformers($allPerformers));
 
         if ($expanded === []) {
-            return [[
-                'slotKey' => 'carrier-empty',
-                'orderLegStage' => null,
-                'contractorId' => null,
-                'contractorName' => null,
-                'labelSuffix' => '',
-            ]];
+            if ($allPerformers === []) {
+                return [[
+                    'slotKey' => 'carrier-empty',
+                    'orderLegStage' => null,
+                    'contractorId' => null,
+                    'contractorName' => null,
+                    'labelSuffix' => '',
+                ]];
+            }
+
+            return [];
         }
 
         $hasSplitOnLeg = collect($expanded)->contains(fn (array $row): bool => ($row['carrier_slot'] ?? null) !== null);
@@ -258,6 +262,7 @@ final class OrderDocumentRequirementSlotBuilder
                             ? (int) $slot['contractor_id']
                             : null,
                         'contractor_name' => isset($slot['contractor_name']) ? (string) $slot['contractor_name'] : null,
+                        'execution_mode' => isset($slot['execution_mode']) ? (string) $slot['execution_mode'] : null,
                     ];
                 }
 
@@ -271,10 +276,23 @@ final class OrderDocumentRequirementSlotBuilder
                     ? (int) $performer['contractor_id']
                     : null,
                 'contractor_name' => isset($performer['contractor_name']) ? (string) $performer['contractor_name'] : null,
+                'execution_mode' => isset($performer['execution_mode']) ? (string) $performer['execution_mode'] : null,
             ];
         }
 
         return $expanded;
+    }
+
+    /**
+     * @param  list<array{execution_mode?: string|null}>  $expanded
+     * @return list<array{execution_mode?: string|null}>
+     */
+    private static function filterExternalCarrierExpanded(array $expanded): array
+    {
+        return array_values(array_filter(
+            $expanded,
+            fn (array $row): bool => ! OwnFleetCatalog::isOwnFleetExecutionMode($row['execution_mode'] ?? null),
+        ));
     }
 
     private static function normalizeStage(string $stage): string

@@ -485,9 +485,19 @@
                                                 <X class="h-4 w-4" />
                                             </button>
                                             <div
-                                                v-if="isCarrierResultsVisible('performer', legIndex) && filteredCarrierResults('performer', legIndex).length > 0"
+                                                v-if="isCarrierResultsVisible('performer', legIndex)"
                                                 class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
                                             >
+                                                <button
+                                                    v-if="props.ownFleetContractor?.id"
+                                                    type="button"
+                                                    class="flex w-full flex-col items-start border-b border-zinc-100 px-4 py-3 text-left hover:bg-sky-50 dark:border-zinc-800 dark:hover:bg-sky-950/30"
+                                                    @mousedown.prevent
+                                                    @click="selectOwnFleetPerformer(legIndex)"
+                                                >
+                                                    <span class="text-sm font-medium text-sky-700 dark:text-sky-300">Свой транспорт</span>
+                                                    <span class="text-xs text-zinc-500">{{ props.ownFleetContractor.name }}</span>
+                                                </button>
                                                 <button
                                                     v-for="contractor in filteredCarrierResults('performer', legIndex)"
                                                     :key="contractor.id"
@@ -579,9 +589,19 @@
                                                     <X class="h-4 w-4" />
                                                 </button>
                                                 <div
-                                                    v-if="isCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`) && filteredCarrierResults('performer-slot', `${legIndex}-${slotIndex}`).length > 0"
+                                                    v-if="isCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`)"
                                                     class="absolute left-0 top-full z-20 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
                                                 >
+                                                    <button
+                                                        v-if="props.ownFleetContractor?.id"
+                                                        type="button"
+                                                        class="flex w-full flex-col items-start border-b border-zinc-100 px-4 py-3 text-left hover:bg-sky-50 dark:border-zinc-800 dark:hover:bg-sky-950/30"
+                                                        @mousedown.prevent
+                                                        @click="selectOwnFleetSplitSlot(legIndex, slotIndex)"
+                                                    >
+                                                        <span class="text-sm font-medium text-sky-700 dark:text-sky-300">Свой транспорт</span>
+                                                        <span class="text-xs text-zinc-500">{{ props.ownFleetContractor.name }}</span>
+                                                    </button>
                                                     <button
                                                         v-for="contractor in filteredCarrierResults('performer-slot', `${legIndex}-${slotIndex}`)"
                                                         :key="contractor.id"
@@ -1089,7 +1109,9 @@
                                     </select>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
-                                    <label class="text-sm font-medium">Стоимость перевозки</label>
+                                    <label class="text-sm font-medium">
+                                        {{ isOwnFleetExecutionMode(cost.execution_mode) ? 'Примерная стоимость' : 'Стоимость перевозки' }}
+                                    </label>
                                     <input v-model="cost.amount" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
@@ -1543,6 +1565,8 @@ import {
     CARRIER_MODE_SPLIT,
     contractorCostRowsFromPerformers,
     costMatchesPerformerSlot,
+    EXECUTION_MODE_OWN_FLEET,
+    isOwnFleetExecutionMode,
     isPerformerSplit,
     normalizePerformer,
     performerFleetCacheKey,
@@ -1559,6 +1583,7 @@ const props = defineProps({
     order: { type: Object, default: null },
     contractors: { type: Array, default: () => [] },
     ownCompanies: { type: Array, default: () => [] },
+    ownFleetContractor: { type: Object, default: null },
     cargoTypeOptions: { type: Array, default: () => [] },
     packageTypeOptions: { type: Array, default: () => [] },
     loadingTypeOptions: { type: Array, default: () => [] },
@@ -1950,9 +1975,11 @@ function normalizeContractorCost(cost = {}) {
         payment_form: 'no_vat',
         payment_schedule: blankPaymentSchedule(),
         payment_terms: '',
+        execution_mode: null,
         ...cost,
         payment_schedule: normalizePaymentSchedule(cost.payment_schedule),
     };
+    merged.execution_mode = isOwnFleetExecutionMode(merged.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null;
     merged.payment_form = normalizePaymentFormCode(merged.payment_form, 'no_vat');
     merged.payment_terms = String(merged.payment_terms ?? '').trim();
 
@@ -3347,6 +3374,11 @@ function ensureContractorInLocalList(contractor) {
  * Подпись в поле поиска перевозчика: справочник в props может быть укороченным, а contractor_id при этом валиден.
  */
 function performerCarrierSearchLabel(performerIndex, contractorId) {
+    const row = form.performers[performerIndex];
+    if (isOwnFleetExecutionMode(row?.execution_mode)) {
+        return 'Свой транспорт';
+    }
+
     const id = normalizeNullableNumber(contractorId);
     if (id === null) {
         return '';
@@ -3358,7 +3390,6 @@ function performerCarrierSearchLabel(performerIndex, contractorId) {
         return fromLookup;
     }
 
-    const row = form.performers[performerIndex];
     const fromRow = row?.contractor_name ? String(row.contractor_name).trim() : '';
 
     return fromRow || '';
@@ -3564,6 +3595,11 @@ function applyCarrierDefaultsByStage(stage, contractorId, carrierSlot = null) {
 }
 
 function splitCarrierSearchLabel(legIndex, slotIndex, contractorId) {
+    const slot = splitCarrierAt(legIndex, slotIndex);
+    if (isOwnFleetExecutionMode(slot?.execution_mode)) {
+        return 'Свой транспорт';
+    }
+
     const id = normalizeNullableNumber(contractorId);
     if (id === null) {
         return '';
@@ -3575,10 +3611,65 @@ function splitCarrierSearchLabel(legIndex, slotIndex, contractorId) {
         return fromLookup;
     }
 
-    const slot = splitCarrierAt(legIndex, slotIndex);
     const fromRow = slot?.contractor_name ? String(slot.contractor_name).trim() : '';
 
     return fromRow || '';
+}
+
+function selectOwnFleetPerformer(index) {
+    const ownFleet = props.ownFleetContractor;
+    if (!ownFleet?.id) {
+        return;
+    }
+
+    ensureContractorInLocalList({
+        ...ownFleet,
+        type: 'carrier',
+    });
+
+    const updatedPerformers = [...form.performers];
+    updatedPerformers[index] = {
+        ...updatedPerformers[index],
+        contractor_id: Number(ownFleet.id),
+        contractor_name: ownFleet.name ? String(ownFleet.name).trim() || null : null,
+        execution_mode: EXECUTION_MODE_OWN_FLEET,
+        fleet_vehicle_id: null,
+        fleet_driver_id: null,
+    };
+    form.performers = updatedPerformers;
+
+    setCarrierSearchValue('performer', index, 'Свой транспорт');
+    setCarrierResultsVisible('performer', index, false);
+    syncContractorCostsFromPerformers();
+    loadFleetOptionsForLeg(index);
+}
+
+function selectOwnFleetSplitSlot(legIndex, slotIndex) {
+    const ownFleet = props.ownFleetContractor;
+    if (!ownFleet?.id) {
+        return;
+    }
+
+    ensureContractorInLocalList({
+        ...ownFleet,
+        type: 'carrier',
+    });
+
+    const slot = splitCarrierAt(legIndex, slotIndex);
+    if (!slot) {
+        return;
+    }
+
+    slot.contractor_id = Number(ownFleet.id);
+    slot.contractor_name = ownFleet.name ? String(ownFleet.name).trim() || null : null;
+    slot.execution_mode = EXECUTION_MODE_OWN_FLEET;
+    slot.fleet_vehicle_id = null;
+    slot.fleet_driver_id = null;
+
+    setCarrierSearchValue('performer-slot', `${legIndex}-${slotIndex}`, 'Свой транспорт');
+    setCarrierResultsVisible('performer-slot', `${legIndex}-${slotIndex}`, false);
+    syncContractorCostsFromPerformers();
+    loadFleetOptionsForLeg(legIndex, slotIndex);
 }
 
 function selectSplitPerformerContractor(legIndex, slotIndex, contractor) {
@@ -3591,6 +3682,7 @@ function selectSplitPerformerContractor(legIndex, slotIndex, contractor) {
 
     slot.contractor_id = Number(contractor.id);
     slot.contractor_name = contractor.name ? String(contractor.name).trim() || null : null;
+    slot.execution_mode = null;
     slot.fleet_vehicle_id = null;
     slot.fleet_driver_id = null;
 
@@ -3609,6 +3701,7 @@ function clearSplitPerformerContractor(legIndex, slotIndex) {
 
     slot.contractor_id = null;
     slot.contractor_name = null;
+    slot.execution_mode = null;
     slot.fleet_vehicle_id = null;
     slot.fleet_driver_id = null;
 
@@ -3643,6 +3736,7 @@ function onSplitPerformerCarrierInput(legIndex, slotIndex, value) {
     if (normalizeNullableNumber(slot.contractor_id) !== null && selectedName !== '' && selectedName !== typed) {
         slot.contractor_id = null;
         slot.contractor_name = null;
+        slot.execution_mode = null;
         slot.fleet_vehicle_id = null;
         slot.fleet_driver_id = null;
         syncContractorCostsFromPerformers();
@@ -3673,6 +3767,7 @@ function selectPerformerContractor(index, contractor) {
         ...updatedPerformers[index],
         contractor_id: Number(contractor.id),
         contractor_name: contractor.name ? String(contractor.name).trim() || null : null,
+        execution_mode: null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
     };
@@ -3691,6 +3786,7 @@ function clearPerformerContractor(index) {
         ...updatedPerformers[index],
         contractor_id: null,
         contractor_name: null,
+        execution_mode: null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
     };
@@ -3735,6 +3831,7 @@ function onPerformerCarrierInput(index, value) {
     if (normalizeNullableNumber(performer.contractor_id) !== null && selectedName !== '' && selectedName !== typed) {
         performer.contractor_id = null;
         performer.contractor_name = null;
+        performer.execution_mode = null;
         performer.fleet_vehicle_id = null;
         performer.fleet_driver_id = null;
         syncContractorCostsFromPerformers();
@@ -4314,6 +4411,7 @@ function syncContractorCostsFromPerformers() {
             stage: row.stage,
             carrier_slot: row.carrier_slot,
             contractor_id: row.contractor_id,
+            execution_mode: row.execution_mode ?? existingRow?.execution_mode ?? null,
         });
 
         const previousContractorId = normalizeNullableNumber(existingRow?.contractor_id);
@@ -4907,6 +5005,8 @@ function buildSubmitPayload() {
                         contractor_name: slot.contractor_name ? String(slot.contractor_name).trim() || null : null,
                         fleet_vehicle_id: normalizeNullableNumber(slot.fleet_vehicle_id),
                         fleet_driver_id: normalizeNullableNumber(slot.fleet_driver_id),
+                        execution_mode: isOwnFleetExecutionMode(slot?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
+                        fleet_trip_id: normalizeNullableNumber(slot?.fleet_trip_id),
                     })),
                 };
             }
@@ -4918,6 +5018,8 @@ function buildSubmitPayload() {
                 contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
                 fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
                 fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
+                execution_mode: isOwnFleetExecutionMode(performer?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
+                fleet_trip_id: normalizeNullableNumber(performer?.fleet_trip_id),
                 split_carriers: [],
             };
         }),
@@ -5001,6 +5103,7 @@ function buildSubmitPayload() {
                 payment_form: normalizePaymentFormCode(cost.payment_form, 'no_vat'),
                 payment_schedule: cost.payment_schedule || {},
                 payment_terms: cost.payment_terms ?? '',
+                execution_mode: isOwnFleetExecutionMode(cost.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
             })),
             additional_costs: [],
             kpi_percent: rawFinancial.kpi_percent,

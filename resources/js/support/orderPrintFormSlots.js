@@ -34,6 +34,7 @@ function expandCarrierPerformersForPrint(performers) {
                     carrier_slot: Number(slot?.slot ?? 1),
                     contractor_id: slot?.contractor_id ?? null,
                     contractor_name: slot?.contractor_name ?? null,
+                    execution_mode: slot?.execution_mode ?? null,
                 });
             });
 
@@ -45,10 +46,11 @@ function expandCarrierPerformersForPrint(performers) {
             carrier_slot: null,
             contractor_id: performer?.contractor_id ?? null,
             contractor_name: performer?.contractor_name ?? null,
+            execution_mode: performer?.execution_mode ?? null,
         });
     });
 
-    return expanded;
+    return expanded.filter((row) => row.execution_mode !== 'own_fleet');
 }
 
 /**

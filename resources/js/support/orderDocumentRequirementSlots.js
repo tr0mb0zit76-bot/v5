@@ -1,5 +1,5 @@
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
-import { expandPerformersForCarrierSlots, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
+import { expandPerformersForCarrierSlots, filterExternalCarrierSlots, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
 
 const REQUEST_TYPES = ['request', 'contract_request'];
 const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
@@ -42,16 +42,20 @@ export function customerRequestSlots(performers, clientRequestMode) {
  */
 export function carrierRequestSlots(performers, clientRequestMode) {
     const allPerformers = Array.isArray(performers) ? performers : [];
-    const expanded = expandPerformersForCarrierSlots(allPerformers);
+    const expanded = filterExternalCarrierSlots(expandPerformersForCarrierSlots(allPerformers));
 
     if (expanded.length === 0) {
-        return [{
-            slotKey: 'carrier-empty',
-            orderLegStage: null,
-            contractorId: null,
-            contractorName: null,
-            labelSuffix: '',
-        }];
+        if (allPerformers.length === 0) {
+            return [{
+                slotKey: 'carrier-empty',
+                orderLegStage: null,
+                contractorId: null,
+                contractorName: null,
+                labelSuffix: '',
+            }];
+        }
+
+        return [];
     }
 
     const hasSplitOnLeg = expanded.some((row) => row.carrier_slot != null);

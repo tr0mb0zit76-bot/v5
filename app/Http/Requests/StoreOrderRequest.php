@@ -13,6 +13,7 @@ use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
 use App\Support\OrderDisruptionGuard;
 use App\Support\OrderDocumentRegistryTypes;
+use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -437,11 +438,15 @@ class StoreOrderRequest extends FormRequest
             'performers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'performers.*.fleet_vehicle_id' => ['nullable', 'integer'],
             'performers.*.fleet_driver_id' => ['nullable', 'integer'],
+            'performers.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
+            'performers.*.fleet_trip_id' => ['nullable', 'integer'],
             'performers.*.split_carriers' => ['nullable', 'array', 'max:4'],
             'performers.*.split_carriers.*.slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'performers.*.split_carriers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'performers.*.split_carriers.*.fleet_vehicle_id' => ['nullable', 'integer'],
             'performers.*.split_carriers.*.fleet_driver_id' => ['nullable', 'integer'],
+            'performers.*.split_carriers.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
+            'performers.*.split_carriers.*.fleet_trip_id' => ['nullable', 'integer'],
 
             'print_form_template_selection' => ['nullable', 'array'],
             'print_form_template_selection.*' => ['nullable', 'integer', 'exists:print_form_templates,id'],
@@ -537,6 +542,7 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.stage' => ['nullable', 'string', 'max:50'],
             'financial_term.contractors_costs.*.carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'financial_term.contractors_costs.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
             'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],
             'financial_term.contractors_costs.*.payment_form' => ['nullable', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],

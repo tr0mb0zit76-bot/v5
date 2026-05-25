@@ -9,6 +9,8 @@ use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
 use App\Http\Controllers\FleetDriverController;
+use App\Http\Controllers\FleetEfficiencyController;
+use App\Http\Controllers\FleetTripController;
 use App\Http\Controllers\FleetVehicleController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
@@ -390,6 +392,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/fleet/options/vehicles', [FleetVehicleController::class, 'optionsForOrder'])
         ->middleware('visibility.area:orders')
         ->name('fleet.options.vehicles');
+
+    Route::controller(FleetTripController::class)->middleware('visibility.area:drivers')->group(function () {
+        Route::get('/fleet/trips', 'index')->name('fleet.trips.index');
+        Route::post('/fleet/trips', 'store')->name('fleet.trips.store');
+        Route::get('/fleet/trips/{fleetTrip}', 'show')->name('fleet.trips.show');
+        Route::patch('/fleet/trips/{fleetTrip}', 'update')->name('fleet.trips.update');
+        Route::post('/fleet/trips/{fleetTrip}/complete', 'complete')->name('fleet.trips.complete');
+    });
+
+    Route::get('/fleet/efficiency', [FleetEfficiencyController::class, 'index'])
+        ->middleware('visibility.area:drivers')
+        ->name('fleet.efficiency.index');
 
     Route::get('/fleet/options/drivers', [FleetDriverController::class, 'optionsForOrder'])
         ->middleware('visibility.area:orders')

@@ -633,6 +633,8 @@ const MENU_ROUTES = {
     'orders-create': '/orders/create',
     contractors: '/contractors',
     'fleet-vehicles': '/fleet/vehicles',
+    'fleet-trips': '/fleet/trips',
+    'fleet-efficiency': '/fleet/efficiency',
     'fleet-containers': '/fleet/containers',
     'fleet-drivers': '/drivers',
     documents: '/documents',
@@ -934,6 +936,8 @@ const menuItems = computed(() => {
             visibilityArea: 'drivers',
             children: [
                 { key: 'fleet-vehicles', label: 'Авто' },
+                { key: 'fleet-trips', label: 'Рейсы' },
+                { key: 'fleet-efficiency', label: 'Эффективность' },
                 { key: 'fleet-containers', label: 'Контейнера' },
                 { key: 'fleet-drivers', label: 'Водители' },
             ],

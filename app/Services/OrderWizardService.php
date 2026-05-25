@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
+use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
@@ -44,6 +45,7 @@ class OrderWizardService
         private readonly OrderCompensationService $orderCompensationService,
         private readonly OrderWizardStateService $orderWizardStateService,
         private readonly DocumentStorageService $documentStorage,
+        private readonly FleetTripService $fleetTripService,
     ) {}
 
     /**
@@ -294,6 +296,14 @@ class OrderWizardService
         }
 
         $normalized['carrier_mode'] = ($normalized['carrier_mode'] ?? 'single') === 'split' ? 'split' : 'single';
+        $normalized['execution_mode'] = OwnFleetCatalog::isOwnFleetExecutionMode(
+            isset($normalized['execution_mode']) ? (string) $normalized['execution_mode'] : null,
+        )
+            ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
+            : null;
+        $normalized['fleet_trip_id'] = isset($normalized['fleet_trip_id']) && $normalized['fleet_trip_id'] !== null && $normalized['fleet_trip_id'] !== ''
+            ? (int) $normalized['fleet_trip_id']
+            : null;
 
         if ($normalized['carrier_mode'] === 'split' && is_array($normalized['split_carriers'] ?? null)) {
             $normalized['split_carriers'] = collect($normalized['split_carriers'])
@@ -311,6 +321,14 @@ class OrderWizardService
                             : null,
                         'fleet_driver_id' => isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null && $slot['fleet_driver_id'] !== ''
                             ? (int) $slot['fleet_driver_id']
+                            : null,
+                        'execution_mode' => OwnFleetCatalog::isOwnFleetExecutionMode(
+                            isset($slot['execution_mode']) ? (string) $slot['execution_mode'] : null,
+                        )
+                            ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
+                            : null,
+                        'fleet_trip_id' => isset($slot['fleet_trip_id']) && $slot['fleet_trip_id'] !== null && $slot['fleet_trip_id'] !== ''
+                            ? (int) $slot['fleet_trip_id']
                             : null,
                     ];
                 })
@@ -345,7 +363,7 @@ class OrderWizardService
                 if (! is_array($extra)) {
                     return $p;
                 }
-                foreach (['fleet_vehicle_id', 'fleet_driver_id', 'carrier_mode', 'split_carriers', 'contractor_id', 'contractor_name'] as $key) {
+                foreach (['fleet_vehicle_id', 'fleet_driver_id', 'carrier_mode', 'split_carriers', 'contractor_id', 'contractor_name', 'execution_mode', 'fleet_trip_id'] as $key) {
                     if (! array_key_exists($key, $extra)) {
                         continue;
                     }
@@ -742,6 +760,12 @@ class OrderWizardService
             // Удаляем старые financial_terms для этого заказа и создаем новую запись
             FinancialTerm::query()->where('order_id', $order->id)->delete();
             FinancialTerm::query()->create($financialTermAttributes);
+
+            $this->fleetTripService->syncPlannedTripsFromOrder(
+                $order->fresh(),
+                $normalizedPerformers,
+                $normalizedContractorsCosts,
+            );
         }
     }
 
@@ -832,6 +856,7 @@ class OrderWizardService
 
                 if (is_array($performer)) {
                     $resolvedContractorId = $this->resolveContractorIdForPerformerSlot($performer, $carrierSlot);
+                    $executionMode = OwnFleetCatalog::resolveExecutionModeForSlot($performer, $carrierSlot);
 
                     if ($resolvedContractorId !== null) {
                         $cost['contractor_id'] = $resolvedContractorId;
@@ -842,6 +867,10 @@ class OrderWizardService
                             ? (int) $performer['contractor_id']
                             : null;
                     }
+
+                    $cost['execution_mode'] = OwnFleetCatalog::isOwnFleetExecutionMode($executionMode)
+                        ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
+                        : null;
                 }
 
                 if (isset($cost['contractor_id']) && $cost['contractor_id'] !== null) {

@@ -1,5 +1,10 @@
 export const CARRIER_MODE_SINGLE = 'single';
 export const CARRIER_MODE_SPLIT = 'split';
+export const EXECUTION_MODE_OWN_FLEET = 'own_fleet';
+
+export function isOwnFleetExecutionMode(mode) {
+    return mode === EXECUTION_MODE_OWN_FLEET;
+}
 
 export function blankSplitCarrier(slot = 1) {
     return {
@@ -8,6 +13,8 @@ export function blankSplitCarrier(slot = 1) {
         contractor_name: null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
+        execution_mode: null,
+        fleet_trip_id: null,
     };
 }
 
@@ -19,6 +26,8 @@ export function blankPerformer(stage, carrierMode = CARRIER_MODE_SINGLE) {
         contractor_name: null,
         fleet_vehicle_id: null,
         fleet_driver_id: null,
+        execution_mode: null,
+        fleet_trip_id: null,
         split_carriers: [],
     };
 
@@ -38,6 +47,8 @@ export function normalizePerformer(performer = {}) {
         contractor_name: performer?.contractor_name ?? null,
         fleet_vehicle_id: performer?.fleet_vehicle_id ?? null,
         fleet_driver_id: performer?.fleet_driver_id ?? null,
+        execution_mode: isOwnFleetExecutionMode(performer?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
+        fleet_trip_id: performer?.fleet_trip_id ?? null,
         split_carriers: [],
     };
 
@@ -50,6 +61,8 @@ export function normalizePerformer(performer = {}) {
                 contractor_name: row?.contractor_name ?? null,
                 fleet_vehicle_id: row?.fleet_vehicle_id ?? null,
                 fleet_driver_id: row?.fleet_driver_id ?? null,
+                execution_mode: isOwnFleetExecutionMode(row?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
+                fleet_trip_id: row?.fleet_trip_id ?? null,
             }))
             : [blankSplitCarrier(1), blankSplitCarrier(2)];
     }
@@ -59,6 +72,14 @@ export function normalizePerformer(performer = {}) {
 
 export function isPerformerSplit(performer) {
     return performer?.carrier_mode === CARRIER_MODE_SPLIT;
+}
+
+export function performerUsesOwnFleet(performer) {
+    if (isPerformerSplit(performer)) {
+        return (performer.split_carriers ?? []).some((slot) => isOwnFleetExecutionMode(slot?.execution_mode));
+    }
+
+    return isOwnFleetExecutionMode(performer?.execution_mode);
 }
 
 export function splitCarrierSlotLabel(slot) {
@@ -81,6 +102,7 @@ export function expandPerformersForCarrierSlots(performers) {
                     carrier_slot: Number(slot.slot ?? 1),
                     contractor_id: slot.contractor_id ?? null,
                     contractor_name: slot.contractor_name ?? null,
+                    execution_mode: slot.execution_mode ?? null,
                 });
             });
 
@@ -92,10 +114,17 @@ export function expandPerformersForCarrierSlots(performers) {
             carrier_slot: null,
             contractor_id: performer.contractor_id ?? null,
             contractor_name: performer.contractor_name ?? null,
+            execution_mode: performer.execution_mode ?? null,
         });
     });
 
     return expanded;
+}
+
+export function filterExternalCarrierSlots(expanded) {
+    return (Array.isArray(expanded) ? expanded : []).filter(
+        (row) => !isOwnFleetExecutionMode(row?.execution_mode),
+    );
 }
 
 export function costMatchesPerformerSlot(cost, performer, slot = null) {
@@ -113,6 +142,18 @@ export function costMatchesPerformerSlot(cost, performer, slot = null) {
     return Number(costSlot) === Number(targetSlot);
 }
 
+export function resolveExecutionModeForSlot(performer, slot = null) {
+    if (isPerformerSplit(performer)) {
+        const targetSlot = slot?.slot ?? slot ?? null;
+
+        return (performer.split_carriers ?? []).find(
+            (row) => Number(row?.slot ?? 0) === Number(targetSlot),
+        )?.execution_mode ?? null;
+    }
+
+    return performer?.execution_mode ?? null;
+}
+
 export function contractorCostRowsFromPerformers(performers) {
     const rows = [];
 
@@ -125,6 +166,7 @@ export function contractorCostRowsFromPerformers(performers) {
                     stage: performer.stage,
                     carrier_slot: Number(slot.slot ?? 1),
                     contractor_id: slot.contractor_id ?? null,
+                    execution_mode: slot.execution_mode ?? null,
                 });
             });
 
@@ -137,6 +179,7 @@ export function contractorCostRowsFromPerformers(performers) {
             stage: performer.stage,
             carrier_slot: null,
             contractor_id: performer.contractor_id ?? null,
+            execution_mode: performer.execution_mode ?? null,
         });
     });
 
