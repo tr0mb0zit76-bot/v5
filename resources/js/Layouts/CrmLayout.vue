@@ -112,6 +112,21 @@
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                         До 6 пунктов (выбрано {{ mobileNavDraftKeys.length }}/6). Пустой список после «Сбросить» — как задано для роли в администрировании.
                     </p>
+                    <div
+                        v-if="mobileNavPresets.length"
+                        class="mt-3 flex flex-wrap gap-2"
+                    >
+                        <button
+                            v-for="preset in mobileNavPresets"
+                            :key="preset.id"
+                            type="button"
+                            class="rounded-xl border border-zinc-200 px-2.5 py-1.5 text-left text-xs transition hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+                            :title="preset.description"
+                            @click="applyMobileNavPreset(preset)"
+                        >
+                            <span class="font-medium text-zinc-800 dark:text-zinc-100">{{ preset.label }}</span>
+                        </button>
+                    </div>
                     <p
                         v-if="mobileNavDraftError"
                         class="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
@@ -126,9 +141,9 @@
                         >
                             <input
                                 type="checkbox"
-                                class="rounded border-zinc-300"
+                                class="h-4 w-4 shrink-0 rounded border-zinc-300"
                                 :checked="mobileNavDraftKeys.includes(entry.key)"
-                                @click.prevent="toggleMobileNavDraftKey(entry.key)"
+                                @change="toggleMobileNavDraftKey(entry.key)"
                             >
                             <span>{{ entry.label }}</span>
                         </label>
@@ -676,18 +691,31 @@ function continueMobileBrowserCabinet() {
 const MOBILE_NAV_DEF = [
     { key: 'dashboard', label: 'Главная', icon: House },
     { key: 'orders', label: 'Заказы', icon: Package },
+    { key: 'leads', label: 'Лиды', icon: Target },
     { key: 'tasks', label: 'Задачи', icon: ClipboardList },
     { key: 'kanban', label: 'Канбан', icon: Kanban },
     { key: 'documents', label: 'Документы', icon: FileText },
     { key: 'reports', label: 'Отчёты', icon: BarChart3 },
-    { key: 'trainer', label: 'Тренажёр', icon: WandSparkles },
     { key: 'finance', label: 'Финансы', icon: Wallet },
+    { key: 'trainer', label: 'Тренажёр', icon: WandSparkles },
     { key: 'orders-create', label: 'Новый', icon: SquarePen },
     { key: 'contractors', label: 'База', icon: Users },
 ];
 
+const MOBILE_NAV_SELECTABLE_KEYS = [
+    'dashboard',
+    'orders',
+    'leads',
+    'tasks',
+    'kanban',
+    'documents',
+    'reports',
+    'finance',
+    'trainer',
+];
+
 function mobileNavItemsLegacy() {
-    const items = MOBILE_NAV_DEF.filter((item) => ['dashboard', 'orders', 'tasks', 'kanban', 'documents', 'reports', 'trainer'].includes(item.key));
+    const items = MOBILE_NAV_DEF.filter((item) => MOBILE_NAV_SELECTABLE_KEYS.includes(item.key));
 
     return items.filter((item) => {
         if (authUser.value?.role?.name === 'admin') {
@@ -705,6 +733,12 @@ function mobileNavItemsLegacy() {
         if (item.key === 'trainer') {
             return visibleAreas.value.includes('sales_assistant_trainer')
                 || visibleAreas.value.includes('scripts');
+        }
+
+        if (item.key === 'finance') {
+            return visibleAreas.value.includes('finance')
+                || visibleAreas.value.includes('finance_salary')
+                || visibleAreas.value.includes('budgeting');
         }
 
         return visibleAreas.value.includes(item.key);
@@ -797,6 +831,23 @@ function saveMobileNavDraft() {
             mobileNavSaving.value = false;
         },
     });
+}
+
+const mobileNavPresets = computed(() => {
+    const list = page.props.mobile_nav_presets;
+
+    return Array.isArray(list) ? list : [];
+});
+
+function applyMobileNavPreset(preset) {
+    const candidates = authUser.value?.mobile_nav?.candidate_keys ?? [];
+    const allowed = new Set(candidates);
+    const keys = (preset?.keys ?? []).filter((key) => allowed.has(key)).slice(0, 6);
+
+    mobileNavDraftKeys.value = keys;
+    mobileNavDraftError.value = keys.length === 0
+        ? 'Для этой роли недоступны пункты из выбранного набора. Проверьте области видимости.'
+        : '';
 }
 
 function resetMobileNavDraft() {

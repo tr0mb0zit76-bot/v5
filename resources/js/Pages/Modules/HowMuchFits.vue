@@ -195,7 +195,7 @@
                     </div>
 
                     <div v-else class="print-area grid h-full min-h-0 xl:grid-cols-[minmax(0,1fr),300px]">
-                        <div class="flex min-h-0 flex-col overflow-hidden border-b border-zinc-200 xl:border-b-0 xl:border-r dark:border-zinc-800">
+                        <div class="print-area-scene flex min-h-0 flex-col overflow-hidden border-b border-zinc-200 xl:border-b-0 xl:border-r dark:border-zinc-800">
                             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-800 print:hidden">
                                 <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Расчёт загрузки</div>
                                 <div class="flex flex-wrap items-center gap-1">
@@ -329,7 +329,7 @@
                             </div>
                         </div>
 
-                        <aside class="calc-sidebar flex min-h-0 flex-col overflow-y-auto bg-zinc-50/80 p-4 dark:bg-zinc-950/50">
+                        <aside class="print-area-summary calc-sidebar flex min-h-0 flex-col overflow-y-auto bg-zinc-50/80 p-4 dark:bg-zinc-950/50">
                             <div v-if="selectedTransport" class="text-xs font-semibold uppercase leading-5 tracking-wide text-zinc-700 dark:text-zinc-200">
                                 {{ selectedTransport.name }}
                             </div>
@@ -348,19 +348,19 @@
                                     <li v-for="warning in layoutResult.warnings" :key="warning">{{ warning }}</li>
                                 </ul>
                             </div>
-                            <button type="button" class="mt-4 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-600" @click="showPlacementDetails = !showPlacementDetails">
+                            <button type="button" class="mt-4 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-600 print:hidden" @click="showPlacementDetails = !showPlacementDetails">
                                 <span>Расчёты размещения</span><span>{{ showPlacementDetails ? '−' : '+' }}</span>
                             </button>
-                            <div v-if="showPlacementDetails" class="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                            <div v-if="showPlacementDetails" class="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300 print:hidden">
                                 <div>Размещено: {{ layoutResult.placedUnits }} / {{ layoutResult.totalUnits }} шт (в кузове {{ layoutResult.placedInTrailer }})</div>
                                 <div>Объём груза: {{ formatM3(layoutResult.totalVolumeM3) }}</div>
                                 <div>Грузоподъёмность: {{ layoutResult.usedPayloadPercent.toFixed(1) }}%</div>
                             </div>
-                            <button type="button" class="mt-3 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-600" @click="showAxleLoad = !showAxleLoad">
+                            <button type="button" class="mt-3 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-600 print:hidden" @click="showAxleLoad = !showAxleLoad">
                                 <span>Нагрузка на оси</span><span>{{ showAxleLoad ? '−' : '+' }}</span>
                             </button>
-                            <div v-if="showAxleLoad" class="mt-2 text-xs text-zinc-500">Автоматический расчёт осевой нагрузки появится в следующей версии.</div>
-                            <div class="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto">
+                            <div v-if="showAxleLoad" class="mt-2 text-xs text-zinc-500 print:hidden">Автоматический расчёт осевой нагрузки появится в следующей версии.</div>
+                            <div class="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto print:hidden">
                                 <div v-for="group in projectForm.cargo_groups" :key="group.local_id">
                                     <div class="truncate text-[11px] font-semibold uppercase text-zinc-500">{{ group.recipient_name || group.name }}</div>
                                     <div v-for="(item, index) in group.items" :key="item.local_id" class="mt-2 flex items-start gap-2 text-xs">
@@ -492,7 +492,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import {
     ArrowLeftRight,
@@ -1104,12 +1104,70 @@ function cargoConstraintLabel(item, key) {
     return 'нет';
 }
 
+function captureSceneView() {
+    return {
+        rotationX: sceneRotationX.value,
+        rotationZ: sceneRotationZ.value,
+        zoom: sceneZoom.value,
+        panX: scenePanX.value,
+        panY: scenePanY.value,
+    };
+}
+
+function restoreSceneView(snapshot) {
+    sceneRotationX.value = snapshot.rotationX;
+    sceneRotationZ.value = snapshot.rotationZ;
+    sceneZoom.value = snapshot.zoom;
+    scenePanX.value = snapshot.panX;
+    scenePanY.value = snapshot.panY;
+}
+
+function resolvePrintSceneScale() {
+    const deck = deckEl.value;
+
+    if (!deck) {
+        return 0.68;
+    }
+
+    // A4 portrait: полезная ширина/высота под 3D-сцену (с учётом перспективы и поворота).
+    const printableWidthPx = 680;
+    const printableHeightPx = 520;
+    const deckRect = deck.getBoundingClientRect();
+    const projectedWidth = deckRect.width * 1.35;
+    const projectedHeight = deckRect.height * 1.55;
+    const scaleX = (printableWidthPx * 0.96) / Math.max(projectedWidth, 1);
+    const scaleY = (printableHeightPx * 0.96) / Math.max(projectedHeight, 1);
+
+    return clamp(Math.min(scaleX, scaleY, 1), 0.38, 0.92);
+}
+
 function exportCalculationPdf() {
     if (!selectedTransport.value) {
         window.alert('Сначала выберите транспорт для расчёта.');
         return;
     }
-    window.print();
+
+    const previousView = captureSceneView();
+    resetSceneView();
+
+    nextTick(() => {
+        requestAnimationFrame(() => {
+            const printScale = resolvePrintSceneScale();
+            const root = document.documentElement;
+
+            root.classList.add('howmuchfits-printing');
+            root.style.setProperty('--howmuchfits-print-scale', String(printScale));
+
+            const cleanup = () => {
+                root.classList.remove('howmuchfits-printing');
+                root.style.removeProperty('--howmuchfits-print-scale');
+                restoreSceneView(previousView);
+            };
+
+            window.addEventListener('afterprint', cleanup, { once: true });
+            window.print();
+        });
+    });
 }
 
 function saveProject() {
@@ -2626,6 +2684,11 @@ function formatMm(value) {
 }
 
 @media print {
+    @page {
+        size: A4 portrait;
+        margin: 10mm;
+    }
+
     :global(body *) {
         visibility: hidden;
     }
@@ -2635,14 +2698,59 @@ function formatMm(value) {
         visibility: visible;
     }
 
-    :global(.print-area) {
+    :global(html.howmuchfits-printing .print-area) {
         position: absolute;
         inset: 0;
-        display: grid !important;
-        grid-template-columns: 1fr 280px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.75rem;
         width: 100%;
         height: auto;
+        min-height: auto;
         background: white;
+    }
+
+    :global(html.howmuchfits-printing .print-area-scene) {
+        order: 1;
+        width: 100%;
+        flex: none;
+        overflow: visible !important;
+        border: none !important;
+    }
+
+    :global(html.howmuchfits-printing .print-area-summary) {
+        order: 2;
+        width: 100%;
+        max-height: none !important;
+        overflow: visible !important;
+        flex: none;
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    :global(html.howmuchfits-printing .scene-viewport) {
+        min-height: 62vh !important;
+        height: 62vh !important;
+        max-height: 680px;
+        overflow: visible !important;
+        flex: none !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    :global(html.howmuchfits-printing .scene-shell) {
+        position: relative !important;
+        inset: auto !important;
+        width: 100%;
+        height: 100%;
+        transform: translate(0, 0) scale(var(--howmuchfits-print-scale, 0.68)) !important;
+        transform-origin: center center;
+    }
+
+    :global(html.howmuchfits-printing .print-area-summary .grid) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
     .howmuchfits-module {

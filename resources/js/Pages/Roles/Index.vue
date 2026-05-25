@@ -192,7 +192,22 @@
                                 :key="`mnav-${role.id}`"
                                 class="border-b border-zinc-200 px-3 py-2.5 align-top dark:border-zinc-800"
                             >
-                                <div class="flex max-w-[220px] flex-col gap-1.5">
+                                <div class="flex max-w-[220px] flex-col gap-2">
+                                    <div
+                                        v-if="mobileNavPresets.length"
+                                        class="flex flex-wrap gap-1"
+                                    >
+                                        <button
+                                            v-for="preset in mobileNavPresets"
+                                            :key="`${role.id}-preset-${preset.id}`"
+                                            type="button"
+                                            class="rounded-lg border border-zinc-200 px-2 py-1 text-[10px] font-medium leading-tight text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                            :title="preset.description"
+                                            @click="applyRoleMobileNavPreset(role, preset)"
+                                        >
+                                            {{ preset.label }}
+                                        </button>
+                                    </div>
                                     <label
                                         v-for="opt in mobileNavCatalog"
                                         :key="`${role.id}-${opt.key}`"
@@ -379,6 +394,7 @@ const props = defineProps({
     visibilityAreaOptions: { type: Array, default: () => [] },
     visibilityScopeOptions: { type: Array, default: () => [] },
     mobileNavCatalog: { type: Array, default: () => [] },
+    mobileNavPresets: { type: Array, default: () => [] },
 });
 
 const showCreateForm = ref(false);
@@ -632,6 +648,45 @@ function serializeRole(role) {
             ? [...role.default_mobile_nav_keys]
             : role.default_mobile_nav_keys,
     };
+}
+
+function candidateMobileNavKeysForRole(role) {
+    const areas = Array.isArray(role.visibility_areas) ? role.visibility_areas : [];
+
+    if (role.name === 'admin') {
+        return props.mobileNavCatalog.map((opt) => opt.key);
+    }
+
+    return props.mobileNavCatalog
+        .map((opt) => opt.key)
+        .filter((key) => {
+            if (key === 'dashboard') {
+                return areas.includes('dashboard');
+            }
+
+            if (key === 'kanban') {
+                return areas.includes('kanban') || areas.includes('tasks');
+            }
+
+            if (key === 'trainer') {
+                return areas.includes('sales_assistant_trainer') || areas.includes('scripts');
+            }
+
+            if (key === 'finance') {
+                return areas.includes('finance')
+                    || areas.includes('finance_salary')
+                    || areas.includes('budgeting');
+            }
+
+            return areas.includes(key);
+        });
+}
+
+function applyRoleMobileNavPreset(role, preset) {
+    const allowed = new Set(candidateMobileNavKeysForRole(role));
+    const keys = (preset?.keys ?? []).filter((key) => allowed.has(key)).slice(0, 6);
+
+    role.default_mobile_nav_keys = keys.length ? keys : null;
 }
 
 function toggleRoleMobileNavKey(role, key) {

@@ -1,13 +1,8 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-2">
         <div v-if="isMobileStandalone" class="space-y-4 pb-24">
-            <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
-                <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <div class="text-xs uppercase tracking-[0.22em] text-white/60 dark:text-zinc-500">Мобильный реестр</div>
-                        <h1 class="mt-3 text-2xl font-semibold">Заказы</h1>
-                        <p class="mt-2 text-sm text-white/70 dark:text-zinc-600">Все активные сделки в компактном мобильном формате.</p>
-                    </div>
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Заказы</h1>
 
                     <button
                         type="button"
@@ -17,8 +12,7 @@
                         <Plus class="h-4 w-4" />
                         Новый
                     </button>
-                </div>
-            </section>
+            </div>
 
             <section class="space-y-3 rounded-[24px] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
                 <div class="relative">

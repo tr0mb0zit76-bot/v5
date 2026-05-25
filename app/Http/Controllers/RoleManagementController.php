@@ -6,6 +6,7 @@ use App\Http\Requests\StoreRoleRequest;
 use App\Http\Requests\UpdateRoleRequest;
 use App\Models\Role;
 use App\Support\MobileNavCatalog;
+use App\Support\MobileNavPresets;
 use App\Support\RoleAccess;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
@@ -50,6 +51,7 @@ class RoleManagementController extends Controller
             'visibilityAreaOptions' => RoleAccess::visibilityAreaOptions(),
             'visibilityScopeOptions' => RoleAccess::visibilityScopeOptions(),
             'mobileNavCatalog' => MobileNavCatalog::optionsForUi(),
+            'mobileNavPresets' => MobileNavPresets::optionsForUi(),
         ]);
     }
 

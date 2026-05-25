@@ -1,13 +1,7 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
         <div v-if="isMobileStandalone" class="space-y-5">
-            <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
-                <div class="text-xs uppercase tracking-[0.22em] text-white/60 dark:text-zinc-500">Мобильное приложение</div>
-                <h1 class="mt-3 text-2xl font-semibold">Главный экран CRM</h1>
-                <p class="mt-2 max-w-sm text-sm text-white/70 dark:text-zinc-600">
-                    Быстрый доступ к заказам, базе контрагентов, отчётам и рабочим действиям без desktop-интерфейса.
-                </p>
-            </section>
+            <h1 class="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Главная</h1>
 
             <section class="grid grid-cols-2 gap-3">
                 <Link
@@ -46,10 +40,7 @@
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50">
                             <component :is="item.icon" class="h-5 w-5" />
                         </div>
-                        <div class="min-w-0">
-                            <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{{ item.title }}</div>
-                            <div class="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{{ item.description }}</div>
-                        </div>
+                        <div class="min-w-0 text-sm font-semibold text-zinc-900 dark:text-zinc-50">{{ item.title }}</div>
                     </Link>
                 </div>
             </section>
@@ -233,7 +224,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
-import { BarChart3, Bot, Building2, FileText, Package, SquarePen } from 'lucide-vue-next';
+import { BarChart3, Bot, Building2, FileText, Package, SquarePen, Target } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
     crmBtnPrimary,
@@ -420,29 +411,10 @@ function formatCurrency(value) {
 }
 
 const mobileSections = [
-    {
-        href: '/orders',
-        title: 'Заказы',
-        description: 'Открыть мобильный реестр заказов и перейти к текущим сделкам.',
-        icon: Package,
-    },
-    {
-        href: '/contractors',
-        title: 'Контрагенты',
-        description: 'Поиск по базе, открытие карточек и быстрый доступ к реквизитам.',
-        icon: Building2,
-    },
-    {
-        href: '/reports',
-        title: 'Отчёты и статистика',
-        description: 'Ключевые показатели и сводки без перегруженных desktop-таблиц.',
-        icon: BarChart3,
-    },
-      {
-          href: '/finance?section=cashflow',
-          title: 'Финансы',
-          description: 'График оплат и движение денег по заказам.',
-          icon: FileText,
-      },
-  ];
+    { href: '/orders', title: 'Заказы', icon: Package },
+    { href: '/leads', title: 'Лиды', icon: Target },
+    { href: '/contractors', title: 'Контрагенты', icon: Building2 },
+    { href: '/reports', title: 'Отчёты', icon: BarChart3 },
+    { href: '/finance?section=cashflow', title: 'Финансы', icon: FileText },
+];
 </script>

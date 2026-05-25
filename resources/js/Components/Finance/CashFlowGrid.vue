@@ -157,15 +157,14 @@ const props = defineProps({
     },
 });
 
+const DIRECTION_FILTER_VALUES = ['Мы', 'Нам'];
 const PAYMENT_TYPE_FILTER_VALUES = ['Предоплата', 'Финальный платёж'];
 const STATUS_FILTER_VALUES = ['По плану', 'Оплачено', 'Просрочено', 'Отменено'];
 
 const presetFilterModels = {
     customer_overdue: {
         direction: {
-            filterType: 'text',
-            type: 'equals',
-            filter: 'Нам',
+            values: ['Нам'],
         },
         status: {
             values: ['Просрочено'],
@@ -321,7 +320,16 @@ function buildBaseColumnDefs() {
         minWidth: 120,
         sortable: true,
     };
-    applyAgSetListColumn(paymentTypeCol, { values: PAYMENT_TYPE_FILTER_VALUES });
+    const directionCol = {
+        colId: 'direction',
+        field: 'direction',
+        headerName: 'Направление',
+        minWidth: 110,
+        sortable: true,
+    };
+    applyAgSetListColumn(directionCol, { values: DIRECTION_FILTER_VALUES, compact: true, floatingFilterRow: true });
+
+    applyAgSetListColumn(paymentTypeCol, { values: PAYMENT_TYPE_FILTER_VALUES, compact: true, floatingFilterRow: true });
 
     const statusCol = {
         colId: 'status',
@@ -334,6 +342,7 @@ function buildBaseColumnDefs() {
     applyAgSetListColumn(statusCol, {
         values: STATUS_FILTER_VALUES,
         filterValueGetter: (p) => statusLabel(p.data?.status),
+        floatingFilterRow: true,
     });
 
     return [
@@ -358,13 +367,7 @@ function buildBaseColumnDefs() {
         cellRenderer: orderLinkCellRenderer,
         valueGetter: (p) => p.data?.order_number || `#${p.data?.order_id}`,
     },
-    {
-        colId: 'direction',
-        field: 'direction',
-        headerName: 'Направление',
-        minWidth: 110,
-        sortable: true,
-    },
+    directionCol,
     {
         colId: 'counterparty_name',
         field: 'counterparty_name',

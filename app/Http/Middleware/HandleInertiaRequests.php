@@ -9,6 +9,7 @@ use App\Support\CrmAppearance;
 use App\Support\DocumentUploadLimits;
 use App\Support\InertiaAppSurface;
 use App\Support\LeadTableColumns;
+use App\Support\MobileNavPresets;
 use App\Support\MobileNavResolver;
 use App\Support\OrderTableColumns;
 use App\Support\PaymentScheduleTableColumns;
@@ -55,6 +56,7 @@ class HandleInertiaRequests extends Middleware
             'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
             'auth' => Inertia::always(fn () => $this->sharedAuth($request)),
             'showcase_home_url' => Inertia::always(fn () => ShowcaseUrl::home($request)),
+            'mobile_nav_presets' => Inertia::always(fn (): array => MobileNavPresets::optionsForUi()),
         ];
     }
 

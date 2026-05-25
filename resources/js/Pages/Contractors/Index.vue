@@ -2,22 +2,15 @@
 import { computed, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
-    BarChart3,
     Building2,
-    ClipboardList,
     FileText,
     History,
-    House,
-    Kanban,
-    Package,
     Plus,
     Save,
     Search,
     ShieldCheck,
-    SquarePen,
     Trash2,
     Users,
-    Wallet,
     X,
 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
@@ -211,17 +204,6 @@ const currencySelectOptions = computed(() => {
 
     return defaultCurrencySelectOptions;
 });
-
-const mobileNavItems = [
-    { key: 'dashboard', label: 'Главная', icon: House },
-    { key: 'orders', label: 'Заказы', icon: Package },
-    { key: 'tasks', label: 'Задачи', icon: ClipboardList },
-    { key: 'kanban', label: 'Канбан', icon: Kanban },
-    { key: 'finance', label: 'Финансы', icon: Wallet },
-    { key: 'orders-create', label: 'Новый', icon: SquarePen },
-    { key: 'contractors', label: 'База', icon: Users },
-    { key: 'reports', label: 'Отчёты', icon: BarChart3 },
-];
 
 function blankPaymentSchedule() {
     return {
@@ -1455,26 +1437,10 @@ function goToPage(pageNumber) {
     }), {}, { preserveScroll: true });
 }
 
-function handleMobileNavSelect(key) {
-    const routes = {
-        dashboard: '/dashboard',
-        orders: '/orders',
-        tasks: '/tasks',
-        kanban: '/kanban',
-        'orders-create': '/orders/create',
-        contractors: '/contractors',
-        finance: '/finance',
-        reports: '/reports',
-    };
-
-    if (routes[key]) {
-        router.visit(routes[key]);
-    }
-}
 </script>
 
 <template>
-    <div v-if="isMobileStandalone" class="space-y-4">
+    <div v-if="isMobileStandalone" class="space-y-4 pb-24">
         <section class="rounded-[28px] bg-zinc-900 px-5 py-6 text-white shadow-sm dark:bg-zinc-50 dark:text-zinc-900">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -1610,24 +1576,6 @@ function handleMobileNavSelect(key) {
                 По текущему запросу контрагенты не найдены.
             </div>
         </section>
-
-        <nav class="fixed bottom-0 left-0 right-0 z-50 shrink-0 border-t border-zinc-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
-            <div class="grid grid-cols-6 gap-2">
-                <button
-                    v-for="item in mobileNavItems"
-                    :key="item.key"
-                    type="button"
-                    class="flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition-colors"
-                    :class="item.key === 'contractors'
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900'
-                        : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100'"
-                    @click="handleMobileNavSelect(item.key)"
-                >
-                    <component :is="item.icon" class="h-4 w-4" />
-                    <span class="truncate">{{ item.label }}</span>
-                </button>
-            </div>
-        </nav>
     </div>
 
     <div v-else class="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
