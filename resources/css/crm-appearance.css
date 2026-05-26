@@ -135,3 +135,13 @@ html[data-crm-workspace-skin='sky'][data-crm-tab-style='underline'] .crm-tab-btn
     border-bottom-color: rgb(var(--crm-accent));
     color: rgb(var(--crm-accent));
 }
+
+/* Legacy Tailwind-поля в модалке контрагента и др. — углы из настроек CRM */
+.crm-modal-entity-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):not(.crm-field),
+.crm-modal-entity-shell select:not(.crm-field),
+.crm-modal-entity-shell textarea:not(.crm-field),
+.crm-modal-form-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):not(.crm-field),
+.crm-modal-form-shell select:not(.crm-field),
+.crm-modal-form-shell textarea:not(.crm-field) {
+    border-radius: var(--crm-radius-control);
+}

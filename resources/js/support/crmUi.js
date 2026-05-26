@@ -40,6 +40,18 @@ export const crmFieldWide = 'crm-field crm-field--wide';
 
 export const crmFieldFluid = 'crm-field crm-field--fluid';
 
+/** Компактное поле «дней» в блоке условий оплаты контрагента */
+export const crmFieldDays = 'crm-field crm-field--days';
+
+/** Узкий select «Оплата» в блоке условий оплаты контрагента */
+export const crmFieldPaymentMode = 'crm-field crm-field--payment-mode';
+
+/** Read-only блок с рамкой как у поля ввода */
+export const crmFieldDisplay = 'crm-field-display';
+
+/** Компактное поле в строке нормативов/штрафов */
+export const crmFieldCompact = 'crm-field crm-field--compact';
+
 export const crmLabel = 'crm-label';
 
 export const crmLabelCompact = 'crm-label crm-label--compact';

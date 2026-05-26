@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Rules\DocumentWithinPageBudget;
 use App\Support\ContractorIdentity;
+use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
 use App\Support\PartyNormsPenalties;
@@ -259,7 +260,8 @@ class StoreContractorRequest extends FormRequest
             ...PartyNormsPenalties::validationRules('default_customer_norms_penalties'),
             ...PartyNormsPenalties::validationRules('default_carrier_norms_penalties'),
             'is_active' => ['required', 'boolean'],
-            'is_verified' => ['required', 'boolean'],
+            'work_status' => ['nullable', 'string', Rule::in(ContractorWorkStatus::manualValues())],
+            'is_verified' => ['sometimes', 'boolean'],
             'is_own_company' => ['required', 'boolean'],
             'is_non_resident' => ['nullable', 'boolean'],
             'has_english_requisites' => ['nullable', 'boolean'],

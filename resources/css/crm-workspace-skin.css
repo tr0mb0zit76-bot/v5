@@ -346,7 +346,7 @@ html.dark[data-crm-workspace-skin='sky'] {
     .crm-field {
         width: 100%;
         max-width: 9.75rem;
-        border-radius: 0.5rem;
+        border-radius: var(--crm-radius-control, 0.5rem);
         border: 1px solid rgb(228 228 231);
         background: rgb(255 255 255);
         padding: 0.35rem 0.55rem;
@@ -379,7 +379,44 @@ html.dark[data-crm-workspace-skin='sky'] {
         padding: 0.5rem 0.75rem;
         font-size: 0.875rem;
         line-height: 1.25rem;
-        border-radius: 0.75rem;
+        border-radius: var(--crm-radius-control, 0.75rem);
+    }
+
+    .crm-field--days {
+        max-width: 3.25rem;
+        padding: 0.5rem 0.35rem;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .crm-field--payment-mode {
+        max-width: 9rem;
+        padding: 0.5rem 0.5rem;
+        font-size: 0.8125rem;
+    }
+
+    .crm-field--compact {
+        max-width: 6rem;
+        padding: 0.35rem 0.45rem;
+        font-size: 0.8125rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .crm-field-display {
+        width: 100%;
+        border-radius: var(--crm-radius-control, 0.75rem);
+        border: 1px solid rgb(228 228 231);
+        background: rgb(255 255 255);
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        color: rgb(82 82 91);
+    }
+
+    .dark .crm-field-display {
+        border-color: rgb(63 63 70);
+        background: rgb(9 9 11);
+        color: rgb(212 212 216);
     }
 
     .crm-label {
@@ -660,21 +697,39 @@ html[data-crm-workspace-skin='sky'] .crm-wizard-shell input[type='checkbox'] {
     border-color: rgb(var(--crm-border));
 }
 
-/* Поля мастера без явного crm-field (legacy-классы Tailwind) */
+/* Поля мастера / модалки без явного crm-field (legacy-классы Tailwind) */
 html[data-crm-workspace-skin='sky'] .crm-wizard-shell select,
 html[data-crm-workspace-skin='sky'] .crm-wizard-shell textarea,
-html[data-crm-workspace-skin='sky'] .crm-wizard-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox) {
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox),
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell select,
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell textarea,
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox),
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell select,
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell textarea,
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox) {
     border-color: rgb(var(--crm-border)) !important;
-    border-radius: calc(var(--crm-radius-md) * 0.9) !important;
+    border-radius: var(--crm-radius-control, calc(var(--crm-radius-md) * 0.9)) !important;
     background: rgb(var(--crm-surface)) !important;
     color: rgb(var(--crm-text)) !important;
 }
 
 html[data-crm-workspace-skin='sky'] .crm-wizard-shell select:focus,
 html[data-crm-workspace-skin='sky'] .crm-wizard-shell textarea:focus,
-html[data-crm-workspace-skin='sky'] .crm-wizard-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):focus {
+html[data-crm-workspace-skin='sky'] .crm-wizard-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell select:focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell textarea:focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-entity-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell select:focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell textarea:focus,
+html[data-crm-workspace-skin='sky'] .crm-modal-form-shell input:not([type='checkbox']):not([type='color']):not([type='file']):not(.crm-checkbox):focus {
     border-color: rgb(var(--crm-accent)) !important;
     outline: none;
+}
+
+html[data-crm-radius='sharp'] .crm-field,
+html[data-crm-radius='sharp'] .crm-field--fluid,
+html[data-crm-radius='sharp'] .crm-field-display {
+    border-radius: 0 !important;
 }
 
 html[data-crm-workspace-skin='sky'] .crm-grid-panel .crm-btn-neutral,
@@ -697,6 +752,7 @@ html[data-crm-workspace-skin='sky'] .crm-wizard-shell {
 }
 
 html[data-crm-radius='sharp'] .crm-modal-panel,
-html[data-crm-radius='sharp'] .crm-wizard-shell {
+html[data-crm-radius='sharp'] .crm-wizard-shell,
+html[data-crm-radius='sharp'] .crm-modal-entity-shell {
     border-radius: 0;
 }

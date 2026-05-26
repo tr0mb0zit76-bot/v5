@@ -11,10 +11,12 @@ use App\Models\User;
 use App\Services\Checko\ContractorScoringService;
 use App\Services\ContractorCreditService;
 use App\Services\ContractorDocumentSyncService;
+use App\Services\ContractorOperationalStatusService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
+use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
@@ -193,11 +195,27 @@ class ContractorController extends Controller
         ]);
     }
 
-    public function scoring(Request $request, Contractor $contractor, ContractorScoringService $scoringService): JsonResponse
-    {
+    public function scoring(
+        Request $request,
+        Contractor $contractor,
+        ContractorScoringService $scoringService,
+        ContractorOperationalStatusService $statusService,
+    ): JsonResponse {
         $refresh = $request->boolean('refresh');
 
-        return response()->json($scoringService->buildPayload($contractor, $refresh));
+        if ($refresh) {
+            $statusService->sync($contractor);
+        }
+
+        $payload = $scoringService->buildPayload($contractor, $refresh);
+
+        if ($refresh && ($payload['ok'] ?? false)) {
+            $statusService->markVerifiedFromScoring($contractor, $payload);
+            $contractor->refresh();
+            $payload['verification'] = $this->verificationPayload($contractor, $statusService);
+        }
+
+        return response()->json($payload);
     }
 
     public function search(Request $request): JsonResponse
@@ -345,8 +363,12 @@ class ContractorController extends Controller
 
         $debtMap = $creditService->currentDebtByContractorIds($contractorsCollection->pluck('id')->all());
 
+        /** @var ContractorOperationalStatusService $statusService */
+        $statusService = app(ContractorOperationalStatusService::class);
+        $statusService->syncMany($contractorsCollection);
+
         $contractors = $contractorsCollection
-            ->map(function (Contractor $contractor) use ($hasContactsTable, $creditService, $debtMap): array {
+            ->map(function (Contractor $contractor) use ($hasContactsTable, $creditService, $debtMap, $statusService): array {
                 $primary = $this->primaryContactNameAndPhoneForGrid($contractor, $hasContactsTable);
 
                 return [
@@ -358,9 +380,14 @@ class ContractorController extends Controller
                     'phone' => $primary['phone'],
                     'email' => $contractor->email,
                     'is_active' => $contractor->is_active,
+                    'work_status' => $contractor->work_status ?? ContractorWorkStatus::ACTIVE,
+                    'work_pause_is_automatic' => (bool) ($contractor->work_pause_is_automatic ?? false),
                     'is_verified' => (bool) $contractor->is_verified,
+                    'verified_at' => optional($contractor->verified_at)?->toIso8601String(),
+                    'verification_valid_until' => optional($statusService->verificationValidUntil($contractor->verified_at))?->toDateString(),
                     'is_own_company' => $contractor->is_own_company ?? false,
-                    'status_text' => $contractor->is_active ? 'Активен' : 'Архив',
+                    'status_text' => $statusService->resolveStatusText($contractor),
+                    'status_badge_class' => $statusService->resolveStatusBadge($contractor)['badge'],
                     'activity_types_label' => $this->implodeActivityTypes($contractor->activity_types),
                     'primary_contact' => $primary['name'],
                     'owner_name' => Schema::hasColumn('contractors', 'owner_id')
@@ -391,6 +418,8 @@ class ContractorController extends Controller
         $contractorDetails = null;
 
         if ($selectedContractor !== null) {
+            $selectedContractor = $statusService->sync($selectedContractor);
+
             $relations = [];
 
             if ($hasContactsTable) {
@@ -572,7 +601,26 @@ class ContractorController extends Controller
             ],
             'currencyOptions' => CurrencyDictionary::options(),
             'paymentFormOptions' => PaymentFormDictionary::options(),
+            'workStatusOptions' => collect(ContractorWorkStatus::manualValues())
+                ->map(fn (string $value): array => [
+                    'value' => $value,
+                    'label' => ContractorWorkStatus::label($value),
+                ])
+                ->values()
+                ->all(),
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function verificationPayload(Contractor $contractor, ContractorOperationalStatusService $statusService): array
+    {
+        return [
+            'is_verified' => (bool) $contractor->is_verified,
+            'verified_at' => optional($contractor->verified_at)?->toIso8601String(),
+            'verification_valid_until' => optional($statusService->verificationValidUntil($contractor->verified_at))?->toDateString(),
+        ];
     }
 
     /**
@@ -710,7 +758,23 @@ class ContractorController extends Controller
             unset($validated['is_own_company']);
         }
 
+        unset($validated['is_verified'], $validated['verified_at']);
+
+        if (array_key_exists('work_status', $validated)) {
+            $workStatus = (string) $validated['work_status'];
+
+            if (in_array($workStatus, ContractorWorkStatus::manualValues(), true)) {
+                $validated['work_status'] = $workStatus;
+                $validated['work_pause_is_automatic'] = false;
+            } else {
+                unset($validated['work_status']);
+            }
+        }
+
         foreach ([
+            'work_status',
+            'work_pause_is_automatic',
+            'verified_at',
             'debt_limit',
             'debt_limit_currency',
             'stop_on_limit',
