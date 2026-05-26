@@ -81,53 +81,88 @@ class HandleInertiaRequests extends Middleware
                     is_array($user->ui_preferences) ? $user->ui_preferences : null,
                 ),
                 'mobile_nav' => MobileNavResolver::forInertiaUser($user),
-                'role' => $user->role_id === null || ! $hasRolesTable ? null : (function () use ($user, $hasVisibilityAreasColumn, $hasVisibilityScopesColumn): ?array {
-                    $roleModel = Role::query()->find($user->role_id);
+                'role' => ! $hasRolesTable ? null : (function () use ($user): ?array {
+                    $assignedRoles = RoleAccess::assignedRoles($user);
 
-                    if ($roleModel === null) {
+                    if ($assignedRoles->isEmpty()) {
                         return null;
                     }
 
-                    $rawVisibilityAreas = $hasVisibilityAreasColumn ? ($roleModel->visibility_areas ?? null) : null;
-                    $rawVisibilityScopes = $hasVisibilityScopesColumn ? ($roleModel->visibility_scopes ?? null) : null;
+                    $primaryRole = $assignedRoles->first();
+                    $roleNameForDefaults = RoleAccess::userHasRoleName($user, 'admin')
+                        ? 'admin'
+                        : ($primaryRole->name ?? 'manager');
 
-                    $visibilityAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload(
-                        $roleModel->name,
-                        $rawVisibilityAreas,
-                    );
+                    $visibilityAreas = RoleAccess::userVisibilityAreas($user);
+                    $visibilityScopes = RoleAccess::mergedVisibilityScopesForUser($user);
 
-                    $visibilityScopes = RoleAccess::coerceVisibilityScopes($rawVisibilityScopes);
+                    $displayNames = $assignedRoles
+                        ->map(fn (Role $role): string => (string) ($role->display_name ?: $role->name))
+                        ->filter()
+                        ->values();
 
                     return [
-                        'id' => $roleModel->id,
-                        'name' => $roleModel->name,
-                        'display_name' => $roleModel->display_name,
-                        'permissions' => is_array($roleModel->permissions ?? null) ? $roleModel->permissions : [],
+                        'id' => $primaryRole->id,
+                        'name' => $primaryRole->name,
+                        'display_name' => $displayNames->count() > 1
+                            ? $displayNames->implode(', ')
+                            : ($primaryRole->display_name ?? $primaryRole->name),
+                        'role_ids' => RoleAccess::userRoleIds($user),
+                        'permissions' => RoleAccess::userPermissions($user),
                         'visibility_areas' => $visibilityAreas,
-                        'visibility_scopes' => is_array($visibilityScopes)
+                        'visibility_scopes' => $visibilityScopes !== []
                             ? $visibilityScopes
-                            : RoleAccess::defaultVisibilityScopes($roleModel->name),
-                        'columns_config' => (function () use ($roleModel): array {
-                            $columnsConfig = is_array($roleModel->columns_config ?? null)
-                                ? $roleModel->columns_config
-                                : [];
+                            : RoleAccess::defaultVisibilityScopes($roleNameForDefaults),
+                        'columns_config' => (function () use ($assignedRoles, $roleNameForDefaults): array {
+                            $columnsConfig = [];
 
-                            $ordersPreset = $columnsConfig['orders'] ?? OrderTableColumns::defaultState($roleModel->name);
+                            foreach ($assignedRoles as $role) {
+                                $roleConfig = is_array($role->columns_config ?? null)
+                                    ? $role->columns_config
+                                    : [];
+
+                                foreach ($roleConfig as $table => $preset) {
+                                    if (! is_string($table) || ! is_array($preset)) {
+                                        continue;
+                                    }
+
+                                    if (! isset($columnsConfig[$table])) {
+                                        $columnsConfig[$table] = $preset;
+
+                                        continue;
+                                    }
+
+                                    foreach ($preset as $columnKey => $columnState) {
+                                        if (! is_array($columnState)) {
+                                            continue;
+                                        }
+
+                                        $existing = $columnsConfig[$table][$columnKey] ?? [];
+                                        $columnsConfig[$table][$columnKey] = [
+                                            ...$existing,
+                                            ...$columnState,
+                                            'visible' => (bool) (($existing['visible'] ?? false) || ($columnState['visible'] ?? false)),
+                                        ];
+                                    }
+                                }
+                            }
+
+                            $ordersPreset = $columnsConfig['orders'] ?? OrderTableColumns::defaultState($roleNameForDefaults);
                             $columnsConfig['orders'] = OrderTableColumns::mergePresetWithCatalog(
                                 is_array($ordersPreset) ? $ordersPreset : [],
                             );
 
-                            $leadsPreset = $columnsConfig['leads'] ?? LeadTableColumns::defaultState($roleModel->name);
+                            $leadsPreset = $columnsConfig['leads'] ?? LeadTableColumns::defaultState($roleNameForDefaults);
                             $columnsConfig['leads'] = LeadTableColumns::mergePresetWithCatalog(
                                 is_array($leadsPreset) ? $leadsPreset : [],
                             );
 
-                            $contractorsPreset = $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($roleModel->name);
+                            $contractorsPreset = $columnsConfig['contractors'] ?? ContractorTableColumns::defaultState($roleNameForDefaults);
                             $columnsConfig['contractors'] = ContractorTableColumns::mergePresetWithCatalog(
                                 is_array($contractorsPreset) ? $contractorsPreset : [],
                             );
 
-                            $paymentSchedulePreset = $columnsConfig['payment_schedule'] ?? PaymentScheduleTableColumns::defaultState($roleModel->name);
+                            $paymentSchedulePreset = $columnsConfig['payment_schedule'] ?? PaymentScheduleTableColumns::defaultState($roleNameForDefaults);
                             $columnsConfig['payment_schedule'] = PaymentScheduleTableColumns::mergePresetWithCatalog(
                                 is_array($paymentSchedulePreset) ? $paymentSchedulePreset : [],
                             );

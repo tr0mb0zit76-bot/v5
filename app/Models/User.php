@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\RoleAccess;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -71,6 +72,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return BelongsToMany<Role, $this>
+     */
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(Role::class, 'role_user')->withTimestamps();
+    }
+
+    /**
      * @return BelongsToMany<Conversation, $this>
      */
     public function conversations(): BelongsToMany
@@ -82,7 +91,7 @@ class User extends Authenticatable
 
     public function hasRole(string $roleName): bool
     {
-        return $this->role?->name === $roleName;
+        return RoleAccess::userHasRoleName($this, $roleName);
     }
 
     public function isAdmin(): bool

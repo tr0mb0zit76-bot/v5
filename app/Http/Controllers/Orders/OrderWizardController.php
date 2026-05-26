@@ -2374,40 +2374,29 @@ class OrderWizardController extends Controller
      */
     private function loadRelevantContractors(?Order $order): Collection
     {
-        $query = Contractor::query();
+        $user = auth()->user();
+        $relatedIds = $order !== null ? $this->getRelatedContractorIds($order) : [];
 
-        // Если есть заказ, загружаем связанных контрагентов + топ активных + собственные компании
-        if ($order) {
-            $relatedIds = $this->getRelatedContractorIds($order);
+        $query = Contractor::query()->visibleTo($user, null, $relatedIds);
 
-            if (! empty($relatedIds)) {
-                return $query->where(function ($q) use ($relatedIds) {
-                    // Связанные контрагенты
-                    $q->whereIn('id', $relatedIds)
-                      // Или активные
-                        ->orWhere('is_active', true)
-                      // Или собственные компании (даже если не активны)
-                        ->orWhere('is_own_company', true);
-                })
-                    ->orderByDesc('is_own_company')
-                    ->orderBy('name')
-                    ->limit(300) // Увеличено с 150 до 300
-                    ->get($this->contractorSelectColumns());
+        $query->where(function ($q) use ($relatedIds): void {
+            $q->where('is_active', true);
+
+            if (Schema::hasColumn('contractors', 'is_own_company')) {
+                $q->orWhere('is_own_company', true);
             }
-        }
 
-        // Для нового заказа или заказа без связанных контрагентов - активные + собственные компании
+            if ($relatedIds !== []) {
+                $q->orWhereIn('id', $relatedIds);
+            }
+        });
+
         if (Schema::hasColumn('contractors', 'is_own_company')) {
-            $query->where(function ($q): void {
-                $q->where('is_active', true)
-                    ->orWhere('is_own_company', true);
-            })->orderByDesc('is_own_company');
-        } else {
-            $query->where('is_active', true);
+            $query->orderByDesc('is_own_company');
         }
 
         return $query->orderBy('name')
-            ->limit(200) // Увеличено с 100 до 200
+            ->limit($order !== null ? 300 : 200)
             ->get($this->contractorSelectColumns());
     }
 

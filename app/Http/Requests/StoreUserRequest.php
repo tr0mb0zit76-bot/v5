@@ -27,6 +27,8 @@ class StoreUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:50'],
             'password' => ['required', 'confirmed', Password::min(8)],
             'role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
+            'role_ids' => ['nullable', 'array', 'max:10'],
+            'role_ids.*' => ['integer', Rule::exists('roles', 'id')],
             'is_active' => ['required', 'boolean'],
             'has_signing_authority' => ['nullable', 'boolean'],
             'belongs_to_management' => ['nullable', 'boolean'],
@@ -40,5 +42,33 @@ class StoreUserRequest extends FormRequest
                 }),
             ],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->mergeRoleIdsFromLegacyInput();
+    }
+
+    private function mergeRoleIdsFromLegacyInput(): void
+    {
+        $roleIds = $this->input('role_ids');
+
+        if (! is_array($roleIds) && $this->filled('role_id')) {
+            $roleIds = [(int) $this->input('role_id')];
+        }
+
+        if (! is_array($roleIds)) {
+            return;
+        }
+
+        $normalized = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $roleIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        $this->merge([
+            'role_ids' => $normalized,
+            'role_id' => $normalized[0] ?? null,
+        ]);
     }
 }

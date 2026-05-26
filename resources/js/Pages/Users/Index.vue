@@ -55,8 +55,15 @@
                             <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ user.email }}</td>
                             <td class="px-3 py-3 text-zinc-600 dark:text-zinc-300">{{ user.phone || '—' }}</td>
                             <td class="px-3 py-3">
-                                <span class="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
-                                    {{ user.role?.display_name || user.role?.name || 'Без роли' }}
+                                <span class="inline-flex max-w-xs flex-wrap gap-1">
+                                    <span
+                                        v-for="role in (user.roles?.length ? user.roles : (user.role ? [user.role] : []))"
+                                        :key="`user-${user.id}-role-${role.id}`"
+                                        class="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800"
+                                    >
+                                        {{ role.display_name || role.name }}
+                                    </span>
+                                    <span v-if="!user.roles?.length && !user.role" class="text-xs text-zinc-500">Без роли</span>
                                 </span>
                             </td>
                             <td class="px-3 py-3">
@@ -164,21 +171,31 @@
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Роль</label>
-                            <select
-                                v-model="form.role_id"
-                                :class="`mt-2 ${crmFieldFluid}`"
-                            >
-                                <option :value="null">Без роли</option>
-                                <option v-for="role in roles" :key="role.id" :value="role.id">
-                                    {{ role.display_name || role.name }}
-                                </option>
-                            </select>
+                        <div class="md:col-span-2">
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Роли</label>
+                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                Можно выбрать несколько — права и области видимости объединяются (например, менеджер + диспетчер).
+                            </p>
+                            <div class="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                                <label
+                                    v-for="role in roles"
+                                    :key="`user-role-${role.id}`"
+                                    class="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm text-zinc-800 transition hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                                        :checked="isRoleSelected(role.id)"
+                                        @change="toggleRole(role.id)"
+                                    >
+                                    <span>{{ role.display_name || role.name }}</span>
+                                </label>
+                            </div>
+                            <div v-if="form.errors.role_ids" class="mt-1 text-sm text-rose-600">{{ form.errors.role_ids }}</div>
                             <div v-if="form.errors.role_id" class="mt-1 text-sm text-rose-600">{{ form.errors.role_id }}</div>
                         </div>
 
-                        <label class="flex items-center gap-3 pt-8 text-sm text-zinc-700 dark:text-zinc-200">
+                        <label class="flex items-center gap-3 pt-2 text-sm text-zinc-700 dark:text-zinc-200 md:col-span-2">
                             <input
                                 v-model="form.is_active"
                                 type="checkbox"
@@ -418,6 +435,7 @@ const form = useForm({
     email: '',
     phone: '',
     role_id: null,
+    role_ids: [],
     is_active: true,
     has_signing_authority: false,
     belongs_to_management: false,
@@ -446,6 +464,7 @@ function resetForm() {
     form.email = '';
     form.phone = '';
     form.role_id = null;
+    form.role_ids = [];
     form.is_active = true;
     form.has_signing_authority = false;
     form.belongs_to_management = false;
@@ -469,6 +488,9 @@ function openEditModal(user) {
     form.email = user.email;
     form.phone = user.phone ?? '';
     form.role_id = user.role_id;
+    form.role_ids = Array.isArray(user.role_ids) && user.role_ids.length > 0
+        ? user.role_ids.map((id) => Number(id))
+        : (user.role_id ? [Number(user.role_id)] : []);
     form.is_active = user.is_active;
     form.has_signing_authority = Boolean(user.has_signing_authority);
     form.belongs_to_management = Boolean(user.belongs_to_management);
@@ -505,14 +527,33 @@ function toggleSigningCompany(companyId) {
     form.signing_own_company_ids = [...ids, id];
 }
 
-watch(() => form.role_id, (roleId) => {
+function isRoleSelected(roleId) {
+    const id = Number(roleId);
+
+    return form.role_ids.some((selectedId) => Number(selectedId) === id);
+}
+
+function toggleRole(roleId) {
+    const id = Number(roleId);
+    const ids = form.role_ids.map((selectedId) => Number(selectedId));
+
+    if (ids.includes(id)) {
+        form.role_ids = ids.filter((selectedId) => selectedId !== id);
+    } else {
+        form.role_ids = [...ids, id];
+    }
+
+    form.role_id = form.role_ids[0] ?? null;
+}
+
+watch(() => [...form.role_ids], (roleIds) => {
     if (editingUser.value !== null) {
         return;
     }
 
-    const selectedRole = props.roles.find((role) => role.id === roleId) ?? null;
-    form.has_signing_authority = Boolean(selectedRole?.default_has_signing_authority);
-});
+    const selectedRoles = props.roles.filter((role) => roleIds.includes(Number(role.id)));
+    form.has_signing_authority = selectedRoles.some((role) => Boolean(role.default_has_signing_authority));
+}, { deep: true });
 
 function closeModal() {
     showModal.value = false;
@@ -540,6 +581,9 @@ function buildUpdatePayload(user, overrides = {}) {
         email: user.email,
         phone: user.phone ?? '',
         role_id: user.role_id,
+        role_ids: Array.isArray(user.role_ids) && user.role_ids.length > 0
+            ? [...user.role_ids]
+            : (user.role_id ? [user.role_id] : []),
         is_active: user.is_active,
         has_signing_authority: user.has_signing_authority,
         belongs_to_management: user.belongs_to_management,

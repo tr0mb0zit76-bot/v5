@@ -212,16 +212,7 @@ class ContractorController extends Controller
         $type = $request->get('type', 'customer');
         $limit = $request->get('limit', 100);
 
-        $contractorsQuery = Contractor::query();
-
-        // Как в мастере заказа: перевозчики — type carrier или both; клиенты — customer или both.
-        if ($type === 'customer') {
-            $contractorsQuery->whereIn('type', ['customer', 'both']);
-        } elseif ($type === 'carrier') {
-            $contractorsQuery->whereIn('type', ['carrier', 'both']);
-        } elseif ($type === 'both') {
-            $contractorsQuery->whereIn('type', ['customer', 'both']);
-        }
+        $contractorsQuery = Contractor::query()->visibleTo($request->user(), $type);
 
         // Apply search query
         if ($query !== '') {

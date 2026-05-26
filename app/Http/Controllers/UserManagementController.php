@@ -27,6 +27,7 @@ class UserManagementController extends Controller
             'users' => User::query()
                 ->with([
                     'role:id,name,display_name',
+                    'roles:id,name,display_name',
                     'signingOwnCompanies:id,name',
                 ])
                 ->orderBy('is_active', 'desc')
@@ -53,9 +54,12 @@ class UserManagementController extends Controller
     {
         $validated = $request->validated();
         $signingOwnCompanyIds = $validated['signing_own_company_ids'] ?? [];
-        unset($validated['signing_own_company_ids']);
+        $roleIds = $validated['role_ids'] ?? [];
+        unset($validated['signing_own_company_ids'], $validated['role_ids']);
 
         $user = User::query()->create($validated);
+
+        RoleAccess::syncUserRoles($user, is_array($roleIds) ? $roleIds : []);
 
         UserSigningOwnCompanySync::sync(
             $user,
@@ -72,13 +76,18 @@ class UserManagementController extends Controller
 
         $validated = $request->validated();
         $signingOwnCompanyIds = $validated['signing_own_company_ids'] ?? [];
-        unset($validated['signing_own_company_ids']);
+        $roleIds = $validated['role_ids'] ?? null;
+        unset($validated['signing_own_company_ids'], $validated['role_ids']);
 
         if (($validated['password'] ?? null) === null) {
             unset($validated['password']);
         }
 
         $user->update($validated);
+
+        if (is_array($roleIds)) {
+            RoleAccess::syncUserRoles($user, $roleIds);
+        }
 
         UserSigningOwnCompanySync::sync(
             $user,
@@ -112,12 +121,21 @@ class UserManagementController extends Controller
             'email' => $user->email,
             'phone' => $user->phone,
             'role_id' => $user->role_id,
+            'role_ids' => RoleAccess::userRoleIds($user),
             'has_password' => filled($user->getRawOriginal('password')),
             'role' => $user->role === null ? null : [
                 'id' => $user->role->id,
                 'name' => $user->role->name,
                 'display_name' => $user->role->display_name,
             ],
+            'roles' => $user->relationLoaded('roles')
+                ? $user->roles->map(fn (Role $role): array => [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'display_name' => $role->display_name,
+                ])->values()->all()
+                : [],
+            'roles_label' => $this->rolesLabel($user),
             'is_active' => $user->is_active,
             'has_signing_authority' => (bool) $user->has_signing_authority,
             'belongs_to_management' => (bool) $user->belongs_to_management,
@@ -148,6 +166,22 @@ class UserManagementController extends Controller
         }
 
         return 'Выбранные компании';
+    }
+
+    private function rolesLabel(User $user): string
+    {
+        $roles = $user->relationLoaded('roles') && $user->roles->isNotEmpty()
+            ? $user->roles
+            : RoleAccess::assignedRoles($user);
+
+        if ($roles->isEmpty()) {
+            return 'Без роли';
+        }
+
+        return $roles
+            ->map(fn (Role $role): string => (string) ($role->display_name ?: $role->name))
+            ->filter()
+            ->implode(', ');
     }
 
     /**

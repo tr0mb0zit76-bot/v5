@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 
 class RoleAccess
 {
@@ -243,9 +245,84 @@ class RoleAccess
             return static::resolveVisibilityScope(null, null, $area);
         }
 
-        $role = $user->role_id ? Role::query()->find($user->role_id) : null;
+        if ($user->isAdmin()) {
+            return 'all';
+        }
 
-        return static::resolveVisibilityScopeForRolePayload($role?->name, $role?->visibility_scopes, $area);
+        $scopes = static::mergedVisibilityScopesForUser($user);
+        $fallbackRoleName = static::assignedRoles($user)->first()?->name;
+
+        $value = $scopes[$area] ?? static::defaultVisibilityScopes($fallbackRoleName)[$area] ?? 'own';
+
+        return in_array($value, ['own', 'all'], true) ? $value : 'own';
+    }
+
+    /**
+     * @return EloquentCollection<int, Role>
+     */
+    public static function assignedRoles(User $user): EloquentCollection
+    {
+        $user->loadMissing(['roles', 'role']);
+
+        if ($user->relationLoaded('roles') && $user->roles->isNotEmpty()) {
+            return $user->roles;
+        }
+
+        if (! Schema::hasTable('roles')) {
+            return new EloquentCollection;
+        }
+
+        if ($user->role_id !== null && $user->role !== null) {
+            return new EloquentCollection([$user->role]);
+        }
+
+        if ($user->role_id !== null) {
+            $role = Role::query()->find($user->role_id);
+
+            return $role !== null ? new EloquentCollection([$role]) : new EloquentCollection;
+        }
+
+        return new EloquentCollection;
+    }
+
+    public static function userHasRoleName(?User $user, string $roleName): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return static::assignedRoles($user)->contains(
+            fn (Role $role): bool => $role->name === $roleName,
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function mergedVisibilityScopesForUser(User $user): array
+    {
+        $merged = [];
+
+        foreach (static::assignedRoles($user) as $role) {
+            $scopes = static::coerceVisibilityScopes($role->visibility_scopes)
+                ?? static::defaultVisibilityScopes($role->name);
+
+            foreach ($scopes as $area => $value) {
+                if (! is_string($area) || $area === '') {
+                    continue;
+                }
+
+                if (($merged[$area] ?? 'own') === 'all' || $value === 'all') {
+                    $merged[$area] = 'all';
+
+                    continue;
+                }
+
+                $merged[$area] = $merged[$area] ?? 'own';
+            }
+        }
+
+        return $merged;
     }
 
     /**
@@ -253,9 +330,39 @@ class RoleAccess
      */
     public static function userVisibilityAreas(User $user): array
     {
-        $role = $user->role_id ? Role::query()->find($user->role_id) : null;
+        $merged = [];
 
-        return static::effectiveVisibilityAreasFromRolePayload($role?->name, $role?->visibility_areas);
+        foreach (static::assignedRoles($user) as $role) {
+            $areas = static::effectiveVisibilityAreasFromRolePayload($role->name, $role->visibility_areas);
+            $merged = [...$merged, ...$areas];
+        }
+
+        return array_values(array_unique($merged));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function userRoleIds(User $user): array
+    {
+        return static::assignedRoles($user)->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
+    }
+
+    /**
+     * @param  list<int>  $roleIds
+     */
+    public static function syncUserRoles(User $user, array $roleIds): void
+    {
+        $normalized = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $roleIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if (Schema::hasTable('role_user')) {
+            $user->roles()->sync($normalized);
+        }
+
+        $user->forceFill(['role_id' => $normalized[0] ?? null])->save();
     }
 
     /**
@@ -734,14 +841,22 @@ class RoleAccess
             return [];
         }
 
-        $user->loadMissing('role');
-        $raw = $user->role?->permissions;
+        $merged = [];
 
-        if (! is_array($raw)) {
-            return [];
+        foreach (static::assignedRoles($user) as $role) {
+            $raw = $role->permissions;
+            if (! is_array($raw)) {
+                continue;
+            }
+
+            foreach ($raw as $permission) {
+                if (is_string($permission) && $permission !== '') {
+                    $merged[] = $permission;
+                }
+            }
         }
 
-        return array_values(array_filter($raw, static fn (mixed $p): bool => is_string($p) && $p !== ''));
+        return array_values(array_unique($merged));
     }
 
     public static function userHasPermission(?User $user, string $permission): bool

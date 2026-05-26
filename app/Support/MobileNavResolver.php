@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 final class MobileNavResolver
@@ -17,44 +16,28 @@ final class MobileNavResolver
             return null;
         }
 
-        $roleName = null;
-        $visibleAreas = [];
+        $visibleAreas = RoleAccess::userVisibilityAreas($user);
+        $isAdmin = RoleAccess::userHasRoleName($user, 'admin');
+
         $roleDefaultKeys = null;
+        if (Schema::hasTable('roles') && Schema::hasColumn('roles', 'default_mobile_nav_keys')) {
+            $mergedDefaults = [];
+            foreach (RoleAccess::assignedRoles($user) as $role) {
+                $rawDefaults = $role->default_mobile_nav_keys;
+                if (! is_array($rawDefaults) || $rawDefaults === []) {
+                    continue;
+                }
 
-        if ($user->role_id !== null && Schema::hasTable('roles')) {
-            $columns = ['name'];
-
-            if (Schema::hasColumn('roles', 'visibility_areas')) {
-                $columns[] = 'visibility_areas';
-            }
-
-            if (Schema::hasColumn('roles', 'default_mobile_nav_keys')) {
-                $columns[] = 'default_mobile_nav_keys';
-            }
-
-            $role = DB::table('roles')
-                ->where('id', $user->role_id)
-                ->select($columns)
-                ->first();
-
-            if ($role !== null) {
-                $roleName = $role->name;
-                $visibleAreas = RoleAccess::effectiveVisibilityAreasFromRolePayload(
-                    $roleName,
-                    property_exists($role, 'visibility_areas') ? $role->visibility_areas : null,
-                );
-
-                if (Schema::hasColumn('roles', 'default_mobile_nav_keys') && property_exists($role, 'default_mobile_nav_keys')) {
-                    $rawDefaults = $role->default_mobile_nav_keys;
-                    if (is_string($rawDefaults)) {
-                        $rawDefaults = json_decode($rawDefaults, true);
+                foreach ($rawDefaults as $key) {
+                    if (is_string($key) && $key !== '' && ! in_array($key, $mergedDefaults, true)) {
+                        $mergedDefaults[] = $key;
                     }
-                    $roleDefaultKeys = is_array($rawDefaults) && $rawDefaults !== [] ? $rawDefaults : null;
                 }
             }
+
+            $roleDefaultKeys = $mergedDefaults !== [] ? $mergedDefaults : null;
         }
 
-        $isAdmin = $roleName === 'admin';
         $candidates = MobileNavCatalog::candidateKeys($isAdmin, $visibleAreas);
 
         $userKeys = $user->mobile_nav_keys;
