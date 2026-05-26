@@ -24,7 +24,6 @@ class EnsureVisibilityAreaAccess
             return $next($request);
         }
 
-        $role = $user->role_id ? Role::query()->find($user->role_id) : null;
         $visibilityAreas = RoleAccess::userVisibilityAreas($user);
 
         abort_unless(RoleAccess::hasVisibilityArea($visibilityAreas, $area), 403);
