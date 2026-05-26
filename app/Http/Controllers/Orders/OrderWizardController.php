@@ -441,6 +441,11 @@ class OrderWizardController extends Controller
         );
     }
 
+    public function canEditOrder(Request $request, Order $order): bool
+    {
+        return $this->canEditInlineField($request, $order);
+    }
+
     private function canEditInlineField(Request $request, Order $order): bool
     {
         $user = $request->user();

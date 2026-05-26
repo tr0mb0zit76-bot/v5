@@ -457,13 +457,22 @@
                                     <div class="space-y-1 sm:col-span-5">
                                         <div class="flex items-center justify-between gap-2">
                                             <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
-                                            <button
-                                                type="button"
-                                                class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                                @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
-                                            >
-                                                + Новый
-                                            </button>
+                                            <div class="flex items-center gap-2">
+                                                <CarrierPortalInviteButton
+                                                    v-if="order?.id && order?.can_edit_order"
+                                                    :order-id="order.id"
+                                                    :stage="performer.stage"
+                                                    :contractor-id="performer.contractor_id"
+                                                    :carrier-slot="1"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                    @click.stop="openCounterpartyModal({ kind: 'performer', index: legIndex, type: 'carrier' })"
+                                                >
+                                                    + Новый
+                                                </button>
+                                            </div>
                                         </div>
                                         <div class="relative">
                                             <input
@@ -537,6 +546,12 @@
                                         </select>
                                     </div>
                                 </div>
+                                <p
+                                    v-if="performer.carrier_portal_submission?.driver_full_name"
+                                    class="text-xs text-emerald-600 dark:text-emerald-400"
+                                >
+                                    Заполнено перевозчиком: {{ performer.carrier_portal_submission.driver_full_name }}
+                                </p>
                             </template>
 
                             <template v-else>
@@ -561,13 +576,22 @@
                                         <div class="space-y-1 sm:col-span-5">
                                             <div class="flex items-center justify-between gap-2">
                                                 <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Перевозчик</label>
-                                                <button
-                                                    type="button"
-                                                    class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                                    @click.stop="openCounterpartyModal({ kind: 'performer-slot', index: `${legIndex}-${slotIndex}`, type: 'carrier' })"
-                                                >
-                                                    + Новый
-                                                </button>
+                                                <div class="flex items-center gap-2">
+                                                    <CarrierPortalInviteButton
+                                                        v-if="order?.id && order?.can_edit_order"
+                                                        :order-id="order.id"
+                                                        :stage="performer.stage"
+                                                        :contractor-id="slot.contractor_id"
+                                                        :carrier-slot="slot.slot ?? slotIndex + 1"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        class="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                        @click.stop="openCounterpartyModal({ kind: 'performer-slot', index: `${legIndex}-${slotIndex}`, type: 'carrier' })"
+                                                    >
+                                                        + Новый
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="relative">
                                                 <input
@@ -1558,6 +1582,7 @@ import {
     buildDocumentRequirementRules,
     documentMatchesRequirementRule,
 } from '@/support/orderDocumentRequirementSlots.js';
+import CarrierPortalInviteButton from '@/Components/Orders/CarrierPortalInviteButton.vue';
 import {
     blankPerformer,
     blankSplitCarrier,

@@ -22,8 +22,10 @@ use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
+use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\PaymentScheduleController;
+use App\Http\Controllers\Portal\OrderCarrierPortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\ReportsController;
@@ -146,6 +148,12 @@ if ($sameShowcaseAndCrmHost) {
     });
 }
 
+Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(function () {
+    Route::get('/carrier/{token}', [OrderCarrierPortalController::class, 'show'])->name('carrier.show');
+    Route::post('/carrier/{token}', [OrderCarrierPortalController::class, 'store'])->name('carrier.store');
+    Route::post('/carrier/{token}/documents', [OrderCarrierPortalController::class, 'storeDocument'])->name('carrier.documents.store');
+});
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
 
@@ -251,6 +259,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/orders', 'store')->name('orders.store');
         Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
         Route::patch('/orders/{order}', 'update')->name('orders.update');
+        Route::post('/orders/{order}/portal-invites/carrier', [OrderPortalInviteController::class, 'storeCarrier'])
+            ->name('orders.portal-invites.carrier.store');
         Route::post('/orders/calculate-compensation', 'calculateCompensation')->name('orders.calculate-compensation');
         Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
         Route::patch('/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');

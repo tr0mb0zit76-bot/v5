@@ -255,6 +255,91 @@ class OrderDocumentRequirementService
      * @param  OrderDocument|array<string, mixed>  $document
      * @param  array<string, mixed>  $rule
      */
+    public function documentsMatchingRule(OrderDocument|array $document, array $rule): bool
+    {
+        return $this->matchesRule($document, $rule);
+    }
+
+    /**
+     * Слоты документов перевозчика для гостевой ссылки (заявка и закрывающие по плечу/исполнителю).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function rulesForCarrierPortalInvite(Order $order, int $contractorId, string $stage, int $carrierSlot): array
+    {
+        return $this->rulesForCarrierPortalInviteFromPerformers(
+            $this->resolvePerformersForOrder($order),
+            $this->resolveClientRequestModeForOrder($order),
+            $contractorId,
+            $stage,
+            $carrierSlot,
+        );
+    }
+
+    /**
+     * @param  list<array{stage?: string|null, contractor_id?: int|null, contractor_name?: string|null, carrier_mode?: string|null, split_carriers?: list<array<string, mixed>>|null}>  $performers
+     * @return list<array<string, mixed>>
+     */
+    public function rulesForCarrierPortalInviteFromPerformers(
+        array $performers,
+        string $clientRequestMode,
+        int $contractorId,
+        string $stage,
+        int $carrierSlot,
+    ): array {
+        $normalizedStage = $this->normalizeStageKey($stage);
+        $carrierSlot = max(1, min(4, $carrierSlot));
+
+        return collect($this->requirementRulesForContext($performers, $clientRequestMode))
+            ->filter(function (array $rule) use ($contractorId, $normalizedStage, $carrierSlot): bool {
+                if (($rule['party'] ?? '') !== 'carrier') {
+                    return false;
+                }
+
+                $slotKind = (string) ($rule['slot_kind'] ?? '');
+                if (! in_array($slotKind, ['carrier_request', 'carrier_closing'], true)) {
+                    return false;
+                }
+
+                if (($rule['slot_key'] ?? '') === 'carrier-empty') {
+                    return false;
+                }
+
+                $ruleContractorId = isset($rule['contractor_id']) && (int) $rule['contractor_id'] > 0
+                    ? (int) $rule['contractor_id']
+                    : null;
+
+                if ($ruleContractorId !== null && $ruleContractorId !== $contractorId) {
+                    return false;
+                }
+
+                $ruleStage = filled($rule['order_leg_stage'] ?? null)
+                    ? $this->normalizeStageKey((string) $rule['order_leg_stage'])
+                    : null;
+
+                if ($ruleStage !== null && $ruleStage !== $normalizedStage) {
+                    return false;
+                }
+
+                $slotKey = (string) ($rule['slot_key'] ?? '');
+                if (str_contains($slotKey, '-slot')) {
+                    $expectedSuffix = '-slot'.$carrierSlot;
+
+                    if (! str_ends_with($slotKey, $expectedSuffix)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  OrderDocument|array<string, mixed>  $document
+     * @param  array<string, mixed>  $rule
+     */
     private function matchesRule(OrderDocument|array $document, array $rule): bool
     {
         $type = $document instanceof OrderDocument

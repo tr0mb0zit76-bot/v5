@@ -1,0 +1,254 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Order;
+use App\Models\OrderDocument;
+use App\Models\OrderPortalInvite;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
+
+class OrderCarrierPortalDocumentService
+{
+    public function __construct(
+        private readonly OrderDocumentRequirementService $requirementService,
+        private readonly DocumentStorageService $documentStorage,
+        private readonly OrderCompensationService $orderCompensationService,
+    ) {}
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function documentSlotsForInvite(OrderPortalInvite $invite): array
+    {
+        $order = $invite->relationLoaded('order')
+            ? $invite->order
+            : Order::query()->with('documents')->findOrFail($invite->order_id);
+
+        $rules = $this->requirementService->rulesForCarrierPortalInvite(
+            $order,
+            (int) $invite->contractor_id,
+            $invite->stage,
+            (int) $invite->carrier_slot,
+        );
+
+        if ($rules === []) {
+            return [];
+        }
+
+        $documents = $order->relationLoaded('documents')
+            ? $order->documents
+            : $order->documents()->get();
+
+        $checklist = collect($this->requirementService->checklistForOrder($order))->keyBy('key');
+        $typeLabels = collect($this->requirementService->documentTypeOptions())->pluck('label', 'value');
+
+        return collect($rules)
+            ->map(function (array $rule) use ($documents, $checklist, $typeLabels): array {
+                $matching = $this->matchingDocuments($documents, $rule);
+                $checklistItem = $checklist->get($rule['key'] ?? '');
+
+                return [
+                    'key' => (string) ($rule['key'] ?? ''),
+                    'label' => (string) ($rule['label'] ?? ''),
+                    'description' => (string) ($rule['description'] ?? ''),
+                    'slot_kind' => (string) ($rule['slot_kind'] ?? ''),
+                    'slot_key' => (string) ($rule['slot_key'] ?? ''),
+                    'completed' => (bool) ($checklistItem['completed'] ?? $matching->isNotEmpty()),
+                    'type_options' => collect($rule['accepted_types'] ?? [])
+                        ->filter(fn (mixed $type): bool => is_string($type) && $type !== '')
+                        ->map(fn (string $type): array => [
+                            'value' => $type,
+                            'label' => (string) ($typeLabels->get($type) ?? $type),
+                        ])
+                        ->values()
+                        ->all(),
+                    'documents' => $matching
+                        ->map(fn (OrderDocument $document): array => $this->serializeDocument($document))
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function missingRequiredSlotLabels(OrderPortalInvite $invite): array
+    {
+        return collect($this->documentSlotsForInvite($invite))
+            ->filter(fn (array $slot): bool => ! ($slot['completed'] ?? false))
+            ->pluck('label')
+            ->map(fn (mixed $label): string => (string) $label)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    public function store(
+        OrderPortalInvite $invite,
+        array $validated,
+        UploadedFile $file,
+    ): OrderDocument {
+        abort_unless($invite->isOpenForSubmission(), 410, 'Ссылка недействительна или данные уже отправлены.');
+
+        $order = Order::query()->findOrFail($invite->order_id);
+        $rule = $this->resolveRuleForUpload($order, $invite, $validated);
+
+        if ($rule === null) {
+            throw ValidationException::withMessages([
+                'type' => 'Тип документа не подходит для выбранного слота.',
+            ]);
+        }
+
+        $type = (string) $validated['type'];
+        if (! in_array($type, $rule['accepted_types'] ?? [], true)) {
+            throw ValidationException::withMessages([
+                'type' => 'Недопустимый тип документа для этого слота.',
+            ]);
+        }
+
+        try {
+            $stored = $this->documentStorage->storeOrderUpload($file, $order->id);
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages([
+                'file' => $exception->getMessage(),
+            ]);
+        }
+
+        $metadata = [
+            'party' => 'carrier',
+            'flow' => 'uploaded',
+            'storage_driver' => $stored['storage_driver'],
+            'order_leg_stage' => filled($rule['order_leg_stage'] ?? null)
+                ? $this->normalizeStage((string) $rule['order_leg_stage'])
+                : $this->normalizeStage($invite->stage),
+            'carrier_contractor_id' => (int) $invite->contractor_id,
+            'requirement_slot_key' => (string) ($rule['slot_key'] ?? $validated['requirement_slot_key']),
+            'portal_invite_id' => $invite->id,
+            'uploaded_via' => 'carrier_portal',
+        ];
+
+        $document = OrderDocument::query()->create([
+            'order_id' => $order->id,
+            'type' => $type,
+            'number' => $this->nullableTrimmedString($validated['number'] ?? null),
+            'document_date' => $this->nullableDateString($validated['document_date'] ?? null),
+            'original_name' => $stored['original_name'],
+            'file_path' => $stored['file_path'],
+            'file_size' => $stored['file_size'],
+            'mime_type' => $stored['mime_type'],
+            'uploaded_by' => null,
+            'status' => 'signed',
+            'metadata' => $metadata,
+            'entity_type' => 'order',
+            'entity_id' => $order->id,
+        ]);
+
+        $this->orderCompensationService->recalculateImpactedPeriods($order);
+
+        return $document;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>|null
+     */
+    private function resolveRuleForUpload(Order $order, OrderPortalInvite $invite, array $validated): ?array
+    {
+        $slotKey = trim((string) ($validated['requirement_slot_key'] ?? ''));
+        $slotKind = trim((string) ($validated['slot_kind'] ?? ''));
+
+        return collect($this->requirementService->rulesForCarrierPortalInvite(
+            $order,
+            (int) $invite->contractor_id,
+            $invite->stage,
+            (int) $invite->carrier_slot,
+        ))
+            ->first(function (array $rule) use ($slotKey, $slotKind): bool {
+                if ($slotKey !== '' && (string) ($rule['slot_key'] ?? '') !== $slotKey) {
+                    return false;
+                }
+
+                if ($slotKind !== '' && (string) ($rule['slot_kind'] ?? '') !== $slotKind) {
+                    return false;
+                }
+
+                return true;
+            });
+    }
+
+    /**
+     * @param  Collection<int, OrderDocument>  $documents
+     * @param  array<string, mixed>  $rule
+     * @return Collection<int, OrderDocument>
+     */
+    private function matchingDocuments(Collection $documents, array $rule): Collection
+    {
+        return $documents
+            ->filter(fn (OrderDocument $document): bool => $this->requirementService->documentsMatchingRule($document, $rule))
+            ->values();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeDocument(OrderDocument $document): array
+    {
+        $typeLabels = collect($this->requirementService->documentTypeOptions())->pluck('label', 'value');
+
+        return [
+            'id' => $document->id,
+            'type' => $document->type,
+            'type_label' => (string) ($typeLabels->get($document->type) ?? $document->type),
+            'original_name' => $document->original_name,
+            'number' => $document->number,
+            'document_date' => optional($document->document_date)?->toDateString(),
+        ];
+    }
+
+    private function normalizeStage(string $stage): string
+    {
+        $stage = trim($stage);
+
+        if ($stage === '') {
+            return 'leg_1';
+        }
+
+        if (preg_match('/^leg_\d+$/', $stage) === 1) {
+            return $stage;
+        }
+
+        if (preg_match('/^\d+$/', $stage) === 1) {
+            return 'leg_'.$stage;
+        }
+
+        return $stage;
+    }
+
+    private function nullableTrimmedString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $string = trim((string) $value);
+
+        return $string === '' ? null : $string;
+    }
+
+    private function nullableDateString(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (string) $value;
+    }
+}
