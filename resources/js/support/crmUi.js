@@ -85,9 +85,6 @@ export const crmListItemActive = 'crm-list-item crm-list-item--active';
 
 export const crmListItemActiveSoft = 'crm-list-item crm-list-item--active-soft';
 
-/** @deprecated используйте crmField */
-export const crmFieldCompact = 'crm-field';
-
 /** @deprecated используйте crmBtnPrimary */
 export const crmBtnPrimaryCompact = 'crm-btn-primary';
 
