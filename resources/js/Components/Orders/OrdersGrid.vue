@@ -416,21 +416,61 @@ let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
+const TERMINAL_ORDER_STATUSES = ['closed', 'cancelled', 'disruption'];
+
+function orderGridTodayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function orderGridDateDay(value) {
+  return value == null || value === '' ? '' : String(value).slice(0, 10);
+}
+
+function isActiveOrderForDateAlert(data) {
+  if (!data) {
+    return false;
+  }
+
+  const status = data.manual_status || data.status || '';
+
+  return !TERMINAL_ORDER_STATUSES.includes(status);
+}
+
+/** Плановая дата в прошлом, фактической по маршруту ещё нет (kind ≠ actual). */
+function isOverduePlannedRouteDateCell(data, dateField) {
+  if (!isActiveOrderForDateAlert(data)) {
+    return false;
+  }
+
+  const kindField = dateField === 'loading_date' ? 'loading_date_route_kind' : 'unloading_date_route_kind';
+  const kind = data[kindField] ?? 'none';
+
+  if (kind === 'actual' || kind === 'none') {
+    return false;
+  }
+
+  const day = orderGridDateDay(data[dateField]);
+  if (!day) {
+    return false;
+  }
+
+  return day < orderGridTodayIso();
+}
+
 function ordersGridStaleRowClass(data) {
   if (!data) {
     return '';
   }
 
   const status = data.manual_status || data.status || '';
-  if (['closed', 'cancelled', 'disruption'].includes(status)) {
+  if (TERMINAL_ORDER_STATUSES.includes(status)) {
     return '';
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  const day = (v) => (v == null || v === '' ? '' : String(v).slice(0, 10));
+  const today = orderGridTodayIso();
 
   if (status === 'new') {
-    const ld = day(data.loading_date);
+    const ld = orderGridDateDay(data.loading_date);
     if (ld && ld < today) {
       return 'ag-row-orders-stale';
     }
@@ -439,7 +479,7 @@ function ordersGridStaleRowClass(data) {
   }
 
   if (status === 'in_progress') {
-    const ud = day(data.unloading_date);
+    const ud = orderGridDateDay(data.unloading_date);
     if (!ud || ud >= today) {
       return '';
     }
@@ -958,23 +998,17 @@ const dynamicColumnDefs = computed(() => {
           classes.push('orders-grid-status-cell');
         }
 
-        if (column.field === 'loading_date') {
-          const k = params.data?.loading_date_route_kind;
+        if (column.field === 'loading_date' || column.field === 'unloading_date') {
+          const kindKey = column.field === 'loading_date' ? 'loading_date_route_kind' : 'unloading_date_route_kind';
+          const k = params.data?.[kindKey];
           if (k === 'planned') {
             classes.push('orders-grid-route-date-planned');
           }
           if (k === 'actual') {
             classes.push('orders-grid-route-date-actual');
           }
-        }
-
-        if (column.field === 'unloading_date') {
-          const k = params.data?.unloading_date_route_kind;
-          if (k === 'planned') {
-            classes.push('orders-grid-route-date-planned');
-          }
-          if (k === 'actual') {
-            classes.push('orders-grid-route-date-actual');
+          if (isOverduePlannedRouteDateCell(params.data, column.field)) {
+            classes.push('orders-grid-route-date-overdue-planned');
           }
         }
 

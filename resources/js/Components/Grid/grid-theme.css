@@ -99,6 +99,15 @@
   background-color: rgb(6 78 59 / 0.35);
 }
 
+/* Плановая дата в прошлом, факт ещё не зафиксирован */
+.orders-grid-theme .orders-grid-route-date-overdue-planned {
+  background-color: rgb(254 226 226);
+}
+
+.dark .orders-grid-theme .orders-grid-route-date-overdue-planned {
+  background-color: rgb(127 29 29 / 0.28);
+}
+
 .orders-grid-theme .orders-grid-editable-cell {
   cursor: text;
   background-image: linear-gradient(

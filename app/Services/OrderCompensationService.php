@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\CashToCashMarginCalculator;
+use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -26,6 +27,11 @@ class OrderCompensationService
         private readonly KpiConfigurationService $kpiConfigurationService,
         private readonly OrderDocumentRequirementService $orderDocumentRequirementService,
     ) {}
+
+    public function resyncPaymentSchedulesForOrder(Order $order): void
+    {
+        $this->syncPaymentSchedules($order);
+    }
 
     public function recalculateImpactedPeriods(
         Order $order,
@@ -695,9 +701,7 @@ class OrderCompensationService
      */
     private function decodePaymentTerms(Order $order): array
     {
-        $decoded = json_decode((string) $order->payment_terms, true);
-
-        return is_array($decoded) ? $decoded : [];
+        return OrderPaymentTermsConfigResolver::forSync($order);
     }
 
     /**

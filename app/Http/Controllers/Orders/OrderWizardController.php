@@ -33,6 +33,7 @@ use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
@@ -2286,12 +2287,7 @@ class OrderWizardController extends Controller
         }
 
         try {
-            $raw = $order->getAttribute('payment_terms');
-            $config = [];
-            if (filled($raw)) {
-                $decoded = json_decode((string) $raw, true, 512, JSON_THROW_ON_ERROR);
-                $config = is_array($decoded) ? $decoded : [];
-            }
+            $config = OrderPaymentTermsConfigResolver::forSync($order);
 
             if (! isset($config['client']) || ! is_array($config['client'])) {
                 $config['client'] = [
