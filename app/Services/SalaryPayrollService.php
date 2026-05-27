@@ -7,6 +7,7 @@ use App\Models\SalaryCoefficient;
 use App\Models\SalaryPayout;
 use App\Models\SalaryPeriod;
 use App\Models\User;
+use App\Support\CustomerPaymentAmountResolver;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -175,14 +176,19 @@ class SalaryPayrollService
                 $orderDate = (string) $order->order_date;
                 $delta = (float) ($order->delta ?? 0);
                 $salaryCoefficient = SalaryCoefficient::getForManagerOnDate((int) $order->manager_id, $orderDate);
-                $salaryAmount = round((float) ($order->salary_accrued ?? 0), 2);
+                $salaryAmount = $this->fallbackSalaryAmount($delta, $salaryCoefficient);
 
-                if ($salaryAmount === 0.0) {
-                    $salaryAmount = $this->fallbackSalaryAmount($delta, $salaryCoefficient);
+                if (Schema::hasColumn('orders', 'salary_accrued')) {
+                    DB::table('orders')
+                        ->where('id', $order->id)
+                        ->update(['salary_accrued' => $salaryAmount]);
                 }
 
                 $customerRate = (float) ($order->customer_rate ?? 0);
-                $paidAtAccrual = $this->paidCustomerAmountForOrderUntil((int) $order->id, $period->period_end->toDateString());
+                $paidAtAccrual = CustomerPaymentAmountResolver::paidForOrderUntil(
+                    (int) $order->id,
+                    $period->period_end->toDateString(),
+                );
                 $isCustomerFullyPaid = $this->isCustomerFullyPaid($customerRate, $paidAtAccrual);
                 $payableAtAccrual = $isCustomerFullyPaid ? $salaryAmount : 0.0;
 
@@ -414,6 +420,10 @@ class SalaryPayrollService
                 'unpaid_total' => round((float) $row->unpaid_amount, 2),
                 'customer_rate' => round((float) $row->customer_rate_snapshot, 2),
                 'customer_paid_amount' => round((float) $row->paid_customer_amount_at_accrual, 2),
+                'customer_payment_percent' => $this->customerPaymentPercent(
+                    (float) $row->customer_rate_snapshot,
+                    (float) $row->paid_customer_amount_at_accrual,
+                ),
                 'customer_fully_paid' => $this->isCustomerFullyPaid((float) $row->customer_rate_snapshot, (float) $row->paid_customer_amount_at_accrual),
                 'payable_total' => round((float) $row->payable_amount_computed, 2),
                 'calculation_mode' => $meta['calculation_mode'] ?? 'kpi',
@@ -463,20 +473,13 @@ class SalaryPayrollService
         return $score;
     }
 
-    private function paidCustomerAmountForOrderUntil(int $orderId, string $date): float
+    private function customerPaymentPercent(float $customerRate, float $paidAmount): float
     {
-        if (! Schema::hasTable('payment_schedules')) {
+        if ($customerRate <= 0) {
             return 0.0;
         }
 
-        $amount = DB::table('payment_schedules')
-            ->where('order_id', $orderId)
-            ->where('party', 'customer')
-            ->where('status', 'paid')
-            ->whereDate('actual_date', '<=', $date)
-            ->sum('amount');
-
-        return (float) $amount;
+        return round(min(100.0, ($paidAmount / $customerRate) * 100), 1);
     }
 
     private function payableForAccrualInPeriod(SalaryAccrual $accrual, SalaryPeriod $period): float
@@ -496,7 +499,10 @@ class SalaryPayrollService
             return 0.0;
         }
 
-        $paidToEnd = $this->paidCustomerAmountForOrderUntil((int) $accrual->order_id, $period->period_end->toDateString());
+        $paidToEnd = CustomerPaymentAmountResolver::paidForOrderUntil(
+            (int) $accrual->order_id,
+            $period->period_end->toDateString(),
+        );
 
         return $this->isCustomerFullyPaid($customerRate, $paidToEnd) ? round($salaryAmount, 2) : 0.0;
     }

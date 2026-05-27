@@ -244,7 +244,15 @@
                                                     <td class="px-3 py-2">{{ money(detailRow.unpaid_total) }}</td>
                                                     <td class="px-3 py-2">
                                                         <span :class="detailRow.customer_fully_paid ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'">
-                                                            {{ money(detailRow.customer_paid_amount) }} / {{ money(detailRow.customer_rate) }}
+                                                            <template v-if="detailRow.customer_fully_paid">
+                                                                {{ money(detailRow.customer_paid_amount) }} / {{ money(detailRow.customer_rate) }}
+                                                            </template>
+                                                            <template v-else-if="Number(detailRow.customer_paid_amount) > 0">
+                                                                Оплачено {{ formatPercent(detailRow.customer_payment_percent) }} ({{ money(detailRow.customer_paid_amount) }} / {{ money(detailRow.customer_rate) }})
+                                                            </template>
+                                                            <template v-else>
+                                                                {{ money(detailRow.customer_paid_amount) }} / {{ money(detailRow.customer_rate) }}
+                                                            </template>
                                                         </span>
                                                     </td>
                                                     <td class="px-3 py-2">{{ calculationModeLabel(detailRow.calculation_mode) }}</td>
@@ -955,6 +963,10 @@ function submitAdvancePayoutModal() {
 
 function money(value) {
     return Number(value || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatPercent(value) {
+    return Number(value || 0).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 }
 
 function calculationModeLabel(value) {
