@@ -136,6 +136,7 @@ import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import { printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -285,17 +286,10 @@ function printOperationalPayments() {
         return;
     }
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-
-    if (!printWindow) {
-        window.alert('Разрешите всплывающие окна для печати.');
-
-        return;
-    }
-
     const todayLabel = formatGridDate(todayIsoDate());
 
-    printWindow.document.write(`
+    printHtmlDocument(
+        `
         <!DOCTYPE html>
         <html lang="ru">
         <head>
@@ -315,10 +309,9 @@ function printOperationalPayments() {
             ${operationalExportTableHtml(rows)}
         </body>
         </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    `,
+        `График оплат — ${todayLabel}`,
+    );
 }
 
 function downloadOperationalPaymentsCsv() {

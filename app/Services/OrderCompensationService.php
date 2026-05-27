@@ -102,6 +102,10 @@ class OrderCompensationService
                 fn ($query) => $query->whereNull('deleted_at')
             )
             ->when(
+                Schema::hasColumn('orders', 'wizard_state'),
+                fn ($query) => $query->addSelect('orders.wizard_state'),
+            )
+            ->when(
                 Schema::hasTable('financial_terms'),
                 fn ($query) => $query->with('financialTerms'),
             )
@@ -390,7 +394,7 @@ class OrderCompensationService
             $order,
             'customer',
             (float) ($order->customer_rate ?? 0),
-            (array) data_get($paymentTerms, 'client.payment_schedule', []),
+            OrderPaymentTermsConfigResolver::resolveClientPaymentSchedule($order),
             null,
             $invoiceByKey,
         );

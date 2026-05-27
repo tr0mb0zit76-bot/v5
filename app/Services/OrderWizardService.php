@@ -767,6 +767,10 @@ class OrderWizardService
             FinancialTerm::query()->where('order_id', $order->id)->delete();
             FinancialTerm::query()->create($financialTermAttributes);
 
+            if ($snapshot !== null && Schema::hasColumn('orders', 'payment_terms')) {
+                $order->forceFill(['payment_terms' => $snapshot])->saveQuietly();
+            }
+
             $this->fleetTripService->syncPlannedTripsFromOrder(
                 $order->fresh(),
                 $normalizedPerformers,

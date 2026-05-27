@@ -23,35 +23,45 @@ final class OrderPaymentTermsConfigResolver
     public static function forSync(Order $order): array
     {
         $config = self::decodeJson($order->getAttribute('payment_terms'));
+        $client = is_array($config['client'] ?? null) ? $config['client'] : [];
+        $client['payment_schedule'] = self::resolveClientPaymentSchedule($order);
 
-        if (self::clientScheduleDefinesMultiplePayments($config)) {
-            return $config;
+        if (! isset($client['payment_form']) && filled($order->customer_payment_form)) {
+            $client['payment_form'] = $order->customer_payment_form;
         }
 
-        foreach (self::alternateConfigs($order) as $candidate) {
-            $schedule = data_get($candidate, 'client.payment_schedule');
-
-            if (! is_array($schedule) || ! PaymentScheduleStructure::definesMultiplePayments($schedule)) {
-                continue;
-            }
-
-            $client = is_array($config['client'] ?? null) ? $config['client'] : [];
-            $client['payment_schedule'] = $schedule;
-
-            if (! isset($client['payment_form']) && filled($order->customer_payment_form)) {
-                $client['payment_form'] = $order->customer_payment_form;
-            }
-
-            if (! isset($client['request_mode'])) {
-                $client['request_mode'] = data_get($candidate, 'client.request_mode', 'single_request');
-            }
-
-            $config['client'] = $client;
-
-            return $config;
+        if (! isset($client['request_mode'])) {
+            $client['request_mode'] = 'single_request';
         }
+
+        $config['client'] = $client;
 
         return $config;
+    }
+
+    /**
+     * Самый детальный график заказчика из orders.payment_terms, snapshot и wizard_state.
+     *
+     * @return array<string, mixed>
+     */
+    public static function resolveClientPaymentSchedule(Order $order): array
+    {
+        /** @var list<array<string, mixed>> $candidates */
+        $candidates = [];
+
+        $fromOrder = data_get(self::decodeJson($order->getAttribute('payment_terms')), 'client.payment_schedule', []);
+        if (is_array($fromOrder)) {
+            $candidates[] = $fromOrder;
+        }
+
+        foreach (self::alternateConfigs($order) as $config) {
+            $schedule = data_get($config, 'client.payment_schedule', []);
+            if (is_array($schedule)) {
+                $candidates[] = $schedule;
+            }
+        }
+
+        return PaymentScheduleStructure::pickRichestSchedule($candidates);
     }
 
     /**
@@ -66,16 +76,6 @@ final class OrderPaymentTermsConfigResolver
         $decoded = json_decode($raw, true);
 
         return is_array($decoded) ? $decoded : [];
-    }
-
-    /**
-     * @param  array<string, mixed>  $config
-     */
-    private static function clientScheduleDefinesMultiplePayments(array $config): bool
-    {
-        $schedule = data_get($config, 'client.payment_schedule');
-
-        return is_array($schedule) && PaymentScheduleStructure::definesMultiplePayments($schedule);
     }
 
     /**

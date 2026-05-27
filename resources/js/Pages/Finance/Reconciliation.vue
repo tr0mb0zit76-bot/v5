@@ -94,6 +94,7 @@ import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import ReconciliationSection from '@/Components/Finance/ReconciliationSection.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnNeutral, crmBtnPrimary, crmFieldFluid, crmPanel } from '@/support/crmUi.js';
+import { printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'finance', activeSubKey: 'finance-reconciliation' }, () => page),
@@ -240,15 +241,8 @@ function printReport() {
         })
         .join('');
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-
-    if (!printWindow) {
-        window.alert('Разрешите всплывающие окна для печати.');
-
-        return;
-    }
-
-    printWindow.document.write(`
+    printHtmlDocument(
+        `
         <!DOCTYPE html>
         <html lang="ru">
         <head>
@@ -270,9 +264,8 @@ function printReport() {
             ${sectionsHtml}
         </body>
         </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    `,
+        `Акт сверки — ${report.contractor.name}`,
+    );
 }
 </script>
