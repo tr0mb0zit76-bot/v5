@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -14,20 +15,58 @@ final class CustomerPaymentAmountResolver
 {
     public static function paidForOrderUntil(int $orderId, ?string $untilDate = null): float
     {
-        if (Schema::hasTable('payment_schedule_payment_events')) {
-            $query = DB::table('payment_schedule_payment_events')
-                ->where('order_id', $orderId)
-                ->where('party', 'customer');
-
-            if ($untilDate !== null && $untilDate !== '') {
-                $query->whereDate('payment_date', '<=', substr($untilDate, 0, 10));
-            }
-
-            return round((float) $query->sum('amount'), 2);
+        if (Schema::hasTable('payment_schedule_payment_events')
+            && self::orderHasLedgerEvents($orderId)) {
+            return round(self::sumFromLedger($orderId, $untilDate), 2);
         }
 
+        return round(self::sumFromSchedules($orderId, $untilDate), 2);
+    }
+
+    private static function orderHasLedgerEvents(int $orderId): bool
+    {
+        return DB::table('payment_schedule_payment_events')
+            ->where('order_id', $orderId)
+            ->where('party', 'customer')
+            ->exists();
+    }
+
+    private static function sumFromLedger(int $orderId, ?string $untilDate): float
+    {
+        $query = DB::table('payment_schedule_payment_events')
+            ->where('order_id', $orderId)
+            ->where('party', 'customer');
+
+        if ($untilDate !== null && $untilDate !== '') {
+            $query->whereDate('payment_date', '<=', substr($untilDate, 0, 10));
+        }
+
+        return (float) $query->sum('amount');
+    }
+
+    private static function sumFromSchedules(int $orderId, ?string $untilDate): float
+    {
         if (! Schema::hasTable('payment_schedules')) {
             return 0.0;
+        }
+
+        if ($untilDate === null || $untilDate === '') {
+            return self::sumRootPaidAmounts($orderId);
+        }
+
+        $total = 0.0;
+
+        foreach (self::rootScheduleRows($orderId) as $row) {
+            $total += self::paidOnRootRowUntil($row, $untilDate);
+        }
+
+        return $total;
+    }
+
+    private static function sumRootPaidAmounts(int $orderId): float
+    {
+        if (! Schema::hasColumn('payment_schedules', 'paid_amount')) {
+            return self::sumRootPaidAmountsFromStatus($orderId);
         }
 
         $query = DB::table('payment_schedules')
@@ -35,6 +74,43 @@ final class CustomerPaymentAmountResolver
             ->where('party', 'customer')
             ->where('status', '!=', 'cancelled');
 
+        self::applyRootRowScope($query);
+
+        return (float) $query->sum(DB::raw('COALESCE(paid_amount, 0)'));
+    }
+
+    private static function sumRootPaidAmountsFromStatus(int $orderId): float
+    {
+        $query = DB::table('payment_schedules')
+            ->where('order_id', $orderId)
+            ->where('party', 'customer')
+            ->where('status', 'paid');
+
+        self::applyRootRowScope($query);
+
+        return (float) $query->sum('amount');
+    }
+
+    /**
+     * @return list<object{id: int, amount: mixed, paid_amount?: mixed, actual_date?: mixed, status?: mixed}>
+     */
+    private static function rootScheduleRows(int $orderId): array
+    {
+        $query = DB::table('payment_schedules')
+            ->where('order_id', $orderId)
+            ->where('party', 'customer')
+            ->where('status', '!=', 'cancelled');
+
+        self::applyRootRowScope($query);
+
+        return $query->get()->all();
+    }
+
+    /**
+     * @param  Builder  $query
+     */
+    private static function applyRootRowScope($query): void
+    {
         if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
             $query->whereNull('parent_payment_id');
         }
@@ -45,20 +121,12 @@ final class CustomerPaymentAmountResolver
                     ->orWhere('is_partial', false);
             });
         }
-
-        $total = 0.0;
-
-        foreach ($query->get() as $row) {
-            $total += self::paidOnRootRowUntil($row, $untilDate);
-        }
-
-        return round($total, 2);
     }
 
     /**
      * @param  object{id: int, amount: mixed, paid_amount?: mixed, actual_date?: mixed, status?: mixed}  $row
      */
-    private static function paidOnRootRowUntil(object $row, ?string $untilDate): float
+    private static function paidOnRootRowUntil(object $row, string $untilDate): float
     {
         if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
             $fromPartials = self::sumPartialPaymentsUntil((int) $row->id, $untilDate);
@@ -72,7 +140,12 @@ final class CustomerPaymentAmountResolver
             return 0.0;
         }
 
-        if (! self::paymentDateOnOrBefore(self::latestPaymentDateForRow($row), $untilDate)) {
+        $latestDate = self::latestPaymentDateForRow($row);
+        if ($latestDate === null) {
+            return min($rootPaid, (float) $row->amount);
+        }
+
+        if (! self::paymentDateOnOrBefore($latestDate, $untilDate)) {
             return 0.0;
         }
 
@@ -98,7 +171,7 @@ final class CustomerPaymentAmountResolver
         return 0.0;
     }
 
-    private static function sumPartialPaymentsUntil(int $rootId, ?string $untilDate): float
+    private static function sumPartialPaymentsUntil(int $rootId, string $untilDate): float
     {
         $partialQuery = DB::table('payment_schedules')
             ->where('parent_payment_id', $rootId);
@@ -155,18 +228,12 @@ final class CustomerPaymentAmountResolver
         return max($dates);
     }
 
-    private static function paymentDateOnOrBefore(mixed $actualDate, ?string $untilDate): bool
+    private static function paymentDateOnOrBefore(mixed $actualDate, string $untilDate): bool
     {
         if ($actualDate === null || $actualDate === '') {
-            return $untilDate === null || $untilDate === '';
+            return false;
         }
 
-        $paymentDay = substr((string) $actualDate, 0, 10);
-
-        if ($untilDate === null || $untilDate === '') {
-            return true;
-        }
-
-        return $paymentDay <= substr($untilDate, 0, 10);
+        return substr((string) $actualDate, 0, 10) <= substr($untilDate, 0, 10);
     }
 }

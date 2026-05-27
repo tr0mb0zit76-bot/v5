@@ -185,10 +185,7 @@ class SalaryPayrollService
                 }
 
                 $customerRate = (float) ($order->customer_rate ?? 0);
-                $paidAtAccrual = CustomerPaymentAmountResolver::paidForOrderUntil(
-                    (int) $order->id,
-                    $period->period_end->toDateString(),
-                );
+                $paidAtAccrual = CustomerPaymentAmountResolver::paidForOrderUntil((int) $order->id);
                 $isCustomerFullyPaid = $this->isCustomerFullyPaid($customerRate, $paidAtAccrual);
                 $payableAtAccrual = $isCustomerFullyPaid ? $salaryAmount : 0.0;
 
@@ -406,6 +403,8 @@ class SalaryPayrollService
                 ? $this->allocatedAmountForAccrualInPeriod($accrual->id, $period->id)
                 : 0.0;
             $meta = is_string($row->meta) ? json_decode($row->meta, true) : (array) $row->meta;
+            $customerRate = round((float) $row->customer_rate_snapshot, 2);
+            $customerPaidAmount = CustomerPaymentAmountResolver::paidForOrderUntil((int) $row->order_id);
 
             return [
                 'accrual_id' => (int) $row->id,
@@ -418,13 +417,13 @@ class SalaryPayrollService
                 'paid_in_period' => round($paidInPeriod, 2),
                 'paid_total' => round((float) $row->paid_amount_fact, 2),
                 'unpaid_total' => round((float) $row->unpaid_amount, 2),
-                'customer_rate' => round((float) $row->customer_rate_snapshot, 2),
-                'customer_paid_amount' => round((float) $row->paid_customer_amount_at_accrual, 2),
+                'customer_rate' => $customerRate,
+                'customer_paid_amount' => $customerPaidAmount,
                 'customer_payment_percent' => $this->customerPaymentPercent(
-                    (float) $row->customer_rate_snapshot,
-                    (float) $row->paid_customer_amount_at_accrual,
+                    $customerRate,
+                    $customerPaidAmount,
                 ),
-                'customer_fully_paid' => $this->isCustomerFullyPaid((float) $row->customer_rate_snapshot, (float) $row->paid_customer_amount_at_accrual),
+                'customer_fully_paid' => $this->isCustomerFullyPaid($customerRate, $customerPaidAmount),
                 'payable_total' => round((float) $row->payable_amount_computed, 2),
                 'calculation_mode' => $meta['calculation_mode'] ?? 'kpi',
             ];
