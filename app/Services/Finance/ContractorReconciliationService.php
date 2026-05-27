@@ -36,19 +36,23 @@ class ContractorReconciliationService
         $asCustomer = $this->buildCustomerSection($contractorId, $from, $to, $userId, $roleName, $ordersScope);
         $asCarrier = $this->buildCarrierSection($contractorId, $from, $to, $userId, $roleName, $ordersScope);
 
+        $contractorType = strtolower(trim((string) ($contractor->type ?? 'both')));
+
         return [
             'contractor' => [
                 'id' => $contractor->id,
                 'name' => $this->contractorDisplayName($contractor),
                 'inn' => $contractor->inn,
+                'type' => $contractorType !== '' ? $contractorType : 'both',
             ],
+            'show_as_customer' => in_array($contractorType, ['customer', 'both'], true),
+            'show_as_carrier' => in_array($contractorType, ['carrier', 'both'], true),
             'period' => [
                 'from' => $from?->toDateString(),
                 'to' => $to?->toDateString(),
             ],
             'as_customer' => $asCustomer,
             'as_carrier' => $asCarrier,
-            'ledger_available' => $this->ledgerService->ledgerTableExists(),
         ];
     }
 
@@ -95,7 +99,7 @@ class ContractorReconciliationService
 
         return [
             'title' => 'Услуги для контрагента (он — заказчик)',
-            'description' => 'Начислено по тарифу заказчика в гриде «Заказы»; оплачено — фактические поступления по графику (party=customer).',
+            'description' => 'Начислено по тарифу заказчика в заказах; оплачено — поступления по графику оплат.',
             'rows' => $rows,
             'totals' => $this->sumRows($rows),
         ];
@@ -142,7 +146,7 @@ class ContractorReconciliationService
 
         return [
             'title' => 'Услуги от контрагента (он — перевозчик)',
-            'description' => 'Начислено по сумме перевозчика из финансов заказа; оплачено — наши платежи по графику (party=carrier).',
+            'description' => 'Начислено по сумме перевозки в заказах; оплачено — наши платежи по графику оплат.',
             'rows' => $rows,
             'totals' => $this->sumRows($rows),
         ];
@@ -367,6 +371,7 @@ class ContractorReconciliationService
                 'id' => $contractor->id,
                 'label' => $this->contractorDisplayName($contractor),
                 'inn' => $contractor->inn,
+                'type' => strtolower(trim((string) ($contractor->type ?? 'both'))) ?: 'both',
             ]);
     }
 }

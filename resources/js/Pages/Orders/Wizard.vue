@@ -364,13 +364,12 @@
                     >
                         <div class="font-semibold text-zinc-800 dark:text-zinc-100">Расчёты по графику оплат</div>
                         <div class="space-y-1.5 text-zinc-700 dark:text-zinc-200">
-                            <div>
-                                Клиент рассчитался с нами:
-                                <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.customer) }}</span>
-                            </div>
-                            <div>
-                                Мы рассчитались с перевозчиками:
-                                <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineLabel(orderPaymentSettlement?.carrier) }}</span>
+                            <div
+                                v-for="line in paymentSettlementLines"
+                                :key="line.key"
+                            >
+                                {{ paymentSettlementLineTitle(line) }}:
+                                <span class="font-medium text-zinc-900 dark:text-zinc-50">{{ paymentSettlementLineValue(line) }}</span>
                             </div>
                         </div>
                     </div>
@@ -4034,14 +4033,13 @@ const financialSummary = computed(() => {
 
 const orderPaymentSettlement = computed(() => props.order?.payment_settlement ?? null);
 
-const showPaymentSettlementBlock = computed(() => {
-    const settlement = orderPaymentSettlement.value;
-    if (!settlement) {
-        return false;
-    }
+const paymentSettlementLines = computed(() => {
+    const lines = orderPaymentSettlement.value?.lines;
 
-    return Boolean(settlement.customer?.has_rows || settlement.carrier?.has_rows);
+    return Array.isArray(lines) ? lines : [];
 });
+
+const showPaymentSettlementBlock = computed(() => paymentSettlementLines.value.length > 0);
 
 function formatRuDate(isoDate) {
     if (!isoDate) {
@@ -4055,15 +4053,46 @@ function formatRuDate(isoDate) {
     return parsed.toLocaleDateString('ru-RU');
 }
 
-function paymentSettlementLineLabel(party) {
-    if (!party?.has_rows) {
-        return '—';
-    }
-    if (party.complete && party.settled_at) {
-        return formatRuDate(party.settled_at);
+function paymentSettlementLineTitle(line) {
+    if (!line) {
+        return '';
     }
 
-    return 'не завершено';
+    if (line.party === 'customer') {
+        return line.state === 'complete'
+            ? 'Клиент рассчитался с нами'
+            : 'Оплата от клиента';
+    }
+
+    const name = String(line.counterparty_name ?? '').trim();
+    if (line.state === 'complete') {
+        return name !== '' ? `Мы рассчитались с ${name}` : 'Мы рассчитались с перевозчиком';
+    }
+
+    return name !== '' ? `Оплата перевозчику (${name})` : 'Оплата перевозчику';
+}
+
+function paymentSettlementLineValue(line) {
+    if (!line?.has_rows) {
+        return '—';
+    }
+
+    const dateLabel = line.last_payment_at ? formatRuDate(line.last_payment_at) : '';
+
+    if (line.state === 'complete') {
+        return dateLabel || 'да';
+    }
+
+    if (line.state === 'partial') {
+        const percent = Math.round(Number(line.percent_paid ?? 0));
+        if (dateLabel) {
+            return `Оплачено ${percent}%. ${dateLabel}`;
+        }
+
+        return `Оплачено ${percent}%`;
+    }
+
+    return 'не поступало';
 }
 
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(

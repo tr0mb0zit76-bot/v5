@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\RoutePointActualMilestones;
 use Carbon\CarbonInterface;
 
 class OrderStatusService
@@ -24,7 +25,7 @@ class OrderStatusService
      */
     public function describe(Order $order, ?string $requestedStatus = null): array
     {
-        $milestones = $this->routeActualMilestones($order);
+        $milestones = RoutePointActualMilestones::forOrder($order);
         $actualLoadingAt = $milestones['actual_loading'];
         $actualUnloadingAt = $milestones['actual_unloading'];
 
@@ -105,59 +106,6 @@ class OrderStatusService
         }
 
         return false;
-    }
-
-    /**
-     * Первая фактическая погрузка и последняя фактическая выгрузка по точкам маршрута.
-     * Плановые даты не учитываются. Без точек маршрута — колонки заказа (legacy).
-     *
-     * @return array{actual_loading: ?CarbonInterface, actual_unloading: ?CarbonInterface}
-     */
-    private function routeActualMilestones(Order $order): array
-    {
-        if (! $order->relationLoaded('legs')) {
-            $order->loadMissing([
-                'legs' => fn ($q) => $q->orderBy('sequence'),
-                'legs.routePoints' => fn ($q) => $q->orderBy('sequence'),
-            ]);
-        }
-
-        $hasRoutePoints = $order->legs->contains(
-            fn ($leg): bool => $leg->routePoints->isNotEmpty()
-        );
-
-        if (! $hasRoutePoints) {
-            return [
-                'actual_loading' => $order->loading_date,
-                'actual_unloading' => $order->unloading_date,
-            ];
-        }
-
-        $firstActualLoading = null;
-        $lastActualUnloading = null;
-
-        foreach ($order->legs as $leg) {
-            foreach ($leg->routePoints as $point) {
-                if ($point->type === 'loading' && $point->actual_date !== null) {
-                    $firstActualLoading = $point->actual_date;
-
-                    break 2;
-                }
-            }
-        }
-
-        foreach ($order->legs as $leg) {
-            foreach ($leg->routePoints as $point) {
-                if ($point->type === 'unloading' && $point->actual_date !== null) {
-                    $lastActualUnloading = $point->actual_date;
-                }
-            }
-        }
-
-        return [
-            'actual_loading' => $firstActualLoading,
-            'actual_unloading' => $lastActualUnloading,
-        ];
     }
 
     /**

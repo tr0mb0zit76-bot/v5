@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FinanceReconciliationRequest;
 use App\Services\Finance\ContractorReconciliationService;
 use App\Services\Finance\FinanceOverviewService;
+use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,7 @@ class FinanceReconciliationController extends Controller
             'contractorOptions' => $reconciliationService->contractorOptions(),
             'filters' => $filters,
             'report' => $report,
+            'ledgerAvailable' => app(PaymentSchedulePaymentLedgerService::class)->ledgerTableExists(),
         ]);
     }
 

@@ -136,7 +136,7 @@ import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
-import { printHtmlDocument } from '@/support/printHtmlDocument.js';
+import { PRINT_DOCUMENT_BASE_STYLES, printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -296,6 +296,7 @@ function printOperationalPayments() {
             <meta charset="utf-8" />
             <title>График оплат — просрочено и на ${todayLabel}</title>
             <style>
+                ${PRINT_DOCUMENT_BASE_STYLES}
                 body { font-family: Arial, sans-serif; font-size: 12px; padding: 16px; }
                 h1 { font-size: 16px; margin: 0 0 12px; }
                 table { width: 100%; border-collapse: collapse; }

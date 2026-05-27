@@ -4,6 +4,14 @@
  * С флагом noopener window.open возвращает null, хотя пустая вкладка уже создана —
  * из-за этого показывалось «Разрешите всплывающие окна», а контент не попадал в окно.
  */
+/** Базовые стили печати: поля страницы без служебных колонтитулов в разметке. */
+export const PRINT_DOCUMENT_BASE_STYLES = `
+    @page { size: auto; margin: 14mm; }
+    @media print {
+        body { margin: 0; padding: 0; }
+    }
+`;
+
 export function printHtmlDocument(html, title = 'Печать') {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('title', title);

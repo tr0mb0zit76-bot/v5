@@ -16,15 +16,11 @@
 
         <section :class="`${crmPanel} space-y-4 p-5`">
             <form class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" @submit.prevent="submit">
-                <div class="space-y-1.5">
-                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Контрагент</label>
-                    <select v-model="form.contractor_id" :class="crmFieldFluid" required>
-                        <option value="">Выберите контрагента</option>
-                        <option v-for="option in contractorOptions" :key="option.id" :value="String(option.id)">
-                            {{ option.label }}<template v-if="option.inn"> · ИНН {{ option.inn }}</template>
-                        </option>
-                    </select>
-                </div>
+                <ContractorSearchSelect
+                    v-model="form.contractor_id"
+                    label="Контрагент"
+                    :options="contractorOptions"
+                />
                 <div class="space-y-1.5">
                     <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Период с</label>
                     <input v-model="form.date_from" type="date" :class="crmFieldFluid" />
@@ -34,13 +30,13 @@
                     <input v-model="form.date_to" type="date" :class="crmFieldFluid" />
                 </div>
                 <div class="flex items-end">
-                    <button type="submit" :class="crmBtnPrimary" :disabled="form.processing">
+                    <button type="submit" :class="crmBtnPrimary" :disabled="form.processing || !form.contractor_id">
                         Сформировать
                     </button>
                 </div>
             </form>
 
-            <p v-if="!report?.ledger_available" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+            <p v-if="!ledgerAvailable" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
                 Журнал оплат ещё не создан — выполните миграции и команду
                 <code class="text-xs">php artisan payment-schedules:backfill-payment-events</code>.
             </p>
@@ -75,11 +71,13 @@
             </section>
 
             <ReconciliationSection
+                v-if="report.show_as_customer"
                 :section="report.as_customer"
                 empty-text="За период нет заказов, где контрагент выступает заказчиком."
             />
 
             <ReconciliationSection
+                v-if="report.show_as_carrier"
                 :section="report.as_carrier"
                 empty-text="За период нет заказов с услугами этого перевозчика."
             />
@@ -88,13 +86,15 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { Link, useForm } from '@inertiajs/vue3';
 import { Download, Printer } from 'lucide-vue-next';
+import ContractorSearchSelect from '@/Components/Finance/ContractorSearchSelect.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import ReconciliationSection from '@/Components/Finance/ReconciliationSection.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnNeutral, crmBtnPrimary, crmFieldFluid, crmPanel } from '@/support/crmUi.js';
-import { printHtmlDocument } from '@/support/printHtmlDocument.js';
+import { PRINT_DOCUMENT_BASE_STYLES, printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'finance', activeSubKey: 'finance-reconciliation' }, () => page),
@@ -113,12 +113,34 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    ledgerAvailable: {
+        type: Boolean,
+        default: true,
+    },
 });
 
 const form = useForm({
     contractor_id: props.filters.contractor_id ? String(props.filters.contractor_id) : '',
     date_from: props.filters.date_from ?? '',
     date_to: props.filters.date_to ?? '',
+});
+
+const visibleReportSections = computed(() => {
+    if (!props.report) {
+        return [];
+    }
+
+    const sections = [];
+
+    if (props.report.show_as_customer) {
+        sections.push(props.report.as_customer);
+    }
+
+    if (props.report.show_as_carrier) {
+        sections.push(props.report.as_carrier);
+    }
+
+    return sections;
 });
 
 function submit() {
@@ -160,7 +182,7 @@ function buildCsvLines() {
         '',
     ];
 
-    for (const section of [props.report.as_customer, props.report.as_carrier]) {
+    for (const section of visibleReportSections.value) {
         lines.push(section.title);
         lines.push('Заказ;Дата;Начислено;Оплачено;Остаток');
 
@@ -198,7 +220,7 @@ function downloadCsv() {
 
 function printReport() {
     const report = props.report;
-    const sectionsHtml = [report.as_customer, report.as_carrier]
+    const sectionsHtml = visibleReportSections.value
         .map((section) => {
             const rows = section.rows
                 .map(
@@ -206,17 +228,20 @@ function printReport() {
                     <tr>
                         <td>${row.order_number}</td>
                         <td>${formatDate(row.order_date)}</td>
-                        <td>${formatMoney(row.accrued)}</td>
-                        <td>${formatMoney(row.paid)}</td>
-                        <td>${formatMoney(row.balance)}</td>
+                        <td class="num">${formatMoney(row.accrued)}</td>
+                        <td class="num">${formatMoney(row.paid)}</td>
+                        <td class="num">${formatMoney(row.balance)}</td>
                     </tr>
                 `,
                 )
                 .join('');
 
+            const emptyRow = section.rows.length === 0
+                ? '<tr><td colspan="5">Нет данных за выбранный период</td></tr>'
+                : '';
+
             return `
                 <h2>${section.title}</h2>
-                <p>${section.description}</p>
                 <table>
                     <thead>
                         <tr>
@@ -227,13 +252,13 @@ function printReport() {
                             <th>Остаток</th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    <tbody>${rows}${emptyRow}</tbody>
                     <tfoot>
                         <tr>
                             <th colspan="2">Итого</th>
-                            <th>${formatMoney(section.totals.accrued)}</th>
-                            <th>${formatMoney(section.totals.paid)}</th>
-                            <th>${formatMoney(section.totals.balance)}</th>
+                            <th class="num">${formatMoney(section.totals.accrued)}</th>
+                            <th class="num">${formatMoney(section.totals.paid)}</th>
+                            <th class="num">${formatMoney(section.totals.balance)}</th>
                         </tr>
                     </tfoot>
                 </table>
@@ -249,16 +274,18 @@ function printReport() {
             <meta charset="utf-8" />
             <title>Акт сверки — ${report.contractor.name}</title>
             <style>
+                ${PRINT_DOCUMENT_BASE_STYLES}
                 body { font-family: Arial, sans-serif; font-size: 12px; padding: 16px; }
                 h1 { font-size: 18px; margin-bottom: 8px; }
                 h2 { font-size: 14px; margin: 20px 0 8px; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
                 th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
                 th { background: #f4f4f5; }
+                td.num, th.num { text-align: right; }
             </style>
         </head>
         <body>
-            <h1>Акт сверки (сводка)</h1>
+            <h1>Акт сверки</h1>
             <p><strong>${report.contractor.name}</strong>${report.contractor.inn ? ` · ИНН ${report.contractor.inn}` : ''}</p>
             <p>Период: ${formatDate(report.period.from) || '…'} — ${formatDate(report.period.to) || '…'}</p>
             ${sectionsHtml}
