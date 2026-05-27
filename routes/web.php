@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
+use App\Http\Controllers\FinanceReconciliationController;
 use App\Http\Controllers\FleetDriverController;
 use App\Http\Controllers\FleetEfficiencyController;
 use App\Http\Controllers\FleetTripController;
@@ -420,6 +421,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('fleet.options.drivers');
 
     Route::get('/finance', FinanceIndexController::class)->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->name('finance.index');
+    Route::get('/finance/reconciliation', [FinanceReconciliationController::class, 'index'])
+        ->middleware('visibility.area:payment_schedules')
+        ->name('finance.reconciliation.index');
+    Route::post('/finance/reconciliation', [FinanceReconciliationController::class, 'store'])
+        ->middleware('visibility.area:payment_schedules')
+        ->name('finance.reconciliation.store');
     Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');
     Route::patch('/budgeting/scenario', [BudgetingController::class, 'updateScenario'])->name('budgeting.scenario.update');
     Route::post('/budgeting/opex-articles', [BudgetingController::class, 'storeOpexArticle'])->name('budgeting.opex-articles.store');
@@ -434,6 +441,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(SettingsKpiController::class)->middleware('visibility.area:finance_salary')->group(function () {
         Route::get('/finance/salary', 'financeSalaryIndex')->name('finance.salary.index');
         Route::post('/finance/salary/periods', 'storeSalaryPeriod')->name('finance.salary.periods.store');
+        Route::delete('/finance/salary/periods/{salaryPeriod}', 'destroySalaryPeriod')->name('finance.salary.periods.destroy');
         Route::post('/finance/salary/periods/{salaryPeriod}/recalculate', 'recalculateSalaryPeriod')->name('finance.salary.periods.recalculate');
         Route::post('/finance/salary/periods/{salaryPeriod}/approve', 'approveSalaryPeriod')->name('finance.salary.periods.approve');
         Route::post('/finance/salary/periods/{salaryPeriod}/close', 'closeSalaryPeriod')->name('finance.salary.periods.close');

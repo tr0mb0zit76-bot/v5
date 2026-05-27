@@ -17,7 +17,7 @@ final class PaymentFormDictionary
     private const LEGACY_VAT = 'vat';
 
     /**
-     * @return list<array{value: string, label: string}>
+     * @return list<array{value: string, label: string, is_vat: bool, rate_percent: float|null}>
      */
     public static function options(): array
     {
@@ -27,11 +27,23 @@ final class PaymentFormDictionary
             $out[] = [
                 'value' => $row->code,
                 'label' => $row->label,
+                'is_vat' => true,
+                'rate_percent' => (float) $row->rate_percent,
             ];
         }
 
-        $out[] = ['value' => 'no_vat', 'label' => 'Без НДС'];
-        $out[] = ['value' => 'cash', 'label' => 'Наличные'];
+        $out[] = [
+            'value' => 'no_vat',
+            'label' => 'Без НДС',
+            'is_vat' => false,
+            'rate_percent' => null,
+        ];
+        $out[] = [
+            'value' => 'cash',
+            'label' => 'Наличные',
+            'is_vat' => false,
+            'rate_percent' => null,
+        ];
 
         return $out;
     }

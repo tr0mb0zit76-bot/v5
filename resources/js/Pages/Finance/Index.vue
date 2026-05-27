@@ -63,14 +63,20 @@
         </section>
 
         <div v-else-if="activeSubmodule === 'cashflow'" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
-            <div class="flex shrink-0 flex-wrap items-center gap-3">
-                <Link
-                    href="/finance"
-                    class="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-                >
-                    <ArrowLeft class="h-4 w-4" />
-                    К обзору финансов
-                </Link>
+            <div class="flex shrink-0 flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0 space-y-1">
+                    <Link
+                        href="/finance"
+                        class="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                    >
+                        <ArrowLeft class="h-4 w-4" />
+                        К обзору финансов
+                    </Link>
+                    <h1 :class="crmPageTitle">График оплат</h1>
+                    <p :class="crmPageLead">
+                        План и факт по строкам графика заказов. Номера счетов можно править в таблице; оплаты фиксируются в колонке «Действия».
+                    </p>
+                </div>
             </div>
 
             <!-- Блоки статистики ПЕРЕД таблицей - ФИНАЛЬНАЯ ОПТИМИЗАЦИЯ -->
@@ -344,6 +350,15 @@ const submoduleTiles = computed(() => {
             accent: 'sky',
             group: 'Платежи',
             href: '/finance?section=cashflow',
+        });
+        tiles.push({
+            key: 'reconciliation',
+            title: 'Акт сверки',
+            description: 'Сводка услуг по заказам и фактических оплат с контрагентом',
+            icon: 'Clock',
+            accent: 'amber',
+            group: 'Платежи',
+            href: '/finance/reconciliation',
         });
     }
 

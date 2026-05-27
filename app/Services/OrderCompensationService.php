@@ -11,6 +11,7 @@ use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\VatZeroCustomerStandardVatCarrierMarginSupplement;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -151,13 +152,18 @@ class OrderCompensationService
         $insurance = (float) ($order->insurance ?? 0);
         $bonus = (float) ($order->bonus ?? 0);
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $contractorsCosts = $this->extractContractorsCosts($order);
         $cashToCash = CashToCashMarginCalculator::isCashToCash(
             (string) ($order->customer_payment_form ?? ''),
-            $this->extractContractorsCosts($order),
+            $contractorsCosts,
+        );
+        $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
+            (string) ($order->customer_payment_form ?? ''),
+            $contractorsCosts,
         );
         $delta = $cashToCash
             ? ($customerRate - $expense)
-            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense);
+            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense + $vatMarginSupplement);
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate(
             (int) $order->manager_id,
@@ -186,10 +192,12 @@ class OrderCompensationService
         $bonus = (float) ($data['bonus'] ?? 0);
         $managerId = (int) ($data['manager_id'] ?? 0);
         $orderDate = $data['order_date'] ?? null;
+        $contractorsCosts = is_array($data['contractors_costs'] ?? null) ? $data['contractors_costs'] : [];
 
         $dealType = $this->dealTypeClassifier->classify([
             'customer_payment_form' => $data['customer_payment_form'] ?? null,
             'carrier_payment_form' => $this->resolveCarrierPaymentFormForRealtime($data),
+            'contractors_costs' => $contractorsCosts,
         ]);
 
         if ($dealType === 'unknown' || $orderDate === null || $managerId === 0) {
@@ -207,15 +215,18 @@ class OrderCompensationService
 
         $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
-        $contractorsCosts = is_array($data['contractors_costs'] ?? null) ? $data['contractors_costs'] : [];
         $cashToCash = CashToCashMarginCalculator::isCashToCash(
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
         );
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
+            isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
+            $contractorsCosts,
+        );
         $delta = $cashToCash
             ? ($customerRate - $expense)
-            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense);
+            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense + $vatMarginSupplement);
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
         $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);

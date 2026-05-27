@@ -80,6 +80,10 @@ class FinanceOverviewService
             $select[] = DB::raw('payment_schedules.amount as remaining_amount');
         }
 
+        if (Schema::hasColumn('payment_schedules', 'counterparty_id')) {
+            $select[] = 'payment_schedules.counterparty_id';
+        }
+
         if (Schema::hasColumn('payment_schedules', 'invoice_number')) {
             $select[] = 'payment_schedules.invoice_number';
         }
@@ -137,6 +141,9 @@ class FinanceOverviewService
             'counterparty_name' => $isCustomerParty
                 ? $row->customer_name
                 : $this->resolveCarrierDisplayName($row, $carrierSummaries),
+            'counterparty_id' => Schema::hasColumn('payment_schedules', 'counterparty_id')
+                ? ($row->counterparty_id ?? null)
+                : null,
             'payment_type' => $row->type === 'prepayment' ? 'Предоплата' : 'Финальный платёж',
             'amount' => (float) ($row->amount ?? 0),
             'planned_date' => $row->planned_date,
@@ -158,29 +165,47 @@ class FinanceOverviewService
      */
     private function resolveCarrierDisplayName(object $row, Collection $carrierSummaries): ?string
     {
-        $orderId = (int) $row->order_id;
-        $joinName = $row->carrier_name;
+        $joinName = trim((string) ($row->carrier_name ?? ''));
+
+        if ($joinName !== '') {
+            return $joinName;
+        }
 
         if (! Schema::hasTable('leg_contractor_assignments')) {
-            return filled($joinName) ? $joinName : null;
+            return null;
         }
 
-        $summary = $carrierSummaries->get($orderId);
+        $summary = $carrierSummaries->get((int) $row->order_id);
 
         if ($summary === null) {
-            return filled($joinName) ? $joinName : null;
+            return null;
         }
 
-        $count = $summary['count'];
+        $count = (int) ($summary['count'] ?? 0);
+
         if ($count > 1) {
-            return $summary['label'];
+            return $this->carrierCountLabel($count);
         }
 
-        if ($count === 1) {
-            return filled($summary['label']) ? $summary['label'] : (filled($joinName) ? $joinName : null);
+        $label = trim((string) ($summary['label'] ?? ''));
+
+        return $label !== '' ? $label : null;
+    }
+
+    private function carrierCountLabel(int $count): string
+    {
+        $mod10 = $count % 10;
+        $mod100 = $count % 100;
+
+        if ($mod10 === 1 && $mod100 !== 11) {
+            return $count.' перевозчик';
         }
 
-        return filled($joinName) ? $joinName : null;
+        if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 10 || $mod100 >= 20)) {
+            return $count.' перевозчика';
+        }
+
+        return $count.' перевозчиков';
     }
 
     /**
@@ -218,7 +243,7 @@ class FinanceOverviewService
                 if ($count > 1) {
                     return [
                         'count' => $count,
-                        'label' => $count.' перевозчиков',
+                        'label' => $this->carrierCountLabel($count),
                     ];
                 }
 

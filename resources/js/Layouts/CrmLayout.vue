@@ -641,6 +641,7 @@ const MENU_ROUTES = {
     mail: '/mail',
     finance: '/finance',
     'finance-cashflow': '/finance?section=cashflow',
+    'finance-reconciliation': '/finance/reconciliation',
     'finance-salary': '/finance/salary',
     'finance-budgeting': '/budgeting',
     reports: '/reports',
@@ -954,6 +955,7 @@ const menuItems = computed(() => {
 
                 if (visibleAreas.value.includes('documents') || visibleAreas.value.includes('payment_schedules')) {
                     children.push({ key: 'finance-cashflow', label: 'График оплат' });
+                    children.push({ key: 'finance-reconciliation', label: 'Акт сверки' });
                 }
 
                 if (hasFinanceSalaryAccess.value) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\PaymentSchedule;
+use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,10 @@ use Illuminate\Support\Facades\Schema;
 
 class PaymentScheduleController extends Controller
 {
+    public function __construct(
+        private readonly PaymentSchedulePaymentLedgerService $paymentLedger,
+    ) {}
+
     /**
      * Record a payment for a payment schedule item.
      */
@@ -140,6 +145,17 @@ class PaymentScheduleController extends Controller
             }
 
             DB::commit();
+
+            $paymentSchedule->refresh();
+
+            $this->paymentLedger->recordFromPaymentSchedule(
+                $paymentSchedule,
+                $incomingPaid,
+                (string) $validated['payment_date'],
+                $validated,
+                $request->user()?->id,
+                isset($partialPayment) ? (int) $partialPayment->id : null,
+            );
 
             PaymentScheduleAutomaticStatus::refreshForOrder((int) $paymentSchedule->order_id);
 

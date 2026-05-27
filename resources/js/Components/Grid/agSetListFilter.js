@@ -37,6 +37,7 @@ export function applyAgSetListColumn(columnDefinition, options) {
         columnDefinition.floatingFilterComponent = AgSetListFloatingFilter;
     } else {
         columnDefinition.floatingFilter = false;
+        columnDefinition.suppressHeaderFilterButton = false;
     }
 
     if (typeof options.filterValueGetter === 'function') {

@@ -28,9 +28,9 @@ return new class extends Migration
             $table->json('submitted_payload')->nullable();
             $table->timestamps();
 
-            $table->index(['order_id', 'contractor_id', 'stage', 'carrier_slot']);
-            $table->index(['token_hash', 'revoked_at']);
-            $table->index('expires_at');
+            $table->index(['order_id', 'contractor_id', 'stage', 'carrier_slot'], 'opi_order_party_stage_slot_idx');
+            $table->index(['token_hash', 'revoked_at'], 'opi_token_revoked_idx');
+            $table->index('expires_at', 'opi_expires_at_idx');
         });
     }
 

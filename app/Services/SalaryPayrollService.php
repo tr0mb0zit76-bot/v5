@@ -7,6 +7,7 @@ use App\Models\SalaryCoefficient;
 use App\Models\SalaryPayout;
 use App\Models\SalaryPeriod;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -16,14 +17,117 @@ class SalaryPayrollService
 {
     public function createPeriod(array $payload, ?int $userId): SalaryPeriod
     {
+        $periodType = (string) $payload['period_type'];
+        $normalized = $this->normalizeHalfMonthDates($periodType, (string) $payload['period_start']);
+
         return SalaryPeriod::query()->create([
-            'period_start' => $payload['period_start'],
-            'period_end' => $payload['period_end'],
-            'period_type' => $payload['period_type'],
+            'period_start' => $normalized['period_start'],
+            'period_end' => $normalized['period_end'],
+            'period_type' => $periodType,
             'status' => 'draft',
             'notes' => $payload['notes'] ?? null,
             'created_by' => $userId,
         ]);
+    }
+
+    /**
+     * @return array{period_start: string, period_end: string}
+     */
+    public function normalizeHalfMonthDates(string $periodType, string $periodStart): array
+    {
+        $date = Carbon::parse($periodStart)->startOfDay();
+
+        if ($periodType === 'h1') {
+            return [
+                'period_start' => $date->copy()->startOfMonth()->toDateString(),
+                'period_end' => $date->copy()->day(15)->toDateString(),
+            ];
+        }
+
+        return [
+            'period_start' => $date->copy()->day(16)->toDateString(),
+            'period_end' => $date->copy()->endOfMonth()->toDateString(),
+        ];
+    }
+
+    public function findPeriodForMonthAndType(string $periodType, string $periodStart): ?SalaryPeriod
+    {
+        $anchor = Carbon::parse($periodStart)->startOfDay();
+
+        return SalaryPeriod::query()
+            ->where('period_type', $periodType)
+            ->whereYear('period_start', $anchor->year)
+            ->whereMonth('period_start', $anchor->month)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function canDeletePeriod(SalaryPeriod $period): bool
+    {
+        if ($period->status !== 'draft') {
+            return false;
+        }
+
+        if ($period->payouts()->exists()) {
+            return false;
+        }
+
+        if (! Schema::hasTable('salary_payout_allocations')) {
+            return true;
+        }
+
+        return ! DB::table('salary_payout_allocations')
+            ->join('salary_accruals', 'salary_accruals.id', '=', 'salary_payout_allocations.accrual_id')
+            ->where('salary_accruals.period_id', $period->id)
+            ->exists();
+    }
+
+    public function deletePeriod(SalaryPeriod $period): void
+    {
+        if (! $this->canDeletePeriod($period)) {
+            throw new RuntimeException('Нельзя удалить этот период: он не черновик или по нему уже есть выплаты.');
+        }
+
+        DB::transaction(function () use ($period): void {
+            SalaryAccrual::query()->where('period_id', $period->id)->delete();
+            $period->delete();
+        });
+    }
+
+    public function pruneDuplicateDraftPeriods(): int
+    {
+        $deleted = 0;
+
+        $groups = SalaryPeriod::query()
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy(fn (SalaryPeriod $period): string => $period->period_type.'|'.$period->period_start->format('Y-m'));
+
+        foreach ($groups as $periodGroup) {
+            if ($periodGroup->count() < 2) {
+                continue;
+            }
+
+            $sorted = $periodGroup->sortByDesc(fn (SalaryPeriod $period): int => $this->periodRetentionScore($period));
+
+            /** @var SalaryPeriod $keeper */
+            $keeper = $sorted->first();
+
+            foreach ($sorted->skip(1) as $duplicate) {
+                if ($duplicate->id === $keeper->id) {
+                    continue;
+                }
+
+                if (! $this->canDeletePeriod($duplicate)) {
+                    continue;
+                }
+
+                $this->deletePeriod($duplicate);
+                $deleted++;
+            }
+        }
+
+        return $deleted;
     }
 
     public function recalculatePeriod(SalaryPeriod $period): void
@@ -342,6 +446,21 @@ class SalaryPayrollService
             ->orderByDesc('period_start')
             ->orderByDesc('id')
             ->get();
+    }
+
+    private function periodRetentionScore(SalaryPeriod $period): int
+    {
+        $score = 0;
+
+        if ($period->status !== 'draft') {
+            $score += 1000;
+        }
+
+        $score += $period->payouts()->count() * 100;
+        $score += $period->accruals()->count() * 10;
+        $score += $period->id;
+
+        return $score;
     }
 
     private function paidCustomerAmountForOrderUntil(int $orderId, string $date): float

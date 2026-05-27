@@ -1597,6 +1597,7 @@ import {
     performerFleetCacheKey,
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
+import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
@@ -1820,6 +1821,8 @@ const addressSuggestions = ref({});
 const addressTimers = {};
 const draggedRoutePointIndex = ref(null);
 const dragOverRoutePointIndex = ref(null);
+const paymentFormMeta = computed(() => paymentFormMetaFromOptions(paymentFormOptions.value));
+
 const paymentFormOptions = computed(() => {
     const raw = props.paymentFormOptions;
     if (Array.isArray(raw) && raw.length > 0) {
@@ -2844,19 +2847,7 @@ const dealTypePreview = computed(() => {
         .map((cost) => String(cost.payment_form ?? '').trim())
         .filter((value) => value !== '');
 
-    if (clientPaymentForm === '' || carrierPaymentForms.length === 0) {
-        return {
-            key: 'unknown',
-            label: 'Появится после заполнения оплат',
-        };
-    }
-
-    const isDirectDeal = carrierPaymentForms.every((paymentForm) => paymentForm === clientPaymentForm);
-
-    return {
-        key: isDirectDeal ? 'direct' : 'indirect',
-        label: isDirectDeal ? 'Прямая' : 'Кривая',
-    };
+    return classifyDealType(clientPaymentForm, carrierPaymentForms, paymentFormMeta.value);
 });
 
 /** Меньше порога не фильтруем и не даём «поиск по одной букве» — только общий топ без сужения. */

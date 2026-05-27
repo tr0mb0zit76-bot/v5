@@ -2,10 +2,10 @@
     <div class="flex items-center gap-1.5">
         <!-- Кнопка "Зафиксировать платеж" (иконка плюс) -->
         <button
-            v-if="canRecordPayment && !payment.is_partial && payment.status !== 'paid' && payment.status !== 'cancelled'"
-            @click="showRecordPaymentModal = true"
+            v-if="canRecordPayment && canRecordMorePayments"
+            @click="openRecordPaymentModal"
             class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 p-1.5 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/60"
-            title="Зафиксировать платеж"
+            title="Зафиксировать платеж (можно частично)"
         >
             <Plus class="h-3.5 w-3.5" />
         </button>
@@ -22,7 +22,7 @@
 
         <!-- Кнопка "Отменить" (иконка крестик) -->
         <button
-            v-if="payment.status !== 'cancelled' && payment.status !== 'paid'"
+            v-if="canCancelPaymentRow && payment.status !== 'cancelled' && payment.status !== 'paid'"
             @click="cancelPayment"
             class="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 p-1.5 text-rose-700 hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60"
             title="Отменить платеж"
@@ -81,16 +81,17 @@
                         </label>
                         <div class="mt-1">
                             <input
+                                v-model.number="paymentData.paid_amount"
                                 type="number"
                                 step="0.01"
-                                v-model="paymentData.amount"
-                                :max="payment.remaining_amount || payment.amount"
+                                min="0.01"
+                                :max="remainingToPay"
                                 class="block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
                                 placeholder="Введите сумму"
                                 required
                             />
                             <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Остаток к оплате: {{ formatMoney(payment.remaining_amount || payment.amount) }}
+                                Остаток к оплате: {{ formatMoney(remainingToPay) }}. Можно внести частичную оплату.
                             </p>
                         </div>
                     </div>
@@ -100,8 +101,8 @@
                             Дата фактической оплаты
                         </label>
                         <input
+                            v-model="paymentData.payment_date"
                             type="date"
-                            v-model="paymentData.actual_date"
                             class="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
                             required
                         />
@@ -129,11 +130,14 @@
                             Номер транзакции/документа
                         </label>
                         <input
-                            type="text"
                             v-model="paymentData.transaction_reference"
+                            type="text"
                             class="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
-                            placeholder="Номер платежного поручения, чека и т.д."
+                            placeholder="Необязательно, но желательно"
                         />
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            Номер платёжного поручения, чека и т.д. — по возможности указывайте для сверки.
+                        </p>
                     </div>
 
                     <div>
@@ -208,8 +212,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { Plus, List, X, RotateCcw } from 'lucide-vue-next';
 import { crmBtnCreate } from '@/support/crmUi.js';
 
@@ -233,13 +238,45 @@ const showPartialPayments = ref(false);
 const processing = ref(false);
 const partialPayments = ref([]);
 
-const paymentData = ref({
-    amount: props.payment.remaining_amount || props.payment.amount,
-    actual_date: new Date().toISOString().split('T')[0],
-    payment_method: '',
-    transaction_reference: '',
-    notes: '',
+const remainingToPay = computed(() => {
+    const remaining = Number(props.payment.remaining_amount ?? 0);
+    const amount = Number(props.payment.amount ?? 0);
+
+    if (remaining > 0) {
+        return remaining;
+    }
+
+    return amount > 0 ? amount : 0;
 });
+
+const canRecordMorePayments = computed(() => {
+    if (props.payment.is_partial) {
+        return false;
+    }
+
+    if (props.payment.status === 'cancelled' || props.payment.status === 'paid') {
+        return false;
+    }
+
+    return remainingToPay.value > 0;
+});
+
+const paymentData = ref(createPaymentFormState());
+
+function createPaymentFormState() {
+    return {
+        paid_amount: remainingToPay.value,
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: '',
+        transaction_reference: '',
+        notes: '',
+    };
+}
+
+function openRecordPaymentModal() {
+    paymentData.value = createPaymentFormState();
+    showRecordPaymentModal.value = true;
+}
 
 function formatMoney(value) {
     return new Intl.NumberFormat('ru-RU', {
@@ -270,23 +307,38 @@ async function loadPartialPayments() {
 }
 
 async function recordPayment() {
+    const paidAmount = Number(paymentData.value.paid_amount);
+
+    if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+        window.alert('Укажите сумму платежа больше 0.');
+
+        return;
+    }
+
+    if (paidAmount > remainingToPay.value + 0.009) {
+        window.alert(`Сумма не может превышать остаток (${formatMoney(remainingToPay.value)}).`);
+
+        return;
+    }
+
     processing.value = true;
 
     try {
-        await router.post(`/payment-schedules/${props.payment.id}/record-payment`, paymentData.value, {
-            onSuccess: () => {
-                showRecordPaymentModal.value = false;
-                // Перезагружаем страницу для обновления данных
-                router.reload({ only: ['cashFlowJournal'] });
-            },
-            onError: (errors) => {
-                console.error('Ошибка при сохранении платежа:', errors);
-                alert('Ошибка при сохранении платежа. Проверьте введенные данные.');
-            },
+        await axios.post(`/payment-schedules/${props.payment.id}/record-payment`, {
+            paid_amount: paidAmount,
+            payment_date: paymentData.value.payment_date,
+            payment_method: paymentData.value.payment_method,
+            transaction_reference: paymentData.value.transaction_reference?.trim() || null,
+            notes: paymentData.value.notes?.trim() || null,
         });
+
+        showRecordPaymentModal.value = false;
+        router.reload({ only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'] });
     } catch (error) {
-        console.error('Ошибка при сохранении платежа:', error);
-        alert('Ошибка при сохранении платежа.');
+        const message = error?.response?.data?.message
+            || Object.values(error?.response?.data?.errors || {}).flat().join('\n')
+            || 'Ошибка при сохранении платежа. Проверьте введённые данные.';
+        window.alert(message);
     } finally {
         processing.value = false;
     }
@@ -297,8 +349,9 @@ async function cancelPayment() {
 
     try {
         await router.post(`/payment-schedules/${props.payment.id}/cancel`, {}, {
+            preserveScroll: true,
             onSuccess: () => {
-                router.reload({ only: ['cashFlowJournal'] });
+                router.reload({ only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'] });
             },
         });
     } catch (error) {
@@ -310,8 +363,9 @@ async function cancelPayment() {
 async function restorePayment() {
     try {
         await router.post(`/payment-schedules/${props.payment.id}/restore`, {}, {
+            preserveScroll: true,
             onSuccess: () => {
-                router.reload({ only: ['cashFlowJournal'] });
+                router.reload({ only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'] });
             },
         });
     } catch (error) {

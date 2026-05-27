@@ -61,6 +61,7 @@ class SettingsKpiController extends Controller
      */
     private function salaryPagePayload(Request $request): array
     {
+        $prunedPeriodsCount = $this->salaryPayrollService->pruneDuplicateDraftPeriods();
         $periods = $this->salaryPayrollService->periods();
         $activePeriod = $periods->firstWhere('id', (int) $request->integer('salary_period_id')) ?? $periods->first();
         $selectedSalaryUserId = $request->filled('salary_user_id')
@@ -77,7 +78,9 @@ class SettingsKpiController extends Controller
                 'period_type' => $period->period_type,
                 'status' => $period->status,
                 'notes' => $period->notes,
+                'can_delete' => $this->salaryPayrollService->canDeletePeriod($period),
             ])->values(),
+            'salaryPeriodsPrunedCount' => $prunedPeriodsCount > 0 ? $prunedPeriodsCount : null,
             'activeSalaryPeriodId' => $activePeriod?->id,
             'activeSalaryUserId' => $selectedSalaryUserId,
             'salaryPeriodUsers' => $this->salaryPayrollService->userSummariesForPeriod($activePeriod, $selectedSalaryUserId),
@@ -150,6 +153,21 @@ class SettingsKpiController extends Controller
         $this->salaryPayrollService->closePeriod($salaryPeriod, $request->user()?->id);
 
         return $this->salaryRedirect($request, ['salary_period_id' => $salaryPeriod->id]);
+    }
+
+    public function destroySalaryPeriod(Request $request, SalaryPeriod $salaryPeriod): RedirectResponse
+    {
+        $this->assertSalaryModuleAccess($request);
+
+        try {
+            $this->salaryPayrollService->deletePeriod($salaryPeriod);
+        } catch (\RuntimeException $exception) {
+            return $this->salaryRedirect($request, [
+                'salary_period_id' => $request->integer('salary_period_id') ?: null,
+            ])->withErrors(['period' => $exception->getMessage()]);
+        }
+
+        return $this->salaryRedirect($request)->with('success', 'Зарплатный период удалён.');
     }
 
     public function storeSalaryPayout(

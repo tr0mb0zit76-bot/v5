@@ -71,11 +71,18 @@
                     >
                         <option :value="null">Выберите период</option>
                         <option v-for="period in salaryPeriods" :key="period.id" :value="period.id">
-                            {{ period.period_start }} — {{ period.period_end }} ({{ period.period_type.toUpperCase() }})
+                            {{ salaryPeriodLabel(period) }}
                         </option>
                     </select>
                 </div>
             </div>
+
+            <p
+                v-if="salaryPeriodsPrunedCount"
+                class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+                Удалено лишних черновиков периодов: {{ salaryPeriodsPrunedCount }}.
+            </p>
 
             <p
                 v-if="salaryPeriods.length === 0"
@@ -134,6 +141,14 @@
                     @click="openAdvancePayoutModal"
                 >
                     Выдача аванса
+                </button>
+                <button
+                    v-if="selectedPeriod?.can_delete"
+                    type="button"
+                    class="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                    @click="destroySalaryPeriod"
+                >
+                    Удалить период
                 </button>
             </div>
 
@@ -272,7 +287,7 @@
                             <template v-if="selectedSalaryPeriodId">
                                 Сумма войдёт в «Выплачено» и «Авансы» по выбранному периоду и зачтётся при последующих выплатах зарплаты.
                                 <span v-if="selectedPeriod" class="block pt-1">
-                                    Период: {{ selectedPeriod.period_start }} — {{ selectedPeriod.period_end }}.
+                                    Период: {{ salaryPeriodLabel(selectedPeriod) }}.
                                 </span>
                             </template>
                             <template v-else>
@@ -529,7 +544,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -582,6 +597,10 @@ const props = defineProps({
         type: String,
         default: 'settings',
     },
+    salaryPeriodsPrunedCount: {
+        type: Number,
+        default: null,
+    },
 });
 
 const selectedSalaryPeriodId = ref(props.activeSalaryPeriodId ?? null);
@@ -607,12 +626,63 @@ const createSalaryForm = useForm({
     is_active: true,
 });
 
-const createPeriodForm = useForm({
+function todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function canonicalHalfMonthDates(periodType, periodStartIso) {
+    if (!periodStartIso) {
+        return null;
+    }
+
+    const match = String(periodStartIso).match(/^(\d{4})-(\d{2})/);
+    if (!match) {
+        return null;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const monthPad = String(month).padStart(2, '0');
+
+    if (periodType === 'h1') {
+        return {
+            period_start: `${year}-${monthPad}-01`,
+            period_end: `${year}-${monthPad}-15`,
+        };
+    }
+
+    const lastDay = new Date(year, month, 0).getDate();
+
+    return {
+        period_start: `${year}-${monthPad}-16`,
+        period_end: `${year}-${monthPad}-${String(lastDay).padStart(2, '0')}`,
+    };
+}
+
+const initialPeriodDates = canonicalHalfMonthDates('h1', todayIsoDate()) ?? {
     period_start: '',
     period_end: '',
+};
+
+const createPeriodForm = useForm({
+    period_start: initialPeriodDates.period_start,
+    period_end: initialPeriodDates.period_end,
     period_type: 'h1',
     notes: '',
 });
+
+watch(
+    () => [createPeriodForm.period_type, createPeriodForm.period_start],
+    () => {
+        const normalized = canonicalHalfMonthDates(createPeriodForm.period_type, createPeriodForm.period_start);
+        if (!normalized) {
+            return;
+        }
+
+        createPeriodForm.period_start = normalized.period_start;
+        createPeriodForm.period_end = normalized.period_end;
+    },
+);
 
 const salaryDrafts = reactive(props.salaryCoefficients.map((row) => ({
     ...row,
@@ -641,6 +711,29 @@ const salaryPeriodOrderRowsByUser = computed(() => {
     }, {});
 });
 
+function formatSalaryPeriodDate(value) {
+    if (!value) {
+        return '';
+    }
+
+    const parts = String(value).split('-');
+    if (parts.length !== 3) {
+        return String(value);
+    }
+
+    const [year, month, day] = parts;
+
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
+}
+
+function salaryPeriodLabel(period) {
+    if (!period) {
+        return '';
+    }
+
+    return `${formatSalaryPeriodDate(period.period_start)} — ${formatSalaryPeriodDate(period.period_end)} (${period.period_type.toUpperCase()})`;
+}
+
 function periodStatusLabel(status) {
     const labels = {
         draft: 'Черновик',
@@ -667,6 +760,7 @@ const routes = {
     periodsRecalculate: props.salary_module === 'finance' ? 'finance.salary.periods.recalculate' : 'settings.motivation.salary.periods.recalculate',
     periodsApprove: props.salary_module === 'finance' ? 'finance.salary.periods.approve' : 'settings.motivation.salary.periods.approve',
     periodsClose: props.salary_module === 'finance' ? 'finance.salary.periods.close' : 'settings.motivation.salary.periods.close',
+    periodsDestroy: props.salary_module === 'finance' ? 'finance.salary.periods.destroy' : '',
     periodsPayoutStore: props.salary_module === 'finance' ? 'finance.salary.periods.payouts.store' : 'settings.motivation.salary.periods.payouts.store',
     advancePayoutUnscopedStore: props.salary_module === 'finance' ? 'finance.salary.advance-payouts.store' : '',
     coefficientsStore: props.salary_module === 'finance' ? 'finance.salary.coefficients.store' : 'settings.motivation.salary.store',
@@ -736,6 +830,23 @@ function approveSalaryPeriod() {
 function closeSalaryPeriod() {
     if (!selectedSalaryPeriodId.value) return;
     router.post(route(routes.periodsClose, selectedSalaryPeriodId.value), {}, { preserveScroll: true });
+}
+
+function destroySalaryPeriod() {
+    if (!selectedSalaryPeriodId.value || !routes.periodsDestroy) {
+        return;
+    }
+
+    if (!window.confirm('Удалить выбранный зарплатный период? Действие необратимо.')) {
+        return;
+    }
+
+    router.delete(route(routes.periodsDestroy, selectedSalaryPeriodId.value), {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedSalaryPeriodId.value = null;
+        },
+    });
 }
 
 function isEmployeeExpanded(userId) {

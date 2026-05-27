@@ -23,6 +23,27 @@
                     />
                 </div>
 
+                <button
+                    type="button"
+                    :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
+                    title="Печать просроченных и платежей с плановой датой на сегодня"
+                    :disabled="operationalExportRows.length === 0"
+                    @click="printOperationalPayments"
+                >
+                    <Printer class="h-4 w-4" />
+                    Печать
+                </button>
+                <button
+                    type="button"
+                    :class="`${crmGridToolbarBtn} gap-1.5 px-3 py-2 text-xs`"
+                    title="Скачать CSV: просрочено и план на сегодня"
+                    :disabled="operationalExportRows.length === 0"
+                    @click="downloadOperationalPaymentsCsv"
+                >
+                    <Download class="h-4 w-4" />
+                    CSV
+                </button>
+
                 <div class="relative">
                     <button
                         type="button"
@@ -99,7 +120,7 @@ import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { Rows3, Search } from 'lucide-vue-next';
+import { Download, Printer, Rows3, Search } from 'lucide-vue-next';
 import { gridDensityOptions, resolveGridDensity, defaultGridDensity } from '@/Components/Grid/grid-density.js';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import {
@@ -191,6 +212,159 @@ let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
 const filterModelStorageKey = computed(() => `cashflow_grid_filter_model_v1_${props.userId}`);
+
+const todayIsoDate = () => new Date().toISOString().slice(0, 10);
+
+function formatGridDate(value) {
+    const raw = value ? String(value).slice(0, 10) : '';
+    const parts = raw.split('-');
+
+    if (parts.length !== 3) {
+        return raw || '—';
+    }
+
+    const [year, month, day] = parts;
+
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
+}
+
+const operationalExportRows = computed(() => {
+    const today = todayIsoDate();
+
+    return props.rows.filter((row) => {
+        if (row?.status === 'overdue') {
+            return true;
+        }
+
+        const planned = row?.planned_date ? String(row.planned_date).slice(0, 10) : '';
+
+        return planned === today && row?.status !== 'paid' && row?.status !== 'cancelled';
+    });
+});
+
+function operationalExportTableHtml(rows) {
+    const head = `
+        <tr>
+            <th>ID</th>
+            <th>Заказ</th>
+            <th>Направление</th>
+            <th>Контрагент</th>
+            <th>Тип</th>
+            <th>Номер счёта</th>
+            <th>План</th>
+            <th>Сумма</th>
+            <th>Статус</th>
+        </tr>
+    `;
+
+    const body = rows
+        .map(
+            (row) => `
+        <tr>
+            <td>${row.id ?? ''}</td>
+            <td>${row.order_number ?? ''}</td>
+            <td>${row.direction ?? ''}</td>
+            <td>${row.counterparty_name ?? '—'}</td>
+            <td>${row.payment_type ?? ''}</td>
+            <td>${row.invoice_number ?? '—'}</td>
+            <td>${formatGridDate(row.planned_date)}</td>
+            <td>${formatMoneyValue(row.amount)}</td>
+            <td>${statusLabel(row.status)}</td>
+        </tr>
+    `,
+        )
+        .join('');
+
+    return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function printOperationalPayments() {
+    const rows = operationalExportRows.value;
+
+    if (rows.length === 0) {
+        return;
+    }
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+
+    if (!printWindow) {
+        window.alert('Разрешите всплывающие окна для печати.');
+
+        return;
+    }
+
+    const todayLabel = formatGridDate(todayIsoDate());
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="utf-8" />
+            <title>График оплат — просрочено и на ${todayLabel}</title>
+            <style>
+                body { font-family: Arial, sans-serif; font-size: 12px; padding: 16px; }
+                h1 { font-size: 16px; margin: 0 0 12px; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+                th { background: #f4f4f5; }
+            </style>
+        </head>
+        <body>
+            <h1>График оплат: просрочено и план на ${todayLabel}</h1>
+            <p>Строк: ${rows.length}</p>
+            ${operationalExportTableHtml(rows)}
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+}
+
+function downloadOperationalPaymentsCsv() {
+    const rows = operationalExportRows.value;
+
+    if (rows.length === 0) {
+        return;
+    }
+
+    const headers = ['ID', 'Заказ', 'Направление', 'Контрагент', 'Тип', 'Номер счёта', 'План', 'Сумма', 'Статус'];
+    const escapeCsv = (value) => {
+        const text = String(value ?? '');
+        if (/[;"\n]/.test(text)) {
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+
+        return text;
+    };
+
+    const lines = [
+        headers.join(';'),
+        ...rows.map((row) =>
+            [
+                row.id,
+                row.order_number,
+                row.direction,
+                row.counterparty_name,
+                row.payment_type,
+                row.invoice_number,
+                formatGridDate(row.planned_date),
+                row.amount,
+                statusLabel(row.status),
+            ]
+                .map(escapeCsv)
+                .join(';'),
+        ),
+    ];
+
+    const blob = new Blob(['\uFEFF', lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `grafik-oplat-${todayIsoDate()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
 
 const gridOptions = {
     theme: 'legacy',
@@ -327,9 +501,9 @@ function buildBaseColumnDefs() {
         minWidth: 110,
         sortable: true,
     };
-    applyAgSetListColumn(directionCol, { values: DIRECTION_FILTER_VALUES, compact: true, floatingFilterRow: true });
+    applyAgSetListColumn(directionCol, { values: DIRECTION_FILTER_VALUES, compact: true });
 
-    applyAgSetListColumn(paymentTypeCol, { values: PAYMENT_TYPE_FILTER_VALUES, compact: true, floatingFilterRow: true });
+    applyAgSetListColumn(paymentTypeCol, { values: PAYMENT_TYPE_FILTER_VALUES, compact: true });
 
     const statusCol = {
         colId: 'status',
@@ -342,7 +516,6 @@ function buildBaseColumnDefs() {
     applyAgSetListColumn(statusCol, {
         values: STATUS_FILTER_VALUES,
         filterValueGetter: (p) => statusLabel(p.data?.status),
-        floatingFilterRow: true,
     });
 
     return [
