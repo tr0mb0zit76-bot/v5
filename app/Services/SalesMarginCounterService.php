@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Support\CashToCashMarginCalculator;
+use App\Support\MarginCounterAmountResolver;
 use App\Support\PaymentAmountVatConverter;
 use App\Support\PaymentFormDictionary;
+use App\Support\PaymentFormVat;
 
 class SalesMarginCounterService
 {
@@ -20,8 +21,6 @@ class SalesMarginCounterService
 
     public const ANCHOR_CARRIER_WITH_VAT = 'carrier_with_vat';
 
-    public const ANCHOR_MARGIN = 'margin';
-
     /**
      * @var list<string>
      */
@@ -30,31 +29,16 @@ class SalesMarginCounterService
         self::ANCHOR_CUSTOMER_WITH_VAT,
         self::ANCHOR_CARRIER_WITHOUT_VAT,
         self::ANCHOR_CARRIER_WITH_VAT,
-        self::ANCHOR_MARGIN,
     ];
 
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
         private readonly KpiConfigurationService $kpiConfigurationService,
+        private readonly DealTypeClassifier $dealTypeClassifier,
     ) {}
 
     /**
-     * @param  array{
-     *     anchor_field?: string|null,
-     *     customer_without_vat?: float|null,
-     *     customer_with_vat?: float|null,
-     *     carrier_without_vat?: float|null,
-     *     carrier_with_vat?: float|null,
-     *     margin?: float|null,
-     *     additional_expenses?: float|null,
-     *     insurance?: float|null,
-     *     bonus?: float|null,
-     *     customer_payment_form?: string|null,
-     *     carrier_payment_form?: string|null,
-     *     min_margin_percent?: float|null,
-     *     manager_id?: int|null,
-     *     order_date?: string|null,
-     * }  $input
+     * @param  array<string, mixed>  $input
      * @return array<string, mixed>
      */
     public function calculate(array $input): array
@@ -75,182 +59,349 @@ class SalesMarginCounterService
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $fixedExpense = $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
 
-        $inputCustomerWithout = $this->nullableAmount($input['customer_without_vat'] ?? null);
-        $inputCustomerWith = $this->nullableAmount($input['customer_with_vat'] ?? null);
-        $inputCarrierWithout = $this->nullableAmount($input['carrier_without_vat'] ?? null);
-        $inputCarrierWith = $this->nullableAmount($input['carrier_with_vat'] ?? null);
-        $inputMargin = $this->nullableAmount($input['margin'] ?? null);
+        $customerWithout = $this->nullableAmount($input['customer_without_vat'] ?? null);
+        $customerWith = $this->nullableAmount($input['customer_with_vat'] ?? null);
+        $carrierWithout = $this->nullableAmount($input['carrier_without_vat'] ?? null);
+        $carrierWith = $this->nullableAmount($input['carrier_with_vat'] ?? null);
 
-        $customerNet = $this->resolveSideNet(
+        $customerNet = MarginCounterAmountResolver::customerRevenue(
             $anchor,
-            self::ANCHOR_CUSTOMER_WITHOUT_VAT,
-            self::ANCHOR_CUSTOMER_WITH_VAT,
-            $inputCustomerWithout,
-            $inputCustomerWith,
+            $customerWithout,
+            $customerWith,
             $customerForm,
+            MarginCounterAmountResolver::BASIS_ORDER_NET,
         );
-        $carrierNet = $this->resolveSideNet(
+        $carrierNet = MarginCounterAmountResolver::carrierExpense(
             $anchor,
-            self::ANCHOR_CARRIER_WITHOUT_VAT,
-            self::ANCHOR_CARRIER_WITH_VAT,
-            $inputCarrierWithout,
-            $inputCarrierWith,
+            $carrierWithout,
+            $carrierWith,
             $carrierForm,
+            MarginCounterAmountResolver::BASIS_ORDER_NET,
         );
-        $margin = $inputMargin;
 
-        $contractorsCosts = [['payment_form' => $carrierForm, 'amount' => $carrierNet ?? 0]];
-        $cashToCash = CashToCashMarginCalculator::isCashToCash($customerForm, $contractorsCosts);
-
-        $kpiContext = $this->orderCompensationService->calculateRealtime([
-            'customer_rate' => 1,
-            'carrier_rate' => 0,
-            'manager_id' => $managerId,
-            'order_date' => $orderDate,
+        $formsDealType = $this->dealTypeClassifier->classify([
             'customer_payment_form' => $customerForm,
             'carrier_payment_form' => $carrierForm,
-            'contractors_costs' => $contractorsCosts,
+            'contractors_costs' => [['payment_form' => $carrierForm, 'amount' => $carrierNet ?? 0]],
         ]);
-        $kpiPercent = (float) ($kpiContext['kpi_percent'] ?? 0);
-        $dealType = (string) ($kpiContext['deal_type'] ?? 'unknown');
 
         $result = [
             'anchor_field' => $anchor !== '' ? $anchor : null,
-            'deal_type' => $dealType,
-            'deal_type_label' => $this->dealTypeLabel($dealType),
-            'kpi_percent' => $kpiPercent,
-            'cash_to_cash' => $cashToCash,
             'min_margin_percent' => round($minMarginPercent, 2),
             'customer_payment_form' => $customerForm,
             'carrier_payment_form' => $carrierForm,
             'fixed_expense' => round($fixedExpense, 2),
+            'forms_deal_type' => $formsDealType,
+            'forms_deal_type_label' => $this->dealTypeLabel($formsDealType),
             'fields' => $this->emptyFields($customerForm, $carrierForm),
-            'margin_percent' => null,
-            'margin_quality' => null,
-            'margin_quality_label' => null,
-            'salary_accrued' => null,
+            'period_context' => null,
+            'scenarios' => [],
             'summary' => [
                 'scenario' => 'empty',
                 'hints' => [],
             ],
         ];
 
-        if ($dealType === 'unknown' || $managerId <= 0 || $orderDate === null) {
+        if ($managerId <= 0 || $orderDate === null) {
             $result['error'] = 'Укажите менеджера и дату (для KPI нужен текущий период).';
 
             return $result;
         }
 
-        $this->applyAnchorLogic(
-            $anchor,
-            $customerNet,
-            $carrierNet,
-            $margin,
-            $kpiPercent,
-            $minMarginPercent,
-            $cashToCash,
-            $fixedExpense,
-        );
+        if ($formsDealType === 'unknown') {
+            $result['error'] = 'Не удалось определить тип сделки по формам оплаты.';
 
-        $evaluation = null;
+            return $result;
+        }
+
+        $scenarioContext = [
+            'anchor' => $anchor,
+            'customer_without' => $customerWithout,
+            'customer_with' => $customerWith,
+            'carrier_without' => $carrierWithout,
+            'carrier_with' => $carrierWith,
+            'customer_form' => $customerForm,
+            'carrier_form' => $carrierForm,
+            'manager_id' => $managerId,
+            'order_date' => $orderDate,
+            'additional_expenses' => $additionalExpenses,
+            'insurance' => $insurance,
+            'bonus' => $bonus,
+            'min_margin_percent' => $minMarginPercent,
+            'fixed_expense' => $fixedExpense,
+            'carrier_net' => $carrierNet,
+        ];
+
+        $result['scenarios'] = [
+            $this->buildScenarioColumn('direct', 'direct', 'Прямая', $formsDealType, $scenarioContext, MarginCounterAmountResolver::BASIS_NEGOTIATION),
+            $this->buildScenarioColumn('indirect', 'indirect', 'Кривая', $formsDealType, $scenarioContext, MarginCounterAmountResolver::BASIS_NEGOTIATION),
+        ];
+
+        if ($this->shouldShowOrderNetScenario($anchor, $customerWithout, $customerWith, $carrierWithout, $carrierWith, $customerForm, $carrierForm)) {
+            $result['scenarios'][] = $this->buildScenarioColumn(
+                'direct',
+                'direct_order_net',
+                'Прямая без НДС',
+                $formsDealType,
+                $scenarioContext,
+                MarginCounterAmountResolver::BASIS_ORDER_NET,
+            );
+        }
+
+        $firstScenario = $result['scenarios'][0] ?? null;
+        if ($firstScenario !== null) {
+            $result['period_context'] = [
+                'orders_before' => $firstScenario['period_orders_before'],
+                'direct_before' => $firstScenario['period_direct_before'],
+            ];
+        }
+
+        $marginForFields = null;
         if ($customerNet !== null && $customerNet > 0 && $carrierNet !== null && $carrierNet >= 0) {
-            $evaluation = $this->orderCompensationService->calculateRealtime([
-                'customer_rate' => $customerNet,
-                'carrier_rate' => max(0.0, $carrierNet),
-                'additional_expenses' => $additionalExpenses,
-                'insurance' => $insurance,
-                'bonus' => $bonus,
-                'manager_id' => $managerId,
-                'order_date' => $orderDate,
-                'customer_payment_form' => $customerForm,
-                'carrier_payment_form' => $carrierForm,
-                'contractors_costs' => [['payment_form' => $carrierForm, 'amount' => max(0.0, $carrierNet)]],
-            ]);
-            $margin = (float) ($evaluation['delta'] ?? 0);
-        } elseif ($customerNet !== null && $carrierNet !== null && $margin === null) {
-            $margin = $this->evaluateMargin($customerNet, $carrierNet, $kpiPercent, $cashToCash, $fixedExpense);
+            $matching = collect($result['scenarios'])->firstWhere('matches_payment_forms', true);
+            $marginForFields = $matching['margin'] ?? $result['scenarios'][0]['margin'] ?? null;
         }
 
-        $result['fields'] = $this->buildFields($customerNet, $carrierNet, $margin, $customerForm, $carrierForm);
-        $result['summary'] = $this->buildSummary(
-            $customerNet,
-            $carrierNet,
-            $margin,
-            $kpiPercent,
-            $minMarginPercent,
-            $cashToCash,
-            $fixedExpense,
-            $customerForm,
-            $carrierForm,
-        );
-
-        if ($evaluation !== null && $customerNet !== null && $customerNet > 0) {
-            $this->applyEvaluation($result, $evaluation, $customerNet, $minMarginPercent);
-        }
+        $result['fields'] = $this->buildFields($customerNet, $carrierNet, $marginForFields, $customerForm, $carrierForm);
+        $result['summary'] = $this->buildSummary($customerNet, $carrierNet, $formsDealType, count($result['scenarios']) > 2);
 
         return $result;
     }
 
     /**
-     * @param-out float|null $customerNet
-     * @param-out float|null $carrierNet
-     * @param-out float|null $margin
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
      */
-    private function applyAnchorLogic(
+    private function buildScenarioColumn(
+        string $scenarioDealType,
+        string $scenarioKey,
+        string $scenarioLabel,
+        string $formsDealType,
+        array $context,
+        string $amountBasis,
+    ): array {
+        $anchor = (string) $context['anchor'];
+        $customerForm = (string) $context['customer_form'];
+        $carrierForm = (string) $context['carrier_form'];
+        $customerWithout = $context['customer_without'];
+        $customerWith = $context['customer_with'];
+        $carrierWithout = $context['carrier_without'];
+        $carrierWith = $context['carrier_with'];
+        $minMarginPercent = (float) $context['min_margin_percent'];
+        $fixedExpense = (float) $context['fixed_expense'];
+        $carrierNet = $context['carrier_net'];
+
+        $customerRevenue = MarginCounterAmountResolver::customerRevenue(
+            $anchor,
+            $customerWithout,
+            $customerWith,
+            $customerForm,
+            $amountBasis,
+        );
+        $carrierExpense = MarginCounterAmountResolver::carrierExpense(
+            $anchor,
+            $carrierWithout,
+            $carrierWith,
+            $carrierForm,
+            $amountBasis,
+        );
+
+        $compensationPayload = [
+            'customer_rate' => max(0.0, (float) ($customerRevenue ?? 0)),
+            'carrier_rate' => max(0.0, (float) ($carrierExpense ?? 0)),
+            'additional_expenses' => (float) $context['additional_expenses'],
+            'insurance' => (float) $context['insurance'],
+            'bonus' => (float) $context['bonus'],
+            'manager_id' => (int) $context['manager_id'],
+            'order_date' => $context['order_date'],
+            'customer_payment_form' => $customerForm,
+            'carrier_payment_form' => $carrierForm,
+            'contractors_costs' => [['payment_form' => $carrierForm, 'amount' => max(0.0, (float) ($carrierNet ?? 0))]],
+        ];
+
+        $evaluation = $this->orderCompensationService->calculateMarginScenario($compensationPayload, $scenarioDealType);
+        $kpiPercent = (float) $evaluation['kpi_percent'];
+
+        $matchesForms = $amountBasis === MarginCounterAmountResolver::BASIS_NEGOTIATION
+            && $formsDealType === $scenarioDealType;
+
+        $column = [
+            'scenario_key' => $scenarioKey,
+            'deal_type' => $scenarioDealType,
+            'deal_type_label' => $scenarioLabel,
+            'amount_basis' => $amountBasis,
+            'matches_payment_forms' => $matchesForms,
+            'kpi_percent' => $kpiPercent,
+            'projected_direct_ratio_percent' => round((float) $evaluation['projected_direct_ratio'] * 100, 1),
+            'period_orders_before' => (int) $evaluation['period_orders_before'],
+            'period_direct_before' => (int) $evaluation['period_direct_before'],
+            'period_orders_after' => (int) $evaluation['period_orders_after'],
+            'period_direct_after' => (int) $evaluation['period_direct_after'],
+            'period_note' => $this->periodNote($evaluation, $scenarioLabel),
+            'margin' => null,
+            'margin_percent' => null,
+            'margin_quality' => null,
+            'margin_quality_label' => null,
+            'salary_accrued' => null,
+            'max_carrier_without_vat' => null,
+            'max_carrier_with_vat' => null,
+            'min_customer_without_vat' => null,
+            'min_customer_with_vat' => null,
+        ];
+
+        if ($customerRevenue !== null && $customerRevenue > 0 && $carrierExpense !== null && $carrierExpense >= 0) {
+            $this->applyMarginMetrics(
+                $column,
+                (float) $evaluation['delta'],
+                $customerRevenue,
+                $minMarginPercent,
+                (float) $evaluation['salary_accrued'],
+            );
+        } elseif ($customerRevenue !== null && $customerRevenue > 0 && $carrierExpense === null) {
+            $targetMargin = $customerRevenue * ($minMarginPercent / 100);
+            $maxCarrier = $this->deriveCarrierExpense($customerRevenue, $targetMargin, $kpiPercent, $fixedExpense);
+            $pair = PaymentAmountVatConverter::pairFromNet(max(0.0, $maxCarrier), $carrierForm);
+            $column['max_carrier_without_vat'] = $pair['without_vat'];
+            $column['max_carrier_with_vat'] = $pair['with_vat'];
+        } elseif ($carrierExpense !== null && $carrierExpense > 0 && ($customerRevenue === null || $customerRevenue <= 0)) {
+            $minCustomer = $this->suggestCustomerRevenue($carrierExpense + $fixedExpense, $kpiPercent, $minMarginPercent);
+            $pair = PaymentAmountVatConverter::pairFromNet($minCustomer, $customerForm);
+            $column['min_customer_without_vat'] = $pair['without_vat'];
+            $column['min_customer_with_vat'] = $pair['with_vat'];
+        }
+
+        return $column;
+    }
+
+    private function shouldShowOrderNetScenario(
         string $anchor,
-        ?float &$customerNet,
-        ?float &$carrierNet,
-        ?float &$margin,
-        float $kpiPercent,
-        float $minMarginPercent,
-        bool $cashToCash,
-        float $fixedExpense,
-    ): void {
-        if ($anchor === self::ANCHOR_CUSTOMER_WITHOUT_VAT || $anchor === self::ANCHOR_CUSTOMER_WITH_VAT) {
-            if ($customerNet !== null && $carrierNet !== null) {
-                $margin = $this->evaluateMargin($customerNet, $carrierNet, $kpiPercent, $cashToCash, $fixedExpense);
-            } elseif ($customerNet !== null && $margin !== null) {
-                $carrierNet = $this->deriveCarrierNet($customerNet, $margin, $kpiPercent, $cashToCash, $fixedExpense);
-            }
-
-            return;
+        ?float $customerWithout,
+        ?float $customerWith,
+        ?float $carrierWithout,
+        ?float $carrierWith,
+        string $customerForm,
+        string $carrierForm,
+    ): bool {
+        if (! PaymentFormVat::isVatCode($customerForm) && ! PaymentFormVat::isVatCode($carrierForm)) {
+            return false;
         }
 
-        if ($anchor === self::ANCHOR_CARRIER_WITHOUT_VAT || $anchor === self::ANCHOR_CARRIER_WITH_VAT) {
-            if ($customerNet !== null && $carrierNet !== null) {
-                $margin = $this->evaluateMargin($customerNet, $carrierNet, $kpiPercent, $cashToCash, $fixedExpense);
-            } elseif ($carrierNet !== null && $margin !== null) {
-                $customerNet = $this->deriveCustomerNet($carrierNet, $margin, $kpiPercent, $cashToCash, $fixedExpense);
-            }
+        $negotiationCustomer = MarginCounterAmountResolver::customerRevenue(
+            $anchor,
+            $customerWithout,
+            $customerWith,
+            $customerForm,
+            MarginCounterAmountResolver::BASIS_NEGOTIATION,
+        );
+        $orderNetCustomer = MarginCounterAmountResolver::customerRevenue(
+            $anchor,
+            $customerWithout,
+            $customerWith,
+            $customerForm,
+            MarginCounterAmountResolver::BASIS_ORDER_NET,
+        );
 
-            return;
+        if ($negotiationCustomer !== null && $orderNetCustomer !== null
+            && abs($negotiationCustomer - $orderNetCustomer) > 0.009) {
+            return true;
         }
 
-        if ($anchor === self::ANCHOR_MARGIN) {
-            if ($customerNet !== null && $margin !== null) {
-                $carrierNet = $this->deriveCarrierNet($customerNet, $margin, $kpiPercent, $cashToCash, $fixedExpense);
-            } elseif ($carrierNet !== null && $margin !== null) {
-                $customerNet = $this->deriveCustomerNet($carrierNet, $margin, $kpiPercent, $cashToCash, $fixedExpense);
-            }
+        $negotiationCarrier = MarginCounterAmountResolver::carrierExpense(
+            $anchor,
+            $carrierWithout,
+            $carrierWith,
+            $carrierForm,
+            MarginCounterAmountResolver::BASIS_NEGOTIATION,
+        );
+        $orderNetCarrier = MarginCounterAmountResolver::carrierExpense(
+            $anchor,
+            $carrierWithout,
+            $carrierWith,
+            $carrierForm,
+            MarginCounterAmountResolver::BASIS_ORDER_NET,
+        );
 
-            return;
+        return $negotiationCarrier !== null && $orderNetCarrier !== null
+            && abs($negotiationCarrier - $orderNetCarrier) > 0.009;
+    }
+
+    /**
+     * @param  array<string, mixed>  $column
+     */
+    private function applyMarginMetrics(array &$column, float $delta, float $customerRevenue, float $minMarginPercent, float $salaryAccrued): void
+    {
+        $marginPercent = $customerRevenue > 0 ? ($delta / $customerRevenue) * 100 : 0.0;
+        $quality = $this->marginQuality($marginPercent, $minMarginPercent);
+
+        $column['margin'] = round($delta, 2);
+        $column['margin_percent'] = round($marginPercent, 2);
+        $column['margin_quality'] = $quality;
+        $column['margin_quality_label'] = $this->marginQualityLabel($quality);
+        $column['salary_accrued'] = round($salaryAccrued, 2);
+    }
+
+    /**
+     * @param  array<string, mixed>  $evaluation
+     */
+    private function periodNote(array $evaluation, string $scenarioLabel): string
+    {
+        $beforeTotal = (int) $evaluation['period_orders_before'];
+        $beforeDirect = (int) $evaluation['period_direct_before'];
+        $afterTotal = (int) $evaluation['period_orders_after'];
+        $afterDirect = (int) $evaluation['period_direct_after'];
+        $ratioPercent = round((float) $evaluation['projected_direct_ratio'] * 100, 1);
+
+        if ($beforeTotal === 0) {
+            return sprintf(
+                'В периоде пока нет сделок; если эта заявка — %s: KPI %s%%.',
+                mb_strtolower($scenarioLabel),
+                $this->formatPercent((float) ($evaluation['kpi_percent'] ?? 0)),
+            );
         }
 
-        if ($customerNet !== null && $carrierNet !== null) {
-            $margin = $this->evaluateMargin($customerNet, $carrierNet, $kpiPercent, $cashToCash, $fixedExpense);
+        return sprintf(
+            'В периоде %d (%d прямых); с заявкой как %s: %d (%d прямых, %s%% прямых) → KPI %s%%.',
+            $beforeTotal,
+            $beforeDirect,
+            mb_strtolower($scenarioLabel),
+            $afterTotal,
+            $afterDirect,
+            $this->formatPercent($ratioPercent),
+            $this->formatPercent((float) ($evaluation['kpi_percent'] ?? 0)),
+        );
+    }
 
-            return;
+    /**
+     * @return array{scenario: string, hints: list<string>}
+     */
+    private function buildSummary(?float $customerNet, ?float $carrierNet, string $formsDealType, bool $hasOrderNetColumn): array
+    {
+        $hints = [
+            sprintf('По формам оплаты сделка: %s.', $this->dealTypeLabel($formsDealType)),
+            $hasOrderNetColumn
+                ? 'Столбцы «Прямая» и «Кривая» — по введённым суммам; «Прямая без НДС» — как в карточке заказа (ставки без НДС).'
+                : 'Два варианта KPI, если заявку учесть в периоде как прямую или как кривую (суммы как введены в полях).',
+        ];
+
+        if ($customerNet !== null && $customerNet > 0 && $carrierNet !== null) {
+            return ['scenario' => 'both_rates', 'hints' => $hints];
         }
 
-        if ($customerNet !== null && $margin !== null) {
-            $carrierNet = $this->deriveCarrierNet($customerNet, $margin, $kpiPercent, $cashToCash, $fixedExpense);
+        if ($customerNet !== null && $customerNet > 0) {
+            $hints[] = 'Указана только ставка заказчика — в каждом столбце максимум перевозчику при заданном пороге маржи.';
 
-            return;
+            return ['scenario' => 'customer_only', 'hints' => $hints];
         }
 
-        if ($carrierNet !== null && $margin !== null) {
-            $customerNet = $this->deriveCustomerNet($carrierNet, $margin, $kpiPercent, $cashToCash, $fixedExpense);
+        if ($carrierNet !== null && $carrierNet > 0) {
+            $hints[] = 'Указана только ставка перевозчика — в каждом столбце минимум заказчику при заданном пороге маржи.';
+
+            return ['scenario' => 'carrier_only', 'hints' => $hints];
         }
+
+        $hints[] = 'Укажите ставки заказчика и перевозчика.';
+
+        return ['scenario' => 'empty', 'hints' => $hints];
     }
 
     /**
@@ -278,140 +429,6 @@ class SalesMarginCounterService
     }
 
     /**
-     * @return array{scenario: string, hints: list<string>}
-     */
-    private function buildSummary(
-        ?float $customerNet,
-        ?float $carrierNet,
-        ?float $margin,
-        float $kpiPercent,
-        float $minMarginPercent,
-        bool $cashToCash,
-        float $fixedExpense,
-        string $customerForm,
-        string $carrierForm,
-    ): array {
-        $hints = [];
-
-        if ($customerNet !== null && $customerNet > 0 && $carrierNet !== null && $margin !== null) {
-            return [
-                'scenario' => 'both_rates',
-                'hints' => $cashToCash
-                    ? [
-                        'Наличные у заказчика и перевозчика: маржа = доход − расход, KPI не вычитается.',
-                    ]
-                    : [
-                        'Введены обе ставки — маржа пересчитана по правилам заказа.',
-                        sprintf('KPI периода: %s%%.', $this->formatPercent($kpiPercent)),
-                    ],
-            ];
-        }
-
-        if ($customerNet !== null && $customerNet > 0 && $margin !== null && $carrierNet === null) {
-            return [
-                'scenario' => 'customer_and_margin',
-                'hints' => $cashToCash
-                    ? [
-                        'По ставке заказчика и целевой марже рассчитан перевозчик (доход − расход, без KPI).',
-                    ]
-                    : [
-                        'По ставке заказчика и целевой марже рассчитан перевозчик.',
-                        sprintf('KPI периода: %s%%.', $this->formatPercent($kpiPercent)),
-                    ],
-            ];
-        }
-
-        if ($carrierNet !== null && $margin !== null && ($customerNet === null || $customerNet <= 0)) {
-            return [
-                'scenario' => 'carrier_and_margin',
-                'hints' => $cashToCash
-                    ? [
-                        'По ставке перевозчика и целевой марже рассчитана ставка заказчика (доход − расход, без KPI).',
-                    ]
-                    : [
-                        'По ставке перевозчика и целевой марже рассчитана ставка заказчика.',
-                        sprintf('KPI периода: %s%%.', $this->formatPercent($kpiPercent)),
-                    ],
-            ];
-        }
-
-        if ($customerNet !== null && $customerNet > 0 && $carrierNet === null) {
-            $targetMargin = $customerNet * ($minMarginPercent / 100);
-            $maxCarrier = $this->deriveCarrierNet($customerNet, $targetMargin, $kpiPercent, $cashToCash, $fixedExpense);
-            $maxCarrierPair = PaymentAmountVatConverter::pairFromNet(max(0.0, $maxCarrier), $carrierForm);
-
-            $hints[] = sprintf(
-                'При марже %s%% максимум перевозчику: %s (без НДС).',
-                $this->formatPercent($minMarginPercent),
-                $this->formatMoney(max(0.0, $maxCarrier)),
-            );
-
-            if ($maxCarrierPair['with_vat'] !== null) {
-                $hints[] = sprintf('С НДС (%s%%): %s.', $this->formatPercent($maxCarrierPair['vat_rate_percent']), $this->formatMoney($maxCarrierPair['with_vat']));
-            }
-
-            if ($cashToCash) {
-                $hints[] = 'Наличные: доход − расход, KPI не вычитается.';
-            } else {
-                $hints[] = sprintf('KPI периода: %s%%.', $this->formatPercent($kpiPercent));
-            }
-
-            return [
-                'scenario' => 'customer_only',
-                'hints' => $hints,
-            ];
-        }
-
-        if ($carrierNet !== null && $carrierNet > 0 && ($customerNet === null || $customerNet <= 0)) {
-            $minCustomer = $this->suggestCustomerRate(
-                $carrierNet + $fixedExpense,
-                $kpiPercent,
-                $minMarginPercent,
-                $cashToCash,
-            );
-            $minCustomerPair = PaymentAmountVatConverter::pairFromNet($minCustomer, $customerForm);
-
-            $hints[] = sprintf(
-                'При марже %s%% минимум заказчику: %s (без НДС).',
-                $this->formatPercent($minMarginPercent),
-                $this->formatMoney($minCustomer),
-            );
-
-            if ($minCustomerPair['with_vat'] !== null) {
-                $hints[] = sprintf('С НДС (%s%%): %s.', $this->formatPercent($minCustomerPair['vat_rate_percent']), $this->formatMoney($minCustomerPair['with_vat']));
-            }
-
-            if ($cashToCash) {
-                $hints[] = 'Наличные: доход − расход, KPI не вычитается.';
-            } else {
-                $hints[] = sprintf('KPI периода: %s%%.', $this->formatPercent($kpiPercent));
-            }
-
-            return [
-                'scenario' => 'carrier_only',
-                'hints' => $hints,
-            ];
-        }
-
-        if ($margin !== null) {
-            $hints[] = 'Укажите ставку заказчика или перевозчика — вторая сторона будет рассчитана из маржи.';
-        } else {
-            $hints[] = 'Заполните любое из пяти полей — остальные пересчитаются автоматически.';
-        }
-
-        if ($cashToCash) {
-            $hints[] = 'Наличные: доход − расход, KPI не вычитается.';
-        } else {
-            $hints[] = sprintf('KPI периода: %s%%.', $this->formatPercent($kpiPercent));
-        }
-
-        return [
-            'scenario' => 'empty',
-            'hints' => $hints,
-        ];
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function emptyFields(string $customerForm, string $carrierForm): array
@@ -427,117 +444,25 @@ class SalesMarginCounterService
         ];
     }
 
-    private function resolveSideNet(
-        string $anchor,
-        string $withoutAnchor,
-        string $withAnchor,
-        ?float $without,
-        ?float $with,
-        string $paymentForm,
-    ): ?float {
-        if ($anchor === $withoutAnchor && $without !== null) {
-            return max(0.0, $without);
-        }
-
-        if ($anchor === $withAnchor && $with !== null) {
-            return max(0.0, PaymentAmountVatConverter::netFromGrossAmount($with, $paymentForm));
-        }
-
-        if ($without !== null) {
-            return max(0.0, $without);
-        }
-
-        if ($with !== null) {
-            return max(0.0, PaymentAmountVatConverter::netFromGrossAmount($with, $paymentForm));
-        }
-
-        return null;
-    }
-
-    private function evaluateMargin(
-        float $customerNet,
-        float $carrierNet,
-        float $kpiPercent,
-        bool $cashToCash,
-        float $fixedExpense,
-    ): float {
-        return round(
-            CashToCashMarginCalculator::margin(
-                $customerNet,
-                $carrierNet + $fixedExpense,
-                $kpiPercent,
-                $cashToCash,
-            ),
-            2,
-        );
-    }
-
-    private function deriveCarrierNet(
-        float $customerNet,
+    private function deriveCarrierExpense(
+        float $customerRevenue,
         float $margin,
         float $kpiPercent,
-        bool $cashToCash,
         float $fixedExpense,
     ): float {
-        if ($cashToCash) {
-            return round(max(0.0, $customerNet - $fixedExpense - $margin), 2);
-        }
-
-        return round(max(0.0, $customerNet - ($customerNet * ($kpiPercent / 100)) - $fixedExpense - $margin), 2);
+        return round(max(0.0, $customerRevenue - ($customerRevenue * ($kpiPercent / 100)) - $fixedExpense - $margin), 2);
     }
 
-    private function deriveCustomerNet(
-        float $carrierNet,
-        float $margin,
-        float $kpiPercent,
-        bool $cashToCash,
-        float $fixedExpense,
-    ): float {
-        $totalExpense = $carrierNet + $fixedExpense + $margin;
-
-        if ($cashToCash) {
-            return round(max(0.0, $totalExpense), 2);
-        }
-
-        $denominator = 1 - ($kpiPercent / 100);
-
-        if ($denominator <= 0) {
-            return 0.0;
-        }
-
-        return round(max(0.0, $totalExpense / $denominator), 2);
-    }
-
-    /**
-     * @param  array<string, mixed>  $result
-     * @param  array{kpi_percent: float, delta: float, salary_accrued: float, deal_type: string}  $evaluation
-     */
-    private function applyEvaluation(array &$result, array $evaluation, float $customerRate, float $minMarginPercent): void
-    {
-        $delta = (float) ($evaluation['delta'] ?? 0);
-        $marginPercent = $customerRate > 0 ? ($delta / $customerRate) * 100 : 0.0;
-        $quality = $this->marginQuality($marginPercent, $minMarginPercent);
-
-        $result['margin_percent'] = round($marginPercent, 2);
-        $result['margin_quality'] = $quality;
-        $result['margin_quality_label'] = $this->marginQualityLabel($quality);
-        $result['salary_accrued'] = round((float) ($evaluation['salary_accrued'] ?? 0), 2);
-        $result['fields']['margin'] = round($delta, 2);
-    }
-
-    private function suggestCustomerRate(
+    private function suggestCustomerRevenue(
         float $totalExpense,
         float $kpiPercent,
         float $minMarginPercent,
-        bool $cashToCash,
     ): float {
         if ($totalExpense <= 0) {
             return 0.0;
         }
 
-        $denominator = $cashToCash
-            ? (1 - ($minMarginPercent / 100))
-            : (1 - ($kpiPercent / 100) - ($minMarginPercent / 100));
+        $denominator = 1 - ($kpiPercent / 100) - ($minMarginPercent / 100);
 
         if ($denominator <= 0) {
             return 0.0;
@@ -589,10 +514,5 @@ class SalesMarginCounterService
     private function formatPercent(float $value): string
     {
         return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
-    }
-
-    private function formatMoney(float $value): string
-    {
-        return number_format($value, 0, '.', ' ').' ₽';
     }
 }

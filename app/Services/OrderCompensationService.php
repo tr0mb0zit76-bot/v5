@@ -250,6 +250,98 @@ class OrderCompensationService
     }
 
     /**
+     * Считалка: KPI и маржа, если текущую заявку учесть в периоде как прямую или кривую.
+     *
+     * @param  array{
+     *     customer_rate?: float,
+     *     carrier_rate?: float,
+     *     additional_expenses?: float,
+     *     insurance?: float,
+     *     bonus?: float,
+     *     manager_id?: int,
+     *     order_date?: string|null,
+     *     customer_payment_form?: string|null,
+     *     carrier_payment_form?: string|null,
+     *     contractors_costs?: list<array<string, mixed>>,
+     * }  $data
+     * @return array{
+     *     kpi_percent: float,
+     *     delta: float,
+     *     salary_accrued: float,
+     *     deal_type: string,
+     *     projected_direct_ratio: float,
+     *     period_orders_before: int,
+     *     period_direct_before: int,
+     *     period_orders_after: int,
+     *     period_direct_after: int,
+     * }
+     */
+    public function calculateMarginScenario(array $data, string $scenarioDealType): array
+    {
+        if (! in_array($scenarioDealType, ['direct', 'indirect'], true)) {
+            throw new \InvalidArgumentException('scenarioDealType must be direct or indirect.');
+        }
+
+        $customerRate = (float) ($data['customer_rate'] ?? 0);
+        $carrierRate = (float) ($data['carrier_rate'] ?? 0);
+        $additionalExpenses = (float) ($data['additional_expenses'] ?? 0);
+        $insurance = (float) ($data['insurance'] ?? 0);
+        $bonus = (float) ($data['bonus'] ?? 0);
+        $managerId = (int) ($data['manager_id'] ?? 0);
+        $orderDate = $data['order_date'] ?? null;
+        $contractorsCosts = is_array($data['contractors_costs'] ?? null) ? $data['contractors_costs'] : [];
+
+        if ($orderDate === null || $managerId === 0) {
+            return [
+                'kpi_percent' => 0.0,
+                'delta' => 0.0,
+                'salary_accrued' => 0.0,
+                'deal_type' => 'unknown',
+                'projected_direct_ratio' => 0.0,
+                'period_orders_before' => 0,
+                'period_direct_before' => 0,
+                'period_orders_after' => 0,
+                'period_direct_after' => 0,
+            ];
+        }
+
+        $period = $this->periodCalculator->getPeriodForDate($orderDate);
+        $periodStats = $this->periodCalculator->getManagerPeriodStats($managerId, $period['start'], $period['end']);
+
+        $periodOrdersBefore = (int) $periodStats['total'];
+        $periodDirectBefore = (int) $periodStats['direct'];
+        $periodOrdersAfter = $periodOrdersBefore + 1;
+        $periodDirectAfter = $periodDirectBefore + ($scenarioDealType === 'direct' ? 1 : 0);
+        $projectedDirectRatio = $periodOrdersAfter > 0
+            ? round($periodDirectAfter / $periodOrdersAfter, 4)
+            : 0.0;
+
+        $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($scenarioDealType, $projectedDirectRatio);
+        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
+        $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
+            isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
+            $contractorsCosts,
+        );
+        $delta = $customerRate - ($customerRate * ($kpiPercent / 100)) - $expense + $vatMarginSupplement;
+
+        $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
+        $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
+
+        return [
+            'kpi_percent' => round($kpiPercent, 2),
+            'delta' => round($delta, 2),
+            'salary_accrued' => round($salaryAccrued, 2),
+            'deal_type' => $scenarioDealType,
+            'projected_direct_ratio' => $projectedDirectRatio,
+            'period_orders_before' => $periodOrdersBefore,
+            'period_direct_before' => $periodDirectBefore,
+            'period_orders_after' => $periodOrdersAfter,
+            'period_direct_after' => $periodDirectAfter,
+        ];
+    }
+
+    /**
      * Для превью в мастере: форма перевозчика из явного поля или из contractors_costs (одна форма либо mixed).
      */
     private function resolveCarrierPaymentFormForRealtime(array $data): ?string

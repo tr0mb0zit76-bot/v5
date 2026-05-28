@@ -495,9 +495,17 @@ function buildBaseColumnDefs() {
         minWidth: 110,
         sortable: true,
     };
-    applyAgSetListColumn(directionCol, { values: DIRECTION_FILTER_VALUES, compact: true });
+    applyAgSetListColumn(directionCol, {
+        values: DIRECTION_FILTER_VALUES,
+        compact: true,
+        floatingFilterRow: true,
+    });
 
-    applyAgSetListColumn(paymentTypeCol, { values: PAYMENT_TYPE_FILTER_VALUES, compact: true });
+    applyAgSetListColumn(paymentTypeCol, {
+        values: PAYMENT_TYPE_FILTER_VALUES,
+        compact: true,
+        floatingFilterRow: true,
+    });
 
     const statusCol = {
         colId: 'status',
@@ -510,6 +518,7 @@ function buildBaseColumnDefs() {
     applyAgSetListColumn(statusCol, {
         values: STATUS_FILTER_VALUES,
         filterValueGetter: (p) => statusLabel(p.data?.status),
+        floatingFilterRow: true,
     });
 
     return [

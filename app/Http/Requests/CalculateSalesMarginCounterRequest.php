@@ -25,7 +25,6 @@ class CalculateSalesMarginCounterRequest extends FormRequest
             'customer_with_vat' => ['nullable', 'numeric', 'min:0'],
             'carrier_without_vat' => ['nullable', 'numeric', 'min:0'],
             'carrier_with_vat' => ['nullable', 'numeric', 'min:0'],
-            'margin' => ['nullable', 'numeric'],
             'additional_expenses' => ['nullable', 'numeric', 'min:0'],
             'insurance' => ['nullable', 'numeric', 'min:0'],
             'bonus' => ['nullable', 'numeric', 'min:0'],
