@@ -5,6 +5,11 @@ namespace App\Support;
 /**
  * Единая логика: куда смотреть в снимке данных при подстановке плейсхолдера DOCX.
  * Должна совпадать с OrderPrintFormDraftService / LeadPrintFormDraftService при генерации.
+ *
+ * Префиксы ВЭД-заявок:
+ * - lp_ — наша компания (own_company)
+ * - cp_ — заказчик (customer)
+ * - dp_ — перевозчик (carrier)
  */
 class PrintFormPlaceholderPathResolver
 {
@@ -93,6 +98,8 @@ class PrintFormPlaceholderPathResolver
     {
         $value = str_replace(["\u{2019}", "\u{2018}", "\u{00B4}", '’', '`', '´'], "'", trim($placeholder));
         $value = mb_strtolower($value, 'UTF-8');
+        // Кириллическая «с» в префиксе cp_ (частая опечатка в Word).
+        $value = preg_replace('/^сp_/u', 'cp_', $value) ?? $value;
 
         return $value;
     }
@@ -101,6 +108,20 @@ class PrintFormPlaceholderPathResolver
      * @return array<string, string>
      */
     private function legacyPlaceholderMappings(): array
+    {
+        return array_merge(
+            $this->staticLegacyMappings(),
+            $this->prefixedPartyMappings('lp_', 'own_company'),
+            $this->prefixedPartyMappings('cp_', 'customer'),
+            $this->prefixedPartyMappings('dp_', 'carrier'),
+            $this->partySpecificLegacyAliases(),
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function staticLegacyMappings(): array
     {
         return [
             'nomer_zayavki' => 'order.order_number',
@@ -154,21 +175,11 @@ class PrintFormPlaceholderPathResolver
             'kontakt_perevoz' => 'contacts.carrier_name',
             'kontakt_perevoz_tel' => 'contacts.carrier_phone',
             'kontakt_perevoz_email' => 'contacts.carrier_email',
-            'bik_perev' => 'carrier.bik',
-            'lp_bik' => 'customer.bik',
-            'lp_kpp' => 'customer.kpp',
-            'lp_ogrn' => 'customer.ogrn',
-            'lp_ yur_address' => 'customer.legal_address',
-            'lp_ceo' => 'customer.signer_name_nominative',
-            'lp_ceo_title' => 'customer.signer_position',
-            'lp_bank' => 'customer.bank_name',
-            'lp_ks' => 'customer.correspondent_account',
-            'lp_rs' => 'customer.account_number',
-            'lp_pocht_address' => 'customer.postal_address',
-            'lp_inn' => 'customer.inn',
-            'lp_yur_address' => 'customer.legal_address',
             'class_opasnosti' => 'cargo.hazard_classes',
             'osobye_uslovia_pogruzki' => 'cargo.loading_types',
+            'osobye_uslovia_vygruzki' => 'cargo.trailer_types',
+            'normativ' => 'financial.client_norms_penalties.norm_loading_hours',
+            'cargo_declared_sum' => 'order.cargo_declared_sum',
             'fio_voditel' => 'driver.full_name',
             'tel_voditel' => 'driver.phone',
             'passport_voditel' => 'driver.passport_data',
@@ -212,6 +223,7 @@ class PrintFormPlaceholderPathResolver
             'podpisant_perevoz_rod' => 'carrier.signer_position_genitive_auto',
             'provayder_edo_perev' => 'carrier.edo_provider',
             'nomer_edo_perev' => 'carrier.edo_number',
+            'nomer_edo_dp' => 'carrier.edo_number',
             'bank_korresp' => 'customer.non_resident_corr_bank_name',
             'swift_korresp' => 'customer.non_resident_corr_bank_swift',
             'cnaps_kod' => 'customer.cnaps_code',
@@ -222,6 +234,81 @@ class PrintFormPlaceholderPathResolver
             'cnaps_kod_perev' => 'carrier.cnaps_code',
             'rs_banka_korresp_perev' => 'carrier.non_resident_corr_settlement_account',
             'schet_v_banku_korresp_perev' => 'carrier.non_resident_corr_bank_account',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function prefixedPartyMappings(string $prefix, string $partyRoot): array
+    {
+        $suffixMap = [
+            'nazv' => "{$partyRoot}.name",
+            'inn' => "{$partyRoot}.inn",
+            'kpp' => "{$partyRoot}.kpp",
+            'ogrn' => "{$partyRoot}.ogrn",
+            'address' => "{$partyRoot}.legal_address",
+            'yur_address' => "{$partyRoot}.legal_address",
+            'pocht_address' => "{$partyRoot}.postal_address",
+            'bank' => "{$partyRoot}.bank_name",
+            'bik' => "{$partyRoot}.bik",
+            'rs' => "{$partyRoot}.account_number",
+            'ks' => "{$partyRoot}.correspondent_account",
+            'ceo' => "{$partyRoot}.signer_name_nominative",
+            'ceo_title' => "{$partyRoot}.signer_position",
+            'provayder_edo' => "{$partyRoot}.edo_provider",
+            'nomer_edo' => "{$partyRoot}.edo_number",
+            'podpisant' => "{$partyRoot}.signer_name_nominative",
+            'fio_podpisant_im' => "{$partyRoot}.signer_name_nominative",
+        ];
+
+        $out = [];
+        foreach ($suffixMap as $suffix => $path) {
+            $out[$prefix.$suffix] = $path;
+        }
+
+        if ($prefix === 'lp_') {
+            $out['lp_ yur_address'] = 'own_company.legal_address';
+            $out['lp_manager'] = 'manager.name';
+            $out['lp_manager_email'] = 'manager.email';
+            $out['lp_manager_tel'] = 'manager.phone';
+        }
+
+        if ($prefix === 'cp_') {
+            $out['cp_stavka'] = 'order.customer_rate_with_currency';
+            $out['cp_forma_oplaty'] = 'order.customer_payment_form';
+            $out['cp_usloviya_oplaty'] = 'order.customer_payment_term';
+            $out['cp_manager'] = 'contacts.customer_name';
+            $out['cp_manager_email'] = 'contacts.customer_email';
+            $out['cp_manager_tel'] = 'contacts.customer_phone';
+            $out['cp_r/s'] = 'customer.account_number';
+            $out['cp_k/s'] = 'customer.correspondent_account';
+        }
+
+        if ($prefix === 'dp_') {
+            $out['dp_stavka'] = 'order.carrier_rate_with_currency';
+            $out['dp_forma_oplaty'] = 'order.carrier_payment_form';
+            $out['dp_usloviya_oplaty'] = 'order.carrier_payment_term';
+            $out['dp_kontakt'] = 'contacts.carrier_name';
+            $out['dp_kontakt_tel'] = 'contacts.carrier_phone';
+            $out['dp_kontakt_email'] = 'contacts.carrier_email';
+            $out['dp_pocht_address_perev'] = 'carrier.actual_address';
+            $out['dp_r/s'] = 'carrier.account_number';
+            $out['dp_k/s'] = 'carrier.correspondent_account';
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function partySpecificLegacyAliases(): array
+    {
+        return [
+            'bik_perev' => 'carrier.bik',
+            'lp_edo_prov' => 'own_company.edo_provider',
+            'lp_edo_nomer' => 'own_company.edo_number',
         ];
     }
 }

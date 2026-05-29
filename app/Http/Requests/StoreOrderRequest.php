@@ -478,6 +478,7 @@ class StoreOrderRequest extends FormRequest
             'svh_name' => ['nullable', 'string', 'max:500'],
             'svh_address' => ['nullable', 'string', 'max:500'],
             'customs_post_code' => ['nullable', 'string', 'max:120'],
+            'cargo_declared_sum' => ['nullable', 'numeric', 'min:0'],
             'is_international_transport' => ['sometimes', 'boolean'],
             'loading_types' => ['nullable', 'array'],
             'loading_types.*' => ['nullable', Rule::in(['top', 'side', 'rear', 'full', 'tail_lift', 'crane'])],

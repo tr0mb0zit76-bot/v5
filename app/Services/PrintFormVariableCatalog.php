@@ -30,6 +30,7 @@ class PrintFormVariableCatalog
             ['value' => 'order.svh_name', 'label' => 'Заказ: СВХ — наименование'],
             ['value' => 'order.svh_address', 'label' => 'Заказ: СВХ — адрес'],
             ['value' => 'order.customs_post_code', 'label' => 'Заказ: Код таможенного поста'],
+            ['value' => 'order.cargo_declared_sum', 'label' => 'Заказ: Объявленная стоимость груза'],
             ['value' => 'order.svh_summary', 'label' => 'Заказ: СВХ и таможня — сводный текст (для одного блока в DOCX)'],
             ['value' => 'cargo_sender.name', 'label' => 'Грузоотправитель: Наименование'],
             ['value' => 'cargo_sender.address', 'label' => 'Грузоотправитель: Адрес'],

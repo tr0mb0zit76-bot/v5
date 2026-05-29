@@ -227,6 +227,11 @@ class OrderWizardService
             $attributes[$key] = $raw !== null && $raw !== '' ? (float) $raw : 0.0;
         }
 
+        if ($isCreating || array_key_exists('cargo_declared_sum', $validated)) {
+            $raw = $validated['cargo_declared_sum'] ?? null;
+            $attributes['cargo_declared_sum'] = $raw !== null && $raw !== '' ? (float) $raw : null;
+        }
+
         if ($isCreating || array_key_exists('additional_expenses_payment_date', $validated)) {
             $incurredDate = $validated['additional_expenses_payment_date'] ?? null;
             $attributes['additional_expenses_payment_date'] = filled($incurredDate)

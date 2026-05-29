@@ -261,6 +261,9 @@ class OrderPrintFormDraftService
                 'customs_post_name' => null,
                 'customs_declaration_place' => null,
                 'customs_commodity_code' => null,
+                'cargo_declared_sum' => $this->formatMoney(
+                    Schema::hasColumn('orders', 'cargo_declared_sum') ? $order->cargo_declared_sum : null,
+                ),
                 'svh_summary' => $this->formatSvhSummaryBlock($order),
             ],
             'cargo_sender' => [

@@ -891,6 +891,21 @@
                     </button>
                 </div>
 
+                <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">Объявленная стоимость груза</label>
+                        <input
+                            v-model="form.cargo_declared_sum"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            class="w-full max-w-xs rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                            placeholder="Сумма для таможни / страхования"
+                        />
+                        <p v-if="form.errors.cargo_declared_sum" class="text-xs text-rose-500">{{ form.errors.cargo_declared_sum }}</p>
+                    </div>
+                </div>
+
                 <div class="space-y-4">
                     <div v-for="(item, index) in form.cargo_items" :key="`cargo-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                         <div class="flex items-center justify-between">
@@ -2265,6 +2280,7 @@ function blankOrder() {
         svh_name: '',
         svh_address: '',
         customs_post_code: '',
+        cargo_declared_sum: null,
         is_international_transport: false,
         loading_types: [],
         cargo_sender_name: '',
@@ -2827,6 +2843,7 @@ const form = useForm({
     svh_name: props.order?.svh_name ?? '',
     svh_address: props.order?.svh_address ?? '',
     customs_post_code: props.order?.customs_post_code ?? '',
+    cargo_declared_sum: props.order?.cargo_declared_sum ?? null,
     is_international_transport: props.order?.is_international_transport === true,
 });
 
@@ -5607,6 +5624,7 @@ function buildSubmitPayload() {
         svh_name: form.svh_name,
         svh_address: form.svh_address,
         customs_post_code: form.customs_post_code,
+        cargo_declared_sum: form.cargo_declared_sum,
         is_international_transport: Boolean(form.is_international_transport),
         additional_expenses: form.additional_expenses,
         additional_expenses_payment_date: form.additional_expenses_payment_date || null,

@@ -91,6 +91,7 @@ class Order extends Model
         'customs_post_name',
         'customs_declaration_place',
         'customs_commodity_code',
+        'cargo_declared_sum',
         'is_international_transport',
         'performers',
     ];
@@ -133,6 +134,7 @@ class Order extends Model
             'additional_expenses' => 'decimal:2',
             'additional_expenses_payment_date' => 'date',
             'insurance' => 'decimal:2',
+            'cargo_declared_sum' => 'decimal:2',
             'bonus' => 'decimal:2',
             'kpi_percent' => 'decimal:2',
             'delta' => 'decimal:2',
