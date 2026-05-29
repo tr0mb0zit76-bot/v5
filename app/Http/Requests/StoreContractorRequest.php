@@ -7,6 +7,7 @@ use App\Support\ContractorIdentity;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
+use App\Support\EdoProviderDictionary;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -212,6 +213,8 @@ class StoreContractorRequest extends FormRequest
             'signer_name_prepositional' => ['nullable', 'string', 'max:255'],
             'signer_position' => ['nullable', 'string', 'max:255'],
             'signer_authority_basis' => ['nullable', 'string', 'max:255'],
+            'edo_provider' => ['nullable', 'string', 'max:32', Rule::in(EdoProviderDictionary::codes())],
+            'edo_number' => ['nullable', 'string', 'max:255'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'bik' => ['nullable', 'string', 'max:9'],
             'account_number' => ['nullable', 'string', 'max:20'],

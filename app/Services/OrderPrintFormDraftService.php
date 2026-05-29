@@ -1177,6 +1177,10 @@ class OrderPrintFormDraftService
             'signer_position' => $contractor?->signer_position ?? $contractor?->contact_person_position,
             'signer_position_genitive_auto' => RussianPositionInflector::toGenitive($contractor?->signer_position ?? $contractor?->contact_person_position),
             'signer_authority_basis' => $contractor?->signer_authority_basis,
+            ...($contractor instanceof Contractor ? $contractor->edoPrintPayload() : [
+                'edo_provider' => null,
+                'edo_number' => null,
+            ]),
             ...$nonResident,
             ...($contractor instanceof Contractor ? $contractor->englishRequisitesPrintPayload() : [
                 'has_english_requisites' => 'Нет',

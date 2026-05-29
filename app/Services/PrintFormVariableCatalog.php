@@ -70,6 +70,8 @@ class PrintFormVariableCatalog
             ['value' => 'customer.signer_position', 'label' => 'Заказчик: Должность подписанта'],
             ['value' => 'customer.signer_position_genitive_auto', 'label' => 'Заказчик: Должность подписанта (авто, родительный)'],
             ['value' => 'customer.signer_authority_basis', 'label' => 'Заказчик: Основание подписи'],
+            ['value' => 'customer.edo_provider', 'label' => 'Заказчик: Провайдер ЭДО'],
+            ['value' => 'customer.edo_number', 'label' => 'Заказчик: Номер ЭДО'],
             ...$this->englishRequisitesPlaceholderOptions('customer', 'Заказчик'),
 
             ['value' => 'carrier.name', 'label' => 'Перевозчик: Наименование'],
@@ -98,6 +100,8 @@ class PrintFormVariableCatalog
             ['value' => 'carrier.signer_position', 'label' => 'Перевозчик: Должность подписанта'],
             ['value' => 'carrier.signer_position_genitive_auto', 'label' => 'Перевозчик: Должность подписанта (авто, родительный)'],
             ['value' => 'carrier.signer_authority_basis', 'label' => 'Перевозчик: Основание подписи'],
+            ['value' => 'carrier.edo_provider', 'label' => 'Перевозчик: Провайдер ЭДО'],
+            ['value' => 'carrier.edo_number', 'label' => 'Перевозчик: Номер ЭДО'],
             ...$this->englishRequisitesPlaceholderOptions('carrier', 'Перевозчик'),
 
             ['value' => 'own_company.name', 'label' => 'Своя компания: Наименование'],
@@ -123,6 +127,8 @@ class PrintFormVariableCatalog
             ['value' => 'own_company.signer_position', 'label' => 'Своя компания: Должность подписанта'],
             ['value' => 'own_company.signer_position_genitive_auto', 'label' => 'Своя компания: Должность подписанта (авто, родительный)'],
             ['value' => 'own_company.signer_authority_basis', 'label' => 'Своя компания: Основание подписи'],
+            ['value' => 'own_company.edo_provider', 'label' => 'Своя компания: Провайдер ЭДО'],
+            ['value' => 'own_company.edo_number', 'label' => 'Своя компания: Номер ЭДО'],
             ...$this->englishRequisitesPlaceholderOptions('own_company', 'Своя компания'),
 
             ['value' => 'manager.name', 'label' => 'Менеджер: Имя'],

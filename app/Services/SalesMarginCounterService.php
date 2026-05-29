@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Support\PaymentAmountVatConverter;
 use App\Support\PaymentFormDictionary;
 
 class SalesMarginCounterService
@@ -80,11 +79,11 @@ class SalesMarginCounterService
                     self::SCENARIO_INDIRECT,
                     'indirect',
                     'Кривая (с НДС клиент, без НДС перевозчик)',
-                    $this->indirectCustomerAmount($customerWith, $customerWithout, $defaultVatForm),
+                    $customerWith,
                     $carrierWithout,
                     $defaultVatForm,
                     'no_vat',
-                    'Заказчик — поле «С НДС» (или пересчёт из «Без НДС»), перевозчик — «Без НДС».',
+                    'Заказчик — только поле «С НДС», перевозчик — «Без НДС».',
                     $managerId,
                     $orderDate,
                     $additionalExpenses,
@@ -190,21 +189,6 @@ class SalesMarginCounterService
         );
 
         return $column;
-    }
-
-    private function indirectCustomerAmount(?float $with, ?float $without, string $vatForm): ?float
-    {
-        if ($with !== null && $with > 0) {
-            return $with;
-        }
-
-        if ($without !== null && $without > 0) {
-            $pair = PaymentAmountVatConverter::pairFromNet($without, $vatForm);
-
-            return isset($pair['with_vat']) ? (float) $pair['with_vat'] : $without;
-        }
-
-        return null;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\EdoProviderDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +40,8 @@ class Contractor extends Model
         'signer_name_prepositional',
         'signer_position',
         'signer_authority_basis',
+        'edo_provider',
+        'edo_number',
         'bank_name',
         'bik',
         'account_number',
@@ -278,7 +281,17 @@ class Contractor extends Model
     }
 
     /**
-     * Банковские реквизиты из основного (или первого) счёта в bank_accounts.
+     * @return array{edo_provider: ?string, edo_number: ?string}
+     */
+    public function edoPrintPayload(): array
+    {
+        return [
+            'edo_provider' => EdoProviderDictionary::label($this->edo_provider),
+            'edo_number' => blank($this->edo_number) ? null : trim((string) $this->edo_number),
+        ];
+    }
+
+    /**
      * Нужны для печати, если плоские поля contractors.bank_name / bik / счета пусты.
      *
      * @return array{bank_name: ?string, bik: ?string, account_number: ?string, correspondent_account: ?string}

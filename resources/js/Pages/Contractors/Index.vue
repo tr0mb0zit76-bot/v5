@@ -60,6 +60,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    edoProviderOptions: {
+        type: Array,
+        default: () => [],
+    },
     pagination: {
         type: Object,
         default: () => ({
@@ -352,6 +356,8 @@ function blankForm() {
         signer_name_prepositional: '',
         signer_position: '',
         signer_authority_basis: '',
+        edo_provider: '',
+        edo_number: '',
         bank_name: '',
         bik: '',
         account_number: '',
@@ -525,6 +531,8 @@ function contractorToForm(contractor) {
         signer_name_prepositional: contractor.signer_name_prepositional ?? '',
         signer_position: contractor.signer_position ?? '',
         signer_authority_basis: contractor.signer_authority_basis ?? '',
+        edo_provider: contractor.edo_provider ?? '',
+        edo_number: contractor.edo_number ?? '',
         bank_name: contractor.bank_name ?? '',
         bik: contractor.bik ?? '',
         account_number: contractor.account_number ?? '',
@@ -2489,6 +2497,39 @@ function goToPage(pageNumber) {
                                                 type="text"
                                                 :class="crmFieldFluid"
                                             />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="border border-zinc-200 p-4 dark:border-zinc-800">
+                                    <div class="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">ЭДО</div>
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Провайдер ЭДО</label>
+                                            <select
+                                                v-model="form.edo_provider"
+                                                :class="crmFieldFluid"
+                                            >
+                                                <option value="">Не указан</option>
+                                                <option
+                                                    v-for="option in edoProviderOptions"
+                                                    :key="option.value"
+                                                    :value="option.value"
+                                                >
+                                                    {{ option.label }}
+                                                </option>
+                                            </select>
+                                            <p v-if="form.errors.edo_provider" class="text-xs text-rose-600">{{ form.errors.edo_provider }}</p>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Номер ЭДО</label>
+                                            <input
+                                                v-model="form.edo_number"
+                                                type="text"
+                                                :class="crmFieldFluid"
+                                                placeholder="Идентификатор участника ЭДО"
+                                            />
+                                            <p v-if="form.errors.edo_number" class="text-xs text-rose-600">{{ form.errors.edo_number }}</p>
                                         </div>
                                     </div>
                                 </div>

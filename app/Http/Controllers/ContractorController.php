@@ -18,6 +18,7 @@ use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorTableColumns;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
+use App\Support\EdoProviderDictionary;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Database\QueryException;
@@ -601,6 +602,7 @@ class ContractorController extends Controller
             ],
             'currencyOptions' => CurrencyDictionary::options(),
             'paymentFormOptions' => PaymentFormDictionary::options(),
+            'edoProviderOptions' => EdoProviderDictionary::options(),
             'workStatusOptions' => collect(ContractorWorkStatus::manualValues())
                 ->map(fn (string $value): array => [
                     'value' => $value,
@@ -639,6 +641,8 @@ class ContractorController extends Controller
             'signer_name_prepositional',
             'signer_position',
             'signer_authority_basis',
+            'edo_provider',
+            'edo_number',
             'default_customer_payment_form',
             'default_customer_payment_term',
             'default_customer_payment_schedule',
