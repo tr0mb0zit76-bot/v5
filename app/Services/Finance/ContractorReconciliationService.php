@@ -29,14 +29,13 @@ class ContractorReconciliationService
         string $ordersScope,
     ): array {
         $contractor = Contractor::query()->findOrFail($contractorId);
+        $contractorType = strtolower(trim((string) ($contractor->type ?? 'both')));
 
         $from = $dateFrom ? Carbon::parse($dateFrom)->startOfDay() : null;
         $to = $dateTo ? Carbon::parse($dateTo)->endOfDay() : null;
 
         $asCustomer = $this->buildCustomerSection($contractorId, $from, $to, $userId, $roleName, $ordersScope);
-        $asCarrier = $this->buildCarrierSection($contractorId, $from, $to, $userId, $roleName, $ordersScope);
-
-        $contractorType = strtolower(trim((string) ($contractor->type ?? 'both')));
+        $asCarrier = $this->buildCarrierSection($contractorId, $contractorType, $from, $to, $userId, $roleName, $ordersScope);
 
         return [
             'contractor' => [
@@ -46,7 +45,7 @@ class ContractorReconciliationService
                 'type' => $contractorType !== '' ? $contractorType : 'both',
             ],
             'show_as_customer' => in_array($contractorType, ['customer', 'both'], true),
-            'show_as_carrier' => in_array($contractorType, ['carrier', 'both'], true),
+            'show_as_carrier' => in_array($contractorType, ['carrier', 'contractor', 'both'], true),
             'period' => [
                 'from' => $from?->toDateString(),
                 'to' => $to?->toDateString(),
@@ -61,12 +60,14 @@ class ContractorReconciliationService
      */
     private function buildCustomerSection(
         int $contractorId,
+        string $contractorType,
         ?Carbon $from,
         ?Carbon $to,
         ?int $userId,
         ?string $roleName,
         string $ordersScope,
     ): array {
+        $counterpartyParty = $contractorType === 'contractor' ? 'contractor' : 'carrier';
         $orders = $this->ordersBaseQuery($userId, $roleName, $ordersScope)
             ->where('orders.customer_id', $contractorId)
             ->when($from, fn ($q) => $q->whereDate('orders.order_date', '>=', $from->toDateString()))
@@ -132,7 +133,7 @@ class ContractorReconciliationService
                 continue;
             }
 
-            $paid = $this->paidAmountForOrder((int) $order->id, 'carrier', $contractorId, $from, $to);
+            $paid = $this->paidAmountForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
 
             $rows[] = [
                 'order_id' => $order->id,
@@ -145,8 +146,12 @@ class ContractorReconciliationService
         }
 
         return [
-            'title' => 'Услуги от контрагента (он — перевозчик)',
-            'description' => 'Начислено по сумме перевозки в заказах; оплачено — наши платежи по графику оплат.',
+            'title' => $contractorType === 'contractor'
+                ? 'Услуги от контрагента (он — подрядчик)'
+                : 'Услуги от контрагента (он — перевозчик)',
+            'description' => $contractorType === 'contractor'
+                ? 'Начислено по сумме подрядных услуг в заказах; оплачено — наши платежи по графику оплат.'
+                : 'Начислено по сумме перевозки в заказах; оплачено — наши платежи по графику оплат.',
             'rows' => $rows,
             'totals' => $this->sumRows($rows),
         ];

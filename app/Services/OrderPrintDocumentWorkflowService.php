@@ -68,6 +68,7 @@ class OrderPrintDocumentWorkflowService
                 'storage_driver' => $this->documentStorage->configuredDriver(),
                 'order_leg_stage' => $context?->legStage,
                 'carrier_contractor_id' => $context?->carrierContractorId,
+                'carrier_slot' => $context?->carrierSlot,
                 'route_legs_as_table_rows' => $context?->routeLegsAsTableRows ?? false,
             ], fn (mixed $value): bool => $value !== null && $value !== false && $value !== ''),
         ];
@@ -436,6 +437,9 @@ class OrderPrintDocumentWorkflowService
         $carrierId = isset($metadata['carrier_contractor_id']) && (int) $metadata['carrier_contractor_id'] > 0
             ? (int) $metadata['carrier_contractor_id']
             : null;
+        $carrierSlot = isset($metadata['carrier_slot']) && (int) $metadata['carrier_slot'] > 0
+            ? (int) $metadata['carrier_slot']
+            : null;
         $routeLegsAsTableRows = (bool) ($metadata['route_legs_as_table_rows'] ?? false);
 
         if (($legStage === null || $legStage === '') && $carrierId === null && ! $routeLegsAsTableRows) {
@@ -446,6 +450,7 @@ class OrderPrintDocumentWorkflowService
             legStage: $legStage !== '' ? $legStage : null,
             carrierContractorId: $carrierId,
             routeLegsAsTableRows: $routeLegsAsTableRows,
+            carrierSlot: $carrierSlot,
         );
     }
 }

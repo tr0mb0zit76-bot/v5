@@ -49,6 +49,7 @@ class OrderDocumentWorkflowController extends Controller
             'print_party' => ['nullable', 'string', 'in:customer,carrier'],
             'order_leg_stage' => ['nullable', 'string', 'max:80'],
             'carrier_contractor_id' => ['nullable', 'integer', 'min:1'],
+            'carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'route_legs_as_table_rows' => ['nullable', 'boolean'],
         ]);
 
@@ -707,6 +708,7 @@ class OrderDocumentWorkflowController extends Controller
             ? trim($validated['order_leg_stage'])
             : null;
         $carrierId = isset($validated['carrier_contractor_id']) ? (int) $validated['carrier_contractor_id'] : null;
+        $carrierSlot = isset($validated['carrier_slot']) ? (int) $validated['carrier_slot'] : null;
         $routeLegsAsTableRows = (bool) ($validated['route_legs_as_table_rows'] ?? false);
         $printParty = isset($validated['print_party']) && in_array($validated['print_party'], ['customer', 'carrier'], true)
             ? $validated['print_party']
@@ -724,6 +726,7 @@ class OrderDocumentWorkflowController extends Controller
             carrierContractorId: $carrierId > 0 ? $carrierId : null,
             routeLegsAsTableRows: $routeLegsAsTableRows,
             printParty: $printParty,
+            carrierSlot: $carrierSlot > 0 ? $carrierSlot : null,
         );
     }
 

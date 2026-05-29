@@ -11,6 +11,7 @@ use App\Rules\DocumentWithinPageBudget;
 use App\Services\ContractorCreditService;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
+use App\Support\OrderCargoItemsPayloadNormalizer;
 use App\Support\OrderDisruptionGuard;
 use App\Support\OrderDocumentRegistryTypes;
 use App\Support\OwnFleetCatalog;
@@ -37,37 +38,90 @@ class StoreOrderRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if (! $this->has('order_payload')) {
+        if ($this->has('order_payload')) {
+            try {
+                /** @var array<string, mixed> $data */
+                $data = json_decode($this->string('order_payload')->value(), true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                throw ValidationException::withMessages([
+                    'order_payload' => 'Некорректный JSON заказа.',
+                ]);
+            }
+
+            if (! is_array($data)) {
+                throw ValidationException::withMessages([
+                    'order_payload' => 'Некорректный JSON заказа.',
+                ]);
+            }
+
+            $documents = $data['documents'] ?? [];
+            if (is_array($documents)) {
+                foreach (array_keys($documents) as $index) {
+                    $uploadKey = 'document_file_'.$index;
+                    if ($this->hasFile($uploadKey)) {
+                        $documents[$index]['file'] = $this->file($uploadKey);
+                    }
+                }
+                $data['documents'] = $documents;
+            }
+
+            $this->merge($data);
+        }
+
+        $this->normalizeCargoItemsPerformerAllocationsInput();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function validatedForWizard(): array
+    {
+        /** @var array<string, mixed> $validated */
+        $validated = $this->validated();
+        $validated['cargo_items'] = OrderCargoItemsPayloadNormalizer::normalizeValidatedCargoItems($validated, $this);
+
+        return $validated;
+    }
+
+    private function normalizeCargoItemsPerformerAllocationsInput(): void
+    {
+        $items = $this->input('cargo_items');
+        if (! is_array($items)) {
             return;
         }
 
-        try {
-            /** @var array<string, mixed> $data */
-            $data = json_decode($this->string('order_payload')->value(), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            throw ValidationException::withMessages([
-                'order_payload' => 'Некорректный JSON заказа.',
-            ]);
-        }
+        foreach ($items as $index => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
 
-        if (! is_array($data)) {
-            throw ValidationException::withMessages([
-                'order_payload' => 'Некорректный JSON заказа.',
-            ]);
-        }
-
-        $documents = $data['documents'] ?? [];
-        if (is_array($documents)) {
-            foreach (array_keys($documents) as $index) {
-                $uploadKey = 'document_file_'.$index;
-                if ($this->hasFile($uploadKey)) {
-                    $documents[$index]['file'] = $this->file($uploadKey);
+            $allocations = $item['performer_allocations'] ?? null;
+            if (! is_array($allocations)) {
+                $atiPayload = $item['ati_cargo_payload'] ?? null;
+                if (is_array($atiPayload) && ! array_is_list($atiPayload) && is_array($atiPayload['performer_allocations'] ?? null)) {
+                    $allocations = $atiPayload['performer_allocations'];
                 }
             }
-            $data['documents'] = $documents;
+
+            if (! is_array($allocations)) {
+                continue;
+            }
+
+            foreach ($allocations as $rowIndex => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+
+                $slot = $row['carrier_slot'] ?? null;
+                if ($slot === '' || $slot === 'null') {
+                    $allocations[$rowIndex]['carrier_slot'] = null;
+                }
+            }
+
+            $items[$index]['performer_allocations'] = $allocations;
         }
 
-        $this->merge($data);
+        $this->merge(['cargo_items' => $items]);
     }
 
     /**
@@ -429,6 +483,7 @@ class StoreOrderRequest extends FormRequest
             'loading_types.*' => ['nullable', Rule::in(['top', 'side', 'rear', 'full', 'tail_lift', 'crane'])],
 
             'additional_expenses' => ['nullable', 'numeric', 'min:0'],
+            'additional_expenses_payment_date' => ['nullable', 'date'],
             'insurance' => ['nullable', 'numeric', 'min:0'],
             'bonus' => ['nullable', 'numeric', 'min:0'],
 
@@ -440,6 +495,8 @@ class StoreOrderRequest extends FormRequest
             'performers.*.fleet_driver_id' => ['nullable', 'integer'],
             'performers.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
             'performers.*.fleet_trip_id' => ['nullable', 'integer'],
+            'performers.*.loading_actual' => ['nullable', 'date'],
+            'performers.*.unloading_actual' => ['nullable', 'date'],
             'performers.*.split_carriers' => ['nullable', 'array', 'max:4'],
             'performers.*.split_carriers.*.slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'performers.*.split_carriers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
@@ -447,6 +504,8 @@ class StoreOrderRequest extends FormRequest
             'performers.*.split_carriers.*.fleet_driver_id' => ['nullable', 'integer'],
             'performers.*.split_carriers.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
             'performers.*.split_carriers.*.fleet_trip_id' => ['nullable', 'integer'],
+            'performers.*.split_carriers.*.loading_actual' => ['nullable', 'date'],
+            'performers.*.split_carriers.*.unloading_actual' => ['nullable', 'date'],
 
             'print_form_template_selection' => ['nullable', 'array'],
             'print_form_template_selection.*' => ['nullable', 'integer', 'exists:print_form_templates,id'],
@@ -515,6 +574,11 @@ class StoreOrderRequest extends FormRequest
             'cargo_items.*.cargo_type_label' => ['nullable', 'string', 'max:255'],
             'cargo_items.*.is_oversized' => ['nullable', 'boolean'],
             'cargo_items.*.is_fragile' => ['nullable', 'boolean'],
+            'cargo_items.*.performer_allocations' => ['nullable', 'array'],
+            'cargo_items.*.performer_allocations.*.stage' => ['nullable', 'string', 'max:50'],
+            'cargo_items.*.performer_allocations.*.carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
+            'cargo_items.*.performer_allocations.*.package_count' => ['nullable', 'numeric', 'min:0'],
+            'cargo_items.*.performer_allocations.*.weight_value' => ['nullable', 'numeric', 'min:0'],
             'cargo_items.*.ati_cargo_payload' => ['nullable', 'array'],
 
             'financial_term' => ['nullable', 'array'],
@@ -542,6 +606,8 @@ class StoreOrderRequest extends FormRequest
             'financial_term.contractors_costs.*.stage' => ['nullable', 'string', 'max:50'],
             'financial_term.contractors_costs.*.carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'financial_term.contractors_costs.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'financial_term.contractors_costs.*.incurred_date' => ['nullable', 'date'],
+            'financial_term.contractors_costs.*.is_additional' => ['nullable', 'boolean'],
             'financial_term.contractors_costs.*.execution_mode' => ['nullable', 'string', Rule::in([OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET])],
             'financial_term.contractors_costs.*.amount' => ['nullable', 'numeric', 'min:0'],
             'financial_term.contractors_costs.*.currency' => ['nullable', Rule::in(CurrencyDictionary::allowedCodes())],

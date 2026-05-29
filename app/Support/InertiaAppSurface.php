@@ -53,7 +53,11 @@ enum InertiaAppSurface: string
     {
         $path = trim($request->path(), '/');
 
-        if ($path === '' || $path === 'about' || $path === 'services' || $path === 'cases' || $path === 'contacts') {
+        if ($path === '' || $path === 'about' || $path === 'services' || $path === 'cases' || $path === 'sla' || $path === 'contacts') {
+            return true;
+        }
+
+        if (str_starts_with($path, 'sla/documents/')) {
             return true;
         }
 

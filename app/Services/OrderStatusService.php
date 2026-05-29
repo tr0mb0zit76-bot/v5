@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\PerformerRouteActualDates;
 use App\Support\RoutePointActualMilestones;
 use Carbon\CarbonInterface;
 
@@ -92,6 +93,17 @@ class OrderStatusService
         $hasRoutePoints = $order->legs->contains(
             fn ($leg): bool => $leg->routePoints->isNotEmpty()
         );
+
+        $performers = is_array($order->performers) ? $order->performers : [];
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if (PerformerRouteActualDates::performerHasLoadingActual($performer)) {
+                return true;
+            }
+        }
 
         if (! $hasRoutePoints) {
             return false;

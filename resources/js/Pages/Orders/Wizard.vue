@@ -26,7 +26,7 @@
                                 <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус</span>
                                 <span
                                     class="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                                    :title="'Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
+                                    :title="'Рассчитывается автоматически по фактическим датам плеч, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
                                 >
                                     <OrderStatusIcon v-if="orderStatusIconMeta" :icon-key="orderStatusIconKey" :size="18" />
                                     <span class="min-w-0 truncate">{{ orderStatusBadgeLabel }}</span>
@@ -177,7 +177,7 @@
                         <span class="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Статус заказа</span>
                         <span
                             class="inline-flex max-w-full items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-medium leading-none text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800/80 dark:text-zinc-100"
-                            :title="'Рассчитывается автоматически по фактическим датам маршрута, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
+                            :title="'Рассчитывается автоматически по фактическим датам плеч, документам и оплатам. Текущий: ' + orderStatusBadgeLabel"
                         >
                             <OrderStatusIcon v-if="orderStatusIconMeta" :icon-key="orderStatusIconKey" />
                             <span class="min-w-0 truncate">{{ orderStatusBadgeLabel }}</span>
@@ -551,6 +551,22 @@
                                 >
                                     Заполнено перевозчиком: {{ performer.carrier_portal_submission.driver_full_name }}
                                 </p>
+                                <p
+                                    v-if="needsCargoPerformerAllocationUi && performerCargoSummaryLabel(performer.stage, null)"
+                                    class="text-xs text-zinc-500 dark:text-zinc-400"
+                                >
+                                    Груз на машине: <span class="font-medium text-zinc-700 dark:text-zinc-300">{{ performerCargoSummaryLabel(performer.stage, null) }}</span>
+                                </p>
+                                <div class="flex flex-wrap gap-2">
+                                    <div class="w-[8.75rem] space-y-0.5">
+                                        <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
+                                        <input v-model="performer.loading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                    <div class="w-[8.75rem] space-y-0.5">
+                                        <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
+                                        <input v-model="performer.unloading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                    </div>
+                                </div>
                             </template>
 
                             <template v-else>
@@ -560,8 +576,16 @@
                                     :key="`leg-${legIndex}-slot-${slot.slot}`"
                                     class="space-y-3 rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/40"
                                 >
-                                    <div class="flex items-center justify-between gap-2">
-                                        <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ splitCarrierSlotLabel(slot.slot) }}</span>
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ splitCarrierSlotLabel(slot.slot) }}</span>
+                                            <p
+                                                v-if="needsCargoPerformerAllocationUi && performerCargoSummaryLabel(performer.stage, slot.slot)"
+                                                class="text-xs text-zinc-500"
+                                            >
+                                                Груз: {{ performerCargoSummaryLabel(performer.stage, slot.slot) }}
+                                            </p>
+                                        </div>
                                         <button
                                             v-if="performer.split_carriers.length > 2"
                                             type="button"
@@ -664,6 +688,16 @@
                                             </select>
                                         </div>
                                     </div>
+                                    <div class="flex flex-wrap gap-2 border-t border-zinc-200/80 pt-2 dark:border-zinc-700">
+                                        <div class="w-[8.75rem] space-y-0.5">
+                                            <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. погрузка</label>
+                                            <input v-model="slot.loading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                        </div>
+                                        <div class="w-[8.75rem] space-y-0.5">
+                                            <label class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Факт. выгрузка</label>
+                                            <input v-model="slot.unloading_actual" type="date" class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-950" />
+                                        </div>
+                                    </div>
                                 </div>
                                 <button
                                     v-if="performer.split_carriers.length < 4"
@@ -742,7 +776,7 @@
                                     </div>
                                 </div>
                             </template>
-                            <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9rem_9.5rem_9.5rem_14rem] lg:items-end">
+                            <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9rem_9.5rem_14rem] lg:items-end">
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Адрес</label>
                                     <div class="relative">
@@ -787,10 +821,6 @@
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Плановая дата</label>
                                     <input v-model="item.point.planned_date" type="date" :class="crmFieldFluid" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="text-sm font-medium">Фактическая дата</label>
-                                    <input v-model="item.point.actual_date" type="date" :class="crmFieldFluid" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">{{ routePointTimeBlockHeading(item.point.type) }}</label>
@@ -1054,6 +1084,107 @@
                     <div>Общий объём: <span class="font-medium">{{ cargoSummary.totalVolume.toFixed(2) }} м³</span></div>
                     <div>Всего мест: <span class="font-medium">{{ cargoSummary.totalPackages }}</span></div>
                 </div>
+
+                <div v-if="needsCargoPerformerAllocationUi" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <div>
+                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Распределение по исполнителям</h3>
+                        <p class="mt-0.5 text-xs text-zinc-500">
+                            Места и вес по каждой машине. Вес подставляется из позиции груза (вес места × кол-во), если не указан вручную.
+                            На плече с несколькими исполнителями сумма мест и веса должна совпадать с позицией.
+                        </p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full border-separate border-spacing-0 text-sm">
+                            <thead>
+                                <tr class="text-left text-xs text-zinc-500">
+                                    <th class="sticky left-0 z-10 min-w-[10rem] border-b border-zinc-200 bg-white py-2 pr-3 dark:border-zinc-700 dark:bg-zinc-950">Груз</th>
+                                    <th
+                                        v-for="column in cargoPerformerAllocationColumns"
+                                        :key="`alloc-head-${column.key}`"
+                                        class="min-w-[8.5rem] border-b border-zinc-200 px-2 py-2 dark:border-zinc-700"
+                                    >
+                                        {{ column.label }}
+                                    </th>
+                                    <th class="min-w-[8rem] border-b border-zinc-200 px-2 py-2 dark:border-zinc-700">Проверка по плечам</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="(item, cargoIndex) in form.cargo_items"
+                                    :key="`alloc-row-${cargoIndex}`"
+                                    :class="cargoAllocationRowStatuses[cargoIndex]?.isMismatch ? 'bg-rose-50/60 dark:bg-rose-950/20' : ''"
+                                >
+                                    <td class="sticky left-0 z-10 border-b border-zinc-100 bg-white py-2 pr-3 align-top dark:border-zinc-800 dark:bg-zinc-950">
+                                        <div class="font-medium text-zinc-800 dark:text-zinc-100">{{ item.name || `Груз ${cargoIndex + 1}` }}</div>
+                                        <div class="text-xs text-zinc-500">
+                                            {{ Number(item.package_count || 0) }} мест · {{ cargoLineTotalWeightKg(item).toFixed(0) }} кг
+                                        </div>
+                                    </td>
+                                    <td
+                                        v-for="column in cargoPerformerAllocationColumns"
+                                        :key="`alloc-cell-${cargoIndex}-${column.key}`"
+                                        class="border-b border-zinc-100 px-2 py-2 align-top dark:border-zinc-800"
+                                    >
+                                        <div class="flex flex-col gap-1">
+                                            <input
+                                                :value="findCargoAllocation(item, column.stage, column.carrier_slot)?.package_count ?? ''"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                :class="cargoAllocationFieldClass"
+                                                placeholder="Мест"
+                                                @input="onCargoAllocationPackagesInput(item, column, $event.target.value)"
+                                            />
+                                            <input
+                                                :value="findCargoAllocation(item, column.stage, column.carrier_slot)?.weight_value ?? ''"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                :class="cargoAllocationFieldClass"
+                                                :placeholder="allocationWeightFieldPlaceholder(item, column)"
+                                                @input="onCargoAllocationWeightInput(item, column, $event.target.value)"
+                                            />
+                                        </div>
+                                    </td>
+                                    <td class="border-b border-zinc-100 px-2 py-2 align-top text-xs dark:border-zinc-800">
+                                        <div
+                                            v-for="leg in cargoAllocationRowStatuses[cargoIndex]?.legStatuses ?? []"
+                                            :key="`alloc-status-${cargoIndex}-${leg.stage}`"
+                                            class="leading-relaxed"
+                                            :class="leg.packagesMismatch || leg.weightMismatch ? 'text-rose-600' : 'text-zinc-600 dark:text-zinc-400'"
+                                        >
+                                            <template v-if="leg.isSplitLeg">
+                                                {{ leg.stageLabel }}: {{ leg.stagePackages }}/{{ cargoAllocationRowStatuses[cargoIndex]?.expectedPackages }} мест,
+                                                {{ leg.stageWeightKg.toFixed(0) }}/{{ cargoAllocationRowStatuses[cargoIndex]?.expectedWeightKg.toFixed(0) }} кг
+                                            </template>
+                                            <template v-else>
+                                                {{ leg.stageLabel }}: {{ leg.stagePackages > 0 ? `${leg.stagePackages} мест` : '—' }}
+                                                <span v-if="leg.stageWeightKg > 0"> · {{ leg.stageWeightKg.toFixed(0) }} кг</span>
+                                            </template>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                                    <td class="sticky left-0 z-10 bg-zinc-50 py-2 pr-3 dark:bg-zinc-900/80">Сводка по машине</td>
+                                    <td
+                                        v-for="column in cargoPerformerAllocationColumnSummaries"
+                                        :key="`alloc-foot-${column.key}`"
+                                        class="px-2 py-2"
+                                    >
+                                        <template v-if="column.hasAny">
+                                            {{ column.totalPackages }} мест<br>
+                                            {{ column.totalWeightKg.toFixed(0) }} кг
+                                        </template>
+                                        <span v-else class="text-zinc-400">—</span>
+                                    </td>
+                                    <td />
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <div v-else-if="activeTab === 'finance'" class="space-y-6">
@@ -1118,22 +1249,28 @@
 
                     <div class="space-y-3">
                         <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                            <div class="min-w-0">
-                                <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                    {{ stageLabel(cost.stage) }}<span v-if="cost.carrier_slot"> · {{ splitCarrierSlotLabel(cost.carrier_slot) }}</span>
-                                </div>
-                                <p class="text-xs text-zinc-500">Перевозчик и условия оплаты{{ cost.carrier_slot ? ' для выбранного исполнителя на плече' : ' для этого плеча' }}.</p>
-                            </div>
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
-                                <div class="min-w-0 space-y-2 md:col-span-4">
-                                    <label class="text-sm font-medium">Плечо маршрута</label>
-                                    <select v-model="cost.stage" :class="crmFieldFluid">
-                                        <option v-for="performer in form.performers" :key="performer.stage" :value="performer.stage">{{ stageLabel(performer.stage) }}</option>
-                                    </select>
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-start">
+                                <div class="min-w-0 md:col-span-5">
+                                    <div class="flex flex-wrap items-start justify-between gap-2">
+                                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                            {{ costRowTitle(cost) }}
+                                        </div>
+                                        <button
+                                            v-if="cost.is_additional"
+                                            type="button"
+                                            class="shrink-0 text-[11px] text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+                                            @click="removeAdditionalContractorCostRow(index)"
+                                        >
+                                            Удалить
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-zinc-500">
+                                        {{ cost.is_additional ? 'Дополнительный исполнитель в структуре затрат заказа.' : 'Исполнитель и условия оплаты для плеча маршрута.' }}
+                                    </p>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
                                     <label class="text-sm font-medium">
-                                        {{ isOwnFleetExecutionMode(cost.execution_mode) ? 'Примерная стоимость' : 'Стоимость перевозки' }}
+                                        {{ contractorCostAmountLabel(cost) }}
                                     </label>
                                     <input v-model="cost.amount" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
                                 </div>
@@ -1143,7 +1280,7 @@
                                         <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                     </select>
                                 </div>
-                                <div class="min-w-0 space-y-2 md:col-span-4">
+                                <div class="min-w-0 space-y-2 md:col-span-3">
                                     <label class="text-sm font-medium">Форма оплаты</label>
                                     <select v-model="cost.payment_form" :class="crmFieldFluid">
                                         <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -1157,7 +1294,7 @@
                                 :total-amount="cost.amount"
                                 :currency="cost.currency"
                                 :route-points="form.route_points"
-                                :order-date="form.order_date"
+                                :order-date="contractorCostOrderDate(cost)"
                                 editable-summary
                             />
                         </div>
@@ -1170,22 +1307,49 @@
                     <h2 class="text-base font-semibold">Дополнительные затраты</h2>
                     <p class="text-xs text-zinc-500">Прочие расходы по заказу (не оплата перевозчикам по этапам)</p>
                 </div>
-                <div class="grid gap-4 md:grid-cols-3">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Доп. расходы</label>
-                        <input v-model="form.additional_expenses" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
+                <div class="space-y-2">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
+                        <div class="min-w-0 flex-1 space-y-1 lg:max-w-md">
+                            <label class="text-sm font-medium">Исполнитель доп. затрат</label>
+                            <div class="flex gap-2">
+                                <select v-model="additionalCostContractorId" :class="[crmFieldFluid, 'min-w-0 flex-1']">
+                                    <option :value="null">Выберите исполнителя</option>
+                                    <option v-for="contractor in costContractorOptions" :key="`additional-cost-${contractor.id}`" :value="contractor.id">
+                                        {{ contractor.name }}
+                                    </option>
+                                </select>
+                                <button
+                                    type="button"
+                                    class="shrink-0 whitespace-nowrap rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                    :disabled="normalizeNullableNumber(additionalCostContractorId) === null"
+                                    @click="addAdditionalContractorCostRow"
+                                >
+                                    Добавить исполнителя
+                                </button>
+                            </div>
+                        </div>
+                        <div class="shrink-0 space-y-1">
+                            <label class="text-sm font-medium">Дата возникновения затрат</label>
+                            <input v-model="form.additional_expenses_payment_date" type="date" :class="additionalExpenseDateFieldClass" />
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 lg:gap-x-5">
+                            <div class="flex items-center gap-2">
+                                <span class="whitespace-nowrap text-sm font-medium">Доп. расходы</span>
+                                <input v-model="form.additional_expenses" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="whitespace-nowrap text-sm font-medium">Страховка</span>
+                                <input v-model="form.insurance" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="whitespace-nowrap text-sm font-medium">Бонус</span>
+                                <input v-model="form.bonus" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
+                            </div>
+                        </div>
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Страховка</label>
-                        <input v-model="form.insurance" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Бонус</label>
-                        <input v-model="form.bonus" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
-                        <p class="text-xs text-zinc-500">
-                            В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
-                        </p>
-                    </div>
+                    <p class="text-xs text-zinc-500">
+                        В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
+                    </p>
                 </div>
             </div>
 
@@ -1597,12 +1761,33 @@ import {
     splitCarrierSlotLabel,
 } from '@/support/orderPerformers.js';
 import { classifyDealType, paymentFormMetaFromOptions } from '@/support/paymentFormDealType.js';
+import {
+    allocationWeightPlaceholder,
+    cargoAllocationRowStatus,
+    cargoLinePerPlaceWeightKg,
+    ensureCargoAllocation,
+    findCargoAllocation,
+    needsCargoPerformerAllocation,
+    normalizePerformerAllocations,
+    performerAllocationColumns,
+    pruneCargoAllocationsToColumns,
+    remapCargoAllocationsToCanonicalStages,
+    summarizeAllocationsForColumn,
+    validateCargoPerformerAllocations,
+} from '@/support/orderCargoPerformerAllocations.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
 });
 
 const page = usePage();
+
+const additionalExpenseAmountFieldClass =
+    'h-9 w-[6.75rem] max-w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950';
+const additionalExpenseDateFieldClass =
+    'h-9 w-[10.5rem] max-w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950';
+const cargoAllocationFieldClass =
+    'h-8 w-full min-w-[4.5rem] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950';
 
 const props = defineProps({
     order: { type: Object, default: null },
@@ -1675,6 +1860,8 @@ onMounted(() => {
             normalizeRoutePointSequences();
         }
     }
+
+    remapCargoAllocationsToCanonicalStages(form.cargo_items);
 });
 
 const workflowTemplateId = ref(null);
@@ -1810,6 +1997,7 @@ const clientSearch = ref('');
 const showClientResults = ref(false);
 const carrierSearch = ref({});
 const showCarrierResults = ref({});
+const additionalCostContractorId = ref(null);
 const fleetOptionsCache = ref({});
 const showCounterpartyModal = ref(false);
 const counterpartyNameInput = ref(null);
@@ -1997,15 +2185,19 @@ function normalizeContractorCost(cost = {}) {
         stage: '',
         carrier_slot: null,
         contractor_id: null,
+        contractor_name: null,
         amount: null,
         currency: 'RUB',
         payment_form: 'no_vat',
         payment_schedule: blankPaymentSchedule(),
         payment_terms: '',
         execution_mode: null,
+        is_additional: false,
+        incurred_date: null,
         ...cost,
         payment_schedule: normalizePaymentSchedule(cost.payment_schedule),
     };
+    merged.incurred_date = merged.incurred_date ? String(merged.incurred_date).slice(0, 10) : null;
     merged.execution_mode = isOwnFleetExecutionMode(merged.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null;
     merged.payment_form = normalizePaymentFormCode(merged.payment_form, 'no_vat');
     merged.payment_terms = String(merged.payment_terms ?? '').trim();
@@ -2084,11 +2276,11 @@ function blankOrder() {
         cargo_recipient_contact: '',
         cargo_recipient_phone: '',
         performers: [
-            blankPerformer(stageLabel('leg_1')),
+            blankPerformer('leg_1'),
         ],
         route_points: [
-            blankRoutePoint('loading', 1, stageLabel('leg_1')),
-            blankRoutePoint('unloading', 2, stageLabel('leg_1')),
+            blankRoutePoint('loading', 1, 'leg_1'),
+            blankRoutePoint('unloading', 2, 'leg_1'),
         ],
         cargo_items: [
             {
@@ -2130,6 +2322,7 @@ function blankOrder() {
                 is_oversized: false,
                 is_fragile: false,
                 ati_cargo_payload: {},
+                performer_allocations: [],
             },
         ],
         financial_term: {
@@ -2146,6 +2339,7 @@ function blankOrder() {
             carrier_norms_by_leg: [],
         },
         additional_expenses: null,
+        additional_expenses_payment_date: null,
         insurance: null,
         bonus: null,
         documents: [],
@@ -2291,6 +2485,97 @@ function applyTrailerTypeOption(item) {
     applyDictionaryItems(item, props.trailerTypeOptions, 'trailer_type_ids', 'trailer_type_id', 'trailer_type_code', 'trailer_type_label', 'trailer_type_items');
 }
 
+function normalizeAtiCargoPayload(payload) {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        return { ...payload };
+    }
+
+    return {};
+}
+
+function performerAllocationsForSubmitItem(item) {
+    const columns = cargoPerformerAllocationColumns.value ?? [];
+    const fromMatrix = columns
+        .map((column) => {
+            const row = findCargoAllocation(item, column.stage, column.carrier_slot);
+            if (!row) {
+                return null;
+            }
+
+            const packageCount = row.package_count;
+            const weightValue = row.weight_value;
+            const hasPackages = packageCount !== null && packageCount !== '' && Number.isFinite(Number(packageCount));
+            const hasWeight = weightValue !== null && weightValue !== '' && Number.isFinite(Number(weightValue));
+
+            if (!hasPackages && !hasWeight) {
+                return null;
+            }
+
+            return {
+                stage: column.stage,
+                carrier_slot: column.carrier_slot,
+                package_count: hasPackages ? Number(packageCount) : null,
+                weight_value: hasWeight ? Number(weightValue) : null,
+            };
+        })
+        .filter(Boolean);
+
+    if (fromMatrix.length > 0) {
+        return normalizePerformerAllocations(fromMatrix);
+    }
+
+    return normalizePerformerAllocations(item.performer_allocations);
+}
+
+function serializeCargoItemsForSubmit() {
+    return form.cargo_items.map((item) => {
+        const performerAllocations = performerAllocationsForSubmitItem(item);
+        const atiBase = normalizeAtiCargoPayload(item.ati_cargo_payload);
+
+        return {
+            name: item.name,
+            description: item.description,
+            weight_value: item.weight_value ?? item.weight_kg,
+            weight_kg: item.weight_value ?? item.weight_kg,
+            weight_unit: item.weight_unit === 't' ? 't' : 'kg',
+            volume_m3: item.volume_m3,
+            length_m: item.length_m,
+            width_m: item.width_m,
+            height_m: item.height_m,
+            diameter_m: item.diameter_m,
+            package_type: item.package_type,
+            pack_type_id: normalizeNullableNumber(item.pack_type_id),
+            pack_type_label: item.pack_type_label,
+            loading_type_id: normalizeNullableNumber(item.loading_type_id),
+            loading_type_code: item.loading_type_code,
+            loading_type_label: item.loading_type_label,
+            loading_type_items: item.loading_type_items || [],
+            truck_body_type_id: normalizeNullableNumber(item.truck_body_type_id),
+            truck_body_type_code: item.truck_body_type_code,
+            truck_body_type_label: item.truck_body_type_label,
+            truck_body_type_items: item.truck_body_type_items || [],
+            trailer_type_id: normalizeNullableNumber(item.trailer_type_id),
+            trailer_type_code: item.trailer_type_code,
+            trailer_type_label: item.trailer_type_label,
+            trailer_type_items: item.trailer_type_items || [],
+            package_count: item.package_count,
+            dangerous_goods: item.dangerous_goods,
+            dangerous_class: item.dangerous_class,
+            hs_code: item.hs_code,
+            cargo_type: item.cargo_type,
+            cargo_type_id: normalizeNullableNumber(item.cargo_type_id),
+            cargo_type_label: item.cargo_type_label,
+            is_oversized: item.is_oversized,
+            is_fragile: item.is_fragile,
+            performer_allocations: performerAllocations,
+            ati_cargo_payload: {
+                ...atiBase,
+                performer_allocations: performerAllocations,
+            },
+        };
+    });
+}
+
 function normalizeCargoItem(raw = {}) {
     const selectedCargoType = dictionaryOptionByValue(props.cargoTypeOptions, raw.cargo_type_id)
         ?? dictionaryOptionByCode(props.cargoTypeOptions, raw.cargo_type)
@@ -2353,7 +2638,10 @@ function normalizeCargoItem(raw = {}) {
         cargo_type: cargoType,
         is_oversized: Boolean(raw.is_oversized ?? cargoType === 'oversized'),
         is_fragile: Boolean(raw.is_fragile ?? cargoType === 'fragile'),
-        ati_cargo_payload: raw.ati_cargo_payload && typeof raw.ati_cargo_payload === 'object' ? raw.ati_cargo_payload : {},
+        ati_cargo_payload: normalizeAtiCargoPayload(raw.ati_cargo_payload),
+        performer_allocations: normalizePerformerAllocations(
+            raw.performer_allocations ?? normalizeAtiCargoPayload(raw.ati_cargo_payload).performer_allocations,
+        ),
     };
 }
 
@@ -2453,7 +2741,7 @@ function selectedLoadingTypeCodes() {
 const initialWizardPerformers = Array.isArray(props.order?.performers)
     ? props.order.performers.map((performer) => normalizePerformer({
         ...performer,
-        stage: stageLabel(performer.stage ?? 'leg_1'),
+        stage: toStageKey(performer.stage ?? 'leg_1') || 'leg_1',
         contractor_id: normalizeNullableNumber(performer.contractor_id),
         contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
         fleet_vehicle_id: normalizeNullableNumber(performer.fleet_vehicle_id),
@@ -2465,6 +2753,8 @@ const initialWizardPerformers = Array.isArray(props.order?.performers)
                 contractor_id: normalizeNullableNumber(slot?.contractor_id),
                 fleet_vehicle_id: normalizeNullableNumber(slot?.fleet_vehicle_id),
                 fleet_driver_id: normalizeNullableNumber(slot?.fleet_driver_id),
+                loading_actual: slot?.loading_actual ?? '',
+                unloading_actual: slot?.unloading_actual ?? '',
             }))
             : [],
     }))
@@ -2480,6 +2770,7 @@ const form = useForm({
     client_id: normalizeNullableNumber(props.order?.client_id),
     manual_status: props.order?.manual_status ?? null,
     additional_expenses: props.order?.additional_expenses ?? null,
+    additional_expenses_payment_date: props.order?.additional_expenses_payment_date ?? props.order?.order_date ?? null,
     insurance: props.order?.insurance ?? null,
     bonus: props.order?.bonus ?? null,
     loading_types: Array.isArray(props.order?.loading_types)
@@ -2491,9 +2782,9 @@ const form = useForm({
     performers: initialWizardPerformers,
     route_points: Array.isArray(props.order?.route_points)
         ? props.order.route_points.map((point, index) => ({
-            ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), stageLabel(point.stage ?? 'leg_1')),
+            ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), toStageKey(point.stage ?? 'leg_1') || 'leg_1'),
             ...point,
-            stage: stageLabel(point.stage ?? 'leg_1'),
+            stage: toStageKey(point.stage ?? 'leg_1') || 'leg_1',
             sequence: Number(point.sequence ?? (index + 1)),
             normalized_data: point.normalized_data || {},
         }))
@@ -2511,7 +2802,16 @@ const form = useForm({
             'vat',
         ),
         contractors_costs: Array.isArray(props.order?.financial_term?.contractors_costs)
-            ? props.order.financial_term.contractors_costs.map((cost) => normalizeContractorCost(cost))
+            ? props.order.financial_term.contractors_costs.map((cost) => {
+                const normalized = normalizeContractorCost(cost);
+                if (normalized.is_additional && !normalized.incurred_date) {
+                    normalized.incurred_date = props.order?.additional_expenses_payment_date
+                        ?? props.order?.order_date
+                        ?? null;
+                }
+
+                return normalized;
+            })
             : [],
         client_norms_penalties: normalizePartyNormsPenalties(props.order?.financial_term?.client_norms_penalties),
         carrier_norms_by_leg: normalizeCarrierNormsByLegList(
@@ -2589,12 +2889,15 @@ const calculatedCompensation = ref({
 });
 
 const isCalculatingCompensation = ref(false);
+let compensationDebounceTimer = null;
+let compensationRequestVersion = 0;
 
 async function calculateCompensation() {
     if (isCalculatingCompensation.value) {
         return;
     }
 
+    const requestVersion = ++compensationRequestVersion;
     isCalculatingCompensation.value = true;
 
     try {
@@ -2620,10 +2923,15 @@ async function calculateCompensation() {
         });
 
         if (!response.ok) {
-            throw new Error(`Calculation failed with status ${response.status}`);
+            throw new Error(`Расчёт компенсации: HTTP ${response.status}`);
         }
 
         const result = await response.json();
+
+        if (requestVersion !== compensationRequestVersion) {
+            return;
+        }
+
         calculatedCompensation.value = result;
         
         // Update the form's KPI percentage with the calculated value
@@ -2656,9 +2964,31 @@ watch(
         () => form.performers,
     ],
     () => {
-        calculateCompensation();
+        if (compensationDebounceTimer !== null) {
+            clearTimeout(compensationDebounceTimer);
+        }
+
+        compensationDebounceTimer = setTimeout(() => {
+            calculateCompensation();
+        }, 400);
     },
     { deep: true, immediate: true },
+);
+
+watch(
+    () => form.additional_expenses_payment_date,
+    (date) => {
+        const normalized = String(date ?? '').trim();
+        if (normalized === '') {
+            return;
+        }
+
+        form.financial_term.contractors_costs.forEach((cost) => {
+            if (cost.is_additional) {
+                cost.incurred_date = normalized;
+            }
+        });
+    },
 );
 
 const isEditing = computed(() => props.order !== null);
@@ -2690,7 +3020,25 @@ const isOrderFormEditable = computed(() => {
     return props.order?.can_edit_order !== false;
 });
 
+function performerHasLoadingActual(performer) {
+    if (!performer) {
+        return false;
+    }
+
+    if (isPerformerSplit(performer)) {
+        return (performer.split_carriers ?? []).some(
+            (slot) => slot?.loading_actual != null && String(slot.loading_actual).trim() !== '',
+        );
+    }
+
+    return performer.loading_actual != null && String(performer.loading_actual).trim() !== '';
+}
+
 function wizardRouteLoadingHasActualDate() {
+    if (Array.isArray(form.performers) && form.performers.some((performer) => performerHasLoadingActual(performer))) {
+        return true;
+    }
+
     if (!Array.isArray(form.route_points)) {
         return false;
     }
@@ -2732,6 +3080,7 @@ const isMobileStandalone = computed(() => {
 });
 const selectedClient = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.client_id)) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
+const costContractorOptions = computed(() => contractors.value.filter((contractor) => ['carrier', 'contractor', 'both'].includes(String(contractor.type ?? ''))));
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
 
 const hasSelectedCarrier = computed(() => {
@@ -3103,7 +3452,7 @@ function selectClient(contractor) {
 }
 
 function addPerformer() {
-    const stage = stageLabel(`leg_${form.performers.length + 1}`);
+    const stage = `leg_${form.performers.length + 1}`;
 
     form.performers.push(blankPerformer(stage));
     syncContractorCostsFromPerformers();
@@ -3133,14 +3482,20 @@ function setPerformerCarrierMode(legIndex, mode) {
         );
 
         performer.carrier_mode = CARRIER_MODE_SPLIT;
+        const legDates = {
+            loading_actual: performer.loading_actual || '',
+            unloading_actual: performer.unloading_actual || '',
+        };
         performer.split_carriers = [
-            { ...blankSplitCarrier(1), ...firstCarrier },
-            blankSplitCarrier(2),
+            { ...blankSplitCarrier(1), ...firstCarrier, ...legDates },
+            { ...blankSplitCarrier(2), ...legDates },
         ];
         performer.contractor_id = null;
         performer.contractor_name = null;
         performer.fleet_vehicle_id = null;
         performer.fleet_driver_id = null;
+        performer.loading_actual = '';
+        performer.unloading_actual = '';
 
         if (singleCostRow) {
             const sharedPayment = {
@@ -3173,6 +3528,8 @@ function setPerformerCarrierMode(legIndex, mode) {
         performer.contractor_name = firstSlot.contractor_name ?? null;
         performer.fleet_vehicle_id = firstSlot.fleet_vehicle_id ?? null;
         performer.fleet_driver_id = firstSlot.fleet_driver_id ?? null;
+        performer.loading_actual = firstSlot.loading_actual ?? '';
+        performer.unloading_actual = firstSlot.unloading_actual ?? '';
         performer.split_carriers = [];
     }
 
@@ -3243,6 +3600,7 @@ function removePerformer(index) {
     }
 
     syncContractorCostsFromPerformers();
+    syncCargoAllocationMatrixSlots({ pruneOrphans: true });
 }
 
 function stageLabel(stage) {
@@ -3301,7 +3659,7 @@ function reindexLegStagesAndRemap() {
 
     form.performers = form.performers.map((performer, i) => ({
         ...performer,
-        stage: stageLabel(`leg_${i + 1}`),
+        stage: `leg_${i + 1}`,
     }));
 
     const newStages = form.performers.map((p) => p.stage);
@@ -3345,7 +3703,7 @@ function pruneEmptyLegPerformers() {
     form.performers = filtered;
 
     if (form.performers.length === 0) {
-        form.performers = [blankPerformer(stageLabel('leg_1'))];
+        form.performers = [blankPerformer('leg_1')];
         syncRoutePointsFromPerformers();
     } else {
         reindexLegStagesAndRemap();
@@ -3408,6 +3766,47 @@ function performerCarrierSearchLabel(performerIndex, contractorId) {
     const fromRow = row?.contractor_name ? String(row.contractor_name).trim() : '';
 
     return fromRow || '';
+}
+
+function costRowTitle(cost) {
+    const contractor = getContractorById(cost?.contractor_id);
+    const contractorName = contractor?.name ? String(contractor.name).trim() : String(cost?.contractor_name ?? '').trim();
+
+    if (cost?.is_additional) {
+        return contractorName !== '' ? `Доп. затраты · ${contractorName}` : 'Доп. затраты · Исполнитель не выбран';
+    }
+
+    const stagePart = stageLabel(cost?.stage);
+    const slotPart = cost?.carrier_slot ? ` · ${splitCarrierSlotLabel(cost.carrier_slot)}` : '';
+
+    if (contractorName !== '') {
+        return `${stagePart}${slotPart} · ${contractorName}`;
+    }
+
+    return `${stagePart}${slotPart}`;
+}
+
+function contractorCostAmountLabel(cost) {
+    return isOwnFleetExecutionMode(cost?.execution_mode) ? 'Примерная стоимость' : 'Стоимость перевозки';
+}
+
+function contractorCostOrderDate(cost) {
+    if (cost?.is_additional) {
+        const incurred = String(cost?.incurred_date ?? form.additional_expenses_payment_date ?? form.order_date ?? '').trim();
+
+        return incurred !== '' ? incurred : null;
+    }
+
+    return form.order_date;
+}
+
+function additionalCostIncurredDate() {
+    const fromField = String(form.additional_expenses_payment_date ?? '').trim();
+    if (fromField !== '') {
+        return fromField;
+    }
+
+    return String(form.order_date ?? '').trim() || null;
 }
 
 function carrierSearchKey(kind, index) {
@@ -3965,6 +4364,146 @@ const cargoSummary = computed(() => {
     });
 });
 
+const needsCargoPerformerAllocationUi = computed(() => needsCargoPerformerAllocation(form.performers, isPerformerSplit));
+
+function allocationColumnContractorName(stage, carrierSlot) {
+    const performer = form.performers.find((row) => stageMatches(row.stage, stage));
+    if (!performer) {
+        return '';
+    }
+
+    if (isPerformerSplit(performer)) {
+        const slotNumber = Number(carrierSlot ?? 1);
+        const slot = (performer.split_carriers ?? []).find(
+            (row, index) => Number(row?.slot ?? index + 1) === slotNumber,
+        );
+        const fromRow = String(slot?.contractor_name ?? '').trim();
+        if (fromRow !== '') {
+            return fromRow;
+        }
+
+        return String(getContractorById(slot?.contractor_id)?.name ?? '').trim();
+    }
+
+    const fromRow = String(performer.contractor_name ?? '').trim();
+    if (fromRow !== '') {
+        return fromRow;
+    }
+
+    return String(getContractorById(performer.contractor_id)?.name ?? '').trim();
+}
+
+const cargoPerformerAllocationColumns = computed(() =>
+    performerAllocationColumns(
+        form.performers,
+        stageLabel,
+        splitCarrierSlotLabel,
+        isPerformerSplit,
+        allocationColumnContractorName,
+    ),
+);
+
+const cargoPerformerAllocationColumnSummaries = computed(() =>
+    cargoPerformerAllocationColumns.value.map((column) => ({
+        ...column,
+        ...summarizeAllocationsForColumn(form.cargo_items, column.stage, column.carrier_slot),
+    })),
+);
+
+const cargoAllocationRowStatuses = computed(() =>
+    form.cargo_items.map((item) =>
+        cargoAllocationRowStatus(item, cargoPerformerAllocationColumns.value, stageLabel),
+    ),
+);
+
+function syncCargoAllocationMatrixSlots(options = {}) {
+    if (!needsCargoPerformerAllocationUi.value) {
+        return;
+    }
+
+    remapCargoAllocationsToCanonicalStages(form.cargo_items);
+
+    if (options.pruneOrphans !== true) {
+        return;
+    }
+
+    const allowedKeys = new Set(cargoPerformerAllocationColumns.value.map((column) => column.key));
+    pruneCargoAllocationsToColumns(form.cargo_items, allowedKeys);
+}
+
+function syncAllocationWeightFromPackages(row, item) {
+    const packages = Number(row.package_count ?? 0);
+    if (!Number.isFinite(packages) || packages <= 0) {
+        return;
+    }
+
+    const perPlaceKg = cargoLinePerPlaceWeightKg(item);
+    if (perPlaceKg <= 0) {
+        return;
+    }
+
+    const explicit = row.weight_value;
+    if (explicit !== null && explicit !== '' && Number(explicit) > 0) {
+        return;
+    }
+
+    const totalKg = perPlaceKg * packages;
+    row.weight_value = item.weight_unit === 't'
+        ? Math.round((totalKg / 1000) * 1000) / 1000
+        : Math.round(totalKg * 100) / 100;
+}
+
+function allocationWeightFieldPlaceholder(item, column) {
+    const allocation = findCargoAllocation(item, column.stage, column.carrier_slot);
+    if (!allocation) {
+        return 'кг';
+    }
+
+    return allocationWeightPlaceholder(allocation, item);
+}
+
+function onCargoAllocationPackagesInput(item, column, rawValue) {
+    const row = ensureCargoAllocation(item, column.stage, column.carrier_slot);
+    row.package_count = rawValue === '' || rawValue === null ? null : Number(rawValue);
+    syncAllocationWeightFromPackages(row, item);
+    touchCargoItemAllocations(item);
+}
+
+function onCargoAllocationWeightInput(item, column, rawValue) {
+    const row = ensureCargoAllocation(item, column.stage, column.carrier_slot);
+    row.weight_value = rawValue === '' || rawValue === null ? null : Number(rawValue);
+    touchCargoItemAllocations(item);
+}
+
+/** Явно помечаем массив allocations изменённым для useForm / Vue. */
+function touchCargoItemAllocations(item) {
+    if (!Array.isArray(item.performer_allocations)) {
+        item.performer_allocations = [];
+    }
+    item.performer_allocations = [...item.performer_allocations];
+}
+
+function performerCargoSummaryLabel(stage, carrierSlot) {
+    const summary = summarizeAllocationsForColumn(form.cargo_items, stage, carrierSlot);
+    if (!summary.hasAny) {
+        return null;
+    }
+
+    return `${summary.totalPackages} мест · ${summary.totalWeightKg.toFixed(0)} кг`;
+}
+
+watch(
+    () => form.performers.map((performer, index) => ({
+        index,
+        stage: performer.stage,
+        carrier_mode: performer.carrier_mode,
+        split_count: Array.isArray(performer.split_carriers) ? performer.split_carriers.length : 0,
+    })),
+    () => {
+        syncCargoAllocationMatrixSlots({ pruneOrphans: true });
+    },
+);
+
 watch(
     () => form.cargo_items,
     (items) => {
@@ -4065,11 +4604,13 @@ function paymentSettlementLineTitle(line) {
     }
 
     const name = String(line.counterparty_name ?? '').trim();
+    const counterpartyLabel = line.party === 'contractor' ? 'подрядчиком' : 'перевозчиком';
+    const paymentLabel = line.party === 'contractor' ? 'подрядчику' : 'перевозчику';
     if (line.state === 'complete') {
-        return name !== '' ? `Мы рассчитались с ${name}` : 'Мы рассчитались с перевозчиком';
+        return name !== '' ? `Мы рассчитались с ${name}` : `Мы рассчитались с ${counterpartyLabel}`;
     }
 
-    return name !== '' ? `Оплата перевозчику (${name})` : 'Оплата перевозчику';
+    return name !== '' ? `Оплата ${paymentLabel} (${name})` : `Оплата ${paymentLabel}`;
 }
 
 function paymentSettlementLineValue(line) {
@@ -4092,7 +4633,7 @@ function paymentSettlementLineValue(line) {
         return `Оплачено ${percent}%`;
     }
 
-    return 'не поступало';
+    return 'не было';
 }
 
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
@@ -4148,7 +4689,7 @@ function addRoutePoint(type) {
     form.route_points.push(blankRoutePoint(
         type,
         form.route_points.length + 1,
-        form.performers[0]?.stage ?? stageLabel('leg_1'),
+        form.performers[0]?.stage ?? 'leg_1',
     ));
 }
 
@@ -4447,8 +4988,11 @@ function syncContractorCostsFromPerformers() {
     const existingRows = Array.isArray(form.financial_term.contractors_costs)
         ? form.financial_term.contractors_costs
         : [];
+    const additionalRows = existingRows
+        .filter((row) => Boolean(row?.is_additional))
+        .map((row) => normalizeContractorCost({ ...row, is_additional: true }));
 
-    form.financial_term.contractors_costs = contractorCostRowsFromPerformers(form.performers).map((row) => {
+    const syncedRows = contractorCostRowsFromPerformers(form.performers).map((row) => {
         const existingRow = existingRows.find((cost) => costMatchesPerformerSlot(cost, row.performer, row.slot));
 
         const nextRow = normalizeContractorCost({
@@ -4456,7 +5000,9 @@ function syncContractorCostsFromPerformers() {
             stage: row.stage,
             carrier_slot: row.carrier_slot,
             contractor_id: row.contractor_id,
+            contractor_name: existingRow?.contractor_name ?? null,
             execution_mode: row.execution_mode ?? existingRow?.execution_mode ?? null,
+            is_additional: false,
         });
 
         const previousContractorId = normalizeNullableNumber(existingRow?.contractor_id);
@@ -4477,6 +5023,7 @@ function syncContractorCostsFromPerformers() {
 
         return nextRow;
     });
+    form.financial_term.contractors_costs = [...syncedRows, ...additionalRows];
     syncCarrierNormsByLegFromPerformers();
 
     form.performers.forEach((performer) => {
@@ -4494,6 +5041,43 @@ function syncContractorCostsFromPerformers() {
             applyCarrierNormsDefaultsByStage(performer.stage, performer.contractor_id);
         }
     });
+}
+
+function addAdditionalContractorCostRow() {
+    const contractorId = normalizeNullableNumber(additionalCostContractorId.value);
+    if (contractorId === null) {
+        return;
+    }
+
+    const contractor = contractors.value.find((item) => Number(item.id) === contractorId) ?? null;
+    const fallbackStage = form.performers[0]?.stage ?? 'leg_1';
+    const row = normalizeContractorCost({
+        stage: fallbackStage,
+        carrier_slot: null,
+        contractor_id: contractorId,
+        contractor_name: contractor?.name ?? null,
+        amount: null,
+        currency: 'RUB',
+        payment_form: normalizePaymentFormCode(contractor?.default_carrier_payment_form ?? 'no_vat', 'no_vat'),
+        payment_schedule: contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term'),
+        incurred_date: additionalCostIncurredDate(),
+        is_additional: true,
+    });
+    form.financial_term.contractors_costs.push(row);
+    additionalCostContractorId.value = null;
+}
+
+function removeAdditionalContractorCostRow(index) {
+    if (!Array.isArray(form.financial_term.contractors_costs)) {
+        return;
+    }
+
+    const row = form.financial_term.contractors_costs[index];
+    if (!row?.is_additional) {
+        return;
+    }
+
+    form.financial_term.contractors_costs.splice(index, 1);
 }
 
 function syncCarrierNormsByLegFromPerformers() {
@@ -5025,6 +5609,7 @@ function buildSubmitPayload() {
         customs_post_code: form.customs_post_code,
         is_international_transport: Boolean(form.is_international_transport),
         additional_expenses: form.additional_expenses,
+        additional_expenses_payment_date: form.additional_expenses_payment_date || null,
         insurance: form.insurance,
         bonus: form.bonus,
 
@@ -5038,12 +5623,14 @@ function buildSubmitPayload() {
 
             if (carrierMode === CARRIER_MODE_SPLIT) {
                 return {
-                    stage: performer.stage,
+                    stage: toStageKey(performer.stage) || 'leg_1',
                     carrier_mode: CARRIER_MODE_SPLIT,
                     contractor_id: null,
                     contractor_name: null,
                     fleet_vehicle_id: null,
                     fleet_driver_id: null,
+                    loading_actual: null,
+                    unloading_actual: null,
                     split_carriers: (performer.split_carriers ?? []).map((slot, index) => ({
                         slot: Number(slot?.slot ?? index + 1),
                         contractor_id: normalizeNullableNumber(slot.contractor_id),
@@ -5052,12 +5639,14 @@ function buildSubmitPayload() {
                         fleet_driver_id: normalizeNullableNumber(slot.fleet_driver_id),
                         execution_mode: isOwnFleetExecutionMode(slot?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
                         fleet_trip_id: normalizeNullableNumber(slot?.fleet_trip_id),
+                        loading_actual: slot.loading_actual || null,
+                        unloading_actual: slot.unloading_actual || null,
                     })),
                 };
             }
 
             return {
-                stage: performer.stage,
+                stage: toStageKey(performer.stage) || 'leg_1',
                 carrier_mode: CARRIER_MODE_SINGLE,
                 contractor_id: normalizeNullableNumber(performer.contractor_id),
                 contractor_name: performer.contractor_name ? String(performer.contractor_name).trim() || null : null,
@@ -5065,13 +5654,15 @@ function buildSubmitPayload() {
                 fleet_driver_id: normalizeNullableNumber(performer.fleet_driver_id),
                 execution_mode: isOwnFleetExecutionMode(performer?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
                 fleet_trip_id: normalizeNullableNumber(performer?.fleet_trip_id),
+                loading_actual: performer.loading_actual || null,
+                unloading_actual: performer.unloading_actual || null,
                 split_carriers: [],
             };
         }),
 
         // Route points
         route_points: form.route_points.map((point) => ({
-            stage: point.stage,
+            stage: toStageKey(point.stage) || 'leg_1',
             type: point.type,
             sequence: point.sequence,
             address: point.address,
@@ -5092,44 +5683,8 @@ function buildSubmitPayload() {
         })),
         loading_types: selectedLoadingTypeCodes(),
 
-        // Cargo items
-        cargo_items: form.cargo_items.map((item) => ({
-            name: item.name,
-            description: item.description,
-            weight_value: item.weight_value ?? item.weight_kg,
-            weight_kg: item.weight_value ?? item.weight_kg,
-            weight_unit: item.weight_unit === 't' ? 't' : 'kg',
-            volume_m3: item.volume_m3,
-            length_m: item.length_m,
-            width_m: item.width_m,
-            height_m: item.height_m,
-            diameter_m: item.diameter_m,
-            package_type: item.package_type,
-            pack_type_id: normalizeNullableNumber(item.pack_type_id),
-            pack_type_label: item.pack_type_label,
-            loading_type_id: normalizeNullableNumber(item.loading_type_id),
-            loading_type_code: item.loading_type_code,
-            loading_type_label: item.loading_type_label,
-            loading_type_items: item.loading_type_items || [],
-            truck_body_type_id: normalizeNullableNumber(item.truck_body_type_id),
-            truck_body_type_code: item.truck_body_type_code,
-            truck_body_type_label: item.truck_body_type_label,
-            truck_body_type_items: item.truck_body_type_items || [],
-            trailer_type_id: normalizeNullableNumber(item.trailer_type_id),
-            trailer_type_code: item.trailer_type_code,
-            trailer_type_label: item.trailer_type_label,
-            trailer_type_items: item.trailer_type_items || [],
-            package_count: item.package_count,
-            dangerous_goods: item.dangerous_goods,
-            dangerous_class: item.dangerous_class,
-            hs_code: item.hs_code,
-            cargo_type: item.cargo_type,
-            cargo_type_id: normalizeNullableNumber(item.cargo_type_id),
-            cargo_type_label: item.cargo_type_label,
-            is_oversized: item.is_oversized,
-            is_fragile: item.is_fragile,
-            ati_cargo_payload: item.ati_cargo_payload || {},
-        })),
+        // Cargo items: глубокий снимок без proxy, иначе performer_allocations часто не попадают в POST.
+        cargo_items: serializeCargoItemsForSubmit(),
 
         // Financial term
         financial_term: {
@@ -5179,12 +5734,33 @@ function buildSubmitPayload() {
     };
 }
 
+function buildWizardSubmitOptions(onError) {
+    return {
+        preserveScroll: true,
+        preserveState: true,
+        onError,
+    };
+}
+
+function postWizardPayload(url, payload, onError, extraOptions = {}) {
+    form.processing = true;
+
+    router.post(url, payload, {
+        ...buildWizardSubmitOptions(onError),
+        ...extraOptions,
+        onFinish: () => {
+            form.processing = false;
+            extraOptions.onFinish?.();
+        },
+    });
+}
+
 function markOrderDisruption() {
     if (!canShowMarkDisruptionButton.value || !props.order?.id) {
         return;
     }
 
-    if (! window.confirm('Установить статус «Срыв»? Убедитесь, что по маршруту ещё не указана фактическая дата погрузки.')) {
+    if (! window.confirm('Установить статус «Срыв»? Убедитесь, что по плечам ещё не указана фактическая дата погрузки.')) {
         return;
     }
 
@@ -5244,6 +5820,21 @@ function submit(options = {}) {
     // не перезаписываем performer пустым contractor_id из устаревшего wizard_state.
     syncContractorCostsFromPerformers();
 
+    if (!skipCoreValidation && needsCargoPerformerAllocationUi.value) {
+        const allocationErrors = validateCargoPerformerAllocations(
+            form.cargo_items,
+            cargoPerformerAllocationColumns.value,
+            true,
+            stageLabel,
+        );
+        if (allocationErrors.length > 0) {
+            activeTab.value = 'cargo';
+            window.alert(allocationErrors.join('\n'));
+
+            return;
+        }
+    }
+
     const hasNewDocumentFiles = form.documents.some((document) => document.file instanceof File);
 
     const handleRequestError = (errors) => {
@@ -5251,7 +5842,17 @@ function submit(options = {}) {
             form.status = revertStatusOnError;
         }
 
-        form.clearErrors().setError(errors);
+        const fieldErrors = errors && typeof errors === 'object' ? errors : {};
+        const hasFieldErrors = Object.keys(fieldErrors).length > 0;
+
+        if (hasFieldErrors) {
+            form.clearErrors().setError(fieldErrors);
+
+            return;
+        }
+
+        form.clearErrors();
+        window.alert('Не удалось сохранить заказ. Обновите страницу и попробуйте снова.');
     };
 
     // Multipart FormData с глубокой вложенностью из браузера часто «ломает» financial_term / route_points на PHP.
@@ -5270,43 +5871,25 @@ function submit(options = {}) {
             }
         });
 
-        const url = isEditing.value ? route('orders.update', props.order.id) : route('orders.store');
-        const opts = {
-            preserveScroll: true,
-            forceFormData: true,
-            onBefore: () => {
-                form.processing = true;
-            },
-            onFinish: () => {
-                form.processing = false;
-            },
-            onError: handleRequestError,
-        };
+        const url = isEditing.value ? route('orders.save', props.order.id) : route('orders.store');
+        postWizardPayload(url, formData, handleRequestError, { forceFormData: true });
 
-        if (isEditing.value) {
-            formData.append('_method', 'patch');
-            router.post(url, formData, opts);
+        return;
+    }
 
+    const payload = buildSubmitPayload();
+
+    if (isEditing.value) {
+        if (!props.order?.id) {
             return;
         }
 
-        router.post(url, formData, opts);
+        postWizardPayload(route('orders.save', props.order.id), payload, handleRequestError);
 
         return;
     }
 
-    const submitOptions = {
-        preserveScroll: true,
-        onError: handleRequestError,
-    };
-
-    if (isEditing.value) {
-        form.transform(() => buildSubmitPayload()).patch(route('orders.update', props.order.id), submitOptions);
-
-        return;
-    }
-
-    form.transform(() => buildSubmitPayload()).post(route('orders.store'), submitOptions);
+    postWizardPayload(route('orders.store'), payload, handleRequestError);
 }
 
 function goBack() {

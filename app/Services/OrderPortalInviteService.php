@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderPortalInvite;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class OrderPortalInviteService
@@ -87,14 +88,168 @@ class OrderPortalInviteService
             return 'leg_1';
         }
 
-        if (preg_match('/^leg_\d+$/', $stage) === 1) {
-            return $stage;
+        if (preg_match('/^leg_(\d+)$/i', $stage, $matches) === 1) {
+            return 'leg_'.(int) $matches[1];
         }
 
         if (preg_match('/^\d+$/', $stage) === 1) {
             return 'leg_'.$stage;
         }
 
+        if (preg_match('/^Плечо\s+(\d+)$/u', $stage, $matches) === 1) {
+            return 'leg_'.(int) $matches[1];
+        }
+
+        if (preg_match('/^плечо\s*(\d+)$/ui', $stage, $matches) === 1) {
+            return 'leg_'.(int) $matches[1];
+        }
+
         return $stage;
+    }
+
+    public function isContractorAssignedOnOrder(Order $order, int $contractorId, string $stage, int $carrierSlot): bool
+    {
+        $stage = $this->normalizeStageIdentifier($stage);
+        $carrierSlot = max(1, min(4, $carrierSlot));
+
+        $rows = $this->expandPerformerContractorRows(is_array($order->performers) ? $order->performers : []);
+        $wizardPerformers = $this->wizardStatePerformers($order);
+
+        if ($wizardPerformers !== []) {
+            $rows = array_merge($rows, $this->expandPerformerContractorRows($wizardPerformers));
+        }
+
+        if ($rows === [] && Schema::hasTable('order_legs')) {
+            $order->loadMissing(['legs.contractorAssignments']);
+
+            foreach ($order->legs as $leg) {
+                $legStage = $this->normalizeStageIdentifier((string) $leg->description);
+
+                foreach ($leg->contractorAssignments as $assignment) {
+                    $assignmentContractorId = (int) $assignment->contractor_id;
+                    if ($assignmentContractorId <= 0) {
+                        continue;
+                    }
+
+                    $rows[] = [
+                        'stage' => $legStage,
+                        'carrier_slot' => max(1, (int) ($assignment->carrier_slot ?? 1)),
+                        'contractor_id' => $assignmentContractorId,
+                    ];
+                }
+            }
+        }
+
+        if ($rows === [] && Schema::hasTable('financial_terms')) {
+            $order->loadMissing('financialTerms');
+            $financialTerm = $order->financialTerms->first();
+            $costs = is_array($financialTerm?->contractors_costs) ? $financialTerm->contractors_costs : [];
+
+            foreach ($costs as $cost) {
+                if (! is_array($cost)) {
+                    continue;
+                }
+
+                $costContractorId = (int) ($cost['contractor_id'] ?? 0);
+                if ($costContractorId <= 0) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'stage' => $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1')),
+                    'carrier_slot' => max(1, (int) ($cost['carrier_slot'] ?? 1)),
+                    'contractor_id' => $costContractorId,
+                ];
+            }
+        }
+
+        foreach ($rows as $row) {
+            if ($row['stage'] !== $stage || $row['carrier_slot'] !== $carrierSlot) {
+                continue;
+            }
+
+            if ($row['contractor_id'] === $contractorId) {
+                return true;
+            }
+        }
+
+        return (int) $order->carrier_id === $contractorId && $stage === 'leg_1' && $carrierSlot === 1;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function wizardStatePerformers(Order $order): array
+    {
+        $state = $order->wizard_state;
+
+        if (! is_array($state)) {
+            $raw = $order->getAttributes()['wizard_state'] ?? null;
+            if (is_string($raw)) {
+                $decoded = json_decode($raw, true);
+                $state = is_array($decoded) ? $decoded : null;
+            } elseif (is_array($raw)) {
+                $state = $raw;
+            }
+        }
+
+        if (! is_array($state)) {
+            return [];
+        }
+
+        $performers = $state['performers'] ?? [];
+
+        return is_array($performers) ? $performers : [];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array{stage: string, carrier_slot: int, contractor_id: int}>
+     */
+    public function expandPerformerContractorRows(array $performers): array
+    {
+        $rows = [];
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            $stage = $this->normalizeStageIdentifier((string) ($performer['stage'] ?? ''));
+
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $contractorId = (int) ($slot['contractor_id'] ?? 0);
+                    if ($contractorId <= 0) {
+                        continue;
+                    }
+
+                    $rows[] = [
+                        'stage' => $stage,
+                        'carrier_slot' => max(1, (int) ($slot['slot'] ?? 1)),
+                        'contractor_id' => $contractorId,
+                    ];
+                }
+
+                continue;
+            }
+
+            $contractorId = (int) ($performer['contractor_id'] ?? 0);
+            if ($contractorId <= 0) {
+                continue;
+            }
+
+            $rows[] = [
+                'stage' => $stage,
+                'carrier_slot' => 1,
+                'contractor_id' => $contractorId,
+            ];
+        }
+
+        return $rows;
     }
 }

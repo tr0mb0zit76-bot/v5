@@ -23,6 +23,8 @@ const props = defineProps({
 
 const page = usePage();
 const activeSection = ref(0);
+const slaActivePanel = ref(null);
+const slaDocumentPreviewUrl = ref(null);
 const isLoginOpen = ref(false);
 const isMobileMenuOpen = ref(false);
 const isReady = ref(false);
@@ -95,6 +97,49 @@ const sections = computed(() => props.page.sections ?? []);
 const isVerticalMode = computed(() => props.page.mode === 'vertical');
 const isCasesMode = computed(() => props.page.mode === 'cases');
 const isContactsMode = computed(() => props.page.mode === 'contacts');
+const isSlaMode = computed(() => props.page.mode === 'sla');
+
+const slaPanels = computed(() => props.page.panels ?? []);
+
+const activeSlaPanel = computed(
+    () => slaPanels.value.find((panel) => panel.id === slaActivePanel.value) ?? null,
+);
+
+const slaDocumentCatalog = computed(() => page.props.publicSite?.sla_documents ?? []);
+
+const activeSlaPanelDocuments = computed(() =>
+    slaDocumentCatalog.value.filter((document) => document.panel === slaActivePanel.value),
+);
+
+const slaIsDetailView = computed(() => slaActivePanel.value !== null);
+
+const slaHubBackground = computed(() => props.page.media ?? '/assets/images/SLA_common.webp');
+
+const slaDetailBackground = computed(
+    () => activeSlaPanel.value?.media ?? slaHubBackground.value,
+);
+
+const openSlaPanel = (panelId) => {
+    slaDocumentPreviewUrl.value = null;
+    slaActivePanel.value = panelId;
+};
+
+const closeSlaPanel = () => {
+    slaDocumentPreviewUrl.value = null;
+    slaActivePanel.value = null;
+};
+
+const openSlaDocument = (document) => {
+    if (!document?.preview_url) {
+        return;
+    }
+
+    slaDocumentPreviewUrl.value = document.preview_url;
+};
+
+const closeSlaDocument = () => {
+    slaDocumentPreviewUrl.value = null;
+};
 
 const loginForm = useForm('PublicSiteLoginModal', {
     email: '',
@@ -110,6 +155,15 @@ const t = (key, fallback = '') => {
 
     return fallback;
 };
+
+const companyBrand = computed(() => t('site_brand', 'Автоальянс Смоленск'));
+
+const interpolateCompany = (value) =>
+    String(value ?? '')
+        .replaceAll('[Название компании]', companyBrand.value)
+        .replaceAll('{company_name}', companyBrand.value);
+
+const tRich = (key) => interpolateCompany(t(key));
 
 const switchSection = (index) => {
     if (!sections.value.length) {
@@ -213,6 +267,15 @@ watch(
         }
     },
     { deep: true },
+);
+
+watch(
+    () => props.page.pageKey,
+    () => {
+        activeSection.value = 0;
+        slaActivePanel.value = null;
+        slaDocumentPreviewUrl.value = null;
+    },
 );
 
 watch([isLoginOpen, isMobileMenuOpen], ([loginOpen, mobileMenuOpen]) => {
@@ -368,12 +431,123 @@ onBeforeUnmount(() => {
                     :style="{ backgroundImage: `url('${section.media}')` }"
                 />
 
-                <div class="section-content">
+                <div class="section-content" :class="{ 'section-content--rich': section.richText }">
+                    <p v-if="section.eyebrowKey" class="section-eyebrow">
+                        {{ t(section.eyebrowKey) }}
+                    </p>
                     <h1 v-if="index === 0">{{ t(section.titleKey) }}</h1>
                     <h2 v-else>{{ t(section.titleKey) }}</h2>
-                    <p>{{ t(section.textKey) }}</p>
+                    <div
+                        v-if="section.richText"
+                        class="section-prose"
+                        v-html="tRich(section.textKey)"
+                    />
+                    <p v-else>{{ t(section.textKey) }}</p>
                 </div>
             </section>
+        </main>
+
+        <main v-else-if="isSlaMode" class="sla-page">
+            <div class="sla-bg-stack" aria-hidden="true">
+                <div
+                    class="sla-bg bg-image"
+                    :class="{ 'is-visible': !slaIsDetailView }"
+                    :style="{ backgroundImage: `url('${slaHubBackground}')` }"
+                />
+                <div
+                    class="sla-bg bg-image sla-bg--layer"
+                    :class="{ 'is-visible': slaIsDetailView }"
+                    :style="{ backgroundImage: `url('${slaDetailBackground}')` }"
+                />
+            </div>
+            <div class="overlay" />
+
+            <div class="sla-stage">
+                <div class="sla-track" :class="{ 'is-detail': slaIsDetailView }">
+                    <div class="sla-panel sla-panel--hub" :class="{ 'is-slid-out': slaIsDetailView }">
+                        <div class="sla-container">
+                            <div class="sla-content">
+                                <h1>{{ t(page.introTitleKey ?? 'sla_intro_title') }}</h1>
+                                <div
+                                    class="section-prose sla-prose"
+                                    v-html="tRich(page.introTextKey ?? 'sla_intro_text')"
+                                />
+                            </div>
+
+                            <div class="sla-divider" aria-hidden="true" />
+
+                            <div class="sla-tiles">
+                                <button
+                                    v-for="panel in slaPanels"
+                                    :key="panel.id"
+                                    type="button"
+                                    class="sla-tile"
+                                    @click="openSlaPanel(panel.id)"
+                                >
+                                    {{ t(panel.labelKey) }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sla-panel sla-panel--detail" :class="{ 'is-active': slaIsDetailView }">
+                        <div v-if="activeSlaPanel" class="sla-container sla-container--enter">
+                            <div class="sla-content">
+                                <h1>{{ t(activeSlaPanel.titleKey) }}</h1>
+                                <div
+                                    class="section-prose sla-prose"
+                                    v-html="tRich(activeSlaPanel.textKey)"
+                                />
+                            </div>
+
+                            <div class="sla-divider" aria-hidden="true" />
+
+                            <div class="sla-tiles">
+                                <button
+                                    type="button"
+                                    class="sla-tile sla-tile--back"
+                                    @click="closeSlaPanel"
+                                >
+                                    {{ t('sla_tile_back', 'Назад') }}
+                                </button>
+
+                                <button
+                                    v-for="document in activeSlaPanelDocuments"
+                                    :key="document.id"
+                                    type="button"
+                                    class="sla-tile sla-tile--doc"
+                                    @click="openSlaDocument(document)"
+                                >
+                                    {{ document.label }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                v-if="slaDocumentPreviewUrl"
+                class="sla-doc-overlay"
+                role="dialog"
+                aria-modal="true"
+                :aria-label="t('sla_doc_preview_title', 'Предпросмотр документа')"
+                @click.self="closeSlaDocument"
+            >
+                <div class="sla-doc-dialog">
+                    <div class="sla-doc-toolbar">
+                        <span>{{ t('sla_doc_preview_title', 'Предпросмотр документа') }}</span>
+                        <button type="button" class="sla-doc-close" @click="closeSlaDocument">
+                            {{ t('sla_doc_close', 'Закрыть') }}
+                        </button>
+                    </div>
+                    <iframe
+                        :src="slaDocumentPreviewUrl"
+                        class="sla-doc-frame"
+                        title="SLA document preview"
+                    />
+                </div>
+            </div>
         </main>
 
         <main v-else-if="isCasesMode" class="cases-page">
@@ -803,6 +977,67 @@ onBeforeUnmount(() => {
   animation: fadeInUp 0.8s ease 0.4s both;
 }
 
+.section-content--rich {
+  max-width: 920px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  text-align: left;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.section-eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f0c040;
+  animation: fadeInUp 0.8s ease 0.1s both;
+}
+
+.section-prose {
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: #e8e8e8;
+  animation: fadeInUp 0.8s ease 0.4s both;
+}
+
+.section-prose :deep(p) {
+  margin: 0 0 1rem;
+}
+
+.section-prose :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.section-prose :deep(h3) {
+  margin: 1.25rem 0 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.section-prose :deep(ul) {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.section-prose :deep(li) {
+  margin-bottom: 0.65rem;
+}
+
+.section-prose :deep(li:last-child) {
+  margin-bottom: 0;
+}
+
+.section-prose :deep(strong) {
+  color: #fff;
+  font-weight: 600;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -893,6 +1128,253 @@ onBeforeUnmount(() => {
 
 .arrow-down {
   transform: rotate(45deg) translate(-2px, -2px);
+}
+
+.sla-page {
+  position: relative;
+  min-height: 100vh;
+  padding: 100px 0 90px;
+  overflow: hidden;
+}
+
+.sla-bg-stack {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.sla-bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(1.04);
+  transition:
+    opacity 0.65s ease,
+    transform 0.85s ease;
+}
+
+.sla-bg.is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sla-page > .overlay {
+  z-index: 1;
+}
+
+.sla-stage {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 0 20px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.sla-track {
+  display: flex;
+  width: 200%;
+  transition: transform 0.55s cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.sla-track.is-detail {
+  transform: translateX(-50%);
+}
+
+.sla-panel {
+  width: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 200px);
+  overflow: hidden;
+  contain: paint;
+}
+
+.sla-panel--hub.is-slid-out .sla-tiles,
+.sla-panel--hub.is-slid-out .sla-divider {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(20px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.45s ease,
+    visibility 0s linear 0.45s;
+}
+
+.sla-panel--hub.is-slid-out .sla-content {
+  opacity: 0.35;
+  transition: opacity 0.4s ease;
+}
+
+.sla-panel--detail.is-active .sla-container--enter {
+  animation: slaDetailEnter 0.55s cubic-bezier(0.77, 0, 0.175, 1) both;
+}
+
+@keyframes slaDetailEnter {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sla-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  width: 100%;
+}
+
+.sla-content {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 800px;
+  color: #fff;
+  text-align: center;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  padding: 0 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.sla-content h1 {
+  margin: 0 0 20px;
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+  animation: fadeInUp 0.8s ease;
+}
+
+.sla-prose {
+  font-size: 1.2rem;
+  line-height: 1.8;
+  color: #ddd;
+  text-align: left;
+  animation: fadeInUp 0.8s ease 0.2s both;
+}
+
+.sla-divider {
+  flex-shrink: 0;
+  width: 1px;
+  align-self: center;
+  min-height: 9rem;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.45) 15%,
+    rgba(255, 255, 255, 0.45) 85%,
+    rgba(255, 255, 255, 0)
+  );
+}
+
+.sla-tiles {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  width: 11.5rem;
+}
+
+.sla-tile {
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(18, 18, 18, 0.52);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.25s ease,
+    opacity 0.3s ease,
+    visibility 0.3s ease;
+}
+
+.sla-tile:hover {
+  background: rgba(30, 30, 30, 0.62);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+}
+
+.sla-tile--back {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.sla-tile--doc {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.sla-doc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.sla-doc-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(960px, 100%);
+  height: min(85vh, 900px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.sla-doc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sla-doc-close {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sla-doc-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sla-doc-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
 }
 
 .contacts-page {
@@ -1529,6 +2011,61 @@ onBeforeUnmount(() => {
 
   .contacts-container {
     grid-template-columns: 1fr;
+  }
+
+  .sla-page {
+    padding: 96px 0 88px;
+  }
+
+  .sla-stage {
+    padding: 0 16px;
+  }
+
+  .sla-panel {
+    min-height: auto;
+  }
+
+  .sla-container {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .sla-content {
+    max-height: none;
+  }
+
+  .sla-content h1 {
+    font-size: 2rem;
+  }
+
+  .sla-prose {
+    font-size: 1.05rem;
+  }
+
+  .sla-divider {
+    width: 100%;
+    min-height: 0;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0.45) 15%,
+      rgba(255, 255, 255, 0.45) 85%,
+      rgba(255, 255, 255, 0)
+    );
+  }
+
+  .sla-tiles {
+    flex-direction: row;
+    width: 100%;
+    max-width: 24rem;
+  }
+
+  .sla-tile {
+    flex: 1;
+    min-height: 3.75rem;
+    padding: 0.75rem 0.65rem;
+    font-size: 0.85rem;
   }
 
   .footer {

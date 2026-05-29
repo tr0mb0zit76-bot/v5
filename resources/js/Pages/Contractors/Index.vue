@@ -142,6 +142,7 @@ const tabs = [
 const contractorTypes = [
     { value: 'customer', label: 'Заказчик' },
     { value: 'carrier', label: 'Перевозчик' },
+    { value: 'contractor', label: 'Подрядчик' },
     { value: 'both', label: 'Заказчик и перевозчик' },
 ];
 

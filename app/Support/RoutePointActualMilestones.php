@@ -19,6 +19,9 @@ final class RoutePointActualMilestones
      */
     public static function forOrder(Order $order): array
     {
+        $performers = is_array($order->performers) ? $order->performers : [];
+        $fromPerformers = PerformerRouteActualDates::milestonesFromPerformers($performers);
+
         if (! $order->relationLoaded('legs')) {
             $order->loadMissing([
                 'legs' => fn ($q) => $q->orderBy('sequence'),
@@ -26,11 +29,16 @@ final class RoutePointActualMilestones
             ]);
         }
 
-        return self::fromLegsCollection(
+        $fromRoute = self::fromLegsCollection(
             $order->legs,
             $order->loading_date,
             $order->unloading_date,
         );
+
+        return [
+            'actual_loading' => $fromPerformers['actual_loading'] ?? $fromRoute['actual_loading'],
+            'actual_unloading' => $fromPerformers['actual_unloading'] ?? $fromRoute['actual_unloading'],
+        ];
     }
 
     /**

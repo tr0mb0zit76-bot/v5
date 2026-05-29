@@ -14,6 +14,7 @@ use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PhpWordTemplateOverlayImageInjector;
+use App\Support\PrintFormCargoScopeResolver;
 use App\Support\PrintFormCargoTableCloner;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
@@ -64,6 +65,7 @@ class OrderPrintFormDraftService
             ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
         $orderForSnapshot = $this->loadOrderContext($order);
+        $context = $this->normalizePrintContext($orderForSnapshot, $context);
         $snapshot = $this->buildSnapshot($orderForSnapshot, $context);
         $overlayPlaceholders = $this->overlayPlaceholderList($template);
         $cargoItems = $orderForSnapshot->relationLoaded('cargoItems') ? $orderForSnapshot->cargoItems : collect();
@@ -72,7 +74,7 @@ class OrderPrintFormDraftService
 
         (new PrintFormCargoTableCloner)->apply(
             $processor,
-            $this->buildCargoTableRowsForTemplate($cargoItems),
+            $this->buildCargoTableRowsForTemplate($cargoItems, $orderForSnapshot, $context),
         );
 
         (new PrintFormRouteTableCloner)->apply(
@@ -212,9 +214,18 @@ class OrderPrintFormDraftService
             ->filter()
             ->implode('; ');
 
-        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->weight ?? 0) * $this->cargoPackageCountFactor($cargo));
-        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => (float) ($cargo->volume ?? 0) * $this->cargoPackageCountFactor($cargo));
-        $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => (int) ($cargo->package_count ?? $cargo->pallet_count ?? 0));
+        $cargoTotalWeight = $cargoItems->sum(fn ($cargo): float => $this->cargoPrintMetrics(
+            $cargo,
+            PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context),
+        )['total_weight_kg']);
+        $cargoTotalVolume = $cargoItems->sum(fn ($cargo): float => $this->cargoPrintMetrics(
+            $cargo,
+            PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context),
+        )['total_volume_m3']);
+        $cargoTotalPackages = $cargoItems->sum(fn ($cargo): int => $this->cargoPrintMetrics(
+            $cargo,
+            PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context),
+        )['package_count']);
 
         $paymentTermsPayload = $this->decodeOrderPaymentTermsPayload($order);
         $scopedPaymentTermsPayload = $this->paymentTermsPayloadForPrintContext($order, $paymentTermsPayload, $context);
@@ -315,11 +326,17 @@ class OrderPrintFormDraftService
             ],
             'cargo' => array_merge([
                 'summary' => $cargoItems
-                    ->map(fn ($cargo): string => $this->cargoLineDetailTextForSummaryLine($cargo))
+                    ->map(fn ($cargo): string => $this->cargoLineDetailTextForSummaryLine(
+                        $cargo,
+                        PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context),
+                    ))
                     ->filter(fn (string $s): bool => $s !== '')
                     ->implode('  |  '),
                 'lines_multiline' => $cargoItems
-                    ->map(fn ($cargo): string => $this->cargoLineDetailText($cargo))
+                    ->map(fn ($cargo): string => $this->cargoLineDetailText(
+                        $cargo,
+                        PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context),
+                    ))
                     ->filter(fn (string $s): bool => $s !== '')
                     ->implode("\n\n"),
                 'names' => $cargoNames,
@@ -335,7 +352,7 @@ class OrderPrintFormDraftService
                 'hazard_classes' => $this->resolveCargoHazardClassesSummary($cargoItems),
                 'hs_codes' => $this->resolveCargoHsCodesSummary($cargoItems),
                 'first_hs_code' => $this->resolveCargoFirstHsCode($cargoItems),
-            ], $this->cargoPerLinePlaceholderMap($cargoItems)),
+            ], $this->cargoPerLinePlaceholderMap($cargoItems, $order, $context)),
             'financial' => $this->financialNormsPenaltiesSnapshot($order),
         ];
     }
@@ -483,6 +500,16 @@ class OrderPrintFormDraftService
                     $ctxStage = $this->normalizeStageIdentifier($context->legStage);
 
                     if ($costStage !== $ctxStage) {
+                        return false;
+                    }
+                }
+
+                if ($context->carrierSlot !== null && $context->carrierSlot > 0) {
+                    $costSlot = isset($cost['carrier_slot']) && $cost['carrier_slot'] !== null && $cost['carrier_slot'] !== ''
+                        ? (int) $cost['carrier_slot']
+                        : null;
+
+                    if ($costSlot !== $context->carrierSlot) {
                         return false;
                     }
                 }
@@ -842,6 +869,25 @@ class OrderPrintFormDraftService
     private function legBelongsToCarrier(OrderLeg $leg, int $carrierContractorId): bool
     {
         $performer = is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : [];
+
+        if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+            foreach ($performer['split_carriers'] as $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
+
+                if ((int) ($slot['contractor_id'] ?? 0) === $carrierContractorId) {
+                    return true;
+                }
+            }
+        }
+
+        if ($leg->relationLoaded('contractorAssignments')) {
+            return $leg->contractorAssignments->contains(
+                fn (mixed $assignment): bool => (int) ($assignment->contractor_id ?? 0) === $carrierContractorId,
+            );
+        }
+
         $performerContractorId = isset($performer['contractor_id']) && $performer['contractor_id'] !== null
             ? (int) $performer['contractor_id']
             : null;
@@ -881,6 +927,30 @@ class OrderPrintFormDraftService
         }
 
         return $value;
+    }
+
+    private function normalizePrintContext(Order $order, ?OrderPrintFormContext $context): ?OrderPrintFormContext
+    {
+        if ($context === null) {
+            return null;
+        }
+
+        if ($context->carrierSlot !== null && $context->carrierSlot > 0) {
+            return $context;
+        }
+
+        $carrierSlot = PrintFormCargoScopeResolver::resolveCarrierSlot($order, $context);
+        if ($carrierSlot === null) {
+            return $context;
+        }
+
+        return new OrderPrintFormContext(
+            legStage: $context->legStage,
+            carrierContractorId: $context->carrierContractorId,
+            routeLegsAsTableRows: $context->routeLegsAsTableRows,
+            printParty: $context->printParty,
+            carrierSlot: $carrierSlot,
+        );
     }
 
     private function firstCarrierContractorIdFromFinancialTerms(Order $order): ?int
@@ -1052,6 +1122,7 @@ class OrderPrintFormDraftService
 
             if (Schema::hasTable('leg_contractor_assignments')) {
                 $relations[] = 'legs.contractorAssignment';
+                $relations[] = 'legs.contractorAssignments';
             }
         }
 
@@ -1728,6 +1799,56 @@ class OrderPrintFormDraftService
     }
 
     /**
+     * @param  array{package_count: float, weight_value: float|null}|null  $scope
+     * @return array{package_count: int, total_weight_kg: float, total_volume_m3: float, per_place_weight_kg: float, per_place_volume_m3: float}
+     */
+    private function cargoPrintMetrics(mixed $cargo, ?array $scope): array
+    {
+        if (! is_object($cargo)) {
+            return [
+                'package_count' => 0,
+                'total_weight_kg' => 0.0,
+                'total_volume_m3' => 0.0,
+                'per_place_weight_kg' => 0.0,
+                'per_place_volume_m3' => 0.0,
+            ];
+        }
+
+        $customerPackages = (int) ($cargo->package_count ?? $cargo->pallet_count ?? 0);
+        $customerPackages = $customerPackages > 0 ? $customerPackages : 1;
+        $perWeightKg = (float) ($cargo->weight ?? 0);
+        $perVolumeM3 = (float) ($cargo->volume ?? 0);
+
+        if ($scope === null) {
+            $factor = $this->cargoPackageCountFactor($cargo);
+
+            return [
+                'package_count' => $factor,
+                'total_weight_kg' => $perWeightKg * $factor,
+                'total_volume_m3' => $perVolumeM3 * $factor,
+                'per_place_weight_kg' => $perWeightKg,
+                'per_place_volume_m3' => $perVolumeM3,
+            ];
+        }
+
+        $packages = max(0, (int) round((float) ($scope['package_count'] ?? 0)));
+        $totalWeightKg = $scope['weight_value'] ?? null;
+        if ($totalWeightKg === null || ! is_numeric($totalWeightKg) || (float) $totalWeightKg <= 0.0) {
+            $totalWeightKg = $perWeightKg * $packages;
+        } else {
+            $totalWeightKg = (float) $totalWeightKg;
+        }
+
+        return [
+            'package_count' => $packages,
+            'total_weight_kg' => $totalWeightKg,
+            'total_volume_m3' => $perVolumeM3 * $packages,
+            'per_place_weight_kg' => $packages > 0 ? $totalWeightKg / $packages : $perWeightKg,
+            'per_place_volume_m3' => $perVolumeM3,
+        ];
+    }
+
+    /**
      * Число мест для расчёта суммарного веса/объёма по строке груза (как в мастере заказа, package_count).
      */
     private function cargoPackageCountFactor(mixed $cargo): int
@@ -1755,17 +1876,20 @@ class OrderPrintFormDraftService
 
     /**
      * Текст одной позиции груза: как блок «Сводка позиции» в мастере (вес/объём с учётом мест, габариты, число мест).
+     *
+     * @param  array{package_count: float, weight_value: float|null}|null  $scope
      */
-    private function cargoLineDetailText(mixed $cargo): string
+    private function cargoLineDetailText(mixed $cargo, ?array $scope = null): string
     {
         if (! is_object($cargo)) {
             return '';
         }
 
+        $metrics = $this->cargoPrintMetrics($cargo, $scope);
         $name = $this->cargoLineNameOnly($cargo);
-        $factor = $this->cargoPackageCountFactor($cargo);
-        $perWeightKg = (float) ($cargo->weight ?? 0);
-        $totalWeightKg = $perWeightKg * $factor;
+        $factor = $metrics['package_count'];
+        $perWeightKg = $metrics['per_place_weight_kg'];
+        $totalWeightKg = $metrics['total_weight_kg'];
 
         $lines = [];
         $weightLine = 'Вес: '.$this->formatNumber($totalWeightKg).' кг';
@@ -1774,8 +1898,8 @@ class OrderPrintFormDraftService
         }
         $lines[] = $weightLine;
 
-        $perVol = (float) ($cargo->volume ?? 0);
-        $totalVol = $perVol * $factor;
+        $perVol = $metrics['per_place_volume_m3'];
+        $totalVol = $metrics['total_volume_m3'];
         if ($totalVol > 0.0) {
             $volLine = 'Объём: '.$this->formatVolumeNumber($totalVol).' м³';
             if ($factor > 1) {
@@ -1791,7 +1915,7 @@ class OrderPrintFormDraftService
             $lines[] = $dimLine;
         }
 
-        $lines[] = 'Мест: '.(int) ($cargo->package_count ?? 0);
+        $lines[] = 'Мест: '.$factor;
 
         $body = implode("\n", $lines);
 
@@ -1799,11 +1923,11 @@ class OrderPrintFormDraftService
     }
 
     /**
-     * Одна строка для плейсхолдера «сводка по грузу»: без переводов строк, позиции через разделитель.
+     * @param  array{package_count: float, weight_value: float|null}|null  $scope
      */
-    private function cargoLineDetailTextForSummaryLine(mixed $cargo): string
+    private function cargoLineDetailTextForSummaryLine(mixed $cargo, ?array $scope = null): string
     {
-        $block = $this->cargoLineDetailText($cargo);
+        $block = $this->cargoLineDetailText($cargo, $scope);
 
         return trim(preg_replace("/\s+/u", ' ', str_replace(["\r\n", "\n", "\r"], ' ', $block)) ?? '');
     }
@@ -1830,26 +1954,26 @@ class OrderPrintFormDraftService
     }
 
     /**
-     * Строки для cloneRow таблицы грузов в DOCX.
-     *
      * @param  Collection<int, mixed>  $cargoItems
      * @return list<array<string, string>>
      */
-    private function buildCargoTableRowsForTemplate(Collection $cargoItems): array
+    private function buildCargoTableRowsForTemplate(Collection $cargoItems, Order $order, ?OrderPrintFormContext $context): array
     {
         return $cargoItems
             ->values()
-            ->map(function (mixed $cargo, int $index): array {
+            ->map(function (mixed $cargo, int $index) use ($order, $context): array {
+                $scope = PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context);
+                $metrics = $this->cargoPrintMetrics($cargo, $scope);
                 $dimensions = $this->cargoDimensionsSummaryLine($cargo);
 
                 return [
                     'cargo_row_index' => (string) ($index + 1),
                     'cargo_row_name' => $this->cargoLineNameOnly($cargo),
-                    'cargo_row_summary' => $this->cargoLineDetailTextForSummaryLine($cargo),
-                    'cargo_row_text' => $this->cargoLineDetailText($cargo),
-                    'cargo_row_weight' => $this->cargoRowWeightLabel($cargo),
-                    'cargo_row_volume' => $this->cargoRowVolumeLabel($cargo),
-                    'cargo_row_packages' => is_object($cargo) ? (string) (int) ($cargo->package_count ?? 0) : '',
+                    'cargo_row_summary' => $this->cargoLineDetailTextForSummaryLine($cargo, $scope),
+                    'cargo_row_text' => $this->cargoLineDetailText($cargo, $scope),
+                    'cargo_row_weight' => $this->cargoRowWeightLabel($cargo, $scope),
+                    'cargo_row_volume' => $this->cargoRowVolumeLabel($cargo, $scope),
+                    'cargo_row_packages' => (string) $metrics['package_count'],
                     'cargo_row_hs_code' => is_object($cargo) ? trim((string) ($cargo->hs_code ?? '')) : '',
                     'cargo_row_dimensions' => $dimensions ?? '',
                 ];
@@ -1857,14 +1981,18 @@ class OrderPrintFormDraftService
             ->all();
     }
 
-    private function cargoRowWeightLabel(mixed $cargo): string
+    /**
+     * @param  array{package_count: float, weight_value: float|null}|null  $scope
+     */
+    private function cargoRowWeightLabel(mixed $cargo, ?array $scope = null): string
     {
         if (! is_object($cargo)) {
             return '';
         }
 
-        $factor = $this->cargoPackageCountFactor($cargo);
-        $totalKg = (float) ($cargo->weight ?? 0) * $factor;
+        $metrics = $this->cargoPrintMetrics($cargo, $scope);
+        $totalKg = $metrics['total_weight_kg'];
+        $factor = $metrics['package_count'];
 
         if ($totalKg <= 0.0) {
             return '';
@@ -1872,20 +2000,24 @@ class OrderPrintFormDraftService
 
         $label = $this->formatNumber($totalKg).' кг';
         if ($factor > 1) {
-            $label .= ' ('.$this->formatNumber((float) ($cargo->weight ?? 0)).' × '.$factor.')';
+            $label .= ' ('.$this->formatNumber($metrics['per_place_weight_kg']).' × '.$factor.')';
         }
 
         return $label;
     }
 
-    private function cargoRowVolumeLabel(mixed $cargo): string
+    /**
+     * @param  array{package_count: float, weight_value: float|null}|null  $scope
+     */
+    private function cargoRowVolumeLabel(mixed $cargo, ?array $scope = null): string
     {
         if (! is_object($cargo)) {
             return '';
         }
 
-        $factor = $this->cargoPackageCountFactor($cargo);
-        $totalVol = (float) ($cargo->volume ?? 0) * $factor;
+        $metrics = $this->cargoPrintMetrics($cargo, $scope);
+        $totalVol = $metrics['total_volume_m3'];
+        $factor = $metrics['package_count'];
 
         if ($totalVol <= 0.0) {
             return '';
@@ -1893,7 +2025,7 @@ class OrderPrintFormDraftService
 
         $label = $this->formatVolumeNumber($totalVol).' м³';
         if ($factor > 1) {
-            $label .= ' ('.$this->formatVolumeNumber((float) ($cargo->volume ?? 0)).' × '.$factor.')';
+            $label .= ' ('.$this->formatVolumeNumber($metrics['per_place_volume_m3']).' × '.$factor.')';
         }
 
         return $label;
@@ -1903,15 +2035,18 @@ class OrderPrintFormDraftService
      * @param  Collection<int, mixed>  $cargoItems
      * @return array<string, string>
      */
-    private function cargoPerLinePlaceholderMap(Collection $cargoItems): array
+    private function cargoPerLinePlaceholderMap(Collection $cargoItems, Order $order, ?OrderPrintFormContext $context): array
     {
         $out = [];
         $values = $cargoItems->values();
         for ($i = 1; $i <= 10; $i++) {
             $cargo = $values->get($i - 1);
-            $out['line_'.$i.'_text'] = $cargo !== null ? $this->cargoLineDetailText($cargo) : '';
+            $scope = $cargo !== null
+                ? PrintFormCargoScopeResolver::resolveScopeForCargo($order, $cargo, $context)
+                : null;
+            $out['line_'.$i.'_text'] = $cargo !== null ? $this->cargoLineDetailText($cargo, $scope) : '';
             $out['line_'.$i.'_name'] = $cargo !== null ? $this->cargoLineNameOnly($cargo) : '';
-            $out['line_'.$i.'_summary'] = $cargo !== null ? $this->cargoLineDetailTextForSummaryLine($cargo) : '';
+            $out['line_'.$i.'_summary'] = $cargo !== null ? $this->cargoLineDetailTextForSummaryLine($cargo, $scope) : '';
         }
 
         return $out;

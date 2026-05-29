@@ -222,7 +222,7 @@ class ContractorController extends Controller
     {
         $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
-            'type' => ['nullable', 'string', 'in:customer,carrier,both'],
+            'type' => ['nullable', 'string', 'in:customer,carrier,contractor,both'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
         ]);
 
@@ -1258,6 +1258,7 @@ class ContractorController extends Controller
         return match ($type) {
             'customer' => 'Заказчик',
             'carrier' => 'Перевозчик',
+            'contractor' => 'Подрядчик',
             'both' => 'Заказчик и перевозчик',
             default => 'Не указан',
         };

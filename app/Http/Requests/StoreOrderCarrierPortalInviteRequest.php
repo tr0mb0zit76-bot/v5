@@ -18,7 +18,7 @@ class StoreOrderCarrierPortalInviteRequest extends FormRequest
     {
         return [
             'contractor_id' => ['required', 'integer', 'exists:contractors,id'],
-            'stage' => ['required', 'string', 'max:32'],
+            'stage' => ['required', 'string', 'max:64'],
             'carrier_slot' => ['nullable', 'integer', 'min:1', 'max:4'],
         ];
     }

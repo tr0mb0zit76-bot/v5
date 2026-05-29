@@ -14,7 +14,6 @@ use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Services\SalesMarginCounterService;
-use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -39,9 +38,6 @@ class SalesAssistantController extends Controller
         abort_unless(RoleAccess::canAccessSalesAssistantCounter($request->user()), 403);
 
         return Inertia::render('SalesAssistant/Counter', [
-            'paymentFormOptions' => PaymentFormDictionary::options(),
-            'defaultMinMarginPercent' => SalesMarginCounterService::DEFAULT_MIN_MARGIN_PERCENT,
-            'defaultCustomerPaymentForm' => PaymentFormDictionary::defaultClientVatCode(),
             'orderDate' => now()->toDateString(),
         ]);
     }

@@ -57,6 +57,14 @@ class PaymentSchedulePaymentLedgerService
             return $schedule->order?->carrier_id ? (int) $schedule->order->carrier_id : null;
         }
 
+        if ($party === 'contractor') {
+            if (Schema::hasColumn('payment_schedules', 'counterparty_id') && $schedule->counterparty_id) {
+                return (int) $schedule->counterparty_id;
+            }
+
+            return null;
+        }
+
         if ($party === 'customer') {
             $schedule->loadMissing('order:id,customer_id');
 

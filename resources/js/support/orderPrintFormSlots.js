@@ -108,6 +108,7 @@ export function carrierPrintSlots(performers) {
                     ? `Печатная форма перевозчик · ${name}${slotLabel} · ${stageLabel(stage)}`
                     : `Печатная форма перевозчик${slotLabel} · ${stageLabel(stage)}`,
                 carrierContractorId: contractorId,
+                carrierSlot: row.carrier_slot ?? null,
                 routeLegsAsTableRows: false,
                 orderLegStage: stage,
             };

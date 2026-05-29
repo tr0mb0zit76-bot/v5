@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\CargoPerformerAllocationBuilder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 
@@ -27,6 +28,10 @@ class OrderWizardStateService
             'version' => 1,
             'financial_term' => Arr::get($validated, 'financial_term', []),
             'performers' => Arr::get($validated, 'performers', []),
+            'cargo_items' => $this->cargoItemsSnapshotForWizardState(
+                Arr::get($validated, 'cargo_items', []),
+                Arr::get($validated, 'performers', []),
+            ),
             'print_form_template_selection' => Arr::get($validated, 'print_form_template_selection', []),
             'additional_expenses' => Arr::get($validated, 'additional_expenses'),
             'insurance' => Arr::get($validated, 'insurance'),
@@ -62,6 +67,45 @@ class OrderWizardStateService
         };
 
         $order->forceFill(['wizard_state' => $state])->saveQuietly();
+    }
+
+    /**
+     * @return list<array{name: string, performer_allocations: list<array{stage: string, carrier_slot: int|null, package_count: float|null, weight_value: float|null}>}>
+     */
+    private function cargoItemsSnapshotForWizardState(mixed $cargoItems, mixed $performers): array
+    {
+        if (! is_array($cargoItems)) {
+            return [];
+        }
+
+        $performerRows = is_array($performers)
+            ? array_values(array_filter($performers, static fn (mixed $row): bool => is_array($row)))
+            : [];
+
+        $snapshot = [];
+
+        foreach ($cargoItems as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $name = trim((string) ($item['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $allocations = CargoPerformerAllocationBuilder::resolveForCargoItem($item, $performerRows);
+            if ($allocations === []) {
+                continue;
+            }
+
+            $snapshot[] = [
+                'name' => $name,
+                'performer_allocations' => $allocations,
+            ];
+        }
+
+        return $snapshot;
     }
 
     /**

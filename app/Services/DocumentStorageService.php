@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Throwable;
 
 class DocumentStorageService
 {
@@ -117,13 +119,21 @@ class DocumentStorageService
 
         $driver = $this->resolveDriver($driver);
 
-        if ($driver === self::DRIVER_NEXTCLOUD) {
-            $this->nextcloudStorage->delete((string) $path);
+        try {
+            if ($driver === self::DRIVER_NEXTCLOUD) {
+                $this->nextcloudStorage->delete((string) $path);
 
-            return;
+                return;
+            }
+
+            Storage::disk(self::DRIVER_LOCAL)->delete((string) $path);
+        } catch (Throwable $exception) {
+            Log::warning('document_storage.delete_failed', [
+                'path' => $path,
+                'driver' => $driver,
+                'message' => $exception->getMessage(),
+            ]);
         }
-
-        Storage::disk(self::DRIVER_LOCAL)->delete((string) $path);
     }
 
     public function size(string $path, ?string $driver = null, ?string $knownContents = null): int

@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\CashToCashMarginCalculator;
 use App\Support\OrderPaymentTermsConfigResolver;
+use App\Support\OrderPersistedId;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -100,10 +102,6 @@ class OrderCompensationService
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
-            )
-            ->when(
-                Schema::hasColumn('orders', 'wizard_state'),
-                fn ($query) => $query->addSelect('orders.wizard_state'),
             )
             ->when(
                 Schema::hasTable('financial_terms'),
@@ -391,8 +389,13 @@ class OrderCompensationService
             return;
         }
 
+        $orderId = OrderPersistedId::resolve($order);
+        if ($orderId === null) {
+            return;
+        }
+
         $financialTerm = FinancialTerm::query()->firstOrNew([
-            'order_id' => $order->id,
+            'order_id' => $orderId,
         ]);
 
         $paymentTerms = $this->decodePaymentTerms($order);
@@ -446,12 +449,17 @@ class OrderCompensationService
             return;
         }
 
-        $invoiceByKey = $this->snapshotInvoiceNumbersByOrder($order->id);
+        $orderId = OrderPersistedId::resolve($order);
+        if ($orderId === null) {
+            return;
+        }
+
+        $invoiceByKey = $this->snapshotInvoiceNumbersByOrder($orderId);
 
         try {
             // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
             DB::table('payment_schedules')
-                ->where('order_id', $order->id)
+                ->where('order_id', $orderId)
                 ->orderBy('id')
                 ->chunk(100, function ($schedules) {
                     DB::table('payment_schedules')
@@ -467,7 +475,7 @@ class OrderCompensationService
 
                 // Пытаемся удалить снова с chunk
                 DB::table('payment_schedules')
-                    ->where('order_id', $order->id)
+                    ->where('order_id', $orderId)
                     ->orderBy('id')
                     ->chunk(100, function ($schedules) {
                         DB::table('payment_schedules')
@@ -491,20 +499,41 @@ class OrderCompensationService
             $invoiceByKey,
         );
 
-        foreach ($this->extractContractorsCosts($order) as $cost) {
+        $contractorCosts = $this->extractContractorsCosts($order);
+        $contractorTypeById = collect($contractorCosts)
+            ->pluck('contractor_id')
+            ->filter(fn (mixed $id): bool => filled($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->whenNotEmpty(fn ($ids) => Contractor::query()->whereIn('id', $ids->all())->pluck('type', 'id'))
+            ->mapWithKeys(fn (mixed $type, mixed $id): array => [(int) $id => (string) $type]);
+
+        foreach ($contractorCosts as $cost) {
             $carrierContractorId = isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
                 ? (int) $cost['contractor_id']
                 : null;
+            $counterpartyType = $carrierContractorId !== null
+                ? ($contractorTypeById->get($carrierContractorId) ?? null)
+                : null;
+            $scheduleParty = $counterpartyType === 'contractor' ? 'contractor' : 'carrier';
+
+            $scheduleOrderDate = null;
+            if (! empty($cost['is_additional'])) {
+                $scheduleOrderDate = filled($cost['incurred_date'] ?? null)
+                    ? (string) $cost['incurred_date']
+                    : optional($order->additional_expenses_payment_date)?->toDateString();
+            }
 
             $rows = [
                 ...$rows,
                 ...$this->buildPaymentScheduleRows(
                     $order,
-                    'carrier',
+                    $scheduleParty,
                     (float) ($cost['amount'] ?? 0),
                     (array) ($cost['payment_schedule'] ?? []),
                     $carrierContractorId,
                     $invoiceByKey,
+                    $scheduleOrderDate,
                 ),
             ];
         }
@@ -517,7 +546,7 @@ class OrderCompensationService
 
         DB::table('payment_schedules')->insert($rows);
 
-        PaymentScheduleAutomaticStatus::refreshForOrder($order->id);
+        PaymentScheduleAutomaticStatus::refreshForOrder($orderId);
     }
 
     /**
@@ -532,6 +561,7 @@ class OrderCompensationService
         array $schedule,
         ?int $carrierContractorId,
         array $invoiceByKey = [],
+        ?string $scheduleOrderDate = null,
     ): array {
         if ($amount <= 0) {
             return [];
@@ -547,6 +577,7 @@ class OrderCompensationService
                 $schedule,
                 $carrierContractorId,
                 $invoiceByKey,
+                $scheduleOrderDate,
             );
         }
 
@@ -607,9 +638,13 @@ class OrderCompensationService
         array $schedule,
         ?int $carrierContractorId,
         array $invoiceByKey = [],
+        ?string $scheduleOrderDate = null,
     ): array {
         $order->loadMissing(['legs.routePoints']);
         $ctx = PaymentInstallmentPlanner::dateContextFromOrder($order);
+        if (filled($scheduleOrderDate)) {
+            $ctx['order_date'] = $scheduleOrderDate;
+        }
 
         /** @var list<array<string, mixed>> $installments */
         $installments = array_values(array_filter($schedule['installments'] ?? [], static fn ($r): bool => is_array($r)));
@@ -664,8 +699,10 @@ class OrderCompensationService
         ?int $carrierContractorId,
         array $invoiceByKey = [],
     ): array {
+        $orderId = OrderPersistedId::resolveOrFail($order);
+
         $row = [
-            'order_id' => $order->id,
+            'order_id' => $orderId,
             'party' => $party,
             'type' => $type,
             'amount' => $amount,
@@ -678,7 +715,7 @@ class OrderCompensationService
         ];
 
         if (Schema::hasColumn('payment_schedules', 'counterparty_id')) {
-            $row['counterparty_id'] = $party === 'carrier' ? $carrierContractorId : null;
+            $row['counterparty_id'] = in_array($party, ['carrier', 'contractor'], true) ? $carrierContractorId : null;
         }
 
         if (Schema::hasColumn('payment_schedules', 'invoice_number')) {
@@ -809,8 +846,13 @@ class OrderCompensationService
             return [];
         }
 
+        $orderId = OrderPersistedId::resolve($order);
+        if ($orderId === null) {
+            return [];
+        }
+
         $financialTerm = FinancialTerm::query()
-            ->where('order_id', $order->id)
+            ->where('order_id', $orderId)
             ->first();
 
         return is_array($financialTerm?->contractors_costs) ? $financialTerm->contractors_costs : [];

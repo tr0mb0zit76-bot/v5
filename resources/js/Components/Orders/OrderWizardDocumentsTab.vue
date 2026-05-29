@@ -306,6 +306,10 @@ function createPrintWorkflow(slot, party) {
         payload.carrier_contractor_id = slot.carrierContractorId;
     }
 
+    if (slot.carrierSlot) {
+        payload.carrier_slot = slot.carrierSlot;
+    }
+
     if (slot.routeLegsAsTableRows) {
         payload.route_legs_as_table_rows = true;
     }

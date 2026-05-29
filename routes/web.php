@@ -29,6 +29,7 @@ use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\Portal\OrderCarrierPortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
+use App\Http\Controllers\PublicSlaDocumentController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SalesAssistantController;
@@ -75,14 +76,21 @@ if ($sameShowcaseAndCrmHost) {
                 $about = Route::get('/about', 'about');
                 $services = Route::get('/services', 'services');
                 $cases = Route::get('/cases', 'cases');
+                $sla = Route::get('/sla', 'sla');
                 $contacts = Route::get('/contacts', 'contacts');
                 if ($namePublicRoutes) {
                     $about->name('public.about');
                     $services->name('public.services');
                     $cases->name('public.cases');
+                    $sla->name('public.sla');
                     $contacts->name('public.contacts');
                 }
             });
+
+            $slaDocument = Route::get('/sla/documents/{document}', [PublicSlaDocumentController::class, 'show']);
+            if ($namePublicRoutes) {
+                $slaDocument->name('public.sla.document');
+            }
 
             $localeSwitch = Route::get('/locale/{locale}', [PublicSiteController::class, 'switchLocale']);
             if ($namePublicRoutes) {
@@ -105,15 +113,22 @@ if ($sameShowcaseAndCrmHost) {
                 $about = Route::get('/about', 'about');
                 $services = Route::get('/services', 'services');
                 $cases = Route::get('/cases', 'cases');
+                $sla = Route::get('/sla', 'sla');
                 $contacts = Route::get('/contacts', 'contacts');
                 if ($namePublicRoutes) {
                     $home->name('public.home');
                     $about->name('public.about');
                     $services->name('public.services');
                     $cases->name('public.cases');
+                    $sla->name('public.sla');
                     $contacts->name('public.contacts');
                 }
             });
+
+            $slaDocument = Route::get('/sla/documents/{document}', [PublicSlaDocumentController::class, 'show']);
+            if ($namePublicRoutes) {
+                $slaDocument->name('public.sla.document');
+            }
 
             $localeSwitch = Route::get('/locale/{locale}', [PublicSiteController::class, 'switchLocale']);
             if ($namePublicRoutes) {
@@ -258,16 +273,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');
-        Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
-        Route::patch('/orders/{order}', 'update')->name('orders.update');
-        Route::post('/orders/{order}/portal-invites/carrier', [OrderPortalInviteController::class, 'storeCarrier'])
-            ->name('orders.portal-invites.carrier.store');
         Route::post('/orders/calculate-compensation', 'calculateCompensation')->name('orders.calculate-compensation');
-        Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
-        Route::patch('/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
-        Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         Route::get('/orders-suggest/address', 'suggestAddress')->name('orders.suggest-address');
         Route::post('/orders/contractors', 'storeContractor')->name('orders.contractors.store');
+
+        Route::whereNumber('order')->group(function () {
+            Route::get('/orders/{order}/edit', 'edit')->name('orders.edit');
+            Route::post('/orders/{order}/save', 'update')->name('orders.save');
+            Route::match(['patch', 'post'], '/orders/{order}', 'update')->name('orders.update');
+            Route::post('/orders/{order}/portal-invites/carrier', [OrderPortalInviteController::class, 'storeCarrier'])
+                ->name('orders.portal-invites.carrier.store');
+            Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
+            Route::match(['patch', 'post'], '/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
+            Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
+        });
     });
     Route::get('/orders/{order}/documents/list', [OrderDocumentsModalController::class, 'index'])
         ->middleware('visibility.area:orders')

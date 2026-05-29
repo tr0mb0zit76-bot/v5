@@ -56,17 +56,22 @@ class PaymentSettlementSummaryBuilder
             );
         }
 
-        $carrierRoots = $roots->where('party', 'carrier');
-        $carrierNames = $this->carrierNamesById($carrierRoots, $order);
+        foreach (['carrier' => 'Перевозчик', 'contractor' => 'Подрядчик'] as $party => $fallbackLabel) {
+            $partyRoots = $roots->where('party', $party);
+            if ($partyRoots->isEmpty()) {
+                continue;
+            }
 
-        foreach ($carrierRoots->groupBy(fn (PaymentSchedule $row): string => (string) ($row->counterparty_id ?? 'none')) as $groupKey => $groupRows) {
-            $counterpartyId = $groupKey === 'none' ? null : (int) $groupKey;
-            $lines[] = $this->buildLine(
-                party: 'carrier',
-                counterpartyId: $counterpartyId,
-                counterpartyName: $carrierNames[$counterpartyId] ?? ($counterpartyId !== null ? "Перевозчик #{$counterpartyId}" : 'Перевозчик'),
-                roots: $groupRows,
-            );
+            $namesById = $this->counterpartyNamesById($partyRoots);
+            foreach ($partyRoots->groupBy(fn (PaymentSchedule $row): string => (string) ($row->counterparty_id ?? 'none')) as $groupKey => $groupRows) {
+                $counterpartyId = $groupKey === 'none' ? null : (int) $groupKey;
+                $lines[] = $this->buildLine(
+                    party: $party,
+                    counterpartyId: $counterpartyId,
+                    counterpartyName: $namesById[$counterpartyId] ?? ($counterpartyId !== null ? "{$fallbackLabel} #{$counterpartyId}" : $fallbackLabel),
+                    roots: $groupRows,
+                );
+            }
         }
 
         return ['lines' => $lines];
@@ -98,7 +103,7 @@ class PaymentSettlementSummaryBuilder
      * @param  Collection<int, PaymentSchedule>  $roots
      * @return array<string, string>
      */
-    private function carrierNamesById(Collection $roots, Order $order): array
+    private function counterpartyNamesById(Collection $roots): array
     {
         $ids = $roots
             ->pluck('counterparty_id')

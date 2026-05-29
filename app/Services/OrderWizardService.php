@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Cargo;
 use App\Models\Contractor;
-use App\Models\FinancialTerm;
 use App\Models\LegContractorAssignment;
 use App\Models\LegCost;
 use App\Models\Order;
@@ -13,14 +12,17 @@ use App\Models\OrderLeg;
 use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
 use App\Models\User;
+use App\Support\CargoPerformerAllocationBuilder;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
+use App\Support\OrderPersistedId;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\PerformerRouteActualDates;
 use App\Support\RoutePointNormalizedData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
@@ -124,7 +126,12 @@ class OrderWizardService
         $financialTerm = Arr::get($validated, 'financial_term', []);
         $contractorCosts = Arr::get($financialTerm, 'contractors_costs', []);
         $performers = $this->resolvedPerformers($validated);
-        $routePoints = collect($validated['route_points'] ?? [])->sortBy('sequence')->values();
+        $routePoints = collect(
+            PerformerRouteActualDates::applyPerformersToRoutePoints(
+                collect($validated['route_points'] ?? [])->sortBy('sequence')->values()->all(),
+                $performers,
+            ),
+        )->sortBy('sequence')->values();
         $firstLoading = $routePoints->firstWhere('type', 'loading');
         $firstLoadingDate = $this->resolveRoutePointDateForOrderAggregate($firstLoading);
         $lastUnloading = $routePoints->where('type', 'unloading')->last();
@@ -218,6 +225,13 @@ class OrderWizardService
 
             $raw = $validated[$key] ?? null;
             $attributes[$key] = $raw !== null && $raw !== '' ? (float) $raw : 0.0;
+        }
+
+        if ($isCreating || array_key_exists('additional_expenses_payment_date', $validated)) {
+            $incurredDate = $validated['additional_expenses_payment_date'] ?? null;
+            $attributes['additional_expenses_payment_date'] = filled($incurredDate)
+                ? (is_string($incurredDate) ? substr($incurredDate, 0, 10) : (string) $incurredDate)
+                : null;
         }
 
         return $this->onlyExistingOrderColumns($attributes);
@@ -330,6 +344,8 @@ class OrderWizardService
                         'fleet_trip_id' => isset($slot['fleet_trip_id']) && $slot['fleet_trip_id'] !== null && $slot['fleet_trip_id'] !== ''
                             ? (int) $slot['fleet_trip_id']
                             : null,
+                        'loading_actual' => PerformerRouteActualDates::normalizeDate($slot['loading_actual'] ?? null),
+                        'unloading_actual' => PerformerRouteActualDates::normalizeDate($slot['unloading_actual'] ?? null),
                     ];
                 })
                 ->all();
@@ -337,8 +353,12 @@ class OrderWizardService
             $normalized['contractor_name'] = null;
             $normalized['fleet_vehicle_id'] = null;
             $normalized['fleet_driver_id'] = null;
+            $normalized['loading_actual'] = null;
+            $normalized['unloading_actual'] = null;
         } else {
             $normalized['split_carriers'] = [];
+            $normalized['loading_actual'] = PerformerRouteActualDates::normalizeDate($normalized['loading_actual'] ?? null);
+            $normalized['unloading_actual'] = PerformerRouteActualDates::normalizeDate($normalized['unloading_actual'] ?? null);
         }
 
         return $normalized;
@@ -457,6 +477,7 @@ class OrderWizardService
      */
     private function syncNestedData(Order $order, array $validated, User $user): void
     {
+        $orderId = OrderPersistedId::resolveOrFail($order);
         $hasOrderDocuments = Schema::hasTable('order_documents');
 
         $order->loadMissing($this->relationsForNestedSync());
@@ -468,9 +489,12 @@ class OrderWizardService
         $legs = $this->syncLegs($order, $normalizedPerformers);
         $primaryLeg = $legs->first();
         $legsByStage = $legs->keyBy(fn (OrderLeg $leg): string => $this->normalizeStageIdentifier($leg->description));
-        $routePoints = collect($validated['route_points'] ?? [])
-            ->sortBy('sequence')
-            ->values();
+        $routePoints = collect(
+            PerformerRouteActualDates::applyPerformersToRoutePoints(
+                collect($validated['route_points'] ?? [])->sortBy('sequence')->values()->all(),
+                $normalizedPerformers,
+            ),
+        )->sortBy('sequence')->values();
         $isInternationalTransport = (bool) ($validated['is_international_transport'] ?? false);
         if (! $isInternationalTransport) {
             $routePoints = $routePoints
@@ -651,9 +675,17 @@ class OrderWizardService
                 $cargoAttributes['diameter'] = $this->normalizeNullableFloat($cargoItem['diameter_m'] ?? null);
                 $cargoAttributes['is_oversized'] = (bool) ($cargoItem['is_oversized'] ?? $cargoType === 'oversized');
                 $cargoAttributes['is_fragile'] = (bool) ($cargoItem['is_fragile'] ?? $cargoType === 'fragile');
-                $cargoAttributes['ati_cargo_payload'] = is_array($cargoItem['ati_cargo_payload'] ?? null)
-                    ? $cargoItem['ati_cargo_payload']
-                    : null;
+                $atiPayload = $this->normalizeAtiCargoPayloadArray($cargoItem['ati_cargo_payload'] ?? null);
+                $performerAllocations = CargoPerformerAllocationBuilder::resolveForCargoItem(
+                    $cargoItem,
+                    $normalizedPerformers,
+                );
+                if ($performerAllocations !== []) {
+                    $atiPayload['performer_allocations'] = $performerAllocations;
+                } else {
+                    unset($atiPayload['performer_allocations']);
+                }
+                $cargoAttributes['ati_cargo_payload'] = $atiPayload !== [] ? $atiPayload : null;
 
                 foreach (['loading_type', 'truck_body_type', 'trailer_type'] as $dictionaryField) {
                     $idColumn = $dictionaryField.'_id';
@@ -677,7 +709,7 @@ class OrderWizardService
             }
 
             if (Schema::hasColumn('cargos', 'order_id')) {
-                $cargoAttributes['order_id'] = $order->id;
+                $cargoAttributes['order_id'] = $orderId;
             }
 
             if (Schema::hasColumn('cargos', 'package_count')) {
@@ -714,11 +746,10 @@ class OrderWizardService
                 $normalizedPerformers
             );
 
-            $order->refresh();
-
-            $additionalFromOrder = (float) ($order->additional_expenses ?? 0)
-                + (float) ($order->insurance ?? 0)
-                + (float) ($order->bonus ?? 0);
+            $orderForCosts = Order::query()->find($orderId);
+            $additionalFromOrder = (float) ($orderForCosts?->additional_expenses ?? 0)
+                + (float) ($orderForCosts?->insurance ?? 0)
+                + (float) ($orderForCosts?->bonus ?? 0);
 
             $totalCost = collect($normalizedContractorsCosts)->sum(fn (array $row): float => (float) ($row['amount'] ?? 0))
                 + $additionalFromOrder;
@@ -733,12 +764,13 @@ class OrderWizardService
                 $cashToCash,
             );
 
-            $orderForSummary = $order->fresh(['legs.routePoints']);
+            $orderForSummary = Order::query()
+                ->with(['legs.routePoints'])
+                ->find($orderId);
             $clientSchedule = Arr::get($financialTerm, 'client_payment_schedule', []);
             $clientSchedule = is_array($clientSchedule) ? $clientSchedule : [];
 
             $financialTermAttributes = [
-                'order_id' => $order->id,
                 'client_price' => Arr::get($financialTerm, 'client_price'),
                 'client_currency' => Arr::get($financialTerm, 'client_currency', 'RUB'),
                 'contractors_costs' => $normalizedContractorsCosts,
@@ -763,20 +795,46 @@ class OrderWizardService
                 $financialTermAttributes['payment_terms_snapshot'] = $snapshot;
             }
 
-            // Удаляем старые financial_terms для этого заказа и создаем новую запись
-            FinancialTerm::query()->where('order_id', $order->id)->delete();
-            FinancialTerm::query()->create($financialTermAttributes);
+            $financialTermAttributes = $this->onlyExistingFinancialTermColumns($financialTermAttributes);
+
+            $persistedOrder = Order::query()->findOrFail($orderId);
+            $persistedOrder->financialTerms()->delete();
+            $persistedOrder->financialTerms()->create($financialTermAttributes);
 
             if ($snapshot !== null && Schema::hasColumn('orders', 'payment_terms')) {
-                $order->forceFill(['payment_terms' => $snapshot])->saveQuietly();
+                $persistedOrder->forceFill(['payment_terms' => $snapshot])->saveQuietly();
             }
 
             $this->fleetTripService->syncPlannedTripsFromOrder(
-                $order->fresh(),
+                $persistedOrder->fresh(),
                 $normalizedPerformers,
                 $normalizedContractorsCosts,
             );
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function onlyExistingFinancialTermColumns(array $attributes): array
+    {
+        static $columnLookup = null;
+
+        if ($columnLookup === null) {
+            if (! Schema::hasTable('financial_terms')) {
+                $columnLookup = [];
+
+                return [];
+            }
+
+            $columnLookup = array_fill_keys(
+                Schema::getColumnListing('financial_terms'),
+                true,
+            );
+        }
+
+        return array_intersect_key($attributes, $columnLookup);
     }
 
     /**
@@ -1470,6 +1528,20 @@ class OrderWizardService
     /**
      * @return list<string>
      */
+    /**
+     * JSON-колонка иногда приходит/хранится как `[]` (list), а не объект с ключами.
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeAtiCargoPayloadArray(mixed $payload): array
+    {
+        if (! is_array($payload) || $payload === [] || array_is_list($payload)) {
+            return [];
+        }
+
+        return $payload;
+    }
+
     private function normalizeStageIdentifier(?string $stage): string
     {
         $value = trim((string) $stage);
@@ -1606,15 +1678,20 @@ class OrderWizardService
                 $carrierSlot = (int) ($carrierRow['carrier_slot'] ?? 1);
 
                 if ($resolvedContractorId !== null && $hasAssignmentsTable) {
-                    $createdAssignment = LegContractorAssignment::query()->create([
+                    $assignmentAttributes = [
                         'order_leg_id' => $leg->id,
-                        'carrier_slot' => $carrierSlot,
                         'contractor_id' => $resolvedContractorId,
                         'assigned_at' => now(),
                         'assigned_by' => $user->id,
                         'status' => 'confirmed',
                         'notes' => is_array($performer) ? ($performer['notes'] ?? null) : null,
-                    ]);
+                    ];
+
+                    if (Schema::hasColumn('leg_contractor_assignments', 'carrier_slot')) {
+                        $assignmentAttributes['carrier_slot'] = $carrierSlot;
+                    }
+
+                    $createdAssignment = LegContractorAssignment::query()->create($assignmentAttributes);
 
                     if ($primaryAssignment === null) {
                         $primaryAssignment = $createdAssignment;

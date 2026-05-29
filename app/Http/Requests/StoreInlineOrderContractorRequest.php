@@ -38,7 +38,7 @@ class StoreInlineOrderContractorRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
-            'type' => ['nullable', Rule::in(['customer', 'carrier', 'both'])],
+            'type' => ['nullable', Rule::in(['customer', 'carrier', 'contractor', 'both'])],
         ];
     }
 }

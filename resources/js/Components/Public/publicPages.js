@@ -146,12 +146,40 @@ export const publicPages = {
         title: 'Контакты',
         mode: 'contacts',
     },
+    sla: {
+        pageKey: 'sla',
+        title: 'SLA',
+        mode: 'sla',
+        media: '/assets/images/SLA_common.webp',
+        introTitleKey: 'sla_intro_title',
+        introTextKey: 'sla_intro_text',
+        panels: [
+            {
+                id: 'customers',
+                labelKey: 'sla_tile_customers',
+                titleKey: 'sla_customers_title',
+                textKey: 'sla_customers_text',
+                media: '/assets/images/SLA_customer.webp',
+            },
+            {
+                id: 'carriers',
+                labelKey: 'sla_tile_carriers',
+                titleKey: 'sla_carriers_title',
+                textKey: 'sla_carriers_text',
+                media: '/assets/images/SLA_carrier.webp',
+            },
+        ],
+    },
 };
 
-export const publicNavigation = [
+const publicNavigationItems = [
     { key: 'home', labelKey: 'home', href: '/' },
     { key: 'about', labelKey: 'about', href: '/about' },
     { key: 'services', labelKey: 'services', href: '/services' },
-    { key: 'cases', labelKey: 'cases', href: '/cases' },
+    { key: 'cases', labelKey: 'cases', href: '/cases', hidden: true },
+    { key: 'sla', labelKey: 'sla', href: '/sla' },
     { key: 'contacts', labelKey: 'contacts', href: '/contacts' },
 ];
+
+/** Пункты верхнего меню витрины (cases скрыт до CMS кейсов/новостей). */
+export const publicNavigation = publicNavigationItems.filter((item) => !item.hidden);

@@ -66,5 +66,19 @@
   "savings": "Savings",
   "work_hours": "Work hours",
   "cabinet": "Personal account",
-  "login_to_cabinet": "Log in to your personal account"
+  "login_to_cabinet": "Log in to your personal account",
+  "sla": "SLA",
+  "sla_intro_title": "Transparency and efficiency",
+  "sla_intro_text": "<p>In an era of global change and rapid growth in logistics, keeping pace is not enough — you need to stay ahead of the market. At {company_name}, we build our work on full transparency, technology, and mutual respect with partners. Our goal is not only to deliver cargo, but to make transportation predictable, fast, and legally sound for every party.</p><p>For us, a standard is not just a set of obligations, but a tool for achieving results. We use digital tools that speed up document flow and eliminate delays at the approval stage. Our philosophy is simple: predictability builds trust, and trust is the foundation of long-term partnership.</p>",
+  "sla_tile_back": "Back",
+  "sla_doc_preview_title": "Document preview",
+  "sla_doc_close": "Close",
+  "sla_tile_customers": "For clients",
+  "sla_tile_carriers": "For carriers",
+  "sla_for_customers": "For customers",
+  "sla_customers_title": "Our standards: speed and results",
+  "sla_customers_text": "<p>We aim for results in every shipment, understanding that behind each load are your business interests. We take full responsibility for the process: from carrier verification to monitoring cargo movement along the route.</p><h3>Key standards of working with us:</h3><ul><li><strong>Decision speed:</strong> we confirm requests and assign transport within 2 hours of receiving the order.</li><li><strong>Legal clarity:</strong> we bear full responsibility for organizing transportation (Art. 805 of the Civil Code of the Russian Federation) and insure every trip.</li><li><strong>Transparent pricing:</strong> the service cost is agreed before transport is dispatched and contains no hidden fine print.</li></ul><h3>Electronic document flow</h3><p>To speed up and optimize paperwork, we use a public offer agreement — a standard practice in logistics. The agreement published on our website removes the need to exchange paper copies for every deal. By submitting a request or paying an invoice, you automatically accept the terms of cooperation, allowing us to start transportation quickly without losing legal validity.</p>",
+  "sla_for_carriers": "For carriers",
+  "sla_carriers_title": "Partnership standards: mutual responsibility",
+  "sla_carriers_text": "<p>We build long-term relationships with carriers on honesty and predictable workload. We value your time and resources, so our cooperation follows clear rules that protect both sides.</p><h3>What we expect from a partner:</h3><ul><li><strong>Punctuality:</strong> adherence to pickup and delivery schedules.</li><li><strong>Cargo safety:</strong> responsibility for the cargo from acceptance for carriage.</li><li><strong>Status:</strong> a valid liability insurance policy; additional cargo insurance is a plus.</li></ul><h3>What we offer in return:</h3><ul><li><strong>Stable payment:</strong> competitive rates and payment after trip completion within agreed terms.</li><li><strong>Transparent downtime:</strong> guaranteed payment for excess downtime at a fixed rate.</li><li><strong>Digital document flow:</strong> cooperation under a public offer. All essential terms are recorded in one table — the Order, which is legally binding upon acceptance. This speeds up approval and eliminates the risk of losing paper documents.</li></ul>"
 }

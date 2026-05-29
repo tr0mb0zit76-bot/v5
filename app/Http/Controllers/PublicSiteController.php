@@ -103,8 +103,37 @@ class PublicSiteController extends Controller
                     ['code' => 'cn', 'label' => '中文'],
                 ],
                 'checko_company_url' => (string) config('app.showcase_checko_company_url', ''),
+                'sla_documents' => $this->slaDocumentsForFrontend(),
             ],
         ];
+    }
+
+    /**
+     * @return list<array{id: string, panel: string, label: string, preview_url: string|null}>
+     */
+    protected function slaDocumentsForFrontend(): array
+    {
+        /** @var array<string, array{panel?: string, label?: string}> $catalog */
+        $catalog = config('showcase.sla_documents', []);
+        $documents = [];
+
+        foreach ($catalog as $id => $entry) {
+            $panel = (string) ($entry['panel'] ?? '');
+            if ($panel === '') {
+                continue;
+            }
+
+            $documents[] = [
+                'id' => (string) $id,
+                'panel' => $panel,
+                'label' => (string) ($entry['label'] ?? $id),
+                'preview_url' => \Route::has('public.sla.document')
+                    ? route('public.sla.document', ['document' => $id])
+                    : null,
+            ];
+        }
+
+        return $documents;
     }
 
     protected function resolvePublicLocale(): string
@@ -143,5 +172,10 @@ class PublicSiteController extends Controller
     public function contacts(): Response
     {
         return Inertia::render('Public/Contacts', $this->sharedProps());
+    }
+
+    public function sla(): Response
+    {
+        return Inertia::render('Public/Sla', $this->sharedProps());
     }
 }

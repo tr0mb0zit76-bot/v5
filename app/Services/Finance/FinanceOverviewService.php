@@ -362,20 +362,28 @@ class FinanceOverviewService
 
         $customerRow = $rows->get('customer');
         $carrierRow = $rows->get('carrier');
+        $contractorRow = $rows->get('contractor');
+
+        $outgoingToday = (float) (optional($carrierRow)->today ?? 0) + (float) (optional($contractorRow)->today ?? 0);
+        $outgoingWeek = (float) (optional($carrierRow)->week ?? 0) + (float) (optional($contractorRow)->week ?? 0);
+        $outgoingMonth = (float) (optional($carrierRow)->month ?? 0) + (float) (optional($contractorRow)->month ?? 0);
+        $outstandingOutgoing = (float) (optional($carrierRow)->outstanding ?? 0) + (float) (optional($contractorRow)->outstanding ?? 0);
+        $pendingOutgoing = (float) (optional($carrierRow)->pending_only ?? 0) + (float) (optional($contractorRow)->pending_only ?? 0);
+        $overdueOutgoing = (float) (optional($carrierRow)->overdue ?? 0) + (float) (optional($contractorRow)->overdue ?? 0);
 
         return [
             'periods' => [
                 'today' => [
                     'incoming' => (float) (optional($customerRow)->today ?? 0),
-                    'outgoing' => (float) (optional($carrierRow)->today ?? 0),
+                    'outgoing' => $outgoingToday,
                 ],
                 'week' => [
                     'incoming' => (float) (optional($customerRow)->week ?? 0),
-                    'outgoing' => (float) (optional($carrierRow)->week ?? 0),
+                    'outgoing' => $outgoingWeek,
                 ],
                 'month' => [
                     'incoming' => (float) (optional($customerRow)->month ?? 0),
-                    'outgoing' => (float) (optional($carrierRow)->month ?? 0),
+                    'outgoing' => $outgoingMonth,
                 ],
             ],
             'receivables' => [
@@ -384,9 +392,9 @@ class FinanceOverviewService
                 'overdue' => (float) (optional($customerRow)->overdue ?? 0),
             ],
             'payables' => [
-                'total' => (float) (optional($carrierRow)->outstanding ?? 0),
-                'pending' => (float) (optional($carrierRow)->pending_only ?? 0),
-                'overdue' => (float) (optional($carrierRow)->overdue ?? 0),
+                'total' => $outstandingOutgoing,
+                'pending' => $pendingOutgoing,
+                'overdue' => $overdueOutgoing,
             ],
         ];
     }

@@ -323,7 +323,8 @@ const handleCellSave = (event) => {
         return;
     }
 
-    router.patch(route('orders.inline-update', event.row.id), {
+    router.post(route('orders.inline-update', event.row.id), {
+        _method: 'patch',
         field: event.field,
         value: event.value,
     }, {

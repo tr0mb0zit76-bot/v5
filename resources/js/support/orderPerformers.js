@@ -15,6 +15,8 @@ export function blankSplitCarrier(slot = 1) {
         fleet_driver_id: null,
         execution_mode: null,
         fleet_trip_id: null,
+        loading_actual: '',
+        unloading_actual: '',
     };
 }
 
@@ -28,6 +30,8 @@ export function blankPerformer(stage, carrierMode = CARRIER_MODE_SINGLE) {
         fleet_driver_id: null,
         execution_mode: null,
         fleet_trip_id: null,
+        loading_actual: '',
+        unloading_actual: '',
         split_carriers: [],
     };
 
@@ -49,11 +53,17 @@ export function normalizePerformer(performer = {}) {
         fleet_driver_id: performer?.fleet_driver_id ?? null,
         execution_mode: isOwnFleetExecutionMode(performer?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
         fleet_trip_id: performer?.fleet_trip_id ?? null,
+        loading_actual: performer?.loading_actual ?? '',
+        unloading_actual: performer?.unloading_actual ?? '',
         split_carriers: [],
     };
 
     if (mode === CARRIER_MODE_SPLIT) {
+        const legacyLoading = performer?.loading_actual ?? '';
+        const legacyUnloading = performer?.unloading_actual ?? '';
         const slots = Array.isArray(performer?.split_carriers) ? performer.split_carriers : [];
+        normalized.loading_actual = '';
+        normalized.unloading_actual = '';
         normalized.split_carriers = slots.length >= 2
             ? slots.map((row, index) => ({
                 slot: Number(row?.slot ?? index + 1),
@@ -63,6 +73,8 @@ export function normalizePerformer(performer = {}) {
                 fleet_driver_id: row?.fleet_driver_id ?? null,
                 execution_mode: isOwnFleetExecutionMode(row?.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
                 fleet_trip_id: row?.fleet_trip_id ?? null,
+                loading_actual: row?.loading_actual ?? legacyLoading ?? '',
+                unloading_actual: row?.unloading_actual ?? legacyUnloading ?? '',
             }))
             : [blankSplitCarrier(1), blankSplitCarrier(2)];
     }

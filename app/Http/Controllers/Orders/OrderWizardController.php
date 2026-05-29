@@ -27,10 +27,12 @@ use App\Services\OrderWizardStateService;
 use App\Services\OwnFleetContractorService;
 use App\Services\PaymentSettlementSummaryBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
+use App\Support\CargoPerformerAllocationNormalizer;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\OrderCargoItemsPayloadNormalizer;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPaymentTermsConfigResolver;
@@ -38,6 +40,7 @@ use App\Support\OrderPrintWorkflowLock;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\PerformerRouteActualDates;
 use App\Support\RoutePointNormalizedData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -60,7 +63,10 @@ class OrderWizardController extends Controller
 
     public function store(StoreOrderRequest $request, OrderWizardService $orderWizardService): RedirectResponse
     {
-        $order = $orderWizardService->create($request->validated(), $request->user());
+        $order = $orderWizardService->create(
+            $request->validatedForWizard(),
+            $request->user(),
+        );
 
         return to_route('orders.edit', $order);
     }
@@ -79,9 +85,26 @@ class OrderWizardController extends Controller
             'user_id' => $request->user()?->id,
             'client_id' => $request->input('client_id'),
             'performers_count' => count((array) $request->input('performers', [])),
+            'cargo_allocations_count' => count((array) data_get($request->input('cargo_items.0'), 'performer_allocations', [])),
         ]);
 
-        $order = $orderWizardService->update($order, $request->validated(), $request->user());
+        try {
+            $order = $orderWizardService->update($order, $request->validatedForWizard(), $request->user());
+        } catch (\Throwable $exception) {
+            Log::error('orders.update failed', [
+                'order_id' => $order->id,
+                'user_id' => $request->user()?->id,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('flash', [
+                    'type' => 'error',
+                    'message' => 'Не удалось сохранить заказ: '.$exception->getMessage(),
+                ]);
+        }
 
         Log::info('orders.update completed', [
             'order_id' => $order->id,
@@ -526,7 +549,7 @@ class OrderWizardController extends Controller
                     ->sortBy('sequence')
                     ->map(fn ($point): array => [
                         'id' => $point->id,
-                        'stage' => $leg->description,
+                        'stage' => $this->normalizeStageIdentifierForWizard((string) $leg->description),
                         'leg_sequence' => $leg->sequence,
                         'type' => $point->type,
                         'sequence' => $point->sequence,
@@ -558,6 +581,8 @@ class OrderWizardController extends Controller
         if ($useWizardState && is_array($wizardState) && filled($wizardState['performers'] ?? null)) {
             $performers = $this->mergePerformersFromWizardState($performers, $wizardState['performers']);
         }
+
+        $performers = PerformerRouteActualDates::hydratePerformersFromRoutePoints($performers, $routePoints);
 
         $financialTermForNormalize = $financialTerm;
         if ($useWizardState) {
@@ -628,48 +653,58 @@ class OrderWizardController extends Controller
                 : false,
             'loading_types' => $this->resolveLoadingTypesForOrder($order),
             'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
+            'additional_expenses_payment_date' => Schema::hasColumn('orders', 'additional_expenses_payment_date')
+                ? optional($order->additional_expenses_payment_date)?->toDateString()
+                : null,
             'insurance' => Schema::hasColumn('orders', 'insurance') ? $order->insurance : null,
             'bonus' => Schema::hasColumn('orders', 'bonus') ? $order->bonus : null,
             'performers' => $performers,
             'route_points' => $routePoints,
-            'cargo_items' => $cargoItems->map(fn ($cargo): array => [
-                'id' => $cargo->id,
-                'name' => $cargo->ati_cargo_name ?: $cargo->title,
-                'description' => $cargo->description,
-                'weight_value' => $cargo->weight_value ?? $cargo->weight,
-                'weight_kg' => $cargo->weight_value ?? $cargo->weight,
-                'weight_unit' => $cargo->weight_unit ?: 'kg',
-                'volume_m3' => $cargo->volume,
-                'length_m' => $cargo->length,
-                'width_m' => $cargo->width,
-                'height_m' => $cargo->height,
-                'diameter_m' => $cargo->diameter,
-                'package_type' => $cargo->packing_type,
-                'pack_type_id' => $cargo->pack_type_id,
-                'pack_type_label' => $cargo->pack_type_label,
-                'loading_type_id' => $cargo->loading_type_id,
-                'loading_type_code' => $cargo->loading_type_code,
-                'loading_type_label' => $cargo->loading_type_label,
-                'loading_type_items' => $cargo->loading_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'loading_type'),
-                'truck_body_type_id' => $cargo->truck_body_type_id,
-                'truck_body_type_code' => $cargo->truck_body_type_code,
-                'truck_body_type_label' => $cargo->truck_body_type_label,
-                'truck_body_type_items' => $cargo->truck_body_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'truck_body_type'),
-                'trailer_type_id' => $cargo->trailer_type_id,
-                'trailer_type_code' => $cargo->trailer_type_code,
-                'trailer_type_label' => $cargo->trailer_type_label,
-                'trailer_type_items' => $cargo->trailer_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'trailer_type'),
-                'package_count' => $cargo->package_count ?? $cargo->pallet_count,
-                'dangerous_goods' => $cargo->is_hazardous,
-                'dangerous_class' => $cargo->hazard_class,
-                'hs_code' => $cargo->hs_code,
-                'cargo_type' => $cargo->cargo_type ?: 'general',
-                'cargo_type_id' => $cargo->cargo_type_id,
-                'cargo_type_label' => $cargo->cargo_type_label,
-                'is_oversized' => $cargo->is_oversized,
-                'is_fragile' => $cargo->is_fragile,
-                'ati_cargo_payload' => $cargo->ati_cargo_payload ?? [],
-            ])->values()->all(),
+            'cargo_items' => $this->hydrateCargoItemsForWizard(
+                $this->mergeCargoItemsWithWizardState(
+                    $cargoItems->map(fn ($cargo): array => [
+                        'id' => $cargo->id,
+                        'name' => $cargo->ati_cargo_name ?: $cargo->title,
+                        'description' => $cargo->description,
+                        'weight_value' => $cargo->weight_value ?? $cargo->weight,
+                        'weight_kg' => $cargo->weight_value ?? $cargo->weight,
+                        'weight_unit' => $cargo->weight_unit ?: 'kg',
+                        'volume_m3' => $cargo->volume,
+                        'length_m' => $cargo->length,
+                        'width_m' => $cargo->width,
+                        'height_m' => $cargo->height,
+                        'diameter_m' => $cargo->diameter,
+                        'package_type' => $cargo->packing_type,
+                        'pack_type_id' => $cargo->pack_type_id,
+                        'pack_type_label' => $cargo->pack_type_label,
+                        'loading_type_id' => $cargo->loading_type_id,
+                        'loading_type_code' => $cargo->loading_type_code,
+                        'loading_type_label' => $cargo->loading_type_label,
+                        'loading_type_items' => $cargo->loading_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'loading_type'),
+                        'truck_body_type_id' => $cargo->truck_body_type_id,
+                        'truck_body_type_code' => $cargo->truck_body_type_code,
+                        'truck_body_type_label' => $cargo->truck_body_type_label,
+                        'truck_body_type_items' => $cargo->truck_body_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'truck_body_type'),
+                        'trailer_type_id' => $cargo->trailer_type_id,
+                        'trailer_type_code' => $cargo->trailer_type_code,
+                        'trailer_type_label' => $cargo->trailer_type_label,
+                        'trailer_type_items' => $cargo->trailer_type_items ?? $this->dictionaryItemsFromFlatCargo($cargo, 'trailer_type'),
+                        'package_count' => $cargo->package_count ?? $cargo->pallet_count,
+                        'dangerous_goods' => $cargo->is_hazardous,
+                        'dangerous_class' => $cargo->hazard_class,
+                        'hs_code' => $cargo->hs_code,
+                        'cargo_type' => $cargo->cargo_type ?: 'general',
+                        'cargo_type_id' => $cargo->cargo_type_id,
+                        'cargo_type_label' => $cargo->cargo_type_label,
+                        'is_oversized' => $cargo->is_oversized,
+                        'is_fragile' => $cargo->is_fragile,
+                        'ati_cargo_payload' => $this->atiCargoPayloadForWizard($cargo->ati_cargo_payload),
+                        'performer_allocations' => $this->performerAllocationsFromCargoPayload($cargo->ati_cargo_payload),
+                    ])->values()->all(),
+                    $useWizardState && is_array($wizardState) ? ($wizardState['cargo_items'] ?? []) : [],
+                ),
+                $performers,
+            ),
             'financial_term' => [
                 'client_price' => $useWizardState
                     ? ($wizardFt['client_price'] ?? $order->customer_rate)
@@ -1096,7 +1131,7 @@ class OrderWizardController extends Controller
     private function normalizePerformerRowFromWizardState(array $row): array
     {
         $normalized = [
-            'stage' => $row['stage'] ?? null,
+            'stage' => $this->normalizeStageIdentifierForWizard(isset($row['stage']) ? (string) $row['stage'] : null),
             'carrier_mode' => ($row['carrier_mode'] ?? 'single') === 'split' ? 'split' : 'single',
             'contractor_id' => isset($row['contractor_id']) && $row['contractor_id'] !== null && $row['contractor_id'] !== ''
                 ? (int) $row['contractor_id']
@@ -1114,6 +1149,8 @@ class OrderWizardController extends Controller
             'fleet_trip_id' => isset($row['fleet_trip_id']) && $row['fleet_trip_id'] !== null && $row['fleet_trip_id'] !== ''
                 ? (int) $row['fleet_trip_id']
                 : null,
+            'loading_actual' => PerformerRouteActualDates::normalizeDate($row['loading_actual'] ?? null),
+            'unloading_actual' => PerformerRouteActualDates::normalizeDate($row['unloading_actual'] ?? null),
             'split_carriers' => [],
         ];
 
@@ -1140,9 +1177,13 @@ class OrderWizardController extends Controller
                         'fleet_trip_id' => isset($slot['fleet_trip_id']) && $slot['fleet_trip_id'] !== null && $slot['fleet_trip_id'] !== ''
                             ? (int) $slot['fleet_trip_id']
                             : null,
+                        'loading_actual' => PerformerRouteActualDates::normalizeDate($slot['loading_actual'] ?? null),
+                        'unloading_actual' => PerformerRouteActualDates::normalizeDate($slot['unloading_actual'] ?? null),
                     ];
                 })
                 ->all();
+            $normalized['loading_actual'] = null;
+            $normalized['unloading_actual'] = null;
         }
 
         return $normalized;
@@ -1169,6 +1210,8 @@ class OrderWizardController extends Controller
                 'contractor_name' => null,
                 'fleet_vehicle_id' => null,
                 'fleet_driver_id' => null,
+                'loading_actual' => null,
+                'unloading_actual' => null,
             ];
         }
 
@@ -1180,6 +1223,8 @@ class OrderWizardController extends Controller
             'contractor_name' => $wizard['contractor_name'] ?? $base['contractor_name'] ?? null,
             'fleet_vehicle_id' => $wizard['fleet_vehicle_id'] ?? $base['fleet_vehicle_id'] ?? null,
             'fleet_driver_id' => $wizard['fleet_driver_id'] ?? $base['fleet_driver_id'] ?? null,
+            'loading_actual' => $wizard['loading_actual'] ?? $base['loading_actual'] ?? null,
+            'unloading_actual' => $wizard['unloading_actual'] ?? $base['unloading_actual'] ?? null,
         ];
     }
 
@@ -1282,6 +1327,12 @@ class OrderWizardController extends Controller
                     'fleet_driver_id' => isset($wizardSlot['fleet_driver_id']) && $wizardSlot['fleet_driver_id'] !== null && $wizardSlot['fleet_driver_id'] !== ''
                         ? (int) $wizardSlot['fleet_driver_id']
                         : (is_array($baseSlot) && isset($baseSlot['fleet_driver_id']) ? $baseSlot['fleet_driver_id'] : null),
+                    'loading_actual' => PerformerRouteActualDates::normalizeDate(
+                        $wizardSlot['loading_actual'] ?? (is_array($baseSlot) ? ($baseSlot['loading_actual'] ?? null) : null),
+                    ),
+                    'unloading_actual' => PerformerRouteActualDates::normalizeDate(
+                        $wizardSlot['unloading_actual'] ?? (is_array($baseSlot) ? ($baseSlot['unloading_actual'] ?? null) : null),
+                    ),
                 ];
             })
             ->all();
@@ -1292,17 +1343,101 @@ class OrderWizardController extends Controller
      */
     private function normalizeStageIdentifierForWizard(?string $stage): string
     {
-        $value = trim((string) $stage);
+        return CargoPerformerAllocationNormalizer::normalizeStageIdentifier($stage);
+    }
 
-        if ($value === '') {
-            return 'leg_1';
+    /**
+     * @return array<string, mixed>
+     */
+    private function atiCargoPayloadForWizard(mixed $payload): array
+    {
+        if (! is_array($payload) || $payload === [] || array_is_list($payload)) {
+            return [];
         }
 
-        if (preg_match('/^Плечо\s+(\d+)$/u', $value, $matches) === 1) {
-            return 'leg_'.$matches[1];
+        return $payload;
+    }
+
+    /**
+     * @return list<array{stage: string, carrier_slot: int|null, package_count: float|null, weight_value: float|null}>
+     */
+    private function performerAllocationsFromCargoPayload(mixed $payload): array
+    {
+        $normalizedPayload = $this->atiCargoPayloadForWizard($payload);
+        $raw = $normalizedPayload['performer_allocations'] ?? null;
+
+        if (! is_array($raw)) {
+            return [];
         }
 
-        return $value;
+        return CargoPerformerAllocationNormalizer::normalizeForStorage($raw);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $cargoItems
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array<string, mixed>>
+     */
+    private function hydrateCargoItemsForWizard(array $cargoItems, array $performers): array
+    {
+        $performerRows = array_values(array_filter($performers, static fn (mixed $row): bool => is_array($row)));
+
+        return collect($cargoItems)
+            ->map(fn (array $cargo): array => OrderCargoItemsPayloadNormalizer::normalizeCargoItem($cargo, $performerRows))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $cargoItems
+     * @return list<array<string, mixed>>
+     */
+    private function mergeCargoItemsWithWizardState(array $cargoItems, mixed $wizardCargoItems): array
+    {
+        if (! is_array($wizardCargoItems) || $wizardCargoItems === []) {
+            return $cargoItems;
+        }
+
+        $wizardByName = collect($wizardCargoItems)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->keyBy(fn (array $row): string => mb_strtolower(trim((string) ($row['name'] ?? ''))));
+
+        return collect($cargoItems)
+            ->map(function (array $cargo) use ($wizardByName): array {
+                $dbAllocations = is_array($cargo['performer_allocations'] ?? null)
+                    ? $cargo['performer_allocations']
+                    : [];
+                if ($dbAllocations !== []) {
+                    $cargo['performer_allocations'] = CargoPerformerAllocationNormalizer::normalizeForStorage($dbAllocations);
+                    $atiPayload = is_array($cargo['ati_cargo_payload'] ?? null) ? $cargo['ati_cargo_payload'] : [];
+                    $atiPayload['performer_allocations'] = $cargo['performer_allocations'];
+                    $cargo['ati_cargo_payload'] = $atiPayload;
+
+                    return $cargo;
+                }
+
+                $key = mb_strtolower(trim((string) ($cargo['name'] ?? '')));
+                $wizardRow = $wizardByName->get($key);
+                if (! is_array($wizardRow)) {
+                    return $cargo;
+                }
+
+                $wizardAllocations = is_array($wizardRow['performer_allocations'] ?? null)
+                    ? CargoPerformerAllocationNormalizer::normalizeForStorage($wizardRow['performer_allocations'])
+                    : [];
+                if ($wizardAllocations === []) {
+                    return $cargo;
+                }
+
+                $cargo['performer_allocations'] = $wizardAllocations;
+                $atiPayload = is_array($cargo['ati_cargo_payload'] ?? null) ? $cargo['ati_cargo_payload'] : [];
+                $atiPayload['performer_allocations'] = $wizardAllocations;
+                $cargo['ati_cargo_payload'] = $atiPayload;
+
+                return $cargo;
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -1372,7 +1507,7 @@ class OrderWizardController extends Controller
                     }
 
                     return [
-                        'stage' => $leg->description,
+                        'stage' => $normalized,
                         'carrier_mode' => $carrierMode,
                         'contractor_id' => $carrierMode === 'split' ? null : ($contractorId !== null ? (int) $contractorId : null),
                         'contractor_name' => isset($metadataPerformer['contractor_name']) ? (string) $metadataPerformer['contractor_name'] : null,
@@ -1401,7 +1536,7 @@ class OrderWizardController extends Controller
                     $saved = $savedPerformersByStage->get($this->normalizeStageIdentifierForWizard($stage));
 
                     return [
-                        'stage' => $stage,
+                        'stage' => $this->normalizeStageIdentifierForWizard($stage),
                         'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
                         'fleet_vehicle_id' => isset($saved['fleet_vehicle_id']) && $saved['fleet_vehicle_id'] !== null ? (int) $saved['fleet_vehicle_id'] : null,
                         'fleet_driver_id' => isset($saved['fleet_driver_id']) && $saved['fleet_driver_id'] !== null ? (int) $saved['fleet_driver_id'] : null,
@@ -2202,12 +2337,17 @@ class OrderWizardController extends Controller
             return;
         }
 
-        $financialTerm = FinancialTerm::query()->where('order_id', $order->id)->first();
+        $orderId = (int) $order->getKey();
+        if ($orderId <= 0) {
+            return;
+        }
+
+        $financialTerm = FinancialTerm::query()->where('order_id', $orderId)->first();
 
         if ($financialTerm === null) {
             $serializedPerformers = $this->serializePerformersPayload($order, null);
             $attributes = [
-                'order_id' => $order->id,
+                'order_id' => $orderId,
                 'client_price' => $order->customer_rate,
                 'client_currency' => 'RUB',
                 'contractors_costs' => $this->normalizeContractorsCosts($order, null, $serializedPerformers),
@@ -2220,7 +2360,9 @@ class OrderWizardController extends Controller
                 $attributes['client_payment_terms'] = $order->customer_payment_term;
             }
 
-            $financialTerm = FinancialTerm::query()->create($attributes);
+            $financialTerm = $order->financialTerms()->create(
+                collect($attributes)->except('order_id')->all(),
+            );
         }
 
         if ($order->customer_rate !== null) {

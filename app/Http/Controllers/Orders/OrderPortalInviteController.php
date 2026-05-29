@@ -22,9 +22,14 @@ class OrderPortalInviteController extends Controller
         abort_unless($this->canManageOrder($request, $order), 403);
 
         $contractorId = $request->integer('contractor_id');
-        if (! $this->contractorAssignedOnOrder($order, $contractorId, $request->string('stage')->toString(), $request->carrierSlot())) {
+        if (! $this->inviteService->isContractorAssignedOnOrder(
+            $order,
+            $contractorId,
+            $request->string('stage')->toString(),
+            $request->carrierSlot(),
+        )) {
             return response()->json([
-                'message' => 'Перевозчик не назначен на выбранное плечо.',
+                'message' => 'Перевозчик не назначен на выбранное плечо. Сохраните заказ с выбранным перевозчиком.',
             ], 422);
         }
 
@@ -46,43 +51,5 @@ class OrderPortalInviteController extends Controller
     private function canManageOrder(Request $request, Order $order): bool
     {
         return app(OrderWizardController::class)->canEditOrder($request, $order);
-    }
-
-    private function contractorAssignedOnOrder(Order $order, int $contractorId, string $stage, int $carrierSlot): bool
-    {
-        $stage = $this->inviteService->normalizeStageIdentifier($stage);
-        $performers = is_array($order->performers) ? $order->performers : [];
-
-        foreach ($performers as $performer) {
-            if (! is_array($performer)) {
-                continue;
-            }
-
-            $performerStage = $this->inviteService->normalizeStageIdentifier((string) ($performer['stage'] ?? ''));
-            if ($performerStage !== $stage) {
-                continue;
-            }
-
-            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
-                foreach ($performer['split_carriers'] as $slot) {
-                    if (! is_array($slot)) {
-                        continue;
-                    }
-
-                    $slotNumber = (int) ($slot['slot'] ?? 1);
-                    if ($slotNumber === $carrierSlot && (int) ($slot['contractor_id'] ?? 0) === $contractorId) {
-                        return true;
-                    }
-                }
-
-                continue;
-            }
-
-            if ((int) ($performer['contractor_id'] ?? 0) === $contractorId) {
-                return true;
-            }
-        }
-
-        return (int) $order->carrier_id === $contractorId && $stage === 'leg_1' && $carrierSlot === 1;
     }
 }

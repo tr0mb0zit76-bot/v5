@@ -189,7 +189,7 @@ class StoreContractorRequest extends FormRequest
     protected function baseRules(): array
     {
         return [
-            'type' => ['required', Rule::in(['customer', 'carrier', 'both'])],
+            'type' => ['required', Rule::in(['customer', 'carrier', 'contractor', 'both'])],
             'name' => ['required', 'string', 'max:255', Rule::unique('contractors', 'name')],
             'full_name' => ['nullable', 'string', 'max:255'],
             'short_description' => ['nullable', 'string', 'max:1000'],

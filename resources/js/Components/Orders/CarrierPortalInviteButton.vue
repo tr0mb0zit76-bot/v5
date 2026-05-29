@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { toStageKey } from '@/support/orderStageKey.js';
 
 const props = defineProps({
     orderId: { type: Number, required: true },
@@ -17,6 +18,14 @@ const expiresAt = ref('');
 const copied = ref(false);
 
 const canInvite = computed(() => !props.disabled && props.orderId > 0 && Number(props.contractorId) > 0);
+
+function formatErrorMessage(data) {
+    if (data?.errors && typeof data.errors === 'object') {
+        return Object.values(data.errors).flat().join(' ');
+    }
+
+    return data?.message ?? 'Не удалось создать ссылку.';
+}
 
 async function createInvite() {
     if (!canInvite.value || loading.value) {
@@ -38,15 +47,15 @@ async function createInvite() {
             },
             body: JSON.stringify({
                 contractor_id: Number(props.contractorId),
-                stage: props.stage,
-                carrier_slot: props.carrierSlot,
+                stage: toStageKey(props.stage),
+                carrier_slot: Number(props.carrierSlot) > 0 ? Number(props.carrierSlot) : 1,
             }),
         });
 
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-            error.value = data.message ?? 'Не удалось создать ссылку.';
+            error.value = formatErrorMessage(data);
             return;
         }
 

@@ -202,7 +202,7 @@ class Contractor extends Model
      * Scope a query to apply visibility rules based on user role.
      *
      * @param  Builder  $query
-     * @param  string|null  $typeFilter  Optional type filter ('customer', 'carrier', 'both')
+     * @param  string|null  $typeFilter  Optional type filter ('customer', 'carrier', 'contractor', 'both')
      * @param  list<int>  $alwaysIncludeIds  IDs that must remain visible (например, уже выбранные в заказе)
      * @return Builder
      */
@@ -218,7 +218,7 @@ class Contractor extends Model
         )));
 
         if ($user->isAdmin() || RoleAccess::userHasPermission($user, 'view_all_contractors')) {
-            if (in_array($typeFilter, ['customer', 'carrier', 'both'], true)) {
+            if (in_array($typeFilter, ['customer', 'carrier', 'contractor', 'both'], true)) {
                 $query->where('type', $typeFilter);
             }
 
@@ -228,7 +228,7 @@ class Contractor extends Model
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'contractors');
 
         if ($scope === 'all') {
-            if (in_array($typeFilter, ['customer', 'carrier', 'both'], true)) {
+            if (in_array($typeFilter, ['customer', 'carrier', 'contractor', 'both'], true)) {
                 $query->where('type', $typeFilter);
             }
 
@@ -252,6 +252,12 @@ class Contractor extends Model
 
                 if ($typeFilter === 'carrier') {
                     $visibility->whereIn('type', ['carrier', 'both']);
+
+                    return;
+                }
+
+                if ($typeFilter === 'contractor') {
+                    $visibility->where('type', 'contractor');
 
                     return;
                 }
