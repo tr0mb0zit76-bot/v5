@@ -363,7 +363,7 @@ async function uploadFile(file, { asImage = false } = {}) {
     }
 }
 
-function collectImageFilesFromClipboard(event) {
+function collectFilesFromClipboard(event) {
     const clipboardData = event.clipboardData;
 
     if (!clipboardData) {
@@ -371,27 +371,29 @@ function collectImageFilesFromClipboard(event) {
     }
 
     const files = [];
+    const seen = new Set();
 
-    Array.from(clipboardData.files ?? []).forEach((file) => {
-        if (file.type.startsWith('image/')) {
-            files.push(file);
+    const addFile = (file) => {
+        if (!file || seen.has(file)) {
+            return;
         }
-    });
+
+        seen.add(file);
+        files.push(file);
+    };
+
+    Array.from(clipboardData.files ?? []).forEach(addFile);
 
     if (files.length > 0) {
         return files;
     }
 
     Array.from(clipboardData.items ?? []).forEach((item) => {
-        if (!item.type.startsWith('image/')) {
+        if (item.kind !== 'file') {
             return;
         }
 
-        const file = item.getAsFile();
-
-        if (file) {
-            files.push(file);
-        }
+        addFile(item.getAsFile());
     });
 
     return files;
@@ -402,16 +404,16 @@ function handleClipboardPaste(event) {
         return false;
     }
 
-    const imageFiles = collectImageFilesFromClipboard(event);
+    const files = collectFilesFromClipboard(event);
 
-    if (imageFiles.length === 0) {
+    if (files.length === 0) {
         return false;
     }
 
     event.preventDefault();
 
-    imageFiles.forEach((file) => {
-        uploadFile(file, { asImage: true });
+    files.forEach((file) => {
+        uploadFile(file, { asImage: file.type.startsWith('image/') });
     });
 
     return true;

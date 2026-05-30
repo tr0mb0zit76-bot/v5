@@ -116,7 +116,7 @@
                         :upload-url="route('sales-assistant.book.assets.upload')"
                         @update:model-value="onEditorUpdate"
                         :editable="canWrite"
-                        placeholder="Начните писать... Можно вставлять скриншоты через Ctrl+V, ссылки, файлы и чек-листы."
+                        placeholder="Начните писать... Можно вставлять файлы и скриншоты через Ctrl+V из Проводника, ссылки, файлы и чек-листы."
                     />
 
                     <div v-if="canWrite" class="flex flex-wrap gap-2">

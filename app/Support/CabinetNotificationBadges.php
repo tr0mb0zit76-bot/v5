@@ -25,7 +25,8 @@ final class CabinetNotificationBadges
             'orders' => $user->unreadNotifications()
                 ->where(function ($query): void {
                     $query->where('data->kind', 'order_document_approval')
-                        ->orWhere('data->kind', 'order_document_approved');
+                        ->orWhere('data->kind', 'order_document_approved')
+                        ->orWhere('data->kind', 'order_closing_documents_required');
                 })
                 ->count(),
             'tasks' => $user->unreadNotifications()

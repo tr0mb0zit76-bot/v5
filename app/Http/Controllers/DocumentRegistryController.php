@@ -23,6 +23,7 @@ class DocumentRegistryController extends Controller
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
         private readonly DocumentStorageService $documentStorage,
+        private readonly OrderClosingDocumentsNotificationService $closingDocumentsNotificationService,
     ) {}
 
     public function index(Request $request): Response
@@ -123,6 +124,7 @@ class DocumentRegistryController extends Controller
         OrderDocument::query()->create($attributes);
 
         $this->orderCompensationService->recalculateImpactedPeriods($order);
+        $this->closingDocumentsNotificationService->maybeNotify($order->fresh());
 
         $message = 'Документ добавлен в реестр и карточку заказа.';
 
@@ -193,6 +195,7 @@ class DocumentRegistryController extends Controller
 
         $document->fill($attrs)->save();
         $this->orderCompensationService->recalculateImpactedPeriods($order);
+        $this->closingDocumentsNotificationService->maybeNotify($order->fresh());
 
         $message = 'Документ обновлён.';
 

@@ -50,6 +50,7 @@ class OrderWizardService
         private readonly OrderWizardStateService $orderWizardStateService,
         private readonly DocumentStorageService $documentStorage,
         private readonly FleetTripService $fleetTripService,
+        private readonly OrderClosingDocumentsNotificationService $closingDocumentsNotificationService,
     ) {}
 
     /**
@@ -108,7 +109,10 @@ class OrderWizardService
 
             $this->orderWizardStateService->persistFromValidated($updatedOrder->fresh(), $validated);
 
-            return $updatedOrder->fresh()->load($this->relationsForOrderReload());
+            $freshOrder = $updatedOrder->fresh()->load($this->relationsForOrderReload());
+            $this->closingDocumentsNotificationService->maybeNotify($freshOrder);
+
+            return $freshOrder;
         });
     }
 
