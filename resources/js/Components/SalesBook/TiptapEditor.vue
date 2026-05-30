@@ -42,6 +42,7 @@ import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Underline from '@tiptap/extension-underline';
+import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { SalesBookOrderedList } from '@/Components/SalesBook/SalesBookOrderedList.js';
 
@@ -110,7 +111,18 @@ const editor = useEditor({
         TaskList,
         TaskItem.configure({ nested: true }),
         Underline,
-        Markdown,
+        TableKit.configure({
+            table: {
+                HTMLAttributes: {
+                    class: 'sales-book-table',
+                },
+            },
+        }),
+        Markdown.configure({
+            markedOptions: {
+                gfm: true,
+            },
+        }),
     ],
     editorProps: {
         attributes: {
@@ -189,6 +201,7 @@ const toolbarItems = computed(() => {
         { key: 'task', label: 'Todo', active: () => editor.value.isActive('taskList'), action: () => editor.value.chain().focus().toggleTaskList().run() },
         { key: 'quote', label: 'Quote', active: () => editor.value.isActive('blockquote'), action: () => editor.value.chain().focus().toggleBlockquote().run() },
         { key: 'code', label: '</>', active: () => editor.value.isActive('codeBlock'), action: () => editor.value.chain().focus().toggleCodeBlock().run() },
+        { key: 'table', label: 'Tbl', title: 'Вставить таблицу', active: () => editor.value.isActive('table'), action: () => editor.value.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
     ];
 });
 
@@ -604,6 +617,41 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 :deep(.dark .tiptap-body .sales-book-editor :not(pre) > code) {
     background: rgb(39 39 42);
     color: rgb(244 244 245);
+}
+
+:deep(.tiptap-body .sales-book-editor table) {
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+    table-layout: auto;
+    width: 100%;
+}
+
+:deep(.tiptap-body .sales-book-editor th),
+:deep(.tiptap-body .sales-book-editor td) {
+    border: 1px solid rgb(212 212 216);
+    min-width: 4rem;
+    padding: 0.375rem 0.625rem;
+    vertical-align: top;
+}
+
+:deep(.tiptap-body .sales-book-editor th) {
+    background: rgb(244 244 245);
+    font-weight: 600;
+    text-align: left;
+}
+
+:deep(.tiptap-body .sales-book-editor td p),
+:deep(.tiptap-body .sales-book-editor th p) {
+    margin: 0;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor th),
+:deep(.dark .tiptap-body .sales-book-editor td) {
+    border-color: rgb(63 63 70);
+}
+
+:deep(.dark .tiptap-body .sales-book-editor th) {
+    background: rgb(39 39 42);
 }
 
 :deep(.tiptap-body .sales-book-editor ul[data-type='taskList']) {

@@ -165,6 +165,40 @@ MD;
             ->assertSessionHasErrors('file');
     }
 
+    public function test_import_preserves_markdown_table(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $markdown = <<<'MD'
+# Таблица тарифов
+
+| Колонка A | Колонка B |
+| --- | --- |
+| 100 | 200 |
+| 300 | 400 |
+MD;
+
+        $file = UploadedFile::fake()->createWithContent('tariffs.md', $markdown);
+
+        $this->actingAs($user)->post(route('sales-assistant.book.import'), [
+            'file' => $file,
+        ])->assertRedirect();
+
+        $article = SalesBookArticle::query()->where('title', 'Таблица тарифов')->first();
+        $this->assertNotNull($article);
+        $this->assertStringContainsString('| Колонка A | Колонка B |', $article->markdown_content);
+        $this->assertStringContainsString('| 100 | 200 |', $article->markdown_content);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', ['article_id' => $article->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesAssistant/Book')
+                ->where('selectedArticle.markdown_content', fn (string $content): bool => str_contains($content, '| Колонка A | Колонка B |')
+                    && str_contains($content, '| 100 | 200 |'))
+            );
+    }
+
     public function test_uploaded_sales_book_asset_is_private_and_requires_access(): void
     {
         Storage::fake('local');
@@ -373,12 +407,14 @@ MD;
 
     /**
      * @param  list<string>  $areas
+     * @param  list<string>  $permissions
      */
-    private function createUserWithAreas(array $areas): User
+    private function createUserWithAreas(array $areas, array $permissions = ['sales_book_write']): User
     {
         $roleId = DB::table('roles')->insertGetId([
             'name' => 'sales_book_role_'.uniqid(),
             'display_name' => 'Sales book role',
+            'permissions' => json_encode($permissions, JSON_THROW_ON_ERROR),
             'visibility_areas' => json_encode($areas, JSON_THROW_ON_ERROR),
             'created_at' => now(),
             'updated_at' => now(),
