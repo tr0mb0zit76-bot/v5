@@ -167,6 +167,10 @@ onBeforeUnmount(() => {
     editor.value?.destroy();
 });
 
+defineExpose({
+    getMarkdown: () => editor.value?.getMarkdown() ?? '',
+});
+
 const toolbarItems = computed(() => {
     if (!editor.value || !props.editable) {
         return [];
@@ -563,16 +567,43 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 
 :deep(.tiptap-body .sales-book-editor pre) {
     background: rgb(244 244 245);
+    border: 1px solid rgb(228 228 231);
     border-radius: 0.5rem;
+    color: rgb(24 24 27);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     font-size: 0.875rem;
+    line-height: 1.5;
     margin: 0.75rem 0;
     overflow-x: auto;
     padding: 0.75rem 1rem;
 }
 
+:deep(.tiptap-body .sales-book-editor pre code) {
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    padding: 0;
+    white-space: pre-wrap;
+}
+
+:deep(.tiptap-body .sales-book-editor :not(pre) > code) {
+    background: rgb(244 244 245);
+    border-radius: 0.25rem;
+    color: rgb(24 24 27);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.875em;
+    padding: 0.125rem 0.375rem;
+}
+
 :deep(.dark .tiptap-body .sales-book-editor pre) {
     background: rgb(39 39 42);
+    border-color: rgb(63 63 70);
+    color: rgb(244 244 245);
+}
+
+:deep(.dark .tiptap-body .sales-book-editor :not(pre) > code) {
+    background: rgb(39 39 42);
+    color: rgb(244 244 245);
 }
 
 :deep(.tiptap-body .sales-book-editor ul[data-type='taskList']) {

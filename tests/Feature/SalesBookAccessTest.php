@@ -99,6 +99,47 @@ class SalesBookAccessTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_reader_sees_updated_markdown_after_writer_saves(): void
+    {
+        $writerRole = Role::query()->create([
+            'name' => 'writer_manager',
+            'display_name' => 'Writer manager',
+            'permissions' => ['sales_book_write'],
+            'visibility_areas' => ['scripts', 'sales_assistant_book'],
+        ]);
+
+        $readerRole = Role::query()->create([
+            'name' => 'reader_manager',
+            'display_name' => 'Reader manager',
+            'permissions' => ['sales_book_read'],
+            'visibility_areas' => ['scripts', 'sales_assistant_book'],
+        ]);
+
+        $writer = User::factory()->create(['role_id' => $writerRole->id]);
+        $reader = User::factory()->create(['role_id' => $readerRole->id]);
+
+        $article = SalesBookArticle::query()->create([
+            'title' => 'Страница',
+            'markdown_content' => "```\nстарый код\n```",
+            'sort_order' => 0,
+            'created_by' => $writer->id,
+        ]);
+
+        $this->actingAs($writer)
+            ->patch(route('sales-assistant.book.articles.update', $article), [
+                'title' => 'Страница',
+                'markdown_content' => 'Обычный текст без блока кода',
+            ])
+            ->assertRedirect(route('sales-assistant.book', ['article_id' => $article->id]));
+
+        $this->actingAs($reader)
+            ->get(route('sales-assistant.book', ['article_id' => $article->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('selectedArticle.markdown_content', 'Обычный текст без блока кода')
+            );
+    }
+
     public function test_book_page_is_forbidden_without_book_visibility_area(): void
     {
         $role = Role::query()->create([

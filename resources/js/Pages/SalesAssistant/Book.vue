@@ -115,6 +115,7 @@
                     </div>
 
                     <TiptapEditor
+                        ref="editEditorRef"
                         :key="selectedArticle.id"
                         class="min-h-0 flex-1"
                         :model-value="editForm.markdown_content"
@@ -162,7 +163,7 @@
                     </div>
 
                     <TiptapEditor
-                        :key="`readonly-${selectedArticle.id}`"
+                        :key="readonlyEditorKey"
                         class="min-h-0 flex-1"
                         :model-value="selectedArticle.markdown_content"
                         :upload-url="route('sales-assistant.book.assets.upload')"
@@ -243,6 +244,15 @@ const editForm = useForm({
 
 const contentDirty = ref(false);
 const copyLinkFeedback = ref(false);
+const editEditorRef = ref(null);
+
+const readonlyEditorKey = computed(() => {
+    if (!props.selectedArticle) {
+        return 'readonly-empty';
+    }
+
+    return `readonly-${props.selectedArticle.id}-${props.selectedArticle.updated_at ?? 'none'}`;
+});
 
 const flatArticles = computed(() => flattenTree(props.articlesTree));
 const indentedArticleOptions = computed(() => flatArticles.value.map((entry) => ({
@@ -411,16 +421,13 @@ function saveArticle() {
         return;
     }
 
-    const payload = {
+    const markdownContent = editEditorRef.value?.getMarkdown?.() ?? editForm.markdown_content;
+
+    router.patch(route('sales-assistant.book.articles.update', props.selectedArticle.id), {
         title: editForm.title,
         parent_id: normalizeParentId(editForm.parent_id),
-    };
-
-    if (contentDirty.value) {
-        payload.markdown_content = editForm.markdown_content;
-    }
-
-    router.patch(route('sales-assistant.book.articles.update', props.selectedArticle.id), payload, {
+        markdown_content: markdownContent,
+    }, {
         preserveScroll: true,
         onSuccess: () => {
             contentDirty.value = false;
