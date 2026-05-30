@@ -15,6 +15,7 @@ use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Services\SalesBookArticleTreeService;
+use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
@@ -58,7 +59,7 @@ class SalesAssistantController extends Controller
         );
     }
 
-    public function book(Request $request, SalesBookArticleTreeService $treeService): Response
+    public function book(Request $request, SalesBookArticleTreeService $treeService, SalesBookParentChildLinksService $childLinksService): Response
     {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
 
@@ -73,6 +74,11 @@ class SalesAssistantController extends Controller
 
         if ($selectedArticle === null) {
             $selectedArticle = $articles->first();
+        }
+
+        if ($selectedArticle !== null) {
+            $childLinksService->ensureChildLinksSynced($selectedArticle);
+            $selectedArticle->refresh();
         }
 
         return Inertia::render('SalesAssistant/Book', [
@@ -100,8 +106,11 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function storeBookArticle(StoreSalesBookArticleRequest $request, SalesBookArticleTreeService $treeService): RedirectResponse
-    {
+    public function storeBookArticle(
+        StoreSalesBookArticleRequest $request,
+        SalesBookArticleTreeService $treeService,
+        SalesBookParentChildLinksService $childLinksService,
+    ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
@@ -116,6 +125,8 @@ class SalesAssistantController extends Controller
             'updated_by' => $request->user()?->id,
         ]);
 
+        $childLinksService->syncParentById($parentId, $request->user()?->id);
+
         return to_route('sales-assistant.book', ['article_id' => $article->id])->with('flash', [
             'type' => 'success',
             'message' => 'Статья добавлена.',
@@ -126,11 +137,14 @@ class SalesAssistantController extends Controller
         UpdateSalesBookArticleRequest $request,
         SalesBookArticle $salesBookArticle,
         SalesBookArticleTreeService $treeService,
+        SalesBookParentChildLinksService $childLinksService,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
         $parentId = $treeService->resolveParentId($data);
+        $oldParentId = $salesBookArticle->parent_id;
+        $oldTitle = $salesBookArticle->title;
 
         if ($treeService->isCircularParent($salesBookArticle, $parentId)) {
             return back()->withErrors([
@@ -138,7 +152,7 @@ class SalesAssistantController extends Controller
             ]);
         }
 
-        $parentChanged = $salesBookArticle->parent_id !== $parentId;
+        $parentChanged = (int) ($salesBookArticle->parent_id ?? 0) !== (int) ($parentId ?? 0);
         $sortOrder = $parentChanged
             ? $this->resolveSortOrder($parentId, $data['sort_order'] ?? null)
             : ($data['sort_order'] ?? $salesBookArticle->sort_order);
@@ -151,13 +165,20 @@ class SalesAssistantController extends Controller
         ];
 
         if (array_key_exists('markdown_content', $data)) {
-            $payload['markdown_content'] = $this->resolveMarkdownPayload($data);
+            $payload['markdown_content'] = $childLinksService->mergeChildLinksIntoContent(
+                $this->resolveMarkdownPayload($data),
+                $salesBookArticle->id,
+            );
         }
 
         $salesBookArticle->update($payload);
 
         if ($parentChanged) {
             $treeService->reindexSiblings($parentId);
+            $childLinksService->syncParentById($oldParentId, $request->user()?->id);
+            $childLinksService->syncParentById($parentId, $request->user()?->id);
+        } elseif ($parentId !== null && $data['title'] !== $oldTitle) {
+            $childLinksService->syncParentById($parentId, $request->user()?->id);
         }
 
         return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
@@ -170,11 +191,13 @@ class SalesAssistantController extends Controller
         MoveSalesBookArticleRequest $request,
         SalesBookArticle $salesBookArticle,
         SalesBookArticleTreeService $treeService,
+        SalesBookParentChildLinksService $childLinksService,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
         $parentId = $treeService->resolveParentId($data);
+        $oldParentId = $salesBookArticle->parent_id;
 
         $treeService->moveArticle(
             $salesBookArticle,
@@ -183,17 +206,27 @@ class SalesAssistantController extends Controller
             $request->user()?->id,
         );
 
+        $childLinksService->syncParentById($oldParentId, $request->user()?->id);
+        $childLinksService->syncParentById($parentId, $request->user()?->id);
+
         return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
             'type' => 'success',
             'message' => 'Структура страниц обновлена.',
         ]);
     }
 
-    public function destroyBookArticle(Request $request, SalesBookArticle $salesBookArticle): RedirectResponse
-    {
+    public function destroyBookArticle(
+        Request $request,
+        SalesBookArticle $salesBookArticle,
+        SalesBookParentChildLinksService $childLinksService,
+    ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
+        $parentId = $salesBookArticle->parent_id;
+
         $salesBookArticle->delete();
+
+        $childLinksService->syncParentById($parentId, $request->user()?->id);
 
         return to_route('sales-assistant.book')->with('flash', [
             'type' => 'success',
@@ -201,8 +234,11 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function importBookArticle(ImportSalesBookArticleRequest $request, SalesBookArticleTreeService $treeService): RedirectResponse
-    {
+    public function importBookArticle(
+        ImportSalesBookArticleRequest $request,
+        SalesBookArticleTreeService $treeService,
+        SalesBookParentChildLinksService $childLinksService,
+    ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
@@ -220,6 +256,8 @@ class SalesAssistantController extends Controller
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ]);
+
+        $childLinksService->syncParentById($parentId, $request->user()?->id);
 
         return to_route('sales-assistant.book', ['article_id' => $article->id])->with('flash', [
             'type' => 'success',

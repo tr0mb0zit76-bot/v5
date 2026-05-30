@@ -79,13 +79,23 @@
 
             <template v-if="selectedArticle">
                 <form class="space-y-3" @submit.prevent="saveArticle">
-                    <input
-                        v-model="editForm.title"
-                        type="text"
-                        required
-                        placeholder="Заголовок страницы"
-                        class="w-full border-0 border-b border-zinc-200 bg-transparent px-0 py-2 text-3xl font-semibold text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-0 dark:border-zinc-700 dark:text-zinc-100"
-                    />
+                    <div class="flex items-start gap-2">
+                        <input
+                            v-model="editForm.title"
+                            type="text"
+                            required
+                            placeholder="Заголовок страницы"
+                            class="min-w-0 flex-1 border-0 border-b border-zinc-200 bg-transparent px-0 py-2 text-3xl font-semibold text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-0 dark:border-zinc-700 dark:text-zinc-100"
+                        />
+                        <button
+                            type="button"
+                            :class="`${crmBtnNeutral} shrink-0 px-3 py-2 text-xs`"
+                            :title="copyLinkFeedback ? 'Скопировано' : 'Копировать ссылку на страницу'"
+                            @click="copyArticleLink"
+                        >
+                            {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
+                        </button>
+                    </div>
 
                     <div class="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                         <span>Родитель:</span>
@@ -194,6 +204,7 @@ const editForm = useForm({
 });
 
 const contentDirty = ref(false);
+const copyLinkFeedback = ref(false);
 
 const flatArticles = computed(() => flattenTree(props.articlesTree));
 const indentedArticleOptions = computed(() => flatArticles.value.map((entry) => ({
@@ -312,6 +323,24 @@ function formatDate(value) {
 
 function openArticle(articleId) {
     router.get(route('sales-assistant.book'), { article_id: articleId }, { preserveState: false, replace: true });
+}
+
+async function copyArticleLink() {
+    if (!props.selectedArticle) {
+        return;
+    }
+
+    const url = route('sales-assistant.book', { article_id: props.selectedArticle.id });
+
+    try {
+        await navigator.clipboard.writeText(url);
+        copyLinkFeedback.value = true;
+        window.setTimeout(() => {
+            copyLinkFeedback.value = false;
+        }, 2000);
+    } catch {
+        window.prompt('Скопируйте ссылку', url);
+    }
 }
 
 function createArticle() {

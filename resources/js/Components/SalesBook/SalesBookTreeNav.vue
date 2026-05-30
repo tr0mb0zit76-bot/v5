@@ -63,9 +63,9 @@ const dropHint = ref(null);
 const rootDropActive = ref(false);
 
 watch(
-    () => props.tree,
-    (tree) => {
-        expandedIds.value = new Set(collectExpandableIds(tree));
+    () => [props.selectedId, props.tree, props.articleOptions],
+    () => {
+        expandedIds.value = new Set(collectDefaultExpandedIds(props.tree, props.selectedId, props.articleOptions));
     },
     { immediate: true, deep: true },
 );
@@ -78,16 +78,43 @@ const invalidTargetIds = computed(() => {
     return new Set([draggingId.value, ...collectDescendantIds(draggingId.value, props.articleOptions)]);
 });
 
-function collectExpandableIds(nodes) {
-    return nodes.flatMap((node) => {
-        const children = node.children ?? [];
+function collectAncestorIds(articleId, options) {
+    if (!articleId) {
+        return [];
+    }
 
-        if (children.length === 0) {
-            return [];
+    const parentById = new Map(
+        options.map((option) => [
+            Number(option.id),
+            option.parent_id === null || option.parent_id === undefined
+                ? null
+                : Number(option.parent_id),
+        ]),
+    );
+
+    const ancestors = [];
+    let current = parentById.get(Number(articleId));
+
+    while (current !== null && current !== undefined) {
+        ancestors.push(current);
+        current = parentById.get(current) ?? null;
+    }
+
+    return ancestors;
+}
+
+function collectDefaultExpandedIds(tree, selectedId, options) {
+    const expanded = new Set();
+
+    tree.forEach((node) => {
+        if ((node.children ?? []).length > 0) {
+            expanded.add(node.id);
         }
-
-        return [node.id, ...collectExpandableIds(children)];
     });
+
+    collectAncestorIds(selectedId, options).forEach((id) => expanded.add(id));
+
+    return expanded;
 }
 
 function collectDescendantIds(articleId, options) {

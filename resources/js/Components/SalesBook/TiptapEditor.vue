@@ -18,6 +18,7 @@
 
 <script setup>
 import axios from 'axios';
+import { router } from '@inertiajs/vue3';
 import { crmSegmentedBtn, crmSegmentedBtnActive } from '@/support/crmUi.js';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
@@ -107,6 +108,7 @@ const editor = useEditor({
             class: 'sales-book-editor focus:outline-none',
         },
         handlePaste: (_view, event) => handleClipboardPaste(event),
+        handleClick: (_view, _pos, event) => handleEditorClick(event),
     },
     onUpdate: ({ editor: instance }) => {
         if (isApplyingExternalContent.value) {
@@ -254,6 +256,41 @@ function buttonClass(active) {
     return active
         ? `${crmSegmentedBtnActive} px-2 py-1 text-xs`
         : `${crmSegmentedBtn} px-2 py-1 text-xs`;
+}
+
+function extractBookArticleId(href) {
+    if (!href) {
+        return null;
+    }
+
+    const match = href.match(/article_id=(\d+)/);
+
+    return match ? Number(match[1]) : null;
+}
+
+function handleEditorClick(event) {
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    const anchor = target.closest('a[href]');
+
+    if (!anchor) {
+        return false;
+    }
+
+    const articleId = extractBookArticleId(anchor.getAttribute('href'));
+
+    if (!articleId) {
+        return false;
+    }
+
+    event.preventDefault();
+    router.get(route('sales-assistant.book'), { article_id: articleId }, { preserveState: false });
+
+    return true;
 }
 
 function setLink() {

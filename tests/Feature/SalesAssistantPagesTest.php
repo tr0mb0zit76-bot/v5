@@ -287,6 +287,34 @@ MD;
             );
     }
 
+    public function test_creating_child_updates_parent_markdown_with_link(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $parent = SalesBookArticle::query()->create([
+            'title' => 'Parent page',
+            'markdown_content' => 'Краткое введение.',
+            'parent_id' => null,
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($user)->post(route('sales-assistant.book.articles.store'), [
+            'title' => 'Child page',
+            'markdown_content' => '',
+            'parent_id' => $parent->id,
+        ])->assertRedirect();
+
+        $child = SalesBookArticle::query()->where('title', 'Child page')->first();
+        $this->assertNotNull($child);
+
+        $parent->refresh();
+
+        $this->assertStringContainsString(
+            sprintf('- [Child page](/sales-assistant/book?article_id=%d)', $child->id),
+            $parent->markdown_content,
+        );
+    }
+
     public function test_update_parent_without_markdown_preserves_content(): void
     {
         $user = $this->createUserWithAreas(['dashboard', 'scripts']);

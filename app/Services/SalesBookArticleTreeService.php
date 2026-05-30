@@ -15,7 +15,7 @@ class SalesBookArticleTreeService
     public function buildTree(Collection $articles, ?int $parentId = null): Collection
     {
         return $articles
-            ->filter(fn (SalesBookArticle $article): bool => $article->parent_id === $parentId)
+            ->filter(fn (SalesBookArticle $article): bool => $this->parentMatches($article->parent_id, $parentId))
             ->sortBy([
                 ['sort_order', 'asc'],
                 ['id', 'asc'],
@@ -126,6 +126,39 @@ class SalesBookArticleTreeService
                 'sort_order' => $index,
             ]);
         }
+    }
+
+    public function parentMatches(mixed $articleParentId, ?int $expectedParentId): bool
+    {
+        if ($expectedParentId === null) {
+            return $articleParentId === null || $articleParentId === '' || (int) $articleParentId === 0;
+        }
+
+        if ($articleParentId === null || $articleParentId === '') {
+            return false;
+        }
+
+        return (int) $articleParentId === $expectedParentId;
+    }
+
+    /**
+     * @param  Collection<int, SalesBookArticle>  $articles
+     * @return list<array{id: int, title: string}>
+     */
+    public function directChildren(Collection $articles, int $parentId): array
+    {
+        return $articles
+            ->filter(fn (SalesBookArticle $article): bool => $this->parentMatches($article->parent_id, $parentId))
+            ->sortBy([
+                ['sort_order', 'asc'],
+                ['id', 'asc'],
+            ])
+            ->values()
+            ->map(fn (SalesBookArticle $article): array => [
+                'id' => $article->id,
+                'title' => $article->title,
+            ])
+            ->all();
     }
 
     /**

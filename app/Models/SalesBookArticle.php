@@ -18,6 +18,17 @@ class SalesBookArticle extends Model
     ];
 
     /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'parent_id' => 'integer',
+            'sort_order' => 'integer',
+        ];
+    }
+
+    /**
      * @return BelongsTo<SalesBookArticle, $this>
      */
     public function parent(): BelongsTo

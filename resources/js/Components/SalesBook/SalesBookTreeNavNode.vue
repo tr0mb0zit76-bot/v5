@@ -1,5 +1,5 @@
 <template>
-    <ul class="space-y-0.5">
+    <ul class="space-y-0.5" :class="depth > 0 ? 'ml-3 border-l border-zinc-200 pl-2 dark:border-zinc-700' : ''">
         <li v-for="node in nodes" :key="node.id">
             <div
                 class="group flex items-center gap-1 rounded-lg transition"
@@ -35,7 +35,6 @@
                 <button
                     type="button"
                     class="min-w-0 flex-1 truncate py-1.5 text-left text-sm"
-                    :style="{ paddingLeft: `${depth * 12}px` }"
                     @click="emit('select', node.id)"
                 >
                     {{ node.title }}
