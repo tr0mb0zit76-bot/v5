@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PublicSlaDocumentController extends Controller
 {
-    public function show(string $document): Response
+    public function show(string $document): BinaryFileResponse
     {
         /** @var array<string, array{panel?: string, label?: string, public_path?: string}> $catalog */
         $catalog = config('showcase.sla_documents', []);
