@@ -4,6 +4,7 @@
         v-bind="$attrs"
     >
         <div
+            v-if="editable"
             class="z-10 flex shrink-0 flex-wrap gap-1 border-b border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950"
             role="toolbar"
             aria-label="Форматирование текста"
@@ -16,7 +17,10 @@
             <button type="button" :class="buttonClass(false)" @click="triggerFileUpload">Файл</button>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div
+            class="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            :class="editable ? '' : 'cursor-default'"
+        >
             <EditorContent :editor="editor" class="tiptap-body px-4 py-3" />
         </div>
 
@@ -87,6 +91,7 @@ function setEditorContent(value) {
 const editor = useEditor({
     content: props.modelValue || '',
     contentType: 'markdown',
+    editable: props.editable,
     extensions: [
         StarterKit.configure({
             heading: { levels: [1, 2, 3] },
@@ -148,6 +153,13 @@ watch(
 
         editor.value.setEditable(value);
     },
+);
+
+watch(
+    editor,
+    (instance) => {
+        instance?.setEditable(props.editable);
+    },
     { immediate: true },
 );
 
@@ -156,7 +168,7 @@ onBeforeUnmount(() => {
 });
 
 const toolbarItems = computed(() => {
-    if (!editor.value) {
+    if (!editor.value || !props.editable) {
         return [];
     }
 
@@ -177,7 +189,7 @@ const toolbarItems = computed(() => {
 });
 
 function toggleListForSelection(listType) {
-    if (!editor.value) {
+    if (!editor.value || !props.editable) {
         return;
     }
 
@@ -201,7 +213,7 @@ function isOrderedListActive(type) {
 }
 
 function applyOrderedList(type) {
-    if (!editor.value) {
+    if (!editor.value || !props.editable) {
         return;
     }
 
@@ -355,7 +367,7 @@ function triggerFileUpload() {
 }
 
 async function uploadFile(file, { asImage = false } = {}) {
-    if (!file || !editor.value) {
+    if (!file || !editor.value || !props.editable) {
         return;
     }
 
@@ -462,6 +474,11 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 
 :deep(.tiptap-body .ProseMirror) {
     min-height: 8rem;
+}
+
+:deep(.tiptap-body .ProseMirror[contenteditable='false']) {
+    cursor: default;
+    user-select: text;
 }
 
 :deep(.tiptap-body .ProseMirror:focus) {

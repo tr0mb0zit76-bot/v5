@@ -81,7 +81,7 @@
             </p>
 
             <template v-if="selectedArticle">
-                <form class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
+                <form v-if="canWrite" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
                     <div class="flex shrink-0 items-start gap-2">
                         <input
                             v-model="editForm.title"
@@ -120,11 +120,11 @@
                         :model-value="editForm.markdown_content"
                         :upload-url="route('sales-assistant.book.assets.upload')"
                         @update:model-value="onEditorUpdate"
-                        :editable="canWrite"
+                        :editable="true"
                         placeholder="Начните писать... Можно вставлять файлы и скриншоты через Ctrl+V из Проводника, ссылки, файлы и чек-листы."
                     />
 
-                    <div v-if="canWrite" class="flex shrink-0 flex-wrap gap-2">
+                    <div class="flex shrink-0 flex-wrap gap-2">
                         <button
                             type="submit"
                             :disabled="editForm.processing"
@@ -141,12 +141,44 @@
                         </button>
                     </div>
                 </form>
+
+                <div v-else class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                    <div class="flex shrink-0 items-start gap-2">
+                        <h2 class="min-w-0 flex-1 border-0 border-b border-zinc-200 px-0 py-2 text-3xl font-semibold text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">
+                            {{ selectedArticle.title }}
+                        </h2>
+                        <button
+                            type="button"
+                            :class="`${crmBtnNeutral} shrink-0 px-3 py-2 text-xs`"
+                            :title="copyLinkFeedback ? 'Скопировано' : 'Копировать ссылку на страницу'"
+                            @click="copyArticleLink"
+                        >
+                            {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
+                        </button>
+                    </div>
+
+                    <div v-if="selectedArticle.updated_at" class="shrink-0 text-xs text-zinc-500">
+                        Обновлено: {{ formatDate(selectedArticle.updated_at) }}
+                    </div>
+
+                    <TiptapEditor
+                        :key="`readonly-${selectedArticle.id}`"
+                        class="min-h-0 flex-1"
+                        :model-value="selectedArticle.markdown_content"
+                        :upload-url="route('sales-assistant.book.assets.upload')"
+                        :editable="false"
+                        placeholder=""
+                    />
+                </div>
             </template>
 
             <div v-else class="flex h-[420px] flex-col items-center justify-center rounded-lg border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
                 <p class="text-base font-medium text-zinc-700 dark:text-zinc-200">Пустая книга</p>
-                <p class="mt-1 text-sm text-zinc-500">Создайте первую страницу и начните писать сразу.</p>
+                <p class="mt-1 text-sm text-zinc-500">
+                    {{ canWrite ? 'Создайте первую страницу и начните писать сразу.' : 'Страницы пока не добавлены.' }}
+                </p>
                 <button
+                    v-if="canWrite"
                     type="button"
                     :class="crmBtnPrimary"
                     class="mt-4"
