@@ -106,6 +106,7 @@ const editor = useEditor({
         attributes: {
             class: 'sales-book-editor focus:outline-none',
         },
+        handlePaste: (_view, event) => handleClipboardPaste(event),
     },
     onUpdate: ({ editor: instance }) => {
         if (isApplyingExternalContent.value) {
@@ -292,22 +293,23 @@ function triggerFileUpload() {
     fileInput.value?.click();
 }
 
-async function uploadAndInsert(event, shouldInsertAsImage) {
-    const file = event.target.files?.[0] ?? null;
-    event.target.value = '';
-
+async function uploadFile(file, { asImage = false } = {}) {
     if (!file || !editor.value) {
         return;
     }
 
+    const uploadableFile = file.name
+        ? file
+        : new File([file], `screenshot-${Date.now()}.png`, { type: file.type || 'image/png' });
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', uploadableFile);
 
     try {
         const response = await axios.post(props.uploadUrl, formData);
         const { url, name, is_image: isImage } = response.data;
 
-        if (shouldInsertAsImage || isImage) {
+        if (asImage || isImage) {
             editor.value.chain().focus().setImage({ src: url, alt: name || 'image' }).run();
 
             return;
@@ -322,6 +324,67 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
         console.error('Upload failed', error);
         window.alert('Не удалось загрузить файл.');
     }
+}
+
+function collectImageFilesFromClipboard(event) {
+    const clipboardData = event.clipboardData;
+
+    if (!clipboardData) {
+        return [];
+    }
+
+    const files = [];
+
+    Array.from(clipboardData.files ?? []).forEach((file) => {
+        if (file.type.startsWith('image/')) {
+            files.push(file);
+        }
+    });
+
+    if (files.length > 0) {
+        return files;
+    }
+
+    Array.from(clipboardData.items ?? []).forEach((item) => {
+        if (!item.type.startsWith('image/')) {
+            return;
+        }
+
+        const file = item.getAsFile();
+
+        if (file) {
+            files.push(file);
+        }
+    });
+
+    return files;
+}
+
+function handleClipboardPaste(event) {
+    if (!props.editable || !editor.value) {
+        return false;
+    }
+
+    const imageFiles = collectImageFilesFromClipboard(event);
+
+    if (imageFiles.length === 0) {
+        return false;
+    }
+
+    event.preventDefault();
+
+    imageFiles.forEach((file) => {
+        uploadFile(file, { asImage: true });
+    });
+
+    return true;
+}
+
+async function uploadAndInsert(event, shouldInsertAsImage) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+
+    await uploadFile(file, { asImage: shouldInsertAsImage });
 }
 </script>
 
