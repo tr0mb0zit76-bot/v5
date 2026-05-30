@@ -436,7 +436,10 @@
             </header>
 
             <main
-                class="crm-layout-main min-h-0 min-w-0 flex-1 overflow-y-auto bg-zinc-50 px-3 pt-0.5 pb-[110px] dark:bg-zinc-950 md:px-4 md:pt-1.5 md:pb-[130px] lg:flex lg:flex-col lg:overflow-hidden"
+                class="crm-layout-main min-h-0 min-w-0 flex-1 bg-zinc-50 px-3 pt-0.5 pb-[110px] dark:bg-zinc-950 md:px-4 md:pt-1.5 md:pb-[130px]"
+                :class="mainFill
+                    ? 'flex flex-col overflow-hidden'
+                    : 'overflow-y-auto lg:flex lg:flex-col lg:overflow-hidden'"
             >
                 <slot />
             </main>
@@ -457,6 +460,7 @@
 
 <script setup>
 import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
+import { hasSalesAssistantSubmoduleAccess } from '@/support/crmVisibility.js';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
@@ -507,6 +511,10 @@ const props = defineProps({
     activeLeafKey: {
         type: String,
         default: null,
+    },
+    mainFill: {
+        type: Boolean,
+        default: false,
     },
 });
 
@@ -913,7 +921,7 @@ const menuItems = computed(() => {
         { area: 'sales_assistant_counter', key: 'sales-assistant-counter', label: 'Считалка' },
     ];
     const salesAssistantChildren = assistantParts.filter(
-        (p) => isAdmin || areas.includes('scripts') || areas.includes(p.area),
+        (p) => isAdmin || hasSalesAssistantSubmoduleAccess(areas, p.area),
     );
     const salesAssistantItem =
         salesAssistantChildren.length > 0

@@ -1,6 +1,10 @@
 <template>
     <ul class="space-y-0.5" :class="depth > 0 ? 'ml-3 border-l border-zinc-200 pl-2 dark:border-zinc-700' : ''">
-        <li v-for="node in nodes" :key="node.id">
+        <li
+            v-for="node in nodes"
+            :key="node.id"
+            :class="depth === 0 ? 'border-t border-zinc-100 pt-2 first:border-t-0 first:pt-0 dark:border-zinc-800' : ''"
+        >
             <div
                 class="group flex items-center gap-1 rounded-lg transition"
                 :class="rowClass(node)"

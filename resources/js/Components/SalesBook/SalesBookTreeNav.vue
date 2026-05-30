@@ -23,7 +23,7 @@
             :drop-hint="dropHint"
             :invalid-target-ids="invalidTargetIds"
             @toggle="toggleExpanded"
-            @select="(id) => emit('select', id)"
+            @select="selectArticle"
             @drag-start="onDragStart"
             @drag-end="onDragEnd"
             @drag-over="onDragOver"
@@ -63,11 +63,19 @@ const dropHint = ref(null);
 const rootDropActive = ref(false);
 
 watch(
-    () => [props.selectedId, props.tree, props.articleOptions],
-    () => {
-        expandedIds.value = new Set(collectDefaultExpandedIds(props.tree, props.selectedId, props.articleOptions));
+    () => props.selectedId,
+    (selectedId) => {
+        ensureAncestorsExpanded(selectedId);
     },
-    { immediate: true, deep: true },
+    { immediate: true },
+);
+
+watch(
+    () => props.articleOptions,
+    () => {
+        ensureAncestorsExpanded(props.selectedId);
+    },
+    { deep: true },
 );
 
 const invalidTargetIds = computed(() => {
@@ -103,18 +111,19 @@ function collectAncestorIds(articleId, options) {
     return ancestors;
 }
 
-function collectDefaultExpandedIds(tree, selectedId, options) {
-    const expanded = new Set();
+function ensureAncestorsExpanded(articleId) {
+    if (!articleId) {
+        return;
+    }
 
-    tree.forEach((node) => {
-        if ((node.children ?? []).length > 0) {
-            expanded.add(node.id);
-        }
-    });
+    const next = new Set(expandedIds.value);
+    collectAncestorIds(articleId, props.articleOptions).forEach((id) => next.add(Number(id)));
+    expandedIds.value = next;
+}
 
-    collectAncestorIds(selectedId, options).forEach((id) => expanded.add(id));
-
-    return expanded;
+function selectArticle(id) {
+    ensureAncestorsExpanded(id);
+    emit('select', id);
 }
 
 function collectDescendantIds(articleId, options) {

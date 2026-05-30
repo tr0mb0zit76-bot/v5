@@ -1,10 +1,13 @@
 <template>
-    <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px,1fr]">
-        <aside :class="`${crmPanel} p-4`">
-            <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Книга продаж</h1>
-            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Пространство в стиле Notion: вложенные страницы, импорт markdown и визуальный редактор.</p>
+    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto lg:h-0 lg:overflow-hidden">
+        <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px,minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+        <aside :class="`${crmPanel} flex min-h-0 flex-col overflow-hidden p-4`">
+            <div class="shrink-0">
+                <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Книга продаж</h1>
+                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Пространство в стиле Notion: вложенные страницы, импорт markdown и визуальный редактор.</p>
+            </div>
 
-            <form v-if="canWrite" class="mt-4 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="createArticle">
+            <form v-if="canWrite" class="mt-4 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="createArticle">
                 <input
                     v-model="createForm.title"
                     type="text"
@@ -30,7 +33,7 @@
                 </button>
             </form>
 
-            <form v-if="canWrite" class="mt-3 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="importMarkdown">
+            <form v-if="canWrite" class="mt-3 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="importMarkdown">
                 <input
                     type="file"
                     accept=".md,.markdown,.txt,text/markdown,text/plain"
@@ -55,7 +58,7 @@
                 </button>
             </form>
 
-            <div class="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+            <div class="mt-4 min-h-0 flex-1 overflow-y-auto border-t border-zinc-100 pt-4 dark:border-zinc-800">
                 <p v-if="articlesTree.length === 0" class="text-sm text-zinc-500">Пока нет страниц.</p>
                 <SalesBookTreeNav
                     v-else
@@ -69,7 +72,7 @@
             </div>
         </aside>
 
-        <section :class="`${crmPanel} p-5`">
+        <section :class="`${crmPanel} min-h-0 overflow-y-auto p-5`">
             <p
                 v-if="page.props.flash?.message"
                 class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
@@ -151,6 +154,7 @@
                 </button>
             </div>
         </section>
+        </div>
     </div>
 </template>
 
@@ -163,7 +167,7 @@ import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book', mainFill: true }, () => page),
 });
 
 const props = defineProps({
@@ -322,7 +326,12 @@ function formatDate(value) {
 }
 
 function openArticle(articleId) {
-    router.get(route('sales-assistant.book'), { article_id: articleId }, { preserveState: false, replace: true });
+    router.get(route('sales-assistant.book'), { article_id: articleId }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+        only: ['selectedArticle', 'articlesTree', 'articleOptions'],
+    });
 }
 
 async function copyArticleLink() {

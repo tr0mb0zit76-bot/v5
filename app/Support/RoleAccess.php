@@ -482,11 +482,15 @@ class RoleAccess
         }
 
         $assistantKeys = static::salesAssistantComponentKeys();
-        if (in_array($required, $assistantKeys, true) && in_array('scripts', $areas, true)) {
-            return true;
+        if (in_array($required, $assistantKeys, true)) {
+            return static::hasSalesAssistantSubmoduleAccess($areas, $required);
         }
 
         if ($required === 'scripts') {
+            if (in_array('scripts', $areas, true)) {
+                return true;
+            }
+
             foreach ($assistantKeys as $key) {
                 if (in_array($key, $areas, true)) {
                     return true;
@@ -523,6 +527,34 @@ class RoleAccess
         }
 
         return false;
+    }
+
+    /**
+     * Доступ к подмодулю помощника продавца: явная область или легаси «только scripts» без уточнения компонентов.
+     *
+     * @param  list<string>  $areas
+     */
+    public static function hasSalesAssistantSubmoduleAccess(array $areas, string $submoduleKey): bool
+    {
+        if (! in_array($submoduleKey, static::salesAssistantComponentKeys(), true)) {
+            return false;
+        }
+
+        if (in_array($submoduleKey, $areas, true)) {
+            return true;
+        }
+
+        if (! in_array('scripts', $areas, true)) {
+            return false;
+        }
+
+        foreach (static::salesAssistantComponentKeys() as $key) {
+            if (in_array($key, $areas, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -891,10 +923,6 @@ class RoleAccess
             return false;
         }
 
-        if (! static::hasAnySalesBookPermission($user)) {
-            return true;
-        }
-
         return static::userHasPermission($user, 'sales_book_read')
             || static::userHasPermission($user, 'sales_book_comment')
             || static::userHasPermission($user, 'sales_book_write');
@@ -912,10 +940,6 @@ class RoleAccess
 
         if (! static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_book')) {
             return false;
-        }
-
-        if (! static::hasAnySalesBookPermission($user)) {
-            return true;
         }
 
         return static::userHasPermission($user, 'sales_book_comment')
@@ -936,19 +960,6 @@ class RoleAccess
             return false;
         }
 
-        if (! static::hasAnySalesBookPermission($user)) {
-            return true;
-        }
-
         return static::userHasPermission($user, 'sales_book_write');
-    }
-
-    private static function hasAnySalesBookPermission(User $user): bool
-    {
-        $permissions = static::userPermissions($user);
-
-        return in_array('sales_book_read', $permissions, true)
-            || in_array('sales_book_comment', $permissions, true)
-            || in_array('sales_book_write', $permissions, true);
     }
 }
