@@ -7,7 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateSalesBookArticleRequest extends FormRequest
+class MoveSalesBookArticleRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -17,18 +17,7 @@ class UpdateSalesBookArticleRequest extends FormRequest
         return $this->user() !== null;
     }
 
-    protected function prepareForValidation(): void
-    {
-        if ($this->has('parent_id') && $this->input('parent_id') === '') {
-            $this->merge([
-                'parent_id' => null,
-            ]);
-        }
-    }
-
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -37,16 +26,22 @@ class UpdateSalesBookArticleRequest extends FormRequest
         $articleId = $article instanceof SalesBookArticle ? $article->id : null;
 
         return [
-            'title' => ['required', 'string', 'max:255'],
-            'markdown_content' => ['nullable', 'string'],
-            'html_content' => ['nullable', 'string'],
             'parent_id' => [
                 'nullable',
                 'integer',
                 Rule::exists((new SalesBookArticle)->getTable(), 'id'),
                 Rule::notIn($articleId !== null ? [$articleId] : []),
             ],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'sort_order' => ['required', 'integer', 'min:0', 'max:1000000'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('parent_id') && $this->input('parent_id') === '') {
+            $this->merge([
+                'parent_id' => null,
+            ]);
+        }
     }
 }

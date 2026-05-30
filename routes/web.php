@@ -220,6 +220,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::get('/book', 'book')->name('book');
                 Route::post('/book/articles', 'storeBookArticle')->name('book.articles.store');
                 Route::patch('/book/articles/{salesBookArticle}', 'updateBookArticle')->name('book.articles.update');
+                Route::patch('/book/articles/{salesBookArticle}/move', 'moveBookArticle')->name('book.articles.move');
                 Route::delete('/book/articles/{salesBookArticle}', 'destroyBookArticle')->name('book.articles.destroy');
                 Route::post('/book/import', 'importBookArticle')->name('book.import');
                 Route::post('/book/assets', 'uploadBookAsset')->name('book.assets.upload');

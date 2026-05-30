@@ -16,9 +16,9 @@
                     v-model="createForm.parent_id"
                     class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 >
-                    <option :value="null">Без родителя</option>
-                    <option v-for="option in articleOptions" :key="option.id" :value="option.id">
-                        {{ option.title }}
+                    <option value="">Без родителя</option>
+                    <option v-for="option in indentedArticleOptions" :key="option.id" :value="String(option.id)">
+                        {{ option.label }}
                     </option>
                 </select>
                 <button
@@ -41,9 +41,9 @@
                     v-model="importForm.parent_id"
                     class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 >
-                    <option :value="null">Импорт в корень</option>
-                    <option v-for="option in articleOptions" :key="`import-${option.id}`" :value="option.id">
-                        {{ option.title }}
+                    <option value="">Импорт в корень</option>
+                    <option v-for="option in indentedArticleOptions" :key="`import-${option.id}`" :value="String(option.id)">
+                        {{ option.label }}
                     </option>
                 </select>
                 <button
@@ -56,20 +56,16 @@
             </form>
 
             <div class="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-                <p v-if="flatArticles.length === 0" class="text-sm text-zinc-500">Пока нет страниц.</p>
-                <button
-                    v-for="entry in flatArticles"
-                    :key="entry.id"
-                    type="button"
-                    :style="{ paddingLeft: `${entry.depth * 14 + 10}px` }"
-                    class="mb-1 flex w-full items-center rounded-lg px-2 py-1.5 text-left text-sm transition"
-                    :class="selectedArticle?.id === entry.id
-                        ? crmListItemActiveSoft
-                        : 'text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800'"
-                    @click="openArticle(entry.id)"
-                >
-                    {{ entry.title }}
-                </button>
+                <p v-if="articlesTree.length === 0" class="text-sm text-zinc-500">Пока нет страниц.</p>
+                <SalesBookTreeNav
+                    v-else
+                    :tree="articlesTree"
+                    :article-options="articleOptions"
+                    :selected-id="selectedArticle?.id ?? null"
+                    :can-write="canWrite"
+                    @select="openArticle"
+                    @move="moveArticle"
+                />
             </div>
         </aside>
 
@@ -97,17 +93,18 @@
                             v-model="editForm.parent_id"
                             class="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
                         >
-                            <option :value="null">Корень</option>
-                            <option v-for="option in parentOptionsForEdit" :key="`edit-${option.id}`" :value="option.id">
-                                {{ option.title }}
+                            <option value="">Корень</option>
+                            <option v-for="option in parentOptionsForEdit" :key="`edit-${option.id}`" :value="String(option.id)">
+                                {{ option.label }}
                             </option>
                         </select>
                         <span v-if="selectedArticle.updated_at">Обновлено: {{ formatDate(selectedArticle.updated_at) }}</span>
                     </div>
 
                     <TiptapEditor
-                        v-model="editForm.markdown_content"
+                        :model-value="editForm.markdown_content"
                         :upload-url="route('sales-assistant.book.assets.upload')"
+                        @update:model-value="onEditorUpdate"
                         :editable="canWrite"
                         placeholder="Начните писать... Нажмите Enter для нового блока. Можно вставлять ссылки, изображения, файлы и чек-листы."
                     />
@@ -148,11 +145,12 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
-import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmListItemActiveSoft, crmPanel } from '@/support/crmUi.js';
+import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
+import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book' }, () => page),
@@ -181,43 +179,127 @@ const page = usePage();
 
 const createForm = useForm({
     title: '',
-    parent_id: null,
+    parent_id: '',
 });
 
 const importForm = useForm({
     file: null,
-    parent_id: null,
+    parent_id: '',
 });
 
 const editForm = useForm({
     title: '',
     markdown_content: '',
-    parent_id: null,
+    parent_id: '',
 });
 
+const contentDirty = ref(false);
+
 const flatArticles = computed(() => flattenTree(props.articlesTree));
-const parentOptionsForEdit = computed(() => props.articleOptions.filter((item) => item.id !== props.selectedArticle?.id));
+const indentedArticleOptions = computed(() => flatArticles.value.map((entry) => ({
+    id: entry.id,
+    label: `${'\u00A0'.repeat(entry.depth * 2)}${entry.depth > 0 ? '↳ ' : ''}${entry.title}`,
+})));
+
+const parentOptionsForEdit = computed(() => {
+    if (!props.selectedArticle) {
+        return indentedArticleOptions.value;
+    }
+
+    const blockedIds = new Set([
+        props.selectedArticle.id,
+        ...collectDescendantIds(props.selectedArticle.id, props.articleOptions),
+    ]);
+
+    return indentedArticleOptions.value.filter((option) => !blockedIds.has(option.id));
+});
 
 watch(
     () => props.selectedArticle,
-    (value) => {
+    (value, oldValue) => {
+        if (!value) {
+            return;
+        }
+
+        const articleChanged = value.id !== oldValue?.id;
+        const serverMarkdownChanged = value.markdown_content !== oldValue?.markdown_content;
+
         editForm.defaults({
-            title: value?.title ?? '',
-            markdown_content: value?.markdown_content ?? '',
-            parent_id: value?.parent_id ?? null,
+            title: value.title ?? '',
+            markdown_content: value.markdown_content ?? '',
+            parent_id: value.parent_id ? String(value.parent_id) : '',
         });
-        editForm.reset();
+
+        if (articleChanged || serverMarkdownChanged) {
+            contentDirty.value = false;
+            editForm.reset();
+        } else {
+            editForm.title = value.title ?? '';
+            editForm.parent_id = value.parent_id ? String(value.parent_id) : '';
+        }
     },
     { immediate: true },
 );
 
+function onEditorUpdate(markdown) {
+    editForm.markdown_content = markdown;
+    contentDirty.value = true;
+}
+
 function flattenTree(nodes, depth = 0) {
     return nodes.flatMap((node) => {
-        const current = { id: node.id, title: node.title, depth };
+        const current = {
+            id: node.id,
+            title: node.title,
+            depth,
+            parent_id: node.parent_id ?? null,
+            sort_order: node.sort_order ?? 0,
+        };
         const children = flattenTree(node.children ?? [], depth + 1);
 
         return [current, ...children];
     });
+}
+
+function collectDescendantIds(articleId, options) {
+    const childrenByParent = new Map();
+
+    options.forEach((option) => {
+        if (option.parent_id === null || option.parent_id === undefined) {
+            return;
+        }
+
+        const parentId = Number(option.parent_id);
+        const current = childrenByParent.get(parentId) ?? [];
+        current.push(Number(option.id));
+        childrenByParent.set(parentId, current);
+    });
+
+    const descendants = [];
+    const queue = [...(childrenByParent.get(Number(articleId)) ?? [])];
+
+    while (queue.length > 0) {
+        const childId = queue.shift();
+        descendants.push(childId);
+        queue.push(...(childrenByParent.get(childId) ?? []));
+    }
+
+    return descendants;
+}
+
+function normalizeParentId(value) {
+    if (value === '' || value === null || value === undefined) {
+        return null;
+    }
+
+    return Number(value);
+}
+
+function withNormalizedParent(form) {
+    return form.transform((data) => ({
+        ...data,
+        parent_id: normalizeParentId(data.parent_id),
+    }));
 }
 
 function formatDate(value) {
@@ -233,7 +315,7 @@ function openArticle(articleId) {
 }
 
 function createArticle() {
-    createForm.post(route('sales-assistant.book.articles.store'));
+    withNormalizedParent(createForm).post(route('sales-assistant.book.articles.store'));
 }
 
 function createUntitled() {
@@ -247,7 +329,7 @@ function onFileChange(event) {
 }
 
 function importMarkdown() {
-    importForm.post(route('sales-assistant.book.import'), {
+    withNormalizedParent(importForm).post(route('sales-assistant.book.import'), {
         forceFormData: true,
     });
 }
@@ -257,7 +339,31 @@ function saveArticle() {
         return;
     }
 
-    editForm.patch(route('sales-assistant.book.articles.update', props.selectedArticle.id));
+    const payload = {
+        title: editForm.title,
+        parent_id: normalizeParentId(editForm.parent_id),
+    };
+
+    if (contentDirty.value) {
+        payload.markdown_content = editForm.markdown_content;
+    }
+
+    router.patch(route('sales-assistant.book.articles.update', props.selectedArticle.id), payload, {
+        preserveScroll: true,
+        onSuccess: () => {
+            contentDirty.value = false;
+        },
+    });
+}
+
+function moveArticle(payload) {
+    router.patch(route('sales-assistant.book.articles.move', payload.id), {
+        parent_id: payload.parent_id,
+        sort_order: payload.sort_order,
+    }, {
+        preserveScroll: true,
+        only: ['articlesTree', 'articleOptions', 'selectedArticle'],
+    });
 }
 
 function destroyArticle() {

@@ -18,6 +18,15 @@ class ImportSalesBookArticleRequest extends FormRequest
         return $this->user() !== null;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('parent_id') && $this->input('parent_id') === '') {
+            $this->merge([
+                'parent_id' => null,
+            ]);
+        }
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *

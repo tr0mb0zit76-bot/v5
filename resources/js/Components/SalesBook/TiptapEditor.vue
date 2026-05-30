@@ -19,7 +19,7 @@
 <script setup>
 import axios from 'axios';
 import { crmSegmentedBtn, crmSegmentedBtnActive } from '@/support/crmUi.js';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -53,10 +53,37 @@ const emit = defineEmits(['update:modelValue']);
 
 const imageInput = ref(null);
 const fileInput = ref(null);
+const isApplyingExternalContent = ref(false);
+
+function looksLikeHtml(value) {
+    const trimmed = (value || '').trim();
+
+    return trimmed !== '' && /<[a-z][^>]*>/i.test(trimmed);
+}
+
+function setEditorContent(value) {
+    if (!editor.value) {
+        return;
+    }
+
+    const incoming = value || '';
+
+    isApplyingExternalContent.value = true;
+
+    if (looksLikeHtml(incoming)) {
+        editor.value.commands.setContent(incoming, false);
+    } else {
+        editor.value.commands.setContent(incoming, false, { contentType: 'markdown' });
+    }
+
+    nextTick(() => {
+        isApplyingExternalContent.value = false;
+    });
+}
 
 const editor = useEditor({
     content: props.modelValue || '',
-    contentType: 'markdown',
+    contentType: looksLikeHtml(props.modelValue) ? undefined : 'markdown',
     extensions: [
         StarterKit.configure({
             heading: { levels: [1, 2, 3] },
@@ -81,6 +108,10 @@ const editor = useEditor({
         },
     },
     onUpdate: ({ editor: instance }) => {
+        if (isApplyingExternalContent.value) {
+            return;
+        }
+
         emit('update:modelValue', instance.getMarkdown());
     },
 });
@@ -93,11 +124,25 @@ watch(
         }
 
         const incoming = value || '';
-        if (incoming !== editor.value.getMarkdown()) {
-            editor.value.commands.setContent(incoming, false, { contentType: 'markdown' });
+        const current = instanceContentForCompare();
+
+        if (incoming !== current) {
+            setEditorContent(incoming);
         }
     },
 );
+
+function instanceContentForCompare() {
+    if (!editor.value) {
+        return '';
+    }
+
+    if (looksLikeHtml(props.modelValue)) {
+        return editor.value.getHTML();
+    }
+
+    return editor.value.getMarkdown();
+}
 
 watch(
     () => props.editable,

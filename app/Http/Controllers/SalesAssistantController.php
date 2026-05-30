@@ -6,6 +6,7 @@ use App\Enums\SalesPlaySessionOutcome;
 use App\Enums\SalesTrainerDialogQuality;
 use App\Http\Requests\CalculateSalesMarginCounterRequest;
 use App\Http\Requests\ImportSalesBookArticleRequest;
+use App\Http\Requests\MoveSalesBookArticleRequest;
 use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
 use App\Http\Requests\UploadSalesBookAssetRequest;
@@ -13,6 +14,7 @@ use App\Models\SalesBookArticle;
 use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
+use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesMarginCounterService;
 use App\Support\RoleAccess;
 use Carbon\CarbonImmutable;
@@ -56,7 +58,7 @@ class SalesAssistantController extends Controller
         );
     }
 
-    public function book(Request $request): Response
+    public function book(Request $request, SalesBookArticleTreeService $treeService): Response
     {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
 
@@ -74,7 +76,7 @@ class SalesAssistantController extends Controller
         }
 
         return Inertia::render('SalesAssistant/Book', [
-            'articlesTree' => $this->buildTree($articles),
+            'articlesTree' => $treeService->buildTree($articles)->values()->all(),
             'articleOptions' => $articles->map(fn (SalesBookArticle $article): array => [
                 'id' => $article->id,
                 'title' => $article->title,
@@ -98,12 +100,12 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function storeBookArticle(StoreSalesBookArticleRequest $request): RedirectResponse
+    public function storeBookArticle(StoreSalesBookArticleRequest $request, SalesBookArticleTreeService $treeService): RedirectResponse
     {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
-        $parentId = $data['parent_id'] ?? null;
+        $parentId = $treeService->resolveParentId($data);
 
         $article = SalesBookArticle::query()->create([
             'title' => $data['title'],
@@ -120,30 +122,70 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function updateBookArticle(UpdateSalesBookArticleRequest $request, SalesBookArticle $salesBookArticle): RedirectResponse
-    {
+    public function updateBookArticle(
+        UpdateSalesBookArticleRequest $request,
+        SalesBookArticle $salesBookArticle,
+        SalesBookArticleTreeService $treeService,
+    ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
-        $parentId = $data['parent_id'] ?? null;
+        $parentId = $treeService->resolveParentId($data);
 
-        if ($this->isCircularParent($salesBookArticle, $parentId)) {
+        if ($treeService->isCircularParent($salesBookArticle, $parentId)) {
             return back()->withErrors([
                 'parent_id' => 'Нельзя сделать дочерним элементом собственную вложенную статью.',
             ]);
         }
 
-        $salesBookArticle->update([
+        $parentChanged = $salesBookArticle->parent_id !== $parentId;
+        $sortOrder = $parentChanged
+            ? $this->resolveSortOrder($parentId, $data['sort_order'] ?? null)
+            : ($data['sort_order'] ?? $salesBookArticle->sort_order);
+
+        $payload = [
             'title' => $data['title'],
-            'markdown_content' => $this->resolveMarkdownPayload($data),
             'parent_id' => $parentId,
-            'sort_order' => $this->resolveSortOrder($parentId, $data['sort_order'] ?? null),
+            'sort_order' => $sortOrder,
             'updated_by' => $request->user()?->id,
-        ]);
+        ];
+
+        if (array_key_exists('markdown_content', $data)) {
+            $payload['markdown_content'] = $this->resolveMarkdownPayload($data);
+        }
+
+        $salesBookArticle->update($payload);
+
+        if ($parentChanged) {
+            $treeService->reindexSiblings($parentId);
+        }
 
         return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
             'type' => 'success',
             'message' => 'Статья сохранена.',
+        ]);
+    }
+
+    public function moveBookArticle(
+        MoveSalesBookArticleRequest $request,
+        SalesBookArticle $salesBookArticle,
+        SalesBookArticleTreeService $treeService,
+    ): RedirectResponse {
+        abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
+
+        $data = $request->validated();
+        $parentId = $treeService->resolveParentId($data);
+
+        $treeService->moveArticle(
+            $salesBookArticle,
+            $parentId,
+            (int) $data['sort_order'],
+            $request->user()?->id,
+        );
+
+        return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
+            'type' => 'success',
+            'message' => 'Структура страниц обновлена.',
         ]);
     }
 
@@ -159,14 +201,14 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function importBookArticle(ImportSalesBookArticleRequest $request): RedirectResponse
+    public function importBookArticle(ImportSalesBookArticleRequest $request, SalesBookArticleTreeService $treeService): RedirectResponse
     {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
         $uploaded = $request->file('file');
         $markdown = (string) file_get_contents($uploaded->getRealPath());
-        $parentId = $data['parent_id'] ?? null;
+        $parentId = $treeService->resolveParentId($data);
 
         $title = $this->extractTitleFromMarkdown($markdown, $uploaded->getClientOriginalName());
 
@@ -540,26 +582,6 @@ class SalesAssistantController extends Controller
     }
 
     /**
-     * @return Collection<int, array{id:int,title:string,parent_id:int|null,sort_order:int,children:Collection<int, mixed>}>
-     */
-    private function buildTree(Collection $articles, ?int $parentId = null): Collection
-    {
-        return $articles
-            ->where('parent_id', $parentId)
-            ->sortBy(['sort_order', 'id'])
-            ->values()
-            ->map(function (SalesBookArticle $article) use ($articles): array {
-                return [
-                    'id' => $article->id,
-                    'title' => $article->title,
-                    'parent_id' => $article->parent_id,
-                    'sort_order' => $article->sort_order,
-                    'children' => $this->buildTree($articles, $article->id),
-                ];
-            });
-    }
-
-    /**
      * @param  array<string, mixed>  $data
      */
     private function resolveMarkdownPayload(array $data): string
@@ -601,29 +623,5 @@ class SalesAssistantController extends Controller
             ->max('sort_order');
 
         return $maxSortOrder + 1;
-    }
-
-    private function isCircularParent(SalesBookArticle $article, ?int $parentId): bool
-    {
-        if ($parentId === null) {
-            return false;
-        }
-
-        if ($parentId === $article->id) {
-            return true;
-        }
-
-        $parentsById = SalesBookArticle::query()->pluck('parent_id', 'id');
-        $cursor = $parentId;
-
-        while ($cursor !== null) {
-            if ($cursor === $article->id) {
-                return true;
-            }
-
-            $cursor = $parentsById->get($cursor);
-        }
-
-        return false;
     }
 }

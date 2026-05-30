@@ -243,6 +243,106 @@ MD;
         ]);
     }
 
+    public function test_update_article_parent_moves_in_tree(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $parent = SalesBookArticle::query()->create([
+            'title' => 'Parent page',
+            'markdown_content' => '',
+            'parent_id' => null,
+            'sort_order' => 0,
+        ]);
+
+        $child = SalesBookArticle::query()->create([
+            'title' => 'Child page',
+            'markdown_content' => '',
+            'parent_id' => null,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($user)->patch(route('sales-assistant.book.articles.update', $child), [
+            'title' => 'Child page',
+            'markdown_content' => '',
+            'parent_id' => $parent->id,
+        ])->assertRedirect();
+
+        $child->refresh();
+        $this->assertSame($parent->id, $child->parent_id);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', ['article_id' => $child->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesAssistant/Book')
+                ->where('articlesTree', function ($tree) use ($parent, $child): bool {
+                    $tree = is_array($tree) ? $tree : $tree->all();
+                    if (count($tree) !== 1 || $tree[0]['id'] !== $parent->id) {
+                        return false;
+                    }
+
+                    return count($tree[0]['children']) === 1
+                        && $tree[0]['children'][0]['id'] === $child->id;
+                })
+            );
+    }
+
+    public function test_update_parent_without_markdown_preserves_content(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $parent = SalesBookArticle::query()->create([
+            'title' => 'Parent page',
+            'markdown_content' => '',
+            'parent_id' => null,
+            'sort_order' => 0,
+        ]);
+
+        $child = SalesBookArticle::query()->create([
+            'title' => 'Child page',
+            'markdown_content' => "# Заголовок\n\n**жирный** текст",
+            'parent_id' => null,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($user)->patch(route('sales-assistant.book.articles.update', $child), [
+            'title' => 'Child page',
+            'parent_id' => $parent->id,
+        ])->assertRedirect();
+
+        $child->refresh();
+        $this->assertSame($parent->id, $child->parent_id);
+        $this->assertSame("# Заголовок\n\n**жирный** текст", $child->markdown_content);
+    }
+
+    public function test_move_article_endpoint_updates_hierarchy(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $parent = SalesBookArticle::query()->create([
+            'title' => 'Parent page',
+            'markdown_content' => '',
+            'parent_id' => null,
+            'sort_order' => 0,
+        ]);
+
+        $child = SalesBookArticle::query()->create([
+            'title' => 'Child page',
+            'markdown_content' => '',
+            'parent_id' => null,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($user)->patch(route('sales-assistant.book.articles.move', $child), [
+            'parent_id' => $parent->id,
+            'sort_order' => 0,
+        ])->assertRedirect();
+
+        $child->refresh();
+        $this->assertSame($parent->id, $child->parent_id);
+        $this->assertSame(0, $child->sort_order);
+    }
+
     /**
      * @param  list<string>  $areas
      */
