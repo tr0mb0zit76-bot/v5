@@ -15,6 +15,7 @@ use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormVariableCatalog;
 use App\Support\DocumentPreview;
 use App\Support\PrintFormPlaceholderPathResolver;
+use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,8 +46,20 @@ class SettingsTemplateController extends Controller
         if (Schema::hasTable('print_form_templates')) {
             $templates = PrintFormTemplate::query()
                 ->when(
-                    Schema::hasColumn('print_form_templates', 'contractor_id'),
-                    fn ($query) => $query->with(['contractor:id,name'])
+                    Schema::hasColumn('print_form_templates', 'contractor_id')
+                        || Schema::hasColumn('print_form_templates', 'own_company_id'),
+                    function ($query): void {
+                        $relations = [];
+                        if (Schema::hasColumn('print_form_templates', 'contractor_id')) {
+                            $relations[] = 'contractor:id,name';
+                        }
+                        if (Schema::hasColumn('print_form_templates', 'own_company_id')) {
+                            $relations[] = 'ownCompany:id,name';
+                        }
+                        if ($relations !== []) {
+                            $query->with($relations);
+                        }
+                    },
                 )
                 ->orderByDesc('is_default')
                 ->orderBy('document_type')
@@ -63,6 +76,20 @@ class SettingsTemplateController extends Controller
                     'source_type' => $template->source_type ?? 'system',
                     'contractor_id' => $template->contractor_id,
                     'contractor_name' => $template->contractor?->name,
+                    'own_company_id' => Schema::hasColumn('print_form_templates', 'own_company_id')
+                        ? $template->own_company_id
+                        : null,
+                    'own_company_name' => Schema::hasColumn('print_form_templates', 'own_company_id')
+                        ? $template->ownCompany?->name
+                        : null,
+                    'transport_scope' => Schema::hasColumn('print_form_templates', 'transport_scope')
+                        ? ($template->transport_scope ?? PrintFormTemplateTransportScope::ANY)
+                        : PrintFormTemplateTransportScope::ANY,
+                    'transport_scope_label' => PrintFormTemplateTransportScope::label(
+                        Schema::hasColumn('print_form_templates', 'transport_scope')
+                            ? $template->transport_scope
+                            : PrintFormTemplateTransportScope::ANY,
+                    ),
                     'is_default' => (bool) $template->is_default,
                     'requires_internal_signature' => (bool) $template->requires_internal_signature,
                     'requires_counterparty_signature' => (bool) $template->requires_counterparty_signature,
@@ -115,14 +142,30 @@ class SettingsTemplateController extends Controller
                 ->values();
         }
 
+        $ownCompanyOptions = collect();
+
+        if (Schema::hasTable('contractors') && Schema::hasColumn('contractors', 'is_own_company')) {
+            $ownCompanyOptions = Contractor::query()
+                ->where('is_own_company', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Contractor $contractor): array => [
+                    'id' => $contractor->id,
+                    'name' => $contractor->name,
+                ])
+                ->values();
+        }
+
         return Inertia::render('Settings/Templates', [
             'templates' => $templates,
             'contractorOptions' => $contractorOptions,
+            'ownCompanyOptions' => $ownCompanyOptions,
             'entityTypeOptions' => PrintFormTemplate::entityTypeOptions(),
             'documentTypeOptions' => PrintFormTemplate::documentTypeOptions(),
             'documentGroupOptions' => PrintFormTemplate::documentGroupOptions(),
             'partyOptions' => PrintFormTemplate::partyOptions(),
             'sourceTypeOptions' => PrintFormTemplate::sourceTypeOptions(),
+            'transportScopeOptions' => PrintFormTemplate::transportScopeOptions(),
             'orderVariableOptions' => $this->variableCatalog->orderOptions(),
             'leadVariableOptions' => $this->variableCatalog->leadOptions(),
             'documentPreview' => DocumentPreview::inertiaMeta(),
@@ -142,6 +185,8 @@ class SettingsTemplateController extends Controller
             'party' => $validated['party'],
             'source_type' => $validated['source_type'],
             'contractor_id' => $validated['contractor_id'] ?? null,
+            'own_company_id' => $validated['own_company_id'] ?? null,
+            'transport_scope' => $validated['transport_scope'] ?? PrintFormTemplateTransportScope::ANY,
             'is_default' => (bool) ($validated['is_default'] ?? false),
             'requires_internal_signature' => (bool) ($validated['requires_internal_signature'] ?? true),
             'requires_counterparty_signature' => (bool) ($validated['requires_counterparty_signature'] ?? false),
@@ -166,6 +211,10 @@ class SettingsTemplateController extends Controller
             $request->file('stamp_image_file')
         );
 
+        if ($template->is_default) {
+            $this->syncScopedDefault($template);
+        }
+
         return to_route('settings.templates.index');
     }
 
@@ -182,6 +231,8 @@ class SettingsTemplateController extends Controller
             'party' => $validated['party'],
             'source_type' => $validated['source_type'],
             'contractor_id' => $validated['contractor_id'] ?? null,
+            'own_company_id' => $validated['own_company_id'] ?? null,
+            'transport_scope' => $validated['transport_scope'] ?? PrintFormTemplateTransportScope::ANY,
             'is_default' => (bool) ($validated['is_default'] ?? false),
             'requires_internal_signature' => (bool) ($validated['requires_internal_signature'] ?? true),
             'requires_counterparty_signature' => (bool) ($validated['requires_counterparty_signature'] ?? false),
@@ -199,6 +250,10 @@ class SettingsTemplateController extends Controller
             $request->file('signature_image_file'),
             $request->file('stamp_image_file')
         );
+
+        if ($printFormTemplate->is_default) {
+            $this->syncScopedDefault($printFormTemplate);
+        }
 
         return to_route('settings.templates.index');
     }
@@ -539,5 +594,36 @@ class SettingsTemplateController extends Controller
         if (is_string($path) && $path !== '') {
             Storage::disk((string) $disk)->delete($path);
         }
+    }
+
+    private function syncScopedDefault(PrintFormTemplate $template): void
+    {
+        if (! $template->is_default || ! Schema::hasTable('print_form_templates')) {
+            return;
+        }
+
+        $query = PrintFormTemplate::query()
+            ->where('id', '!=', $template->id)
+            ->where('entity_type', $template->entity_type)
+            ->where('document_type', $template->document_type)
+            ->where('party', $template->party)
+            ->where('is_default', true);
+
+        if (Schema::hasColumn('print_form_templates', 'own_company_id')) {
+            if ($template->own_company_id === null) {
+                $query->whereNull('own_company_id');
+            } else {
+                $query->where('own_company_id', $template->own_company_id);
+            }
+        }
+
+        if (Schema::hasColumn('print_form_templates', 'transport_scope')) {
+            $query->where(
+                'transport_scope',
+                $template->transport_scope ?? PrintFormTemplateTransportScope::ANY,
+            );
+        }
+
+        $query->update(['is_default' => false]);
     }
 }

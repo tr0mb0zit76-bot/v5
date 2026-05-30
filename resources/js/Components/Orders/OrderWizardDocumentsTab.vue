@@ -23,18 +23,27 @@ import {
     printWorkflowDocumentsForSlot,
     signedRegistryDocuments,
 } from '@/support/orderPrintFormSlots.js';
-import { crmBtnCreate, crmModalPanel } from '@/support/crmUi.js';
+import {
+    buildPrintFormTemplateContext,
+    defaultTemplateForContext,
+    filterPrintFormTemplates,
+} from '@/support/printFormTemplateMatching.js';
 
 const signedDocuments = defineModel('signedDocuments', { type: Array, default: () => [] });
 
 const props = defineProps({
     order: { type: Object, default: null },
     performers: { type: Array, default: () => [] },
+    additionalCosts: { type: Array, default: () => [] },
     clientRequestMode: { type: String, default: 'single_request' },
     isOrderFormEditable: { type: Boolean, default: true },
     allDocuments: { type: Array, default: () => [] },
+    printFormTemplateCatalog: { type: Array, default: () => [] },
     printFormTemplateOptionsCustomer: { type: Array, default: () => [] },
     printFormTemplateOptionsCarrier: { type: Array, default: () => [] },
+    ownCompanyId: { type: [Number, String, null], default: null },
+    isInternationalTransport: { type: Boolean, default: false },
+    customerId: { type: [Number, String, null], default: null },
     documentTypeOptions: { type: Array, default: () => [] },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
@@ -49,9 +58,35 @@ const documentUploadHint = computed(() => page.props.document_upload_limits?.hin
 const customerSlots = computed(() => customerPrintSlots(props.performers, props.clientRequestMode));
 const carrierSlots = computed(() => carrierPrintSlots(props.performers));
 
+const printFormTemplateContext = computed(() => buildPrintFormTemplateContext({
+    ownCompanyId: props.ownCompanyId,
+    isInternationalTransport: props.isInternationalTransport,
+    performers: props.performers,
+    additionalCosts: props.additionalCosts,
+    customerId: props.customerId ?? props.order?.customer_id ?? null,
+    carrierId: props.order?.carrier_id ?? null,
+}));
+
+const printFormTemplateOptionsCustomer = computed(() => {
+    const catalog = props.printFormTemplateCatalog?.length
+        ? props.printFormTemplateCatalog
+        : props.printFormTemplateOptionsCustomer;
+
+    return filterPrintFormTemplates(catalog, printFormTemplateContext.value, 'customer');
+});
+
+const printFormTemplateOptionsCarrier = computed(() => {
+    const catalog = props.printFormTemplateCatalog?.length
+        ? props.printFormTemplateCatalog
+        : props.printFormTemplateOptionsCarrier;
+
+    return filterPrintFormTemplates(catalog, printFormTemplateContext.value, 'carrier');
+});
+
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
     props.performers,
     props.clientRequestMode,
+    props.additionalCosts,
 ));
 
 const effectiveDocumentChecklist = computed(() => {
@@ -100,8 +135,21 @@ const attachForm = reactive({
     number: '',
     document_date: '',
     stage: null,
+    contractor_id: null,
     file: null,
 });
+
+const attachContractorOptions = computed(() => (
+    Array.isArray(props.additionalCosts) ? props.additionalCosts : []
+)
+    .filter((row) => row?.contractor_id)
+    .map((row) => ({
+        id: Number(row.contractor_id),
+        label: row.contractor_name ? String(row.contractor_name).trim() : `Подрядчик #${row.contractor_id}`,
+        slotKey: row.id ? `contractor-${row.contractor_id}-${row.id}` : `contractor-${row.contractor_id}`,
+    })));
+
+const showAttachContractorPicker = computed(() => attachForm.party === 'contractor' && attachContractorOptions.value.length > 0);
 
 const showAttachLegPicker = computed(() => {
     const legs = Array.isArray(props.performers) ? props.performers : [];
@@ -143,11 +191,20 @@ watch(
     () => attachForm.party,
     (party) => {
         attachForm.stage = defaultAttachStage(party);
+        if (party === 'contractor') {
+            attachForm.contractor_id = attachContractorOptions.value[0]?.id ?? null;
+        } else {
+            attachForm.contractor_id = null;
+        }
     },
 );
 
-function defaultTemplateForOptions(options) {
+function defaultTemplateForOptions(options, party) {
     const list = Array.isArray(options) ? options : [];
+
+    if (list.length === 0 && props.printFormTemplateCatalog.length > 0) {
+        return defaultTemplateForContext(props.printFormTemplateCatalog, printFormTemplateContext.value, party);
+    }
 
     return list.find((template) => template.is_default) ?? list[0] ?? null;
 }
@@ -205,7 +262,7 @@ function ensureDefaultTemplateSelection() {
             return;
         }
 
-        const template = defaultTemplateForOptions(props.printFormTemplateOptionsCustomer);
+        const template = defaultTemplateForOptions(printFormTemplateOptionsCustomer.value, 'customer');
         if (template?.id) {
             templateSelection[slot.slotKey] = template.id;
         }
@@ -216,18 +273,38 @@ function ensureDefaultTemplateSelection() {
             return;
         }
 
-        const template = defaultTemplateForOptions(props.printFormTemplateOptionsCarrier);
+        const template = defaultTemplateForOptions(printFormTemplateOptionsCarrier.value, 'carrier');
         if (template?.id) {
             templateSelection[slot.slotKey] = template.id;
         }
     });
 }
 
+function syncInvalidTemplateSelections() {
+    const customerIds = new Set(printFormTemplateOptionsCustomer.value.map((template) => Number(template.id)));
+    const carrierIds = new Set(printFormTemplateOptionsCarrier.value.map((template) => Number(template.id)));
+
+    customerSlots.value.forEach((slot) => {
+        const selectedId = Number(templateSelection[slot.slotKey] ?? 0);
+        if (selectedId > 0 && !customerIds.has(selectedId)) {
+            delete templateSelection[slot.slotKey];
+        }
+    });
+
+    carrierSlots.value.forEach((slot) => {
+        const selectedId = Number(templateSelection[slot.slotKey] ?? 0);
+        if (selectedId > 0 && !carrierIds.has(selectedId)) {
+            delete templateSelection[slot.slotKey];
+        }
+    });
+}
+
 watch(
-    [customerSlots, carrierSlots, () => props.printFormTemplateOptionsCustomer, () => props.printFormTemplateOptionsCarrier],
+    [customerSlots, carrierSlots, printFormTemplateOptionsCustomer, printFormTemplateOptionsCarrier],
     () => {
         hydrateTemplateSelectionFromSavedState();
         hydrateTemplateSelectionFromWorkflowDocuments();
+        syncInvalidTemplateSelections();
         ensureDefaultTemplateSelection();
     },
     { immediate: true, deep: true },
@@ -411,6 +488,7 @@ async function openAttachModal(preset = {}) {
     attachForm.number = '';
     attachForm.document_date = '';
     attachForm.stage = preset.stage ?? defaultAttachStage(attachForm.party);
+    attachForm.contractor_id = preset.contractor_id ?? (attachForm.party === 'contractor' ? attachContractorOptions.value[0]?.id ?? null : null);
     attachForm.file = null;
     attachError.value = '';
     attachDropDepth = 0;
@@ -497,6 +575,9 @@ async function submitAttach() {
     const carrierContractorId = attachForm.party === 'carrier' && performer?.contractor_id
         ? Number(performer.contractor_id)
         : null;
+    const contractorId = attachForm.party === 'contractor' && attachForm.contractor_id
+        ? Number(attachForm.contractor_id)
+        : null;
 
     if (showAttachLegPicker.value && attachForm.stage) {
         body.append('order_leg_stage', toStageKey(String(attachForm.stage)));
@@ -506,11 +587,15 @@ async function submitAttach() {
         body.append('carrier_contractor_id', String(carrierContractorId));
     }
 
+    if (contractorId) {
+        body.append('contractor_id', String(contractorId));
+    }
+
     const matchedRule = findRequirementRuleForUpload(effectiveRequiredDocumentRules.value, {
         party: attachForm.party,
         type: attachForm.type,
         stage: attachForm.stage,
-        contractor_id: carrierContractorId,
+        contractor_id: contractorId ?? carrierContractorId,
     });
 
     if (matchedRule?.slot_key) {
@@ -821,6 +906,7 @@ async function onGlobalDrop(event) {
                         <select v-model="attachForm.party" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                             <option value="customer">Заказчик</option>
                             <option value="carrier">Перевозчик</option>
+                            <option value="contractor">Подрядчик</option>
                             <option value="internal">Внутренний</option>
                         </select>
                     </div>
@@ -828,6 +914,18 @@ async function onGlobalDrop(event) {
                         <label class="text-xs font-medium">Тип</label>
                         <select v-model="attachForm.type" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                             <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                        </select>
+                    </div>
+                    <div v-if="showAttachContractorPicker" class="space-y-1 sm:col-span-2">
+                        <label class="text-xs font-medium">Подрядчик (доп. затраты)</label>
+                        <select v-model="attachForm.contractor_id" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <option
+                                v-for="contractor in attachContractorOptions"
+                                :key="`attach-contractor-${contractor.id}-${contractor.slotKey}`"
+                                :value="contractor.id"
+                            >
+                                {{ contractor.label }}
+                            </option>
                         </select>
                     </div>
                     <div v-if="showAttachLegPicker" class="space-y-1 sm:col-span-2">

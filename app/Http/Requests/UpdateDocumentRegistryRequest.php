@@ -30,7 +30,8 @@ class UpdateDocumentRegistryRequest extends FormRequest
         return [
             'order_id' => ['required', 'integer', 'exists:orders,id'],
             'type' => ['required', Rule::in(OrderDocumentRegistryTypes::values())],
-            'party' => ['required', Rule::in(['customer', 'carrier', 'internal'])],
+            'party' => ['required', Rule::in(['customer', 'carrier', 'contractor', 'internal'])],
+            'contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'number' => ['nullable', 'string', 'max:255'],
             'document_date' => ['nullable', 'date'],
             'status' => ['required', Rule::in(['draft', 'pending', 'signed', 'sent'])],

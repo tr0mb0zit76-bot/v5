@@ -12,6 +12,7 @@ use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use JsonException;
@@ -173,6 +174,62 @@ class StoreContractorRequest extends FormRequest
             if ($normalized !== null) {
                 $this->merge([$paymentFormKey => $normalized]);
             }
+        }
+
+        $this->filterEmptyNestedCollections();
+    }
+
+    private function filterEmptyNestedCollections(): void
+    {
+        if ($this->has('contacts') && is_array($this->input('contacts'))) {
+            $contacts = collect($this->input('contacts'))
+                ->filter(fn (mixed $row): bool => is_array($row) && trim((string) ($row['full_name'] ?? '')) !== '')
+                ->values()
+                ->all();
+
+            $this->merge(['contacts' => $contacts]);
+        }
+
+        if ($this->has('documents') && is_array($this->input('documents'))) {
+            $documents = collect($this->input('documents'))
+                ->filter(function (mixed $row): bool {
+                    if (! is_array($row)) {
+                        return false;
+                    }
+
+                    if (($row['file'] ?? null) instanceof UploadedFile) {
+                        return true;
+                    }
+
+                    return trim((string) ($row['title'] ?? '')) !== '';
+                })
+                ->values()
+                ->all();
+
+            $this->merge(['documents' => $documents]);
+        }
+
+        if ($this->has('interactions') && is_array($this->input('interactions'))) {
+            $interactions = collect($this->input('interactions'))
+                ->map(function (mixed $row): array {
+                    if (! is_array($row)) {
+                        return [];
+                    }
+
+                    if (array_key_exists('contacted_at', $row) && ($row['contacted_at'] === '' || $row['contacted_at'] === null)) {
+                        $row['contacted_at'] = null;
+                    }
+
+                    return $row;
+                })
+                ->filter(fn (array $row): bool => ($row['contacted_at'] ?? null) !== null
+                    || trim((string) ($row['subject'] ?? '')) !== ''
+                    || trim((string) ($row['summary'] ?? '')) !== ''
+                    || trim((string) ($row['result'] ?? '')) !== '')
+                ->values()
+                ->all();
+
+            $this->merge(['interactions' => $interactions]);
         }
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Portal;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrderCarrierPortalDocumentRequest;
+use App\Http\Requests\StoreOrderCarrierPortalFleetDocumentRequest;
 use App\Http\Requests\SubmitOrderCarrierPortalRequest;
 use App\Models\Contractor;
 use App\Models\Order;
@@ -11,8 +12,11 @@ use App\Models\OrderLeg;
 use App\Models\OrderPortalInvite;
 use App\Models\RoutePoint;
 use App\Services\OrderCarrierPortalDocumentService;
+use App\Services\OrderCarrierPortalFleetDocumentService;
 use App\Services\OrderCarrierPortalSubmissionService;
+use App\Services\OrderPortalInviteAccessService;
 use App\Services\OrderPortalInviteService;
+use App\Support\DocumentUploadLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,15 +28,17 @@ class OrderCarrierPortalController extends Controller
 {
     public function __construct(
         private readonly OrderPortalInviteService $inviteService,
+        private readonly OrderPortalInviteAccessService $inviteAccessService,
         private readonly OrderCarrierPortalSubmissionService $submissionService,
         private readonly OrderCarrierPortalDocumentService $portalDocumentService,
+        private readonly OrderCarrierPortalFleetDocumentService $fleetDocumentService,
     ) {}
 
     public function show(Request $request, string $token): Response
     {
-        $invite = $this->resolveInviteOrAbort($token);
+        $invite = $this->resolveInviteOrAbort($token, allowClosed: true);
 
-        if ($invite->isOpenForSubmission()) {
+        if ($this->inviteAccessService->canUploadDocuments($invite->order, $invite)) {
             $invite->forceFill(['last_opened_at' => now()])->save();
         }
 
@@ -45,8 +51,7 @@ class OrderCarrierPortalController extends Controller
     public function store(SubmitOrderCarrierPortalRequest $request, string $token): RedirectResponse
     {
         $invite = $this->resolveInviteOrAbort($token);
-
-        abort_unless($invite->isOpenForSubmission(), 410);
+        abort_unless($this->inviteAccessService->canSubmitFleetForm($invite->order, $invite), 410);
 
         $this->submissionService->submit($invite, $request->validated());
 
@@ -54,15 +59,14 @@ class OrderCarrierPortalController extends Controller
             ->route('portal.carrier.show', ['token' => $token])
             ->with('flash', [
                 'type' => 'success',
-                'message' => 'Данные отправлены. Менеджер увидит их в заказе.',
+                'message' => 'Данные отправлены. Вы можете продолжить загружать закрывающие документы до завершения перевозки.',
             ]);
     }
 
     public function storeDocument(StoreOrderCarrierPortalDocumentRequest $request, string $token): RedirectResponse|JsonResponse
     {
         $invite = $this->resolveInviteOrAbort($token);
-
-        abort_unless($invite->isOpenForSubmission(), 410);
+        abort_unless($this->inviteAccessService->canUploadDocuments($invite->order, $invite), 410);
 
         $file = $request->file('file');
         abort_if($file === null, 422);
@@ -86,15 +90,39 @@ class OrderCarrierPortalController extends Controller
             ]);
     }
 
-    private function resolveInviteOrAbort(string $token): OrderPortalInvite
+    public function storeFleetDocument(StoreOrderCarrierPortalFleetDocumentRequest $request, string $token): JsonResponse
+    {
+        $invite = $this->resolveInviteOrAbort($token);
+        abort_unless($this->inviteAccessService->canUploadDocuments($invite->order, $invite), 410);
+
+        $file = $request->file('file');
+        abort_if($file === null, 422);
+
+        $this->fleetDocumentService->store($invite, $request->validated(), $file);
+
+        return response()->json([
+            'ok' => true,
+            'fleet_document_sections' => $this->fleetDocumentService->fleetDocumentSections(
+                $invite,
+                $request->validated(),
+            ),
+        ]);
+    }
+
+    private function resolveInviteOrAbort(string $token, bool $allowClosed = false): OrderPortalInvite
     {
         $invite = $this->inviteService->resolveByToken($token);
 
         abort_if($invite === null, 404, 'Ссылка не найдена.');
         abort_if($invite->isRevoked(), 410, 'Ссылка отозвана.');
-        abort_if($invite->isExpired(), 410, 'Срок действия ссылки истёк.');
 
-        return $invite->loadMissing(['order.documents', 'contractor']);
+        $invite->loadMissing(['order.documents', 'order.legs.routePoints', 'contractor']);
+
+        if (! $allowClosed && $this->inviteAccessService->isInviteClosed($invite->order, $invite)) {
+            abort(410, 'Ссылка закрыта: проставлена фактическая дата выгрузки.');
+        }
+
+        return $invite;
     }
 
     /**
@@ -108,10 +136,22 @@ class OrderCarrierPortalController extends Controller
         $contractor = $invite->contractor;
 
         $submission = is_array($invite->submitted_payload) ? $invite->submitted_payload : null;
+        $formDefaults = $submission ?? [];
+        $canUploadDocuments = $this->inviteAccessService->canUploadDocuments($order, $invite);
+        $canSubmitFleetForm = $this->inviteAccessService->canSubmitFleetForm($order, $invite);
+        $unloadingActual = $this->inviteAccessService->unloadingActualForInvite($order, $invite);
+
+        $status = 'closed';
+        if ($canUploadDocuments) {
+            $status = $invite->isSubmitted() ? 'submitted' : 'open';
+        }
 
         return [
-            'status' => $invite->isSubmitted() ? 'submitted' : ($invite->isOpenForSubmission() ? 'open' : 'closed'),
-            'expires_at' => $invite->expires_at?->toIso8601String(),
+            'status' => $status,
+            'link_validity_hint' => $this->inviteAccessService->linkValidityHint(),
+            'unloading_actual' => $unloadingActual,
+            'can_upload_documents' => $canUploadDocuments,
+            'can_submit_fleet_form' => $canSubmitFleetForm,
             'submitted_at' => $invite->used_at?->toIso8601String(),
             'submission' => $submission,
             'order' => [
@@ -129,8 +169,10 @@ class OrderCarrierPortalController extends Controller
                 'carrier_slot' => $invite->carrier_slot,
             ],
             'route_summary' => $this->routeSummaryForLeg($order, $invite->stage),
-            'form_defaults' => $submission ?? [],
+            'form_defaults' => $formDefaults,
             'document_slots' => $this->portalDocumentService->documentSlotsForInvite($invite),
+            'fleet_document_sections' => $this->fleetDocumentService->fleetDocumentSections($invite, $formDefaults),
+            'document_upload_limits' => DocumentUploadLimits::forSharedInertia(),
         ];
     }
 

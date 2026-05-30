@@ -6,6 +6,7 @@ const props = defineProps({
     portalToken: { type: String, required: true },
     documentSlots: { type: Array, default: () => [] },
     readonly: { type: Boolean, default: false },
+    documentUploadHint: { type: String, default: '' },
 });
 
 const uploadingKey = ref('');
@@ -28,6 +29,26 @@ function ensureSlotForm(slot) {
     return slotForms[key];
 }
 
+function canUploadToSlot(slot) {
+    if (props.readonly) {
+        return false;
+    }
+
+    if (slot.allows_multiple) {
+        return true;
+    }
+
+    return !slot.completed;
+}
+
+function slotStatusLabel(slot) {
+    if (!slot.completed) {
+        return 'Нужен файл';
+    }
+
+    return slot.allows_multiple ? 'Есть файлы' : 'Загружено';
+}
+
 function onFileChange(slot, event) {
     const form = ensureSlotForm(slot);
     const [file] = event.target.files ?? [];
@@ -38,7 +59,7 @@ function onFileChange(slot, event) {
 }
 
 async function uploadSlot(slot) {
-    if (props.readonly) {
+    if (!canUploadToSlot(slot)) {
         return;
     }
 
@@ -100,8 +121,9 @@ async function uploadSlot(slot) {
         <div>
             <h2 class="text-sm font-semibold text-zinc-900">Документы</h2>
             <p class="mt-1 text-xs text-zinc-500">
-                Файлы сохраняются в реестр заказа так же, как при загрузке менеджером (плечо и перевозчик указаны автоматически).
+                Подгрузите заявку с вашей подписью. После завершения перевозки подгрузите закрывающие документы.
             </p>
+            <p v-if="documentUploadHint" class="mt-2 text-xs text-zinc-500">{{ documentUploadHint }}</p>
         </div>
 
         <p v-if="uploadError" class="text-xs text-rose-600">{{ uploadError }}</p>
@@ -120,7 +142,7 @@ async function uploadSlot(slot) {
                     class="rounded-full px-2 py-0.5 text-[10px] font-medium"
                     :class="slot.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'"
                 >
-                    {{ slot.completed ? 'Загружено' : 'Нужен файл' }}
+                    {{ slotStatusLabel(slot) }}
                 </span>
             </div>
 
@@ -130,7 +152,7 @@ async function uploadSlot(slot) {
                 </li>
             </ul>
 
-            <template v-if="!readonly && !slot.completed">
+            <template v-if="canUploadToSlot(slot)">
                 <div class="grid gap-2 sm:grid-cols-2">
                     <div class="space-y-1">
                         <label class="text-xs text-zinc-500">Тип</label>

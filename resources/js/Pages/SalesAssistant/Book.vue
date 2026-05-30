@@ -106,7 +106,7 @@
                     </div>
 
                     <TiptapEditor
-                        v-model="editForm.html_content"
+                        v-model="editForm.markdown_content"
                         :upload-url="route('sales-assistant.book.assets.upload')"
                         :editable="canWrite"
                         placeholder="Начните писать... Нажмите Enter для нового блока. Можно вставлять ссылки, изображения, файлы и чек-листы."
@@ -191,7 +191,7 @@ const importForm = useForm({
 
 const editForm = useForm({
     title: '',
-    html_content: '<p></p>',
+    markdown_content: '',
     parent_id: null,
 });
 
@@ -203,7 +203,7 @@ watch(
     (value) => {
         editForm.defaults({
             title: value?.title ?? '',
-            html_content: value?.html_content ?? '<p></p>',
+            markdown_content: value?.markdown_content ?? '',
             parent_id: value?.parent_id ?? null,
         });
         editForm.reset();

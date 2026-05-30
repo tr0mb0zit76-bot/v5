@@ -139,7 +139,34 @@ export function filterExternalCarrierSlots(expanded) {
     );
 }
 
+export function isDedicatedAdditionalCostStage(stage) {
+    const value = String(stage ?? '');
+
+    return value === 'additional' || /^additional_\d+$/.test(value);
+}
+
+export function isAdditionalContractorCost(cost) {
+    const stage = String(cost?.stage ?? '');
+
+    return Boolean(cost?.is_additional) || isDedicatedAdditionalCostStage(stage);
+}
+
+export function nextAdditionalContractorCostStage(existingRows) {
+    const rows = Array.isArray(existingRows) ? existingRows : [];
+    let index = 1;
+
+    while (rows.some((row) => String(row?.stage ?? '') === `additional_${index}`)) {
+        index += 1;
+    }
+
+    return `additional_${index}`;
+}
+
 export function costMatchesPerformerSlot(cost, performer, slot = null) {
+    if (isAdditionalContractorCost(cost)) {
+        return false;
+    }
+
     const costSlot = cost?.carrier_slot ?? null;
     const targetSlot = slot?.slot ?? slot ?? null;
 

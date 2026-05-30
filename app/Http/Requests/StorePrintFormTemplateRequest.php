@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\PrintFormTemplate;
+use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -37,6 +38,8 @@ class StorePrintFormTemplateRequest extends FormRequest
             'party' => ['required', 'string', Rule::in(array_column(PrintFormTemplate::partyOptions(), 'value'))],
             'source_type' => ['required', 'string', Rule::in(array_column(PrintFormTemplate::sourceTypeOptions(), 'value'))],
             'contractor_id' => $contractorRules,
+            'own_company_id' => $this->ownCompanyIdRules(),
+            'transport_scope' => ['nullable', 'string', Rule::in(PrintFormTemplateTransportScope::values())],
             'is_default' => ['nullable', 'boolean'],
             'requires_internal_signature' => ['nullable', 'boolean'],
             'requires_counterparty_signature' => ['nullable', 'boolean'],
@@ -62,5 +65,36 @@ class StorePrintFormTemplateRequest extends FormRequest
                 File::types(['docx'])->max(10 * 1024),
             ],
         ];
+    }
+
+    /**
+     * @return array<int, ValidationRule|string>
+     */
+    protected function ownCompanyIdRules(): array
+    {
+        $rules = ['nullable', 'integer'];
+
+        if (! Schema::hasTable('contractors')) {
+            return $rules;
+        }
+
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $rules[] = Rule::exists('contractors', 'id')->where('is_own_company', true);
+        } else {
+            $rules[] = Rule::exists('contractors', 'id');
+        }
+
+        return $rules;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('own_company_id') && $this->input('own_company_id') === '') {
+            $this->merge(['own_company_id' => null]);
+        }
+
+        if (! $this->has('transport_scope') || trim((string) $this->input('transport_scope')) === '') {
+            $this->merge(['transport_scope' => PrintFormTemplateTransportScope::ANY]);
+        }
     }
 }

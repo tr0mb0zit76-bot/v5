@@ -28,6 +28,7 @@ import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Underline from '@tiptap/extension-underline';
+import { Markdown } from '@tiptap/markdown';
 
 const props = defineProps({
     modelValue: {
@@ -54,7 +55,8 @@ const imageInput = ref(null);
 const fileInput = ref(null);
 
 const editor = useEditor({
-    content: props.modelValue || '<p></p>',
+    content: props.modelValue || '',
+    contentType: 'markdown',
     extensions: [
         StarterKit.configure({
             heading: { levels: [1, 2, 3] },
@@ -71,14 +73,15 @@ const editor = useEditor({
         TaskList,
         TaskItem.configure({ nested: true }),
         Underline,
+        Markdown,
     ],
     editorProps: {
         attributes: {
-            class: 'prose max-w-none focus:outline-none dark:prose-invert',
+            class: 'sales-book-editor focus:outline-none',
         },
     },
     onUpdate: ({ editor: instance }) => {
-        emit('update:modelValue', instance.getHTML());
+        emit('update:modelValue', instance.getMarkdown());
     },
 });
 
@@ -89,9 +92,9 @@ watch(
             return;
         }
 
-        const incoming = value || '<p></p>';
-        if (incoming !== editor.value.getHTML()) {
-            editor.value.commands.setContent(incoming, false);
+        const incoming = value || '';
+        if (incoming !== editor.value.getMarkdown()) {
+            editor.value.commands.setContent(incoming, false, { contentType: 'markdown' });
         }
     },
 );
@@ -124,13 +127,82 @@ const toolbarItems = computed(() => {
         { key: 'bold', label: 'B', active: () => editor.value.isActive('bold'), action: () => editor.value.chain().focus().toggleBold().run() },
         { key: 'italic', label: 'I', active: () => editor.value.isActive('italic'), action: () => editor.value.chain().focus().toggleItalic().run() },
         { key: 'underline', label: 'U', active: () => editor.value.isActive('underline'), action: () => editor.value.chain().focus().toggleUnderline().run() },
-        { key: 'bullet', label: '• List', active: () => editor.value.isActive('bulletList'), action: () => editor.value.chain().focus().toggleBulletList().run() },
-        { key: 'ordered', label: '1. List', active: () => editor.value.isActive('orderedList'), action: () => editor.value.chain().focus().toggleOrderedList().run() },
+        { key: 'bullet', label: '• List', active: () => editor.value.isActive('bulletList'), action: () => toggleListForSelection('bulletList') },
+        { key: 'ordered', label: '1. List', active: () => editor.value.isActive('orderedList'), action: () => toggleListForSelection('orderedList') },
         { key: 'task', label: 'Todo', active: () => editor.value.isActive('taskList'), action: () => editor.value.chain().focus().toggleTaskList().run() },
         { key: 'quote', label: 'Quote', active: () => editor.value.isActive('blockquote'), action: () => editor.value.chain().focus().toggleBlockquote().run() },
         { key: 'code', label: '</>', active: () => editor.value.isActive('codeBlock'), action: () => editor.value.chain().focus().toggleCodeBlock().run() },
     ];
 });
+
+function toggleListForSelection(listType) {
+    if (!editor.value) {
+        return;
+    }
+
+    splitHardBreaksInSelection();
+
+    const chain = editor.value.chain().focus();
+
+    if (listType === 'bulletList') {
+        chain.toggleBulletList().run();
+
+        return;
+    }
+
+    chain.toggleOrderedList().run();
+}
+
+/**
+ * Shift+Enter даёт <br> внутри одного абзаца — список на таком выделении выглядит как отступ без маркеров.
+ * Разбиваем на отдельные абзацы, чтобы каждая строка стала пунктом списка.
+ */
+function splitHardBreaksInSelection() {
+    const instance = editor.value;
+    if (!instance) {
+        return;
+    }
+
+    const { state } = instance;
+    const { from, to, empty } = state.selection;
+
+    if (empty || from === to) {
+        return;
+    }
+
+    const $from = state.doc.resolve(from);
+    const $to = state.doc.resolve(to);
+
+    if ($from.parent !== $to.parent || $from.parent.type.name !== 'paragraph') {
+        return;
+    }
+
+    const hardBreakPositions = [];
+
+    $from.parent.forEach((node, offset) => {
+        if (node.type.name !== 'hardBreak') {
+            return;
+        }
+
+        const position = $from.start() + offset + node.nodeSize;
+
+        if (position > from && position < to) {
+            hardBreakPositions.push(position);
+        }
+    });
+
+    if (hardBreakPositions.length === 0) {
+        return;
+    }
+
+    const chain = instance.chain().focus();
+
+    [...hardBreakPositions].reverse().forEach((position) => {
+        chain.setTextSelection({ from: position, to: position }).splitBlock();
+    });
+
+    chain.setTextSelection({ from, to }).run();
+}
 
 function buttonClass(active) {
     return active
@@ -199,7 +271,7 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
         editor.value
             .chain()
             .focus()
-            .insertContent(`<p><a href="${url}" target="_blank" rel="noopener noreferrer">${name || url}</a></p>`)
+            .insertContent(`[${name || url}](${url})`, false, { contentType: 'markdown' })
             .run();
     } catch (error) {
         console.error('Upload failed', error);
@@ -223,5 +295,125 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 
 :deep(.tiptap-body .ProseMirror:focus) {
     outline: none;
+}
+
+:deep(.tiptap-body .sales-book-editor h1) {
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 1.25rem 0 0.75rem;
+}
+
+:deep(.tiptap-body .sales-book-editor h2) {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.3;
+    margin: 1rem 0 0.5rem;
+}
+
+:deep(.tiptap-body .sales-book-editor h3) {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 0.875rem 0 0.5rem;
+}
+
+:deep(.tiptap-body .sales-book-editor p) {
+    margin: 0.5rem 0;
+}
+
+:deep(.tiptap-body .sales-book-editor ul:not([data-type='taskList'])),
+:deep(.tiptap-body .sales-book-editor ol) {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+:deep(.tiptap-body .sales-book-editor ul:not([data-type='taskList'])) {
+    list-style-type: disc;
+}
+
+:deep(.tiptap-body .sales-book-editor ol) {
+    list-style-type: decimal;
+}
+
+:deep(.tiptap-body .sales-book-editor li) {
+    display: list-item;
+    margin: 0.25rem 0;
+}
+
+:deep(.tiptap-body .sales-book-editor li > p) {
+    margin: 0;
+}
+
+:deep(.tiptap-body .sales-book-editor ol ol),
+:deep(.tiptap-body .sales-book-editor ul ul),
+:deep(.tiptap-body .sales-book-editor ol ul),
+:deep(.tiptap-body .sales-book-editor ul ol) {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+:deep(.tiptap-body .sales-book-editor blockquote) {
+    border-left: 3px solid rgb(212 212 216);
+    color: rgb(82 82 91);
+    margin: 0.75rem 0;
+    padding-left: 1rem;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor blockquote) {
+    border-left-color: rgb(82 82 91);
+    color: rgb(161 161 170);
+}
+
+:deep(.tiptap-body .sales-book-editor pre) {
+    background: rgb(244 244 245);
+    border-radius: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.875rem;
+    margin: 0.75rem 0;
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor pre) {
+    background: rgb(39 39 42);
+}
+
+:deep(.tiptap-body .sales-book-editor ul[data-type='taskList']) {
+    list-style: none;
+    margin: 0.5rem 0;
+    padding-left: 0;
+}
+
+:deep(.tiptap-body .sales-book-editor ul[data-type='taskList'] li) {
+    align-items: flex-start;
+    display: flex;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0.25rem 0;
+}
+
+:deep(.tiptap-body .sales-book-editor ul[data-type='taskList'] li > label) {
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+}
+
+:deep(.tiptap-body .sales-book-editor ul[data-type='taskList'] li > div) {
+    flex: 1;
+}
+
+:deep(.tiptap-body .sales-book-editor img) {
+    border-radius: 0.5rem;
+    margin: 0.75rem 0;
+    max-width: 100%;
+}
+
+:deep(.tiptap-body .sales-book-editor a) {
+    color: rgb(37 99 235);
+    text-decoration: underline;
+}
+
+:deep(.dark .tiptap-body .sales-book-editor a) {
+    color: rgb(96 165 250);
 }
 </style>

@@ -9,7 +9,7 @@ final class OrderDocumentRequirementSlotBuilder
 {
     private const REQUEST_TYPES = ['request', 'contract_request'];
 
-    private const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
+    private const CLOSING_TYPES = ['upd', 'invoice_factura', 'act', 'waybill', 'cmr', 'etrn', 'other'];
 
     private const WAYBILL_TYPES = ['waybill', 'cmr', 'etrn'];
 
@@ -29,7 +29,7 @@ final class OrderDocumentRequirementSlotBuilder
      *     allows_multiple?: bool
      * }>
      */
-    public static function buildRules(array $performers, string $clientRequestMode): array
+    public static function buildRules(array $performers, string $clientRequestMode, array $additionalCosts = []): array
     {
         $mode = $clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
         $rules = [];
@@ -48,6 +48,10 @@ final class OrderDocumentRequirementSlotBuilder
 
         foreach (self::carrierRequestSlots($performers, $mode) as $slot) {
             $rules[] = self::requestRule('carrier', $slot, 'carrier_closing', 'Закрывающий документ перевозчика', self::CLOSING_TYPES, true);
+        }
+
+        foreach (self::contractorAdditionalCostSlots($additionalCosts) as $slot) {
+            $rules[] = self::requestRule('contractor', $slot, 'contractor_closing', 'Закрывающий документ подрядчику', self::CLOSING_TYPES, true);
         }
 
         $rules[] = [
@@ -198,6 +202,43 @@ final class OrderDocumentRequirementSlotBuilder
     }
 
     /**
+     * @param  list<array<string, mixed>>  $additionalCosts
+     * @return list<array{slotKey: string, orderLegStage: string|null, contractorId: int|null, contractorName: string|null, labelSuffix: string}>
+     */
+    private static function contractorAdditionalCostSlots(array $additionalCosts): array
+    {
+        $slots = [];
+
+        foreach ($additionalCosts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $contractorId = isset($row['contractor_id']) && $row['contractor_id'] !== null && $row['contractor_id'] !== ''
+                ? (int) $row['contractor_id']
+                : null;
+
+            if ($contractorId === null) {
+                continue;
+            }
+
+            $rowId = trim((string) ($row['id'] ?? ''));
+            $slotKey = $rowId !== '' ? "contractor-{$contractorId}-{$rowId}" : "contractor-{$contractorId}";
+            $name = trim((string) ($row['contractor_name'] ?? ''));
+
+            $slots[] = [
+                'slotKey' => $slotKey,
+                'orderLegStage' => null,
+                'contractorId' => $contractorId,
+                'contractorName' => $name !== '' ? $name : null,
+                'labelSuffix' => $name !== '' ? " · {$name}" : '',
+            ];
+        }
+
+        return $slots;
+    }
+
+    /**
      * @param  array{slotKey: string, orderLegStage: string|null, contractorId: int|null, contractorName: string|null, labelSuffix: string}  $slot
      * @param  list<string>  $acceptedTypes
      * @return array{
@@ -237,6 +278,7 @@ final class OrderDocumentRequirementSlotBuilder
             'contractor_id' => $slot['contractorId'],
             'order_leg_stage' => $slot['orderLegStage'],
             'counterparty_label' => $slot['contractorName'],
+            'allows_multiple' => $isClosing,
         ];
     }
 

@@ -180,6 +180,7 @@ class PrintFormPlaceholderPathResolver
             'osobye_uslovia_vygruzki' => 'cargo.trailer_types',
             'normativ' => 'financial.client_norms_penalties.norm_loading_hours',
             'cargo_declared_sum' => 'order.cargo_declared_sum',
+            'volume' => 'cargo.total_volume',
             'fio_voditel' => 'driver.full_name',
             'tel_voditel' => 'driver.phone',
             'passport_voditel' => 'driver.passport_data',

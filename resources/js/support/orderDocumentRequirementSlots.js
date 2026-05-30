@@ -129,7 +129,11 @@ export function carrierRequestSlots(performers, clientRequestMode) {
  * @param {string} clientRequestMode
  * @returns {Array<Record<string, unknown>>}
  */
-export function buildDocumentRequirementRules(performers, clientRequestMode = 'single_request') {
+export function buildDocumentRequirementRules(
+    performers,
+    clientRequestMode = 'single_request',
+    additionalCosts = [],
+) {
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
     const rules = [];
 
@@ -190,6 +194,34 @@ export function buildDocumentRequirementRules(performers, clientRequestMode = 's
             contractor_id: slot.contractorId,
             order_leg_stage: slot.orderLegStage,
             counterparty_label: slot.contractorName,
+        });
+    });
+
+    (Array.isArray(additionalCosts) ? additionalCosts : []).forEach((row) => {
+        const contractorId = row?.contractor_id != null && row?.contractor_id !== ''
+            ? Number(row.contractor_id)
+            : null;
+
+        if (!contractorId) {
+            return;
+        }
+
+        const rowId = String(row?.id ?? '').trim();
+        const slotKey = rowId !== '' ? `contractor-${contractorId}-${rowId}` : `contractor-${contractorId}`;
+        const name = row?.contractor_name ? String(row.contractor_name).trim() : '';
+        const suffix = name !== '' ? ` · ${name}` : '';
+
+        rules.push({
+            key: `contractor_closing:${slotKey}`,
+            label: `Закрывающий документ подрядчику${suffix}`,
+            description: 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».',
+            party: 'contractor',
+            accepted_types: CLOSING_TYPES,
+            slot_kind: 'contractor_closing',
+            slot_key: slotKey,
+            contractor_id: contractorId,
+            order_leg_stage: null,
+            counterparty_label: name !== '' ? name : null,
         });
     });
 

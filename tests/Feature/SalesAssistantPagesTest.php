@@ -92,7 +92,7 @@ class SalesAssistantPagesTest extends TestCase
     {
         $user = $this->createUserWithAreas(['dashboard', 'scripts']);
 
-        $file = UploadedFile::fake()->createWithContent('upsell-guide.md', "# ������ �������\n\n- ��� 1\n- ��� 2");
+        $file = UploadedFile::fake()->createWithContent('upsell-guide.md', "# Гайд по допродажам\n\n- Шаг 1\n- Шаг 2");
 
         $this->actingAs($user)->post(route('sales-assistant.book.import'), [
             'file' => $file,
@@ -100,8 +100,8 @@ class SalesAssistantPagesTest extends TestCase
 
         $article = SalesBookArticle::query()->first();
         $this->assertNotNull($article);
-        $this->assertSame('������ �������', $article->title);
-        $this->assertStringContainsString('��� 1', $article->markdown_content);
+        $this->assertSame('Гайд по допродажам', $article->title);
+        $this->assertStringContainsString('Шаг 1', $article->markdown_content);
 
         $this->actingAs($user)
             ->get(route('sales-assistant.book', ['article_id' => $article->id]))
@@ -109,8 +109,44 @@ class SalesAssistantPagesTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('SalesAssistant/Book')
                 ->where('selectedArticle.id', $article->id)
-                ->where('selectedArticle.title', '������ �������')
-                ->where('selectedArticle.html_content', fn (string $html): bool => str_contains($html, '<h1>������ �������</h1>'))
+                ->where('selectedArticle.title', 'Гайд по допродажам')
+                ->where('selectedArticle.markdown_content', fn (string $markdown): bool => str_contains($markdown, '# Гайд по допродажам')
+                    && str_contains($markdown, 'Шаг 1'))
+            );
+    }
+
+    public function test_update_article_preserves_nested_markdown_lists(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $markdown = <<<'MD'
+# Заголовок
+
+1. Первый пункт
+   1. Вложенный пункт
+   2. Ещё вложенный
+2. Второй пункт
+
+> Цитата с **жирным** текстом
+MD;
+
+        $this->actingAs($user)->post(route('sales-assistant.book.articles.store'), [
+            'title' => 'Nested list article',
+            'markdown_content' => $markdown,
+            'parent_id' => null,
+        ])->assertRedirect();
+
+        $article = SalesBookArticle::query()->where('title', 'Nested list article')->first();
+        $this->assertNotNull($article);
+        $this->assertStringContainsString('Вложенный пункт', $article->markdown_content);
+        $this->assertStringContainsString('**жирным**', $article->markdown_content);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', ['article_id' => $article->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesAssistant/Book')
+                ->where('selectedArticle.markdown_content', $markdown)
             );
     }
 

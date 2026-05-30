@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
-use App\Support\CargoPerformerAllocationBuilder;
+use App\Support\ContractorCostRowClassification;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 
@@ -37,6 +37,17 @@ class OrderWizardStateService
             'insurance' => Arr::get($validated, 'insurance'),
             'bonus' => Arr::get($validated, 'bonus'),
         ];
+
+        if (Schema::hasTable('financial_terms')) {
+            $financialTerm = $order->financialTerms()->first();
+            $persistedAdditionalCosts = is_array($financialTerm?->additional_costs)
+                ? $financialTerm->additional_costs
+                : null;
+
+            if ($persistedAdditionalCosts !== null) {
+                data_set($payload, 'financial_term.additional_costs', $persistedAdditionalCosts);
+            }
+        }
 
         $order->forceFill(['wizard_state' => $payload])->saveQuietly();
     }
@@ -133,20 +144,36 @@ class OrderWizardStateService
         }
 
         $carrierRate = (float) $value;
-        $sum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
+        $sum = collect($costs)
+            ->filter(fn (array $cost): bool => ! ContractorCostRowClassification::isAdditional($cost))
+            ->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
 
         if (abs(round($carrierRate, 2) - round($sum, 2)) < 0.01) {
             return;
         }
 
-        if (count($costs) === 1) {
-            data_set($state, 'financial_term.contractors_costs.0.amount', $carrierRate);
+        $legIndexes = [];
+        foreach ($costs as $index => $cost) {
+            if (! ContractorCostRowClassification::isAdditional($cost)) {
+                $legIndexes[] = $index;
+            }
+        }
+
+        if ($legIndexes === []) {
+            return;
+        }
+
+        if (count($legIndexes) === 1) {
+            data_set($state, "financial_term.contractors_costs.{$legIndexes[0]}.amount", $carrierRate);
 
             return;
         }
 
-        $rest = collect($costs)->slice(1)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
-        data_set($state, 'financial_term.contractors_costs.0.amount', max(0.0, $carrierRate - $rest));
+        $firstLegIndex = $legIndexes[0];
+        $rest = collect($legIndexes)
+            ->slice(1)
+            ->sum(fn (int $index): float => (float) ($costs[$index]['amount'] ?? 0));
+        data_set($state, "financial_term.contractors_costs.{$firstLegIndex}.amount", max(0.0, $carrierRate - $rest));
     }
 
     /**
@@ -165,6 +192,10 @@ class OrderWizardStateService
 
         $form = (string) $value;
         foreach (array_keys($costs) as $i) {
+            if (ContractorCostRowClassification::isAdditional($costs[$i])) {
+                continue;
+            }
+
             data_set($state, "financial_term.contractors_costs.{$i}.payment_form", $form);
         }
     }

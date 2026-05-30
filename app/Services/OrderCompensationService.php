@@ -6,8 +6,8 @@ use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
-use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\CashToCashMarginCalculator;
+use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
 use App\Support\PaymentInstallmentPlanner;
@@ -534,6 +534,31 @@ class OrderCompensationService
                     $carrierContractorId,
                     $invoiceByKey,
                     $scheduleOrderDate,
+                ),
+            ];
+        }
+
+        $order->loadMissing('financialTerms');
+        $financialTerm = $order->financialTerms->first();
+        $additionalCosts = is_array($financialTerm?->additional_costs) ? $financialTerm->additional_costs : [];
+
+        foreach (OrderAdditionalCostNormalizer::normalizeList($additionalCosts) as $additionalCost) {
+            $contractorId = $additionalCost['contractor_id'] ?? null;
+
+            if ($contractorId === null) {
+                continue;
+            }
+
+            $rows = [
+                ...$rows,
+                ...$this->buildPaymentScheduleRows(
+                    $order,
+                    'contractor',
+                    (float) ($additionalCost['amount'] ?? 0),
+                    (array) ($additionalCost['payment_schedule'] ?? []),
+                    (int) $contractorId,
+                    $invoiceByKey,
+                    filled($additionalCost['service_date'] ?? null) ? (string) $additionalCost['service_date'] : null,
                 ),
             ];
         }

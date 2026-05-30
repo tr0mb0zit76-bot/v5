@@ -6,6 +6,7 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
+use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderDocumentRequirementSlotBuilder;
 use App\Support\OrderDocumentWorkflowStatus;
 use Carbon\CarbonInterface;
@@ -32,9 +33,12 @@ class OrderDocumentRequirementService
      * @param  list<array{stage?: string|null, contractor_id?: int|null, contractor_name?: string|null}>  $performers
      * @return list<array<string, mixed>>
      */
-    public function requirementRulesForContext(array $performers, string $clientRequestMode = 'single_request'): array
-    {
-        return OrderDocumentRequirementSlotBuilder::buildRules($performers, $clientRequestMode);
+    public function requirementRulesForContext(
+        array $performers,
+        string $clientRequestMode = 'single_request',
+        array $additionalCosts = [],
+    ): array {
+        return OrderDocumentRequirementSlotBuilder::buildRules($performers, $clientRequestMode, $additionalCosts);
     }
 
     /**
@@ -45,6 +49,7 @@ class OrderDocumentRequirementService
         return $this->requirementRulesForContext(
             $this->resolvePerformersForOrder($order),
             $this->resolveClientRequestModeForOrder($order),
+            $this->resolveAdditionalCostsForOrder($order),
         );
     }
 
@@ -78,6 +83,7 @@ class OrderDocumentRequirementService
         return [
             ['value' => 'customer', 'label' => 'Заказчик'],
             ['value' => 'carrier', 'label' => 'Перевозчик'],
+            ['value' => 'contractor', 'label' => 'Подрядчик'],
             ['value' => 'internal', 'label' => 'Внутренний'],
         ];
     }
@@ -508,6 +514,31 @@ class OrderDocumentRequirementService
                 'contractor_name' => null,
             ])
             ->all();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function resolveAdditionalCostsForOrder(Order $order): array
+    {
+        if (! Schema::hasTable('financial_terms')) {
+            return [];
+        }
+
+        $order->loadMissing('financialTerms');
+        $financialTerm = $order->financialTerms->first();
+
+        if (! $financialTerm instanceof FinancialTerm) {
+            return [];
+        }
+
+        $rows = is_array($financialTerm->additional_costs) ? $financialTerm->additional_costs : [];
+
+        return OrderAdditionalCostNormalizer::normalizeList(
+            $rows,
+            (string) ($financialTerm->client_currency ?? 'RUB'),
+            optional($order->additional_expenses_payment_date)?->toDateString(),
+        );
     }
 
     private function resolveClientRequestModeForOrder(Order $order): string

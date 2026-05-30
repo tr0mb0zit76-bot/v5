@@ -1263,25 +1263,13 @@
                         </div>
 
                     <div class="space-y-3">
-                        <div v-for="(cost, index) in form.financial_term.contractors_costs" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+                        <div v-for="(cost, index) in legContractorCosts" :key="`contractor-cost-${index}`" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-start">
                                 <div class="min-w-0 md:col-span-5">
-                                    <div class="flex flex-wrap items-start justify-between gap-2">
-                                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                                            {{ costRowTitle(cost) }}
-                                        </div>
-                                        <button
-                                            v-if="cost.is_additional"
-                                            type="button"
-                                            class="shrink-0 text-[11px] text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                            @click="removeAdditionalContractorCostRow(index)"
-                                        >
-                                            Удалить
-                                        </button>
+                                    <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {{ costRowTitle(cost) }}
                                     </div>
-                                    <p class="text-xs text-zinc-500">
-                                        {{ cost.is_additional ? 'Дополнительный исполнитель в структуре затрат заказа.' : 'Исполнитель и условия оплаты для плеча маршрута.' }}
-                                    </p>
+                                    <p class="text-xs text-zinc-500">Исполнитель и условия оплаты для плеча маршрута.</p>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
                                     <label class="text-sm font-medium">
@@ -1318,54 +1306,113 @@
             </div>
 
             <div class="space-y-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-                <div>
-                    <h2 class="text-base font-semibold">Дополнительные затраты</h2>
-                    <p class="text-xs text-zinc-500">Прочие расходы по заказу (не оплата перевозчикам по этапам)</p>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-base font-semibold">Дополнительные затраты</h2>
+                        <p class="text-xs text-zinc-500">Подрядчики и прочие расходы по заказу (не оплата перевозчикам по этапам)</p>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        @click="addAdditionalCostRow"
+                    >
+                        Добавить затрату
+                    </button>
                 </div>
-                <div class="space-y-2">
-                    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
-                        <div class="min-w-0 flex-1 space-y-1 lg:max-w-md">
-                            <label class="text-sm font-medium">Исполнитель доп. затрат</label>
-                            <div class="flex gap-2">
-                                <select v-model="additionalCostContractorId" :class="[crmFieldFluid, 'min-w-0 flex-1']">
-                                    <option :value="null">Выберите исполнителя</option>
-                                    <option v-for="contractor in costContractorOptions" :key="`additional-cost-${contractor.id}`" :value="contractor.id">
-                                        {{ contractor.name }}
-                                    </option>
-                                </select>
+
+                <div v-if="form.financial_term.additional_costs.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
+                    Нет дополнительных затрат. Нажмите «Добавить затрату», чтобы указать подрядчика, дату услуги, сумму и условия оплаты.
+                </div>
+
+                <div
+                    v-for="(row, index) in form.financial_term.additional_costs"
+                    :key="`additional-cost-${row.id}`"
+                    class="space-y-2 border-b border-zinc-100 pb-4 last:border-b-0 last:pb-0 dark:border-zinc-800"
+                >
+                    <div class="grid grid-cols-1 gap-2 md:grid-cols-12 md:items-end">
+                        <div class="relative min-w-0 space-y-1 md:col-span-4">
+                            <label class="text-xs font-medium text-zinc-500">Подрядчик</label>
+                            <input
+                                :value="additionalCostSearchValue(index)"
+                                type="text"
+                                autocomplete="off"
+                                placeholder="Название или ИНН"
+                                :class="crmFieldFluid"
+                                @input="setAdditionalCostSearchValue(index, $event.target.value)"
+                                @focus="setAdditionalCostResultsVisible(index, true)"
+                                @blur="hideAdditionalCostResults(index)"
+                            />
+                            <div
+                                v-if="isAdditionalCostResultsVisible(index) && additionalCostCombinedResults(index).length > 0"
+                                class="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
+                            >
                                 <button
+                                    v-for="contractor in additionalCostCombinedResults(index)"
+                                    :key="`additional-cost-search-${row.id}-${contractor.id}`"
                                     type="button"
-                                    class="shrink-0 whitespace-nowrap rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:text-zinc-400 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                                    :disabled="normalizeNullableNumber(additionalCostContractorId) === null"
-                                    @click="addAdditionalContractorCostRow"
+                                    class="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                                    @mousedown.prevent="selectAdditionalCostContractor(index, contractor)"
                                 >
-                                    Добавить исполнителя
+                                    <div class="font-medium">{{ contractor.name }}</div>
+                                    <div v-if="contractor.inn" class="text-xs text-zinc-500">ИНН {{ contractor.inn }}</div>
                                 </button>
                             </div>
                         </div>
-                        <div class="shrink-0 space-y-1">
-                            <label class="text-sm font-medium">Дата возникновения затрат</label>
-                            <input v-model="form.additional_expenses_payment_date" type="date" :class="additionalExpenseDateFieldClass" />
+                        <div class="min-w-0 space-y-1 md:col-span-2">
+                            <label class="text-xs font-medium text-zinc-500">Дата услуги</label>
+                            <input v-model="row.service_date" type="date" :class="crmFieldFluid" />
                         </div>
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 lg:gap-x-5">
-                            <div class="flex items-center gap-2">
-                                <span class="whitespace-nowrap text-sm font-medium">Доп. расходы</span>
-                                <input v-model="form.additional_expenses" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="whitespace-nowrap text-sm font-medium">Страховка</span>
-                                <input v-model="form.insurance" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="whitespace-nowrap text-sm font-medium">Бонус</span>
-                                <input v-model="form.bonus" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
-                            </div>
+                        <div class="min-w-0 space-y-1 md:col-span-2">
+                            <label class="text-xs font-medium text-zinc-500">Стоимость</label>
+                            <input v-model="row.amount" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
+                        </div>
+                        <div class="min-w-0 space-y-1 md:col-span-1">
+                            <label class="text-xs font-medium text-zinc-500">Вал.</label>
+                            <select v-model="row.currency" :class="crmFieldFluid">
+                                <option v-for="option in currencyOptions" :key="`additional-currency-${row.id}-${option.value}`" :value="option.value">{{ option.value }}</option>
+                            </select>
+                        </div>
+                        <div class="min-w-0 space-y-1 md:col-span-2">
+                            <label class="text-xs font-medium text-zinc-500">Форма оплаты</label>
+                            <select v-model="row.payment_form" :class="crmFieldFluid">
+                                <option v-for="option in paymentFormOptions" :key="`additional-payform-${row.id}-${option.value}`" :value="option.value">{{ option.label }}</option>
+                            </select>
+                        </div>
+                        <div class="flex md:col-span-1 md:justify-end">
+                            <button
+                                type="button"
+                                class="mt-5 rounded-xl border border-rose-200 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40 md:mt-0"
+                                @click="removeAdditionalCostRow(index)"
+                            >
+                                Удалить
+                            </button>
                         </div>
                     </div>
-                    <p class="text-xs text-zinc-500">
-                        В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
-                    </p>
+                    <PaymentTermsWizardBlock
+                        :key="`additional-pay-${props.order?.id ?? 'draft'}-${row.id}`"
+                        v-model:summary-text="row.payment_terms"
+                        :schedule="row.payment_schedule"
+                        :total-amount="row.amount"
+                        :currency="row.currency"
+                        :route-points="form.route_points"
+                        :order-date="row.service_date || form.order_date"
+                        editable-summary
+                    />
                 </div>
+
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                    <div class="flex items-center gap-2">
+                        <span class="whitespace-nowrap text-sm font-medium">Страховка</span>
+                        <input v-model="form.insurance" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="whitespace-nowrap text-sm font-medium">Бонус</span>
+                        <input v-model="form.bonus" type="number" min="0" step="0.01" :class="additionalExpenseAmountFieldClass" placeholder="0" />
+                    </div>
+                </div>
+                <p class="text-xs text-zinc-500">
+                    В марже бонус учитывается с коэффициентом {{ Number(props.bonusMultiplier || 0).toFixed(2) }}.
+                </p>
             </div>
 
             </div>
@@ -1597,11 +1644,16 @@
                 v-model:signed-documents="form.documents"
                 :order="order"
                 :performers="form.performers"
+                :additional-costs="form.financial_term.additional_costs"
                 :client-request-mode="form.financial_term.client_request_mode"
                 :is-order-form-editable="isOrderFormEditable"
                 :all-documents="order?.documents ?? []"
+                :print-form-template-catalog="printFormTemplateCatalog"
                 :print-form-template-options-customer="printFormTemplateOptionsCustomer"
                 :print-form-template-options-carrier="printFormTemplateOptionsCarrier"
+                :own-company-id="form.own_company_id"
+                :is-international-transport="form.is_international_transport"
+                :customer-id="form.client_id"
                 :document-type-options="documentTypeOptions"
                 :document-tab-validation-messages="documentTabValidationMessages"
                 :document-storage="documentStorage"
@@ -1760,6 +1812,13 @@ import {
     buildDocumentRequirementRules,
     documentMatchesRequirementRule,
 } from '@/support/orderDocumentRequirementSlots.js';
+import {
+    blankAdditionalCostRow,
+    migrateLegacyAdditionalContractorCosts,
+    normalizeAdditionalCostsList,
+    serializeAdditionalCostsForSubmit,
+    sumAdditionalCostsAmount,
+} from '@/support/orderAdditionalCosts.js';
 import CarrierPortalInviteButton from '@/Components/Orders/CarrierPortalInviteButton.vue';
 import {
     blankPerformer,
@@ -1768,6 +1827,7 @@ import {
     CARRIER_MODE_SPLIT,
     contractorCostRowsFromPerformers,
     costMatchesPerformerSlot,
+    isAdditionalContractorCost,
     EXECUTION_MODE_OWN_FLEET,
     isOwnFleetExecutionMode,
     isPerformerSplit,
@@ -1799,8 +1859,6 @@ const page = usePage();
 
 const additionalExpenseAmountFieldClass =
     'h-9 w-[6.75rem] max-w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm tabular-nums dark:border-zinc-700 dark:bg-zinc-950';
-const additionalExpenseDateFieldClass =
-    'h-9 w-[10.5rem] max-w-full rounded-xl border border-zinc-200 bg-white px-2.5 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950';
 const cargoAllocationFieldClass =
     'h-8 w-full min-w-[4.5rem] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-700 dark:bg-zinc-950';
 
@@ -1821,6 +1879,7 @@ const props = defineProps({
     documentPartyOptions: { type: Array, default: () => [] },
     orderStatusOptions: { type: Array, default: () => [] },
     documentStatusOptions: { type: Array, default: () => [] },
+    printFormTemplateCatalog: { type: Array, default: () => [] },
     printFormTemplateOptions: { type: Array, default: () => [] },
     printFormTemplateOptionsCustomer: { type: Array, default: () => [] },
     printFormTemplateOptionsCarrier: { type: Array, default: () => [] },
@@ -1877,6 +1936,17 @@ onMounted(() => {
     }
 
     remapCargoAllocationsToCanonicalStages(form.cargo_items);
+
+    (form.financial_term.additional_costs ?? []).forEach((row, index) => {
+        const contractor = getContractorById(row?.contractor_id);
+        const label = contractor?.name ?? row?.contractor_name ?? '';
+        if (label) {
+            additionalCostSearch.value = {
+                ...additionalCostSearch.value,
+                [index]: label,
+            };
+        }
+    });
 });
 
 const workflowTemplateId = ref(null);
@@ -2012,7 +2082,13 @@ const clientSearch = ref('');
 const showClientResults = ref(false);
 const carrierSearch = ref({});
 const showCarrierResults = ref({});
-const additionalCostContractorId = ref(null);
+const additionalCostSearch = ref({});
+const showAdditionalCostResults = ref({});
+const additionalCostSearchTimers = ref({});
+const additionalCostSearchAbortControllers = ref({});
+const additionalCostSearchFetchSeq = ref({});
+const serverAdditionalCostSearchResults = ref({});
+const isSearchingAdditionalCosts = ref({});
 const fleetOptionsCache = ref({});
 const showCounterpartyModal = ref(false);
 const counterpartyNameInput = ref(null);
@@ -2102,7 +2178,9 @@ async function openCounterpartyModal(options = {}) {
             : (options.kind === 'performer' ? 'performer' : 'client'),
         index: options.index ?? null,
     };
-    counterpartyForm.type = options.type === 'carrier' ? 'carrier' : 'customer';
+    counterpartyForm.type = options.type === 'carrier'
+        ? 'carrier'
+        : (options.type === 'contractor' ? 'contractor' : 'customer');
     showCounterpartyModal.value = true;
 
     await nextTick();
@@ -2264,6 +2342,30 @@ function normalizeCarrierNormsByLegList(existingRows, performers) {
             stage: performer.stage,
         });
     });
+}
+
+function normalizeLoadedContractorsCosts(rawCosts, order) {
+    const migrated = migrateLegacyAdditionalContractorCosts(rawCosts, order?.order_date);
+
+    return migrated.legCosts.map((cost) => normalizeContractorCost(cost));
+}
+
+function buildInitialAdditionalCosts(order) {
+    const fromFinancial = normalizeAdditionalCostsList(
+        order?.financial_term?.additional_costs ?? [],
+        order?.order_date ?? null,
+    );
+
+    if (fromFinancial.length > 0) {
+        return fromFinancial;
+    }
+
+    const migrated = migrateLegacyAdditionalContractorCosts(
+        order?.financial_term?.contractors_costs ?? [],
+        order?.order_date ?? null,
+    );
+
+    return migrated.additionalCosts;
 }
 
 function blankOrder() {
@@ -2817,18 +2919,8 @@ const form = useForm({
             props.order?.financial_term?.client_payment_form ?? blankOrder().financial_term.client_payment_form,
             'vat',
         ),
-        contractors_costs: Array.isArray(props.order?.financial_term?.contractors_costs)
-            ? props.order.financial_term.contractors_costs.map((cost) => {
-                const normalized = normalizeContractorCost(cost);
-                if (normalized.is_additional && !normalized.incurred_date) {
-                    normalized.incurred_date = props.order?.additional_expenses_payment_date
-                        ?? props.order?.order_date
-                        ?? null;
-                }
-
-                return normalized;
-            })
-            : [],
+        contractors_costs: normalizeLoadedContractorsCosts(props.order?.financial_term?.contractors_costs, props.order),
+        additional_costs: buildInitialAdditionalCosts(props.order),
         client_norms_penalties: normalizePartyNormsPenalties(props.order?.financial_term?.client_norms_penalties),
         carrier_norms_by_leg: normalizeCarrierNormsByLegList(
             props.order?.financial_term?.carrier_norms_by_leg,
@@ -2929,13 +3021,13 @@ async function calculateCompensation() {
             body: JSON.stringify({
                 customer_rate: form.financial_term.client_price,
                 carrier_rate: form.financial_term.contractors_costs.reduce((sum, cost) => sum + Number(cost.amount || 0), 0),
-                additional_expenses: Number(form.additional_expenses || 0),
+                additional_expenses: sumAdditionalCostsAmount(form.financial_term.additional_costs),
                 insurance: Number(form.insurance || 0),
                 bonus: Number(form.bonus || 0),
                 manager_id: props.order?.responsible_id ?? props.currentUser?.id,
                 order_date: form.order_date,
                 customer_payment_form: normalizePaymentFormCode(form.financial_term.client_payment_form, defaultClientPaymentForm()),
-                contractors_costs: form.financial_term.contractors_costs,
+                contractors_costs: legContractorCosts.value,
             }),
         });
 
@@ -2973,7 +3065,7 @@ watch(
         () => form.financial_term.client_price,
         () => form.financial_term.contractors_costs,
         () => form.financial_term.client_payment_form,
-        () => form.additional_expenses,
+        () => form.financial_term.additional_costs,
         () => form.insurance,
         () => form.bonus,
         () => form.order_date,
@@ -2990,22 +3082,6 @@ watch(
         }, 400);
     },
     { deep: true, immediate: true },
-);
-
-watch(
-    () => form.additional_expenses_payment_date,
-    (date) => {
-        const normalized = String(date ?? '').trim();
-        if (normalized === '') {
-            return;
-        }
-
-        form.financial_term.contractors_costs.forEach((cost) => {
-            if (cost.is_additional) {
-                cost.incurred_date = normalized;
-            }
-        });
-    },
 );
 
 const isEditing = computed(() => props.order !== null);
@@ -3097,7 +3173,12 @@ const isMobileStandalone = computed(() => {
 });
 const selectedClient = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.client_id)) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
-const costContractorOptions = computed(() => contractors.value.filter((contractor) => ['carrier', 'contractor', 'both'].includes(String(contractor.type ?? ''))));
+const legContractorCosts = computed(() => (
+    Array.isArray(form.financial_term.contractors_costs)
+        ? form.financial_term.contractors_costs.filter((row) => !isAdditionalContractorCost(row))
+        : []
+));
+
 const customerDebtBlocked = computed(() => !isEditing.value && Boolean(selectedClient.value?.debt_limit_reached));
 
 const hasSelectedCarrier = computed(() => {
@@ -3656,6 +3737,10 @@ function remapStageReferences(fromStage, toStage) {
     });
 
     form.financial_term.contractors_costs.forEach((row) => {
+        if (isAdditionalContractorCost(row)) {
+            return;
+        }
+
         if (stageMatches(row.stage, fromStage)) {
             row.stage = toStage;
         }
@@ -3788,11 +3873,6 @@ function performerCarrierSearchLabel(performerIndex, contractorId) {
 function costRowTitle(cost) {
     const contractor = getContractorById(cost?.contractor_id);
     const contractorName = contractor?.name ? String(contractor.name).trim() : String(cost?.contractor_name ?? '').trim();
-
-    if (cost?.is_additional) {
-        return contractorName !== '' ? `Доп. затраты · ${contractorName}` : 'Доп. затраты · Исполнитель не выбран';
-    }
-
     const stagePart = stageLabel(cost?.stage);
     const slotPart = cost?.carrier_slot ? ` · ${splitCarrierSlotLabel(cost.carrier_slot)}` : '';
 
@@ -3808,22 +3888,7 @@ function contractorCostAmountLabel(cost) {
 }
 
 function contractorCostOrderDate(cost) {
-    if (cost?.is_additional) {
-        const incurred = String(cost?.incurred_date ?? form.additional_expenses_payment_date ?? form.order_date ?? '').trim();
-
-        return incurred !== '' ? incurred : null;
-    }
-
     return form.order_date;
-}
-
-function additionalCostIncurredDate() {
-    const fromField = String(form.additional_expenses_payment_date ?? '').trim();
-    if (fromField !== '') {
-        return fromField;
-    }
-
-    return String(form.order_date ?? '').trim() || null;
 }
 
 function carrierSearchKey(kind, index) {
@@ -4555,8 +4620,8 @@ const hasUnsavedDocumentFiles = computed(() => form.documents.some((d) => d.file
 
 const financialSummary = computed(() => {
     const clientPrice = Number(form.financial_term.client_price || 0);
-    const contractorCosts = form.financial_term.contractors_costs.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const additionalExpenses = Number(form.additional_expenses || 0);
+    const contractorCosts = legContractorCosts.value.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const additionalExpenses = sumAdditionalCostsAmount(form.financial_term.additional_costs);
     const insurance = Number(form.insurance || 0);
     const rawBonus = Number(form.bonus || 0);
     const kpiPercent = Number(form.financial_term.kpi_percent || 0);
@@ -4656,6 +4721,7 @@ function paymentSettlementLineValue(line) {
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
     form.performers,
     form.financial_term.client_request_mode,
+    form.financial_term.additional_costs,
 ));
 
 const documentChecklist = computed(() => {
@@ -5003,14 +5069,13 @@ function contractorCostRowHasPaymentDetails(costRow) {
 
 function syncContractorCostsFromPerformers() {
     const existingRows = Array.isArray(form.financial_term.contractors_costs)
-        ? form.financial_term.contractors_costs
+        ? form.financial_term.contractors_costs.filter((row) => !isAdditionalContractorCost(row))
         : [];
-    const additionalRows = existingRows
-        .filter((row) => Boolean(row?.is_additional))
-        .map((row) => normalizeContractorCost({ ...row, is_additional: true }));
 
     const syncedRows = contractorCostRowsFromPerformers(form.performers).map((row) => {
-        const existingRow = existingRows.find((cost) => costMatchesPerformerSlot(cost, row.performer, row.slot));
+        const existingRow = existingRows.find(
+            (cost) => !isAdditionalContractorCost(cost) && costMatchesPerformerSlot(cost, row.performer, row.slot),
+        );
 
         const nextRow = normalizeContractorCost({
             ...existingRow,
@@ -5040,7 +5105,7 @@ function syncContractorCostsFromPerformers() {
 
         return nextRow;
     });
-    form.financial_term.contractors_costs = [...syncedRows, ...additionalRows];
+    form.financial_term.contractors_costs = syncedRows;
     syncCarrierNormsByLegFromPerformers();
 
     form.performers.forEach((performer) => {
@@ -5060,41 +5125,166 @@ function syncContractorCostsFromPerformers() {
     });
 }
 
-function addAdditionalContractorCostRow() {
-    const contractorId = normalizeNullableNumber(additionalCostContractorId.value);
-    if (contractorId === null) {
-        return;
-    }
-
-    const contractor = contractors.value.find((item) => Number(item.id) === contractorId) ?? null;
-    const fallbackStage = form.performers[0]?.stage ?? 'leg_1';
-    const row = normalizeContractorCost({
-        stage: fallbackStage,
-        carrier_slot: null,
-        contractor_id: contractorId,
-        contractor_name: contractor?.name ?? null,
-        amount: null,
-        currency: 'RUB',
-        payment_form: normalizePaymentFormCode(contractor?.default_carrier_payment_form ?? 'no_vat', 'no_vat'),
-        payment_schedule: contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term'),
-        incurred_date: additionalCostIncurredDate(),
-        is_additional: true,
-    });
-    form.financial_term.contractors_costs.push(row);
-    additionalCostContractorId.value = null;
+function addAdditionalCostRow() {
+    form.financial_term.additional_costs.push(blankAdditionalCostRow(form.order_date));
 }
 
-function removeAdditionalContractorCostRow(index) {
-    if (!Array.isArray(form.financial_term.contractors_costs)) {
+function removeAdditionalCostRow(index) {
+    if (!Array.isArray(form.financial_term.additional_costs)) {
         return;
     }
 
-    const row = form.financial_term.contractors_costs[index];
-    if (!row?.is_additional) {
+    form.financial_term.additional_costs.splice(index, 1);
+}
+
+function additionalCostSearchValue(index) {
+    return additionalCostSearch.value[index] ?? '';
+}
+
+function setAdditionalCostSearchValue(index, value) {
+    additionalCostSearch.value = {
+        ...additionalCostSearch.value,
+        [index]: value,
+    };
+    queueAdditionalCostSearch(index, value);
+}
+
+function setAdditionalCostResultsVisible(index, visible) {
+    showAdditionalCostResults.value = {
+        ...showAdditionalCostResults.value,
+        [index]: visible,
+    };
+}
+
+function isAdditionalCostResultsVisible(index) {
+    return Boolean(showAdditionalCostResults.value[index]);
+}
+
+function hideAdditionalCostResults(index) {
+    window.setTimeout(() => setAdditionalCostResultsVisible(index, false), 150);
+}
+
+function queueAdditionalCostSearch(index, query) {
+    const key = String(index);
+
+    if (additionalCostSearchTimers.value[key]) {
+        clearTimeout(additionalCostSearchTimers.value[key]);
+    }
+
+    if (String(query ?? '').trim().length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        serverAdditionalCostSearchResults.value = {
+            ...serverAdditionalCostSearchResults.value,
+            [key]: [],
+        };
+
         return;
     }
 
-    form.financial_term.contractors_costs.splice(index, 1);
+    additionalCostSearchTimers.value[key] = window.setTimeout(async () => {
+        await searchAdditionalCostContractors(index, String(query).trim());
+    }, 550);
+}
+
+async function searchAdditionalCostContractors(index, query) {
+    const key = String(index);
+
+    additionalCostSearchAbortControllers.value[key]?.abort();
+    const ac = new AbortController();
+    additionalCostSearchAbortControllers.value = {
+        ...additionalCostSearchAbortControllers.value,
+        [key]: ac,
+    };
+    const seq = (additionalCostSearchFetchSeq.value[key] ?? 0) + 1;
+    additionalCostSearchFetchSeq.value = {
+        ...additionalCostSearchFetchSeq.value,
+        [key]: seq,
+    };
+    isSearchingAdditionalCosts.value = {
+        ...isSearchingAdditionalCosts.value,
+        [key]: true,
+    };
+
+    try {
+        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=contractor&limit=100`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
+            signal: ac.signal,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Contractor search failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (seq !== additionalCostSearchFetchSeq.value[key]) {
+            return;
+        }
+
+        serverAdditionalCostSearchResults.value = {
+            ...serverAdditionalCostSearchResults.value,
+            [key]: data.contractors || [],
+        };
+    } catch (error) {
+        if (error?.name !== 'AbortError') {
+            console.error('Additional cost contractor search error', error);
+            serverAdditionalCostSearchResults.value = {
+                ...serverAdditionalCostSearchResults.value,
+                [key]: [],
+            };
+        }
+    } finally {
+        if (seq === additionalCostSearchFetchSeq.value[key]) {
+            isSearchingAdditionalCosts.value = {
+                ...isSearchingAdditionalCosts.value,
+                [key]: false,
+            };
+        }
+    }
+}
+
+function additionalCostCombinedResults(index) {
+    const query = additionalCostSearchValue(index).trim().toLowerCase();
+    const key = String(index);
+    const serverResults = serverAdditionalCostSearchResults.value[key] ?? [];
+
+    if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
+        return contractors.value
+            .filter((contractor) => String(contractor.type ?? '') === 'contractor')
+            .filter((contractor) => {
+                const name = String(contractor.name ?? '').toLowerCase();
+                const inn = String(contractor.inn ?? '').toLowerCase();
+
+                return name.includes(query) || inn.includes(query);
+            })
+            .slice(0, 50);
+    }
+
+    const serverIds = new Set(serverResults.map((contractor) => contractor.id));
+
+    return serverResults;
+}
+
+function selectAdditionalCostContractor(index, contractor) {
+    ensureContractorInLocalList(contractor);
+
+    const row = form.financial_term.additional_costs[index];
+    if (!row) {
+        return;
+    }
+
+    row.contractor_id = normalizeNullableNumber(contractor.id);
+    row.contractor_name = contractor.name ?? null;
+
+    if (contractor.default_carrier_payment_form) {
+        row.payment_form = normalizePaymentFormCode(contractor.default_carrier_payment_form, 'no_vat');
+    }
+
+    row.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
+    setAdditionalCostSearchValue(index, contractor.name ?? '');
+    setAdditionalCostResultsVisible(index, false);
 }
 
 function syncCarrierNormsByLegFromPerformers() {
@@ -5626,8 +5816,8 @@ function buildSubmitPayload() {
         customs_post_code: form.customs_post_code,
         cargo_declared_sum: form.cargo_declared_sum,
         is_international_transport: Boolean(form.is_international_transport),
-        additional_expenses: form.additional_expenses,
-        additional_expenses_payment_date: form.additional_expenses_payment_date || null,
+        additional_expenses: sumAdditionalCostsAmount(form.financial_term.additional_costs),
+        additional_expenses_payment_date: form.financial_term.additional_costs[0]?.service_date || form.order_date || null,
         insurance: form.insurance,
         bonus: form.bonus,
 
@@ -5712,7 +5902,9 @@ function buildSubmitPayload() {
             client_request_mode: rawFinancial.client_request_mode,
             client_payment_schedule: rawFinancial.client_payment_schedule || {},
             client_payment_terms: rawFinancial.client_payment_terms ?? '',
-            contractors_costs: (rawFinancial.contractors_costs || []).map((cost) => ({
+            contractors_costs: (rawFinancial.contractors_costs || [])
+                .filter((cost) => !cost?.is_additional && !String(cost?.stage ?? '').startsWith('additional'))
+                .map((cost) => ({
                 stage: cost.stage,
                 carrier_slot: cost.carrier_slot != null && cost.carrier_slot !== '' ? Number(cost.carrier_slot) : null,
                 contractor_id: normalizeNullableNumber(cost.contractor_id),
@@ -5723,7 +5915,7 @@ function buildSubmitPayload() {
                 payment_terms: cost.payment_terms ?? '',
                 execution_mode: isOwnFleetExecutionMode(cost.execution_mode) ? EXECUTION_MODE_OWN_FLEET : null,
             })),
-            additional_costs: [],
+            additional_costs: serializeAdditionalCostsForSubmit(rawFinancial.additional_costs || []),
             kpi_percent: rawFinancial.kpi_percent,
             client_norms_penalties: normsPenaltiesForSubmit(rawFinancial.client_norms_penalties),
             carrier_norms_by_leg: Array.isArray(rawFinancial.carrier_norms_by_leg)
@@ -5740,6 +5932,8 @@ function buildSubmitPayload() {
                 flow: 'uploaded',
                 party: document.party,
                 stage: document.stage,
+                contractor_id: document.contractor_id ?? null,
+                carrier_contractor_id: document.carrier_contractor_id ?? null,
                 requirement_key: document.requirement_key,
                 number: document.number,
                 document_date: document.document_date && String(document.document_date).trim() !== ''

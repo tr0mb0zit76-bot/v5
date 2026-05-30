@@ -23,7 +23,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use League\HTMLToMarkdown\HtmlConverter;
@@ -89,7 +88,6 @@ class SalesAssistantController extends Controller
                     'parent_id' => $selectedArticle->parent_id,
                     'sort_order' => $selectedArticle->sort_order,
                     'markdown_content' => $selectedArticle->markdown_content,
-                    'html_content' => $this->renderMarkdown($selectedArticle->markdown_content),
                     'updated_at' => $selectedArticle->updated_at?->toIso8601String(),
                 ],
             'capabilities' => [
@@ -561,29 +559,26 @@ class SalesAssistantController extends Controller
             });
     }
 
-    private function renderMarkdown(string $markdown): string
-    {
-        return Str::of($markdown)->markdown([
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-        ])->toString();
-    }
-
     /**
      * @param  array<string, mixed>  $data
      */
     private function resolveMarkdownPayload(array $data): string
     {
-        $htmlContent = trim((string) Arr::get($data, 'html_content', ''));
-        if ($htmlContent !== '') {
-            $converter = new HtmlConverter([
-                'strip_tags' => true,
-            ]);
-
-            return trim($converter->convert($htmlContent));
+        $markdownContent = trim((string) Arr::get($data, 'markdown_content', ''));
+        if ($markdownContent !== '') {
+            return $markdownContent;
         }
 
-        return (string) Arr::get($data, 'markdown_content', '');
+        $htmlContent = trim((string) Arr::get($data, 'html_content', ''));
+        if ($htmlContent === '') {
+            return '';
+        }
+
+        $converter = new HtmlConverter([
+            'strip_tags' => true,
+        ]);
+
+        return trim($converter->convert($htmlContent));
     }
 
     private function extractTitleFromMarkdown(string $markdown, string $originalFilename): string

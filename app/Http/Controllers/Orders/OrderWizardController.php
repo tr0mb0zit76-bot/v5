@@ -27,11 +27,14 @@ use App\Services\OrderWizardStateService;
 use App\Services\OwnFleetContractorService;
 use App\Services\PaymentSettlementSummaryBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
+use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\CargoPerformerAllocationNormalizer;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
+use App\Support\ContractorCostRowClassification;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderCargoItemsPayloadNormalizer;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
@@ -404,6 +407,7 @@ class OrderWizardController extends Controller
                 ['value' => 'signed', 'label' => 'Подписан'],
                 ['value' => 'sent', 'label' => 'Отправлен'],
             ],
+            'printFormTemplateCatalog' => $this->printFormTemplateCatalog()->values(),
             'printFormTemplateOptions' => $this->availablePrintFormTemplates($order)->values(),
             'printFormTemplateOptionsCustomer' => $this->availablePrintFormTemplates($order, 'customer')->values(),
             'printFormTemplateOptionsCarrier' => $this->availablePrintFormTemplates($order, 'carrier')->values(),
@@ -605,7 +609,17 @@ class OrderWizardController extends Controller
             }
         }
 
-        $contractorsCosts = collect($this->normalizeContractorsCosts($order, $financialTermForNormalize, $performers))
+        $contractorsCostsRaw = collect($this->normalizeContractorsCosts($order, $financialTermForNormalize, $performers))
+            ->values()
+            ->all();
+
+        [$contractorsCosts, $migratedAdditionalCosts] = OrderAdditionalCostNormalizer::partitionContractorsCosts(
+            $contractorsCostsRaw,
+            (string) ($financialTerm?->client_currency ?? 'RUB'),
+            optional($order->additional_expenses_payment_date)?->toDateString(),
+        );
+
+        $contractorsCosts = collect($contractorsCosts)
             ->map(fn (array $cost): array => [
                 'stage' => $cost['stage'] ?? null,
                 'carrier_slot' => $cost['carrier_slot'] ?? null,
@@ -618,6 +632,22 @@ class OrderWizardController extends Controller
             ])
             ->values()
             ->all();
+
+        $additionalCostsSource = $useWizardState
+            ? $this->mergeAdditionalCostsSnapshots(
+                is_array($financialTerm?->additional_costs) ? $financialTerm->additional_costs : [],
+                is_array($wizardFt['additional_costs'] ?? null) ? $wizardFt['additional_costs'] : [],
+            )
+            : (is_array($financialTerm?->additional_costs) ? $financialTerm->additional_costs : []);
+
+        $additionalCosts = OrderAdditionalCostNormalizer::normalizeList(
+            array_merge(
+                is_array($additionalCostsSource) ? $additionalCostsSource : [],
+                $migratedAdditionalCosts,
+            ),
+            (string) ($financialTerm?->client_currency ?? 'RUB'),
+            optional($order->additional_expenses_payment_date)?->toDateString(),
+        );
 
         return [
             'can_edit_order' => $this->canEditInlineField($request, $order),
@@ -727,9 +757,7 @@ class OrderWizardController extends Controller
                     ? $this->resolveClientPaymentTermsForWizardPayload($wizardFt, $financialTerm, $order)
                     : (string) ($financialTerm?->client_payment_terms ?? $order->customer_payment_term ?? ''),
                 'contractors_costs' => $contractorsCosts,
-                'additional_costs' => $useWizardState
-                    ? ($wizardFt['additional_costs'] ?? $financialTerm?->additional_costs ?? [])
-                    : ($financialTerm?->additional_costs ?? []),
+                'additional_costs' => $additionalCosts,
                 // Источник истины — пересчёт в orders.kpi_percent; снимок wizard_state отстаёт после inline/grid.
                 'kpi_percent' => $order->kpi_percent ?? ($useWizardState ? ($wizardFt['kpi_percent'] ?? 0) : 0),
                 'client_norms_penalties' => $useWizardState
@@ -779,6 +807,7 @@ class OrderWizardController extends Controller
             'order_leg_stage' => data_get($document->metadata, 'order_leg_stage')
                 ?? data_get($document->metadata, 'stage'),
             'carrier_contractor_id' => data_get($document->metadata, 'carrier_contractor_id'),
+            'contractor_id' => data_get($document->metadata, 'contractor_id'),
             'requirement_slot_key' => data_get($document->metadata, 'requirement_slot_key'),
             'route_legs_as_table_rows' => (bool) data_get($document->metadata, 'route_legs_as_table_rows', false),
             'requirement_key' => data_get($document->metadata, 'requirement_key'),
@@ -1747,7 +1776,41 @@ class OrderWizardController extends Controller
     }
 
     /**
-     * @return Collection<int, array{id:int,name:string,code:string,document_type:string,party:string,contractor_id:int|null,contractor_name:string|null,is_default:bool}>
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function printFormTemplateCatalog(): Collection
+    {
+        if (! Schema::hasTable('print_form_templates')) {
+            return collect();
+        }
+
+        /** @var PrintFormTemplateOrderEligibility $eligibility */
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
+
+        $query = PrintFormTemplate::query()
+            ->where('entity_type', 'order')
+            ->where('is_active', true)
+            ->whereNotNull('file_path');
+
+        if (Schema::hasColumn('print_form_templates', 'contractor_id')) {
+            $query->with(['contractor:id,name']);
+        }
+
+        if (Schema::hasColumn('print_form_templates', 'own_company_id')) {
+            $query->with(['ownCompany:id,name']);
+        }
+
+        return $query
+            ->orderByDesc('is_default')
+            ->orderBy('document_type')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PrintFormTemplate $template): array => $eligibility->templateToArray($template))
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
      */
     private function availablePrintFormTemplates(?Order $order = null, ?string $party = null): Collection
     {
@@ -1755,60 +1818,35 @@ class OrderWizardController extends Controller
             return collect();
         }
 
-        $contractorIds = $this->orderTemplateContractorIds($order);
+        /** @var PrintFormTemplateOrderEligibility $eligibility */
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
 
-        return PrintFormTemplate::query()
-            ->when(
-                Schema::hasColumn('print_form_templates', 'contractor_id'),
-                fn ($query) => $query->with(['contractor:id,name'])
-            )
-            ->where('entity_type', 'order')
-            ->when(
-                $party !== null && Schema::hasColumn('print_form_templates', 'party'),
-                fn ($query) => $query->where(function ($partyQuery) use ($party): void {
-                    $partyQuery->where('party', $party)
-                        ->orWhere('party', 'internal')
-                        ->orWhereNull('party');
-                })
-            )
-            ->where('is_active', true)
-            ->whereNotNull('file_path')
-            ->where(function ($query) use ($contractorIds): void {
-                $query->whereNull('contractor_id');
+        $ownCompanyId = $order?->own_company_id !== null ? (int) $order->own_company_id : null;
+        $isInternational = (bool) ($order?->is_international_transport ?? false);
+        $contractorIds = $order !== null ? $eligibility->contractorIdsForOrder($order) : [];
 
-                if ($contractorIds !== []) {
-                    $query->orWhereIn('contractor_id', $contractorIds);
-                }
-            })
-            ->orderByRaw('case when contractor_id is null then 1 else 0 end')
-            ->orderByDesc('is_default')
-            ->orderBy('document_type')
-            ->orderBy('name')
-            ->get()
-            ->map(fn (PrintFormTemplate $template): array => [
-                'id' => $template->id,
-                'name' => $template->name,
-                'code' => $template->code,
-                'document_type' => $template->document_type,
-                'party' => $template->party,
-                'contractor_id' => $template->contractor_id,
-                'contractor_name' => $template->contractor?->name,
-                'is_default' => (bool) $template->is_default,
-            ])
+        return $this->printFormTemplateCatalog()
+            ->filter(fn (array $template): bool => $eligibility->isArrayTemplateAvailableForContext(
+                $template,
+                $ownCompanyId,
+                $isInternational,
+                $party,
+                $contractorIds,
+            ))
+            ->sortByDesc(fn (array $template): int => $eligibility->specificityScore(
+                $template,
+                $ownCompanyId,
+                $isInternational,
+            ))
             ->values();
     }
 
-    private function isTemplateAvailableForOrder(PrintFormTemplate $template, Order $order): bool
+    private function isTemplateAvailableForOrder(PrintFormTemplate $template, Order $order, ?string $party = null): bool
     {
-        if (! $template->is_active || blank($template->file_path) || $template->entity_type !== 'order') {
-            return false;
-        }
+        /** @var PrintFormTemplateOrderEligibility $eligibility */
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
 
-        if ($template->contractor_id === null) {
-            return true;
-        }
-
-        return in_array($template->contractor_id, $this->orderTemplateContractorIds($order), true);
+        return $eligibility->isTemplateAvailableForOrder($template, $order, $party);
     }
 
     /**
@@ -2165,6 +2203,97 @@ class OrderWizardController extends Controller
         return array_values($byKey);
     }
 
+    /**
+     * @param  list<array<string, mixed>>  $dbCosts
+     * @param  list<array<string, mixed>>  $wizardCosts
+     * @return list<array<string, mixed>>
+     */
+    private function mergeAdditionalCostsSnapshots(array $dbCosts, array $wizardCosts): array
+    {
+        $byId = [];
+
+        foreach ($dbCosts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $key = trim((string) ($row['id'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+
+            $byId[$key] = $row;
+        }
+
+        foreach ($wizardCosts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $key = trim((string) ($row['id'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+
+            $base = $byId[$key] ?? [];
+            $merged = array_merge($base, $row);
+
+            foreach (['contractor_id', 'contractor_name', 'service_date', 'amount', 'currency', 'payment_form', 'payment_terms'] as $field) {
+                if (! array_key_exists($field, $row) || $row[$field] === null || $row[$field] === '') {
+                    if (array_key_exists($field, $base)) {
+                        $merged[$field] = $base[$field];
+                    }
+                }
+            }
+
+            if (! array_key_exists('payment_schedule', $row)
+                || $row['payment_schedule'] === null
+                || (is_array($row['payment_schedule']) && $row['payment_schedule'] === [])) {
+                $schedule = $base['payment_schedule'] ?? [];
+                $merged['payment_schedule'] = is_array($schedule) ? $schedule : [];
+            }
+
+            $byId[$key] = $merged;
+        }
+
+        if ($wizardCosts === [] && $dbCosts !== []) {
+            return array_values($byId);
+        }
+
+        if ($wizardCosts !== [] && $byId === []) {
+            return array_values(array_filter($wizardCosts, static fn (mixed $row): bool => is_array($row)));
+        }
+
+        $ordered = [];
+
+        foreach ($wizardCosts as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $key = trim((string) ($row['id'] ?? ''));
+            if ($key !== '' && isset($byId[$key])) {
+                $ordered[] = $byId[$key];
+
+                continue;
+            }
+
+            $ordered[] = $row;
+        }
+
+        foreach ($byId as $key => $row) {
+            $alreadyIncluded = collect($ordered)->contains(
+                fn (array $existing): bool => trim((string) ($existing['id'] ?? '')) === $key,
+            );
+
+            if (! $alreadyIncluded) {
+                $ordered[] = $row;
+            }
+        }
+
+        return $ordered;
+    }
+
     private function shouldPreserveBaseContractorCostPaymentSchedule(mixed $wizardSchedule, mixed $baseSchedule): bool
     {
         if (! is_array($baseSchedule) || $baseSchedule === []) {
@@ -2213,7 +2342,7 @@ class OrderWizardController extends Controller
                 ->filter(fn (mixed $cost): bool => is_array($cost))
                 ->values()
                 ->map(function (array $cost) use ($financialTerm, $order): array {
-                    return [
+                    $normalized = [
                         'stage' => $cost['stage'] ?? 'leg_1',
                         'carrier_slot' => isset($cost['carrier_slot']) && $cost['carrier_slot'] !== null && $cost['carrier_slot'] !== ''
                             ? (int) $cost['carrier_slot']
@@ -2229,9 +2358,32 @@ class OrderWizardController extends Controller
                         'execution_mode' => OwnFleetCatalog::isOwnFleetExecutionMode($cost['execution_mode'] ?? null)
                             ? OwnFleetCatalog::EXECUTION_MODE_OWN_FLEET
                             : null,
+                        'is_additional' => ! empty($cost['is_additional']),
+                        'incurred_date' => filled($cost['incurred_date'] ?? null)
+                            ? substr((string) $cost['incurred_date'], 0, 10)
+                            : null,
                     ];
+
+                    if ($normalized['is_additional'] && ! ContractorCostRowClassification::isAdditionalStage((string) $normalized['stage'])) {
+                        $normalized['stage'] = 'additional';
+                    }
+
+                    return $normalized;
                 })
                 ->all();
+
+            $additionalIndex = 1;
+            foreach ($contractorsCosts as &$costRow) {
+                if (empty($costRow['is_additional'])) {
+                    continue;
+                }
+
+                if (! ContractorCostRowClassification::isAdditionalStage((string) ($costRow['stage'] ?? ''))) {
+                    $costRow['stage'] = "additional_{$additionalIndex}";
+                    $additionalIndex++;
+                }
+            }
+            unset($costRow);
 
             return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
         }
@@ -2494,20 +2646,35 @@ class OrderWizardController extends Controller
             return $costs;
         }
 
-        $sum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
+        $legIndexes = [];
+        foreach ($costs as $index => $cost) {
+            if (! ContractorCostRowClassification::isAdditional($cost)) {
+                $legIndexes[] = $index;
+            }
+        }
+
+        if ($legIndexes === []) {
+            return $costs;
+        }
+
+        $sum = collect($legIndexes)
+            ->sum(fn (int $index): float => (float) ($costs[$index]['amount'] ?? 0));
 
         if (abs(round((float) $carrierRate, 2) - round($sum, 2)) < 0.01) {
             return $costs;
         }
 
-        if (count($costs) === 1) {
-            $costs[0]['amount'] = (float) $carrierRate;
+        if (count($legIndexes) === 1) {
+            $costs[$legIndexes[0]]['amount'] = (float) $carrierRate;
 
             return $costs;
         }
 
-        $rest = collect($costs)->slice(1)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
-        $costs[0]['amount'] = max(0, (float) $carrierRate - $rest);
+        $firstLegIndex = $legIndexes[0];
+        $rest = collect($legIndexes)
+            ->slice(1)
+            ->sum(fn (int $index): float => (float) ($costs[$index]['amount'] ?? 0));
+        $costs[$firstLegIndex]['amount'] = max(0, (float) $carrierRate - $rest);
 
         return $costs;
     }
@@ -2583,6 +2750,14 @@ class OrderWizardController extends Controller
                     }
                 }
             }
+
+            if ($financialTerm && is_array($financialTerm->additional_costs)) {
+                foreach ($financialTerm->additional_costs as $cost) {
+                    if (is_array($cost) && ! empty($cost['contractor_id'])) {
+                        $ids[] = (int) $cost['contractor_id'];
+                    }
+                }
+            }
         }
 
         if (Schema::hasColumn('orders', 'wizard_state')) {
@@ -2591,6 +2766,15 @@ class OrderWizardController extends Controller
                 $wizardCosts = data_get($wizardPayload, 'financial_term.contractors_costs', []);
                 if (is_array($wizardCosts)) {
                     foreach ($wizardCosts as $cost) {
+                        if (is_array($cost) && ! empty($cost['contractor_id'])) {
+                            $ids[] = (int) $cost['contractor_id'];
+                        }
+                    }
+                }
+
+                $wizardAdditionalCosts = data_get($wizardPayload, 'financial_term.additional_costs', []);
+                if (is_array($wizardAdditionalCosts)) {
+                    foreach ($wizardAdditionalCosts as $cost) {
                         if (is_array($cost) && ! empty($cost['contractor_id'])) {
                             $ids[] = (int) $cost['contractor_id'];
                         }

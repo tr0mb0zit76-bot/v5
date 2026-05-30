@@ -26,7 +26,7 @@ class OrderPortalInviteService
 
         $token = $this->generateToken();
         $tokenHash = $this->hashToken($token);
-        $expiresAt = now()->addDays(max(1, (int) config('portal.carrier_invite_ttl_days', 14)));
+        $expiresAt = null;
 
         $invite = DB::transaction(function () use ($order, $contractorId, $normalizedStage, $carrierSlot, $user, $tokenHash, $expiresAt): OrderPortalInvite {
             OrderPortalInvite::query()

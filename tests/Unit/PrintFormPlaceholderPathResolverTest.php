@@ -119,4 +119,11 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
 
         $this->assertSame('order.cargo_declared_sum', $resolver->resolve('cargo_declared_sum', [], 'order'));
     }
+
+    public function test_volume_maps_to_cargo_total_volume(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame('cargo.total_volume', $resolver->resolve('volume', [], 'order'));
+    }
 }

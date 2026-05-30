@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PrintFormTemplateTransportScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -19,6 +20,8 @@ class PrintFormTemplate extends Model
         'party',
         'source_type',
         'contractor_id',
+        'own_company_id',
+        'transport_scope',
         'is_default',
         'vue_component',
         'pdf_view',
@@ -54,6 +57,14 @@ class PrintFormTemplate extends Model
     public function contractor(): BelongsTo
     {
         return $this->belongsTo(Contractor::class);
+    }
+
+    /**
+     * @return BelongsTo<Contractor, $this>
+     */
+    public function ownCompany(): BelongsTo
+    {
+        return $this->belongsTo(Contractor::class, 'own_company_id');
     }
 
     /**
@@ -148,5 +159,13 @@ class PrintFormTemplate extends Model
             ['value' => 'system', 'label' => 'Системный шаблон'],
             ['value' => 'external_docx', 'label' => 'DOCX контрагента'],
         ];
+    }
+
+    /**
+     * @return list<array{value: string, label: string}>
+     */
+    public static function transportScopeOptions(): array
+    {
+        return PrintFormTemplateTransportScope::options();
     }
 }

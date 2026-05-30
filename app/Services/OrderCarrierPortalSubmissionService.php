@@ -3,13 +3,11 @@
 namespace App\Services;
 
 use App\Models\Contractor;
-use App\Models\FleetDriver;
-use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\OrderPortalInvite;
+use App\Support\CarrierPortalFleetResolver;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class OrderCarrierPortalSubmissionService
@@ -17,6 +15,8 @@ class OrderCarrierPortalSubmissionService
     public function __construct(
         private readonly OrderPortalInviteService $inviteService,
         private readonly OrderCarrierPortalDocumentService $portalDocumentService,
+        private readonly OrderPortalInviteAccessService $inviteAccessService,
+        private readonly CarrierPortalFleetResolver $fleetResolver,
     ) {}
 
     /**
@@ -24,7 +24,8 @@ class OrderCarrierPortalSubmissionService
      */
     public function submit(OrderPortalInvite $invite, array $validated): void
     {
-        abort_unless($invite->isOpenForSubmission(), 410, 'Ссылка недействительна или данные уже отправлены.');
+        $order = Order::query()->findOrFail($invite->order_id);
+        abort_unless($this->inviteAccessService->canSubmitFleetForm($order, $invite), 410, 'Ссылка недействительна или данные уже отправлены.');
 
         $missingDocuments = $this->portalDocumentService->missingRequiredSlotLabels($invite);
         if ($missingDocuments !== []) {
@@ -49,8 +50,8 @@ class OrderCarrierPortalSubmissionService
                 'submitted_at' => now()->toIso8601String(),
             ];
 
-            $fleetVehicleId = $this->resolveFleetVehicleId($contractor->id, $submission);
-            $fleetDriverId = $this->resolveFleetDriverId($contractor->id, $submission);
+            $fleetVehicleId = $this->fleetResolver->resolveVehicleId($contractor->id, $submission);
+            $fleetDriverId = $this->fleetResolver->resolveDriverId($contractor->id, $submission);
 
             $performers = is_array($order->performers) ? $order->performers : [];
             $performers = $this->applySubmissionToPerformers(
@@ -145,89 +146,6 @@ class OrderCarrierPortalSubmissionService
         $target['carrier_portal_submission'] = $submission;
 
         return $target;
-    }
-
-    /**
-     * @param  array<string, mixed>  $submission
-     */
-    private function resolveFleetVehicleId(int $contractorId, array $submission): ?int
-    {
-        if (! Schema::hasTable('fleet_vehicles')) {
-            return null;
-        }
-
-        $tractorPlate = $submission['tractor_plate'] ?? null;
-        $trailerPlate = $submission['trailer_plate'] ?? null;
-
-        if ($tractorPlate === null && $trailerPlate === null) {
-            return null;
-        }
-
-        $query = FleetVehicle::query()->where('owner_contractor_id', $contractorId);
-
-        if ($tractorPlate !== null) {
-            $existing = (clone $query)->where('tractor_plate', $tractorPlate)->first();
-            if ($existing !== null) {
-                $existing->forceFill(array_filter([
-                    'trailer_plate' => $trailerPlate ?? $existing->trailer_plate,
-                    'tractor_brand' => $submission['tractor_brand'] ?? $existing->tractor_brand,
-                    'trailer_brand' => $submission['trailer_brand'] ?? $existing->trailer_brand,
-                ], fn (mixed $value): bool => $value !== null))->save();
-
-                return $existing->id;
-            }
-        }
-
-        $vehicle = FleetVehicle::query()->create([
-            'owner_contractor_id' => $contractorId,
-            'tractor_plate' => $tractorPlate,
-            'trailer_plate' => $trailerPlate,
-            'tractor_brand' => $submission['tractor_brand'] ?? null,
-            'trailer_brand' => $submission['trailer_brand'] ?? null,
-        ]);
-
-        return $vehicle->id;
-    }
-
-    /**
-     * @param  array<string, mixed>  $submission
-     */
-    private function resolveFleetDriverId(int $contractorId, array $submission): ?int
-    {
-        if (! Schema::hasTable('fleet_drivers')) {
-            return null;
-        }
-
-        $fullName = trim((string) ($submission['driver_full_name'] ?? ''));
-        if ($fullName === '') {
-            return null;
-        }
-
-        $phone = $submission['driver_phone'] ?? null;
-
-        $query = FleetDriver::query()
-            ->where('carrier_contractor_id', $contractorId)
-            ->where('full_name', $fullName);
-
-        if ($phone !== null) {
-            $existing = (clone $query)->where('phone', $phone)->first();
-            if ($existing !== null) {
-                if (($submission['driver_license'] ?? null) !== null) {
-                    $existing->forceFill(['license_number' => $submission['driver_license']])->save();
-                }
-
-                return $existing->id;
-            }
-        }
-
-        $driver = FleetDriver::query()->create([
-            'carrier_contractor_id' => $contractorId,
-            'full_name' => $fullName,
-            'phone' => $phone,
-            'license_number' => $submission['driver_license'] ?? null,
-        ]);
-
-        return $driver->id;
     }
 
     private function normalizePlate(mixed $value): ?string

@@ -9,6 +9,7 @@ use App\Models\FleetTrip;
 use App\Models\FleetTripCostLine;
 use App\Models\Order;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\ContractorCostRowClassification;
 use App\Support\OwnFleetCatalog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -118,6 +119,10 @@ class FleetTripService
 
         $updated = collect($costs)
             ->map(function (array $cost) use ($trip, $ownFleetId, $actualAmount): array {
+                if (ContractorCostRowClassification::isAdditional($cost)) {
+                    return $cost;
+                }
+
                 $stage = $this->normalizeStage((string) ($cost['stage'] ?? 'leg_1'));
                 $slot = isset($cost['carrier_slot']) && $cost['carrier_slot'] !== null && $cost['carrier_slot'] !== ''
                     ? (int) $cost['carrier_slot']
@@ -159,7 +164,7 @@ class FleetTripService
     private function estimatedCostForSlot(array $contractorsCosts, string $stage, ?int $carrierSlot, ?int $ownFleetContractorId): ?float
     {
         foreach ($contractorsCosts as $cost) {
-            if (! is_array($cost)) {
+            if (! is_array($cost) || ContractorCostRowClassification::isAdditional($cost)) {
                 continue;
             }
 

@@ -14,7 +14,7 @@ const modalOpen = ref(false);
 const loading = ref(false);
 const error = ref('');
 const inviteUrl = ref('');
-const expiresAt = ref('');
+const linkValidityHint = ref('');
 const copied = ref(false);
 
 const canInvite = computed(() => !props.disabled && props.orderId > 0 && Number(props.contractorId) > 0);
@@ -60,7 +60,7 @@ async function createInvite() {
         }
 
         inviteUrl.value = data.url ?? '';
-        expiresAt.value = data.expires_at ?? '';
+        linkValidityHint.value = data.link_validity_hint ?? 'Ссылка действует до проставления фактической даты выгрузки по заказу.';
         modalOpen.value = true;
     } catch {
         error.value = 'Ошибка сети. Попробуйте ещё раз.';
@@ -117,7 +117,7 @@ function mailtoLink() {
             <div class="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
                 <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Ссылка для перевозчика</h3>
                 <p class="mt-1 text-sm text-zinc-500">Отправьте ссылку перевозчику — он заполнит ТС и водителя без входа в CRM.</p>
-                <p v-if="expiresAt" class="mt-2 text-xs text-zinc-500">Действует до: {{ expiresAt }}</p>
+                <p v-if="linkValidityHint" class="mt-2 text-xs text-zinc-500">{{ linkValidityHint }}</p>
 
                 <input
                     :value="inviteUrl"

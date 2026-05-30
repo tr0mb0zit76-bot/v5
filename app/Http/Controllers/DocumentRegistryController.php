@@ -96,6 +96,10 @@ class DocumentRegistryController extends Controller
             $metadata['carrier_contractor_id'] = (int) $payload['carrier_contractor_id'];
         }
 
+        if (isset($payload['contractor_id']) && (int) $payload['contractor_id'] > 0) {
+            $metadata['contractor_id'] = (int) $payload['contractor_id'];
+        }
+
         if (filled($payload['requirement_slot_key'] ?? null)) {
             $metadata['requirement_slot_key'] = trim((string) $payload['requirement_slot_key']);
         }
@@ -143,6 +147,12 @@ class DocumentRegistryController extends Controller
             'party' => $payload['party'],
             'flow' => 'uploaded',
         ]);
+
+        if (isset($payload['contractor_id']) && (int) $payload['contractor_id'] > 0) {
+            $metadata['contractor_id'] = (int) $payload['contractor_id'];
+        } else {
+            unset($metadata['contractor_id']);
+        }
 
         $attrs = [
             'order_id' => $order->id,

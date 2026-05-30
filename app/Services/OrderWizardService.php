@@ -16,6 +16,8 @@ use App\Support\CargoPerformerAllocationBuilder;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
+use App\Support\ContractorCostRowClassification;
+use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPersistedId;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
@@ -218,7 +220,7 @@ class OrderWizardService
 
         $attributes['metadata'] = $metadata;
 
-        foreach (['additional_expenses', 'insurance', 'bonus'] as $key) {
+        foreach (['insurance', 'bonus'] as $key) {
             if (! $isCreating && ! array_key_exists($key, $validated)) {
                 continue;
             }
@@ -226,6 +228,20 @@ class OrderWizardService
             $raw = $validated[$key] ?? null;
             $attributes[$key] = $raw !== null && $raw !== '' ? (float) $raw : 0.0;
         }
+
+        $additionalCostsRaw = Arr::get($financialTerm, 'additional_costs', []);
+        $fallbackServiceDate = filled($validated['additional_expenses_payment_date'] ?? null)
+            ? (is_string($validated['additional_expenses_payment_date'])
+                ? substr($validated['additional_expenses_payment_date'], 0, 10)
+                : (string) $validated['additional_expenses_payment_date'])
+            : null;
+        $attributes['additional_expenses'] = OrderAdditionalCostNormalizer::sumAmounts(
+            OrderAdditionalCostNormalizer::normalizeList(
+                is_array($additionalCostsRaw) ? $additionalCostsRaw : [],
+                (string) Arr::get($financialTerm, 'client_currency', 'RUB'),
+                $fallbackServiceDate,
+            ),
+        );
 
         if ($isCreating || array_key_exists('cargo_declared_sum', $validated)) {
             $raw = $validated['cargo_declared_sum'] ?? null;
@@ -461,6 +477,7 @@ class OrderWizardService
 
         if (is_array($costs) && $costs !== []) {
             return collect($costs)
+                ->filter(fn (array $cost): bool => ! ContractorCostRowClassification::isAdditional($cost))
                 ->unique(fn (array $cost): string => $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1')))
                 ->map(function (array $cost): array {
                     $id = $cost['contractor_id'] ?? null;
@@ -751,8 +768,27 @@ class OrderWizardService
                 $normalizedPerformers
             );
 
+            [$normalizedContractorsCosts, $legacyAdditionalCosts] = OrderAdditionalCostNormalizer::partitionContractorsCosts(
+                $normalizedContractorsCosts,
+                (string) Arr::get($financialTerm, 'client_currency', 'RUB'),
+                filled($validated['additional_expenses_payment_date'] ?? null)
+                    ? substr((string) $validated['additional_expenses_payment_date'], 0, 10)
+                    : null,
+            );
+
+            $normalizedAdditionalCosts = OrderAdditionalCostNormalizer::normalizeList(
+                array_merge(
+                    is_array(Arr::get($financialTerm, 'additional_costs')) ? Arr::get($financialTerm, 'additional_costs') : [],
+                    $legacyAdditionalCosts,
+                ),
+                (string) Arr::get($financialTerm, 'client_currency', 'RUB'),
+                filled($validated['additional_expenses_payment_date'] ?? null)
+                    ? substr((string) $validated['additional_expenses_payment_date'], 0, 10)
+                    : null,
+            );
+
             $orderForCosts = Order::query()->find($orderId);
-            $additionalFromOrder = (float) ($orderForCosts?->additional_expenses ?? 0)
+            $additionalFromOrder = OrderAdditionalCostNormalizer::sumAmounts($normalizedAdditionalCosts)
                 + (float) ($orderForCosts?->insurance ?? 0)
                 + (float) ($orderForCosts?->bonus ?? 0);
 
@@ -781,7 +817,7 @@ class OrderWizardService
                 'contractors_costs' => $normalizedContractorsCosts,
                 'total_cost' => $totalCost,
                 'margin' => $margin,
-                'additional_costs' => [],
+                'additional_costs' => $normalizedAdditionalCosts,
             ];
 
             $manualClientTerms = trim((string) Arr::get($financialTerm, 'client_payment_terms', ''));
@@ -921,6 +957,10 @@ class OrderWizardService
 
         return collect($contractorsCosts)
             ->map(function (array $cost) use ($performersByStage): array {
+                if (ContractorCostRowClassification::isAdditional($cost)) {
+                    return $cost;
+                }
+
                 $stage = $this->normalizeStageIdentifier((string) ($cost['stage'] ?? 'leg_1'));
                 $performer = $performersByStage->get($stage);
                 $carrierSlot = isset($cost['carrier_slot']) && $cost['carrier_slot'] !== null && $cost['carrier_slot'] !== ''
@@ -1192,6 +1232,14 @@ class OrderWizardService
 
             if ($carrierContractorId !== null) {
                 $metadata['carrier_contractor_id'] = $carrierContractorId;
+            }
+
+            $contractorId = isset($document['contractor_id']) && (int) $document['contractor_id'] > 0
+                ? (int) $document['contractor_id']
+                : null;
+
+            if ($contractorId !== null) {
+                $metadata['contractor_id'] = $contractorId;
             }
 
             if (filled($document['requirement_slot_key'] ?? null)) {
@@ -1649,6 +1697,7 @@ class OrderWizardService
             ->keyBy(fn (array $performer): string => $this->normalizeStageIdentifier((string) ($performer['stage'] ?? 'leg_1')));
 
         $costsByStageSlot = collect($contractorsCosts)
+            ->filter(fn (array $cost): bool => ! ContractorCostRowClassification::isAdditional($cost))
             ->keyBy(fn (array $cost): string => $this->contractorCostLookupKey(
                 (string) ($cost['stage'] ?? 'leg_1'),
                 $cost['carrier_slot'] ?? null,

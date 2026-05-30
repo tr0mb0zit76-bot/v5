@@ -168,6 +168,7 @@ Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(fun
     Route::get('/carrier/{token}', [OrderCarrierPortalController::class, 'show'])->name('carrier.show');
     Route::post('/carrier/{token}', [OrderCarrierPortalController::class, 'store'])->name('carrier.store');
     Route::post('/carrier/{token}/documents', [OrderCarrierPortalController::class, 'storeDocument'])->name('carrier.documents.store');
+    Route::post('/carrier/{token}/fleet-documents', [OrderCarrierPortalController::class, 'storeFleetDocument'])->name('carrier.fleet-documents.store');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Contractor;
 use App\Models\User;
+use App\Support\ContractorWorkStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -33,6 +34,13 @@ class UpdateContractorRequest extends StoreContractorRequest
             'max:20',
             Rule::unique('contractors', 'inn')->ignore($contractor->id),
         ];
+
+        $allowedWorkStatuses = ContractorWorkStatus::manualValues();
+        if ($contractor->work_status === ContractorWorkStatus::WORK_PAUSE) {
+            $allowedWorkStatuses[] = ContractorWorkStatus::WORK_PAUSE;
+        }
+
+        $rules['work_status'] = ['nullable', 'string', Rule::in($allowedWorkStatuses)];
 
         if (! Schema::hasColumn('users', 'is_active')) {
             return $rules;

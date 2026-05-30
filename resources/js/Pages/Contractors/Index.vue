@@ -762,6 +762,11 @@ watch(() => props.selectedContractor, (contractor, previousContractor) => {
     const prevId = previousContractor?.id ?? null;
     const nextId = contractor?.id ?? null;
     const resetTab = prevId !== nextId;
+
+    if (prevId === nextId && form.isDirty && Object.keys(form.errors ?? {}).length > 0) {
+        return;
+    }
+
     applyFormState(contractor, { resetTab });
 });
 
@@ -1028,7 +1033,27 @@ function buildContractorSubmitPayload() {
     }));
 }
 
+function filterEmptyNestedRowsForSubmit() {
+    form.contacts = (form.contacts ?? []).filter((contact) => String(contact?.full_name ?? '').trim() !== '');
+    form.documents = (form.documents ?? []).filter((document) => {
+        if (document?.file instanceof File) {
+            return true;
+        }
+
+        return String(document?.title ?? '').trim() !== '';
+    });
+    form.interactions = (form.interactions ?? []).filter((interaction) => {
+        const contactedAt = String(interaction?.contacted_at ?? '').trim();
+        const subject = String(interaction?.subject ?? '').trim();
+        const summary = String(interaction?.summary ?? '').trim();
+        const result = String(interaction?.result ?? '').trim();
+
+        return contactedAt !== '' || subject !== '' || summary !== '' || result !== '';
+    });
+}
+
 function submit() {
+    filterEmptyNestedRowsForSubmit();
     form.transport_requirements = parseMultilineList(transportRequirementsText.value);
     form.activity_types = [...new Set((form.activity_types ?? []).map((item) => String(item).trim()).filter(Boolean))];
     form.default_customer_payment_schedule = normalizePaymentSchedule(form.default_customer_payment_schedule);
@@ -1120,6 +1145,9 @@ function submit() {
 
     form.patch(route('contractors.update', selectedContractorId.value), {
         preserveScroll: true,
+        onError: () => {
+            // Оставляем введённые значения (в т.ч. type), не перезаписываем форму из props.
+        },
     });
 }
 
@@ -2046,6 +2074,7 @@ function goToPage(pageNumber) {
                                                 {{ type.label }}
                                             </option>
                                         </select>
+                                        <div v-if="form.errors.type" class="text-sm text-rose-600">{{ form.errors.type }}</div>
                                     </div>
 
                                     <div class="space-y-2">
@@ -2088,6 +2117,10 @@ function goToPage(pageNumber) {
                                                     {{ option.label }}
                                                 </option>
                                             </select>
+                                            <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
+                                                Пауза назначается автоматически, если заказов не было более 3 месяцев.
+                                            </p>
+                                            <div v-if="form.errors.work_status" class="text-sm text-rose-600">{{ form.errors.work_status }}</div>
                                         </div>
                                         <div class="grid grid-cols-1 gap-3">
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">

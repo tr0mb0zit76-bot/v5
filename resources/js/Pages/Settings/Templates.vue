@@ -76,8 +76,10 @@
                                 <div class="text-xs text-zinc-500">{{ partyLabel(template.party) }}</div>
                             </td>
                             <td class="px-3 py-3">
-                                <div v-if="template.contractor_name" class="font-medium">{{ template.contractor_name }}</div>
-                                <div v-else class="text-zinc-500">Без контрагента</div>
+                                <div v-if="template.own_company_name" class="font-medium">{{ template.own_company_name }}</div>
+                                <div v-else class="text-zinc-500">Любая своя компания</div>
+                                <div class="text-xs text-zinc-500">{{ transportScopeLabel(template.transport_scope) }}</div>
+                                <div v-if="template.contractor_name" class="text-xs text-zinc-500">{{ template.contractor_name }}</div>
                                 <div v-if="template.is_default" class="text-xs text-emerald-600 dark:text-emerald-300">По умолчанию</div>
                             </td>
                             <td class="px-3 py-3">
@@ -283,6 +285,34 @@
                                     </div>
                                 </div>
 
+                                <div v-if="form.entity_type === 'order'" class="grid gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Своя компания</label>
+                                        <select v-model="form.own_company_id" :class="crmFieldFluid">
+                                            <option :value="null">Любая</option>
+                                            <option v-for="option in ownCompanyOptions" :key="option.id" :value="option.id">
+                                                {{ option.name }}
+                                            </option>
+                                        </select>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Если указана — шаблон предлагается только для заказов с этой «нашей» компанией.
+                                        </div>
+                                        <div v-if="form.errors.own_company_id" class="text-sm text-rose-600">{{ form.errors.own_company_id }}</div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Тип перевозки</label>
+                                        <select v-model="form.transport_scope" :class="crmFieldFluid">
+                                            <option v-for="option in transportScopeOptions" :key="option.value" :value="option.value">
+                                                {{ option.label }}
+                                            </option>
+                                        </select>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Для внутрироссийских и международных заказов можно задать разные формы по умолчанию.
+                                        </div>
+                                        <div v-if="form.errors.transport_scope" class="text-sm text-rose-600">{{ form.errors.transport_scope }}</div>
+                                    </div>
+                                </div>
+
                                 <div class="space-y-2">
                                     <label class="text-sm font-medium">Исходный DOCX</label>
                                     <input
@@ -480,7 +510,10 @@
                                             <input v-model="form.is_default" type="checkbox" class="mt-1 rounded border-zinc-300" />
                                             <div>
                                                 <div class="text-sm font-medium">Шаблон по умолчанию</div>
-                                                <div class="text-xs text-zinc-500">Используется, если для контрагента не задана отдельная форма.</div>
+                                                <div class="text-xs text-zinc-500">
+                                                    Для комбинации: тип документа, сторона, своя компания и тип перевозки.
+                                                    Можно задать несколько вариантов «по умолчанию» для разных условий.
+                                                </div>
                                             </div>
                                         </label>
                                     </div>
@@ -613,6 +646,14 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    ownCompanyOptions: {
+        type: Array,
+        default: () => [],
+    },
+    transportScopeOptions: {
+        type: Array,
+        default: () => [],
+    },
     entityTypeOptions: {
         type: Array,
         default: () => [],
@@ -668,6 +709,8 @@ const form = useForm({
     party: props.partyOptions[0]?.value ?? 'internal',
     source_type: props.sourceTypeOptions[0]?.value ?? 'system',
     contractor_id: null,
+    own_company_id: null,
+    transport_scope: props.transportScopeOptions[0]?.value ?? 'any',
     is_default: false,
     requires_internal_signature: true,
     requires_counterparty_signature: false,
@@ -704,6 +747,8 @@ function resetForm() {
     form.party = props.partyOptions[0]?.value ?? 'internal';
     form.source_type = props.sourceTypeOptions[0]?.value ?? 'system';
     form.contractor_id = null;
+    form.own_company_id = null;
+    form.transport_scope = props.transportScopeOptions[0]?.value ?? 'any';
     form.is_default = false;
     form.requires_internal_signature = true;
     form.requires_counterparty_signature = false;
@@ -745,6 +790,8 @@ function openEditModal(template) {
     form.party = template.party;
     form.source_type = template.source_type;
     form.contractor_id = template.contractor_id ?? null;
+    form.own_company_id = template.own_company_id ?? null;
+    form.transport_scope = template.transport_scope ?? props.transportScopeOptions[0]?.value ?? 'any';
     form.is_default = Boolean(template.is_default);
     form.requires_internal_signature = Boolean(template.requires_internal_signature);
     form.requires_counterparty_signature = Boolean(template.requires_counterparty_signature);
@@ -866,6 +913,10 @@ function documentGroupLabel(value) {
 
 function partyLabel(value) {
     return labelFor(props.partyOptions, value);
+}
+
+function transportScopeLabel(value) {
+    return labelFor(props.transportScopeOptions, value);
 }
 
 function sourceTypeLabel(value) {

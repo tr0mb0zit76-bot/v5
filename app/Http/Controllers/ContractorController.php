@@ -96,6 +96,8 @@ class ContractorController extends Controller
             $this->syncNestedData($contractor, $validated, $request->user()?->id);
         });
 
+        $contractor->refresh();
+
         return to_route('contractors.show', [
             'contractor' => $contractor,
             ...$this->listContext($request),
@@ -291,8 +293,8 @@ class ContractorController extends Controller
         $hasDocumentsTable = Schema::hasTable('contractor_documents');
         $hasOrderDocumentsTable = Schema::hasTable('order_documents');
 
-        // Get type filter from request
-        $type = $request->input('type', '');
+        // Фильтр списка — только query string (в теле PATCH есть поле type — тип контрагента).
+        $type = trim((string) $request->query('type', ''));
 
         // Apply visibility scope with type filter parameter
         // The scope will handle type-specific visibility rules
@@ -776,6 +778,7 @@ class ContractorController extends Controller
         }
 
         foreach ([
+            'type',
             'work_status',
             'work_pause_is_automatic',
             'verified_at',
@@ -784,6 +787,8 @@ class ContractorController extends Controller
             'stop_on_limit',
             'short_description',
             'activity_types',
+            'specializations',
+            'transport_requirements',
             'signer_name_nominative',
             'signer_name_prepositional',
             'signer_position',
@@ -799,11 +804,29 @@ class ContractorController extends Controller
             'default_carrier_norms_penalties',
             'bank_accounts',
             'is_non_resident',
+            'has_english_requisites',
+            'name_en',
+            'full_name_en',
+            'legal_address_en',
+            'actual_address_en',
+            'postal_address_en',
+            'contact_person_en',
+            'bank_name_en',
+            'signer_name_nominative_en',
+            'signer_name_prepositional_en',
+            'signer_position_en',
+            'signer_authority_basis_en',
             'non_resident_corr_bank_name',
             'non_resident_corr_bank_swift',
             'non_resident_corr_settlement_account',
             'non_resident_corr_bank_account',
             'cnaps_code',
+            'owner_id',
+            'is_own_company',
+            'ati_id',
+            'rating',
+            'completed_orders',
+            'metadata',
         ] as $column) {
             if (! Schema::hasColumn('contractors', $column)) {
                 unset($validated[$column]);

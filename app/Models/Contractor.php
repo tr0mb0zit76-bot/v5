@@ -271,7 +271,7 @@ class Contractor extends Model
                     return;
                 }
 
-                $visibility->whereIn('type', ['carrier', 'both'])
+                $visibility->whereIn('type', ['carrier', 'both', 'contractor'])
                     ->orWhere(function ($subQ) use ($user): void {
                         $subQ->whereIn('type', ['customer', 'both'])
                             ->where('owner_id', $user->id);

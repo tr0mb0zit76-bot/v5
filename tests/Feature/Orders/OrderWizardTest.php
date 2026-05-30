@@ -3065,6 +3065,110 @@ class OrderWizardTest extends TestCase
         );
     }
 
+    public function test_edit_page_keeps_additional_cost_contractor_when_wizard_state_snapshot_is_stale(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $clientId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'Client AC',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $subcontractorId = DB::table('contractors')->insertGetId([
+            'type' => 'contractor',
+            'name' => 'Subcontractor AC',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $additionalRowId = 'additional-row-1';
+
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-WS-AC',
+            'company_code' => 'TST',
+            'manager_id' => $admin->id,
+            'order_date' => '2026-04-01',
+            'status' => 'new',
+            'customer_id' => $clientId,
+            'customer_rate' => 100000,
+            'performers' => json_encode([
+                ['stage' => 'leg_1', 'contractor_id' => null],
+            ], JSON_THROW_ON_ERROR),
+            'wizard_state' => json_encode([
+                'version' => 1,
+                'financial_term' => [
+                    'client_price' => 100000,
+                    'contractors_costs' => [],
+                    'additional_costs' => [
+                        [
+                            'id' => $additionalRowId,
+                            'contractor_id' => null,
+                            'amount' => 5000,
+                            'currency' => 'RUB',
+                            'payment_form' => 'no_vat',
+                            'payment_schedule' => [],
+                            'payment_terms' => '',
+                        ],
+                    ],
+                    'client_currency' => 'RUB',
+                ],
+                'performers' => [],
+            ], JSON_THROW_ON_ERROR),
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('order_legs')->insert([
+            'order_id' => $orderId,
+            'sequence' => 1,
+            'type' => 'transport',
+            'description' => 'leg_1',
+            'metadata' => json_encode([], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('financial_terms')->insert([
+            'order_id' => $orderId,
+            'client_price' => 100000,
+            'client_currency' => 'RUB',
+            'client_payment_terms' => null,
+            'contractors_costs' => json_encode([], JSON_THROW_ON_ERROR),
+            'total_cost' => 5000,
+            'margin' => 0,
+            'additional_costs' => json_encode([
+                [
+                    'id' => $additionalRowId,
+                    'contractor_id' => $subcontractorId,
+                    'contractor_name' => 'Subcontractor AC',
+                    'service_date' => '2026-04-01',
+                    'amount' => 5000,
+                    'currency' => 'RUB',
+                    'payment_form' => 'no_vat',
+                    'payment_schedule' => [],
+                    'payment_terms' => '',
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('orders.edit', $orderId));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Wizard')
+            ->where('order.financial_term.additional_costs.0.contractor_id', $subcontractorId)
+            ->where('order.financial_term.additional_costs.0.contractor_name', 'Subcontractor AC')
+        );
+    }
+
     public function test_edit_page_includes_payment_settlement_payload(): void
     {
         $admin = $this->createAdminUser();

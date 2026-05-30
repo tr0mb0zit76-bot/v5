@@ -16,6 +16,7 @@ class OrderCarrierPortalDocumentService
         private readonly OrderDocumentRequirementService $requirementService,
         private readonly DocumentStorageService $documentStorage,
         private readonly OrderCompensationService $orderCompensationService,
+        private readonly OrderPortalInviteAccessService $inviteAccessService,
     ) {}
 
     /**
@@ -52,10 +53,11 @@ class OrderCarrierPortalDocumentService
 
                 return [
                     'key' => (string) ($rule['key'] ?? ''),
-                    'label' => (string) ($rule['label'] ?? ''),
-                    'description' => (string) ($rule['description'] ?? ''),
+                    'label' => $this->portalSlotLabel($rule),
+                    'description' => $this->portalSlotDescription($rule),
                     'slot_kind' => (string) ($rule['slot_kind'] ?? ''),
                     'slot_key' => (string) ($rule['slot_key'] ?? ''),
+                    'allows_multiple' => (bool) ($rule['allows_multiple'] ?? false),
                     'completed' => (bool) ($checklistItem['completed'] ?? $matching->isNotEmpty()),
                     'type_options' => collect($rule['accepted_types'] ?? [])
                         ->filter(fn (mixed $type): bool => is_string($type) && $type !== '')
@@ -81,6 +83,7 @@ class OrderCarrierPortalDocumentService
     public function missingRequiredSlotLabels(OrderPortalInvite $invite): array
     {
         return collect($this->documentSlotsForInvite($invite))
+            ->filter(fn (array $slot): bool => ($slot['slot_kind'] ?? '') === 'carrier_request')
             ->filter(fn (array $slot): bool => ! ($slot['completed'] ?? false))
             ->pluck('label')
             ->map(fn (mixed $label): string => (string) $label)
@@ -96,9 +99,9 @@ class OrderCarrierPortalDocumentService
         array $validated,
         UploadedFile $file,
     ): OrderDocument {
-        abort_unless($invite->isOpenForSubmission(), 410, 'Ссылка недействительна или данные уже отправлены.');
-
         $order = Order::query()->findOrFail($invite->order_id);
+        abort_unless($this->inviteAccessService->canUploadDocuments($order, $invite), 410, 'Ссылка недействительна или перевозка завершена.');
+
         $rule = $this->resolveRuleForUpload($order, $invite, $validated);
 
         if ($rule === null) {
@@ -250,5 +253,29 @@ class OrderCarrierPortalDocumentService
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
+     */
+    private function portalSlotLabel(array $rule): string
+    {
+        return match ((string) ($rule['slot_kind'] ?? '')) {
+            'carrier_request' => 'Заявка',
+            'carrier_closing' => 'Закрывающие документы',
+            default => (string) ($rule['label'] ?? ''),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $rule
+     */
+    private function portalSlotDescription(array $rule): string
+    {
+        return match ((string) ($rule['slot_kind'] ?? '')) {
+            'carrier_request' => 'Загрузите заявку с вашей подписью',
+            'carrier_closing' => 'Загрузите УПД / счёт-фактуру и акт / ТСД / фотографии',
+            default => (string) ($rule['description'] ?? ''),
+        };
     }
 }

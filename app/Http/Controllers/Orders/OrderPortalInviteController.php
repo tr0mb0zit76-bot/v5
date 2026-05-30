@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Orders;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrderCarrierPortalInviteRequest;
 use App\Models\Order;
+use App\Services\OrderPortalInviteAccessService;
 use App\Services\OrderPortalInviteService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,7 @@ class OrderPortalInviteController extends Controller
 
         return response()->json([
             'url' => $result['url'],
-            'expires_at' => $result['invite']->expires_at?->toIso8601String(),
+            'link_validity_hint' => app(OrderPortalInviteAccessService::class)->linkValidityHint(),
             'invite_id' => $result['invite']->id,
         ]);
     }
