@@ -339,9 +339,9 @@
                                     <p class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
                                         Это <span class="font-medium">отдельные поля картинок</span> (PhpWord
                                         <span class="font-mono">setImageValue</span>), не текстовые плейсхолдеры из блока ниже. В DOCX должны быть макросы в том же виде, что задаёте здесь, например
-                                        <span class="font-mono">${internal_signature_image}</span> и
-                                        <span class="font-mono">${internal_stamp_image}</span> или
-                                        <span class="font-mono">&#123;&#123;internal_stamp_image&#125;&#125;</span> — оба стиля макросов обрабатываются. После выбора файла нажмите «Сохранить» внизу окна.
+                                        <span class="font-mono">${signature}</span> и
+                                        <span class="font-mono">${stamp}</span> или
+                                        <span class="font-mono">&#123;&#123;stamp&#125;&#125;</span> — оба стиля макросов обрабатываются. После выбора файла нажмите «Сохранить» внизу окна.
                                         Для фона под печатью лучше <span class="font-medium">PNG с прозрачностью</span> — в итоговом PDF через LibreOffice/Gotenberg она обычно сохраняется лучше, чем в HTML-предпросмотре.
                                     </p>
                                     <div class="grid gap-4 md:grid-cols-2">
@@ -717,8 +717,8 @@ const form = useForm({
     is_active: true,
     source_file: null,
     variable_mappings: [],
-    internal_signature_placeholder: 'internal_signature_image',
-    internal_stamp_placeholder: 'internal_stamp_image',
+    internal_signature_placeholder: 'signature',
+    internal_stamp_placeholder: 'stamp',
     signature_image_width_mm: 42,
     signature_image_height_mm: 18,
     signature_image_offset_x_mm: 0,
@@ -755,8 +755,8 @@ function resetForm() {
     form.is_active = true;
     form.source_file = null;
     form.variable_mappings = [];
-    form.internal_signature_placeholder = 'internal_signature_image';
-    form.internal_stamp_placeholder = 'internal_stamp_image';
+    form.internal_signature_placeholder = 'signature';
+    form.internal_stamp_placeholder = 'stamp';
     form.signature_image_width_mm = 42;
     form.signature_image_height_mm = 18;
     form.signature_image_offset_x_mm = 0;
@@ -798,8 +798,8 @@ function openEditModal(template) {
     form.is_active = Boolean(template.is_active);
     form.source_file = null;
     form.variable_mappings = buildVariableMappings(template);
-    form.internal_signature_placeholder = template.internal_signature_placeholder ?? 'internal_signature_image';
-    form.internal_stamp_placeholder = template.internal_stamp_placeholder ?? 'internal_stamp_image';
+    form.internal_signature_placeholder = template.internal_signature_placeholder ?? 'signature';
+    form.internal_stamp_placeholder = template.internal_stamp_placeholder ?? 'stamp';
     form.signature_image_width_mm = Number(template.signature_image_width_mm ?? 42);
     form.signature_image_height_mm = Number(template.signature_image_height_mm ?? 18);
     form.signature_image_offset_x_mm = Number(template.signature_image_offset_x_mm ?? 0);
@@ -927,8 +927,8 @@ function imageOverlayPlaceholderSet(template) {
     const names = [
         template?.internal_signature_placeholder,
         template?.internal_stamp_placeholder,
-        'internal_signature_image',
-        'internal_stamp_image',
+        'signature',
+        'stamp',
     ];
 
     return new Set(
@@ -942,8 +942,8 @@ function imageOverlayPlaceholderSetFromForm() {
     const names = [
         form.internal_signature_placeholder,
         form.internal_stamp_placeholder,
-        'internal_signature_image',
-        'internal_stamp_image',
+        'signature',
+        'stamp',
     ];
 
     return new Set(

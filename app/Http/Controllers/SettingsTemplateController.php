@@ -14,6 +14,7 @@ use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormVariableCatalog;
 use App\Support\DocumentPreview;
+use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
@@ -105,8 +106,16 @@ class SettingsTemplateController extends Controller
                         (string) ($template->entity_type ?? 'order'),
                         ($template->entity_type ?? 'order') === 'order' ? $template->party : null,
                     ),
-                    'internal_signature_placeholder' => data_get($template->settings, 'image_overlays.internal_signature.placeholder', 'internal_signature_image'),
-                    'internal_stamp_placeholder' => data_get($template->settings, 'image_overlays.internal_stamp.placeholder', 'internal_stamp_image'),
+                    'internal_signature_placeholder' => data_get(
+                        $template->settings,
+                        'image_overlays.internal_signature.placeholder',
+                        PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE,
+                    ),
+                    'internal_stamp_placeholder' => data_get(
+                        $template->settings,
+                        'image_overlays.internal_stamp.placeholder',
+                        PrintFormImageOverlayPlaceholders::DEFAULT_STAMP,
+                    ),
                     'signature_image_width_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.width_mm', 42),
                     'signature_image_height_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.height_mm', 18),
                     'signature_image_offset_x_mm' => (float) data_get($template->settings, 'image_overlays.internal_signature.offset_x_mm', 0),
@@ -471,13 +480,13 @@ class SettingsTemplateController extends Controller
      */
     private function normalizeImageOverlaySettings(array $validated): array
     {
-        $signaturePlaceholder = trim((string) ($validated['internal_signature_placeholder'] ?? 'internal_signature_image'));
-        $stampPlaceholder = trim((string) ($validated['internal_stamp_placeholder'] ?? 'internal_stamp_image'));
+        $signaturePlaceholder = trim((string) ($validated['internal_signature_placeholder'] ?? PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE));
+        $stampPlaceholder = trim((string) ($validated['internal_stamp_placeholder'] ?? PrintFormImageOverlayPlaceholders::DEFAULT_STAMP));
 
         return [
             'apply_crm_overlay_offsets' => (bool) ($validated['apply_crm_overlay_offsets'] ?? true),
             'internal_signature' => [
-                'placeholder' => $signaturePlaceholder !== '' ? $signaturePlaceholder : 'internal_signature_image',
+                'placeholder' => $signaturePlaceholder !== '' ? $signaturePlaceholder : PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE,
                 'width_mm' => (float) ($validated['signature_image_width_mm'] ?? 42),
                 'height_mm' => (float) ($validated['signature_image_height_mm'] ?? 18),
                 'offset_x_mm' => (float) ($validated['signature_image_offset_x_mm'] ?? 0),
@@ -486,7 +495,7 @@ class SettingsTemplateController extends Controller
                 'disk' => null,
             ],
             'internal_stamp' => [
-                'placeholder' => $stampPlaceholder !== '' ? $stampPlaceholder : 'internal_stamp_image',
+                'placeholder' => $stampPlaceholder !== '' ? $stampPlaceholder : PrintFormImageOverlayPlaceholders::DEFAULT_STAMP,
                 'width_mm' => (float) ($validated['stamp_image_width_mm'] ?? 30),
                 'height_mm' => (float) ($validated['stamp_image_height_mm'] ?? 30),
                 'offset_x_mm' => (float) ($validated['stamp_image_offset_x_mm'] ?? 0),
@@ -512,11 +521,11 @@ class SettingsTemplateController extends Controller
             ? (bool) $validated['apply_crm_overlay_offsets']
             : (bool) ($overlays['apply_crm_overlay_offsets'] ?? true);
 
-        $signaturePlaceholder = trim((string) ($validated['internal_signature_placeholder'] ?? ($signature['placeholder'] ?? 'internal_signature_image')));
-        $stampPlaceholder = trim((string) ($validated['internal_stamp_placeholder'] ?? ($stamp['placeholder'] ?? 'internal_stamp_image')));
+        $signaturePlaceholder = trim((string) ($validated['internal_signature_placeholder'] ?? ($signature['placeholder'] ?? PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE)));
+        $stampPlaceholder = trim((string) ($validated['internal_stamp_placeholder'] ?? ($stamp['placeholder'] ?? PrintFormImageOverlayPlaceholders::DEFAULT_STAMP)));
 
         $overlays['internal_signature'] = [
-            'placeholder' => $signaturePlaceholder !== '' ? $signaturePlaceholder : 'internal_signature_image',
+            'placeholder' => $signaturePlaceholder !== '' ? $signaturePlaceholder : PrintFormImageOverlayPlaceholders::DEFAULT_SIGNATURE,
             'width_mm' => (float) ($validated['signature_image_width_mm'] ?? ($signature['width_mm'] ?? 42)),
             'height_mm' => (float) ($validated['signature_image_height_mm'] ?? ($signature['height_mm'] ?? 18)),
             'offset_x_mm' => (float) ($validated['signature_image_offset_x_mm'] ?? ($signature['offset_x_mm'] ?? 0)),
@@ -526,7 +535,7 @@ class SettingsTemplateController extends Controller
         ];
 
         $overlays['internal_stamp'] = [
-            'placeholder' => $stampPlaceholder !== '' ? $stampPlaceholder : 'internal_stamp_image',
+            'placeholder' => $stampPlaceholder !== '' ? $stampPlaceholder : PrintFormImageOverlayPlaceholders::DEFAULT_STAMP,
             'width_mm' => (float) ($validated['stamp_image_width_mm'] ?? ($stamp['width_mm'] ?? 30)),
             'height_mm' => (float) ($validated['stamp_image_height_mm'] ?? ($stamp['height_mm'] ?? 30)),
             'offset_x_mm' => (float) ($validated['stamp_image_offset_x_mm'] ?? ($stamp['offset_x_mm'] ?? 0)),

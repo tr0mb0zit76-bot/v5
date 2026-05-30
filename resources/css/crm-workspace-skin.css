@@ -3,6 +3,20 @@
  * Активируется html[data-crm-workspace-skin="sky"] из настроек внешнего вида.
  */
 
+html.crm-layout-scroll-lock,
+html.crm-layout-scroll-lock body {
+    height: 100%;
+    overflow: hidden;
+}
+
+html.crm-layout-scroll-lock body > #app {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+}
+
 html[data-crm-workspace-skin='sky'] {
         --crm-accent: 2 132 199;
         --crm-accent-soft: 224 242 254;

@@ -237,7 +237,7 @@
                         </tr>
 
                         <tr
-                            v-for="permission in permissionOptions"
+                            v-for="permission in flatPermissionOptions"
                             :key="permission.key"
                         >
                             <td class="sticky left-0 z-10 border-b border-r border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -366,6 +366,21 @@
                                                 <span>{{ moduleAccessMode(role, row.parentKey) === 'all' ? 'Доступ открывается родительской строкой' : 'Точечный доступ' }}</span>
                                         </label>
                                     </template>
+
+                                    <template v-else-if="row.type === 'book_permission'">
+                                        <div v-if="! isAreaEnabled(role, row.parentKey)" class="text-xs text-zinc-400">
+                                            Сначала включи «Книга продаж»
+                                        </div>
+                                        <label v-else class="inline-flex items-center gap-2">
+                                            <input
+                                                :checked="role.permissions.includes(row.permissionKey)"
+                                                type="checkbox"
+                                                class="rounded border-zinc-300"
+                                                @change="toggleBookPermission(role, row.permissionKey)"
+                                            />
+                                            <span>{{ role.permissions.includes(row.permissionKey) ? 'Разрешено' : 'Запрещено' }}</span>
+                                        </label>
+                                    </template>
                                 </td>
                             </tr>
                         </template>
@@ -415,6 +430,7 @@ const childAreaMap = {
         'modules_how_much_costs',
     ],
 };
+const salesBookPermissionKeys = ['sales_book_read', 'sales_book_comment', 'sales_book_write'];
 const scopeAreaKeys = [
     'orders',
     'leads',
@@ -445,6 +461,12 @@ const createForm = useForm({
 
 const visibilityAreaOptionsByKey = computed(() => Object.fromEntries(
     props.visibilityAreaOptions.map((area) => [area.key, area]),
+));
+const permissionOptionsByKey = computed(() => Object.fromEntries(
+    props.permissionOptions.map((permission) => [permission.key, permission]),
+));
+const flatPermissionOptions = computed(() => props.permissionOptions.filter(
+    (permission) => ! salesBookPermissionKeys.includes(permission.key),
 ));
 const allowedVisibilityAreaKeys = computed(() => new Set(props.visibilityAreaOptions.map((area) => area.key)));
 
@@ -530,6 +552,26 @@ const visibilityMatrix = computed(() => visibilityGroupDefinitions.map((group) =
                     description: childArea.description,
                     level: 2,
                 });
+
+                if (childKey === 'sales_assistant_book') {
+                    for (const permissionKey of salesBookPermissionKeys) {
+                        const permission = permissionOptionsByKey.value[permissionKey];
+
+                        if (! permission) {
+                            continue;
+                        }
+
+                        rows.push({
+                            id: `book-perm-${permissionKey}`,
+                            type: 'book_permission',
+                            parentKey: childKey,
+                            permissionKey,
+                            label: permission.label,
+                            description: permission.description,
+                            level: 3,
+                        });
+                    }
+                }
 
                 if (scopeAreaKeys.includes(childKey)) {
                     rows.push({
@@ -723,6 +765,48 @@ function togglePermission(role, permissionKey) {
     role.permissions = [...role.permissions, permissionKey];
 }
 
+function clearSalesBookPermissions(role) {
+    role.permissions = role.permissions.filter((item) => ! salesBookPermissionKeys.includes(item));
+}
+
+function ensureSalesBookReadPermission(role) {
+    if (! salesBookPermissionKeys.some((key) => role.permissions.includes(key))) {
+        role.permissions = [...role.permissions, 'sales_book_read'];
+    }
+}
+
+function toggleBookPermission(role, permissionKey) {
+    const enabled = role.permissions.includes(permissionKey);
+
+    if (enabled) {
+        if (permissionKey === 'sales_book_write') {
+            role.permissions = role.permissions.filter((item) => item !== 'sales_book_write');
+            return;
+        }
+
+        if (permissionKey === 'sales_book_comment') {
+            role.permissions = role.permissions.filter((item) => item !== 'sales_book_comment' && item !== 'sales_book_write');
+            return;
+        }
+
+        clearSalesBookPermissions(role);
+
+        return;
+    }
+
+    if (permissionKey === 'sales_book_write') {
+        role.permissions = [...new Set([...role.permissions, 'sales_book_read', 'sales_book_comment', 'sales_book_write'])];
+        return;
+    }
+
+    if (permissionKey === 'sales_book_comment') {
+        role.permissions = [...new Set([...role.permissions, 'sales_book_read', 'sales_book_comment'])];
+        return;
+    }
+
+    role.permissions = [...new Set([...role.permissions, 'sales_book_read'])];
+}
+
 function isAreaEnabled(role, areaKey) {
     return role.visibility_areas.includes(areaKey);
 }
@@ -748,6 +832,10 @@ function setAreaEnabled(role, areaKey, enabled) {
 
             for (const childKey of childAreaMap[areaKey]) {
                 areas.add(childKey);
+
+                if (childKey === 'sales_assistant_book') {
+                    ensureSalesBookReadPermission(role);
+                }
             }
         }
     } else {
@@ -758,6 +846,10 @@ function setAreaEnabled(role, areaKey, enabled) {
         for (const childKey of childAreaMap[areaKey] ?? []) {
             areas.delete(childKey);
             delete scopes[childKey];
+
+            if (childKey === 'sales_assistant_book') {
+                clearSalesBookPermissions(role);
+            }
         }
     }
 
@@ -784,6 +876,10 @@ function updateModuleAccessMode(role, areaKey, mode) {
     if (mode === 'all') {
         for (const childKey of childAreaMap[areaKey] ?? []) {
             areas.add(childKey);
+
+            if (childKey === 'sales_assistant_book') {
+                ensureSalesBookReadPermission(role);
+            }
         }
     }
 
@@ -800,8 +896,16 @@ function toggleChildArea(role, parentKey, childKey) {
 
     if (areas.has(childKey)) {
         areas.delete(childKey);
+
+        if (childKey === 'sales_assistant_book') {
+            clearSalesBookPermissions(role);
+        }
     } else {
         areas.add(childKey);
+
+        if (childKey === 'sales_assistant_book') {
+            ensureSalesBookReadPermission(role);
+        }
     }
 
     role.visibility_areas = [...areas];

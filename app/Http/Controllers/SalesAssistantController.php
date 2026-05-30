@@ -18,6 +18,7 @@ use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
 use App\Support\RoleAccess;
+use App\Support\SalesBookContentNormalizer;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
-use League\HTMLToMarkdown\HtmlConverter;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SalesAssistantController extends Controller
@@ -59,8 +59,12 @@ class SalesAssistantController extends Controller
         );
     }
 
-    public function book(Request $request, SalesBookArticleTreeService $treeService, SalesBookParentChildLinksService $childLinksService): Response
-    {
+    public function book(
+        Request $request,
+        SalesBookArticleTreeService $treeService,
+        SalesBookParentChildLinksService $childLinksService,
+        SalesBookContentNormalizer $contentNormalizer,
+    ): Response {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
 
         $articles = SalesBookArticle::query()
@@ -95,7 +99,7 @@ class SalesAssistantController extends Controller
                     'title' => $selectedArticle->title,
                     'parent_id' => $selectedArticle->parent_id,
                     'sort_order' => $selectedArticle->sort_order,
-                    'markdown_content' => $selectedArticle->markdown_content,
+                    'markdown_content' => $contentNormalizer->forEditor((string) ($selectedArticle->markdown_content ?? '')),
                     'updated_at' => $selectedArticle->updated_at?->toIso8601String(),
                 ],
             'capabilities' => [
@@ -110,6 +114,7 @@ class SalesAssistantController extends Controller
         StoreSalesBookArticleRequest $request,
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
+        SalesBookContentNormalizer $contentNormalizer,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
@@ -118,7 +123,7 @@ class SalesAssistantController extends Controller
 
         $article = SalesBookArticle::query()->create([
             'title' => $data['title'],
-            'markdown_content' => $this->resolveMarkdownPayload($data),
+            'markdown_content' => $this->resolveMarkdownPayload($data, $contentNormalizer),
             'parent_id' => $parentId,
             'sort_order' => $this->resolveSortOrder($parentId, $data['sort_order'] ?? null),
             'created_by' => $request->user()?->id,
@@ -138,6 +143,7 @@ class SalesAssistantController extends Controller
         SalesBookArticle $salesBookArticle,
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
+        SalesBookContentNormalizer $contentNormalizer,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
@@ -166,7 +172,7 @@ class SalesAssistantController extends Controller
 
         if (array_key_exists('markdown_content', $data)) {
             $payload['markdown_content'] = $childLinksService->mergeChildLinksIntoContent(
-                $this->resolveMarkdownPayload($data),
+                $this->resolveMarkdownPayload($data, $contentNormalizer),
                 $salesBookArticle->id,
             );
         }
@@ -238,12 +244,13 @@ class SalesAssistantController extends Controller
         ImportSalesBookArticleRequest $request,
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
+        SalesBookContentNormalizer $contentNormalizer,
     ): RedirectResponse {
         abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
 
         $data = $request->validated();
         $uploaded = $request->file('file');
-        $markdown = (string) file_get_contents($uploaded->getRealPath());
+        $markdown = $contentNormalizer->normalize((string) file_get_contents($uploaded->getRealPath()));
         $parentId = $treeService->resolveParentId($data);
 
         $title = $this->extractTitleFromMarkdown($markdown, $uploaded->getClientOriginalName());
@@ -622,11 +629,11 @@ class SalesAssistantController extends Controller
     /**
      * @param  array<string, mixed>  $data
      */
-    private function resolveMarkdownPayload(array $data): string
+    private function resolveMarkdownPayload(array $data, SalesBookContentNormalizer $contentNormalizer): string
     {
         $markdownContent = trim((string) Arr::get($data, 'markdown_content', ''));
         if ($markdownContent !== '') {
-            return $markdownContent;
+            return $contentNormalizer->normalize($markdownContent);
         }
 
         $htmlContent = trim((string) Arr::get($data, 'html_content', ''));
@@ -634,11 +641,7 @@ class SalesAssistantController extends Controller
             return '';
         }
 
-        $converter = new HtmlConverter([
-            'strip_tags' => true,
-        ]);
-
-        return trim($converter->convert($htmlContent));
+        return $contentNormalizer->normalize($htmlContent);
     }
 
     private function extractTitleFromMarkdown(string $markdown, string $originalFilename): string

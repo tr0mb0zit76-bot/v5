@@ -1,6 +1,6 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto lg:h-0 lg:overflow-hidden">
-        <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[320px,minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="grid min-h-0 flex-1 gap-4 overflow-hidden grid-rows-[minmax(0,38vh)_minmax(0,1fr)] lg:grid-cols-[320px,minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
         <aside :class="`${crmPanel} flex min-h-0 flex-col overflow-hidden p-4`">
             <div class="shrink-0">
                 <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Книга продаж</h1>
@@ -72,17 +72,17 @@
             </div>
         </aside>
 
-        <section :class="`${crmPanel} min-h-0 overflow-y-auto p-5`">
+        <section :class="`${crmPanel} flex min-h-0 flex-col overflow-hidden p-5`">
             <p
                 v-if="page.props.flash?.message"
-                class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                class="mb-4 shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
             >
                 {{ page.props.flash.message }}
             </p>
 
             <template v-if="selectedArticle">
-                <form class="space-y-3" @submit.prevent="saveArticle">
-                    <div class="flex items-start gap-2">
+                <form class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
+                    <div class="flex shrink-0 items-start gap-2">
                         <input
                             v-model="editForm.title"
                             type="text"
@@ -100,7 +100,7 @@
                         </button>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                    <div class="flex shrink-0 flex-wrap items-center gap-2 text-xs text-zinc-500">
                         <span>Родитель:</span>
                         <select
                             v-model="editForm.parent_id"
@@ -115,6 +115,8 @@
                     </div>
 
                     <TiptapEditor
+                        :key="selectedArticle.id"
+                        class="min-h-0 flex-1"
                         :model-value="editForm.markdown_content"
                         :upload-url="route('sales-assistant.book.assets.upload')"
                         @update:model-value="onEditorUpdate"
@@ -122,7 +124,7 @@
                         placeholder="Начните писать... Можно вставлять файлы и скриншоты через Ctrl+V из Проводника, ссылки, файлы и чек-листы."
                     />
 
-                    <div v-if="canWrite" class="flex flex-wrap gap-2">
+                    <div v-if="canWrite" class="flex shrink-0 flex-wrap gap-2">
                         <button
                             type="submit"
                             :disabled="editForm.processing"

@@ -12,14 +12,14 @@ class RoleAccessSalesBookTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sales_book_requires_explicit_permission_when_visibility_area_is_granted(): void
+    public function test_sales_book_visibility_without_granular_permissions_allows_read_only(): void
     {
         $user = $this->makeUserWithRole(
             visibilityAreas: ['scripts', 'sales_assistant_book'],
             permissions: [],
         );
 
-        $this->assertFalse(RoleAccess::canReadSalesBook($user));
+        $this->assertTrue(RoleAccess::canReadSalesBook($user));
         $this->assertFalse(RoleAccess::canCommentSalesBook($user));
         $this->assertFalse(RoleAccess::canWriteSalesBook($user));
     }

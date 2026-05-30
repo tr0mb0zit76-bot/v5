@@ -16,11 +16,11 @@ use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PhpWordTemplateOverlayImageInjector;
 use App\Support\PrintFormCargoScopeResolver;
 use App\Support\PrintFormCargoTableCloner;
+use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormRouteTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
-use App\Support\PrintFormTemplateOverlayAppearanceOrder;
 use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -176,7 +176,7 @@ class OrderPrintFormDraftService
         $settings = is_array($template->settings) ? $template->settings : [];
         $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
 
-        $keys = PrintFormTemplateOverlayAppearanceOrder::imageOverlayKeysInReadingOrder($template);
+        $keys = PrintFormImageOverlayPlaceholders::activeOverlayKeysInReadingOrder($template);
 
         return collect($keys)
             ->map(function (string $key) use ($overlays): array {
@@ -1389,8 +1389,22 @@ class OrderPrintFormDraftService
         $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
 
         return array_values(array_filter(array_merge(
-            $this->injectSingleOverlayImage($processor, is_array($overlays['internal_signature'] ?? null) ? $overlays['internal_signature'] : [], 'internal_signature_image'),
-            $this->injectSingleOverlayImage($processor, is_array($overlays['internal_stamp'] ?? null) ? $overlays['internal_stamp'] : [], 'internal_stamp_image'),
+            $this->injectSingleOverlayImage(
+                $processor,
+                is_array($overlays[PrintFormImageOverlayPlaceholders::KEY_SIGNATURE] ?? null)
+                    ? $overlays[PrintFormImageOverlayPlaceholders::KEY_SIGNATURE]
+                    : [],
+                PrintFormImageOverlayPlaceholders::KEY_SIGNATURE,
+                $overlays,
+            ),
+            $this->injectSingleOverlayImage(
+                $processor,
+                is_array($overlays[PrintFormImageOverlayPlaceholders::KEY_STAMP] ?? null)
+                    ? $overlays[PrintFormImageOverlayPlaceholders::KEY_STAMP]
+                    : [],
+                PrintFormImageOverlayPlaceholders::KEY_STAMP,
+                $overlays,
+            ),
         )));
     }
 
@@ -1402,24 +1416,20 @@ class OrderPrintFormDraftService
         $settings = is_array($template->settings) ? $template->settings : [];
         $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
 
-        return collect(['internal_signature', 'internal_stamp'])
-            ->map(function (string $key) use ($overlays): string {
-                $placeholder = trim((string) data_get($overlays, $key.'.placeholder', $key === 'internal_signature' ? 'internal_signature_image' : 'internal_stamp_image'));
-
-                return $placeholder !== '' ? $placeholder : ($key === 'internal_signature' ? 'internal_signature_image' : 'internal_stamp_image');
-            })
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+        return PrintFormImageOverlayPlaceholders::allReservedNames($overlays);
     }
 
     /**
      * @param  array<string, mixed>  $overlay
+     * @param  array<string, mixed>  $allOverlays
      * @return list<string>
      */
-    private function injectSingleOverlayImage(TemplateProcessor $processor, array $overlay, string $defaultPlaceholder): array
-    {
+    private function injectSingleOverlayImage(
+        TemplateProcessor $processor,
+        array $overlay,
+        string $overlayKey,
+        array $allOverlays,
+    ): array {
         $path = $overlay['path'] ?? null;
         if (! is_string($path) || $path === '') {
             return [];
@@ -1435,24 +1445,21 @@ class OrderPrintFormDraftService
             return [];
         }
 
-        $placeholder = trim((string) ($overlay['placeholder'] ?? $defaultPlaceholder));
-        if ($placeholder === '') {
-            $placeholder = $defaultPlaceholder;
-        }
-
         $widthMm = (float) ($overlay['width_mm'] ?? 30);
         $heightMm = (float) ($overlay['height_mm'] ?? 30);
         $widthPx = max(20, (int) round($widthMm * 3.78));
         $heightPx = max(20, (int) round($heightMm * 3.78));
 
         $absolutePath = $resolved['absolute'];
-
-        PhpWordTemplateOverlayImageInjector::injectImageForAllMacroStyles($processor, $placeholder, [
+        $imagePayload = [
             'path' => $absolutePath,
             'width' => $widthPx,
             'height' => $heightPx,
             'ratio' => true,
-        ]);
+        ];
+
+        $placeholder = PrintFormImageOverlayPlaceholders::placeholderNameForKey($overlayKey, $allOverlays);
+        PhpWordTemplateOverlayImageInjector::injectImageForAllMacroStyles($processor, $placeholder, $imagePayload);
 
         return $resolved['cleanup'];
     }

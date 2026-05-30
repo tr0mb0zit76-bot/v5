@@ -23,8 +23,6 @@ $macroReplacements = [
     'invojs' => 'order.invoice_number',
     'obschiy_ves_kg' => 'cargo.total_weight',
     'vsego_mest' => 'cargo.total_packages',
-    'signature' => 'internal_signature_image',
-    'stamp' => 'internal_stamp_image',
     'lp_EDO_prov' => 'provayder_edo',
     'lp_EDO_nomer' => 'nomer_edo',
 ];

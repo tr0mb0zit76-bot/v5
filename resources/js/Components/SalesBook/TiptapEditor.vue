@@ -1,7 +1,14 @@
 <template>
-    <div class="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div class="flex flex-wrap gap-1 border-b border-zinc-200 p-2 dark:border-zinc-800">
-            <button v-for="item in toolbarItems" :key="item.key" type="button" :class="buttonClass(item.active?.() ?? false)" @click="item.action">
+    <div
+        class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        v-bind="$attrs"
+    >
+        <div
+            class="z-10 flex shrink-0 flex-wrap gap-1 border-b border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950"
+            role="toolbar"
+            aria-label="Форматирование текста"
+        >
+            <button v-for="item in toolbarItems" :key="item.key" type="button" :title="item.title ?? item.label" :class="buttonClass(item.active?.() ?? false)" @click="item.action">
                 {{ item.label }}
             </button>
             <button type="button" :class="buttonClass(false)" @click="setLink">Ссылка</button>
@@ -9,7 +16,9 @@
             <button type="button" :class="buttonClass(false)" @click="triggerFileUpload">Файл</button>
         </div>
 
-        <EditorContent :editor="editor" class="tiptap-body min-h-[360px] px-4 py-3" />
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <EditorContent :editor="editor" class="tiptap-body px-4 py-3" />
+        </div>
 
         <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="uploadAndInsert($event, true)" />
         <input ref="fileInput" type="file" class="hidden" @change="uploadAndInsert($event, false)" />
@@ -30,6 +39,7 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Underline from '@tiptap/extension-underline';
 import { Markdown } from '@tiptap/markdown';
+import { SalesBookOrderedList } from '@/Components/SalesBook/SalesBookOrderedList.js';
 
 const props = defineProps({
     modelValue: {
@@ -50,32 +60,24 @@ const props = defineProps({
     },
 });
 
+defineOptions({
+    inheritAttrs: false,
+});
+
 const emit = defineEmits(['update:modelValue']);
 
 const imageInput = ref(null);
 const fileInput = ref(null);
 const isApplyingExternalContent = ref(false);
 
-function looksLikeHtml(value) {
-    const trimmed = (value || '').trim();
-
-    return trimmed !== '' && /<[a-z][^>]*>/i.test(trimmed);
-}
-
 function setEditorContent(value) {
     if (!editor.value) {
         return;
     }
 
-    const incoming = value || '';
-
     isApplyingExternalContent.value = true;
 
-    if (looksLikeHtml(incoming)) {
-        editor.value.commands.setContent(incoming, false);
-    } else {
-        editor.value.commands.setContent(incoming, false, { contentType: 'markdown' });
-    }
+    editor.value.commands.setContent(value || '', false, { contentType: 'markdown' });
 
     nextTick(() => {
         isApplyingExternalContent.value = false;
@@ -84,11 +86,13 @@ function setEditorContent(value) {
 
 const editor = useEditor({
     content: props.modelValue || '',
-    contentType: looksLikeHtml(props.modelValue) ? undefined : 'markdown',
+    contentType: 'markdown',
     extensions: [
         StarterKit.configure({
             heading: { levels: [1, 2, 3] },
+            orderedList: false,
         }),
+        SalesBookOrderedList,
         Link.configure({
             openOnClick: false,
             autolink: true,
@@ -127,25 +131,13 @@ watch(
         }
 
         const incoming = value || '';
-        const current = instanceContentForCompare();
+        const current = editor.value.getMarkdown();
 
         if (incoming !== current) {
             setEditorContent(incoming);
         }
     },
 );
-
-function instanceContentForCompare() {
-    if (!editor.value) {
-        return '';
-    }
-
-    if (looksLikeHtml(props.modelValue)) {
-        return editor.value.getHTML();
-    }
-
-    return editor.value.getMarkdown();
-}
 
 watch(
     () => props.editable,
@@ -175,8 +167,9 @@ const toolbarItems = computed(() => {
         { key: 'bold', label: 'B', active: () => editor.value.isActive('bold'), action: () => editor.value.chain().focus().toggleBold().run() },
         { key: 'italic', label: 'I', active: () => editor.value.isActive('italic'), action: () => editor.value.chain().focus().toggleItalic().run() },
         { key: 'underline', label: 'U', active: () => editor.value.isActive('underline'), action: () => editor.value.chain().focus().toggleUnderline().run() },
-        { key: 'bullet', label: '• List', active: () => editor.value.isActive('bulletList'), action: () => toggleListForSelection('bulletList') },
-        { key: 'ordered', label: '1. List', active: () => editor.value.isActive('orderedList'), action: () => toggleListForSelection('orderedList') },
+        { key: 'bullet', label: '•', title: 'Маркированный список', active: () => editor.value.isActive('bulletList'), action: () => toggleListForSelection('bulletList') },
+        { key: 'ordered', label: '1.', title: 'Нумерованный список', active: () => isOrderedListActive('1'), action: () => applyOrderedList('1') },
+        { key: 'ordered-alpha', label: 'a.', title: 'Буквенный список', active: () => isOrderedListActive('a'), action: () => applyOrderedList('a') },
         { key: 'task', label: 'Todo', active: () => editor.value.isActive('taskList'), action: () => editor.value.chain().focus().toggleTaskList().run() },
         { key: 'quote', label: 'Quote', active: () => editor.value.isActive('blockquote'), action: () => editor.value.chain().focus().toggleBlockquote().run() },
         { key: 'code', label: '</>', active: () => editor.value.isActive('codeBlock'), action: () => editor.value.chain().focus().toggleCodeBlock().run() },
@@ -190,15 +183,46 @@ function toggleListForSelection(listType) {
 
     splitHardBreaksInSelection();
 
-    const chain = editor.value.chain().focus();
-
     if (listType === 'bulletList') {
-        chain.toggleBulletList().run();
+        editor.value.chain().focus().toggleBulletList().run();
+
+        return;
+    }
+}
+
+function isOrderedListActive(type) {
+    if (!editor.value?.isActive('orderedList')) {
+        return false;
+    }
+
+    const currentType = editor.value.getAttributes('orderedList').type ?? '1';
+
+    return currentType === type;
+}
+
+function applyOrderedList(type) {
+    if (!editor.value) {
+        return;
+    }
+
+    splitHardBreaksInSelection();
+
+    const attrType = type === '1' ? null : type;
+    const normalizedCurrent = editor.value.getAttributes('orderedList').type ?? '1';
+
+    if (editor.value.isActive('orderedList')) {
+        if (normalizedCurrent === type) {
+            editor.value.chain().focus().toggleOrderedList().run();
+
+            return;
+        }
+
+        editor.value.chain().focus().updateAttributes('orderedList', { type: attrType }).run();
 
         return;
     }
 
-    chain.toggleOrderedList().run();
+    editor.value.chain().focus().toggleOrderedList().updateAttributes('orderedList', { type: attrType }).run();
 }
 
 /**
@@ -437,7 +461,7 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 }
 
 :deep(.tiptap-body .ProseMirror) {
-    min-height: 320px;
+    min-height: 8rem;
 }
 
 :deep(.tiptap-body .ProseMirror:focus) {
@@ -481,6 +505,14 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 
 :deep(.tiptap-body .sales-book-editor ol) {
     list-style-type: decimal;
+}
+
+:deep(.tiptap-body .sales-book-editor ol[type='a']) {
+    list-style-type: lower-alpha;
+}
+
+:deep(.tiptap-body .sales-book-editor ol[type='A']) {
+    list-style-type: upper-alpha;
 }
 
 :deep(.tiptap-body .sales-book-editor li) {

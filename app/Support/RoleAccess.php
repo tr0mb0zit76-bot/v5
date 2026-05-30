@@ -923,9 +923,13 @@ class RoleAccess
             return false;
         }
 
-        return static::userHasPermission($user, 'sales_book_read')
+        if (static::userHasPermission($user, 'sales_book_read')
             || static::userHasPermission($user, 'sales_book_comment')
-            || static::userHasPermission($user, 'sales_book_write');
+            || static::userHasPermission($user, 'sales_book_write')) {
+            return true;
+        }
+
+        return ! static::userHasSalesBookPermissionKeysConfigured($user);
     }
 
     public static function canCommentSalesBook(?User $user): bool
@@ -961,5 +965,24 @@ class RoleAccess
         }
 
         return static::userHasPermission($user, 'sales_book_write');
+    }
+
+    private static function userHasSalesBookPermissionKeysConfigured(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        foreach (static::assignedRoles($user) as $role) {
+            $permissions = is_array($role->permissions) ? $role->permissions : [];
+
+            foreach ($permissions as $permission) {
+                if (is_string($permission) && str_starts_with($permission, 'sales_book_')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

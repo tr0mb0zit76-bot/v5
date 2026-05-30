@@ -31,9 +31,15 @@ final class PrintFormTemplateOverlayAppearanceOrder
         $settings = is_array($template->settings) ? $template->settings : [];
         $overlays = is_array($settings['image_overlays'] ?? null) ? $settings['image_overlays'] : [];
 
-        $sigPh = trim((string) (($overlays['internal_signature'] ?? [])['placeholder'] ?? 'internal_signature_image'));
-        $stampPh = trim((string) (($overlays['internal_stamp'] ?? [])['placeholder'] ?? 'internal_stamp_image'));
-        if ($sigPh === '' || $stampPh === '') {
+        $sigName = PrintFormImageOverlayPlaceholders::placeholderNameForKey(
+            PrintFormImageOverlayPlaceholders::KEY_SIGNATURE,
+            $overlays,
+        );
+        $stampName = PrintFormImageOverlayPlaceholders::placeholderNameForKey(
+            PrintFormImageOverlayPlaceholders::KEY_STAMP,
+            $overlays,
+        );
+        if ($sigName === '' || $stampName === '') {
             return $default;
         }
 
@@ -75,8 +81,8 @@ final class PrintFormTemplateOverlayAppearanceOrder
             }
             $zip->close();
 
-            $sigPos = self::firstPlaceholderOffset($combined, $sigPh);
-            $stampPos = self::firstPlaceholderOffset($combined, $stampPh);
+            $sigPos = self::firstPlaceholderOffsetAmong($combined, [$sigName]);
+            $stampPos = self::firstPlaceholderOffsetAmong($combined, [$stampName]);
             if ($sigPos === null || $stampPos === null) {
                 return $default;
             }
@@ -131,17 +137,19 @@ final class PrintFormTemplateOverlayAppearanceOrder
         return $rank($a) <=> $rank($b);
     }
 
-    private static function firstPlaceholderOffset(string $xml, string $placeholderName): ?int
+    /**
+     * @param  list<string>  $placeholderNames
+     */
+    private static function firstPlaceholderOffsetAmong(string $xml, array $placeholderNames): ?int
     {
-        $tokens = [
-            '${'.$placeholderName.'}',
-            '{{'.$placeholderName.'}}',
-        ];
         $best = null;
-        foreach ($tokens as $token) {
-            $p = strpos($xml, $token);
-            if ($p !== false && ($best === null || $p < $best)) {
-                $best = $p;
+
+        foreach ($placeholderNames as $placeholderName) {
+            foreach (['${'.$placeholderName.'}', '{{'.$placeholderName.'}}'] as $token) {
+                $p = strpos($xml, $token);
+                if ($p !== false && ($best === null || $p < $best)) {
+                    $best = $p;
+                }
             }
         }
 

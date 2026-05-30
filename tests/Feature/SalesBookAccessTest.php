@@ -11,7 +11,7 @@ class SalesBookAccessTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_book_page_is_forbidden_without_sales_book_permissions(): void
+    public function test_book_page_is_available_with_book_visibility_and_default_read_access(): void
     {
         $role = Role::query()->create([
             'name' => 'restricted_manager',
@@ -26,7 +26,7 @@ class SalesBookAccessTest extends TestCase
 
         $this->actingAs($user)
             ->get(route('sales-assistant.book'))
-            ->assertForbidden();
+            ->assertOk();
     }
 
     public function test_book_page_is_available_with_read_permission(): void
