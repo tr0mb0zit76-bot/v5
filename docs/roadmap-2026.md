@@ -2,7 +2,7 @@
 
 Живой документ для согласования приоритетов. Связан с [`ai-platform-architecture.md`](./ai-platform-architecture.md) (уровни AI, DeepSeek, локальная модель).
 
-**Последнее обновление:** 2026-05-31
+**Последнее обновление:** 2026-05-28
 
 ---
 
@@ -124,10 +124,11 @@ Cursor **никогда не подключается к MySQL напрямую*
 ### 1.2 Read-only tools (MVP)
 
 - [x] `search_orders`, `get_order`, `get_user_context`
-- [ ] `SearchContractorsTool`, `GetContractorTool`
-- [ ] `ListOrderDocumentsTool`
-- [ ] `SearchTasksTool`, `GetTaskTool`
-- [x] Feature tests `tests/Feature/Mcp/CrmMcpToolsTest.php`
+- [x] `search_contractors`, `get_contractor`
+- [x] `list_order_documents`
+- [x] `search_tasks`, `get_task`
+- [x] `search_sales_book_articles`, `upsert_sales_book_article` (Книга продаж)
+- [ ] Feature tests `tests/Feature/Mcp/CrmMcpToolsTest.php` (расширить под новые tools)
 
 ### 1.3 Write tools (с подтверждением)
 
@@ -144,9 +145,9 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 ### 1.5 Cursor prod checklist
 
-- [ ] MCP endpoint на prod за HTTPS
+- [x] MCP endpoint на prod за HTTPS
 - [ ] Документ «Как выпустить MCP-токен» (1 страница)
-- [ ] Проверка: Cursor → «найди заказ №…» → данные с прода
+- [x] Проверка: Cursor → заказ с прода; Книга продаж — upsert/artisan
 
 ---
 
@@ -295,9 +296,9 @@ grid_views:
 
 **Неделя 1**
 
-- MCP scaffold + read-only tools (заказы, контрагенты)
-- Cursor → локальный MCP, затем prod token
-- Миграция `disposition_entries` + wireframe грида
+- [x] MCP scaffold + read-only tools (заказы, контрагенты, задачи, документы заказа)
+- [x] Cursor → prod token, Книга продаж (artisan / upsert)
+- [ ] Миграция `disposition_entries` + wireframe грида ← **следующий шаг P0+**
 
 **Неделя 2**
 
@@ -313,6 +314,7 @@ grid_views:
 |--------|------|-----------|
 | v0.1 | 2026-05-28 | Первый черновик |
 | v0.2 | 2026-05-31 | Поиск vs MCP; диспозиция вместо календаря; saved views → P4; Cursor/DeepSeek схемы |
+| v0.2.1 | 2026-05-28 | MCP 1.2: контрагенты, задачи, документы заказа, Книга продаж |
 
 ---
 

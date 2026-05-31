@@ -2,7 +2,9 @@
 
 namespace App\Services\Mcp;
 
+use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\Task;
 use App\Models\User;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
@@ -67,5 +69,67 @@ class McpAccessGate
         return $user->isAdmin()
             || RoleAccess::canAccessVisibilityArea($user, 'finance_salary')
             || RoleAccess::canAccessVisibilityArea($user, 'payment_schedules');
+    }
+
+    public function requireContractorsArea(User $user): void
+    {
+        if (! RoleAccess::canAccessVisibilityArea($user, 'contractors')) {
+            throw new AuthenticationException('Нет доступа к разделу «Контрагенты».');
+        }
+    }
+
+    public function requireTasksArea(User $user): void
+    {
+        if (! RoleAccess::canAccessVisibilityArea($user, 'tasks')) {
+            throw new AuthenticationException('Нет доступа к разделу «Задачи».');
+        }
+    }
+
+    public function requireDocumentsArea(User $user): void
+    {
+        if (! RoleAccess::canAccessVisibilityArea($user, 'documents')) {
+            throw new AuthenticationException('Нет доступа к разделу «Документы».');
+        }
+    }
+
+    /**
+     * @param  Builder<Task>  $query
+     */
+    public function applyTasksScope(Builder $query, User $user): void
+    {
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
+
+        if ($scope !== 'all') {
+            $query->where('responsible_id', $user->id);
+        }
+    }
+
+    /**
+     * @param  Builder<Contractor>  $query
+     */
+    public function applyContractorsScope(Builder $query, User $user): void
+    {
+        $query->visibleTo($user);
+    }
+
+    public function canAccessOrderDocuments(User $user, Order $order): bool
+    {
+        $this->requireDocumentsArea($user);
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        $docScope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
+
+        if ($docScope === 'all') {
+            return true;
+        }
+
+        return (int) $order->manager_id === (int) $user->id;
     }
 }

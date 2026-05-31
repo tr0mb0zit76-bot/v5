@@ -3,9 +3,12 @@
 namespace Tests\Feature\Mcp;
 
 use App\Mcp\Servers\CrmServer;
+use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetUserContextTool;
+use App\Mcp\Tools\SearchContractorsTool;
 use App\Mcp\Tools\SearchOrdersTool;
+use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\Role;
 use App\Models\User;
@@ -88,22 +91,71 @@ class CrmMcpToolsTest extends TestCase
         $response->assertHasErrors();
     }
 
+    public function test_search_contractors_finds_by_inn(): void
+    {
+        $user = $this->makeUserWithAreas(['contractors'], ['contractors' => 'all']);
+
+        Contractor::query()->create([
+            'type' => 'customer',
+            'name' => 'MCP Test Customer',
+            'inn' => '7707083893',
+            'is_active' => true,
+        ]);
+
+        $response = CrmServer::actingAs($user)->tool(SearchContractorsTool::class, [
+            'query' => '7707083893',
+            'limit' => 5,
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertSee('MCP Test Customer');
+
+        $contractor = Contractor::query()->where('inn', '7707083893')->first();
+        $this->assertNotNull($contractor);
+
+        $detail = CrmServer::actingAs($user)->tool(GetContractorTool::class, [
+            'contractor_id' => $contractor->id,
+        ]);
+
+        $detail->assertOk()->assertSee('7707083893');
+    }
+
     /**
-     * @param  array<string, mixed>  $overrides
+     * @param  list<string>  $areas
+     * @param  array<string, string>  $scopes
      */
-    private function makeUserWithOrdersAccess(array $overrides = []): User
+    private function makeUserWithAreas(array $areas, array $scopes = []): User
     {
         $role = Role::query()->create([
             'name' => 'mcp_test_'.uniqid(),
             'display_name' => 'MCP Test',
             'permissions' => [],
-            'visibility_areas' => ['orders', 'dashboard'],
-            'visibility_scopes' => ['orders' => 'own'],
+            'visibility_areas' => $areas,
+            'visibility_scopes' => $scopes,
         ]);
 
-        return User::factory()->create(array_merge([
+        return User::factory()->create([
             'role_id' => $role->id,
             'is_active' => true,
-        ], $overrides));
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function makeUserWithOrdersAccess(array $overrides = []): User
+    {
+        $user = $this->makeUserWithAreas(
+            ['orders', 'dashboard'],
+            ['orders' => 'own'],
+        );
+
+        if ($overrides !== []) {
+            $user->fill($overrides);
+            $user->save();
+        }
+
+        return $user->fresh() ?? $user;
     }
 }
