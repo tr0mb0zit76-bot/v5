@@ -5,6 +5,8 @@ namespace App\Mcp\Servers;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetUserContextTool;
 use App\Mcp\Tools\SearchOrdersTool;
+use App\Mcp\Tools\SearchSalesBookArticlesTool;
+use App\Mcp\Tools\UpsertSalesBookArticleTool;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Instructions;
 use Laravel\Mcp\Server\Attributes\Name;
@@ -15,13 +17,13 @@ use Laravel\Mcp\Server\Tool;
 #[Name('Avtoalyans CRM')]
 #[Version('0.1.0')]
 #[Instructions(<<<'MARKDOWN'
-        MCP-сервер CRM «Автоальянс»: read-only доступ к заказам с учётом роли пользователя.
+        MCP-сервер CRM «Автоальянс»: заказы (read-only) и Книга продаж (чтение + upsert при sales_book_write).
 
-        - search_orders — поиск заказов
-        - get_order — карточка заказа
-        - get_user_context — роль и области видимости
+        - search_orders / get_order / get_user_context — заказы и контекст пользователя
+        - search_sales_book_articles — поиск страниц Книги продаж
+        - upsert_sales_book_article — создать или обновить дочернюю страницу по заголовку родителя
 
-        Аутентификация: Bearer Sanctum token. На проде не используйте сырые SQL — только tools.
+        Аутентификация: Bearer Sanctum token.
         MARKDOWN)]
 class CrmServer extends Server
 {
@@ -32,6 +34,8 @@ class CrmServer extends Server
         GetUserContextTool::class,
         SearchOrdersTool::class,
         GetOrderTool::class,
+        SearchSalesBookArticlesTool::class,
+        UpsertSalesBookArticleTool::class,
     ];
 
     /**
