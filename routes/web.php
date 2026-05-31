@@ -296,6 +296,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/orders/{order}/documents/list', [OrderDocumentsModalController::class, 'index'])
         ->middleware('visibility.area:orders')
         ->name('orders.documents.list');
+    Route::get('/orders/{order}/activity-timeline', [ActivityTimelineController::class, 'showForOrder'])
+        ->middleware('visibility.area:orders')
+        ->name('orders.activity-timeline');
 
     Route::controller(OrderDocumentWorkflowController::class)->middleware('visibility.area:orders')->group(function () {
         Route::post('/orders/{order}/documents/from-template', 'storeFromTemplate')->name('orders.documents.from-template');

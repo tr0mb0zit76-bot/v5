@@ -12,6 +12,7 @@ enum ActivityEventType: string
     case TaskCreated = 'task_created';
     case NoteAdded = 'note_added';
     case LeadStatusChanged = 'lead_status_changed';
+    case DispositionComment = 'disposition_comment';
 
     public function label(): string
     {
@@ -24,6 +25,7 @@ enum ActivityEventType: string
             self::TaskCreated => 'Задача',
             self::NoteAdded => 'Заметка',
             self::LeadStatusChanged => 'Статус лида',
+            self::DispositionComment => 'Диспозиция',
         };
     }
 }

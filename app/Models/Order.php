@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -263,6 +264,22 @@ class Order extends Model
     public function cargoItems(): HasMany
     {
         return $this->hasMany(Cargo::class)->orderBy('id');
+    }
+
+    /**
+     * @return MorphMany<ActivityEvent, $this>
+     */
+    public function activityEvents(): MorphMany
+    {
+        return $this->morphMany(ActivityEvent::class, 'subject')->orderByDesc('occurred_at');
+    }
+
+    /**
+     * @return HasMany<DispositionEntry, $this>
+     */
+    public function dispositionEntries(): HasMany
+    {
+        return $this->hasMany(DispositionEntry::class);
     }
 
     /**

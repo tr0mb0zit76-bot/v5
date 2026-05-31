@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Schema;
 
 class DispositionGridService
 {
+    public function __construct(
+        private readonly DispositionReminderService $reminders,
+        private readonly DispositionActivityService $activity,
+    ) {}
+
     private const int DEFAULT_PAST_DAYS = 14;
 
     private const int DEFAULT_FUTURE_DAYS = 21;
@@ -60,7 +65,15 @@ class DispositionGridService
         $slotEnum = DispositionSlot::from($slot);
         $parsedDate = Carbon::parse($date)->toDateString();
 
-        $entry = DispositionEntry::query()->firstOrNew([
+        $previous = DispositionEntry::query()
+            ->where('order_id', $orderId)
+            ->where('date', $parsedDate)
+            ->where('slot', $slotEnum->value)
+            ->first();
+
+        $previousComment = $previous?->comment;
+
+        $entry = $previous ?? new DispositionEntry([
             'order_id' => $orderId,
             'date' => $parsedDate,
             'slot' => $slotEnum->value,
@@ -77,6 +90,13 @@ class DispositionGridService
         $entry->recorded_at = now();
         $entry->recorded_by = $user->id;
         $entry->save();
+
+        $order = Order::query()->findOrFail($orderId);
+        $this->activity->recordCommentIfChanged($order, $entry, $previousComment, $user);
+
+        if ($this->reminders->isSlotFilled($entry)) {
+            $this->reminders->closeRemindersForFilledSlot($orderId, $parsedDate, $slotEnum->value);
+        }
 
         return [
             'entry' => [

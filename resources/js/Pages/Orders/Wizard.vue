@@ -1638,6 +1638,13 @@
                 </div>
             </div>
 
+            <div v-else-if="activeTab === 'timeline' && order?.id" class="space-y-4">
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    Хронология по заказу: комментарии диспозиции, письма и другие события (по мере подключения модулей).
+                </p>
+                <ActivityTimeline :order-id="order.id" />
+            </div>
+
             <OrderWizardDocumentsTab
                 v-else-if="activeTab === 'documents'"
                 ref="documentsTabRef"
@@ -1772,7 +1779,8 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileText, Gavel, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
+import { ClipboardList, FileText, Gavel, History, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
+import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
 import OrderStatusIcon from '@/Components/Orders/OrderStatusIcon.vue';
@@ -1898,14 +1906,15 @@ const props = defineProps({
     cargoTitleSuggestions: { type: Array, default: () => [] },
 });
 
-const tabs = [
+const tabs = computed(() => [
     { key: 'main', label: 'Основное', icon: ClipboardList },
     { key: 'route', label: 'Маршрут', icon: MapPinned },
     { key: 'cargo', label: 'Груз', icon: Package },
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
-];
+    ...(props.order?.id ? [{ key: 'timeline', label: 'Лента', icon: History }] : []),
+]);
 
 const activeTab = ref('main');
 const borderCrossingLegPicker = ref('');
@@ -1916,7 +1925,7 @@ onMounted(() => {
     }
     const url = new URL(window.location.href);
     const tab = url.searchParams.get('tab');
-    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents']);
+    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'timeline']);
     if (tab && allowed.has(tab)) {
         activeTab.value = tab;
     }

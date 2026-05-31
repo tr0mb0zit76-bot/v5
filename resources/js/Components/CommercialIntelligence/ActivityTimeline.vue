@@ -25,27 +25,47 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     leadId: {
         type: Number,
-        required: true,
+        default: null,
+    },
+    orderId: {
+        type: Number,
+        default: null,
     },
 });
 
 const events = ref([]);
 const loading = ref(false);
 
+const timelineUrl = computed(() => {
+    if (props.orderId) {
+        return route('orders.activity-timeline', props.orderId);
+    }
+
+    if (props.leadId) {
+        return route('leads.activity-timeline', props.leadId);
+    }
+
+    return null;
+});
+
+const subjectKey = computed(() => `${props.orderId ?? ''}|${props.leadId ?? ''}`);
+
 async function loadTimeline() {
-    if (!props.leadId) {
+    if (!timelineUrl.value) {
+        events.value = [];
+
         return;
     }
 
     loading.value = true;
 
     try {
-        const response = await fetch(route('leads.activity-timeline', props.leadId), {
+        const response = await fetch(timelineUrl.value, {
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
         });
@@ -77,7 +97,7 @@ function formatWhen(iso) {
 
 onMounted(loadTimeline);
 
-watch(() => props.leadId, loadTimeline);
+watch(subjectKey, loadTimeline);
 
 defineExpose({ reload: loadTimeline });
 </script>
