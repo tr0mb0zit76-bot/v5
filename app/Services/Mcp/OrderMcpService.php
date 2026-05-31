@@ -6,8 +6,11 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\ActivityLedgerService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
+use App\Services\Orders\OrderRouteActualDateUpdateService;
 use App\Support\ActivityEventType;
+use App\Support\OrderAgentLexicon;
 use App\Support\OrderInlineFieldCatalog;
+use App\Support\RoutePointActualMilestones;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
@@ -19,6 +22,7 @@ class OrderMcpService
         private readonly McpAccessGate $access,
         private readonly ActivityLedgerService $activityLedger,
         private readonly OrderInlineFieldUpdateService $inlineFieldUpdate,
+        private readonly OrderRouteActualDateUpdateService $routeActualUpdate,
     ) {}
 
     /**
@@ -56,6 +60,14 @@ class OrderMcpService
                 if (preg_match('/^\d+$/', $needle) === 1) {
                     $scoped->orWhere('id', (int) $needle);
                 }
+
+                $scoped->orWhereHas('client', function (Builder $client) use ($needle): void {
+                    $client->where('name', 'like', '%'.$needle.'%');
+                });
+
+                $scoped->orWhereHas('carrier', function (Builder $carrier) use ($needle): void {
+                    $carrier->where('name', 'like', '%'.$needle.'%');
+                });
             });
         }
 
@@ -138,6 +150,12 @@ class OrderMcpService
         $summary['track_number_customer'] = $order->track_number_customer;
         $summary['track_number_carrier'] = $order->track_number_carrier;
 
+        $milestones = RoutePointActualMilestones::forOrder($order);
+        $summary['loading_actual'] = $milestones['actual_loading']?->toDateString();
+        $summary['unloading_actual'] = $milestones['actual_unloading']?->toDateString();
+        $summary['loading_actual_label'] = OrderAgentLexicon::labelFor('loading_actual');
+        $summary['unloading_actual_label'] = OrderAgentLexicon::labelFor('unloading_actual');
+
         if ($this->access->canViewFinance($user)) {
             $summary['carrier_rate'] = $order->carrier_rate;
             $summary['additional_expenses'] = $order->additional_expenses;
@@ -199,20 +217,37 @@ class OrderMcpService
         ];
     }
 
+    public function fieldLexicon(): array
+    {
+        return OrderAgentLexicon::forAgent();
+    }
+
     /**
-     * @return array{order: array<string, mixed>, field: string, value: mixed}
+     * @return array{order: array<string, mixed>, field: string, field_label: ?string, value: mixed}
      */
     public function updateField(User $user, int $orderId, string $field, mixed $value): array
     {
+        $resolvedField = OrderAgentLexicon::resolveInlineFieldKey($field) ?? $field;
+
         $order = $this->access->findAccessibleOrder($user, $orderId);
         $this->access->ensureCanEditOrder($user, $order);
 
-        if (OrderInlineFieldCatalog::isFinancialField($field) && ! $this->access->canViewFinance($user)) {
+        if (OrderInlineFieldCatalog::isFinancialField($resolvedField) && ! $this->access->canViewFinance($user)) {
             throw new AuthenticationException('Нет доступа к финансовым полям заказа.');
         }
 
-        OrderInlineFieldCatalog::validate($user, $order, $field, $value);
-        $payload = OrderInlineFieldCatalog::normalizePayload($field, $value);
+        OrderInlineFieldCatalog::validate($user, $order, $resolvedField, $value);
+        $payload = OrderInlineFieldCatalog::normalizePayload($resolvedField, $value);
+
+        if (in_array($payload['field'], [
+            'track_sent_date_customer',
+            'track_received_date_customer',
+            'track_sent_date_carrier',
+            'track_received_date_carrier',
+            'order_date',
+        ], true)) {
+            $payload['value'] = OrderAgentLexicon::normalizeDateValue($payload['value']);
+        }
 
         $updated = $this->inlineFieldUpdate->apply(
             $user,
@@ -224,12 +259,38 @@ class OrderMcpService
         return [
             'order_id' => $updated->id,
             'field' => $payload['field'],
+            'field_label' => OrderAgentLexicon::labelFor($payload['field']),
             'value' => $payload['value'],
             'order' => $this->detail($updated->fresh([
                 'client:id,name',
                 'carrier:id,name',
                 'manager:id,name',
             ]) ?? $updated, $user),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function updateRouteActual(
+        User $user,
+        int $orderId,
+        string $kind,
+        mixed $date,
+        ?string $legStage = null,
+    ): array {
+        $order = $this->access->findAccessibleOrder($user, $orderId);
+        $this->access->ensureCanEditOrder($user, $order);
+
+        $result = $this->routeActualUpdate->apply($user, $order, $kind, $date, $legStage);
+
+        return [
+            ...$result,
+            'order' => $this->detail($order->fresh([
+                'client:id,name',
+                'carrier:id,name',
+                'manager:id,name',
+            ]) ?? $order, $user),
         ];
     }
 }

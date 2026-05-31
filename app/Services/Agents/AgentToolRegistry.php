@@ -14,7 +14,6 @@ use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
 use App\Support\DispositionSlot;
-use App\Support\OrderInlineFieldCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -133,11 +132,11 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'search_orders',
-                description: 'Поиск заказов по номеру, id или фрагменту. Краткий список доступных заказов.',
+                description: 'Поиск заказов: номер (EXWL-1), id, номер заявки заказчика, название клиента или перевозчика (фрагмент «Эксвилл»).',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
-                        'query' => ['type' => 'string', 'description' => 'Номер, id или фрагмент. Пусто — последние в лимите.'],
+                        'query' => ['type' => 'string', 'description' => 'Номер, id, имя клиента/перевозчика. Пусто — последние в лимите.'],
                         'limit' => ['type' => 'integer', 'description' => '1–25', 'minimum' => 1, 'maximum' => 25],
                     ],
                     'additionalProperties' => false,
@@ -151,7 +150,7 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'get_order',
-                description: 'Карточка заказа по id.',
+                description: 'Карточка заказа по id. В ответе loading_actual / unloading_actual — фактические даты погрузки и выгрузки.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
@@ -164,6 +163,13 @@ class AgentToolRegistry
                 invoke: function (User $user, array $args): array {
                     return ['order' => $this->orders->get($user, (int) $args['order_id'])];
                 },
+            ),
+            new AgentToolDefinition(
+                name: 'get_order_field_lexicon',
+                description: 'Словарь полей заказа: русские названия, синонимы («груз забрали» → loading_actual) и какой tool вызывать.',
+                parameters: $emptyObject,
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user): array => $this->orders->fieldLexicon(),
             ),
             new AgentToolDefinition(
                 name: 'get_order_timeline',
@@ -329,16 +335,16 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'update_order_field',
-                description: 'Изменить одно поле заказа: ставки, трек-номера, даты, формы оплаты, manual_status (только руководитель/админ).',
+                description: 'Изменить поле заказа из inline-грида (ставки, треки, order_date, статус). Не для фактической погрузки — для неё update_order_route_actual.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
                         'order_id' => ['type' => 'integer', 'minimum' => 1],
                         'field' => [
                             'type' => 'string',
-                            'enum' => OrderInlineFieldCatalog::allowedFields(),
+                            'description' => 'Ключ или русское название/синоним (см. get_order_field_lexicon).',
                         ],
-                        'value' => ['description' => 'Новое значение; null — очистить'],
+                        'value' => ['description' => 'Новое значение; даты dd.mm.yyyy или Y-m-d'],
                     ],
                     'required' => ['order_id', 'field'],
                     'additionalProperties' => false,
@@ -349,6 +355,29 @@ class AgentToolRegistry
                     (int) $args['order_id'],
                     (string) ($args['field'] ?? ''),
                     $args['value'] ?? null,
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'update_order_route_actual',
+                description: 'Фактическая дата погрузки (loading_actual) или выгрузки (unloading_actual). «Груз забрали» = loading_actual.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'order_id' => ['type' => 'integer', 'minimum' => 1],
+                        'kind' => ['type' => 'string', 'description' => 'loading_actual или unloading_actual (можно синоним из lexicon)'],
+                        'date' => ['type' => 'string', 'description' => 'Y-m-d или dd.mm.yyyy'],
+                        'leg_stage' => ['type' => 'string', 'description' => 'Плечо, по умолчанию leg_1'],
+                    ],
+                    'required' => ['order_id', 'kind', 'date'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orders->updateRouteActual(
+                    $user,
+                    (int) $args['order_id'],
+                    (string) ($args['kind'] ?? ''),
+                    $args['date'] ?? null,
+                    isset($args['leg_stage']) ? (string) $args['leg_stage'] : null,
                 ),
             ),
             new AgentToolDefinition(

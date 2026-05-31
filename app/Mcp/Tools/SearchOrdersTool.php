@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('search_orders')]
-#[Description('Поиск заказов по номеру, id или номеру заказчика. Возвращает краткий список доступных пользователю заказов.')]
+#[Description('Поиск заказов по номеру, id, номеру заявки заказчика, названию клиента или перевозчика (фрагмент, напр. «Эксвилл»).')]
 class SearchOrdersTool extends Tool
 {
     use LogsMcpToolCalls;
@@ -47,7 +47,7 @@ class SearchOrdersTool extends Tool
     {
         return [
             'query' => $schema->string()
-                ->description('Номер заказа, id или фрагмент номера заказчика. Пустая строка — последние заказы в пределах лимита.')
+                ->description('Номер заказа, id, фрагмент номера заявки заказчика, название клиента или перевозчика. Пусто — последние заказы.')
                 ->max(120),
             'limit' => $schema->integer()
                 ->description('Максимум записей (1–25).')

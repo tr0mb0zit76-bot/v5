@@ -5,6 +5,7 @@ namespace App\Mcp\Servers;
 use App\Mcp\Tools\AddOrderNoteTool;
 use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\GetContractorTool;
+use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetTaskTool;
@@ -15,6 +16,7 @@ use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\SearchTasksTool;
 use App\Mcp\Tools\UpdateOrderFieldTool;
+use App\Mcp\Tools\UpdateOrderRouteActualTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
 use App\Mcp\Tools\UpsertSalesBookArticleTool;
 use Laravel\Mcp\Server;
@@ -31,10 +33,12 @@ use Laravel\Mcp\Server\Tool;
 
         - get_user_context — роль и области видимости
         - search_orders / get_order / get_order_timeline / list_order_documents
+        - get_order_field_lexicon — русские названия полей и синонимы
         - search_contractors / get_contractor
         - search_tasks / get_task / create_task
         - add_order_note — заметка в ленту заказа
         - update_order_field — одно поле заказа (whitelist)
+        - update_order_route_actual — фактическая погрузка/выгрузка
         - upsert_disposition_entry — ячейка диспозиции (утро/вечер)
         - search_sales_book_articles / upsert_sales_book_article
 
@@ -49,6 +53,7 @@ class CrmServer extends Server
         GetUserContextTool::class,
         SearchOrdersTool::class,
         GetOrderTool::class,
+        GetOrderFieldLexiconTool::class,
         GetOrderTimelineTool::class,
         ListOrderDocumentsTool::class,
         SearchContractorsTool::class,
@@ -58,6 +63,7 @@ class CrmServer extends Server
         CreateTaskTool::class,
         AddOrderNoteTool::class,
         UpdateOrderFieldTool::class,
+        UpdateOrderRouteActualTool::class,
         UpsertDispositionEntryTool::class,
         SearchSalesBookArticlesTool::class,
         UpsertSalesBookArticleTool::class,

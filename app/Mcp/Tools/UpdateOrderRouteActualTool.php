@@ -5,7 +5,6 @@ namespace App\Mcp\Tools;
 use App\Mcp\Concerns\LogsMcpToolCalls;
 use App\Models\User;
 use App\Services\Mcp\OrderMcpService;
-use App\Support\OrderInlineFieldCatalog;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Validation\ValidationException;
 use Laravel\Mcp\Request;
@@ -14,9 +13,9 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
-#[Name('update_order_field')]
-#[Description('Изменить одно поле заказа (ставки, треки, order_date). Для фактической погрузки — update_order_route_actual. Поле: ключ или русское название из get_order_field_lexicon.')]
-class UpdateOrderFieldTool extends Tool
+#[Name('update_order_route_actual')]
+#[Description('Фактическая дата погрузки или выгрузки по маршруту заказа (не track_* и не order_date). «Груз забрали» = loading_actual.')]
+class UpdateOrderRouteActualTool extends Tool
 {
     use LogsMcpToolCalls;
 
@@ -29,16 +28,18 @@ class UpdateOrderFieldTool extends Tool
         return $this->withMcpAccess($request, function (User $user) use ($request): Response {
             $validated = $request->validate([
                 'order_id' => ['required', 'integer', 'min:1'],
-                'field' => ['required', 'string', 'in:'.implode(',', OrderInlineFieldCatalog::allowedFields())],
-                'value' => ['nullable'],
+                'kind' => ['required', 'string', 'max:120'],
+                'date' => ['required', 'string', 'max:32'],
+                'leg_stage' => ['nullable', 'string', 'max:32'],
             ]);
 
             try {
-                $result = $this->orders->updateField(
+                $result = $this->orders->updateRouteActual(
                     $user,
                     (int) $validated['order_id'],
-                    (string) $validated['field'],
-                    $validated['value'] ?? null,
+                    (string) $validated['kind'],
+                    (string) $validated['date'],
+                    isset($validated['leg_stage']) ? (string) $validated['leg_stage'] : null,
                 );
             } catch (ValidationException $exception) {
                 $message = collect($exception->errors())->flatten()->first();
@@ -60,11 +61,14 @@ class UpdateOrderFieldTool extends Tool
                 ->description('ID заказа.')
                 ->min(1)
                 ->required(),
-            'field' => $schema->string()
-                ->description('Ключ (customer_rate) или русское название/синоним из get_order_field_lexicon.')
+            'kind' => $schema->string()
+                ->description('loading_actual (фактическая погрузка / «груз забрали») или unloading_actual (фактическая выгрузка).')
                 ->required(),
-            'value' => $schema->string()
-                ->description('Новое значение. null или пустая строка — очистить поле.'),
+            'date' => $schema->string()
+                ->description('Дата: Y-m-d или dd.mm.yyyy (например 15.05.2026).')
+                ->required(),
+            'leg_stage' => $schema->string()
+                ->description('Плечо маршрута, по умолчанию leg_1.'),
         ];
     }
 }
