@@ -192,6 +192,24 @@ class Order extends Model
     }
 
     /**
+     * Учитывает колонку заказа, снимок wizard_state и явное значение из запроса мастера.
+     */
+    public function isInternationalTransportEffective(?bool $requestedOverride = null): bool
+    {
+        if ($requestedOverride !== null) {
+            return $requestedOverride;
+        }
+
+        if ((bool) $this->is_international_transport) {
+            return true;
+        }
+
+        $wizard = is_array($this->wizard_state) ? $this->wizard_state : [];
+
+        return (bool) ($wizard['is_international_transport'] ?? false);
+    }
+
+    /**
      * @return BelongsTo<User, $this>
      */
     public function manager(): BelongsTo

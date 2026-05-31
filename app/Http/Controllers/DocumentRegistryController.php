@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateDocumentRegistryRequest;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Services\DocumentStorageService;
+use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +39,7 @@ class DocumentRegistryController extends Controller
             ->with(['documents', 'client:id,name', 'carrier:id,name'])
             ->orderByDesc('id');
 
-        if ($user->role?->name !== 'admin' && $scope !== 'all') {
+        if (! RoleAccess::isAdminUser($user) && $scope !== 'all') {
             $query->where('manager_id', $user->id);
         }
 

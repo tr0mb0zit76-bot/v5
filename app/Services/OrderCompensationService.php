@@ -6,6 +6,7 @@ use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
+use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\CashToCashMarginCalculator;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPaymentTermsConfigResolver;

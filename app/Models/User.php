@@ -96,7 +96,7 @@ class User extends Authenticatable
 
     public function isAdmin(): bool
     {
-        return $this->hasRole('admin');
+        return RoleAccess::isAdminUser($this);
     }
 
     public function isSupervisor(): bool

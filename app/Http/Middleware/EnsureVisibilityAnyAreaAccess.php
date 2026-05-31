@@ -16,25 +16,11 @@ class EnsureVisibilityAnyAreaAccess
     {
         $user = $request->user();
 
-        if ($user === null) {
-            abort(403);
-        }
-
-        if ($user->isAdmin()) {
-            return $next($request);
-        }
-
         // Use "|" so Laravel does not treat "," as a delimiter between middleware parameters.
         $required = array_values(array_filter(array_map('trim', explode('|', $areasList))));
 
-        $visibilityAreas = RoleAccess::userVisibilityAreas($user);
+        abort_unless(RoleAccess::canAccessAnyVisibilityArea($user, $required), 403);
 
-        foreach ($required as $area) {
-            if (RoleAccess::hasVisibilityArea($visibilityAreas, $area)) {
-                return $next($request);
-            }
-        }
-
-        abort(403);
+        return $next($request);
     }
 }

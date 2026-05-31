@@ -16,17 +16,7 @@ class EnsureVisibilityAreaAccess
     {
         $user = $request->user();
 
-        if ($user === null) {
-            abort(403);
-        }
-
-        if ($user->isAdmin()) {
-            return $next($request);
-        }
-
-        $visibilityAreas = RoleAccess::userVisibilityAreas($user);
-
-        abort_unless(RoleAccess::hasVisibilityArea($visibilityAreas, $area), 403);
+        abort_unless(RoleAccess::canAccessVisibilityArea($user, $area), 403);
 
         return $next($request);
     }

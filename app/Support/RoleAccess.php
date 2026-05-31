@@ -265,7 +265,21 @@ class RoleAccess
         $user->loadMissing(['roles', 'role']);
 
         if ($user->relationLoaded('roles') && $user->roles->isNotEmpty()) {
-            return $user->roles;
+            $roles = $user->roles;
+        } else {
+            $roles = new EloquentCollection;
+        }
+
+        if ($user->role_id !== null) {
+            $primaryRole = $user->role ?? Role::query()->find($user->role_id);
+
+            if ($primaryRole !== null && ! $roles->contains(fn (Role $role): bool => (int) $role->id === (int) $primaryRole->id)) {
+                $roles = new EloquentCollection([$primaryRole, ...$roles->all()]);
+            }
+        }
+
+        if ($roles->isNotEmpty()) {
+            return $roles;
         }
 
         if (! Schema::hasTable('roles')) {
@@ -285,10 +299,66 @@ class RoleAccess
         return new EloquentCollection;
     }
 
+    public static function isAdminUser(?User $user): bool
+    {
+        return static::userHasRoleName($user, 'admin');
+    }
+
+    public static function canAccessVisibilityArea(?User $user, string $area): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (static::isAdminUser($user)) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), $area);
+    }
+
+    /**
+     * @param  list<string>  $areas
+     */
+    public static function canAccessAnyVisibilityArea(?User $user, array $areas): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (static::isAdminUser($user)) {
+            return true;
+        }
+
+        $visibleAreas = static::userVisibilityAreas($user);
+
+        foreach ($areas as $area) {
+            if (static::hasVisibilityArea($visibleAreas, $area)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function userHasRoleName(?User $user, string $roleName): bool
     {
         if ($user === null) {
             return false;
+        }
+
+        $user->loadMissing(['roles', 'role']);
+
+        if ($user->role_id !== null) {
+            $primaryRoleName = $user->role?->name;
+
+            if ($primaryRoleName === null) {
+                $primaryRoleName = Role::query()->whereKey($user->role_id)->value('name');
+            }
+
+            if ($primaryRoleName === $roleName) {
+                return true;
+            }
         }
 
         return static::assignedRoles($user)->contains(
@@ -330,6 +400,10 @@ class RoleAccess
      */
     public static function userVisibilityAreas(User $user): array
     {
+        if (static::userHasRoleName($user, 'admin')) {
+            return static::visibilityAreaKeys();
+        }
+
         $merged = [];
 
         foreach (static::assignedRoles($user) as $role) {
@@ -373,6 +447,10 @@ class RoleAccess
      */
     public static function effectiveVisibilityAreasFromRolePayload(?string $roleName, mixed $raw): array
     {
+        if ($roleName === 'admin') {
+            return static::visibilityAreaKeys();
+        }
+
         $areas = $raw;
 
         if (is_string($areas)) {
@@ -512,21 +590,20 @@ class RoleAccess
         }
 
         if ($required === 'settings') {
-            return in_array('settings_system', $areas, true)
+            return in_array('settings', $areas, true)
+                || in_array('settings_system', $areas, true)
                 || in_array('settings_motivation', $areas, true);
         }
 
         if ($required === 'settings_system' || $required === 'settings_motivation') {
-            $hasLegacyAllSettings = in_array('settings', $areas, true)
-                && ! in_array('settings_system', $areas, true)
-                && ! in_array('settings_motivation', $areas, true);
-
-            if ($hasLegacyAllSettings) {
+            if (in_array('settings', $areas, true)) {
                 return true;
             }
+
+            return in_array($required, $areas, true);
         }
 
-        return false;
+        return in_array($required, $areas, true);
     }
 
     /**
@@ -618,7 +695,7 @@ class RoleAccess
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if (static::userHasRoleName($user, 'admin')) {
             return true;
         }
 

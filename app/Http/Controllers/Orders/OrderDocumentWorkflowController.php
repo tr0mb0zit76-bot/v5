@@ -51,15 +51,23 @@ class OrderDocumentWorkflowController extends Controller
             'carrier_contractor_id' => ['nullable', 'integer', 'min:1'],
             'carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'route_legs_as_table_rows' => ['nullable', 'boolean'],
+            'is_international_transport' => ['nullable', 'boolean'],
         ]);
 
         $template = PrintFormTemplate::query()->findOrFail($validated['print_form_template_id']);
         $order->loadMissing(['legs', 'legs.contractorAssignment']);
 
+        $party = isset($validated['print_party']) && in_array($validated['print_party'], ['customer', 'carrier'], true)
+            ? $validated['print_party']
+            : null;
+        $isInternationalTransport = array_key_exists('is_international_transport', $validated)
+            ? (bool) $validated['is_international_transport']
+            : null;
+
         abort_unless(
-            $this->templateEligibility->isTemplateAvailableForOrder($template, $order),
-            404,
-            'Шаблон недоступен для этого заказа.'
+            $this->templateEligibility->isTemplateAvailableForOrder($template, $order, $party, $isInternationalTransport),
+            422,
+            'Шаблон недоступен для этого заказа. Проверьте тип перевозки (ВЭД), нашу компанию и перевозчика.'
         );
 
         $context = $this->resolvePrintFormContextFromRequest($validated);

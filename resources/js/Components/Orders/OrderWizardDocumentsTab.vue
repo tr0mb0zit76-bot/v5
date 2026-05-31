@@ -83,6 +83,27 @@ const printFormTemplateOptionsCarrier = computed(() => {
     return filterPrintFormTemplates(catalog, printFormTemplateContext.value, 'carrier');
 });
 
+const carrierVedTemplateHint = computed(() => {
+    if (props.isInternationalTransport || printFormTemplateOptionsCarrier.value.length > 0) {
+        return '';
+    }
+
+    const catalog = Array.isArray(props.printFormTemplateCatalog) ? props.printFormTemplateCatalog : [];
+
+    const hasInternationalCarrierTemplates = catalog.some(
+        (template) => template?.party === 'carrier'
+            && template?.transport_scope === 'international'
+            && template?.is_active !== false
+            && template?.file_path,
+    );
+
+    if (!hasInternationalCarrierTemplates) {
+        return '';
+    }
+
+    return 'Шаблоны для ВЭД появятся после выбора «Международная» на вкладке «Основное». Сохраните заказ, если переключатель уже включён.';
+});
+
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
     props.performers,
     props.clientRequestMode,
@@ -390,6 +411,8 @@ function createPrintWorkflow(slot, party) {
     if (slot.routeLegsAsTableRows) {
         payload.route_legs_as_table_rows = true;
     }
+
+    payload.is_international_transport = Boolean(props.isInternationalTransport);
 
     router.post(route('orders.documents.from-template', props.order.id), payload, { preserveScroll: true });
 }
@@ -790,6 +813,9 @@ async function onGlobalDrop(event) {
                     <p class="mt-1 text-xs text-rose-900/80 dark:text-rose-200/80">
                         Шаблоны только для перевозчика.
                         <span v-if="slot.routeLegsAsTableRows"> Маршрут по плечам — таблица ${route_row_stage} в шаблоне.</span>
+                    </p>
+                    <p v-if="carrierVedTemplateHint" class="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                        {{ carrierVedTemplateHint }}
                     </p>
                 </div>
                 <template v-if="!order?.id">

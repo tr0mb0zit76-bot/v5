@@ -797,10 +797,23 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
 
 :deep(.tiptap-body .sales-book-editor a) {
     color: rgb(37 99 235);
+    cursor: pointer;
     text-decoration: underline;
+}
+
+:deep(.tiptap-body .sales-book-editor a:hover) {
+    color: rgb(29 78 216);
+}
+
+:deep(.tiptap-body .ProseMirror[contenteditable='false'] a) {
+    cursor: pointer;
 }
 
 :deep(.dark .tiptap-body .sales-book-editor a) {
     color: rgb(96 165 250);
+}
+
+:deep(.dark .tiptap-body .sales-book-editor a:hover) {
+    color: rgb(147 197 253);
 }
 </style>

@@ -11,6 +11,9 @@
 
     RewriteEngine On
 
+    # CRM-модуль «Документы» (/documents) — не отдавать как каталог public/documents/ (SLA-PDF лежат в /documents/sla/…).
+    RewriteRule ^documents/?$ index.php [L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

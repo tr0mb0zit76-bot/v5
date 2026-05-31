@@ -316,9 +316,21 @@ class OrderWizardController extends Controller
         abort_unless($this->canEditInlineField($request, $order), 403);
         abort_if($printFormTemplate->entity_type !== 'order', 422, 'Черновик можно сформировать только для шаблона заказа.');
         abort_if(blank($printFormTemplate->file_path), 422, 'У шаблона не загружен исходный DOCX-файл.');
-        abort_unless($this->isTemplateAvailableForOrder($printFormTemplate, $order), 404);
 
-        $generatedFile = $draftService->generate($printFormTemplate, $this->loadOrderForEditing($order));
+        $orderForCheck = $this->loadOrderForEditing($order);
+        $isInternationalTransport = $request->has('is_international_transport')
+            ? $request->boolean('is_international_transport')
+            : null;
+        $party = $request->query('print_party');
+        $party = is_string($party) && in_array($party, ['customer', 'carrier'], true) ? $party : null;
+
+        abort_unless(
+            $this->isTemplateAvailableForOrder($printFormTemplate, $orderForCheck, $party, $isInternationalTransport),
+            422,
+            'Шаблон недоступен для этого заказа. Проверьте тип перевозки (ВЭД), нашу компанию и перевозчика.'
+        );
+
+        $generatedFile = $draftService->generate($printFormTemplate, $orderForCheck);
 
         return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
@@ -1822,7 +1834,9 @@ class OrderWizardController extends Controller
         $eligibility = app(PrintFormTemplateOrderEligibility::class);
 
         $ownCompanyId = $order?->own_company_id !== null ? (int) $order->own_company_id : null;
-        $isInternational = (bool) ($order?->is_international_transport ?? false);
+        $isInternational = $order !== null
+            ? $order->isInternationalTransportEffective()
+            : false;
         $contractorIds = $order !== null ? $eligibility->contractorIdsForOrder($order) : [];
 
         return $this->printFormTemplateCatalog()
@@ -1841,12 +1855,16 @@ class OrderWizardController extends Controller
             ->values();
     }
 
-    private function isTemplateAvailableForOrder(PrintFormTemplate $template, Order $order, ?string $party = null): bool
-    {
+    private function isTemplateAvailableForOrder(
+        PrintFormTemplate $template,
+        Order $order,
+        ?string $party = null,
+        ?bool $isInternationalTransport = null,
+    ): bool {
         /** @var PrintFormTemplateOrderEligibility $eligibility */
         $eligibility = app(PrintFormTemplateOrderEligibility::class);
 
-        return $eligibility->isTemplateAvailableForOrder($template, $order, $party);
+        return $eligibility->isTemplateAvailableForOrder($template, $order, $party, $isInternationalTransport);
     }
 
     /**

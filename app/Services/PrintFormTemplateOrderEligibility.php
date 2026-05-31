@@ -89,12 +89,16 @@ final class PrintFormTemplateOrderEligibility
         return in_array((int) $template->contractor_id, $contractorIds, true);
     }
 
-    public function isTemplateAvailableForOrder(PrintFormTemplate $template, Order $order, ?string $party = null): bool
-    {
+    public function isTemplateAvailableForOrder(
+        PrintFormTemplate $template,
+        Order $order,
+        ?string $party = null,
+        ?bool $isInternationalTransport = null,
+    ): bool {
         return $this->isTemplateAvailableForContext(
             $template,
             $order->own_company_id !== null ? (int) $order->own_company_id : null,
-            (bool) $order->is_international_transport,
+            $isInternationalTransport ?? $order->isInternationalTransportEffective(),
             $party,
             $this->contractorIdsForOrder($order),
         );

@@ -36,6 +36,7 @@ class OrderWizardStateService
             'additional_expenses' => Arr::get($validated, 'additional_expenses'),
             'insurance' => Arr::get($validated, 'insurance'),
             'bonus' => Arr::get($validated, 'bonus'),
+            'is_international_transport' => (bool) ($validated['is_international_transport'] ?? false),
         ];
 
         if (Schema::hasTable('financial_terms')) {

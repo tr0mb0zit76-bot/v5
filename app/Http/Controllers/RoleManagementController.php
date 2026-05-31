@@ -109,7 +109,9 @@ class RoleManagementController extends Controller
     {
         $validated = $request->validated();
 
-        $visibilityAreas = array_values(array_unique($validated['visibility_areas'] ?? []));
+        $visibilityAreas = ($validated['name'] ?? null) === 'admin'
+            ? RoleAccess::visibilityAreaKeys()
+            : array_values(array_unique($validated['visibility_areas'] ?? []));
 
         $attributes = [
             'name' => $validated['name'],

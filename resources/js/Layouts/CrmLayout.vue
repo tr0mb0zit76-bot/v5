@@ -627,20 +627,21 @@ function menuBadgeFor(key) {
     return 0;
 }
 const visibleAreas = computed(() => authUser.value?.role?.visibility_areas ?? []);
+const isAdminUser = computed(() => Boolean(authUser.value?.role?.is_admin) || authUser.value?.role?.name === 'admin');
 const hasLegacyAllSettingsAccess = computed(() => {
     const areas = visibleAreas.value;
     return areas.includes('settings') && !areas.includes('settings_system') && !areas.includes('settings_motivation');
 });
 const hasSettingsSystemAccess = computed(() => {
     const areas = visibleAreas.value;
-    return hasLegacyAllSettingsAccess.value || areas.includes('settings_system');
+    return isAdminUser.value || hasLegacyAllSettingsAccess.value || areas.includes('settings_system');
 });
 const hasSettingsMotivationAccess = computed(() => {
     const areas = visibleAreas.value;
-    return hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
+    return isAdminUser.value || hasLegacyAllSettingsAccess.value || areas.includes('settings_motivation');
 });
-const hasFinanceSalaryAccess = computed(() => authUser.value?.role?.name === 'admin' || visibleAreas.value.includes('finance_salary'));
-const hasManagementAccess = computed(() => authUser.value?.role?.name === 'admin' || Boolean(authUser.value?.belongs_to_management));
+const hasFinanceSalaryAccess = computed(() => isAdminUser.value || visibleAreas.value.includes('finance_salary'));
+const hasManagementAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.belongs_to_management));
 
 const MENU_ROUTES = {
     dashboard: '/dashboard',
@@ -739,7 +740,7 @@ function mobileNavItemsLegacy() {
     const items = MOBILE_NAV_DEF.filter((item) => MOBILE_NAV_SELECTABLE_KEYS.includes(item.key));
 
     return items.filter((item) => {
-        if (authUser.value?.role?.name === 'admin') {
+        if (isAdminUser.value) {
             return true;
         }
 
@@ -906,7 +907,7 @@ const canInstallApp = computed(() => deferredInstallPrompt.value !== null);
 
 const menuItems = computed(() => {
     const areas = visibleAreas.value;
-    const isAdmin = authUser.value?.role?.name === 'admin';
+    const isAdmin = isAdminUser.value;
     const planningChildren = [];
     if (isAdmin || areas.includes('tasks')) {
         planningChildren.push({ key: 'tasks', label: 'Задачи' });
@@ -1020,7 +1021,7 @@ const menuItems = computed(() => {
                 if (hasSettingsSystemAccess.value) {
                     administrationChildren.push({ key: 'users', label: 'Пользователи' });
                 }
-                if (authUser.value?.role?.name === 'admin') {
+                if (isAdminUser.value) {
                     administrationChildren.push({ key: 'roles', label: 'Роли' });
                 }
                 if (hasSettingsSystemAccess.value) {
@@ -1060,7 +1061,7 @@ const menuItems = computed(() => {
     ];
 
     return items.filter((item) => {
-        if (authUser.value?.role?.name === 'admin') {
+        if (isAdminUser.value) {
             return true;
         }
 
