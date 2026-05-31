@@ -22,8 +22,8 @@ use App\Services\KpiConfigurationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
+use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
-use App\Services\OrderWizardStateService;
 use App\Services\OwnFleetContractorService;
 use App\Services\PaymentSettlementSummaryBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
@@ -121,67 +121,25 @@ class OrderWizardController extends Controller
     public function inlineUpdate(
         UpdateInlineOrderFieldRequest $request,
         Order $order,
-        OrderCompensationService $orderCompensationService,
-        OrderWizardStateService $orderWizardStateService,
+        OrderInlineFieldUpdateService $orderInlineFieldUpdateService,
     ): RedirectResponse {
         abort_unless($this->canEditInlineField($request, $order), 403);
 
         $payload = $request->validatedPayload();
+        $user = $request->user();
 
-        $previousOrderDate = $order->order_date?->toDateString();
-
-        $fill = [
-            'updated_by' => $request->user()?->id,
-        ];
-
-        if (Schema::hasColumn('orders', $payload['field'])) {
-            $fill[$payload['field']] = $payload['value'];
+        if ($user === null) {
+            abort(403);
         }
 
-        $order->forceFill($fill)->save();
-
-        $syncOrder = $order->fresh();
-        if (! Schema::hasColumn('orders', $payload['field'])) {
-            $syncOrder->setAttribute($payload['field'], $payload['value']);
-        }
-
-        if (in_array($payload['field'], ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
-            $this->syncFinancialTermsFromOrderRates($syncOrder);
-        }
-
-        if (in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true)) {
-            $this->syncFinancialTermsFromOrderRates($syncOrder);
-        }
-
-        if (in_array($payload['field'], [
-            'customer_rate',
-            'carrier_rate',
-            'additional_expenses',
-            'insurance',
-            'bonus',
-            'customer_payment_form',
-            'carrier_payment_form',
-            'order_date',
-            'track_received_date_customer',
-            'track_received_date_carrier',
-        ], true)) {
-            $dealTypeChanged = in_array($payload['field'], ['customer_payment_form', 'carrier_payment_form'], true);
-            $orderCompensationService->recalculateImpactedPeriods($syncOrder, null, $previousOrderDate, $dealTypeChanged);
-        }
-
-        if (in_array($payload['field'], [
-            'customer_rate',
-            'carrier_rate',
-            'additional_expenses',
-            'insurance',
-            'bonus',
-            'customer_payment_form',
-            'carrier_payment_form',
-        ], true)) {
-            $orderWizardStateService->mergeInlineIntoOrder($order->fresh(), $payload['field'], $payload['value']);
-        }
+        $orderInlineFieldUpdateService->apply($user, $order, $payload['field'], $payload['value']);
 
         return to_route('orders.index');
+    }
+
+    public function syncFinancialTermsFromOrderRatesForOrder(Order $order): void
+    {
+        $this->syncFinancialTermsFromOrderRates($order);
     }
 
     public function destroy(Request $request, Order $order): RedirectResponse

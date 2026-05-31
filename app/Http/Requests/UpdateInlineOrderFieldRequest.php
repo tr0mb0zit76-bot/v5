@@ -3,56 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Models\Order;
-use App\Models\User;
-use App\Support\OrderDisruptionGuard;
-use App\Support\PaymentFormDictionary;
+use App\Support\OrderInlineFieldCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Validator;
 
 class UpdateInlineOrderFieldRequest extends FormRequest
 {
-    /**
-     * @var list<string>
-     */
-    private const MANUAL_STATUS_CODES = [
-        'new',
-        'in_progress',
-        'documents',
-        'payment',
-        'closed',
-        'cancelled',
-        'disruption',
-        'draft',
-        'pending',
-        'confirmed',
-        'completed',
-    ];
-
-    /**
-     * @var list<string>
-     */
-    private const ALLOWED_FIELDS = [
-        'customer_rate',
-        'carrier_rate',
-        'additional_expenses',
-        'insurance',
-        'bonus',
-        'invoice_number',
-        'upd_number',
-        'waybill_number',
-        'track_number_customer',
-        'track_sent_date_customer',
-        'track_received_date_customer',
-        'track_number_carrier',
-        'track_sent_date_carrier',
-        'track_received_date_carrier',
-        'customer_payment_form',
-        'carrier_payment_form',
-        'manual_status',
-        'order_date',
-    ];
-
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -64,7 +22,7 @@ class UpdateInlineOrderFieldRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'field' => ['required', 'string', Rule::in(self::ALLOWED_FIELDS)],
+            'field' => ['required', 'string', Rule::in(OrderInlineFieldCatalog::allowedFields())],
             'value' => ['nullable'],
         ];
     }
@@ -73,48 +31,25 @@ class UpdateInlineOrderFieldRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $field = $this->input('field');
-            if ($field === 'manual_status') {
-                $user = $this->user();
-                if ($user instanceof User && ! $user->isAdmin() && ! $user->isSupervisor()) {
-                    $validator->errors()->add('field', 'Ручной статус могут менять только руководитель или администратор.');
+            if (! is_string($field)) {
+                return;
+            }
 
-                    return;
-                }
+            $user = $this->user();
+            $order = $this->route('order');
 
-                $value = $this->input('value');
-                if ($value === null || $value === '' || $value === 'null') {
-                    return;
-                }
+            if (! $user || ! $order instanceof Order) {
+                return;
+            }
 
-                $code = (string) $value;
-                if (! in_array($code, self::MANUAL_STATUS_CODES, true)) {
-                    $validator->errors()->add('value', 'Недопустимое значение ручного статуса.');
-
-                    return;
-                }
-
-                if ($code === 'disruption') {
-                    $order = $this->route('order');
-                    if ($order instanceof Order && $user instanceof User) {
-                        OrderDisruptionGuard::validateMarkDisrupted($user, $order, $validator, 'value');
+            try {
+                OrderInlineFieldCatalog::validate($user, $order, $field, $this->input('value'));
+            } catch (ValidationException $exception) {
+                foreach ($exception->errors() as $key => $messages) {
+                    foreach ($messages as $message) {
+                        $validator->errors()->add($key, $message);
                     }
                 }
-
-                return;
-            }
-
-            if (! in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
-                return;
-            }
-
-            $value = $this->input('value');
-            if ($value === null || $value === '' || $value === 'null') {
-                return;
-            }
-
-            $codes = PaymentFormDictionary::allowedCodesForValidation();
-            if (! in_array((string) $value, $codes, true)) {
-                $validator->errors()->add('value', 'Недопустимая форма оплаты.');
             }
         });
     }
@@ -125,46 +60,8 @@ class UpdateInlineOrderFieldRequest extends FormRequest
     public function validatedPayload(): array
     {
         $validated = $this->validated();
-        $field = $validated['field'];
+        $field = (string) $validated['field'];
 
-        return [
-            'field' => $field,
-            'value' => $this->normalizeValue($field, $validated['value'] ?? null),
-        ];
-    }
-
-    private function normalizeValue(string $field, mixed $value): mixed
-    {
-        if ($value === '' || $value === 'null') {
-            return null;
-        }
-
-        if (in_array($field, ['customer_rate', 'carrier_rate', 'additional_expenses', 'insurance', 'bonus'], true)) {
-            return $value === null ? null : round((float) $value, 2);
-        }
-
-        if (in_array($field, [
-            'track_sent_date_customer',
-            'track_received_date_customer',
-            'track_sent_date_carrier',
-            'track_received_date_carrier',
-            'order_date',
-        ], true)) {
-            return blank($value) ? null : $value;
-        }
-
-        if (in_array($field, ['customer_payment_form', 'carrier_payment_form'], true)) {
-            if (blank($value)) {
-                return null;
-            }
-
-            return PaymentFormDictionary::normalizeForStorage((string) $value) ?? (string) $value;
-        }
-
-        if ($field === 'manual_status') {
-            return blank($value) ? null : (string) $value;
-        }
-
-        return blank($value) ? null : trim((string) $value);
+        return OrderInlineFieldCatalog::normalizePayload($field, $validated['value'] ?? null);
     }
 }

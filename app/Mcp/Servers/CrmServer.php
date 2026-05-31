@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Tools\AddOrderNoteTool;
 use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
@@ -13,6 +14,7 @@ use App\Mcp\Tools\SearchContractorsTool;
 use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\SearchTasksTool;
+use App\Mcp\Tools\UpdateOrderFieldTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
 use App\Mcp\Tools\UpsertSalesBookArticleTool;
 use Laravel\Mcp\Server;
@@ -31,6 +33,8 @@ use Laravel\Mcp\Server\Tool;
         - search_orders / get_order / get_order_timeline / list_order_documents
         - search_contractors / get_contractor
         - search_tasks / get_task / create_task
+        - add_order_note — заметка в ленту заказа
+        - update_order_field — одно поле заказа (whitelist)
         - upsert_disposition_entry — ячейка диспозиции (утро/вечер)
         - search_sales_book_articles / upsert_sales_book_article
 
@@ -52,6 +56,8 @@ class CrmServer extends Server
         SearchTasksTool::class,
         GetTaskTool::class,
         CreateTaskTool::class,
+        AddOrderNoteTool::class,
+        UpdateOrderFieldTool::class,
         UpsertDispositionEntryTool::class,
         SearchSalesBookArticlesTool::class,
         UpsertSalesBookArticleTool::class,

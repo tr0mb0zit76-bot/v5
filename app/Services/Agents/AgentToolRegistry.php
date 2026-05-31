@@ -14,6 +14,7 @@ use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
 use App\Support\DispositionSlot;
+use App\Support\OrderInlineFieldCatalog;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -302,6 +303,53 @@ class AgentToolRegistry
                     'lead_id' => $args['lead_id'] ?? null,
                     'contractor_id' => $args['contractor_id'] ?? null,
                 ]),
+            ),
+            new AgentToolDefinition(
+                name: 'add_order_note',
+                description: 'Добавить заметку в ленту активности заказа (не меняет поля карточки).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'order_id' => ['type' => 'integer', 'minimum' => 1],
+                        'body' => ['type' => 'string', 'description' => 'Текст заметки'],
+                        'title' => ['type' => 'string', 'description' => 'Заголовок в ленте, по умолчанию «Заметка»'],
+                    ],
+                    'required' => ['order_id', 'body'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: function (User $user, array $args): array {
+                    return $this->orders->addNote(
+                        $user,
+                        (int) $args['order_id'],
+                        (string) ($args['body'] ?? ''),
+                        isset($args['title']) ? (string) $args['title'] : null,
+                    );
+                },
+            ),
+            new AgentToolDefinition(
+                name: 'update_order_field',
+                description: 'Изменить одно поле заказа: ставки, трек-номера, даты, формы оплаты, manual_status (только руководитель/админ).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'order_id' => ['type' => 'integer', 'minimum' => 1],
+                        'field' => [
+                            'type' => 'string',
+                            'enum' => OrderInlineFieldCatalog::allowedFields(),
+                        ],
+                        'value' => ['description' => 'Новое значение; null — очистить'],
+                    ],
+                    'required' => ['order_id', 'field'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orders->updateField(
+                    $user,
+                    (int) $args['order_id'],
+                    (string) ($args['field'] ?? ''),
+                    $args['value'] ?? null,
+                ),
             ),
             new AgentToolDefinition(
                 name: 'upsert_disposition_entry',

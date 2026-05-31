@@ -133,8 +133,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 ### 1.3 Write tools (с подтверждением)
 
 - [x] `CreateTaskTool`, `UpsertDispositionEntryTool`
-- [ ] `AddOrderNoteTool`
-- [ ] Whitelist полей для `UpdateOrderFieldTool`
+- [x] `AddOrderNoteTool`, `UpdateOrderFieldTool` (whitelist полей inline-грида)
 - [ ] Dry-run / confirm token для опасных операций
 
 ### 1.4 DeepSeek + command bar

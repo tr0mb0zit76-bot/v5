@@ -4,13 +4,21 @@ namespace App\Services\Mcp;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\ActivityLedgerService;
+use App\Services\Orders\OrderInlineFieldUpdateService;
+use App\Support\ActivityEventType;
+use App\Support\OrderInlineFieldCatalog;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class OrderMcpService
 {
     public function __construct(
         private readonly McpAccessGate $access,
+        private readonly ActivityLedgerService $activityLedger,
+        private readonly OrderInlineFieldUpdateService $inlineFieldUpdate,
     ) {}
 
     /**
@@ -141,5 +149,87 @@ class OrderMcpService
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array{note: array<string, mixed>, order_id: int}
+     */
+    public function addNote(User $user, int $orderId, string $body, ?string $title = null): array
+    {
+        $order = $this->access->findAccessibleOrder($user, $orderId);
+
+        $text = trim($body);
+        if ($text === '') {
+            throw ValidationException::withMessages([
+                'body' => 'Текст заметки не может быть пустым.',
+            ]);
+        }
+
+        if (mb_strlen($text) > 5000) {
+            throw ValidationException::withMessages([
+                'body' => 'Заметка не может быть длиннее 5000 символов.',
+            ]);
+        }
+
+        $noteTitle = filled($title) ? trim((string) $title) : 'Заметка';
+
+        $event = $this->activityLedger->record(
+            $order,
+            ActivityEventType::NoteAdded,
+            $noteTitle,
+            $text,
+            [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'source' => 'ai_assistant',
+            ],
+            null,
+            $user,
+        );
+
+        return [
+            'order_id' => $order->id,
+            'note' => $event !== null
+                ? $this->activityLedger->serializeEvent($event)
+                : [
+                    'event_type' => ActivityEventType::NoteAdded->value,
+                    'title' => $noteTitle,
+                    'summary' => $text,
+                ],
+        ];
+    }
+
+    /**
+     * @return array{order: array<string, mixed>, field: string, value: mixed}
+     */
+    public function updateField(User $user, int $orderId, string $field, mixed $value): array
+    {
+        $order = $this->access->findAccessibleOrder($user, $orderId);
+        $this->access->ensureCanEditOrder($user, $order);
+
+        if (OrderInlineFieldCatalog::isFinancialField($field) && ! $this->access->canViewFinance($user)) {
+            throw new AuthenticationException('Нет доступа к финансовым полям заказа.');
+        }
+
+        OrderInlineFieldCatalog::validate($user, $order, $field, $value);
+        $payload = OrderInlineFieldCatalog::normalizePayload($field, $value);
+
+        $updated = $this->inlineFieldUpdate->apply(
+            $user,
+            $order,
+            $payload['field'],
+            $payload['value'],
+        );
+
+        return [
+            'order_id' => $updated->id,
+            'field' => $payload['field'],
+            'value' => $payload['value'],
+            'order' => $this->detail($updated->fresh([
+                'client:id,name',
+                'carrier:id,name',
+                'manager:id,name',
+            ]) ?? $updated, $user),
+        ];
     }
 }

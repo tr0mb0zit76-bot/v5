@@ -6,6 +6,7 @@ use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\OrderPrintWorkflowLock;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -121,6 +122,27 @@ class McpAccessGate
         }
 
         return $order;
+    }
+
+    public function ensureCanEditOrder(User $user, Order $order): void
+    {
+        $this->requireOrdersArea($user);
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return;
+        }
+
+        if (! $user->isManager()) {
+            throw new AuthenticationException('Недостаточно прав для изменения заказа.');
+        }
+
+        if ((int) $order->manager_id !== (int) $user->id) {
+            throw new AuthenticationException('Заказ недоступен для редактирования.');
+        }
+
+        if (OrderPrintWorkflowLock::allPrintWorkflowDocumentsFinalized($order)) {
+            throw new AuthenticationException('Заказ заблокирован: все документы печатного workflow финализированы.');
+        }
     }
 
     public function requireDocumentsArea(User $user): void
