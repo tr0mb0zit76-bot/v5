@@ -211,6 +211,58 @@
             <p v-if="saveAttempted && coreValidationIssues.length > 0" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
                 Не удалось сохранить: заполните {{ coreValidationIssues.join(', ') }}.
             </p>
+            <div
+                v-if="!isEditing"
+                class="mb-4 rounded-xl border border-sky-200 bg-sky-50/80 px-4 py-3 dark:border-sky-900/50 dark:bg-sky-950/20"
+            >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div class="text-sm font-semibold text-sky-950 dark:text-sky-100">Заполнить из заявки заказчика</div>
+                        <p class="mt-1 text-xs text-sky-900/80 dark:text-sky-200/80">PDF или DOCX с текстовым слоем. Данные попадут в форму — проверьте перед сохранением.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input
+                            ref="intakeFileInput"
+                            type="file"
+                            accept=".pdf,.docx,image/jpeg,image/png,image/webp"
+                            class="max-w-xs text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium dark:file:bg-zinc-800"
+                            @change="onIntakeFileSelected"
+                        />
+                        <button
+                            type="button"
+                            class="rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-60"
+                            :disabled="intakeLoading || !intakeSelectedFile"
+                            @click="extractIntakeDraft"
+                        >
+                            {{ intakeLoading ? 'Распознавание…' : 'Распознать' }}
+                        </button>
+                    </div>
+                </div>
+                <p v-if="intakeError" class="mt-2 text-xs text-rose-700 dark:text-rose-300">{{ intakeError }}</p>
+                <div v-if="intakePreview" class="mt-3 space-y-2 rounded-lg border border-sky-200/80 bg-white/70 p-3 dark:border-sky-900/40 dark:bg-zinc-900/40">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="text-xs font-medium text-zinc-700 dark:text-zinc-200">
+                            Черновик #{{ intakePreview.draft_id }}
+                            <span v-if="intakePreview.confidence != null"> · уверенность {{ Math.round(intakePreview.confidence * 100) }}%</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                            @click="applyIntakeDraft"
+                        >
+                            Применить к форме
+                        </button>
+                    </div>
+                    <ul v-if="intakePreview.preview?.length" class="grid gap-1 text-xs text-zinc-700 dark:text-zinc-300 sm:grid-cols-2">
+                        <li v-for="row in intakePreview.preview" :key="row.label">
+                            <span class="text-zinc-500">{{ row.label }}:</span> {{ row.value }}
+                        </li>
+                    </ul>
+                    <ul v-if="intakePreview.warnings?.length" class="text-xs text-amber-800 dark:text-amber-200">
+                        <li v-for="(warning, index) in intakePreview.warnings" :key="index">{{ warning }}</li>
+                    </ul>
+                </div>
+            </div>
             <div v-if="activeTab === 'main'" class="space-y-6">
                 <div class="grid gap-6 lg:grid-cols-2">
                 <div class="space-y-4">
@@ -3094,6 +3146,99 @@ watch(
 );
 
 const isEditing = computed(() => props.order !== null);
+
+const intakeFileInput = ref(null);
+const intakeSelectedFile = ref(null);
+const intakeLoading = ref(false);
+const intakePreview = ref(null);
+const intakeError = ref('');
+
+function onIntakeFileSelected(event) {
+    intakeError.value = '';
+    intakePreview.value = null;
+    intakeSelectedFile.value = event.target.files?.[0] ?? null;
+}
+
+async function extractIntakeDraft() {
+    if (!intakeSelectedFile.value) {
+        return;
+    }
+
+    intakeLoading.value = true;
+    intakeError.value = '';
+    intakePreview.value = null;
+
+    const body = new FormData();
+    body.append('file', intakeSelectedFile.value);
+
+    try {
+        const response = await fetch(route('orders.intake.extract'), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            body,
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+            intakeError.value = payload?.message
+                ?? payload?.errors?.file?.[0]
+                ?? 'Не удалось распознать заявку.';
+            return;
+        }
+
+        intakePreview.value = payload;
+    } catch (error) {
+        console.error('order intake extract failed', error);
+        intakeError.value = 'Ошибка сети при распознавании заявки.';
+    } finally {
+        intakeLoading.value = false;
+    }
+}
+
+function applyIntakeDraft() {
+    const patch = intakePreview.value?.wizard_patch;
+    if (!patch || typeof patch !== 'object') {
+        return;
+    }
+
+    Object.entries(patch).forEach(([key, value]) => {
+        if (key === 'route_points' && Array.isArray(value)) {
+            form.route_points = value.map((point, index) => ({
+                ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), toStageKey(point.stage ?? 'leg_1') || 'leg_1'),
+                ...point,
+                stage: toStageKey(point.stage ?? 'leg_1') || 'leg_1',
+                sequence: Number(point.sequence ?? (index + 1)),
+                normalized_data: point.normalized_data || {},
+            }));
+            normalizeRoutePointSequences();
+            return;
+        }
+
+        if (key === 'cargo_items' && Array.isArray(value) && value[0]) {
+            const base = form.cargo_items[0] ?? blankOrder().cargo_items[0];
+            form.cargo_items[0] = normalizeCargoItem({ ...base, ...value[0] });
+            return;
+        }
+
+        if (key === 'financial_term' && value && typeof value === 'object') {
+            form.financial_term = {
+                ...form.financial_term,
+                ...value,
+            };
+            return;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(form, key)) {
+            form[key] = value;
+        }
+    });
+
+    activeTab.value = 'main';
+}
 
 const orderStatusBadgeLabel = computed(() => {
     const manual = form.manual_status != null && String(form.manual_status).trim() !== '' ? String(form.manual_status).trim() : null;

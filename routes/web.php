@@ -25,6 +25,7 @@ use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
+use App\Http\Controllers\Orders\OrderIntakeController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\PaymentScheduleController;
@@ -280,6 +281,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
     Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
     Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
+    Route::post('/orders/intake/extract', [OrderIntakeController::class, 'extract'])
+        ->middleware(['visibility.area:orders', 'throttle:order-intake'])
+        ->name('orders.intake.extract');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');

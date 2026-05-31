@@ -18,7 +18,7 @@ class AiRequestGate
             return AiChannel::LocalOnly;
         }
 
-        if ($feature === 'command_bar' && ! $this->chatCompletionClient->isAvailable()) {
+        if (in_array($feature, ['command_bar', 'order_intake'], true) && ! $this->chatCompletionClient->isAvailable()) {
             return AiChannel::LocalOnly;
         }
 
@@ -29,6 +29,7 @@ class AiRequestGate
     {
         return match ($feature) {
             'command_bar' => 'ИИ-ассистент недоступен: задайте DEEPSEEK_API_KEY в .env или включите AI_COMMAND_BAR_ENABLED.',
+            'order_intake' => 'Распознавание заявок недоступно: задайте DEEPSEEK_API_KEY в .env.',
             default => 'Внешний ИИ-канал недоступен для этой операции.',
         };
     }

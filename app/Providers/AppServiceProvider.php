@@ -88,6 +88,14 @@ class AppServiceProvider extends ServiceProvider
                 : Limit::perMinute(5)->by('agent-cmd-ip-'.($request->ip() ?? 'unknown'));
         });
 
+        RateLimiter::for('order-intake', function (Request $request) {
+            $user = $request->user();
+
+            return $user
+                ? Limit::perMinute(10)->by('order-intake-'.$user->id)
+                : Limit::perMinute(2)->by('order-intake-ip-'.($request->ip() ?? 'unknown'));
+        });
+
         Vite::prefetch(concurrency: 3);
 
         View::composer('app', function ($view): void {

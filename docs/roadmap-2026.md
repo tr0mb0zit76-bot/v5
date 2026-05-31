@@ -157,32 +157,32 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 #### 1.6.1 Извлечение текста
 
-- [ ] `DocumentTextExtractor`: PDF с текстовым слоем; для сканов — vision API (DeepSeek/Gemini) или локальный OCR
-- [ ] Лимиты: `config/documents.php`, sanitizer перед внешним LLM
-- [ ] Поддержка: PDF, JPG/PNG, DOCX (как в реестре документов)
+- [x] `DocumentTextExtractor`: PDF (текстовый слой), DOCX; предупреждение для сканов/фото
+- [x] Лимиты: `config/documents.php`, sanitizer перед внешним LLM
+- [x] Поддержка: PDF, JPG/PNG, DOCX (как в реестре документов)
 
 #### 1.6.2 Структурирование (LLM)
 
-- [ ] `OrderIntakeSchema` — JSON Schema под subset мастера: заказчик (ИНН/название), маршрут (loading/unloading), груз, даты, ставка, контакты
-- [ ] `OrderDocumentIntakeService::extractDraft()` — файл → текст → structured JSON + `confidence` + `warnings`
-- [ ] Сопоставление контрагента: `search_contractors` + fuzzy по ИНН/названию (не создавать контрагента без явного запроса)
+- [x] `OrderIntakeSchema` — JSON под subset мастера
+- [x] `OrderDocumentIntakeService::extractFromUpload()` — файл → текст → structured JSON + `confidence` + `warnings`
+- [x] Сопоставление контрагента: `OrderIntakeContractorResolver` по ИНН/названию
 
 #### 1.6.3 UI мастера заказа
 
-- [ ] Кнопка «Заполнить из заявки» на шаге клиента / в шапке нового заказа
-- [ ] Preview: что распознано vs что уже в форме; подсветка неуверенных полей
-- [ ] «Применить черновик» — merge в `form` Vue, без автосохранения
+- [x] Блок «Заполнить из заявки» на новом заказе
+- [x] Preview распознанных полей + предупреждения
+- [x] «Применить к форме» — merge в `form`, без автосохранения
 
 #### 1.6.4 AI / MCP tools
 
-- [ ] `extract_order_draft_from_document` — только чтение, возвращает draft (без записи в БД)
-- [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token / явного флага
-- [ ] Command bar: «вот заявка, заполни заказ» → extract + ссылка на мастер с prefilled state
+- [ ] `extract_order_draft_from_document` — MCP (файл через HTTP endpoint мастера)
+- [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
+- [ ] Command bar: загрузка файла в чате
 
 #### 1.6.5 Аудит
 
-- [ ] Таблица `order_intake_drafts` (или использование `orders.ai_draft_id`): исходный файл, extracted text hash, JSON draft, user_id, model
-- [ ] Запись в ленту заказа: «Черновик из заявки от …»
+- [x] Таблица `order_intake_drafts`: исходный файл, text hash, JSON draft, user_id, model
+- [ ] Запись в ленту заказа при apply
 
 **Критерий готовности MVP:** менеджер загружает типовую PDF-заявку → за 1–2 мин получает заполненные клиент, маршрут и груз в новом заказе, правит и сохраняет.
 

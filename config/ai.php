@@ -144,6 +144,13 @@ return [
         'temperature' => (float) env('AI_COMMAND_BAR_TEMPERATURE', 0.35),
     ],
 
+    'order_intake' => [
+        'enabled' => (bool) env('AI_ORDER_INTAKE_ENABLED', true),
+        'max_text_chars' => max(2000, min(50000, (int) env('AI_ORDER_INTAKE_MAX_TEXT_CHARS', 12000))),
+        'max_tokens' => max(512, min(4096, (int) env('AI_ORDER_INTAKE_MAX_TOKENS', 2500))),
+        'temperature' => (float) env('AI_ORDER_INTAKE_TEMPERATURE', 0.1),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Обезличивание перед внешним LLM (уровень 3)
