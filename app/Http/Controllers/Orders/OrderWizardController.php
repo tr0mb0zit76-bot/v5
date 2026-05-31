@@ -650,8 +650,8 @@ class OrderWizardController extends Controller
             'customs_declaration_place' => Schema::hasColumn('orders', 'customs_declaration_place') ? $order->customs_declaration_place : null,
             'customs_commodity_code' => Schema::hasColumn('orders', 'customs_commodity_code') ? $order->customs_commodity_code : null,
             'is_international_transport' => Schema::hasColumn('orders', 'is_international_transport')
-                ? (bool) $order->is_international_transport
-                : false,
+                ? $order->isInternationalTransportEffective()
+                : (bool) data_get($wizardState, 'is_international_transport', false),
             'loading_types' => $this->resolveLoadingTypesForOrder($order),
             'additional_expenses' => Schema::hasColumn('orders', 'additional_expenses') ? $order->additional_expenses : null,
             'additional_expenses_payment_date' => Schema::hasColumn('orders', 'additional_expenses_payment_date')
@@ -708,7 +708,7 @@ class OrderWizardController extends Controller
             ),
             'financial_term' => [
                 'client_price' => $useWizardState
-                    ? ($wizardFt['client_price'] ?? $order->customer_rate)
+                    ? $this->resolveClientPriceForWizardPayload($wizardFt, $order, $financialTerm)
                     : ($order->customer_rate !== null
                         ? $order->customer_rate
                         : $financialTerm?->client_price),
@@ -2412,6 +2412,31 @@ class OrderWizardController extends Controller
             ->all();
 
         return $this->mergeOrderCarrierRateIntoContractorsCosts($contractorsCosts, $order->carrier_rate);
+    }
+
+    /**
+     * Цена заказчика: нулевой или пустой снимок wizard_state не должен затирать {@see Order::$customer_rate}.
+     *
+     * @param  array<string, mixed>  $wizardFt
+     */
+    private function resolveClientPriceForWizardPayload(array $wizardFt, Order $order, ?FinancialTerm $financialTerm): ?float
+    {
+        if (array_key_exists('client_price', $wizardFt)) {
+            $fromWizard = $wizardFt['client_price'];
+            if ($fromWizard !== null && $fromWizard !== '' && is_numeric($fromWizard) && (float) $fromWizard > 0) {
+                return round((float) $fromWizard, 2);
+            }
+        }
+
+        if ($order->customer_rate !== null && is_numeric($order->customer_rate) && (float) $order->customer_rate > 0) {
+            return round((float) $order->customer_rate, 2);
+        }
+
+        if ($financialTerm?->client_price !== null && is_numeric($financialTerm->client_price) && (float) $financialTerm->client_price > 0) {
+            return round((float) $financialTerm->client_price, 2);
+        }
+
+        return null;
     }
 
     /**

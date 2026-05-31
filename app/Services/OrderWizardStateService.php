@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\CargoPerformerAllocationBuilder;
 use App\Support\ContractorCostRowClassification;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
@@ -24,9 +25,18 @@ class OrderWizardStateService
             return;
         }
 
+        $financialTermPayload = Arr::get($validated, 'financial_term', []);
+        if (! is_array($financialTermPayload)) {
+            $financialTermPayload = [];
+        }
+
+        if ($order->customer_rate !== null && is_numeric($order->customer_rate) && (float) $order->customer_rate > 0) {
+            $financialTermPayload['client_price'] = round((float) $order->customer_rate, 2);
+        }
+
         $payload = [
             'version' => 1,
-            'financial_term' => Arr::get($validated, 'financial_term', []),
+            'financial_term' => $financialTermPayload,
             'performers' => Arr::get($validated, 'performers', []),
             'cargo_items' => $this->cargoItemsSnapshotForWizardState(
                 Arr::get($validated, 'cargo_items', []),
@@ -45,7 +55,7 @@ class OrderWizardStateService
                 ? $financialTerm->additional_costs
                 : null;
 
-            if ($persistedAdditionalCosts !== null) {
+            if ($persistedAdditionalCosts !== null && $persistedAdditionalCosts !== []) {
                 data_set($payload, 'financial_term.additional_costs', $persistedAdditionalCosts);
             }
         }

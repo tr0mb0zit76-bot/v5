@@ -1373,7 +1373,7 @@
                 </div>
 
                 <div v-if="form.financial_term.additional_costs.length === 0" class="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-500 dark:border-zinc-700">
-                    Нет дополнительных затрат. Нажмите «Добавить затрату», чтобы указать подрядчика, дату услуги, сумму и условия оплаты.
+                    Нет дополнительных затрат. Нажмите «Добавить затрату», чтобы указать подрядчика, дату услуги, стоимость, валюту и форму оплаты.
                 </div>
 
                 <div
@@ -1440,16 +1440,6 @@
                             </button>
                         </div>
                     </div>
-                    <PaymentTermsWizardBlock
-                        :key="`additional-pay-${props.order?.id ?? 'draft'}-${row.id}`"
-                        v-model:summary-text="row.payment_terms"
-                        :schedule="row.payment_schedule"
-                        :total-amount="row.amount"
-                        :currency="row.currency"
-                        :route-points="form.route_points"
-                        :order-date="row.service_date || form.order_date"
-                        editable-summary
-                    />
                 </div>
 
                 <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
@@ -2997,7 +2987,7 @@ const form = useForm({
     svh_address: props.order?.svh_address ?? '',
     customs_post_code: props.order?.customs_post_code ?? '',
     cargo_declared_sum: props.order?.cargo_declared_sum ?? null,
-    is_international_transport: props.order?.is_international_transport === true,
+    is_international_transport: Boolean(props.order?.is_international_transport),
 });
 
 const documentsTabRef = ref(null);
