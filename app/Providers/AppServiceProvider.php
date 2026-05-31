@@ -19,8 +19,11 @@ use App\Services\Inference\DeepSeekChatCompletionClient;
 use App\Services\NextcloudWebDavStorage;
 use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
 use App\Support\InertiaAppSurface;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -66,6 +69,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('mcp', function (Request $request) {
+            $user = $request->user();
+
+            return $user
+                ? Limit::perMinute(120)->by('mcp-user-'.$user->id)
+                : Limit::perMinute(30)->by('mcp-ip-'.($request->ip() ?? 'unknown'));
+        });
+
         Vite::prefetch(concurrency: 3);
 
         View::composer('app', function ($view): void {

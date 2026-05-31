@@ -116,20 +116,18 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 ### 1.1 Scaffold
 
-- [ ] `php artisan vendor:publish --tag=ai-routes`
-- [ ] `App\Mcp\Servers\CrmServer` + регистрация в `routes/ai.php`
-- [ ] Sanctum token UI или artisan-команда выпуска MCP-токена
-- [ ] Таблица `ai_tool_audit_log` (user, tool, args redacted, ip, created_at)
-- [ ] Rate limit `throttle:mcp`
+- [x] `routes/ai.php`, `App\Mcp\Servers\CrmServer`, web `/mcp/crm` + local `crm`
+- [x] `php artisan mcp:issue-token` (Sanctum Bearer)
+- [x] Таблица `ai_tool_audit_logs`, rate limit `throttle:mcp`
+- [x] `MCP_DEV_USER_ID` для локального `php artisan mcp:start crm`
 
 ### 1.2 Read-only tools (MVP)
 
-- [ ] `SearchOrdersTool`, `GetOrderTool`
+- [x] `search_orders`, `get_order`, `get_user_context`
 - [ ] `SearchContractorsTool`, `GetContractorTool`
 - [ ] `ListOrderDocumentsTool`
 - [ ] `SearchTasksTool`, `GetTaskTool`
-- [ ] `GetUserContextTool` — роль, visibility_areas
-- [ ] Unit/feature tests + `$request->user()->can(...)`
+- [x] Feature tests `tests/Feature/Mcp/CrmMcpToolsTest.php`
 
 ### 1.3 Write tools (с подтверждением)
 
