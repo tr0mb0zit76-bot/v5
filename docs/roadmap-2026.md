@@ -160,6 +160,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `DocumentTextExtractor`: PDF (текстовый слой), DOCX; предупреждение для сканов/фото
 - [x] Лимиты: `config/documents.php`, sanitizer перед внешним LLM
 - [x] Поддержка: PDF, JPG/PNG, DOCX (как в реестре документов)
+- [ ] Локальный OCR sidecar: [`deploy/ocr/`](../deploy/ocr/), [`docs/order-intake-ocr-service.md`](./order-intake-ocr-service.md), `OcrServiceClient` → подключить в extractor
 
 #### 1.6.2 Структурирование (LLM)
 

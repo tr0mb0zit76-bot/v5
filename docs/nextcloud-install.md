@@ -2,6 +2,8 @@
 
 This project keeps a single, repeatable installation path for Nextcloud using Docker Compose.
 
+**См. также:** [deploy/README.md](../deploy/README.md) (Gotenberg, OCR sidecar), [order-intake-ocr-service.md](./order-intake-ocr-service.md).
+
 ## 1) Prerequisites
 
 - Docker Engine + Docker Compose plugin installed.

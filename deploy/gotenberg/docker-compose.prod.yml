@@ -1,0 +1,17 @@
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${GOTENBERG_PORT:-3000}:3000"
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+    command:
+      - gotenberg
+      - --api-timeout=120s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

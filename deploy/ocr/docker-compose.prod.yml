@@ -1,0 +1,14 @@
+services:
+  ocr-service:
+    build: .
+    container_name: ocr-service-prod
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OCR_PORT:-3001}:8080"
+    environment:
+      TZ: ${TZ:-Europe/Moscow}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
