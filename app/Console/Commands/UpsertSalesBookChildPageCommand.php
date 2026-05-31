@@ -9,11 +9,7 @@ use RuntimeException;
 
 class UpsertSalesBookChildPageCommand extends Command
 {
-    protected $signature = 'sales-book:upsert-child-page
-                            {--parent= : Заголовок родительской страницы}
-                            {--title= : Заголовок дочерней страницы}
-                            {--file= : Путь к Markdown-файлу относительно корня проекта}
-                            {--user= : Email пользователя для created_by / updated_by (по умолчанию первый админ)}';
+    protected $signature = 'sales-book:upsert-child-page {--parent=} {--title=} {--file=} {--user=}';
 
     protected $description = 'Создать или обновить дочернюю страницу Книги продаж из Markdown-файла';
 
