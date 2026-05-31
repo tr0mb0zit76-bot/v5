@@ -5,11 +5,13 @@ namespace App\Services\SalesScripts;
 use App\Contracts\Inference\ChatCompletionClient;
 use App\Enums\TrainerAiRole;
 use App\Models\SalesScriptPlaySession;
+use App\Services\Inference\ExternalLlmPayloadSanitizer;
 
 class TrainerChatCompletionService
 {
     public function __construct(
         private readonly ChatCompletionClient $chatCompletionClient,
+        private readonly ExternalLlmPayloadSanitizer $sanitizer,
     ) {}
 
     /**
@@ -73,6 +75,7 @@ class TrainerChatCompletionService
         }
 
         try {
+            $messages = $this->sanitizer->sanitizeMessages($messages, 'trainer');
             $content = $this->chatCompletionClient->chat($messages, [
                 'temperature' => $aiRole === TrainerAiRole::Seller ? 0.72 : 0.8,
                 'max_tokens' => $aiRole === TrainerAiRole::Seller ? 450 : 350,

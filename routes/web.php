@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityTimelineController;
 use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
+use App\Http\Controllers\CommandBarAgentController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DispositionController;
@@ -173,6 +174,10 @@ Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(fun
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::post('/agent/command-bar/chat', [CommandBarAgentController::class, 'chat'])
+        ->middleware('throttle:agent-command-bar')
+        ->name('agent.command-bar.chat');
+
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
 
     Route::get('/reports', [ReportsController::class, 'index'])->middleware('visibility.area:reports')->name('reports.index');

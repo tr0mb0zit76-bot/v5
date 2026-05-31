@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Disposition\DispositionKpiService;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
@@ -15,6 +16,7 @@ class DashboardMetricsService
 {
     public function __construct(
         private readonly CompletedOrderFinancialAnalytics $completedOrderFinancialAnalytics,
+        private readonly DispositionKpiService $dispositionKpi,
     ) {}
 
     /**
@@ -56,6 +58,32 @@ class DashboardMetricsService
 
         if ($showDualMetrics) {
             $payload['metrics_own'] = $this->tileMetricsForManager($managerId, $dateFrom, $dateTo);
+        }
+
+        $dispositionKpi = $this->dispositionKpiPayload($user, $showDualMetrics, $managerId);
+        if ($dispositionKpi !== null) {
+            $payload = [...$payload, ...$dispositionKpi];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array{disposition_kpi: array<string, mixed>, disposition_kpi_own: ?array<string, mixed>}|null
+     */
+    private function dispositionKpiPayload(User $user, bool $showDualMetrics, int $managerId): ?array
+    {
+        if (! $this->dispositionKpi->userSeesDashboardWidget($user)) {
+            return null;
+        }
+
+        $payload = [
+            'disposition_kpi' => $this->dispositionKpi->metricsForUser($user),
+            'disposition_kpi_own' => null,
+        ];
+
+        if ($showDualMetrics) {
+            $payload['disposition_kpi_own'] = $this->dispositionKpi->metricsForUser($user, null, true);
         }
 
         return $payload;

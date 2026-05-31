@@ -30,4 +30,12 @@ class OrderStatusLog extends Model
     {
         return $this->belongsTo(Order::class);
     }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }

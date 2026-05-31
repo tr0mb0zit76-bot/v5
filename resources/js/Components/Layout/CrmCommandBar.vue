@@ -524,12 +524,10 @@ const inputPlaceholder = computed(() => {
 });
 
 const isDisabled = computed(() => {
-    if (chatPanelOpen.value && activeConversationId.value === null) {
-        return true;
-    }
     if (isChatInputMode.value) {
         return !message.value.trim();
     }
+
     return !message.value.trim() && attachedFiles.value.length === 0;
 });
 
@@ -907,15 +905,19 @@ async function submit() {
         return;
     }
 
-    if (chatPanelOpen.value && activeConversationId.value === null) {
-        messengerSendError.value = 'Выберите диалог слева или создайте новый чат.';
+    if (isChatInputMode.value) {
+        if (activeConversationId.value === null) {
+            messengerSendError.value = 'Выберите диалог слева или создайте новый чат.';
+
+            return;
+        }
+
+        await sendChatMessage();
+
         return;
     }
 
-    if (isChatInputMode.value) {
-        await sendChatMessage();
-        return;
-    }
+    messengerSendError.value = '';
 
     emit('submit', {
         message: message.value,

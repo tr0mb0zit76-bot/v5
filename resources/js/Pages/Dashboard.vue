@@ -217,6 +217,75 @@
                     </p>
                 </article>
             </section>
+
+            <section
+                v-if="dispositionKpi"
+                class="crm-panel p-6"
+            >
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="space-y-1">
+                        <h2 :class="crmSectionTitle">Диспозиция</h2>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                            За {{ dispositionKpiDateLabel }} · заказов «в пути»: {{ dispositionKpi.orders_in_progress }}
+                        </p>
+                    </div>
+                    <Link
+                        :href="route('disposition.index')"
+                        class="text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-200"
+                    >
+                        Открыть грид
+                    </Link>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <article class="crm-stat-card p-5">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Оба слота заполнены</div>
+                        <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
+                        <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ formatPercent(dispositionKpi.both_slots_fill_percent) }}
+                        </div>
+                        <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ dispositionKpi.both_slots_filled_count }} из {{ dispositionKpi.orders_in_progress }}
+                            (утро {{ formatPercent(dispositionKpi.morning_fill_percent) }},
+                            вечер {{ formatPercent(dispositionKpi.evening_fill_percent) }})
+                        </p>
+                        <p v-if="dispositionKpiOwn" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            Мои: {{ formatPercent(dispositionKpiOwn.both_slots_fill_percent) }}
+                            ({{ dispositionKpiOwn.both_slots_filled_count }}/{{ dispositionKpiOwn.orders_in_progress }})
+                        </p>
+                    </article>
+
+                    <article class="crm-stat-card p-5">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Средняя задержка внесения</div>
+                        <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
+                        <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ formatDelayMinutes(dispositionKpi.avg_delay_minutes) }}
+                        </div>
+                        <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            После дедлайна слота (10:00 / 16:00 МСК).
+                            С опозданием: {{ dispositionKpi.delayed_entries_count }}
+                            из {{ dispositionKpi.filled_entries_count }} заполненных ячеек.
+                        </p>
+                        <p v-if="dispositionKpiOwn" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            Мои: {{ formatDelayMinutes(dispositionKpiOwn.avg_delay_minutes) }}
+                        </p>
+                    </article>
+
+                    <article class="crm-stat-card p-5">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Незаполнено сегодня</div>
+                        <div class="mt-1 text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{{ primaryScopeLabel }}</div>
+                        <div class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-50">
+                            {{ dispositionKpi.orders_in_progress - dispositionKpi.both_slots_filled_count }}
+                        </div>
+                        <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            Заказов без утра и вечера с местоположением.
+                        </p>
+                        <p v-if="dispositionKpiOwn" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            Мои: {{ dispositionKpiOwn.orders_in_progress - dispositionKpiOwn.both_slots_filled_count }}
+                        </p>
+                    </article>
+                </div>
+            </section>
         </div>
     </div>
 </template>
@@ -268,9 +337,48 @@ const props = defineProps({
             show_dual_metrics: false,
             metrics_scope: 'own',
             metrics_own: null,
+            disposition_kpi: null,
+            disposition_kpi_own: null,
         }),
     },
 });
+
+const dispositionKpi = computed(() => props.metrics?.disposition_kpi ?? null);
+const dispositionKpiOwn = computed(() => props.metrics?.disposition_kpi_own ?? null);
+
+const dispositionKpiDateLabel = computed(() => {
+    const raw = dispositionKpi.value?.date;
+    if (!raw) {
+        return 'сегодня';
+    }
+
+    const parts = String(raw).split('-');
+    if (parts.length !== 3) {
+        return raw;
+    }
+
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+});
+
+function formatDelayMinutes(value) {
+    if (value === null || value === undefined) {
+        return '—';
+    }
+
+    const minutes = Number(value);
+    if (Number.isNaN(minutes)) {
+        return '—';
+    }
+
+    if (minutes < 60) {
+        return `${Math.round(minutes)} мин`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const rest = Math.round(minutes % 60);
+
+    return rest > 0 ? `${hours} ч ${rest} мин` : `${hours} ч`;
+}
 
 const emptyTileMetrics = {
     total_orders: 0,

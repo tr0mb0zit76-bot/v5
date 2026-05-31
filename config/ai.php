@@ -137,4 +137,42 @@ return [
         ],
     ],
 
+    'command_bar' => [
+        'enabled' => (bool) env('AI_COMMAND_BAR_ENABLED', true),
+        'max_tool_rounds' => max(1, min(12, (int) env('AI_COMMAND_BAR_MAX_TOOL_ROUNDS', 6))),
+        'max_tokens' => max(256, min(4096, (int) env('AI_COMMAND_BAR_MAX_TOKENS', 1800))),
+        'temperature' => (float) env('AI_COMMAND_BAR_TEMPERATURE', 0.35),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Обезличивание перед внешним LLM (уровень 3)
+    |--------------------------------------------------------------------------
+    |
+    | Профили: command_bar — операционный ассистент (id заказов сохраняем),
+    | trainer — тренажёр (агрессивнее, без числовых id).
+    |
+    */
+
+    'sanitizer' => [
+        'enabled' => (bool) env('AI_EXTERNAL_SANITIZER_ENABLED', true),
+        'profiles' => [
+            'default' => [
+                'redact_pii_patterns' => true,
+                'redact_entity_ids' => false,
+                'redact_sensitive_fields' => true,
+            ],
+            'command_bar' => [
+                'redact_pii_patterns' => true,
+                'redact_entity_ids' => false,
+                'redact_sensitive_fields' => true,
+            ],
+            'trainer' => [
+                'redact_pii_patterns' => true,
+                'redact_entity_ids' => true,
+                'redact_sensitive_fields' => true,
+            ],
+        ],
+    ],
+
 ];

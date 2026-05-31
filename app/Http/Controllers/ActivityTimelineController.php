@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Lead;
 use App\Models\Order;
 use App\Services\ActivityLedgerService;
+use App\Services\OrderActivityTimelineService;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ class ActivityTimelineController extends Controller
 {
     public function __construct(
         private readonly ActivityLedgerService $activityLedger,
+        private readonly OrderActivityTimelineService $orderActivityTimeline,
     ) {}
 
     public function showForLead(Request $request, Lead $lead): JsonResponse
@@ -31,7 +33,7 @@ class ActivityTimelineController extends Controller
         abort_unless($this->canAccessOrder($request, $order), 403);
 
         return response()->json([
-            'events' => $this->activityLedger->timelineForSubject($order)->values()->all(),
+            'events' => $this->orderActivityTimeline->timelineForOrder($order),
         ]);
     }
 

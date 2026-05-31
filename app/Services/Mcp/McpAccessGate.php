@@ -10,6 +10,7 @@ use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Mcp\Request;
 
 class McpAccessGate
@@ -83,6 +84,43 @@ class McpAccessGate
         if (! RoleAccess::canAccessVisibilityArea($user, 'tasks')) {
             throw new AuthenticationException('Нет доступа к разделу «Задачи».');
         }
+    }
+
+    public function ensureCanCreateTask(User $user, int $responsibleId): void
+    {
+        $this->requireTasksArea($user);
+
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'tasks');
+
+        if ($scope !== 'all' && (int) $responsibleId !== (int) $user->id) {
+            throw new AuthenticationException('Нельзя назначить задачу другому ответственному.');
+        }
+    }
+
+    public function findAccessibleOrder(User $user, int $orderId): Order
+    {
+        $this->requireOrdersArea($user);
+
+        $builder = Order::query()->whereKey($orderId);
+
+        if (Schema::hasColumn('orders', 'deleted_at')) {
+            $builder->whereNull('deleted_at');
+        }
+
+        $this->applyOrdersScope($builder, $user);
+
+        /** @var Order|null $order */
+        $order = $builder->first();
+
+        if ($order === null) {
+            throw new AuthenticationException('Заказ не найден или недоступен.');
+        }
+
+        return $order;
     }
 
     public function requireDocumentsArea(User $user): void

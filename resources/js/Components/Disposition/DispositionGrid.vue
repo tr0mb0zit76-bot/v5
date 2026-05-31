@@ -1,12 +1,58 @@
 <template>
-    <div ref="gridSection" class="flex min-h-0 flex-1 flex-col gap-2">
-        <div class="flex shrink-0 items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-            <span>Строк: {{ rows.length }}. Редактируйте ячейки — сохранение автоматически.</span>
-            <span>Фильтр: статус «Выполняется»</span>
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
+        <div class="flex shrink-0 items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="relative">
+                    <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <input
+                        v-model="quickSearch"
+                        type="text"
+                        :class="crmGridSearchField"
+                    >
+                </div>
+
+                <div class="relative">
+                    <button
+                        type="button"
+                        :class="`${crmGridToolbarBtn} px-2`"
+                        :title="`Плотность таблицы: ${currentDensityLabel}`"
+                        @click="toggleDensityMenu"
+                    >
+                        <Rows3 class="h-4 w-4" />
+                    </button>
+
+                    <div
+                        v-if="showDensityMenu"
+                        :class="crmGridDropdown"
+                    >
+                        <button
+                            v-for="option in gridDensityOptions"
+                            :key="option.key"
+                            type="button"
+                            class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                            @click="applyDensity(option.key)"
+                        >
+                            <span>{{ option.label }}</span>
+                            <span
+                                v-if="currentDensity === option.key"
+                                class="text-xs text-zinc-500 dark:text-zinc-400"
+                            >Текущая</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                Показано: {{ displayedRowCount }} из {{ rows.length }}. Статус «В пути».
+            </span>
         </div>
 
         <div ref="gridPanel" :class="crmGridInnerPanel">
-            <div class="ag-theme-alpine orders-grid-theme" :style="gridContainerStyle">
+            <div
+                class="ag-theme-alpine orders-grid-theme disposition-grid-theme"
+                :class="densityClass"
+                :style="gridContainerStyle"
+            >
                 <AgGridVue
                     ref="agGrid"
                     :grid-options="gridOptions"
@@ -17,9 +63,24 @@
                     :pagination="false"
                     :animate-rows="false"
                     :suppress-cell-focus="false"
+                    :suppress-horizontal-scroll="false"
+                    :always-show-vertical-scroll="true"
                     style="height: 100%; width: 100%;"
                     @grid-ready="onGridReady"
+                    @first-data-rendered="onFirstDataRendered"
+                    @filter-changed="onFilterChanged"
                     @cell-value-changed="onCellValueChanged"
+                />
+            </div>
+
+            <div
+                ref="bottomScrollbar"
+                class="orders-grid-bottom-scroll"
+                @scroll="onBottomScrollbarScroll"
+            >
+                <div
+                    class="orders-grid-bottom-scroll-inner"
+                    :style="{ width: `${bottomScrollbarWidth}px` }"
                 />
             </div>
         </div>
@@ -27,14 +88,23 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { Rows3, Search } from 'lucide-vue-next';
+import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { crmGridInnerPanel } from '@/support/crmUi.js';
+import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import {
+    CRM_AG_GRID_DENSITY_CHANGED,
+    readPersistedAgGridDensity,
+    schedulePersistAgGridDensityToProfile,
+    writeLocalAgGridDensity,
+} from '@/support/agGridUserDensity.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -45,28 +115,134 @@ const props = defineProps({
     userId: { type: [String, Number], default: 'guest' },
 });
 
+const page = usePage();
+
 const gridApi = ref(null);
-const gridSection = ref(null);
+const agGrid = ref(null);
 const gridPanel = ref(null);
+const bottomScrollbar = ref(null);
 const gridViewportHeight = ref(400);
+const bottomScrollbarWidth = ref(0);
+const displayedRowCount = ref(0);
 const savingCells = ref(new Set());
+const currentDensity = ref(defaultGridDensity);
+const showDensityMenu = ref(false);
+const quickSearch = ref('');
+
+const quickSearchStorageKey = computed(() => `disposition_grid_quick_search_v1_${props.userId}`);
+
+const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
+const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
+
+let isSyncingHorizontalScroll = false;
+let removeCenterViewportListener = null;
+
+const textFilterParams = {
+    filterOptions: ['contains'],
+    defaultOption: 'contains',
+    suppressAndOrCondition: true,
+};
 
 const gridContainerStyle = computed(() => ({
     height: `${gridViewportHeight.value}px`,
+    minHeight: `${gridViewportHeight.value}px`,
     width: '100%',
 }));
 
 const defaultColDef = {
     sortable: false,
     filter: false,
+    floatingFilter: false,
     resizable: true,
     editable: false,
     suppressHeaderMenuButton: true,
+    suppressSizeToFit: true,
 };
 
 const gridOptions = {
+    theme: 'legacy',
     localeText: agGridLocaleRu,
+    animateRows: false,
+    getRowClass: (params) => (isPlannedArrivalPast(params.data) ? 'ag-row-disposition-planned-overdue' : ''),
 };
+
+function todayIso() {
+    if (props.today) {
+        return props.today;
+    }
+
+    return new Date().toISOString().slice(0, 10);
+}
+
+function isPlannedArrivalPast(row) {
+    const planned = row?.planned_arrival_date;
+
+    if (!planned) {
+        return false;
+    }
+
+    return String(planned) < todayIso();
+}
+
+function refreshDisplayedRowCount() {
+    displayedRowCount.value = gridApi.value?.getDisplayedRowCount() ?? props.rows.length;
+}
+
+function buildDispositionQuickFilterHaystack(row) {
+    if (!row) {
+        return '';
+    }
+
+    const parts = [
+        row.order_number,
+        row.customer_name,
+        row.transport_type_label,
+        row.route_label,
+        row.planned_arrival_date,
+    ];
+
+    for (const [key, value] of Object.entries(row)) {
+        if (!key.startsWith('cell_')) {
+            continue;
+        }
+
+        if (!key.endsWith('_location') && !key.endsWith('_comment')) {
+            continue;
+        }
+
+        if (value == null || value === '') {
+            continue;
+        }
+
+        parts.push(String(value));
+    }
+
+    return parts
+        .filter((part) => part != null && String(part).trim() !== '')
+        .map((part) => String(part))
+        .join(' ');
+}
+
+function loadQuickSearch() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        const saved = window.localStorage.getItem(quickSearchStorageKey.value);
+        quickSearch.value = typeof saved === 'string' ? saved : '';
+    } catch {
+        quickSearch.value = '';
+    }
+}
+
+function applyQuickSearchToGrid() {
+    if (!gridApi.value) {
+        return;
+    }
+
+    gridApi.value.setGridOption('quickFilterText', quickSearch.value ?? '');
+}
 
 function fieldPrefix(date, slot) {
     return `cell_${String(date).replace(/-/g, '')}_${slot}`;
@@ -78,7 +254,11 @@ function formatDateHeader(date) {
         return date;
     }
 
-    return `${parts[2]}.${parts[1]}`;
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function editableCellClass() {
+    return ['orders-grid-editable-cell'];
 }
 
 const columnDefs = computed(() => {
@@ -87,22 +267,53 @@ const columnDefs = computed(() => {
             field: 'order_number',
             headerName: 'Заказ',
             pinned: 'left',
-            width: 130,
-            minWidth: 110,
+            width: 120,
+            minWidth: 100,
             editable: false,
+            filter: 'agTextColumnFilter',
+            floatingFilter: true,
+            filterParams: textFilterParams,
+            getQuickFilterText: (params) => buildDispositionQuickFilterHaystack(params.data),
         },
         {
-            field: 'route_hint',
+            field: 'customer_name',
+            headerName: 'Клиент',
+            pinned: 'left',
+            width: 160,
+            minWidth: 120,
+            editable: false,
+            filter: 'agTextColumnFilter',
+            floatingFilter: true,
+            filterParams: textFilterParams,
+            valueFormatter: (params) => params.value || '—',
+        },
+        {
+            field: 'transport_type_label',
+            headerName: 'Парк',
+            pinned: 'left',
+            width: 110,
+            minWidth: 96,
+            editable: false,
+            filter: 'agSetColumnFilter',
+            filterParams: {
+                values: ['Свой парк', 'Наёмный', 'Смешанный', '—'],
+            },
+        },
+        {
+            field: 'route_label',
             headerName: 'Маршрут',
             pinned: 'left',
             width: 200,
             minWidth: 160,
             editable: false,
+            headerClass: 'disposition-pinned-boundary-header',
+            cellClass: 'disposition-pinned-boundary-cell',
         },
     ];
 
     const dayGroups = (props.dates ?? []).map((date) => ({
         headerName: formatDateHeader(date),
+        headerClass: 'disposition-date-group-header',
         children: [
             {
                 field: `${fieldPrefix(date, 'morning')}_location`,
@@ -110,6 +321,7 @@ const columnDefs = computed(() => {
                 width: 140,
                 minWidth: 110,
                 editable: true,
+                cellClass: editableCellClass,
             },
             {
                 field: `${fieldPrefix(date, 'morning')}_comment`,
@@ -117,6 +329,7 @@ const columnDefs = computed(() => {
                 width: 140,
                 minWidth: 110,
                 editable: true,
+                cellClass: editableCellClass,
             },
             {
                 field: `${fieldPrefix(date, 'evening')}_location`,
@@ -124,6 +337,7 @@ const columnDefs = computed(() => {
                 width: 140,
                 minWidth: 110,
                 editable: true,
+                cellClass: editableCellClass,
             },
             {
                 field: `${fieldPrefix(date, 'evening')}_comment`,
@@ -131,6 +345,8 @@ const columnDefs = computed(() => {
                 width: 140,
                 minWidth: 110,
                 editable: true,
+                headerClass: 'disposition-day-boundary-header',
+                cellClass: () => ['orders-grid-editable-cell', 'disposition-day-boundary-cell'],
             },
         ],
     }));
@@ -210,18 +426,247 @@ function onCellValueChanged(event) {
     saveCell(row, parsed, event.newValue ?? '');
 }
 
-function onGridReady(params) {
-    gridApi.value = params.api;
+const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 
-    if (props.today) {
-        const colId = `${fieldPrefix(props.today, 'morning')}_location`;
-        params.api.ensureColumnVisible(colId);
+const updateGridViewportHeight = () => {
+    const panelElement = gridPanel.value;
+
+    if (!panelElement) {
+        return;
     }
 
-    const panel = gridPanel.value;
-    if (panel && typeof panel.getBoundingClientRect === 'function') {
-        const rect = panel.getBoundingClientRect();
-        gridViewportHeight.value = Math.max(280, Math.floor(rect.height) || 400);
+    const sectionTop = panelElement.getBoundingClientRect().top;
+    const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
+    const commandBarFooter = document.querySelector('footer');
+    const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
+    const footerReserve = 60;
+
+    gridViewportHeight.value = Math.max(
+        280,
+        Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
+    );
+};
+
+const syncBottomScrollbar = () => {
+    const centerViewport = getCenterViewport();
+
+    if (!centerViewport) {
+        return;
     }
+
+    bottomScrollbarWidth.value = centerViewport.scrollWidth;
+    updateGridViewportHeight();
+
+    if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
+        bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
+    }
+};
+
+const onBottomScrollbarScroll = () => {
+    if (isSyncingHorizontalScroll) {
+        return;
+    }
+
+    const centerViewport = getCenterViewport();
+
+    if (!centerViewport) {
+        return;
+    }
+
+    isSyncingHorizontalScroll = true;
+    centerViewport.scrollLeft = bottomScrollbar.value?.scrollLeft ?? 0;
+
+    requestAnimationFrame(() => {
+        isSyncingHorizontalScroll = false;
+    });
+};
+
+const attachCenterViewportListener = () => {
+    removeCenterViewportListener?.();
+
+    const centerViewport = getCenterViewport();
+
+    if (!centerViewport) {
+        return;
+    }
+
+    const handleCenterViewportScroll = () => {
+        if (isSyncingHorizontalScroll) {
+            return;
+        }
+
+        isSyncingHorizontalScroll = true;
+
+        if (bottomScrollbar.value) {
+            bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
+        }
+
+        requestAnimationFrame(() => {
+            isSyncingHorizontalScroll = false;
+        });
+    };
+
+    centerViewport.addEventListener('scroll', handleCenterViewportScroll, { passive: true });
+    removeCenterViewportListener = () => {
+        centerViewport.removeEventListener('scroll', handleCenterViewportScroll);
+    };
+};
+
+function onFilterChanged() {
+    refreshDisplayedRowCount();
+    nextTick(() => {
+        syncBottomScrollbar();
+    });
 }
+
+function loadDensity() {
+    currentDensity.value = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
+}
+
+function syncRowMetricsFromDensity() {
+    if (!gridApi.value) {
+        return;
+    }
+
+    const option = resolveGridDensity(currentDensity.value);
+    gridApi.value.setGridOption('rowHeight', Number.parseInt(option.rowHeight, 10));
+    gridApi.value.setGridOption('headerHeight', Number.parseInt(option.headerHeight, 10));
+    gridApi.value.resetRowHeights();
+}
+
+function applyDensity(densityKey) {
+    currentDensity.value = resolveGridDensity(densityKey).key;
+    writeLocalAgGridDensity(props.userId, currentDensity.value);
+    schedulePersistAgGridDensityToProfile(currentDensity.value);
+    showDensityMenu.value = false;
+
+    nextTick(() => {
+        syncRowMetricsFromDensity();
+        updateGridViewportHeight();
+        syncBottomScrollbar();
+    });
+}
+
+function toggleDensityMenu() {
+    showDensityMenu.value = !showDensityMenu.value;
+}
+
+watch(quickSearch, (value) => {
+    if (typeof window !== 'undefined') {
+        try {
+            window.localStorage.setItem(quickSearchStorageKey.value, value ?? '');
+        } catch {
+            /* ignore */
+        }
+    }
+
+    applyQuickSearchToGrid();
+});
+
+function onExternalAgGridDensityChange(event) {
+    const detail = event?.detail;
+    if (!detail) {
+        return;
+    }
+
+    const key = resolveGridDensity(detail).key;
+    if (key === currentDensity.value) {
+        return;
+    }
+
+    currentDensity.value = key;
+
+    nextTick(() => {
+        syncRowMetricsFromDensity();
+        updateGridViewportHeight();
+        syncBottomScrollbar();
+    });
+}
+
+async function onGridReady(params) {
+    gridApi.value = params.api;
+    loadDensity();
+    loadQuickSearch();
+
+    if (quickSearch.value.trim() !== '') {
+        applyQuickSearchToGrid();
+    }
+
+    syncRowMetricsFromDensity();
+    refreshDisplayedRowCount();
+
+    await nextTick();
+    updateGridViewportHeight();
+    attachCenterViewportListener();
+    syncBottomScrollbar();
+}
+
+function resolveScrollColumnDate() {
+    const today = todayIso();
+    const dates = props.dates ?? [];
+
+    if (dates.length === 0) {
+        return '';
+    }
+
+    if (dates.includes(today)) {
+        return today;
+    }
+
+    if (today < dates[0]) {
+        return dates[0];
+    }
+
+    return dates[dates.length - 1];
+}
+
+function scrollToAnchorColumn() {
+    const anchor = resolveScrollColumnDate();
+
+    if (!anchor || !gridApi.value) {
+        return;
+    }
+
+    const colId = `${fieldPrefix(anchor, 'morning')}_location`;
+    gridApi.value.ensureColumnVisible(colId, 'start');
+}
+
+const onFirstDataRendered = () => {
+    requestAnimationFrame(() => {
+        scrollToAnchorColumn();
+        refreshDisplayedRowCount();
+        updateGridViewportHeight();
+        attachCenterViewportListener();
+        syncBottomScrollbar();
+    });
+};
+
+watch(
+    [() => props.rows, () => props.dates, () => props.today],
+    async () => {
+        await nextTick();
+        scrollToAnchorColumn();
+        refreshDisplayedRowCount();
+        updateGridViewportHeight();
+        attachCenterViewportListener();
+        syncBottomScrollbar();
+    },
+);
+
+onMounted(() => {
+    loadDensity();
+    loadQuickSearch();
+    displayedRowCount.value = props.rows.length;
+    updateGridViewportHeight();
+    window.addEventListener('resize', updateGridViewportHeight);
+    window.addEventListener('resize', syncBottomScrollbar);
+    window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', updateGridViewportHeight);
+    window.removeEventListener('resize', syncBottomScrollbar);
+    window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
+    removeCenterViewportListener?.();
+});
 </script>

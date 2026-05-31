@@ -88,8 +88,8 @@
 ### Контракты и код CRM (уровень 1 + «эрзац» L2)
 
 - [x] **`ChatCompletionClient` + `DeepSeekChatCompletionClient` + `TrainerChatCompletionService`** — единая точка вызова чата (см. `app/Contracts/Inference`, `AppServiceProvider`). Заглушка без ключа: поведение как раньше (сообщение про `DEEPSEEK_API_KEY` до вызова API).
-- [ ] **`AiRequestGate`** — решает `local_only | external_large` по типу задачи, роли пользователя, лимитам; единственная точка перед любым внешним API.
-- [ ] **`ExternalLlmPayloadSanitizer`** — whitelist полей или шаблонов для уровня 3; unit-тесты на запрещённые паттерны (email, телефон, числовые id сущностей).
+- [x] **`AiRequestGate`** — для command bar: `local_only` без ключа DeepSeek, иначе `external_large` (см. `App\Services\Agents\AiRequestGate`).
+- [x] **`ExternalLlmPayloadSanitizer`** — redaction PII и чувствительных полей перед DeepSeek; профили `command_bar` / `trainer` (`config/ai.php`).
 - [ ] **Структурированный аудит** — запись: `channel`, `feature` (например `trainer_chat`), `duration_ms`, `tokens` если есть, **без** сырого промпта в общих логах по умолчанию.
 - [ ] **Расширить `config/ai.php`** — таймауты, URL будущего локального inference, feature-flags.
 

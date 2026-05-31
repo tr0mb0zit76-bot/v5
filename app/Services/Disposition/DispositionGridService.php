@@ -6,10 +6,12 @@ use App\Models\DispositionEntry;
 use App\Models\Order;
 use App\Models\User;
 use App\Support\DispositionSlot;
-use App\Support\RoleAccess;
+use App\Support\DispositionUnclosedTrip;
+use App\Support\OrderTransportTypeResolver;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class DispositionGridService
@@ -17,11 +19,9 @@ class DispositionGridService
     public function __construct(
         private readonly DispositionReminderService $reminders,
         private readonly DispositionActivityService $activity,
+        private readonly OrderTransportTypeResolver $transportTypes,
+        private readonly DispositionInProgressOrderScope $orderScope,
     ) {}
-
-    private const int DEFAULT_PAST_DAYS = 14;
-
-    private const int DEFAULT_FUTURE_DAYS = 21;
 
     private const string IN_PROGRESS_STATUS = 'in_progress';
 
@@ -36,10 +36,14 @@ class DispositionGridService
     public function buildGridPayload(User $user): array
     {
         $orders = $this->inProgressOrdersQuery($user)->get();
-        $dates = $this->resolveDateRange($orders);
-        $entries = $this->loadEntries($orders->pluck('id')->all(), $dates);
+        $orders->loadMissing([
+            'legs' => fn ($query) => $query->orderBy('sequence'),
+            'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
+        ]);
 
         $today = Carbon::today()->toDateString();
+        $dates = $this->resolveDateRange($orders, $today);
+        $entries = $this->loadEntries($orders->pluck('id')->all(), $dates);
 
         return [
             'dates' => $dates,
@@ -118,25 +122,16 @@ class DispositionGridService
     private function inProgressOrdersQuery(User $user): Builder
     {
         $builder = Order::query()
+            ->select('orders.*')
+            ->selectSub($this->routePointSubquery('loading'), 'loading_point')
+            ->selectSub($this->routePointSubquery('unloading', last: true), 'unloading_point')
             ->with([
                 'client:id,name',
-                'carrier:id,name',
             ])
-            ->whereRaw('COALESCE(manual_status, status) = ?', [self::IN_PROGRESS_STATUS])
             ->orderBy('order_number')
             ->orderBy('id');
 
-        if (Schema::hasColumn('orders', 'deleted_at')) {
-            $builder->whereNull('deleted_at');
-        }
-
-        if (! RoleAccess::isAdminUser($user)) {
-            $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
-
-            if ($scope !== 'all') {
-                $builder->where('manager_id', $user->id);
-            }
-        }
+        $this->orderScope->apply($builder, $user);
 
         return $builder;
     }
@@ -154,30 +149,44 @@ class DispositionGridService
      * @param  Collection<int, Order>  $orders
      * @return list<string>
      */
-    private function resolveDateRange(Collection $orders): array
+    private function resolveDateRange(Collection $orders, string $today): array
     {
-        $today = Carbon::today();
-        $start = $today->copy()->subDays(self::DEFAULT_PAST_DAYS);
-        $end = $today->copy()->addDays(self::DEFAULT_FUTURE_DAYS);
+        $unclosed = $orders->filter(
+            fn (Order $order): bool => DispositionUnclosedTrip::isUnclosed($order, $today),
+        );
+        $ordersForStart = $unclosed->isNotEmpty() ? $unclosed : $orders;
 
-        foreach ($orders as $order) {
+        $start = null;
+        $end = null;
+
+        foreach ($ordersForStart as $order) {
             if ($order->loading_date !== null) {
                 $loading = Carbon::parse($order->loading_date)->startOfDay();
-                if ($loading->lt($start)) {
-                    $start = $loading->copy();
-                }
-            }
-
-            if ($order->unloading_date !== null) {
-                $unloading = Carbon::parse($order->unloading_date)->startOfDay();
-                if ($unloading->gt($end)) {
-                    $end = $unloading->copy();
-                }
+                $start = $start === null || $loading->lt($start) ? $loading : $start;
             }
         }
 
-        if ($start->gt($today)) {
-            $start = $today->copy();
+        foreach ($orders as $order) {
+            if ($order->unloading_date !== null) {
+                $unloading = Carbon::parse($order->unloading_date)->startOfDay();
+                $end = $end === null || $unloading->gt($end) ? $unloading : $end;
+            }
+        }
+
+        if ($start === null && $end === null) {
+            return [];
+        }
+
+        if ($start === null) {
+            $start = $end->copy();
+        }
+
+        if ($end === null) {
+            $end = $start->copy();
+        }
+
+        if ($start->gt($end)) {
+            $end = $start->copy();
         }
 
         $dates = [];
@@ -224,9 +233,9 @@ class DispositionGridService
             'order_id' => $order->id,
             'order_number' => $order->order_number,
             'customer_name' => $order->client?->name,
-            'carrier_name' => $order->carrier?->name,
+            'route_label' => $this->routeLabel($order),
+            'transport_type_label' => $this->transportTypes->labelForOrder($order),
             'planned_arrival_date' => $order->unloading_date?->toDateString(),
-            'route_hint' => $this->routeHint($order),
         ];
 
         foreach ($dates as $date) {
@@ -244,14 +253,55 @@ class DispositionGridService
         return $row;
     }
 
-    private function routeHint(Order $order): string
+    private function routeLabel(Order $order): string
     {
-        $parts = array_filter([
-            $order->client?->name,
-            $order->carrier?->name,
-        ]);
+        $loading = $this->nullableTrim($order->getAttribute('loading_point'));
+        $unloading = $this->nullableTrim($order->getAttribute('unloading_point'));
 
-        return implode(' → ', $parts) ?: '—';
+        return ($loading ?? '—').' → '.($unloading ?? '—');
+    }
+
+    private function routePointSubquery(string $type, bool $last = false)
+    {
+        $cityCandidates = array_values(array_filter([
+            Schema::hasColumn('route_points', 'normalized_data')
+                ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(route_points.normalized_data, '$.city')), '')"
+                : null,
+            Schema::hasColumn('route_points', 'metadata')
+                ? "NULLIF(JSON_UNQUOTE(JSON_EXTRACT(route_points.metadata, '$.normalized_data.city')), '')"
+                : null,
+            'NULLIF(cities.name, "")',
+        ]));
+        $cityExpression = match (count($cityCandidates)) {
+            0 => 'NULL',
+            1 => $cityCandidates[0],
+            default => 'COALESCE('.implode(', ', $cityCandidates).')',
+        };
+
+        $addressExpression = Schema::hasColumn('route_points', 'address')
+            ? 'COALESCE(NULLIF(route_points.address, ""), NULLIF(cities.name, ""), addresses.address_line)'
+            : 'COALESCE(NULLIF(cities.name, ""), addresses.address_line)';
+        $displayExpression = "COALESCE({$cityExpression}, {$addressExpression})";
+
+        $query = DB::table('route_points')
+            ->join('order_legs', 'order_legs.id', '=', 'route_points.order_leg_id')
+            ->leftJoin('addresses', 'addresses.id', '=', 'route_points.address_id')
+            ->leftJoin('cities', 'cities.id', '=', 'addresses.city_id')
+            ->selectRaw($displayExpression)
+            ->whereColumn('order_legs.order_id', 'orders.id')
+            ->where('route_points.type', $type);
+
+        if ($last) {
+            return $query
+                ->orderByDesc('order_legs.sequence')
+                ->orderByDesc('route_points.sequence')
+                ->limit(1);
+        }
+
+        return $query
+            ->orderBy('order_legs.sequence')
+            ->orderBy('route_points.sequence')
+            ->limit(1);
     }
 
     private function cellKey(int $orderId, string $date, string $slot): string

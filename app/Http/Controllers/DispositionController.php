@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UpsertDispositionEntryRequest;
 use App\Services\Disposition\DispositionGridService;
+use App\Services\Disposition\DispositionKpiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,6 +14,7 @@ class DispositionController extends Controller
 {
     public function __construct(
         private readonly DispositionGridService $grid,
+        private readonly DispositionKpiService $kpi,
     ) {}
 
     public function index(Request $request): Response
@@ -27,6 +29,7 @@ class DispositionController extends Controller
             'today' => $payload['today'],
             'rows' => $payload['rows'],
             'status_filter' => $payload['status_filter'],
+            'kpi' => $this->kpi->metricsForUser($user),
         ]);
     }
 

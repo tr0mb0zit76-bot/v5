@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\Inference\ChatCompletionClient;
+use App\Contracts\Inference\ToolAwareChatCompletionClient;
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
@@ -59,6 +60,8 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ChatCompletionClient::class, fn (Application $app): ChatCompletionClient => $app->make(DeepSeekChatCompletionClient::class));
 
+        $this->app->singleton(ToolAwareChatCompletionClient::class, fn (Application $app): ToolAwareChatCompletionClient => $app->make(DeepSeekChatCompletionClient::class));
+
         $this->app->singleton(TrainerAssistantAutoReactionService::class, function (Application $app): TrainerAssistantAutoReactionService {
             return new TrainerAssistantAutoReactionService($app->make(ChatCompletionClient::class));
         });
@@ -75,6 +78,14 @@ class AppServiceProvider extends ServiceProvider
             return $user
                 ? Limit::perMinute(120)->by('mcp-user-'.$user->id)
                 : Limit::perMinute(30)->by('mcp-ip-'.($request->ip() ?? 'unknown'));
+        });
+
+        RateLimiter::for('agent-command-bar', function (Request $request) {
+            $user = $request->user();
+
+            return $user
+                ? Limit::perMinute(20)->by('agent-cmd-'.$user->id)
+                : Limit::perMinute(5)->by('agent-cmd-ip-'.($request->ip() ?? 'unknown'));
         });
 
         Vite::prefetch(concurrency: 3);

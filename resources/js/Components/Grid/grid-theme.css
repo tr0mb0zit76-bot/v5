@@ -7,7 +7,7 @@
   --ag-odd-row-background-color: #fafafa;
   --ag-border-color: #c5ccd6;
   --ag-row-border-color: #b8c0ca;
-  --orders-grid-cell-grid: #b0b8c4;
+  --orders-grid-cell-grid: #97a0af;
   /* Было ~18px из ag-theme-alpine (6×3); уменьшаем «воздух» по горизонтали */
   --ag-cell-horizontal-padding: 6px;
   --ag-cell-widget-spacing: 5px;
@@ -140,7 +140,7 @@
 
 .orders-grid-theme .ag-pinned-left-cols-container .ag-cell,
 .orders-grid-theme .ag-pinned-left-header .ag-header-cell {
-  box-shadow: 1px 0 0 var(--ag-border-color);
+  box-shadow: 2px 0 0 var(--orders-grid-cell-grid);
 }
 
 .orders-grid-date-editor {
@@ -205,8 +205,99 @@
 .orders-grid-theme .ag-header-cell,
 .orders-grid-theme .ag-cell,
 .orders-grid-theme .ag-header-group-cell {
-  border-right: 1px solid var(--orders-grid-cell-grid);
+  border-right: 2px solid var(--orders-grid-cell-grid);
   border-bottom: 1px solid var(--orders-grid-cell-grid);
+}
+
+/* Диспозиция: семейство как у CRM, метрики строк — как в orders-grid-theme */
+.disposition-grid-theme {
+  --ag-font-family: inherit;
+}
+
+.disposition-grid-theme .ag-header-cell,
+.disposition-grid-theme .ag-header-group-cell {
+  font-weight: 400;
+  font-size: var(--ag-font-size);
+}
+
+.disposition-grid-theme .ag-cell {
+  display: flex;
+  align-items: center;
+  font-weight: 400;
+  font-size: var(--ag-font-size);
+}
+
+.disposition-grid-theme .ag-cell .ag-cell-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.disposition-grid-theme .ag-cell .ag-cell-value {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 0;
+}
+
+/* Редактируемых ячеек много — убираем лишний вертикальный «воздух» фона (в заказах 8px, здесь плотнее) */
+.disposition-grid-theme .orders-grid-editable-cell {
+  background-size: 100% 100%;
+}
+
+.disposition-grid-theme .ag-floating-filter {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+.disposition-grid-theme .ag-floating-filter-body input {
+  min-height: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.disposition-grid-theme .disposition-date-group-header .ag-header-group-cell-label {
+  justify-content: center;
+  width: 100%;
+}
+
+.disposition-grid-theme .disposition-date-group-header.ag-header-group-cell {
+  justify-content: center;
+}
+
+.disposition-grid-theme .disposition-pinned-boundary-cell,
+.disposition-grid-theme .disposition-pinned-boundary-header,
+.disposition-grid-theme .disposition-day-boundary-cell,
+.disposition-grid-theme .disposition-day-boundary-header {
+  border-right-width: 3px;
+  border-right-color: color-mix(in srgb, var(--ag-foreground-color) 32%, var(--orders-grid-cell-grid));
+}
+
+/* Плановая выгрузка в прошлом — подсветка всей строки */
+.disposition-grid-theme .ag-row.ag-row-disposition-planned-overdue .ag-cell {
+  background-color: rgb(254 226 226);
+}
+
+.disposition-grid-theme .ag-row.ag-row-disposition-planned-overdue .orders-grid-editable-cell {
+  background-image: linear-gradient(to bottom, rgb(254 226 226), rgb(254 226 226));
+}
+
+.disposition-grid-theme .ag-row.ag-row-disposition-planned-overdue .orders-grid-editable-cell:hover {
+  background-image: linear-gradient(to bottom, rgb(252 165 165), rgb(252 165 165));
+}
+
+.dark .disposition-grid-theme .ag-row.ag-row-disposition-planned-overdue .ag-cell {
+  background-color: rgb(127 29 29 / 0.28);
+}
+
+.dark .disposition-grid-theme .ag-row.ag-row-disposition-planned-overdue .orders-grid-editable-cell {
+  background-image: linear-gradient(to bottom, rgb(127 29 29 / 0.35), rgb(127 29 29 / 0.35));
+}
+
+.dark .disposition-grid-theme .ag-row.ag-row-disposition-planned-overdue .orders-grid-editable-cell:hover {
+  background-image: linear-gradient(to bottom, rgb(153 27 27 / 0.45), rgb(153 27 27 / 0.45));
 }
 
 .orders-grid-theme .ag-set-list-floating-trigger--active {
@@ -238,7 +329,7 @@
   --ag-odd-row-background-color: #18181b;
   --ag-border-color: #3f3f46;
   --ag-row-border-color: #52525b;
-  --orders-grid-cell-grid: #52525b;
+  --orders-grid-cell-grid: #64748b;
   --ag-selected-row-background-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -251,7 +342,7 @@ html[data-crm-workspace-skin='sky'] .orders-grid-theme {
   --ag-odd-row-background-color: rgb(var(--crm-surface-muted));
   --ag-border-color: rgb(var(--crm-border));
   --ag-row-border-color: rgb(var(--crm-border));
-  --orders-grid-cell-grid: rgb(var(--crm-border));
+  --orders-grid-cell-grid: color-mix(in srgb, rgb(var(--crm-text)) 22%, rgb(var(--crm-border)));
   --ag-selected-row-background-color: rgb(var(--crm-accent-soft) / 0.65);
 }
 

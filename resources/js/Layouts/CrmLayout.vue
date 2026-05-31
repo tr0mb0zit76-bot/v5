@@ -460,6 +460,15 @@
             >
                 <div class="px-3 py-3 md:px-4">
                     <CrmCommandBar @submit="handleAiSubmit" @badges="dynamicCabinetBadges = $event" />
+                    <CrmAgentPanel
+                        :open="agentPanelOpen"
+                        :messages="agentMessages"
+                        :loading="agentLoading"
+                        :error="agentError"
+                        :channel="agentChannel"
+                        :tool-rounds="agentToolRounds"
+                        @close="agentPanelOpen = false"
+                    />
                 </div>
             </footer>
         </div>
@@ -472,6 +481,7 @@
 import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue';
 import { hasSalesAssistantSubmoduleAccess } from '@/support/crmVisibility.js';
 import { Link, router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     BarChart3,
     CalendarRange,
@@ -500,6 +510,7 @@ import {
     Palette,
     WandSparkles,
 } from 'lucide-vue-next';
+import CrmAgentPanel from '@/Components/Layout/CrmAgentPanel.vue';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
 import CrmAppearanceModal from '@/Components/Crm/CrmAppearanceModal.vue';
@@ -1311,7 +1322,55 @@ function handleMenuSelect(key, event) {
     }
 }
 
-function handleAiSubmit(payload) {
-    console.log('AI submit:', payload);
+const agentPanelOpen = ref(false);
+const agentMessages = ref([]);
+const agentLoading = ref(false);
+const agentError = ref('');
+const agentChannel = ref('');
+const agentToolRounds = ref(0);
+
+async function handleAiSubmit(payload) {
+    const text = String(payload?.message ?? '').trim();
+
+    if (text === '') {
+        return;
+    }
+
+    agentPanelOpen.value = true;
+    agentError.value = '';
+
+    const history = agentMessages.value.map((item) => ({
+        role: item.role,
+        content: item.content,
+    }));
+
+    agentMessages.value.push({ role: 'user', content: text });
+    agentLoading.value = true;
+
+    try {
+        const { data } = await axios.post(route('agent.command-bar.chat'), {
+            message: text,
+            history,
+        });
+
+        agentMessages.value.push({
+            role: 'assistant',
+            content: String(data?.reply ?? 'Пустой ответ.'),
+        });
+        agentChannel.value = String(data?.channel ?? '');
+        agentToolRounds.value = Number(data?.tool_rounds ?? 0);
+    } catch (error) {
+        console.error('Command bar agent request failed', error);
+
+        const message = error?.response?.data?.message
+            ?? error?.response?.data?.errors?.message?.[0]
+            ?? (error?.response?.status === 419
+                ? 'Сессия истекла — обновите страницу (F5).'
+                : 'Не удалось связаться с ассистентом. Проверьте DEEPSEEK_API_KEY и логи сервера.');
+
+        agentError.value = message;
+    } finally {
+        agentLoading.value = false;
+    }
 }
 </script>

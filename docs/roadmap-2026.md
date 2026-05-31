@@ -128,19 +128,20 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `list_order_documents`
 - [x] `search_tasks`, `get_task`
 - [x] `search_sales_book_articles`, `upsert_sales_book_article` (Книга продаж)
-- [ ] Feature tests `tests/Feature/Mcp/CrmMcpToolsTest.php` (расширить под новые tools)
+- [x] Feature tests `tests/Feature/Mcp/TaskMcpServiceTest.php`, `DispositionMcpServiceTest.php`
 
 ### 1.3 Write tools (с подтверждением)
 
-- [ ] `CreateTaskTool`, `AddOrderNoteTool`
+- [x] `CreateTaskTool`, `UpsertDispositionEntryTool`
+- [ ] `AddOrderNoteTool`
 - [ ] Whitelist полей для `UpdateOrderFieldTool`
 - [ ] Dry-run / confirm token для опасных операций
 
 ### 1.4 DeepSeek + command bar
 
-- [ ] `AgentToolRegistry` — единый реестр для MCP и DeepSeek
-- [ ] `AiRequestGate` (см. ai-platform-architecture.md)
-- [ ] Подключить `handleAiSubmit` в CrmLayout к registry
+- [x] `AgentToolRegistry` — единый реестр для command bar и DeepSeek tools
+- [x] `AiRequestGate` — `local_only` / `external_large` для command bar
+- [x] `handleAiSubmit` → `POST /agent/command-bar/chat`, панель `CrmAgentPanel`
 - [ ] *Не дублировать* отдельный «глобальный поиск-агент» — он здесь же
 
 ### 1.5 Cursor prod checklist
@@ -178,8 +179,9 @@ Cursor **никогда не подключается к MySQL напрямую*
 ### 2.2 UI грида
 
 - [x] v0: страница `/disposition`, меню **Планирование → Диспозиция**, AG Grid, inline-сохранение
-- [ ] Горизонтальный скролл «первый незакрытый рейс → план прибытия» (уточнить алгоритм)
-- [ ] Колонка типа перевозки (свой/чужой парк)
+- [x] Диапазон дат: min(погрузка незакрытых рейсов) … max(выгрузка); горизонтальный скролл + нижняя полоса
+- [x] Колонки: заказ, клиент, маршрут, **парк**, фильтры в шапке, глобальный поиск, плотность строк
+- [x] Якорь скролла: левый край = колонка «сегодня» (просрочка — подсветка всей строки)
 
 **Оси:**
 
@@ -208,9 +210,9 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 ### 2.4 KPI (v2, после стабилизации)
 
-- [ ] % заказов с заполнением обоих слотов за день
-- [ ] Средняя задержка обновления (recorded_at vs слот)
-- [ ] Виджет для «Руководитель»
+- [x] % заказов с заполнением обоих слотов за день (`DispositionKpiService`)
+- [x] Средняя задержка обновления (recorded_at vs дедлайн слота 10:00 / 16:00 MSK)
+- [x] Виджет на дашборде для admin/supervisor + панель KPI на `/disposition`
 
 ### 2.5 Критерии готовности
 
@@ -224,8 +226,9 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 - [x] Комментарии диспозиции → `activity_events` на заказе
 - [x] Вкладка **Лента** в мастере заказа + API `orders.activity-timeline`
-- [ ] `OrderActivityTimelineService` — статусы, документы, задачи, письма (единая лента)
-- [ ] MCP tool: `GetOrderTimelineTool`
+- [x] `OrderActivityTimelineService` — ledger + статусы, задачи, документы (v1)
+- [x] MCP tool: `get_order_timeline`
+- [ ] Письма в ленте заказа — **отложено** до агента с чтением/анализом почты
 
 ---
 
@@ -307,11 +310,12 @@ grid_views:
 - [x] Cursor → prod token, Книга продаж (artisan / upsert)
 - [x] Миграция `disposition_entries` + грид v0 (read + inline edit)
 - [x] Задачи 2×/день + комментарии диспозиции в ленте заказа
-- [ ] KPI диспозиции, доработка горизонта дат грида ← **следующий шаг P0+**
+- [x] KPI диспозиции (виджет руководителя + панель на странице грида)
+- [x] Скролл к колонке «сегодня»; инструкция `docs/disposition-user-guide.md`
 
 **Неделя 2**
 
-- MCP audit log + первый write tool (задача)
+- [x] MCP write: `create_task`, `upsert_disposition_entry`
 - DeepSeek registry (без UI агента — smoke test)
 - Грид диспозиции v0 (read + inline edit, без задач 2×/день)
 
@@ -326,6 +330,9 @@ grid_views:
 | v0.2.1 | 2026-05-28 | MCP 1.2: контрагенты, задачи, документы заказа, Книга продаж |
 | v0.2.2 | 2026-05-31 | Диспозиция v0: грид, `disposition_entries`, меню в Планировании |
 | v0.2.3 | 2026-05-31 | Диспозиция: напоминания 2×/день, лента заказа, автозакрытие задач |
+| v0.2.4 | 2026-05-31 | Диспозиция UI: парк, поиск, плотность; `OrderActivityTimelineService`, MCP `get_order_timeline` |
+| v0.2.5 | 2026-05-31 | KPI диспозиции: `DispositionKpiService`, дашборд руководителя, панель на гриде |
+| v0.2.6 | 2026-05-31 | Скролл диспозиции: `DispositionUnclosedTrip`, якорь по незакрытым рейсам |
 
 ---
 
