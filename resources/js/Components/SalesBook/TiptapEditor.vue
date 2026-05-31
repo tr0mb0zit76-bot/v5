@@ -18,6 +18,18 @@
         </div>
 
         <div
+            v-if="editable && tableToolbarItems.length > 0"
+            class="z-10 flex shrink-0 flex-wrap gap-1 border-b border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900/60"
+            role="toolbar"
+            aria-label="Таблица"
+        >
+            <span class="self-center px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Таблица:</span>
+            <button v-for="item in tableToolbarItems" :key="item.key" type="button" :title="item.title ?? item.label" :class="buttonClass(false)" @click="item.action">
+                {{ item.label }}
+            </button>
+        </div>
+
+        <div
             class="min-h-0 flex-1 overflow-y-auto overscroll-contain"
             :class="editable ? '' : 'cursor-default'"
         >
@@ -45,6 +57,7 @@ import Underline from '@tiptap/extension-underline';
 import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { SalesBookOrderedList } from '@/Components/SalesBook/SalesBookOrderedList.js';
+import { prepareSalesBookMarkdown } from '@/Components/SalesBook/salesBookMarkdownTables.js';
 
 const props = defineProps({
     modelValue: {
@@ -74,29 +87,68 @@ const emit = defineEmits(['update:modelValue']);
 const imageInput = ref(null);
 const fileInput = ref(null);
 const isApplyingExternalContent = ref(false);
+const isEditorBootstrapping = ref(true);
 
 function setEditorContent(value) {
-    if (!editor.value) {
+    if (!editor.value?.markdown) {
         return;
     }
 
     isApplyingExternalContent.value = true;
 
-    editor.value.commands.setContent(value || '', false, { contentType: 'markdown' });
+    try {
+        const markdown = prepareSalesBookMarkdown(value || '');
+        const document = editor.value.markdown.parse(markdown);
+        editor.value.commands.setContent(document, { emitUpdate: false });
+    } catch (error) {
+        console.error('SalesBook editor failed to load markdown content', error);
+    }
 
     nextTick(() => {
         isApplyingExternalContent.value = false;
     });
 }
 
+function syncEditorContent(value, { force = false } = {}) {
+    if (!editor.value?.markdown) {
+        return;
+    }
+
+    const incoming = prepareSalesBookMarkdown(value || '');
+
+    if (!force) {
+        const current = prepareSalesBookMarkdown(editor.value.getMarkdown());
+
+        if (incoming === current) {
+            return;
+        }
+    }
+
+    setEditorContent(incoming);
+}
+
+function finishEditorBootstrap() {
+    nextTick(() => {
+        syncEditorContent(props.modelValue, { force: true });
+        nextTick(() => {
+            isEditorBootstrapping.value = false;
+        });
+    });
+}
+
 const editor = useEditor({
-    content: props.modelValue || '',
+    content: '',
     contentType: 'markdown',
     editable: props.editable,
+    onCreate: () => {
+        finishEditorBootstrap();
+    },
     extensions: [
         StarterKit.configure({
             heading: { levels: [1, 2, 3] },
             orderedList: false,
+            link: false,
+            underline: false,
         }),
         SalesBookOrderedList,
         Link.configure({
@@ -113,6 +165,7 @@ const editor = useEditor({
         Underline,
         TableKit.configure({
             table: {
+                resizable: true,
                 HTMLAttributes: {
                     class: 'sales-book-table',
                 },
@@ -132,7 +185,7 @@ const editor = useEditor({
         handleClick: (_view, _pos, event) => handleEditorClick(event),
     },
     onUpdate: ({ editor: instance }) => {
-        if (isApplyingExternalContent.value) {
+        if (isApplyingExternalContent.value || isEditorBootstrapping.value) {
             return;
         }
 
@@ -143,16 +196,7 @@ const editor = useEditor({
 watch(
     () => props.modelValue,
     (value) => {
-        if (!editor.value) {
-            return;
-        }
-
-        const incoming = value || '';
-        const current = editor.value.getMarkdown();
-
-        if (incoming !== current) {
-            setEditorContent(incoming);
-        }
+        syncEditorContent(value);
     },
 );
 
@@ -170,7 +214,13 @@ watch(
 watch(
     editor,
     (instance) => {
-        instance?.setEditable(props.editable);
+        if (!instance) {
+            return;
+        }
+
+        isEditorBootstrapping.value = true;
+        instance.setEditable(props.editable);
+        finishEditorBootstrap();
     },
     { immediate: true },
 );
@@ -201,9 +251,47 @@ const toolbarItems = computed(() => {
         { key: 'task', label: 'Todo', active: () => editor.value.isActive('taskList'), action: () => editor.value.chain().focus().toggleTaskList().run() },
         { key: 'quote', label: 'Quote', active: () => editor.value.isActive('blockquote'), action: () => editor.value.chain().focus().toggleBlockquote().run() },
         { key: 'code', label: '</>', active: () => editor.value.isActive('codeBlock'), action: () => editor.value.chain().focus().toggleCodeBlock().run() },
-        { key: 'table', label: 'Tbl', title: 'Вставить таблицу', active: () => editor.value.isActive('table'), action: () => editor.value.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+        { key: 'table', label: 'Tbl', title: 'Вставить таблицу', active: () => editor.value.isActive('table'), action: () => insertTableWithPrompt() },
     ];
 });
+
+const tableToolbarItems = computed(() => {
+    if (!editor.value || !props.editable || !editor.value.isActive('table')) {
+        return [];
+    }
+
+    return [
+        { key: 'add-row-before', label: '+ряд ↑', title: 'Добавить строку выше', action: () => editor.value.chain().focus().addRowBefore().run() },
+        { key: 'add-row-after', label: '+ряд ↓', title: 'Добавить строку ниже', action: () => editor.value.chain().focus().addRowAfter().run() },
+        { key: 'delete-row', label: '−ряд', title: 'Удалить строку', action: () => editor.value.chain().focus().deleteRow().run() },
+        { key: 'add-col-before', label: '+кол ←', title: 'Добавить столбец слева', action: () => editor.value.chain().focus().addColumnBefore().run() },
+        { key: 'add-col-after', label: '+кол →', title: 'Добавить столбец справа', action: () => editor.value.chain().focus().addColumnAfter().run() },
+        { key: 'delete-col', label: '−кол', title: 'Удалить столбец', action: () => editor.value.chain().focus().deleteColumn().run() },
+        { key: 'toggle-header', label: 'Hdr', title: 'Переключить строку-шапку', action: () => editor.value.chain().focus().toggleHeaderRow().run() },
+        { key: 'delete-table', label: 'Удалить', title: 'Удалить таблицу', action: () => editor.value.chain().focus().deleteTable().run() },
+    ];
+});
+
+function insertTableWithPrompt() {
+    if (!editor.value || !props.editable) {
+        return;
+    }
+
+    const rowsRaw = window.prompt('Сколько строк (включая шапку)?', '3');
+    if (rowsRaw === null) {
+        return;
+    }
+
+    const colsRaw = window.prompt('Сколько столбцов?', '3');
+    if (colsRaw === null) {
+        return;
+    }
+
+    const rows = Math.min(30, Math.max(2, Number.parseInt(rowsRaw, 10) || 3));
+    const cols = Math.min(12, Math.max(1, Number.parseInt(colsRaw, 10) || 3));
+
+    editor.value.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+}
 
 function toggleListForSelection(listType) {
     if (!editor.value || !props.editable) {
@@ -408,7 +496,7 @@ async function uploadFile(file, { asImage = false } = {}) {
         editor.value
             .chain()
             .focus()
-            .insertContent(`[${name || url}](${url})`, false, { contentType: 'markdown' })
+            .insertContent(`[${name || url}](${url})`, { contentType: 'markdown' })
             .run();
     } catch (error) {
         console.error('Upload failed', error);
@@ -624,6 +712,30 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
     margin: 0.75rem 0;
     table-layout: auto;
     width: 100%;
+}
+
+:deep(.tiptap-body .sales-book-editor .tableWrapper) {
+    margin: 0.75rem 0;
+    overflow-x: auto;
+}
+
+:deep(.tiptap-body .sales-book-editor .column-resize-handle) {
+    background-color: rgb(59 130 246);
+    bottom: -2px;
+    pointer-events: none;
+    position: absolute;
+    right: -2px;
+    top: 0;
+    width: 4px;
+}
+
+:deep(.tiptap-body .sales-book-editor .selectedCell::after) {
+    background: rgb(59 130 246 / 0.12);
+    content: '';
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 2;
 }
 
 :deep(.tiptap-body .sales-book-editor th),

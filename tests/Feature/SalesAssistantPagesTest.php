@@ -199,6 +199,116 @@ MD;
             );
     }
 
+    public function test_import_normalizes_indented_markdown_table(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $markdown = <<<'MD'
+# Импорт с отступами
+
+    | Ситуация | Что делать |
+    | --- | --- |
+    | Ошибка | Исправить |
+MD;
+
+        $file = UploadedFile::fake()->createWithContent('indented-table.md', $markdown);
+
+        $this->actingAs($user)->post(route('sales-assistant.book.import'), [
+            'file' => $file,
+        ])->assertRedirect();
+
+        $article = SalesBookArticle::query()->where('title', 'Импорт с отступами')->first();
+        $this->assertNotNull($article);
+        $this->assertStringContainsString("| Ситуация | Что делать |\n| --- | --- |", $article->markdown_content);
+        $this->assertStringNotContainsString('    | Ситуация', $article->markdown_content);
+    }
+
+    public function test_import_order_wizard_guide_serves_body_without_local_image_urls(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $sourcePath = base_path('docs/order-wizard-user-guide.md');
+        $this->assertFileExists($sourcePath);
+
+        $file = new UploadedFile(
+            $sourcePath,
+            'order-wizard-user-guide.md',
+            'text/markdown',
+            null,
+            true,
+        );
+
+        $this->actingAs($user)->post(route('sales-assistant.book.import'), [
+            'file' => $file,
+        ])->assertRedirect();
+
+        $article = SalesBookArticle::query()
+            ->where('title', 'Мастер заказов — инструкция для пользователя')
+            ->first();
+
+        $this->assertNotNull($article);
+        $this->assertGreaterThan(5000, strlen($article->markdown_content ?? ''));
+        $this->assertStringContainsString('## 1. Как открыть мастер', $article->markdown_content);
+        $this->assertStringNotContainsString('marktext', $article->markdown_content);
+        $this->assertStringNotContainsString('![](C:', $article->markdown_content);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', ['article_id' => $article->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesAssistant/Book')
+                ->where('selectedArticle.id', $article->id)
+                ->where('selectedArticle.markdown_content', fn (string $content): bool => str_contains($content, '## 2. Минимальный')
+                    && str_contains($content, 'загрузите изображение через кнопку «Картинка»')
+                    && ! str_contains($content, 'marktext'))
+            );
+    }
+
+    public function test_import_vehicle_user_guide_preserves_body_for_editor(): void
+    {
+        $user = $this->createUserWithAreas(['dashboard', 'scripts']);
+
+        $parent = SalesBookArticle::query()->create([
+            'title' => 'Руководство по CRM',
+            'markdown_content' => '# Руководство по CRM',
+            'parent_id' => null,
+            'sort_order' => 0,
+        ]);
+
+        $sourcePath = base_path('docs/vehicle-user-guide.md');
+        $this->assertFileExists($sourcePath);
+
+        $file = new UploadedFile(
+            $sourcePath,
+            'vehicle-user-guide.md',
+            'text/markdown',
+            null,
+            true,
+        );
+
+        $this->actingAs($user)->post(route('sales-assistant.book.import'), [
+            'file' => $file,
+            'parent_id' => $parent->id,
+        ])->assertRedirect();
+
+        $article = SalesBookArticle::query()
+            ->where('title', 'Авто (транспортные средства) — инструкция для пользователя')
+            ->first();
+
+        $this->assertNotNull($article);
+        $this->assertSame($parent->id, $article->parent_id);
+        $this->assertGreaterThan(3000, strlen($article->markdown_content ?? ''));
+        $this->assertStringContainsString('## 1. Как открыть раздел', $article->markdown_content);
+
+        $this->actingAs($user)
+            ->get(route('sales-assistant.book', ['article_id' => $article->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesAssistant/Book')
+                ->where('selectedArticle.markdown_content', fn (string $content): bool => str_contains($content, '## 1. Как открыть раздел'))
+            );
+    }
+
     public function test_uploaded_sales_book_asset_is_private_and_requires_access(): void
     {
         Storage::fake('local');

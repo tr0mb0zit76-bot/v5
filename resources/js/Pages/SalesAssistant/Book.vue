@@ -116,9 +116,9 @@
 
                     <TiptapEditor
                         ref="editEditorRef"
-                        :key="selectedArticle.id"
+                        :key="editEditorKey"
                         class="min-h-0 flex-1"
-                        :model-value="editForm.markdown_content"
+                        :model-value="editorMarkdown"
                         :upload-url="route('sales-assistant.book.assets.upload')"
                         @update:model-value="onEditorUpdate"
                         :editable="true"
@@ -254,6 +254,22 @@ const readonlyEditorKey = computed(() => {
     return `readonly-${props.selectedArticle.id}-${props.selectedArticle.updated_at ?? 'none'}`;
 });
 
+const editEditorKey = computed(() => {
+    if (!props.selectedArticle) {
+        return 'edit-empty';
+    }
+
+    return `edit-${props.selectedArticle.id}-${props.selectedArticle.updated_at ?? 'none'}`;
+});
+
+const editorMarkdown = computed(() => {
+    if (contentDirty.value) {
+        return editForm.markdown_content;
+    }
+
+    return props.selectedArticle?.markdown_content ?? '';
+});
+
 const flatArticles = computed(() => flattenTree(props.articlesTree));
 const indentedArticleOptions = computed(() => flatArticles.value.map((entry) => ({
     id: entry.id,
@@ -301,6 +317,12 @@ watch(
 );
 
 function onEditorUpdate(markdown) {
+    const serverMarkdown = props.selectedArticle?.markdown_content ?? '';
+
+    if (!contentDirty.value && markdown.trim() === '' && serverMarkdown.trim() !== '') {
+        return;
+    }
+
     editForm.markdown_content = markdown;
     contentDirty.value = true;
 }
