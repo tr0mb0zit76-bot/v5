@@ -10,7 +10,7 @@ class IssueMcpTokenCommand extends Command
     protected $signature = 'mcp:issue-token
                             {user : ID или email пользователя CRM}
                             {--name=mcp-cursor : Имя токена в personal_access_tokens}
-                            {--abilities=* : Способности Sanctum (* — все)}';
+                            {--abilities= : Способности Sanctum (через запятую; пусто = все)}';
 
     protected $description = 'Выпустить Sanctum-токен для MCP (Cursor, внешние агенты)';
 
@@ -34,11 +34,7 @@ class IssueMcpTokenCommand extends Command
             return self::FAILURE;
         }
 
-        $abilities = $this->option('abilities') === '*'
-            ? ['*']
-            : array_values(array_filter(array_map('trim', explode(',', (string) $this->option('abilities')))));
-
-        $token = $user->createToken((string) $this->option('name'), $abilities);
+        $token = $user->createToken((string) $this->option('name'), $this->resolveAbilities());
 
         $this->info('Токен создан. Сохраните его сейчас — повторно он не показывается.');
         $this->newLine();
@@ -57,5 +53,30 @@ class IssueMcpTokenCommand extends Command
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveAbilities(): array
+    {
+        $raw = $this->option('abilities');
+
+        if ($raw === null || $raw === '' || $raw === '*') {
+            return ['*'];
+        }
+
+        if (is_array($raw)) {
+            $abilities = array_values(array_filter(array_map(
+                static fn (mixed $value): string => trim((string) $value),
+                $raw,
+            )));
+
+            return $abilities === [] ? ['*'] : $abilities;
+        }
+
+        $abilities = array_values(array_filter(array_map('trim', explode(',', (string) $raw))));
+
+        return $abilities === [] ? ['*'] : $abilities;
     }
 }
