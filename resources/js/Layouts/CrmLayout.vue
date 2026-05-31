@@ -649,6 +649,7 @@ const MENU_ROUTES = {
     orders: '/orders',
     tasks: '/tasks',
     kanban: '/kanban',
+    disposition: '/disposition',
     'orders-create': '/orders/create',
     contractors: '/contractors',
     'fleet-vehicles': '/fleet/vehicles',
@@ -914,6 +915,9 @@ const menuItems = computed(() => {
     }
     if (isAdmin || areas.includes('kanban') || areas.includes('tasks')) {
         planningChildren.push({ key: 'kanban', label: 'Канбан' });
+    }
+    if (isAdmin || areas.includes('orders')) {
+        planningChildren.push({ key: 'disposition', label: 'Диспозиция' });
     }
     const planningItem =
         planningChildren.length > 0

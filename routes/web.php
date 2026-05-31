@@ -5,6 +5,7 @@ use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DispositionController;
 use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
@@ -272,6 +273,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
+    Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
+    Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');
