@@ -669,39 +669,7 @@ onUnmounted(() => {
   @apply inline-flex items-center justify-center gap-2 rounded-none border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
 
-:deep(.ag-row.ag-row-task-due-overdue) {
-  background-color: rgb(255 251 235);
-}
-
-.dark :deep(.ag-row.ag-row-task-due-overdue) {
-  background-color: rgb(66 32 6 / 0.35);
-}
-
-:deep(.ag-row.ag-row-task-sla-breached) {
-  background-color: rgb(255 241 242);
-}
-
-.dark :deep(.ag-row.ag-row-task-sla-breached) {
-  background-color: rgb(76 5 25 / 0.4);
-}
-
-:deep(.tasks-grid-cell-due-overdue) {
-  color: rgb(180 83 9);
-  font-weight: 600;
-}
-
-.dark :deep(.tasks-grid-cell-due-overdue) {
-  color: rgb(251 191 36);
-}
-
-:deep(.tasks-grid-cell-sla-breached) {
-  color: rgb(190 18 60);
-  font-weight: 600;
-}
-
-.dark :deep(.tasks-grid-cell-sla-breached) {
-  color: rgb(251 113 133);
-}
+/* Подсветка строк/ячеек — в grid-theme.css (scoped .dark не видит class на html) */
 
 :deep(.tasks-grid-editable-cell) {
   cursor: pointer;

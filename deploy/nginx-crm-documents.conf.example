@@ -1,0 +1,9 @@
+# Пример для nginx (ISPmanager / vhost CRM), если на сервере ещё есть каталог public/documents/.
+# Симптом: GET https://crm.example.ru/documents → 301 Location: http://crm.example.ru/documents/
+# и Mixed Content в браузере при переходе в модуль «Документы».
+#
+# Предпочтительно: удалить public/documents/ и перенести SLA-PDF в public/showcase-sla/ (см. config/showcase.php).
+#
+# location = /documents {
+#     try_files /index.php?$query_string;
+# }

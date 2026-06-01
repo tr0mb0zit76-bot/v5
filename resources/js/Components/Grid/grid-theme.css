@@ -330,7 +330,94 @@
   --ag-border-color: #3f3f46;
   --ag-row-border-color: #52525b;
   --orders-grid-cell-grid: #64748b;
-  --ag-selected-row-background-color: rgba(255, 255, 255, 0.08);
+  --ag-selected-row-background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Выбор строк (чекбоксы AG Grid): явно на ячейках — иначе в тёмной теме остаётся светлый фон */
+.orders-grid-theme .ag-row.ag-row-selected .ag-cell {
+  background-color: var(--ag-selected-row-background-color);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-selected .ag-cell {
+  background-color: color-mix(in srgb, var(--ag-foreground-color) 11%, var(--ag-background-color));
+}
+
+/* Задачи: просроченный срок / SLA */
+.orders-grid-theme .ag-row.ag-row-task-due-overdue .ag-cell {
+  background-color: rgb(255 251 235);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-task-due-overdue .ag-cell {
+  background-color: rgb(66 32 6 / 0.45);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-selected.ag-row-task-due-overdue .ag-cell {
+  background-color: rgb(120 53 15 / 0.55);
+}
+
+.orders-grid-theme .ag-row.ag-row-task-sla-breached .ag-cell {
+  background-color: rgb(255 241 242);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-task-sla-breached .ag-cell {
+  background-color: rgb(76 5 25 / 0.45);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-selected.ag-row-task-sla-breached .ag-cell {
+  background-color: rgb(136 19 55 / 0.55);
+}
+
+.orders-grid-theme .tasks-grid-cell-due-overdue {
+  color: rgb(180 83 9);
+  font-weight: 600;
+}
+
+.dark .orders-grid-theme .tasks-grid-cell-due-overdue {
+  color: rgb(251 191 36);
+}
+
+.orders-grid-theme .tasks-grid-cell-sla-breached {
+  color: rgb(190 18 60);
+  font-weight: 600;
+}
+
+.dark .orders-grid-theme .tasks-grid-cell-sla-breached {
+  color: rgb(251 113 133);
+}
+
+/* Лиды: просроченный этап */
+.orders-grid-theme .ag-row.ag-row-lead-stage-overdue .ag-cell {
+  background-color: rgb(255 241 242);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-lead-stage-overdue .ag-cell {
+  background-color: rgb(76 5 25 / 0.4);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-selected.ag-row-lead-stage-overdue .ag-cell {
+  background-color: rgb(136 19 55 / 0.5);
+}
+
+.orders-grid-theme .leads-grid-cell-stage-overdue {
+  color: rgb(190 18 60);
+  font-weight: 600;
+}
+
+.dark .orders-grid-theme .leads-grid-cell-stage-overdue {
+  color: rgb(251 113 133);
+}
+
+/* Заказы: устаревшие данные */
+.orders-grid-theme .ag-row.ag-row-orders-stale .ag-cell {
+  background-color: rgb(254 242 242 / 0.65);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-orders-stale .ag-cell {
+  background-color: rgb(127 29 29 / 0.28);
+}
+
+.dark .orders-grid-theme .ag-row.ag-row-selected.ag-row-orders-stale .ag-cell {
+  background-color: rgb(153 27 27 / 0.38);
 }
 
 /* Тема Sky: таблицы в тон оболочки CRM */

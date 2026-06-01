@@ -1132,22 +1132,3 @@ function formatValue(value, type, field, row) {
   return value;
 }
 </script>
-
-<style scoped>
-:deep(.ag-row.ag-row-lead-stage-overdue) {
-  background-color: rgb(255 241 242);
-}
-
-.dark :deep(.ag-row.ag-row-lead-stage-overdue) {
-  background-color: rgb(76 5 25 / 0.35);
-}
-
-:deep(.leads-grid-cell-stage-overdue) {
-  color: rgb(190 18 60);
-  font-weight: 600;
-}
-
-.dark :deep(.leads-grid-cell-stage-overdue) {
-  color: rgb(251 113 133);
-}
-</style>

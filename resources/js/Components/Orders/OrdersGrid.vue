@@ -1587,13 +1587,3 @@ defineExpose({
   resetToRoleDefaults,
 });
 </script>
-
-<style scoped>
-:deep(.ag-row.ag-row-orders-stale) {
-  background-color: rgb(254 242 242 / 0.65) !important;
-}
-
-.dark :deep(.ag-row.ag-row-orders-stale) {
-  background-color: rgb(127 29 29 / 0.18) !important;
-}
-</style>
