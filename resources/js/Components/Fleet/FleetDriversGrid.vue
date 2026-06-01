@@ -7,7 +7,6 @@
           <input
             v-model="quickSearch"
             type="text"
-            placeholder="Поиск по ФИО, телефону, перевозчику"
             :class="crmGridSearchField"
           />
         </div>

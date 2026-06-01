@@ -25,6 +25,7 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -72,6 +73,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureGeneratedUrls();
+
         RateLimiter::for('mcp', function (Request $request) {
             $user = $request->user();
 
@@ -111,5 +114,32 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SalesScriptTransition::class, SalesScriptTransitionPolicy::class);
         Gate::policy(SalesScriptPlaySession::class, SalesScriptPlaySessionPolicy::class);
         Gate::policy(Task::class, TaskPolicy::class);
+    }
+
+    private function configureGeneratedUrls(): void
+    {
+        if (filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOL)) {
+            URL::forceScheme('https');
+
+            return;
+        }
+
+        $appUrl = strtolower((string) config('app.url', ''));
+
+        if (str_starts_with($appUrl, 'https://')) {
+            URL::forceScheme('https');
+
+            return;
+        }
+
+        if ($this->app->runningInConsole()) {
+            return;
+        }
+
+        $forwarded = request()->header('X-Forwarded-Proto');
+
+        if (is_string($forwarded) && strtolower($forwarded) === 'https') {
+            URL::forceScheme('https');
+        }
     }
 }

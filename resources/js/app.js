@@ -1,4 +1,5 @@
 import './bootstrap';
+import './support/inertiaHttpsVisit.js';
 import '../css/app.css';
 import '../css/crm-sky-theme.css';
 import '../css/crm-workspace-skin.css';
