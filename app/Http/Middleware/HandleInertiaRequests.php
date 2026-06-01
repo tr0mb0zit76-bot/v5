@@ -15,9 +15,11 @@ use App\Support\OrderTableColumns;
 use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use App\Support\ShowcaseUrl;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Middleware;
 
@@ -36,6 +38,29 @@ class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         return parent::version($request);
+    }
+
+    /**
+     * Inertia page.url: при APP_URL=https или X-Forwarded-Proto не оставляем http в fullUrl за прокси.
+     */
+    public function urlResolver(): Closure
+    {
+        return function (Request $request): string {
+            $fullUrl = $this->resolveRequestFullUrl($request);
+            $schemeAndHttpHost = $this->schemeAndHttpHostFromFullUrl($fullUrl, $request);
+            $url = Str::start(Str::after($fullUrl, $schemeAndHttpHost), '/');
+            $rawUri = Str::before($request->getRequestUri(), '?');
+
+            if (Str::endsWith($rawUri, '/')) {
+                $urlWithoutQueryWithTrailingSlash = Str::finish(Str::before($url, '?'), '/');
+
+                return str_contains($url, '?')
+                    ? $urlWithoutQueryWithTrailingSlash.'?'.Str::after($url, '?')
+                    : $urlWithoutQueryWithTrailingSlash;
+            }
+
+            return $url;
+        };
     }
 
     /**
@@ -174,5 +199,52 @@ class HandleInertiaRequests extends Middleware
                 })(),
             ],
         ];
+    }
+
+    private function resolveRequestFullUrl(Request $request): string
+    {
+        $url = $request->fullUrl();
+
+        if ($this->shouldServeUrlsAsHttps($request) && str_starts_with($url, 'http://')) {
+            return 'https://'.substr($url, 7);
+        }
+
+        return $url;
+    }
+
+    private function schemeAndHttpHostFromFullUrl(string $fullUrl, Request $request): string
+    {
+        $parts = parse_url($fullUrl);
+
+        if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'])) {
+            return $request->getSchemeAndHttpHost();
+        }
+
+        $schemeAndHost = $parts['scheme'].'://'.$parts['host'];
+
+        if (isset($parts['port'])) {
+            $defaultPort = $parts['scheme'] === 'https' ? 443 : 80;
+
+            if ((int) $parts['port'] !== $defaultPort) {
+                $schemeAndHost .= ':'.$parts['port'];
+            }
+        }
+
+        return $schemeAndHost;
+    }
+
+    private function shouldServeUrlsAsHttps(Request $request): bool
+    {
+        if (filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOL)) {
+            return true;
+        }
+
+        if (str_starts_with(strtolower((string) config('app.url', '')), 'https://')) {
+            return true;
+        }
+
+        $forwarded = $request->header('X-Forwarded-Proto');
+
+        return is_string($forwarded) && strtolower($forwarded) === 'https';
     }
 }

@@ -519,6 +519,7 @@ import {
     applyCrmAppearanceToDocument,
     resolveCrmAppearance,
 } from '@/support/crmAppearance.js';
+import { visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
 
 const props = defineProps({
     activeKey: {
@@ -1322,7 +1323,7 @@ function handleMenuSelect(key, event) {
 
     if (MENU_ROUTES[key]) {
         mobileMenuOpen.value = false;
-        router.visit(MENU_ROUTES[key]);
+        visitInertiaPath(MENU_ROUTES[key]);
     }
 }
 

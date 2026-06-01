@@ -1,49 +1,92 @@
 import { router } from '@inertiajs/vue3';
 
 /**
- * Inertia строит URL визита относительно page.url с сервера. Если APP_URL=http, а сайт открыт по HTTPS,
- * относительные пути (например /documents) превращаются в http://… и браузер блокирует запрос (Mixed Content).
+ * На HTTPS-странице поднимает http:// тот же хост и относительные пути до https://.
+ * Inertia v2 хранит visit.url как объект URL — строковая проверка не срабатывала.
  */
-function upgradeVisitUrlForHttpsPage(url) {
-    if (typeof url !== 'string' || typeof window === 'undefined') {
+export function upgradeVisitUrlForHttpsPage(url) {
+    if (typeof window === 'undefined' || window.location.protocol !== 'https:') {
         return url;
     }
 
-    if (window.location.protocol !== 'https:') {
+    const raw = url instanceof URL ? url.href : url;
+
+    if (typeof raw !== 'string' || raw === '') {
         return url;
     }
 
-    if (url.startsWith('http://')) {
+    if (raw.startsWith('http://')) {
         try {
-            const parsed = new URL(url);
+            const parsed = new URL(raw);
 
             if (parsed.hostname === window.location.hostname) {
-                parsed.protocol = 'https:';
-
-                return parsed.toString();
+                return parsed.protocol === 'https:' ? raw : parsed.href.replace(/^http:/, 'https:');
             }
         } catch {
             return url;
         }
     }
 
-    if (url.startsWith('/')) {
-        return new URL(url, window.location.origin).href;
+    if (raw.startsWith('/')) {
+        return new URL(raw, window.location.origin).href;
     }
 
     return url;
 }
 
-router.on('before', (event) => {
-    const visit = event.detail?.visit;
+function applyVisitUrl(visit, next) {
+    if (next instanceof URL || (typeof next === 'string' && next.includes('://'))) {
+        visit.url = new URL(String(next));
+    } else if (typeof next === 'string') {
+        visit.url = next;
+    }
+}
 
-    if (!visit || typeof visit.url !== 'string') {
+/** Безопасный переход по пути меню (всегда от origin текущей страницы). */
+export function visitInertiaPath(path) {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        router.visit(new URL(path, window.location.origin).href);
+
         return;
     }
 
-    const next = upgradeVisitUrlForHttpsPage(visit.url);
+    router.visit(path);
+}
 
-    if (next !== visit.url) {
-        visit.url = next;
+/** Ziggy в HTML может содержать http:// из закэшированного config — выравниваем под страницу. */
+export function ensureZiggyUsesPageProtocol() {
+    if (typeof window === 'undefined' || !globalThis.Ziggy?.url) {
+        return;
+    }
+
+    if (window.location.protocol !== 'https:') {
+        return;
+    }
+
+    try {
+        const ziggyBase = new URL(globalThis.Ziggy.url, window.location.origin);
+
+        if (ziggyBase.protocol === 'http:') {
+            globalThis.Ziggy.url = window.location.origin;
+        }
+    } catch {
+        /* ignore */
+    }
+}
+
+ensureZiggyUsesPageProtocol();
+
+router.on('before', (event) => {
+    const visit = event.detail?.visit;
+
+    if (!visit?.url) {
+        return;
+    }
+
+    const current = visit.url instanceof URL ? visit.url.href : visit.url;
+    const next = upgradeVisitUrlForHttpsPage(current);
+
+    if (next !== current) {
+        applyVisitUrl(visit, next);
     }
 });

@@ -128,6 +128,7 @@ class AppServiceProvider extends ServiceProvider
 
         if (str_starts_with($appUrl, 'https://')) {
             URL::forceScheme('https');
+            URL::forceRootUrl(rtrim((string) config('app.url'), '/'));
 
             return;
         }
