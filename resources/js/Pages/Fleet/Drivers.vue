@@ -77,14 +77,14 @@ watch(selectedDriver, (v) => {
 function openCreate() {
     isModalDismissed.value = false;
     isCreateOpen.value = true;
-    window.history.pushState(window.history.state, '', route('drivers.index'));
+    window.history.pushState(window.history.state, '', route('drivers.index', {}, false));
 }
 
 function handleRowDblClick(row) {
     if (row?.id) {
         isCreateOpen.value = false;
         isModalDismissed.value = false;
-        router.get(route('fleet.drivers.show', row.id), {}, {
+        router.get(route('fleet.drivers.show', row.id, {}, false), {}, {
             preserveScroll: true,
             preserveState: true,
             only: modalKeys,
@@ -95,7 +95,7 @@ function handleRowDblClick(row) {
 function closeModal() {
     isCreateOpen.value = false;
     isModalDismissed.value = true;
-    router.get(route('drivers.index'), {}, {
+    router.get(route('drivers.index', {}, false), {}, {
         preserveScroll: true,
         preserveState: true,
         only: ['selectedDriver'],

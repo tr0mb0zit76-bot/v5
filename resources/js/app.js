@@ -1,5 +1,5 @@
 import './bootstrap';
-import './support/inertiaHttpsVisit.js';
+import { ensureZiggyUsesPageProtocol } from './support/inertiaHttpsVisit.js';
 import '../css/app.css';
 import '../css/crm-sky-theme.css';
 import '../css/crm-workspace-skin.css';
@@ -107,6 +107,8 @@ createInertiaApp({
 });
 
 router.on('success', (event) => {
+    ensureZiggyUsesPageProtocol();
+
     const user = event.detail.page.props?.auth?.user ?? null;
 
     if (user) {

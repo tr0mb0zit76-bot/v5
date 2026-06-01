@@ -2,9 +2,9 @@ import { router } from '@inertiajs/vue3';
 
 /**
  * На HTTPS-странице поднимает http:// тот же хост и относительные пути до https://.
- * Inertia v2 хранит visit.url как объект URL — строковая проверка не срабатывала.
+ * Inertia v2 хранит visit.url как объект URL.
  */
-export function upgradeVisitUrlForHttpsPage(url) {
+export function coerceHttpsUrl(url) {
     if (typeof window === 'undefined' || window.location.protocol !== 'https:') {
         return url;
     }
@@ -20,7 +20,9 @@ export function upgradeVisitUrlForHttpsPage(url) {
             const parsed = new URL(raw);
 
             if (parsed.hostname === window.location.hostname) {
-                return parsed.protocol === 'https:' ? raw : parsed.href.replace(/^http:/, 'https:');
+                const httpsHref = parsed.href.replace(/^http:/, 'https:');
+
+                return url instanceof URL ? new URL(httpsHref) : httpsHref;
             }
         } catch {
             return url;
@@ -28,7 +30,9 @@ export function upgradeVisitUrlForHttpsPage(url) {
     }
 
     if (raw.startsWith('/')) {
-        return new URL(raw, window.location.origin).href;
+        const httpsHref = new URL(raw, window.location.origin).href;
+
+        return url instanceof URL ? new URL(httpsHref) : httpsHref;
     }
 
     return url;
@@ -36,7 +40,7 @@ export function upgradeVisitUrlForHttpsPage(url) {
 
 function applyVisitUrl(visit, next) {
     if (next instanceof URL || (typeof next === 'string' && next.includes('://'))) {
-        visit.url = new URL(String(next));
+        visit.url = next instanceof URL ? next : new URL(String(next));
     } else if (typeof next === 'string') {
         visit.url = next;
     }
@@ -44,13 +48,7 @@ function applyVisitUrl(visit, next) {
 
 /** Безопасный переход по пути меню (всегда от origin текущей страницы). */
 export function visitInertiaPath(path) {
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-        router.visit(new URL(path, window.location.origin).href);
-
-        return;
-    }
-
-    router.visit(path);
+    router.visit(coerceHttpsUrl(path));
 }
 
 /** Ziggy в HTML может содержать http:// из закэшированного config — выравниваем под страницу. */
@@ -74,7 +72,56 @@ export function ensureZiggyUsesPageProtocol() {
     }
 }
 
+function patchGlobalRoute() {
+    if (typeof window === 'undefined' || typeof window.route !== 'function' || window.route.__httpsPatched) {
+        return;
+    }
+
+    const original = window.route;
+
+    const wrapped = function (...args) {
+        const result = original.apply(this, args);
+
+        if (typeof result === 'string') {
+            return coerceHttpsUrl(result);
+        }
+
+        if (result && typeof result === 'object' && 'url' in result) {
+            return { ...result, url: coerceHttpsUrl(result.url) };
+        }
+
+        return result;
+    };
+
+    wrapped.__httpsPatched = true;
+    window.route = wrapped;
+}
+
+function patchRouterVisit() {
+    if (router.visit.__httpsPatched) {
+        return;
+    }
+
+    const originalVisit = router.visit.bind(router);
+
+    router.visit = (href, options = {}) => {
+        if (typeof href === 'string' || href instanceof URL) {
+            return originalVisit(coerceHttpsUrl(href), options);
+        }
+
+        if (href !== null && typeof href === 'object' && 'url' in href && 'method' in href) {
+            return originalVisit({ ...href, url: coerceHttpsUrl(href.url) }, options);
+        }
+
+        return originalVisit(href, options);
+    };
+
+    router.visit.__httpsPatched = true;
+}
+
 ensureZiggyUsesPageProtocol();
+patchGlobalRoute();
+patchRouterVisit();
 
 router.on('before', (event) => {
     const visit = event.detail?.visit;
@@ -84,7 +131,7 @@ router.on('before', (event) => {
     }
 
     const current = visit.url instanceof URL ? visit.url.href : visit.url;
-    const next = upgradeVisitUrlForHttpsPage(current);
+    const next = coerceHttpsUrl(current);
 
     if (next !== current) {
         applyVisitUrl(visit, next);

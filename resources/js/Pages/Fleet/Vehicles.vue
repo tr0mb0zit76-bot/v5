@@ -77,14 +77,14 @@ watch(selectedVehicle, (v) => {
 function openCreate() {
     isModalDismissed.value = false;
     isCreateOpen.value = true;
-    window.history.pushState(window.history.state, '', route('fleet.vehicles.index'));
+    window.history.pushState(window.history.state, '', route('fleet.vehicles.index', {}, false));
 }
 
 function handleRowDblClick(row) {
     if (row?.id) {
         isCreateOpen.value = false;
         isModalDismissed.value = false;
-        router.get(route('fleet.vehicles.show', row.id), {}, {
+        router.get(route('fleet.vehicles.show', row.id, {}, false), {}, {
             preserveScroll: true,
             preserveState: true,
             only: modalKeys,
@@ -95,7 +95,7 @@ function handleRowDblClick(row) {
 function closeModal() {
     isCreateOpen.value = false;
     isModalDismissed.value = true;
-    router.get(route('fleet.vehicles.index'), {}, {
+    router.get(route('fleet.vehicles.index', {}, false), {}, {
         preserveScroll: true,
         preserveState: true,
         only: ['selectedVehicle'],
