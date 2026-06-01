@@ -36,17 +36,19 @@
             <EditorContent :editor="editor" class="tiptap-body px-4 py-3" />
             <div
                 v-if="childPageLinks.length > 0"
-                class="tiptap-body sales-book-editor px-4 pb-3"
+                class="tiptap-body px-4 pb-3"
                 data-sales-book-child-links
                 @click="handleEditorClick"
             >
-                <ul>
-                    <li v-for="child in childPageLinks" :key="child.id">
-                        <p>
-                            <a :href="child.url">{{ child.title }}</a>
-                        </p>
-                    </li>
-                </ul>
+                <div class="sales-book-editor">
+                    <ul>
+                        <li v-for="child in childPageLinks" :key="child.id">
+                            <p>
+                                <a :href="child.url">{{ child.title }}</a>
+                            </p>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
 
@@ -843,7 +845,17 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
     text-decoration: underline;
 }
 
+:deep([data-sales-book-child-links] a) {
+    color: rgb(37 99 235);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
 :deep(.tiptap-body .sales-book-editor a:hover) {
+    color: rgb(29 78 216);
+}
+
+:deep([data-sales-book-child-links] a:hover) {
     color: rgb(29 78 216);
 }
 
@@ -855,7 +867,15 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
     color: rgb(96 165 250);
 }
 
+:deep(.dark [data-sales-book-child-links] a) {
+    color: rgb(96 165 250);
+}
+
 :deep(.dark .tiptap-body .sales-book-editor a:hover) {
+    color: rgb(147 197 253);
+}
+
+:deep(.dark [data-sales-book-child-links] a:hover) {
     color: rgb(147 197 253);
 }
 </style>
