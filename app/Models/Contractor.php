@@ -125,6 +125,11 @@ class Contractor extends Model
         ];
     }
 
+    public function isOwnCompanyProfile(): bool
+    {
+        return (bool) ($this->is_own_company ?? false);
+    }
+
     /**
      * @return HasMany<ContractorContact, $this>
      */

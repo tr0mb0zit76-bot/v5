@@ -45,6 +45,10 @@ class ContractorCreditService
 
     public function isBlockedByDebtLimit(Contractor $contractor, ?float $currentDebt = null): bool
     {
+        if ($contractor->isOwnCompanyProfile()) {
+            return false;
+        }
+
         if (! $this->supportsDebtLimit()) {
             return false;
         }

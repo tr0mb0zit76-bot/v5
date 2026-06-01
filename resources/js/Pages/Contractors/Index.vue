@@ -3,6 +3,7 @@ import { computed, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Building2,
+    FileDown,
     FileText,
     History,
     Plus,
@@ -780,6 +781,16 @@ watch(() => form.is_non_resident, (isNonResident) => {
     }
 });
 
+watch(() => form.is_own_company, (isOwnCompany) => {
+    if (!isOwnCompany) {
+        return;
+    }
+
+    form.is_active = true;
+    form.work_status = 'active';
+    form.stop_on_limit = false;
+});
+
 watch(() => props.activityTypeOptions, (options) => {
     globalActivityTypeOptions.value = [...new Set((options ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))]
         .sort((left, right) => left.localeCompare(right, 'ru'));
@@ -810,6 +821,13 @@ function currentPagePath(url) {
 const isCreateRoute = computed(() => currentPagePath(page.url) === '/contractors/create');
 const isCreating = computed(() => isCreateModalOpen.value || (isCreateRoute.value && !isCreateRouteDismissed.value));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
+const canDownloadPartnerCard = computed(
+    () =>
+        selectedContractorId.value !== null
+        && Boolean(form.is_own_company)
+        && Boolean(props.selectedContractor?.is_own_company),
+);
+const isOwnCompanyProfile = computed(() => Boolean(form.is_own_company));
 const isContractorModalOpen = computed(() => isCreating.value || (selectedContractorId.value !== null && !isDetailsModalDismissed.value));
 
 const contractorScoring = ref(null);
@@ -832,6 +850,14 @@ const verificationState = computed(() => {
 });
 
 function contractorStatusBadge(contractor) {
+    if (contractor?.is_own_company) {
+        return {
+            text: contractor?.status_text ?? 'Своя компания',
+            class: contractor?.status_badge_class
+                ?? 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200',
+        };
+    }
+
     return {
         text: contractor?.status_text ?? (contractor?.is_active ? 'Активен' : 'Архив'),
         class: contractor?.status_badge_class
@@ -856,6 +882,13 @@ function formatVerificationDate(value) {
 }
 
 async function loadContractorScoring(options = { refresh: false }) {
+    if (isOwnCompanyProfile.value) {
+        contractorScoring.value = null;
+        contractorScoringError.value = '';
+
+        return;
+    }
+
     if (selectedContractorId.value === null || !props.selectedContractor?.inn) {
         contractorScoring.value = null;
         contractorScoringError.value = '';
@@ -1810,28 +1843,45 @@ function goToPage(pageNumber) {
                                         </div>
 
                                         <div class="space-y-3">
-                                            <div class="space-y-1">
-                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Статус работы</label>
-                                                <select
-                                                    v-model="form.work_status"
-                                                    :class="crmFieldFluid"
-                                                    :disabled="!form.is_active"
-                                                >
-                                                    <option
-                                                        v-if="form.work_status === 'work_pause' && !workStatusOptions.some((o) => o.value === 'work_pause')"
-                                                        value="work_pause"
+                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
+                                                <input v-model="form.is_own_company" type="checkbox" :class="crmCheckbox" />
+                                                Своя компания
+                                            </label>
+                                            <a
+                                                v-if="canDownloadPartnerCard"
+                                                :href="route('contractors.partner-card', selectedContractorId)"
+                                                class="inline-flex w-full items-center justify-center gap-2 border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/60"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <FileDown class="h-4 w-4 shrink-0" />
+                                                Карта партнёра
+                                            </a>
+                                            <p v-if="isOwnCompanyProfile" class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                Для своей компании не используются статус работы, архив, проверка и лимиты задолженности.
+                                            </p>
+                                            <template v-if="!isOwnCompanyProfile">
+                                                <div class="space-y-1">
+                                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Статус работы</label>
+                                                    <select
+                                                        v-model="form.work_status"
+                                                        :class="crmFieldFluid"
+                                                        :disabled="!form.is_active"
                                                     >
-                                                        Пауза в работе (авто)
-                                                    </option>
-                                                    <option v-for="option in workStatusOptions" :key="option.value" :value="option.value">
-                                                        {{ option.label }}
-                                                    </option>
-                                                </select>
-                                                <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
-                                                    Пауза назначается автоматически, если заказов не было более 3 месяцев.
-                                                </p>
-                                            </div>
-                                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                                        <option
+                                                            v-if="form.work_status === 'work_pause' && !workStatusOptions.some((o) => o.value === 'work_pause')"
+                                                            value="work_pause"
+                                                        >
+                                                            Пауза в работе (авто)
+                                                        </option>
+                                                        <option v-for="option in workStatusOptions" :key="option.value" :value="option.value">
+                                                            {{ option.label }}
+                                                        </option>
+                                                    </select>
+                                                    <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
+                                                        Пауза назначается автоматически, если заказов не было более 3 месяцев.
+                                                    </p>
+                                                </div>
                                                 <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                                     <input
                                                         type="checkbox"
@@ -1841,22 +1891,18 @@ function goToPage(pageNumber) {
                                                     />
                                                     В архиве
                                                 </label>
-                                                <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                                    <input v-model="form.is_own_company" type="checkbox" :class="crmCheckbox" />
-                                                    Своя компания
-                                                </label>
-                                            </div>
-                                            <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
-                                                <div class="font-medium text-zinc-900 dark:text-zinc-100">
-                                                    {{ verificationState.is_verified ? 'Проверен' : 'Не проверен' }}
+                                                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                                    <div class="font-medium text-zinc-900 dark:text-zinc-100">
+                                                        {{ verificationState.is_verified ? 'Проверен' : 'Не проверен' }}
+                                                    </div>
+                                                    <p v-if="verificationState.is_verified && verificationState.verification_valid_until" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                                        Действует до {{ formatVerificationDate(verificationState.verification_valid_until) }}
+                                                    </p>
+                                                    <p v-else class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                                        Проверка сбрасывается, если прошло более 3 месяцев. Обновите скоринг на вкладке «Условия сотрудничества».
+                                                    </p>
                                                 </div>
-                                                <p v-if="verificationState.is_verified && verificationState.verification_valid_until" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                                    Действует до {{ formatVerificationDate(verificationState.verification_valid_until) }}
-                                                </p>
-                                                <p v-else class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                                    Проверка сбрасывается, если прошло более 3 месяцев. Обновите скоринг на вкладке «Условия сотрудничества».
-                                                </p>
-                                            </div>
+                                            </template>
                                         </div>
                                     </div>
 
@@ -2100,29 +2146,46 @@ function goToPage(pageNumber) {
                                     </div>
 
                                     <div class="space-y-3">
-                                        <div class="space-y-1">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Статус работы</label>
-                                            <select
-                                                v-model="form.work_status"
-                                                :class="crmFieldFluid"
-                                                :disabled="!form.is_active"
-                                            >
-                                                <option
-                                                    v-if="form.work_status === 'work_pause' && !workStatusOptions.some((o) => o.value === 'work_pause')"
-                                                    value="work_pause"
+                                        <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
+                                            <input v-model="form.is_own_company" type="checkbox" :class="crmCheckbox" />
+                                            Своя компания
+                                        </label>
+                                        <a
+                                            v-if="canDownloadPartnerCard"
+                                            :href="route('contractors.partner-card', selectedContractorId)"
+                                            class="inline-flex w-full items-center justify-center gap-2 border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/60"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            <FileDown class="h-4 w-4 shrink-0" />
+                                            Карта партнёра
+                                        </a>
+                                        <p v-if="isOwnCompanyProfile" class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Для своей компании не используются статус работы, архив, проверка и лимиты задолженности.
+                                        </p>
+                                        <template v-if="!isOwnCompanyProfile">
+                                            <div class="space-y-1">
+                                                <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Статус работы</label>
+                                                <select
+                                                    v-model="form.work_status"
+                                                    :class="crmFieldFluid"
+                                                    :disabled="!form.is_active"
                                                 >
-                                                    Пауза в работе (авто)
-                                                </option>
-                                                <option v-for="option in workStatusOptions" :key="`desktop-${option.value}`" :value="option.value">
-                                                    {{ option.label }}
-                                                </option>
-                                            </select>
-                                            <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
-                                                Пауза назначается автоматически, если заказов не было более 3 месяцев.
-                                            </p>
-                                            <div v-if="form.errors.work_status" class="text-sm text-rose-600">{{ form.errors.work_status }}</div>
-                                        </div>
-                                        <div class="grid grid-cols-1 gap-3">
+                                                    <option
+                                                        v-if="form.work_status === 'work_pause' && !workStatusOptions.some((o) => o.value === 'work_pause')"
+                                                        value="work_pause"
+                                                    >
+                                                        Пауза в работе (авто)
+                                                    </option>
+                                                    <option v-for="option in workStatusOptions" :key="`desktop-${option.value}`" :value="option.value">
+                                                        {{ option.label }}
+                                                    </option>
+                                                </select>
+                                                <p v-if="form.work_status === 'work_pause'" class="text-xs text-amber-700 dark:text-amber-300">
+                                                    Пауза назначается автоматически, если заказов не было более 3 месяцев.
+                                                </p>
+                                                <div v-if="form.errors.work_status" class="text-sm text-rose-600">{{ form.errors.work_status }}</div>
+                                            </div>
                                             <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
                                                 <input
                                                     type="checkbox"
@@ -2132,19 +2195,15 @@ function goToPage(pageNumber) {
                                                 />
                                                 В архиве
                                             </label>
-                                            <label class="flex items-center gap-2 border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-100">
-                                                <input v-model="form.is_own_company" type="checkbox" :class="crmCheckbox" />
-                                                Своя компания
-                                            </label>
-                                        </div>
-                                        <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
-                                            <div class="font-medium text-zinc-900 dark:text-zinc-100">
-                                                {{ verificationState.is_verified ? 'Проверен' : 'Не проверен' }}
+                                            <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900/60">
+                                                <div class="font-medium text-zinc-900 dark:text-zinc-100">
+                                                    {{ verificationState.is_verified ? 'Проверен' : 'Не проверен' }}
+                                                </div>
+                                                <p v-if="verificationState.is_verified && verificationState.verification_valid_until" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                                    Действует до {{ formatVerificationDate(verificationState.verification_valid_until) }}
+                                                </p>
                                             </div>
-                                            <p v-if="verificationState.is_verified && verificationState.verification_valid_until" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                                Действует до {{ formatVerificationDate(verificationState.verification_valid_until) }}
-                                            </p>
-                                        </div>
+                                        </template>
                                     </div>
                                 </div>
 
@@ -2191,7 +2250,10 @@ function goToPage(pageNumber) {
                     </div>
 
                     <div v-else-if="activeTab === 'cooperation'" class="space-y-4">
-                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,18rem)]">
+                        <div
+                            class="grid grid-cols-1 gap-4"
+                            :class="isOwnCompanyProfile ? '' : 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,18rem)]'"
+                        >
                             <div class="min-w-0 space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
@@ -2200,13 +2262,13 @@ function goToPage(pageNumber) {
                                             Эти значения подставляются в заказ при выборе контрагента.
                                         </div>
                                     </div>
-                                    <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
+                                    <label v-if="!isOwnCompanyProfile" class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
                                         <input v-model="form.stop_on_limit" type="checkbox" :class="crmCheckbox" />
                                         Стоп-работа по лимиту
                                     </label>
                                 </div>
 
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <div v-if="!isOwnCompanyProfile" class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                     <div class="space-y-2 md:col-span-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Лимит задолженности</label>
                                         <input v-model="form.debt_limit" type="number" min="0" step="0.01" :class="crmFieldFluid" />
@@ -2411,7 +2473,7 @@ function goToPage(pageNumber) {
                                 </div>
                             </div>
 
-                            <div class="min-w-0 space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
+                            <div v-if="!isOwnCompanyProfile" class="min-w-0 space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
                                 <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Кредитный статус</div>
                                 <div class="space-y-2 text-sm">
                                     <div class="flex items-center justify-between gap-3">

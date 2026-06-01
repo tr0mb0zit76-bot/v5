@@ -12,6 +12,7 @@ use App\Services\Checko\ContractorScoringService;
 use App\Services\ContractorCreditService;
 use App\Services\ContractorDocumentSyncService;
 use App\Services\ContractorOperationalStatusService;
+use App\Services\ContractorPartnerCardService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
 use App\Support\CarrierRateFromFinancialTerms;
@@ -28,9 +29,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class ContractorController extends Controller
@@ -204,6 +207,13 @@ class ContractorController extends Controller
         ContractorScoringService $scoringService,
         ContractorOperationalStatusService $statusService,
     ): JsonResponse {
+        if ($contractor->isOwnCompanyProfile()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Скоринг и проверка не применяются к своей компании.',
+            ]);
+        }
+
         $refresh = $request->boolean('refresh');
 
         if ($refresh) {
@@ -764,6 +774,10 @@ class ContractorController extends Controller
             unset($validated['is_own_company']);
         }
 
+        if ((bool) ($validated['is_own_company'] ?? $existingContractor?->is_own_company ?? false)) {
+            $validated = $this->applyOwnCompanyOperationalExemptions($validated);
+        }
+
         unset($validated['is_verified'], $validated['verified_at']);
 
         if (array_key_exists('work_status', $validated)) {
@@ -832,6 +846,22 @@ class ContractorController extends Controller
                 unset($validated[$column]);
             }
         }
+
+        return $validated;
+    }
+
+    /**
+     * Для «своей компании» операционные статусы (архив, работа, лимиты) не применяются.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function applyOwnCompanyOperationalExemptions(array $validated): array
+    {
+        $validated['is_active'] = true;
+        $validated['work_status'] = ContractorWorkStatus::ACTIVE;
+        $validated['work_pause_is_automatic'] = false;
+        $validated['stop_on_limit'] = false;
 
         return $validated;
     }
@@ -1173,6 +1203,20 @@ class ContractorController extends Controller
         if (array_key_exists('documents', $validated) && is_array($validated['documents'])) {
             $this->contractorDocumentSync->sync($contractor, $validated['documents'], $userId);
         }
+    }
+
+    public function downloadPartnerCard(Contractor $contractor, ContractorPartnerCardService $partnerCardService): BinaryFileResponse
+    {
+        abort_unless($contractor->is_own_company, 404);
+
+        $generated = $partnerCardService->generate($contractor);
+        $absolutePath = Storage::disk($generated['disk'])->path($generated['path']);
+
+        return response()
+            ->download($absolutePath, $generated['download_name'], [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ])
+            ->deleteFileAfterSend(true);
     }
 
     public function previewDocument(Request $request, Contractor $contractor, ContractorDocument $contractorDocument): HttpResponse

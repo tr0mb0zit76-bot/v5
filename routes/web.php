@@ -397,6 +397,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors/create', 'create')->name('contractors.create');
         Route::post('/contractors', 'store')->name('contractors.store');
         Route::get('/contractors/{contractor}', 'show')->name('contractors.show');
+        Route::get('/contractors/{contractor}/partner-card', 'downloadPartnerCard')->name('contractors.partner-card');
         Route::get('/contractors/{contractor}/documents/{contractorDocument}/preview', 'previewDocument')->name('contractors.documents.preview');
         Route::get('/contractors/{contractor}/scoring', 'scoring')->name('contractors.scoring');
         Route::get('/contractors/{contractor}/edit', 'edit')->name('contractors.edit');

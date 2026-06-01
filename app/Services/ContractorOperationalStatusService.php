@@ -27,10 +27,18 @@ class ContractorOperationalStatusService
             return;
         }
 
-        $ids = $contractors->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+        $operationalContractors = $contractors->filter(
+            fn (mixed $contractor): bool => $contractor instanceof Contractor && ! $contractor->isOwnCompanyProfile(),
+        );
+
+        if ($operationalContractors->isEmpty()) {
+            return;
+        }
+
+        $ids = $operationalContractors->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
         $lastOrderDates = $this->lastOrderDatesForContractorIds($ids);
 
-        foreach ($contractors as $contractor) {
+        foreach ($operationalContractors as $contractor) {
             if (! $contractor instanceof Contractor) {
                 continue;
             }
@@ -48,6 +56,10 @@ class ContractorOperationalStatusService
 
     public function sync(Contractor $contractor): Contractor
     {
+        if ($contractor->isOwnCompanyProfile()) {
+            return $contractor;
+        }
+
         $lastOrderDate = $this->lastOrderDateForContractor($contractor->id);
         $this->applyOperationalRules($contractor, $lastOrderDate);
 
@@ -63,6 +75,10 @@ class ContractorOperationalStatusService
      */
     public function markVerifiedFromScoring(Contractor $contractor, array $scoringPayload): void
     {
+        if ($contractor->isOwnCompanyProfile()) {
+            return;
+        }
+
         $metadata = is_array($contractor->metadata) ? $contractor->metadata : [];
         $metadata['checko_scoring'] = [
             'score' => $scoringPayload['score'] ?? null,
@@ -97,6 +113,10 @@ class ContractorOperationalStatusService
 
     public function resolveStatusText(Contractor $contractor): string
     {
+        if ($contractor->isOwnCompanyProfile()) {
+            return 'Своя компания';
+        }
+
         if (! $contractor->is_active) {
             return 'Архив';
         }
@@ -109,6 +129,13 @@ class ContractorOperationalStatusService
      */
     public function resolveStatusBadge(Contractor $contractor): array
     {
+        if ($contractor->isOwnCompanyProfile()) {
+            return [
+                'badge' => 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200',
+                'text' => 'Своя компания',
+            ];
+        }
+
         return ContractorWorkStatus::badgeClasses(
             $contractor->work_status,
             ! $contractor->is_active,
@@ -117,6 +144,10 @@ class ContractorOperationalStatusService
 
     private function applyOperationalRules(Contractor $contractor, ?CarbonInterface $lastOrderDate): void
     {
+        if ($contractor->isOwnCompanyProfile()) {
+            return;
+        }
+
         $this->syncVerificationExpiry($contractor);
         $this->syncWorkPauseFromInactivity($contractor, $lastOrderDate);
     }
