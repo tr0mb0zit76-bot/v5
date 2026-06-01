@@ -6,6 +6,7 @@ use App\Contracts\Inference\ChatCompletionClient;
 use App\Models\OrderIntakeDraft;
 use App\Models\User;
 use App\Services\Agents\AiRequestGate;
+use App\Services\Ai\AiInteractionRecorder;
 use App\Services\Documents\DocumentTextExtractor;
 use App\Services\DocumentStorageService;
 use App\Services\Inference\ExternalLlmPayloadSanitizer;
@@ -25,6 +26,7 @@ class OrderDocumentIntakeService
         private readonly AiRequestGate $aiGate,
         private readonly OrderIntakeContractorResolver $contractorResolver,
         private readonly DocumentStorageService $documentStorage,
+        private readonly AiInteractionRecorder $interactionRecorder,
     ) {}
 
     /**
@@ -32,6 +34,8 @@ class OrderDocumentIntakeService
      */
     public function extractFromUpload(User $user, UploadedFile $file): array
     {
+        $startedAt = hrtime(true);
+
         if (! (bool) config('ai.order_intake.enabled', true)) {
             throw ValidationException::withMessages([
                 'file' => 'Распознавание заявок отключено в конфигурации.',
@@ -68,6 +72,16 @@ class OrderDocumentIntakeService
                 'message' => $throwable->getMessage(),
             ]);
 
+            $this->interactionRecorder->recordIntakeExtracted(
+                $user,
+                false,
+                null,
+                null,
+                $throwable->getMessage(),
+                (int) ((hrtime(true) - $startedAt) / 1_000_000),
+                ['source_name' => $file->getClientOriginalName()],
+            );
+
             throw ValidationException::withMessages([
                 'file' => 'Не удалось структурировать заявку: '.$throwable->getMessage(),
             ]);
@@ -94,6 +108,19 @@ class OrderDocumentIntakeService
             'warnings' => $warnings,
             'matched_contractors' => $contractorMatches,
         ]);
+
+        $this->interactionRecorder->recordIntakeExtracted(
+            $user,
+            true,
+            $draft->confidence !== null ? (float) $draft->confidence : null,
+            $draft->id,
+            null,
+            (int) ((hrtime(true) - $startedAt) / 1_000_000),
+            [
+                'source_name' => $file->getClientOriginalName(),
+                'extraction_method' => $extraction['method'],
+            ],
+        );
 
         return [
             'draft_id' => $draft->id,

@@ -4,6 +4,7 @@ namespace App\Mcp\Servers;
 
 use App\Mcp\Tools\AddOrderNoteTool;
 use App\Mcp\Tools\CreateTaskTool;
+use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
@@ -41,6 +42,7 @@ use Laravel\Mcp\Server\Tool;
         - update_order_route_actual — фактическая погрузка/выгрузка
         - upsert_disposition_entry — ячейка диспозиции (утро/вечер)
         - search_sales_book_articles / upsert_sales_book_article
+        - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
 
         Аутентификация: Bearer Sanctum token.
         MARKDOWN)]
@@ -67,6 +69,7 @@ class CrmServer extends Server
         UpsertDispositionEntryTool::class,
         SearchSalesBookArticlesTool::class,
         UpsertSalesBookArticleTool::class,
+        GetAiUsageInsightsTool::class,
     ];
 
     /**

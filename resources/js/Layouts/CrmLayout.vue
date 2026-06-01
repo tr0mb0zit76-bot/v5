@@ -582,7 +582,7 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
     if (activeKey === 'settings') {
         keys.push('settings');
         const leaf = activeLeafKey ?? activeSubKey ?? '';
-        if (['users', 'roles', 'business-processes'].includes(leaf)) {
+        if (['users', 'roles', 'business-processes', 'ai-analytics'].includes(leaf)) {
             keys.push('administration');
         }
         if (['table-presets', 'dictionaries', 'templates'].includes(leaf)) {
@@ -696,6 +696,7 @@ const MENU_ROUTES = {
     motivation: '/settings/motivation',
     'kpi-settings': '/settings/motivation/kpi',
     'salary-settings': '/settings/motivation/salary',
+    'ai-analytics': '/settings/ai-analytics',
 };
 
 const MOBILE_BROWSER_BYPASS = 'crm_mobile_browser_cabinet_v1';
@@ -1041,6 +1042,9 @@ const menuItems = computed(() => {
                 }
                 if (hasSettingsSystemAccess.value) {
                     administrationChildren.push({ key: 'business-processes', label: 'Бизнес-процессы' });
+                }
+                if (hasSettingsSystemAccess.value) {
+                    administrationChildren.push({ key: 'ai-analytics', label: 'Аналитика AI' });
                 }
                 if (administrationChildren.length > 0) {
                     children.push({

@@ -4,6 +4,7 @@ namespace App\Services\Agents;
 
 use App\Agents\AgentToolDefinition;
 use App\Models\User;
+use App\Services\Ai\AiUsageAnalyticsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
 use App\Services\Mcp\DispositionMcpService;
@@ -13,6 +14,7 @@ use App\Services\Mcp\OrderMcpService;
 use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
+use App\Support\AiInteractionFeature;
 use App\Support\DispositionSlot;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
@@ -36,6 +38,7 @@ class AgentToolRegistry
         private readonly SalesBookMcpService $salesBook,
         private readonly DispositionMcpService $disposition,
         private readonly OrderActivityTimelineService $orderTimeline,
+        private readonly AiUsageAnalyticsService $aiUsageAnalytics,
     ) {}
 
     /**
@@ -71,21 +74,21 @@ class AgentToolRegistry
 
             try {
                 $result = ($definition->invoke)($user, $arguments);
-                $this->audit->log($user, $name, $arguments, true);
+                $this->audit->log($user, $name, $arguments, true, null, AiInteractionFeature::CommandBar);
 
                 return $result;
             } catch (ValidationException $exception) {
                 $message = collect($exception->errors())->flatten()->first();
                 $error = is_string($message) ? $message : 'Ошибка валидации.';
-                $this->audit->log($user, $name, $arguments, false, $error);
+                $this->audit->log($user, $name, $arguments, false, $error, AiInteractionFeature::CommandBar);
 
                 return ['error' => $error];
             } catch (AuthenticationException|ModelNotFoundException $exception) {
-                $this->audit->log($user, $name, $arguments, false, $exception->getMessage());
+                $this->audit->log($user, $name, $arguments, false, $exception->getMessage(), AiInteractionFeature::CommandBar);
 
                 return ['error' => $exception->getMessage()];
             } catch (Throwable $throwable) {
-                $this->audit->log($user, $name, $arguments, false, $throwable->getMessage());
+                $this->audit->log($user, $name, $arguments, false, $throwable->getMessage(), AiInteractionFeature::CommandBar);
 
                 return ['error' => $throwable->getMessage()];
             }
@@ -423,6 +426,23 @@ class AgentToolRegistry
                     $user,
                     (string) ($args['query'] ?? ''),
                     (int) ($args['limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_ai_usage_insights',
+                description: 'Аналитика обращений к AI: частые вопросы, слабые/неудачные ответы, использование tools. Только для администраторов и системных настроек.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
+                        'top_limit' => ['type' => 'integer', 'minimum' => 5, 'maximum' => 50],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canViewAiAnalytics($user),
+                invoke: fn (User $user, array $args): array => $this->aiUsageAnalytics->insights(
+                    (int) ($args['days'] ?? config('ai.analytics.insights_default_days', 30)),
+                    (int) ($args['top_limit'] ?? 20),
                 ),
             ),
         ];

@@ -38,6 +38,7 @@ use App\Http\Controllers\RoleManagementController;
 use App\Http\Controllers\SalesAssistantController;
 use App\Http\Controllers\SalesScriptController;
 use App\Http\Controllers\SalesScriptEditorController;
+use App\Http\Controllers\SettingsAiAnalyticsController;
 use App\Http\Controllers\SettingsBusinessProcessController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
@@ -338,6 +339,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/roles/{role}', 'update')->name('roles.update');
         Route::delete('/roles/{role}', 'destroy')->name('roles.destroy');
     });
+
+    Route::get('/settings/ai-analytics', SettingsAiAnalyticsController::class)
+        ->middleware('visibility.area:settings_system')
+        ->name('settings.ai-analytics');
 
     Route::controller(SettingsTableManagementController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/tables', 'index')->name('settings.tables.index');

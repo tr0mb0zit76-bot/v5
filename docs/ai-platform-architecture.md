@@ -90,7 +90,8 @@
 - [x] **`ChatCompletionClient` + `DeepSeekChatCompletionClient` + `TrainerChatCompletionService`** — единая точка вызова чата (см. `app/Contracts/Inference`, `AppServiceProvider`). Заглушка без ключа: поведение как раньше (сообщение про `DEEPSEEK_API_KEY` до вызова API).
 - [x] **`AiRequestGate`** — для command bar: `local_only` без ключа DeepSeek, иначе `external_large` (см. `App\Services\Agents\AiRequestGate`).
 - [x] **`ExternalLlmPayloadSanitizer`** — redaction PII и чувствительных полей перед DeepSeek; профили `command_bar` / `trainer` (`config/ai.php`).
-- [ ] **Структурированный аудит** — запись: `channel`, `feature` (например `trainer_chat`), `duration_ms`, `tokens` если есть, **без** сырого промпта в общих логах по умолчанию.
+- [x] **Структурированный аудит (v1)** — таблица `ai_interaction_events`: `channel`, `feature`, `outcome`, обезличенные промпт/ответ, tools, `duration_ms`, `tokens_*`; MCP/command bar tool `get_ai_usage_insights`.
+- [ ] **Структурированный аудит (v2)** — тренажёр, экспорт в data lake, партиционирование.
 - [ ] **Расширить `config/ai.php`** — таймауты, URL будущего локального inference, feature-flags.
 
 ### Тренажёр и сценарии

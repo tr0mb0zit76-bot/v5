@@ -3,12 +3,18 @@
 namespace App\Services\Mcp;
 
 use App\Models\User;
+use App\Services\Ai\AiInteractionRecorder;
+use App\Support\AiInteractionFeature;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class AiToolAuditLogger
 {
+    public function __construct(
+        private readonly AiInteractionRecorder $interactionRecorder,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $arguments
      */
@@ -18,7 +24,17 @@ class AiToolAuditLogger
         array $arguments,
         bool $ok,
         ?string $errorMessage = null,
+        AiInteractionFeature $feature = AiInteractionFeature::Mcp,
     ): void {
+        $this->interactionRecorder->recordToolInvoked(
+            $user,
+            $feature,
+            $tool,
+            $arguments,
+            $ok,
+            $errorMessage,
+        );
+
         if (! Schema::hasTable('ai_tool_audit_logs')) {
             return;
         }

@@ -119,6 +119,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `routes/ai.php`, `App\Mcp\Servers\CrmServer`, web `/mcp/crm` + local `crm`
 - [x] `php artisan mcp:issue-token` (Sanctum Bearer)
 - [x] Таблица `ai_tool_audit_logs`, rate limit `throttle:mcp`
+- [x] `ai_interaction_events` + `get_ai_usage_insights` (аналитика command bar / tools / intake)
 - [x] `MCP_DEV_USER_ID` для локального `php artisan mcp:start crm`
 
 ### 1.2 Read-only tools (MVP)

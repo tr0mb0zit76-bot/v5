@@ -357,13 +357,19 @@
                                         </div>
                                         <label v-else class="inline-flex items-center gap-2">
                                             <input
-                                                :checked="isAreaEnabled(role, row.areaKey)"
+                                                :checked="isChildAreaEnabled(role, row.parentKey, row.areaKey)"
                                                 type="checkbox"
                                                 class="rounded border-zinc-300"
                                                 :disabled="moduleAccessMode(role, row.parentKey) === 'all'"
                                                 @change="toggleChildArea(role, row.parentKey, row.areaKey)"
                                             />
-                                                <span>{{ moduleAccessMode(role, row.parentKey) === 'all' ? 'Доступ открывается родительской строкой' : 'Точечный доступ' }}</span>
+                                            <span>
+                                                {{
+                                                    moduleAccessMode(role, row.parentKey) === 'all'
+                                                        ? 'Включено (все компоненты)'
+                                                        : 'Точечный доступ'
+                                                }}
+                                            </span>
                                         </label>
                                     </template>
 
@@ -445,7 +451,7 @@ const visibilityGroupDefinitions = [
     { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'mail', 'orders', 'tasks', 'kanban'] },
     { id: 'directories', label: 'Реестры и справочники', description: 'Списки и карточки', keys: ['contractors', 'drivers', 'documents', 'users', 'roles'] },
     { id: 'analytics', label: 'Финансы и аналитика', description: 'Отчёты и сводные показатели', keys: ['finance_salary', 'payment_schedules', 'reports'] },
-    { id: 'sales_assistant', label: 'Помощник продавца', description: 'Скрипты, книга продаж, тренажёр и аналитика', keys: ['scripts'] },
+    { id: 'sales_assistant', label: 'Помощник продавца', description: 'Скрипты, книга продаж, тренажёр, считалка и аналитика', keys: ['scripts'] },
     { id: 'system', label: 'Администрирование', description: 'Системные разделы', keys: ['modules', 'settings'] },
 ];
 
@@ -809,6 +815,18 @@ function toggleBookPermission(role, permissionKey) {
 
 function isAreaEnabled(role, areaKey) {
     return role.visibility_areas.includes(areaKey);
+}
+
+function isChildAreaEnabled(role, parentKey, childKey) {
+    if (! isAreaEnabled(role, parentKey)) {
+        return false;
+    }
+
+    if (moduleAccessMode(role, parentKey) === 'all') {
+        return true;
+    }
+
+    return isAreaEnabled(role, childKey);
 }
 
 function areaSupportsScope(areaKey) {

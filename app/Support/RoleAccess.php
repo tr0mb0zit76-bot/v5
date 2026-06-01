@@ -70,7 +70,7 @@ class RoleAccess
             ['key' => 'sales_assistant_book', 'label' => 'Помощник продавца: книга продаж', 'description' => 'База знаний и статьи'],
             ['key' => 'sales_assistant_trainer', 'label' => 'Помощник продавца: тренажёр', 'description' => 'Запуск тренировок по сценариям'],
             ['key' => 'sales_assistant_trainer_analytics', 'label' => 'Помощник продавца: аналитика тренажёра', 'description' => 'Сводки и отчёты по тренировкам'],
-            ['key' => 'sales_assistant_counter', 'label' => 'Помощник продавца: считалка', 'description' => 'Калькулятор маржи и ставок для переговоров'],
+            ['key' => 'sales_assistant_counter', 'label' => 'Считалка', 'description' => 'Помощник продавца: калькулятор маржи и ставок для переговоров'],
             ['key' => 'settings', 'label' => 'Настройки (все подразделы)', 'description' => 'Полный доступ ко всем разделам настроек; для новых ролей предпочтительнее отдельные области ниже'],
             ['key' => 'settings_system', 'label' => 'Настройки: администрирование и конфигурация', 'description' => 'Пользователи, роли, таблицы, справочники и шаблоны печатных форм'],
             ['key' => 'settings_motivation', 'label' => 'Настройки: мотивация', 'description' => 'KPI и персональные условия (коэффициенты). Учёт зарплатных периодов — в модуле «Финансы»'],
@@ -700,6 +700,14 @@ class RoleAccess
         }
 
         return static::hasVisibilityArea(static::userVisibilityAreas($user), 'settings_system');
+    }
+
+    /**
+     * Аналитика обращений к AI (command bar, intake) — admin и системные настройки.
+     */
+    public static function canViewAiAnalytics(?User $user): bool
+    {
+        return static::canAccessSettingsSystem($user);
     }
 
     /**

@@ -70,6 +70,15 @@ class SettingsController extends Controller
                 'icon' => 'trending-up',
                 'accent' => 'emerald',
             ],
+            [
+                'key' => 'ai-analytics',
+                'title' => 'Аналитика AI',
+                'description' => 'Частые вопросы ассистенту, слабые ответы и подсказки для Книги продаж.',
+                'href' => route('settings.ai-analytics'),
+                'group' => 'Администрирование',
+                'icon' => 'bot',
+                'accent' => 'violet',
+            ],
         ];
 
         $sections = array_values(array_filter($allSections, function (array $section) use ($user): bool {
@@ -119,6 +128,10 @@ class SettingsController extends Controller
 
         if ($key === 'roles') {
             return RoleAccess::canAccessSettingsSystem($user) && $user->isAdmin();
+        }
+
+        if ($key === 'ai-analytics') {
+            return RoleAccess::canViewAiAnalytics($user);
         }
 
         if ($key === 'motivation') {
