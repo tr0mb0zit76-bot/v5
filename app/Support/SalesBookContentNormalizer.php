@@ -43,6 +43,35 @@ final class SalesBookContentNormalizer
         return $body;
     }
 
+    /**
+     * Контент для просмотра: тело страницы и ссылки на дочерние страницы как обычный markdown-список.
+     */
+    public function forReader(string $content): string
+    {
+        $normalized = $this->normalize($content);
+        [$body, $childLinksBlock] = $this->extractChildLinksBlock($normalized);
+
+        if ($childLinksBlock === '') {
+            return $body;
+        }
+
+        $listMarkdown = trim((string) preg_replace(
+            '/\s*'.preg_quote(self::CHILD_LINKS_START, '/').'\s*|\s*'.preg_quote(self::CHILD_LINKS_END, '/').'\s*/s',
+            '',
+            $childLinksBlock,
+        ));
+
+        if ($listMarkdown === '') {
+            return $body;
+        }
+
+        if ($body === '') {
+            return $listMarkdown;
+        }
+
+        return rtrim($body)."\n\n".$listMarkdown;
+    }
+
     private function normalizeBody(string $body): string
     {
         $trimmed = trim($body);

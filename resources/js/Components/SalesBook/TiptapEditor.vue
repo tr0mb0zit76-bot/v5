@@ -34,6 +34,20 @@
             :class="editable ? '' : 'cursor-default'"
         >
             <EditorContent :editor="editor" class="tiptap-body px-4 py-3" />
+            <div
+                v-if="childPageLinks.length > 0"
+                class="tiptap-body sales-book-editor px-4 pb-3"
+                data-sales-book-child-links
+                @click="handleEditorClick"
+            >
+                <ul>
+                    <li v-for="child in childPageLinks" :key="child.id">
+                        <p>
+                            <a :href="child.url">{{ child.title }}</a>
+                        </p>
+                    </li>
+                </ul>
+            </div>
         </div>
 
         <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="uploadAndInsert($event, true)" />
@@ -75,6 +89,10 @@ const props = defineProps({
     editable: {
         type: Boolean,
         default: true,
+    },
+    childPageLinks: {
+        type: Array,
+        default: () => [],
     },
 });
 

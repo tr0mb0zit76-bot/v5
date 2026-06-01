@@ -112,6 +112,7 @@ class SalesAssistantController extends Controller
                     'parent_id' => $selectedArticle->parent_id,
                     'sort_order' => $selectedArticle->sort_order,
                     'markdown_content' => $contentNormalizer->forEditor((string) ($selectedArticle->markdown_content ?? '')),
+                    'markdown_content_display' => $contentNormalizer->forReader((string) ($selectedArticle->markdown_content ?? '')),
                     'updated_at' => $selectedArticle->updated_at?->toIso8601String(),
                 ],
             'capabilities' => [
