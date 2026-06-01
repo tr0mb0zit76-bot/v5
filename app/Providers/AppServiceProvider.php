@@ -73,7 +73,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->configureGeneratedUrls();
+        $this->app->rebinding('request', function ($app, Request $request): void {
+            $this->configureGeneratedUrls($request);
+        });
+
+        if ($this->app->runningInConsole()) {
+            $this->configureGeneratedUrls(null);
+        } elseif ($this->app->bound('request')) {
+            $this->configureGeneratedUrls($this->app->make(Request::class));
+        }
 
         RateLimiter::for('mcp', function (Request $request) {
             $user = $request->user();
@@ -116,7 +124,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Task::class, TaskPolicy::class);
     }
 
-    private function configureGeneratedUrls(): void
+    private function configureGeneratedUrls(?Request $request): void
     {
         if (filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOL)) {
             URL::forceScheme('https');
@@ -128,19 +136,30 @@ class AppServiceProvider extends ServiceProvider
 
         if (str_starts_with($appUrl, 'https://')) {
             URL::forceScheme('https');
+        } elseif ($request !== null) {
+            $forwarded = $request->header('X-Forwarded-Proto');
+
+            if (is_string($forwarded) && strtolower($forwarded) === 'https') {
+                URL::forceScheme('https');
+            }
+        }
+
+        if ($request === null) {
+            if ($appUrl !== '') {
+                URL::forceRootUrl(rtrim((string) config('app.url'), '/'));
+            }
+
+            return;
+        }
+
+        if (InertiaAppSurface::fromRequest($request) === InertiaAppSurface::Showcase) {
+            URL::forceRootUrl($request->getSchemeAndHttpHost());
+
+            return;
+        }
+
+        if ($appUrl !== '') {
             URL::forceRootUrl(rtrim((string) config('app.url'), '/'));
-
-            return;
-        }
-
-        if ($this->app->runningInConsole()) {
-            return;
-        }
-
-        $forwarded = request()->header('X-Forwarded-Proto');
-
-        if (is_string($forwarded) && strtolower($forwarded) === 'https') {
-            URL::forceScheme('https');
         }
     }
 }

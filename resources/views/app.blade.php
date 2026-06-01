@@ -19,7 +19,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <meta name="app-base-url" content="{{ rtrim((string) config('app.url'), '/') }}">
+        <meta name="app-base-url" content="{{ rtrim(url('/'), '/') }}">
         <meta name="theme-color" content="{{ $crmThemeColor }}">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
