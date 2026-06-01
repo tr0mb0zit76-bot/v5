@@ -422,14 +422,38 @@ function handleEditorClick(event) {
         return false;
     }
 
-    const articleId = extractBookArticleId(anchor.getAttribute('href'));
+    const href = anchor.getAttribute('href')?.trim() ?? '';
 
-    if (!articleId) {
+    if (href === '') {
         return false;
     }
 
+    const articleId = extractBookArticleId(href);
+
+    if (articleId !== null) {
+        event.preventDefault();
+        router.get(route('sales-assistant.book'), { article_id: articleId }, { preserveState: false });
+
+        return true;
+    }
+
     event.preventDefault();
-    router.get(route('sales-assistant.book'), { article_id: articleId }, { preserveState: false });
+
+    if (href.startsWith('mailto:') || href.startsWith('tel:')) {
+        window.location.href = href;
+
+        return true;
+    }
+
+    let url = href;
+
+    try {
+        url = new URL(href, window.location.origin).href;
+    } catch {
+        /* оставляем как есть */
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
 
     return true;
 }

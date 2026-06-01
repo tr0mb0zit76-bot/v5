@@ -85,6 +85,17 @@ class SalesAssistantController extends Controller
             $selectedArticle->refresh();
         }
 
+        $directChildPages = $selectedArticle === null
+            ? []
+            : array_map(
+                fn (array $child): array => [
+                    'id' => $child['id'],
+                    'title' => $child['title'],
+                    'url' => $childLinksService->articlePath($child['id']),
+                ],
+                $treeService->directChildren($articles, $selectedArticle->id),
+            );
+
         return Inertia::render('SalesAssistant/Book', [
             'articlesTree' => $treeService->buildTree($articles)->values()->all(),
             'articleOptions' => $articles->map(fn (SalesBookArticle $article): array => [
@@ -92,6 +103,7 @@ class SalesAssistantController extends Controller
                 'title' => $article->title,
                 'parent_id' => $article->parent_id,
             ])->values(),
+            'directChildPages' => $directChildPages,
             'selectedArticle' => $selectedArticle === null
                 ? null
                 : [
@@ -150,8 +162,6 @@ class SalesAssistantController extends Controller
         $data = $request->validated();
         $parentId = $treeService->resolveParentId($data);
         $oldParentId = $salesBookArticle->parent_id;
-        $oldTitle = $salesBookArticle->title;
-
         if ($treeService->isCircularParent($salesBookArticle, $parentId)) {
             return back()->withErrors([
                 'parent_id' => 'Нельзя сделать дочерним элементом собственную вложенную статью.',
@@ -182,10 +192,9 @@ class SalesAssistantController extends Controller
         if ($parentChanged) {
             $treeService->reindexSiblings($parentId);
             $childLinksService->syncParentById($oldParentId, $request->user()?->id);
-            $childLinksService->syncParentById($parentId, $request->user()?->id);
-        } elseif ($parentId !== null && $data['title'] !== $oldTitle) {
-            $childLinksService->syncParentById($parentId, $request->user()?->id);
         }
+
+        $childLinksService->syncParentById($parentId, $request->user()?->id);
 
         return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
             'type' => 'success',

@@ -114,6 +114,27 @@
                         <span v-if="selectedArticle.updated_at">Обновлено: {{ formatDate(selectedArticle.updated_at) }}</span>
                     </div>
 
+                    <nav
+                        v-if="directChildPages.length > 0"
+                        class="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/50"
+                        aria-label="Дочерние страницы"
+                    >
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            Дочерние страницы
+                        </p>
+                        <ul class="mt-1.5 space-y-1">
+                            <li v-for="child in directChildPages" :key="child.id">
+                                <button
+                                    type="button"
+                                    class="text-left text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
+                                    @click="openArticle(child.id)"
+                                >
+                                    {{ child.title }}
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+
                     <TiptapEditor
                         ref="editEditorRef"
                         :key="editEditorKey"
@@ -161,6 +182,27 @@
                     <div v-if="selectedArticle.updated_at" class="shrink-0 text-xs text-zinc-500">
                         Обновлено: {{ formatDate(selectedArticle.updated_at) }}
                     </div>
+
+                    <nav
+                        v-if="directChildPages.length > 0"
+                        class="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/50"
+                        aria-label="Дочерние страницы"
+                    >
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            Дочерние страницы
+                        </p>
+                        <ul class="mt-1.5 space-y-1">
+                            <li v-for="child in directChildPages" :key="`ro-${child.id}`">
+                                <button
+                                    type="button"
+                                    class="text-left text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
+                                    @click="openArticle(child.id)"
+                                >
+                                    {{ child.title }}
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
 
                     <TiptapEditor
                         :key="readonlyEditorKey"
@@ -217,6 +259,10 @@ const props = defineProps({
     selectedArticle: {
         type: Object,
         default: null,
+    },
+    directChildPages: {
+        type: Array,
+        default: () => [],
     },
     capabilities: {
         type: Object,
@@ -396,7 +442,7 @@ function openArticle(articleId) {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions'],
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages'],
     });
 }
 

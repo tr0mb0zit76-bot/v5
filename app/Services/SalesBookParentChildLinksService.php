@@ -55,15 +55,7 @@ class SalesBookParentChildLinksService
 
     public function ensureChildLinksSynced(SalesBookArticle $article): void
     {
-        $children = $this->loadDirectChildren($article->id);
-
-        if ($children === []) {
-            return;
-        }
-
-        $content = $article->markdown_content ?? '';
-
-        if (str_contains($content, self::START_MARKER)) {
+        if ($this->loadDirectChildren($article->id) === []) {
             return;
         }
 
@@ -131,6 +123,10 @@ class SalesBookParentChildLinksService
 
         if ($newBlock === '') {
             return $content;
+        }
+
+        if (trim($content) === '') {
+            return ltrim($newBlock, "\n");
         }
 
         return rtrim($content).$newBlock;
