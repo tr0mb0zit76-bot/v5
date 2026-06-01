@@ -1,13 +1,47 @@
 import { router } from '@inertiajs/vue3';
 
 /**
+ * /documents/ на nginx за прокси часто даёт 301 → http://…/documents (без TLS в Location).
+ * Всегда ходим на /documents без завершающего слэша.
+ */
+export function normalizeDocumentsPath(url) {
+    if (typeof url !== 'string' || url === '') {
+        return url;
+    }
+
+    try {
+        if (url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://')) {
+            const parsed = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'https://localhost');
+            const path = parsed.pathname.replace(/\/+$/, '') || '/';
+
+            if (path === '/documents') {
+                parsed.pathname = '/documents';
+
+                if (url.startsWith('/')) {
+                    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+                }
+
+                return parsed.href;
+            }
+        }
+    } catch {
+        /* ignore */
+    }
+
+    if (url === '/documents/' || url.endsWith('/documents/')) {
+        return url.replace(/\/documents\/+$/, '/documents');
+    }
+
+    return url;
+}
+
+/**
  * На HTTPS-странице поднимает http:// того же хоста до https://.
- * Относительные пути (/orders, /documents/) не превращаем в абсолютный URL — иначе Inertia/axios
- * хуже переживают ответы прокси; главное — не ходить на http:// вручную.
+ * Относительные пути не превращаем в абсолютный URL.
  */
 export function coerceHttpsUrl(url) {
     if (typeof window === 'undefined' || window.location.protocol !== 'https:') {
-        return url;
+        return typeof url === 'string' ? normalizeDocumentsPath(url) : url;
     }
 
     const raw = url instanceof URL ? url.href : url;
@@ -16,42 +50,31 @@ export function coerceHttpsUrl(url) {
         return url;
     }
 
-    if (raw.startsWith('http://')) {
+    let next = raw;
+
+    if (next.startsWith('http://')) {
         try {
-            const parsed = new URL(raw);
+            const parsed = new URL(next);
 
             if (parsed.hostname === window.location.hostname) {
-                const httpsHref = parsed.href.replace(/^http:/, 'https:');
-
-                return url instanceof URL ? new URL(httpsHref) : httpsHref;
+                next = parsed.href.replace(/^http:/, 'https:');
             }
         } catch {
             return url;
         }
     }
 
-    if (raw.startsWith('https://')) {
-        return url;
+    next = normalizeDocumentsPath(next);
+
+    if (next.startsWith('https://')) {
+        return url instanceof URL ? new URL(next) : next;
     }
 
-    if (raw.startsWith('/')) {
-        return url instanceof URL ? url : raw;
+    if (next.startsWith('/')) {
+        return url instanceof URL ? url : next;
     }
 
-    return url;
-}
-
-/** Пути CRM, для которых на nginx нельзя оставлять URL без слэша (каталог public/documents/ на старых деплоях). */
-export function normalizeCrmInertiaPath(path) {
-    if (typeof path !== 'string') {
-        return path;
-    }
-
-    if (path === '/documents') {
-        return '/documents/';
-    }
-
-    return path;
+    return next;
 }
 
 function applyVisitUrl(visit, next) {
@@ -64,7 +87,7 @@ function applyVisitUrl(visit, next) {
 
 /** Безопасный переход по пути меню (относительный URL текущего origin). */
 export function visitInertiaPath(path) {
-    router.visit(coerceHttpsUrl(normalizeCrmInertiaPath(path)));
+    router.visit(coerceHttpsUrl(path));
 }
 
 /** Ziggy в HTML может содержать http:// из закэшированного config — выравниваем под страницу. */
@@ -122,7 +145,7 @@ function patchRouterVisit() {
 
     router.visit = (href, options = {}) => {
         if (typeof href === 'string') {
-            return originalVisit(coerceHttpsUrl(normalizeCrmInertiaPath(href)), options);
+            return originalVisit(coerceHttpsUrl(href), options);
         }
 
         if (href instanceof URL) {
@@ -130,13 +153,7 @@ function patchRouterVisit() {
         }
 
         if (href !== null && typeof href === 'object' && 'url' in href && 'method' in href) {
-            const visitUrl = href.url instanceof URL ? href.url.href : href.url;
-            const normalized =
-                typeof visitUrl === 'string'
-                    ? coerceHttpsUrl(normalizeCrmInertiaPath(visitUrl))
-                    : coerceHttpsUrl(visitUrl);
-
-            return originalVisit({ ...href, url: normalized }, options);
+            return originalVisit({ ...href, url: coerceHttpsUrl(href.url) }, options);
         }
 
         return originalVisit(href, options);
@@ -157,9 +174,7 @@ router.on('before', (event) => {
     }
 
     const current = visit.url instanceof URL ? visit.url.href : visit.url;
-    const normalized =
-        typeof current === 'string' ? normalizeCrmInertiaPath(current) : current;
-    const next = coerceHttpsUrl(normalized);
+    const next = coerceHttpsUrl(current);
 
     if (next !== current) {
         applyVisitUrl(visit, next);

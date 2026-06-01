@@ -1,9 +1,13 @@
-# Пример для nginx (ISPmanager / vhost CRM), если на сервере ещё есть каталог public/documents/.
-# Симптом: GET https://crm.example.ru/documents → 301 Location: http://crm.example.ru/documents/
-# и Mixed Content в браузере при переходе в модуль «Документы».
+# nginx (ISPmanager): два типичных симптома Mixed Content для CRM «Документы»:
 #
-# Предпочтительно: удалить public/documents/ и перенести SLA-PDF в public/showcase-sla/ (см. config/showcase.php).
+# 1) Был каталог public/documents/ → удалить, SLA-PDF в public/showcase-sla/ (config/showcase.php).
 #
-# location = /documents {
-#     try_files /index.php?$query_string;
-# }
+# 2) GET https://crm…/documents/ → 301 Location: http://crm…/documents
+#    (слэш в конце + прокси без X-Forwarded-Proto). Исправление:
+#    - в .env: FORCE_HTTPS=true  и  APP_URL=https://crm.avtoaliyans.ru
+#    - в vhost за прокси: proxy_set_header X-Forwarded-Proto $scheme;
+#      (или $http_x_forwarded_proto / https при SSL-терминации)
+#
+# Проверка:
+#   curl -I https://crm.avtoaliyans.ru/documents      → 302 на login (https), не 301 на http
+#   curl -I https://crm.avtoaliyans.ru/documents/    → лучше тоже без Location: http://…

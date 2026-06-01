@@ -669,7 +669,7 @@ const MENU_ROUTES = {
     'fleet-efficiency': '/fleet/efficiency',
     'fleet-containers': '/fleet/containers',
     'fleet-drivers': '/drivers',
-    documents: '/documents/',
+    documents: '/documents',
     mail: '/mail',
     finance: '/finance',
     'finance-cashflow': '/finance?section=cashflow',
