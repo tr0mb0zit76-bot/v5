@@ -59,12 +59,10 @@ class OrderInlineFieldUpdateService
             'track_received_date_customer',
             'track_received_date_carrier',
         ], true)) {
-            $dealTypeChanged = in_array($field, ['customer_payment_form', 'carrier_payment_form'], true);
             $this->orderCompensationService->recalculateImpactedPeriods(
                 $syncOrder,
                 null,
                 $previousOrderDate,
-                $dealTypeChanged,
             );
         }
 

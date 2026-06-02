@@ -88,8 +88,6 @@ class OrderWizardService
             $previousOrderDate = optional($order->order_date)?->toDateString();
             $previousManagerId = $order->manager_id;
 
-            // Check if deal type changed
-            $oldDealType = $this->orderCompensationService->calculateOrder($order)['deal_type'];
             $ownCompany = $this->resolveOwnCompany($validated);
             $generatedNumber = blank($validated['order_number'] ?? null)
                 ? $this->orderNumberGenerator->generate($ownCompany)
@@ -101,10 +99,8 @@ class OrderWizardService
             $this->syncNestedData($order, $validated, $user);
 
             $updatedOrder = $order->fresh();
-            $newDealType = $this->orderCompensationService->calculateOrder($updatedOrder)['deal_type'];
-            $dealTypeChanged = $oldDealType !== $newDealType && $oldDealType !== 'unknown' && $newDealType !== 'unknown';
 
-            $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate, $dealTypeChanged);
+            $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate);
             $this->syncDerivedStatus($updatedOrder, $validated, $user, $previousStatus);
 
             $this->orderWizardStateService->persistFromValidated($updatedOrder->fresh(), $validated);

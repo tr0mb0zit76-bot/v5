@@ -12,8 +12,16 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('users', function (Blueprint $table) {
-            $table->json('ui_preferences')->nullable()->after('mobile_nav_keys');
+        if (Schema::hasColumn('users', 'mobile_nav_keys')) {
+            Schema::table('users', function (Blueprint $table): void {
+                $table->json('ui_preferences')->nullable()->after('mobile_nav_keys');
+            });
+
+            return;
+        }
+
+        Schema::table('users', function (Blueprint $table): void {
+            $table->json('ui_preferences')->nullable();
         });
     }
 
@@ -23,7 +31,7 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('users', function (Blueprint $table): void {
             $table->dropColumn('ui_preferences');
         });
     }

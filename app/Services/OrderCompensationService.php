@@ -7,7 +7,6 @@ use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CarrierRateFromFinancialTerms;
-use App\Support\CashToCashMarginCalculator;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
@@ -40,7 +39,6 @@ class OrderCompensationService
         Order $order,
         ?int $previousManagerId = null,
         ?string $previousOrderDate = null,
-        bool $dealTypeChanged = false,
     ): void {
         $targets = collect([
             [
@@ -59,17 +57,6 @@ class OrderCompensationService
             $this->recalculateManagerPeriod((int) $target['manager_id'], (string) $target['order_date']);
         }
 
-        // If deal type changed, recalculate entire period for all managers
-        if ($dealTypeChanged) {
-            $affectedDates = collect([
-                $previousOrderDate,
-                optional($order->order_date)?->toDateString(),
-            ])->filter()->unique()->all();
-
-            foreach ($affectedDates as $date) {
-                $this->recalculatePeriodForAllManagers($date);
-            }
-        }
     }
 
     public function recalculatePeriodForAllManagers(string $date): void
@@ -146,14 +133,6 @@ class OrderCompensationService
             ];
         }
 
-        $period = $this->periodCalculator->getPeriodForDate($order->order_date->toDateString());
-        $periodStats = $this->periodCalculator->getManagerPeriodStats(
-            (int) $order->manager_id,
-            $period['start'],
-            $period['end'],
-        );
-
-        $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $customerRate = (float) ($order->customer_rate ?? 0);
         $carrierRate = CarrierRateFromFinancialTerms::resolveForOrder($order);
@@ -162,17 +141,13 @@ class OrderCompensationService
         $bonus = (float) ($order->bonus ?? 0);
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
         $contractorsCosts = $this->extractContractorsCosts($order);
-        $cashToCash = CashToCashMarginCalculator::isCashToCash(
-            (string) ($order->customer_payment_form ?? ''),
-            $contractorsCosts,
-        );
+        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmount($customerRate, $dealType);
+        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercent($customerRate, $dealType);
         $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
             (string) ($order->customer_payment_form ?? ''),
             $contractorsCosts,
         );
-        $delta = $cashToCash
-            ? ($customerRate - $expense)
-            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense + $vatMarginSupplement);
+        $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate(
             (int) $order->manager_id,
@@ -218,24 +193,15 @@ class OrderCompensationService
             ];
         }
 
-        // Get period stats for KPI calculation
-        $period = $this->periodCalculator->getPeriodForDate($orderDate);
-        $periodStats = $this->periodCalculator->getManagerPeriodStats($managerId, $period['start'], $period['end']);
-
-        $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($dealType, $periodStats['direct_ratio']);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
-        $cashToCash = CashToCashMarginCalculator::isCashToCash(
-            isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
-            $contractorsCosts,
-        );
+        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmount($customerRate, $dealType);
+        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercent($customerRate, $dealType);
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
         $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
         );
-        $delta = $cashToCash
-            ? ($customerRate - $expense)
-            : ($customerRate - ($customerRate * ($kpiPercent / 100)) - $expense + $vatMarginSupplement);
+        $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
         $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
@@ -249,7 +215,7 @@ class OrderCompensationService
     }
 
     /**
-     * Считалка: KPI и маржа, если текущую заявку учесть в периоде как прямую или кривую.
+     * Считалка: KPI и маржа для сценария безнал или наличка.
      *
      * @param  array{
      *     customer_rate?: float,
@@ -268,17 +234,12 @@ class OrderCompensationService
      *     delta: float,
      *     salary_accrued: float,
      *     deal_type: string,
-     *     projected_direct_ratio: float,
-     *     period_orders_before: int,
-     *     period_direct_before: int,
-     *     period_orders_after: int,
-     *     period_direct_after: int,
      * }
      */
-    public function calculateMarginScenario(array $data, string $scenarioDealType): array
+    public function calculateMarginScenario(array $data, string $scenarioPaymentCategory): array
     {
-        if (! in_array($scenarioDealType, ['direct', 'indirect'], true)) {
-            throw new \InvalidArgumentException('scenarioDealType must be direct or indirect.');
+        if (! in_array($scenarioPaymentCategory, ['vat', 'cash', 'vat_zero_22'], true)) {
+            throw new \InvalidArgumentException('scenarioPaymentCategory must be vat, cash or vat_zero_22.');
         }
 
         $customerRate = (float) ($data['customer_rate'] ?? 0);
@@ -296,33 +257,18 @@ class OrderCompensationService
                 'delta' => 0.0,
                 'salary_accrued' => 0.0,
                 'deal_type' => 'unknown',
-                'projected_direct_ratio' => 0.0,
-                'period_orders_before' => 0,
-                'period_direct_before' => 0,
-                'period_orders_after' => 0,
-                'period_direct_after' => 0,
             ];
         }
 
-        $period = $this->periodCalculator->getPeriodForDate($orderDate);
-        $periodStats = $this->periodCalculator->getManagerPeriodStats($managerId, $period['start'], $period['end']);
-
-        $periodOrdersBefore = (int) $periodStats['total'];
-        $periodDirectBefore = (int) $periodStats['direct'];
-        $periodOrdersAfter = $periodOrdersBefore + 1;
-        $periodDirectAfter = $periodDirectBefore + ($scenarioDealType === 'direct' ? 1 : 0);
-        $projectedDirectRatio = $periodOrdersAfter > 0
-            ? round($periodDirectAfter / $periodOrdersAfter, 4)
-            : 0.0;
-
-        $kpiPercent = $this->kpiConfigurationService->resolveKpiPercentForDeal($scenarioDealType, $projectedDirectRatio);
+        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmount($customerRate, $scenarioPaymentCategory);
+        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercent($customerRate, $scenarioPaymentCategory);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
         $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
         );
-        $delta = $customerRate - ($customerRate * ($kpiPercent / 100)) - $expense + $vatMarginSupplement;
+        $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
         $salaryCoefficient = SalaryCoefficient::getForManagerOnDate($managerId, $orderDate);
         $salaryAccrued = $this->resolveSalaryAccrued($delta, $salaryCoefficient);
@@ -331,12 +277,7 @@ class OrderCompensationService
             'kpi_percent' => round($kpiPercent, 2),
             'delta' => round($delta, 2),
             'salary_accrued' => round($salaryAccrued, 2),
-            'deal_type' => $scenarioDealType,
-            'projected_direct_ratio' => $projectedDirectRatio,
-            'period_orders_before' => $periodOrdersBefore,
-            'period_direct_before' => $periodDirectBefore,
-            'period_orders_after' => $periodOrdersAfter,
-            'period_direct_after' => $periodDirectAfter,
+            'deal_type' => $scenarioPaymentCategory,
         ];
     }
 

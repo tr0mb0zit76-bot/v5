@@ -48,7 +48,7 @@
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
             "@php artisan key:generate",
-            "@php artisan migrate --force",
+            "@php artisan migrate --force --schema-path=database/schema/.skip-mysql-cli-load",
             "npm ci",
             "npm run build"
         ],
@@ -63,6 +63,9 @@
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
+        ],
+        "migrate": [
+            "@php artisan migrate --schema-path=database/schema/.skip-mysql-cli-load"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

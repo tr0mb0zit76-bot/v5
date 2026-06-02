@@ -1,7 +1,7 @@
 /**
  * @param {Array<{ value: string, rate_percent?: number|null, is_vat?: boolean }>} paymentFormOptions
  */
-function buildPaymentFormMeta(paymentFormOptions) {
+export function paymentFormMetaFromOptions(paymentFormOptions) {
     const map = new Map();
 
     for (const option of paymentFormOptions ?? []) {
@@ -36,22 +36,40 @@ function resolveMeta(paymentFormMeta, code) {
     }
 
     if (key.startsWith('vat_')) {
-        return { isVat: true, isNoVat: false, ratePercent: null };
+        const match = key.match(/^vat_(\d+(?:\.\d+)?)$/);
+
+        return {
+            isVat: true,
+            isNoVat: false,
+            ratePercent: match ? Number(match[1]) : null,
+        };
     }
 
     if (key === 'no_vat') {
         return { isVat: false, isNoVat: true, ratePercent: null };
     }
 
+    if (key === 'cash') {
+        return { isVat: false, isNoVat: false, ratePercent: null };
+    }
+
     return null;
 }
 
+function ratePercentForCode(paymentFormMeta, code) {
+    const meta = resolveMeta(paymentFormMeta, code);
+
+    return meta?.ratePercent ?? null;
+}
+
 /**
+ * Категория KPI: vat | cash | vat_zero_22 | unknown.
+ *
  * @param {string} customerPaymentForm
  * @param {string[]} carrierPaymentForms
  * @param {Map<string, { isVat: boolean, isNoVat: boolean, ratePercent: number|null }>} paymentFormMeta
  */
-export function classifyDealType(customerPaymentForm, carrierPaymentForms, paymentFormMeta) {
+export function classifyDealType(customerPaymentForm, carrierPaymentForms = [], paymentFormMeta = new Map()) {
     const customer = String(customerPaymentForm ?? '').trim();
     const carriers = (carrierPaymentForms ?? []).map((value) => String(value ?? '').trim()).filter(Boolean);
 
@@ -59,27 +77,18 @@ export function classifyDealType(customerPaymentForm, carrierPaymentForms, payme
         return { key: 'unknown', label: 'Появится после заполнения оплат' };
     }
 
-    const customerMeta = resolveMeta(paymentFormMeta, customer);
+    const allCarriersCash = carriers.every((form) => form === 'cash');
 
-    if (!customerMeta) {
-        return { key: 'unknown', label: 'Появится после заполнения оплат' };
+    if (customer === 'cash' && allCarriersCash) {
+        return { key: 'cash', label: 'Наличка' };
     }
 
-    for (const carrier of carriers) {
-        const carrierMeta = resolveMeta(paymentFormMeta, carrier);
+    const customerRate = ratePercentForCode(paymentFormMeta, customer);
+    const hasCarrier22 = carriers.some((form) => ratePercentForCode(paymentFormMeta, form) === 22);
 
-        if (!carrierMeta) {
-            continue;
-        }
-
-        if ((customerMeta.isVat && carrierMeta.isNoVat) || (customerMeta.isNoVat && carrierMeta.isVat)) {
-            return { key: 'indirect', label: 'Кривая' };
-        }
+    if (customerRate === 0 && hasCarrier22) {
+        return { key: 'vat_zero_22', label: 'НДС 0% / 22%' };
     }
 
-    return { key: 'direct', label: 'Прямая' };
-}
-
-export function paymentFormMetaFromOptions(paymentFormOptions) {
-    return buildPaymentFormMeta(paymentFormOptions);
+    return { key: 'vat', label: 'НДС' };
 }

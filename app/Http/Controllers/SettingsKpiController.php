@@ -32,7 +32,7 @@ class SettingsKpiController extends Controller
 
         return Inertia::render('Settings/Kpi', [
             'bonusMultiplier' => $this->kpiConfigurationService->getBonusMultiplier(),
-            'thresholds' => $this->kpiConfigurationService->groupedThresholds(),
+            'deductionRates' => $this->kpiConfigurationService->deductionRates(),
         ]);
     }
 
@@ -93,7 +93,7 @@ class SettingsKpiController extends Controller
         $validated = $request->validated();
 
         $this->kpiConfigurationService->saveBonusMultiplier((float) $validated['bonus_multiplier']);
-        $this->kpiConfigurationService->replaceThresholds($validated['thresholds']);
+        $this->kpiConfigurationService->saveDeductionRates($validated['deduction_rates']);
 
         return to_route('settings.motivation.kpi');
     }

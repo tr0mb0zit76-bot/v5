@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Маржа по умолчанию: ставка заказчика за вычетом KPI и минус затраты.
- * При форме оплаты «наличные у заказчика и у всех перевозчиков» — без вычета KPI: доход − расход.
+ * Маржа: ставка заказчика за вычетом KPI (эффективный процент уже в $kpiPercent) и минус затраты.
  */
 final class CashToCashMarginCalculator
 {
@@ -37,11 +36,9 @@ final class CashToCashMarginCalculator
         return true;
     }
 
-    public static function margin(float $clientPrice, float $totalCost, float $kpiPercent, bool $cashToCash): float
+    public static function margin(float $clientPrice, float $totalCost, float $kpiPercent, bool $cashToCash = false): float
     {
-        if ($cashToCash) {
-            return $clientPrice - $totalCost;
-        }
+        unset($cashToCash);
 
         return ($clientPrice * (1 - ($kpiPercent / 100))) - $totalCost;
     }

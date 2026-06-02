@@ -8,7 +8,7 @@ use App\Models\VatRate;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Категории формы оплаты для KPI (прямая / кривая сделка) и расчёта маржи.
+ * Категории формы оплаты для расчёта маржи (в т.ч. дополнение при 0% НДС у заказчика).
  */
 final class PaymentFormVat
 {

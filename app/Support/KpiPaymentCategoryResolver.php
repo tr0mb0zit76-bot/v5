@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Support;
+
+/**
+ * Категории KPI по формам оплаты заказчика и перевозчиков (с 01.06).
+ *
+ * — cash: наличка только при наличных у заказчика и у всех перевозчиков на рейсе;
+ * — vat_zero_22: заказчик с НДС 0%, у перевозчика (рейс или плечо) — НДС 22%;
+ * — vat: прочие сочетания (в т.ч. НДС 0% / НДС 0%, безнал, смешанные ставки НДС).
+ */
+final class KpiPaymentCategoryResolver
+{
+    private const CUSTOMER_VAT_ZERO_PERCENT = 0.0;
+
+    private const CARRIER_VAT_STANDARD_PERCENT = 22.0;
+
+    /**
+     * @param  list<string>  $carrierPaymentForms
+     */
+    public static function resolve(?string $customerPaymentForm, array $carrierPaymentForms): string
+    {
+        $customer = mb_strtolower(trim((string) $customerPaymentForm), 'UTF-8');
+
+        if ($customer === '') {
+            return 'unknown';
+        }
+
+        $carriers = self::normalizeCarrierForms($carrierPaymentForms);
+
+        if ($carriers === []) {
+            return 'unknown';
+        }
+
+        if (self::isCashDeal($customer, $carriers)) {
+            return 'cash';
+        }
+
+        if (self::isVatZeroCustomerStandardVatCarrierDeal($customer, $carriers)) {
+            return 'vat_zero_22';
+        }
+
+        return 'vat';
+    }
+
+    /**
+     * @param  list<string>  $carrierPaymentForms
+     * @return list<string>
+     */
+    private static function normalizeCarrierForms(array $carrierPaymentForms): array
+    {
+        return collect($carrierPaymentForms)
+            ->map(fn (mixed $value): string => mb_strtolower(trim((string) $value), 'UTF-8'))
+            ->filter(fn (string $value): bool => $value !== '' && $value !== 'mixed')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $carrierPaymentForms
+     */
+    private static function isCashDeal(string $customerPaymentForm, array $carrierPaymentForms): bool
+    {
+        if ($customerPaymentForm !== 'cash') {
+            return false;
+        }
+
+        foreach ($carrierPaymentForms as $carrierForm) {
+            if ($carrierForm !== 'cash') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<string>  $carrierPaymentForms
+     */
+    private static function isVatZeroCustomerStandardVatCarrierDeal(string $customerPaymentForm, array $carrierPaymentForms): bool
+    {
+        if (PaymentFormVat::ratePercentForCode($customerPaymentForm) !== self::CUSTOMER_VAT_ZERO_PERCENT) {
+            return false;
+        }
+
+        foreach ($carrierPaymentForms as $carrierForm) {
+            if (PaymentFormVat::ratePercentForCode($carrierForm) === self::CARRIER_VAT_STANDARD_PERCENT) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

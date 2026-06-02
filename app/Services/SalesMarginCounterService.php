@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Support\PaymentFormDictionary;
-
 class SalesMarginCounterService
 {
-    public const SCENARIO_DIRECT_WITH_VAT = 'direct_with_vat';
+    public const SCENARIO_VAT = 'vat';
 
-    public const SCENARIO_DIRECT_WITHOUT_VAT = 'direct_without_vat';
+    public const SCENARIO_CASH = 'cash';
 
-    public const SCENARIO_INDIRECT = 'indirect';
+    public const SCENARIO_VAT_ZERO_22 = 'vat_zero_22';
 
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
@@ -38,20 +36,18 @@ class SalesMarginCounterService
         $carrierWithout = $this->nullableAmount($input['carrier_without_vat'] ?? null);
         $carrierWith = $this->nullableAmount($input['carrier_with_vat'] ?? null);
 
-        $defaultVatForm = PaymentFormDictionary::defaultClientVatCode();
-
         $result = [
             'fixed_expense' => round($fixedExpense, 2),
             'scenarios' => [
                 $this->buildScenario(
-                    self::SCENARIO_DIRECT_WITH_VAT,
-                    'direct',
-                    'Прямая с НДС',
-                    $customerWith,
-                    $carrierWith,
-                    $defaultVatForm,
-                    $defaultVatForm,
-                    'Ставки из полей «С НДС» у заказчика и перевозчика.',
+                    self::SCENARIO_VAT,
+                    'vat',
+                    'НДС',
+                    $customerWith ?? $customerWithout,
+                    $carrierWith ?? $carrierWithout,
+                    'vat_0',
+                    'vat_0',
+                    'НДС: сочетания ставок НДС (в т.ч. 0% / 0%), безнал; наличные у заказчика без наличных у перевозчика.',
                     $managerId,
                     $orderDate,
                     $additionalExpenses,
@@ -60,14 +56,14 @@ class SalesMarginCounterService
                     $fixedExpense,
                 ),
                 $this->buildScenario(
-                    self::SCENARIO_DIRECT_WITHOUT_VAT,
-                    'direct',
-                    'Прямая без НДС',
-                    $customerWithout,
-                    $carrierWithout,
-                    'no_vat',
-                    'no_vat',
-                    'Ставки из полей «Без НДС» у заказчика и перевозчика.',
+                    self::SCENARIO_CASH,
+                    'cash',
+                    'Наличка',
+                    $customerWithout ?? $customerWith,
+                    $carrierWithout ?? $carrierWith,
+                    'cash',
+                    'cash',
+                    'Наличка: наличные у заказчика и у перевозчика; два вычета KPI с суммы заказчика.',
                     $managerId,
                     $orderDate,
                     $additionalExpenses,
@@ -76,14 +72,14 @@ class SalesMarginCounterService
                     $fixedExpense,
                 ),
                 $this->buildScenario(
-                    self::SCENARIO_INDIRECT,
-                    'indirect',
-                    'Кривая (с НДС клиент, без НДС перевозчик)',
-                    $customerWith,
-                    $carrierWithout,
-                    $defaultVatForm,
-                    'no_vat',
-                    'Заказчик — только поле «С НДС», перевозчик — «Без НДС».',
+                    self::SCENARIO_VAT_ZERO_22,
+                    'vat_zero_22',
+                    'НДС 0% / 22%',
+                    $customerWith ?? $customerWithout,
+                    $carrierWith ?? $carrierWithout,
+                    'vat_0',
+                    'vat_22',
+                    'Заказчик с НДС 0%, перевозчик с НДС 22% (рейс или плечо); к марже добавляется доплата из бюджета.',
                     $managerId,
                     $orderDate,
                     $additionalExpenses,
@@ -109,7 +105,7 @@ class SalesMarginCounterService
      */
     private function buildScenario(
         string $scenarioKey,
-        string $dealType,
+        string $paymentCategory,
         string $label,
         ?float $customerAmount,
         ?float $carrierAmount,
@@ -125,7 +121,7 @@ class SalesMarginCounterService
     ): array {
         $column = [
             'scenario_key' => $scenarioKey,
-            'deal_type' => $dealType,
+            'deal_type' => $paymentCategory,
             'deal_type_label' => $label,
             'amount_comment' => $amountComment,
             'customer_amount' => $customerAmount,
@@ -171,7 +167,7 @@ class SalesMarginCounterService
             ],
         ];
 
-        $evaluation = $this->orderCompensationService->calculateMarginScenario($compensationPayload, $dealType);
+        $evaluation = $this->orderCompensationService->calculateMarginScenario($compensationPayload, $paymentCategory);
         $delta = (float) $evaluation['delta'];
         $marginPercent = $customerAmount > 0 ? ($delta / $customerAmount) * 100 : 0.0;
 
@@ -179,7 +175,7 @@ class SalesMarginCounterService
         $column['margin_percent'] = round($marginPercent, 2);
         $column['kpi_percent'] = round((float) $evaluation['kpi_percent'], 2);
         $column['comment'] = sprintf(
-            'Заказчик %s ₽, перевозчик %s ₽, доп. расходы %s ₽ (в т.ч. бонус с коэфф.). Маржа %s ₽ (%s%%). KPI периода %s%%.',
+            'Заказчик %s ₽, перевозчик %s ₽, доп. расходы %s ₽ (в т.ч. бонус с коэфф.). Маржа %s ₽ (%s%%). KPI %s%%.',
             $this->formatAmount($customerAmount),
             $this->formatAmount($carrierAmount),
             $this->formatAmount($fixedExpense),
@@ -202,7 +198,7 @@ class SalesMarginCounterService
     ): array {
         return [
             'Поля «Без НДС» и «С НДС» не связаны: вводите суммы независимо.',
-            'Три столбца — три способа прочитать одни и те же цифры (прямая с НДС, прямая без НДС, кривая).',
+            'Три столбца: НДС, наличка (только при наличных у перевозчика), НДС 0% у заказчика и 22% у перевозчика.',
             $this->filledFieldsHint($customerWithout, $customerWith, $carrierWithout, $carrierWith),
         ];
     }

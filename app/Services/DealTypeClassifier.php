@@ -5,12 +5,14 @@ namespace App\Services;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Support\CarrierPaymentFormResolver;
-use App\Support\PaymentFormVat;
+use App\Support\KpiPaymentCategoryResolver;
 use Illuminate\Support\Facades\Schema;
 
 class DealTypeClassifier
 {
     /**
+     * Категория KPI: {@see KpiPaymentCategoryResolver}.
+     *
      * @param  array<string, mixed>|Order  $order
      */
     public function classify(array|Order $order): string
@@ -21,15 +23,10 @@ class DealTypeClassifier
 
         $carrierPaymentForms = $this->carrierPaymentForms($order);
 
-        if (blank($customerPaymentForm) || $carrierPaymentForms === []) {
-            return 'unknown';
-        }
-
-        if (PaymentFormVat::isIndirectDeal((string) $customerPaymentForm, $carrierPaymentForms)) {
-            return 'indirect';
-        }
-
-        return 'direct';
+        return KpiPaymentCategoryResolver::resolve(
+            is_string($customerPaymentForm) ? $customerPaymentForm : null,
+            $carrierPaymentForms,
+        );
     }
 
     /**
@@ -43,6 +40,16 @@ class DealTypeClassifier
 
             if ($costs !== []) {
                 return $this->uniquePaymentFormsFromCosts($costs);
+            }
+
+            if (Schema::hasColumn('orders', 'carrier_payment_form')) {
+                $carrier = $order->carrier_payment_form;
+
+                if (blank($carrier) || (string) $carrier === 'mixed') {
+                    return [];
+                }
+
+                return [(string) $carrier];
             }
 
             $resolved = CarrierPaymentFormResolver::forOrder($order);
@@ -62,7 +69,7 @@ class DealTypeClassifier
 
         $resolved = $order['carrier_payment_form'] ?? null;
 
-        if (blank($resolved) || $resolved === 'mixed') {
+        if (blank($resolved) || (string) $resolved === 'mixed') {
             return [];
         }
 

@@ -3,16 +3,32 @@
 namespace App\Services;
 
 use App\Models\KpiSetting;
-use App\Models\KpiThreshold;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
+use App\Support\KpiCustomerDeduction;
 use Illuminate\Support\Facades\Schema;
 
 class KpiConfigurationService
 {
     public const BONUS_MULTIPLIER_KEY = 'delta_bonus_multiplier';
 
+    public const VAT_PERCENT_KEY = 'vat_kpi_percent';
+
+    public const CASHLESS_PERCENT_KEY = 'cashless_kpi_percent';
+
+    public const VAT_ZERO_22_PERCENT_KEY = 'vat_zero_22_kpi_percent';
+
+    public const CASH_PRIMARY_PERCENT_KEY = 'cash_primary_kpi_percent';
+
+    public const CASH_SECONDARY_PERCENT_KEY = 'cash_secondary_kpi_percent';
+
     public const DEFAULT_BONUS_MULTIPLIER = 1.3;
+
+    public const DEFAULT_VAT_PERCENT = 3.0;
+
+    public const DEFAULT_VAT_ZERO_22_PERCENT = 3.0;
+
+    public const DEFAULT_CASH_PRIMARY_PERCENT = 3.0;
+
+    public const DEFAULT_CASH_SECONDARY_PERCENT = 21.0;
 
     public function getBonusMultiplier(): float
     {
@@ -37,121 +53,113 @@ class KpiConfigurationService
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array{
+     *     vat_percent: float,
+     *     vat_zero_22_percent: float,
+     *     cash_primary_percent: float,
+     *     cash_secondary_percent: float,
+     * }
      */
-    public function groupedThresholds(): array
+    public function deductionRates(): array
     {
-        if (! Schema::hasTable('kpi_thresholds')) {
-            return $this->defaultThresholdRows();
+        if (! Schema::hasTable('kpi_settings')) {
+            return $this->defaultDeductionRates();
         }
 
-        $thresholds = KpiThreshold::active();
-
-        if ($thresholds->isEmpty()) {
-            return $this->defaultThresholdRows();
-        }
-
-        return $thresholds
-            ->groupBy(fn (KpiThreshold $threshold): string => $threshold->threshold_from.'|'.$threshold->threshold_to)
-            ->map(function (Collection $group): array {
-                /** @var KpiThreshold|null $direct */
-                $direct = $group->firstWhere('deal_type', 'direct');
-                /** @var KpiThreshold|null $indirect */
-                $indirect = $group->firstWhere('deal_type', 'indirect');
-
-                return [
-                    'threshold_from' => (float) ($direct?->threshold_from ?? $indirect?->threshold_from ?? 0),
-                    'threshold_to' => (float) ($direct?->threshold_to ?? $indirect?->threshold_to ?? 0),
-                    'direct_kpi' => (int) ($direct?->kpi_percent ?? 0),
-                    'indirect_kpi' => (int) ($indirect?->kpi_percent ?? 0),
-                ];
-            })
-            ->sortBy('threshold_from')
-            ->values()
-            ->all();
+        return [
+            'vat_percent' => $this->readVatPercentSetting(),
+            'vat_zero_22_percent' => $this->readPercentSetting(self::VAT_ZERO_22_PERCENT_KEY, self::DEFAULT_VAT_ZERO_22_PERCENT),
+            'cash_primary_percent' => $this->readPercentSetting(self::CASH_PRIMARY_PERCENT_KEY, self::DEFAULT_CASH_PRIMARY_PERCENT),
+            'cash_secondary_percent' => $this->readPercentSetting(self::CASH_SECONDARY_PERCENT_KEY, self::DEFAULT_CASH_SECONDARY_PERCENT),
+        ];
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $rows
+     * @param  array{
+     *     vat_percent: float|int,
+     *     vat_zero_22_percent: float|int,
+     *     cash_primary_percent: float|int,
+     *     cash_secondary_percent: float|int,
+     * }  $rates
      */
-    public function replaceThresholds(array $rows): void
+    public function saveDeductionRates(array $rates): void
     {
-        DB::transaction(function () use ($rows): void {
-            KpiThreshold::query()->delete();
+        KpiSetting::setValue(
+            self::VAT_PERCENT_KEY,
+            number_format((float) $rates['vat_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Вычет KPI для сделок с НДС, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::VAT_ZERO_22_PERCENT_KEY,
+            number_format((float) $rates['vat_zero_22_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Вычет KPI при НДС 0% у заказчика и 22% у перевозчика, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::CASH_PRIMARY_PERCENT_KEY,
+            number_format((float) $rates['cash_primary_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Первый вычет KPI для налички, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::CASH_SECONDARY_PERCENT_KEY,
+            number_format((float) $rates['cash_secondary_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Второй вычет KPI для налички, % от суммы заказчика',
+        );
+    }
 
-            $payload = collect($rows)
-                ->flatMap(fn (array $row): array => [
-                    [
-                        'deal_type' => 'direct',
-                        'threshold_from' => $row['threshold_from'],
-                        'threshold_to' => $row['threshold_to'],
-                        'kpi_percent' => $row['direct_kpi'],
-                        'is_active' => true,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ],
-                    [
-                        'deal_type' => 'indirect',
-                        'threshold_from' => $row['threshold_from'],
-                        'threshold_to' => $row['threshold_to'],
-                        'kpi_percent' => $row['indirect_kpi'],
-                        'is_active' => true,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ],
-                ])
-                ->all();
+    public function kpiDeductionAmount(float $customerRate, string $paymentCategory): float
+    {
+        return KpiCustomerDeduction::amount($customerRate, $paymentCategory, $this->deductionRates());
+    }
 
-            if ($payload !== []) {
-                KpiThreshold::query()->insert($payload);
-            }
-        });
+    public function effectiveKpiPercent(float $customerRate, string $paymentCategory): float
+    {
+        return KpiCustomerDeduction::effectivePercent(
+            $customerRate,
+            $this->kpiDeductionAmount($customerRate, $paymentCategory),
+        );
+    }
+
+    private function readVatPercentSetting(): float
+    {
+        $vat = KpiSetting::getValue(self::VAT_PERCENT_KEY, null);
+
+        if (is_numeric($vat)) {
+            return (float) $vat;
+        }
+
+        return $this->readPercentSetting(self::CASHLESS_PERCENT_KEY, self::DEFAULT_VAT_PERCENT);
+    }
+
+    private function readPercentSetting(string $key, float $default): float
+    {
+        $value = KpiSetting::getValue($key, $default);
+
+        return is_numeric($value) ? (float) $value : $default;
     }
 
     /**
-     * KPI по доле прямых сделок за период и типу текущей сделки.
-     *
-     * Если доля попадает в несколько интервалов (пересечение на границах), берётся строка с
-     * наибольшим `threshold_from` — более «узкий» верхний диапазон (например 0.5–1.0, а не 0–0.5).
+     * @return array{
+     *     vat_percent: float,
+     *     vat_zero_22_percent: float,
+     *     cash_primary_percent: float,
+     *     cash_secondary_percent: float,
+     * }
      */
-    public function resolveKpiPercentForDeal(string $dealType, float $directRatio): float
-    {
-        $thresholds = collect($this->groupedThresholds());
-
-        if ($thresholds->isEmpty()) {
-            return 0.0;
-        }
-
-        $matches = $thresholds->filter(function (array $threshold) use ($directRatio): bool {
-            return $directRatio >= (float) $threshold['threshold_from']
-                && $directRatio <= (float) $threshold['threshold_to'];
-        });
-
-        $matchedThreshold = $matches
-            ->sortByDesc(fn (array $t): float => (float) $t['threshold_from'])
-            ->first();
-
-        if ($matchedThreshold === null) {
-            $matchedThreshold = $thresholds
-                ->sortByDesc('threshold_from')
-                ->first(fn (array $threshold): bool => $directRatio >= (float) $threshold['threshold_from'])
-                ?? $thresholds->sortByDesc('threshold_from')->first();
-        }
-
-        return (float) ($dealType === 'direct'
-            ? ($matchedThreshold['direct_kpi'] ?? 0)
-            : ($matchedThreshold['indirect_kpi'] ?? 0));
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function defaultThresholdRows(): array
+    private function defaultDeductionRates(): array
     {
         return [
-            ['threshold_from' => 0.00, 'threshold_to' => 0.24, 'direct_kpi' => 3, 'indirect_kpi' => 7],
-            ['threshold_from' => 0.25, 'threshold_to' => 0.49, 'direct_kpi' => 4, 'indirect_kpi' => 8],
-            ['threshold_from' => 0.50, 'threshold_to' => 1.00, 'direct_kpi' => 5, 'indirect_kpi' => 9],
+            'vat_percent' => self::DEFAULT_VAT_PERCENT,
+            'vat_zero_22_percent' => self::DEFAULT_VAT_ZERO_22_PERCENT,
+            'cash_primary_percent' => self::DEFAULT_CASH_PRIMARY_PERCENT,
+            'cash_secondary_percent' => self::DEFAULT_CASH_SECONDARY_PERCENT,
         ];
     }
 }
