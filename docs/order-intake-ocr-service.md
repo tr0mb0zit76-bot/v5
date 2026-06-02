@@ -8,7 +8,7 @@
 - [nextcloud-install.md](./nextcloud-install.md) — WebDAV-хранилище (OCR в NC **не** обязателен)
 - [ai-platform-architecture.md](./ai-platform-architecture.md) — уровень 2/3, gate для LLM
 
-**Статус:** 📋 каркас в `deploy/ocr/` + `OcrServiceClient` (ещё не подключён к intake)
+**Статус:** ✅ `OcrServiceClient` подключён в `DocumentTextExtractor` (при `ORDER_INTAKE_OCR=local`); sidecar — `deploy/ocr/`
 
 ---
 
@@ -94,24 +94,18 @@ OCR_SERVICE_TIMEOUT=120
 
 ## Прод
 
+**Пошаговая инструкция:** [order-intake-ocr-production.md](./order-intake-ocr-production.md)
+
+Кратко:
+
 ```bash
 cd deploy/ocr
-cp .env.example .env   # OCR_PORT=3001, TZ=Europe/Moscow
+cp .env.example .env
 docker compose -f docker-compose.prod.yml up -d --build
-```
-
-На CRM-сервере в `.env`:
-
-```env
-OCR_SERVICE_URL=http://127.0.0.1:3001
-```
-
-Проверка с хоста, где крутится PHP:
-
-```bash
 curl -s http://127.0.0.1:3001/health
-php artisan config:show document_ocr
 ```
+
+В `.env` CRM: `ORDER_INTAKE_OCR=local`, `OCR_SERVICE_URL=http://127.0.0.1:3001`, затем `php artisan documents:probe-ocr`.
 
 ---
 
@@ -163,13 +157,13 @@ OCR на больших PDF может занимать 30–120 с. Не дер
 
 ---
 
-## Чеклист интеграции (завтра)
+## Чеклист интеграции
 
-- [ ] Поднять `deploy/ocr` локально, `curl /extract` на тестовом скане
-- [ ] Подключить `OcrServiceClient` в `DocumentTextExtractor`
-- [ ] `config/document_ocr.php`, env, `php artisan documents:probe-ocr` (новая команда по аналогии с `documents:probe-nextcloud`)
-- [ ] Feature test: mock HTTP OCR → intake extract
-- [ ] Roadmap 1.6.1: отметить OCR sidecar
+- [x] Поднять `deploy/ocr` локально, `curl /extract` на тестовом скане
+- [x] Подключить `OcrServiceClient` в `DocumentTextExtractor`
+- [x] `config/document_ocr.php`, env, `php artisan documents:probe-ocr`
+- [ ] Feature test: HTTP OCR → intake extract (mock)
+- [x] Roadmap 1.6.1: OCR sidecar
 - [ ] (опц.) Queue job + статус в UI мастера
 - [ ] (опц.) `ORDER_INTAKE_STRUCTURE=template` для типовых заявок без DeepSeek
 

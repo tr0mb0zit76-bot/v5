@@ -7,6 +7,10 @@ use ZipArchive;
 
 final class DocumentTextExtractor
 {
+    public function __construct(
+        private readonly OcrServiceClient $ocrServiceClient,
+    ) {}
+
     /**
      * @return array{text: string, method: string, warnings: list<string>}
      */
@@ -26,11 +30,7 @@ final class DocumentTextExtractor
         return match (true) {
             $extension === 'docx' => $this->extractDocx($path),
             $extension === 'pdf' => $this->extractPdf($path),
-            in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true) => [
-                'text' => '',
-                'method' => 'image',
-                'warnings' => ['Скан/фото пока не распознаётся автоматически — загрузите PDF или DOCX с текстовым слоем.'],
-            ],
+            in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true) => $this->extractImage($path, $extension),
             default => [
                 'text' => '',
                 'method' => 'unsupported',
@@ -123,15 +123,64 @@ final class DocumentTextExtractor
 
         $text = trim(preg_replace('/\s+/u', ' ', implode(' ', $parts)) ?? '');
 
-        $warnings = [];
-        if ($text === '') {
-            $warnings[] = 'В PDF не найден текстовый слой. Возможно, это скан — нужен DOCX или OCR (позже).';
+        if ($text !== '') {
+            return [
+                'text' => $text,
+                'method' => 'pdf',
+                'warnings' => [],
+            ];
+        }
+
+        $ocr = $this->tryOcr($path, 'pdf');
+        if ($ocr !== null) {
+            return $ocr;
         }
 
         return [
-            'text' => $text,
+            'text' => '',
             'method' => 'pdf',
-            'warnings' => $warnings,
+            'warnings' => ['В PDF не найден текстовый слой. Включите ORDER_INTAKE_OCR=local и OCR_SERVICE_URL для сканов.'],
+        ];
+    }
+
+    /**
+     * @return array{text: string, method: string, warnings: list<string>}
+     */
+    private function extractImage(string $path, string $extension): array
+    {
+        $ocr = $this->tryOcr($path, $extension);
+        if ($ocr !== null && trim($ocr['text']) !== '') {
+            return $ocr;
+        }
+
+        $warnings = $ocr['warnings'] ?? [];
+        if ($ocr === null) {
+            $warnings[] = 'Скан/фото: включите ORDER_INTAKE_OCR=local и поднимите OCR sidecar (см. docs/order-intake-ocr-service.md).';
+        } else {
+            $warnings[] = 'OCR не извлёк текст из изображения.';
+        }
+
+        return [
+            'text' => '',
+            'method' => 'image',
+            'warnings' => array_values(array_unique($warnings)),
+        ];
+    }
+
+    /**
+     * @return array{text: string, method: string, warnings: list<string>}|null
+     */
+    private function tryOcr(string $path, string $extension): ?array
+    {
+        $ocr = $this->ocrServiceClient->extractFromPath($path, $extension);
+        if ($ocr === null) {
+            return null;
+        }
+
+        return [
+            'text' => trim($ocr['text']),
+            'method' => (string) ($ocr['method'] ?? 'ocr'),
+            'warnings' => is_array($ocr['warnings'] ?? null) ? $ocr['warnings'] : [],
         ];
     }
 

@@ -2,7 +2,7 @@
 
 Живой документ для согласования приоритетов. Связан с [`ai-platform-architecture.md`](./ai-platform-architecture.md) (уровни AI, DeepSeek, локальная модель).
 
-**Последнее обновление:** 2026-05-28
+**Последнее обновление:** 2026-06-02
 
 ---
 
@@ -161,7 +161,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `DocumentTextExtractor`: PDF (текстовый слой), DOCX; предупреждение для сканов/фото
 - [x] Лимиты: `config/documents.php`, sanitizer перед внешним LLM
 - [x] Поддержка: PDF, JPG/PNG, DOCX (как в реестре документов)
-- [ ] Локальный OCR sidecar: [`deploy/ocr/`](../deploy/ocr/), [`docs/order-intake-ocr-service.md`](./order-intake-ocr-service.md), `OcrServiceClient` → подключить в extractor
+- [x] Локальный OCR sidecar: [`deploy/ocr/`](../deploy/ocr/), [`docs/order-intake-ocr-service.md`](./order-intake-ocr-service.md), `OcrServiceClient` → подключён в `DocumentTextExtractor` (PDF без слоя, JPG/PNG)
 
 #### 1.6.2 Структурирование (LLM)
 
@@ -177,7 +177,8 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 #### 1.6.4 AI / MCP tools
 
-- [ ] `extract_order_draft_from_document` — MCP (файл через HTTP endpoint мастера)
+- [x] `get_order_intake_draft` / `list_order_intake_drafts` — MCP (черновик после POST `/orders/intake/extract`)
+- [ ] `extract_order_draft_from_document` — прямая загрузка файла в MCP (позже)
 - [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
 - [ ] Command bar: загрузка файла в чате
 

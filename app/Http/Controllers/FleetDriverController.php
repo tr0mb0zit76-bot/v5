@@ -176,6 +176,7 @@ class FleetDriverController extends Controller
     {
         return [
             'id' => $driver->id,
+            'show_url' => route('fleet.drivers.show', $driver),
             'carrier_contractor_id' => $driver->carrier_contractor_id,
             'carrier_name' => $driver->carrier?->name,
             'full_name' => $driver->full_name,

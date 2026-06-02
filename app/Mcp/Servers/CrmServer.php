@@ -8,6 +8,7 @@ use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetManagerSalesCoachingInsightsTool;
 use App\Mcp\Tools\GetOrderFieldLexiconTool;
+use App\Mcp\Tools\GetOrderIntakeDraftTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetSalesBookArticleTool;
@@ -15,6 +16,7 @@ use App\Mcp\Tools\GetTaskTool;
 use App\Mcp\Tools\GetTrainerCoachingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
+use App\Mcp\Tools\ListOrderIntakeDraftsTool;
 use App\Mcp\Tools\SearchContractorsTool;
 use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
@@ -48,6 +50,7 @@ use Laravel\Mcp\Server\Tool;
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
+        - get_order_intake_draft / list_order_intake_drafts — черновики заявок после распознавания в мастере
 
         Аутентификация: Bearer Sanctum token.
         MARKDOWN)]
@@ -78,6 +81,8 @@ class CrmServer extends Server
         GetAiUsageInsightsTool::class,
         GetTrainerCoachingInsightsTool::class,
         GetManagerSalesCoachingInsightsTool::class,
+        GetOrderIntakeDraftTool::class,
+        ListOrderIntakeDraftsTool::class,
     ];
 
     /**
