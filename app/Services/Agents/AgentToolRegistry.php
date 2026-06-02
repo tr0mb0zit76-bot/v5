@@ -14,6 +14,7 @@ use App\Services\Mcp\OrderMcpService;
 use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
+use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Support\AiInteractionFeature;
 use App\Support\DispositionSlot;
 use App\Support\RoleAccess;
@@ -39,6 +40,7 @@ class AgentToolRegistry
         private readonly DispositionMcpService $disposition,
         private readonly OrderActivityTimelineService $orderTimeline,
         private readonly AiUsageAnalyticsService $aiUsageAnalytics,
+        private readonly TrainerCoachingInsightsService $trainerCoachingInsights,
     ) {}
 
     /**
@@ -412,7 +414,7 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'search_sales_book_articles',
-                description: 'Поиск статей Книги продаж по заголовку.',
+                description: 'Поиск страниц Книги продаж по заголовку и тексту. Возвращает id, заголовок, excerpt при совпадении в тексте.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
@@ -426,6 +428,48 @@ class AgentToolRegistry
                     $user,
                     (string) ($args['query'] ?? ''),
                     (int) ($args['limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_sales_book_article',
+                description: 'Полный текст страницы Книги продаж по id (markdown). Вызывай после search_sales_book_articles.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'article_id' => ['type' => 'integer', 'minimum' => 1],
+                        'max_chars' => ['type' => 'integer', 'minimum' => 500, 'maximum' => 50000],
+                    ],
+                    'required' => ['article_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canReadSalesBook($user),
+                invoke: fn (User $user, array $args): array => $this->salesBook->get(
+                    $user,
+                    (int) $args['article_id'],
+                    isset($args['max_chars']) ? (int) $args['max_chars'] : null,
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'upsert_sales_book_article',
+                description: 'Создать или обновить дочернюю страницу Книги продаж под указанным родителем (по заголовку родителя).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'parent_title' => ['type' => 'string'],
+                        'title' => ['type' => 'string'],
+                        'markdown_content' => ['type' => 'string'],
+                        'sort_order' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 1000000],
+                    ],
+                    'required' => ['parent_title', 'title', 'markdown_content'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canWriteSalesBook($user),
+                invoke: fn (User $user, array $args): array => $this->salesBook->upsertChildPage(
+                    $user,
+                    (string) $args['parent_title'],
+                    (string) $args['title'],
+                    (string) $args['markdown_content'],
+                    isset($args['sort_order']) ? (int) $args['sort_order'] : null,
                 ),
             ),
             new AgentToolDefinition(
@@ -443,6 +487,27 @@ class AgentToolRegistry
                 invoke: fn (User $user, array $args): array => $this->aiUsageAnalytics->insights(
                     (int) ($args['days'] ?? config('ai.analytics.insights_default_days', 30)),
                     (int) ($args['top_limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_trainer_coaching_insights',
+                description: 'Аналитика тренажёра: тупики, зацикливание диалогов, hotspots по профилям и сценариям, рекомендации по улучшению.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
+                        'sample_limit' => ['type' => 'integer', 'minimum' => 5, 'maximum' => 50],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canViewTrainerAnalytics($user)
+                    || RoleAccess::canViewAiAnalytics($user),
+                invoke: fn (User $user, array $args): array => $this->trainerCoachingInsights->insights(
+                    $user,
+                    (int) ($args['days'] ?? 30),
+                    isset($args['user_id']) ? (int) $args['user_id'] : null,
+                    (int) ($args['sample_limit'] ?? 15),
                 ),
             ),
         ];

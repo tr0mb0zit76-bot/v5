@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('search_sales_book_articles')]
-#[Description('Поиск страниц Книги продаж по заголовку. Требует доступ к разделу «Книга продаж».')]
+#[Description('Поиск страниц Книги продаж по заголовку и тексту. Требует доступ к разделу «Книга продаж».')]
 class SearchSalesBookArticlesTool extends Tool
 {
     use LogsMcpToolCalls;
@@ -47,7 +47,7 @@ class SearchSalesBookArticlesTool extends Tool
     {
         return [
             'query' => $schema->string()
-                ->description('Фрагмент заголовка страницы. Пустая строка — первые страницы в пределах лимита.')
+                ->description('Фрагмент заголовка или текста страницы. Пустая строка — первые страницы в пределах лимита.')
                 ->max(120),
             'limit' => $schema->integer()
                 ->description('Максимум записей (1–50).')

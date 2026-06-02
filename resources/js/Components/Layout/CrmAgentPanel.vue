@@ -30,22 +30,59 @@
                         v-if="messages.length === 0 && !loading"
                         class="text-sm text-zinc-500 dark:text-zinc-400"
                     >
-                        Задайте вопрос по заказам, задачам, диспозиции или контрагентам. Ассистент использует те же данные CRM, что и инструменты для Cursor.
+                        Задайте вопрос по заказам, задачам, диспозиции, инструкциям из Книги продаж или контрагентам.
                     </p>
 
                     <div
                         v-for="(item, index) in messages"
-                        :key="index"
+                        :key="item.turnId ?? `msg-${index}`"
                         class="flex"
                         :class="item.role === 'user' ? 'justify-end' : 'justify-start'"
                     >
                         <div
-                            class="max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed"
+                            class="max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed"
                             :class="item.role === 'user'
-                                ? 'bg-sky-600 text-white'
+                                ? 'whitespace-pre-wrap bg-sky-600 text-white'
                                 : 'border border-zinc-200 bg-zinc-50 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100'"
                         >
-                            {{ item.content }}
+                            <p class="whitespace-pre-wrap">{{ item.content }}</p>
+
+                            <div
+                                v-if="item.role === 'assistant' && item.turnId && !loading"
+                                class="mt-2 flex flex-wrap items-center gap-1 border-t border-zinc-200/80 pt-2 dark:border-zinc-600/80"
+                            >
+                                <span class="mr-1 text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                                    Ответ полезен?
+                                </span>
+                                <button
+                                    type="button"
+                                    class="rounded-lg border px-2 py-1 text-[11px] font-medium transition disabled:opacity-50"
+                                    :class="item.feedback === 'helpful'
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200'"
+                                    :disabled="feedbackBusyTurnId === item.turnId"
+                                    @click="$emit('feedback', { turnId: item.turnId, rating: 'helpful' })"
+                                >
+                                    Да
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-lg border px-2 py-1 text-[11px] font-medium transition disabled:opacity-50"
+                                    :class="item.feedback === 'not_helpful'
+                                        ? 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'
+                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200'"
+                                    :disabled="feedbackBusyTurnId === item.turnId"
+                                    @click="$emit('feedback', { turnId: item.turnId, rating: 'not_helpful' })"
+                                >
+                                    Нет
+                                </button>
+                                <span
+                                    v-if="item.feedback"
+                                    class="text-[10px] text-zinc-500 dark:text-zinc-400"
+                                >
+                                    Спасибо
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -76,9 +113,10 @@ const props = defineProps({
     error: { type: String, default: '' },
     channel: { type: String, default: '' },
     toolRounds: { type: Number, default: 0 },
+    feedbackBusyTurnId: { type: String, default: '' },
 });
 
-defineEmits(['close']);
+defineEmits(['close', 'feedback']);
 
 const threadRef = ref(null);
 

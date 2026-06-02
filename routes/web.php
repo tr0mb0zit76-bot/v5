@@ -179,6 +179,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/agent/command-bar/chat', [CommandBarAgentController::class, 'chat'])
         ->middleware('throttle:agent-command-bar')
         ->name('agent.command-bar.chat');
+    Route::post('/agent/command-bar/feedback', [CommandBarAgentController::class, 'feedback'])
+        ->middleware('throttle:agent-command-bar')
+        ->name('agent.command-bar.feedback');
 
     Route::get('/dashboard', DashboardController::class)->middleware('visibility.area:dashboard')->name('dashboard');
 

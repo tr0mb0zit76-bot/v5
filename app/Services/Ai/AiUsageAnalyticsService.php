@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use App\Support\AiInteractionEventType;
+use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -148,6 +149,9 @@ class AiUsageAnalyticsService
             + ($outcomeCounts[AiInteractionOutcome::Failed->value] ?? 0)
             + ($outcomeCounts[AiInteractionOutcome::Unavailable->value] ?? 0));
 
+        $salesBookGaps = $this->salesBookKnowledgeGaps($since, $sampleLimit);
+        $commandBarFeedback = $this->commandBarFeedbackSummary($since, $sampleLimit);
+
         return [
             'available' => true,
             'period_days' => $days,
@@ -164,16 +168,20 @@ class AiUsageAnalyticsService
                 'total' => (int) ($intakeStats->total ?? 0),
                 'failed' => (int) ($intakeStats->failed ?? 0),
             ],
-            'knowledge_gap_hints' => $this->knowledgeGapHints($topQuestions, $recentWeak),
+            'knowledge_gap_hints' => $this->knowledgeGapHints($topQuestions, $recentWeak, $salesBookGaps, $commandBarFeedback),
+            'sales_book_knowledge_gaps' => $salesBookGaps,
+            'command_bar_feedback' => $commandBarFeedback,
         ];
     }
 
     /**
      * @param  list<array{ask_count: int, weak_or_failed_count: int, sample_prompt: string}>  $topQuestions
      * @param  list<array<string, mixed>>  $recentWeak
+     * @param  list<array<string, mixed>>  $salesBookGaps
+     * @param  array<string, mixed>  $commandBarFeedback
      * @return list<string>
      */
-    private function knowledgeGapHints(array $topQuestions, array $recentWeak): array
+    private function knowledgeGapHints(array $topQuestions, array $recentWeak, array $salesBookGaps, array $commandBarFeedback): array
     {
         $hints = [];
 
@@ -185,6 +193,14 @@ class AiUsageAnalyticsService
             $hints[] = 'Есть повторяющиеся вопросы с слабым или неуспешным ответом — добавьте статьи в Книгу продаж (инструмент upsert_sales_book_article) или уточните системный промпт ассистента.';
         }
 
+        if (count($salesBookGaps) >= 3) {
+            $hints[] = 'Накопились обращения, где ассистент не нашёл ответ в Книге продаж — приоритетно дополните соответствующие страницы.';
+        }
+
+        if (($commandBarFeedback['not_helpful'] ?? 0) >= 3) {
+            $hints[] = 'Есть отрицательные оценки ответов ассистента — просмотрите command_bar_feedback и усильте статьи по этим темам.';
+        }
+
         if (count($recentWeak) >= 5) {
             $hints[] = 'За период накопилось несколько неудачных диалогов — просмотрите recent_weak_or_failed и сопоставьте с пробелами в базе знаний.';
         }
@@ -194,5 +210,80 @@ class AiUsageAnalyticsService
         }
 
         return $hints;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function salesBookKnowledgeGaps(Carbon $since, int $limit): array
+    {
+        return DB::table('ai_interaction_events')
+            ->where('feature', AiInteractionFeature::CommandBar->value)
+            ->where('event_type', AiInteractionEventType::ConversationTurn->value)
+            ->where('created_at', '>=', $since)
+            ->where('metadata->sales_book->gap', true)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get([
+                'created_at',
+                'user_prompt_redacted',
+                'outcome',
+                'metadata',
+            ])
+            ->map(function ($row): array {
+                $metadata = json_decode((string) ($row->metadata ?? ''), true);
+
+                return [
+                    'at' => (string) $row->created_at,
+                    'user_prompt' => (string) ($row->user_prompt_redacted ?? ''),
+                    'outcome' => (string) ($row->outcome ?? ''),
+                    'gap_reason' => is_array($metadata['sales_book'] ?? null)
+                        ? ($metadata['sales_book']['gap_reason'] ?? null)
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{
+     *     helpful: int,
+     *     not_helpful: int,
+     *     recent: list<array<string, mixed>>
+     * }
+     */
+    private function commandBarFeedbackSummary(Carbon $since, int $limit): array
+    {
+        $base = DB::table('ai_interaction_events')
+            ->where('feature', AiInteractionFeature::CommandBar->value)
+            ->where('event_type', AiInteractionEventType::UserFeedback->value)
+            ->where('created_at', '>=', $since);
+
+        $helpful = (int) (clone $base)->where('metadata->rating', 'helpful')->count();
+        $notHelpful = (int) (clone $base)->where('metadata->rating', 'not_helpful')->count();
+
+        $recent = (clone $base)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get(['created_at', 'metadata'])
+            ->map(function ($row): array {
+                $metadata = json_decode((string) ($row->metadata ?? ''), true);
+
+                return [
+                    'at' => (string) $row->created_at,
+                    'rating' => is_array($metadata) ? ($metadata['rating'] ?? null) : null,
+                    'comment' => is_array($metadata) ? ($metadata['comment'] ?? null) : null,
+                    'user_prompt' => is_array($metadata) ? ($metadata['user_prompt_redacted'] ?? null) : null,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'helpful' => $helpful,
+            'not_helpful' => $notHelpful,
+            'recent' => $recent,
+        ];
     }
 }

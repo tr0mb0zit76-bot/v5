@@ -711,6 +711,22 @@ class RoleAccess
     }
 
     /**
+     * Аналитика тренажёра продаж — область sales_assistant_trainer_analytics или admin.
+     */
+    public static function canViewTrainerAnalytics(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_trainer_analytics');
+    }
+
+    /**
      * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
      */
     public static function canManageSalesScripts(?User $user): bool

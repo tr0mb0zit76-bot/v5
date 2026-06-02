@@ -467,7 +467,9 @@
                         :error="agentError"
                         :channel="agentChannel"
                         :tool-rounds="agentToolRounds"
+                        :feedback-busy-turn-id="agentFeedbackBusyTurnId"
                         @close="agentPanelOpen = false"
+                        @feedback="submitAgentFeedback"
                     />
                 </div>
             </footer>
@@ -1333,6 +1335,7 @@ const agentLoading = ref(false);
 const agentError = ref('');
 const agentChannel = ref('');
 const agentToolRounds = ref(0);
+const agentFeedbackBusyTurnId = ref('');
 
 async function handleAiSubmit(payload) {
     const text = String(payload?.message ?? '').trim();
@@ -1361,6 +1364,8 @@ async function handleAiSubmit(payload) {
         agentMessages.value.push({
             role: 'assistant',
             content: String(data?.reply ?? 'Пустой ответ.'),
+            turnId: data?.turn_id ? String(data.turn_id) : null,
+            feedback: null,
         });
         agentChannel.value = String(data?.channel ?? '');
         agentToolRounds.value = Number(data?.tool_rounds ?? 0);
@@ -1376,6 +1381,29 @@ async function handleAiSubmit(payload) {
         agentError.value = message;
     } finally {
         agentLoading.value = false;
+    }
+}
+
+async function submitAgentFeedback({ turnId, rating }) {
+    if (!turnId || agentFeedbackBusyTurnId.value) {
+        return;
+    }
+
+    agentFeedbackBusyTurnId.value = turnId;
+
+    try {
+        await axios.post(route('agent.command-bar.feedback'), {
+            turn_id: turnId,
+            rating,
+        });
+
+        agentMessages.value = agentMessages.value.map((item) => (
+            item.turnId === turnId ? { ...item, feedback: rating } : item
+        ));
+    } catch (error) {
+        console.error('Command bar feedback failed', error);
+    } finally {
+        agentFeedbackBusyTurnId.value = '';
     }
 }
 </script>

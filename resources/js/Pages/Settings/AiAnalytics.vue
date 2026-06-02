@@ -54,6 +54,31 @@
                 </ul>
             </section>
 
+            <section v-if="insights.sales_book_knowledge_gaps?.length" :class="`${crmPanel} space-y-2 p-4`">
+                <h2 class="text-sm font-semibold">Пробелы Книги продаж</h2>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Вопросы, где ассистент не нашёл ответ в Книге (или не прочитал статью).
+                </p>
+                <ul class="space-y-2 text-sm">
+                    <li
+                        v-for="(gap, index) in insights.sales_book_knowledge_gaps"
+                        :key="`gap-${index}`"
+                        class="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                    >
+                        <p>{{ gap.user_prompt || '—' }}</p>
+                        <p class="mt-1 text-xs text-zinc-500">{{ gap.gap_reason || gap.outcome }}</p>
+                    </li>
+                </ul>
+            </section>
+
+            <section v-if="insights.command_bar_feedback" :class="`${crmPanel} space-y-2 p-4`">
+                <h2 class="text-sm font-semibold">Оценки ответов ассистента</h2>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    Полезно: {{ insights.command_bar_feedback.helpful ?? 0 }} ·
+                    Не помогло: {{ insights.command_bar_feedback.not_helpful ?? 0 }}
+                </p>
+            </section>
+
             <div class="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-2">
                 <section :class="`${crmPanel} flex min-h-0 flex-col p-4`">
                     <h2 class="mb-3 text-sm font-semibold">Частые вопросы</h2>

@@ -144,6 +144,11 @@ return [
         'temperature' => (float) env('AI_COMMAND_BAR_TEMPERATURE', 0.35),
     ],
 
+    'sales_book' => [
+        'article_max_chars' => max(2000, min(50000, (int) env('AI_SALES_BOOK_ARTICLE_MAX_CHARS', 12000))),
+        'excerpt_chars' => max(80, min(500, (int) env('AI_SALES_BOOK_EXCERPT_CHARS', 240))),
+    ],
+
     'order_intake' => [
         'enabled' => (bool) env('AI_ORDER_INTAKE_ENABLED', true),
         'max_text_chars' => max(2000, min(50000, (int) env('AI_ORDER_INTAKE_MAX_TEXT_CHARS', 12000))),

@@ -119,6 +119,104 @@
             </article>
         </section>
 
+        <section
+            v-if="coaching_insights?.available"
+            class="border border-amber-200 bg-amber-50/80 p-4 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/30 md:p-6"
+        >
+            <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-amber-800 dark:text-amber-300">
+                Коучинг: зацикливание и тупики
+            </h2>
+            <p class="mt-2 text-xs text-amber-900/80 dark:text-amber-200/80">
+                Автоанализ диалогов за {{ coaching_insights.period_days }} д.
+                <span v-if="coaching_insights.scope === 'self'">Только ваши сессии.</span>
+                <span v-else>Область: все менеджеры.</span>
+            </p>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <article class="rounded-lg border border-amber-200/80 bg-white/70 p-3 dark:border-amber-900/40 dark:bg-zinc-950/50">
+                    <div class="text-xs uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">Тупики</div>
+                    <div class="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                        {{ coaching_insights.summary.stuck_sessions }}
+                        <span class="text-sm font-normal text-zinc-500">({{ coaching_insights.summary.stuck_rate_pct }}%)</span>
+                    </div>
+                </article>
+                <article class="rounded-lg border border-amber-200/80 bg-white/70 p-3 dark:border-amber-900/40 dark:bg-zinc-950/50">
+                    <div class="text-xs uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">Зацикливание</div>
+                    <div class="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                        {{ coaching_insights.summary.loop_detected_sessions }}
+                    </div>
+                </article>
+                <article class="rounded-lg border border-amber-200/80 bg-white/70 p-3 dark:border-amber-900/40 dark:bg-zinc-950/50">
+                    <div class="text-xs uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">Неудачи</div>
+                    <div class="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                        {{ coaching_insights.summary.failure_sessions }}
+                    </div>
+                </article>
+                <article class="rounded-lg border border-amber-200/80 bg-white/70 p-3 dark:border-amber-900/40 dark:bg-zinc-950/50">
+                    <div class="text-xs uppercase tracking-[0.15em] text-zinc-500 dark:text-zinc-400">Негатив AI</div>
+                    <div class="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                        {{ coaching_insights.summary.negative_reaction_messages }}
+                    </div>
+                </article>
+            </div>
+
+            <div v-if="coachingRecommendations.length" class="mt-5">
+                <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-800 dark:text-amber-300">Рекомендации</h3>
+                <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-800 dark:text-zinc-200">
+                    <li v-for="(item, idx) in coachingRecommendations" :key="idx">{{ item }}</li>
+                </ul>
+            </div>
+
+            <div v-if="loopReasonEntries.length" class="mt-5 grid gap-6 lg:grid-cols-2">
+                <div>
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Причины зацикливания</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in loopReasonEntries" :key="row.reason">
+                            {{ loopReasonLabel(row.reason) }} — {{ row.count }}
+                        </li>
+                    </ul>
+                </div>
+                <div v-if="coaching_insights.hotspots_by_profile?.length">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Hotspots по профилю</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                        <li v-for="row in coaching_insights.hotspots_by_profile" :key="row.profile_key ?? row.profile_title">
+                            {{ row.profile_title }}: {{ row.stuck }}/{{ row.total }} ({{ row.stuck_rate_pct }}%)
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div v-if="coaching_insights.sample_problem_sessions?.length" class="mt-5 overflow-x-auto">
+                <h3 class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Примеры проблемных сессий</h3>
+                <table class="mt-2 min-w-[40rem] w-full text-left text-sm">
+                    <thead>
+                        <tr class="border-b border-amber-200/80 text-xs uppercase text-zinc-500 dark:border-amber-900/40 dark:text-zinc-400">
+                            <th class="pb-2 pr-2 font-medium">Дата</th>
+                            <th class="pb-2 pr-2 font-medium">Профиль</th>
+                            <th class="pb-2 pr-2 font-medium">Сценарий</th>
+                            <th class="pb-2 pr-2 font-medium">Причины</th>
+                            <th class="pb-2 font-medium">Сообщений</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="s in coaching_insights.sample_problem_sessions"
+                            :key="s.session_id"
+                            class="border-b border-amber-100/80 dark:border-amber-900/30"
+                        >
+                            <td class="whitespace-nowrap py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ formatDate(s.created_at) }}</td>
+                            <td class="max-w-[10rem] truncate py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ s.trainer_profile_title ?? '—' }}</td>
+                            <td class="max-w-[12rem] truncate py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ s.script_label ?? '—' }}</td>
+                            <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">
+                                {{ (s.loop_reasons ?? []).map(loopReasonLabel).join(', ') || '—' }}
+                            </td>
+                            <td class="py-2 text-zinc-600 dark:text-zinc-300">{{ s.message_count ?? '—' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <section v-if="daily.length" class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 md:p-6">
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По дням</h2>
             <div class="mt-6 flex h-40 items-end gap-0.5 overflow-x-auto pb-2">
@@ -299,6 +397,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    coaching_insights: {
+        type: Object,
+        default: null,
+    },
 });
 
 const localDays = ref(props.filters.days);
@@ -324,6 +426,26 @@ watch(
 );
 
 const maxDailyTotal = computed(() => Math.max(1, ...props.daily.map((d) => d.total)));
+
+const coachingRecommendations = computed(() => props.coaching_insights?.recommendations ?? []);
+
+const loopReasonEntries = computed(() => {
+    const counts = props.coaching_insights?.loop_reason_counts ?? {};
+
+    return Object.entries(counts)
+        .map(([reason, count]) => ({ reason, count: Number(count) }))
+        .sort((a, b) => b.count - a.count);
+});
+
+function loopReasonLabel(reason) {
+    const labels = {
+        assistant_repeated_reply: 'AI повторяет реплики',
+        user_repeated_question: 'Менеджер повторяет вопрос',
+        assistant_quality_drop: 'Падение качества AI',
+    };
+
+    return labels[reason] ?? reason;
+}
 
 function outcomeLabel(value) {
     if (value == null || value === '') {

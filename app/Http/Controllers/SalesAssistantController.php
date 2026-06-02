@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
+use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Support\RoleAccess;
 use App\Support\SalesBookContentNormalizer;
 use Carbon\CarbonImmutable;
@@ -367,7 +368,7 @@ class SalesAssistantController extends Controller
         ]);
     }
 
-    public function trainerAnalytics(Request $request): Response
+    public function trainerAnalytics(Request $request, TrainerCoachingInsightsService $coachingInsights): Response
     {
         $auth = $request->user();
         abort_if($auth === null, 403);
@@ -621,6 +622,11 @@ class SalesAssistantController extends Controller
             'filterUsers' => $filterUsers,
             'profile_options' => $profileOptions,
             'version_options' => $versionOptions,
+            'coaching_insights' => $coachingInsights->insights(
+                $auth,
+                $days,
+                $canViewAll && $request->filled('user_id') ? $request->integer('user_id') : null,
+            ),
         ]);
     }
 

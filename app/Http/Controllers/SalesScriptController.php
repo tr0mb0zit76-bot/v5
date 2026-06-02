@@ -17,9 +17,12 @@ use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
+use App\Models\User;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
 use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
+use App\Services\SalesScripts\TrainerCoachingHintService;
 use App\Services\SalesScripts\TrainerDialogHintService;
+use App\Services\SalesScripts\TrainerSalesBookBriefService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +38,8 @@ class SalesScriptController extends Controller
         private readonly SalesScriptPlaySessionService $playSessionService,
         private readonly TrainerDialogHintService $trainerDialogHintService,
         private readonly TrainerAssistantAutoReactionService $trainerAssistantAutoReactionService,
+        private readonly TrainerSalesBookBriefService $trainerSalesBookBriefService,
+        private readonly TrainerCoachingHintService $trainerCoachingHintService,
     ) {}
 
     public function index(): Response
@@ -273,6 +278,8 @@ class SalesScriptController extends Controller
             $profile,
             $session,
             $history,
+            $request->user(),
+            $userMessage,
         );
 
         $assistantMessage = $session->trainerMessages()->create([
@@ -297,10 +304,17 @@ class SalesScriptController extends Controller
             )
             : [];
 
+        $coaching = $this->trainerCoachingHintService->build(
+            $session,
+            $session->trainerMessages()->orderBy('id')->get(),
+            $resolvedCurrent?->id,
+        );
+
         return response()->json([
             'reply' => $reply,
             'history' => array_slice($lines, -40),
             'contextual_hints' => $contextualHints,
+            'coaching' => $coaching,
         ]);
     }
 
@@ -428,8 +442,13 @@ class SalesScriptController extends Controller
      * @param  array<string, mixed>  $profile
      * @param  list<array{role:string,content:string,at?:string}>  $history
      */
-    private function deepSeekTrainerReply(array $profile, SalesScriptPlaySession $session, array $history): string
-    {
+    private function deepSeekTrainerReply(
+        array $profile,
+        SalesScriptPlaySession $session,
+        array $history,
+        ?User $user,
+        string $lastUserMessage,
+    ): string {
         $apiKey = (string) config('ai.providers.deepseek.key');
         if ($apiKey === '') {
             return 'Не настроен DEEPSEEK_API_KEY. Пока тренировка недоступна.';
@@ -444,6 +463,8 @@ class SalesScriptController extends Controller
 
         $sharedTrainerSceneRules = "Общие правила тренировочной сцены:\n".
             "- Это одна непрерывная сцена переговоров; не сбрасывай контекст и не веди себя как при новом первом контакте, если диалог уже развёрнут.\n".
+            "- Не повторяй дословно одно и то же возражение или вопрос, если на него уже ответили — двигай диалог вперёд.\n".
+            "- Если собеседник повторяет вопрос — кратко уточни или дай новый угол, а не копируй предыдущую реплику.\n".
             "- Если в последних репликах уже зафиксированы конкретные договорённости (следующий шаг, срок, сумма, время созвона, явное согласие) — не разворачивай переговоры заново: дай короткий итог или заверши реплику без новых продажных циклов по уже закрытым вопросам.\n".
             "- Если собеседник явно завершает диалог (благодарность и стоп, «на этом достаточно», финальный тон согласия) — поддержи завершение, не уводи в новую воронку.\n";
 
@@ -483,6 +504,19 @@ class SalesScriptController extends Controller
         $extra = trim((string) ($session->trainer_assistant_instructions ?? ''));
         if ($extra !== '') {
             $systemPrompt .= "\n\nДополнительные указания к репликам:\n".$extra;
+        }
+
+        if ($user !== null) {
+            $salesBookBrief = $this->trainerSalesBookBriefService->buildContextBlock(
+                $user,
+                $scriptTitle,
+                $lastUserMessage,
+                $history,
+            );
+
+            if (is_string($salesBookBrief) && $salesBookBrief !== '') {
+                $systemPrompt .= "\n\n".$salesBookBrief;
+            }
         }
 
         $messages = [

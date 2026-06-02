@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\SalesBookParentChildLinksService;
 use App\Support\RoleAccess;
 use App\Support\SalesBookContentNormalizer;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use RuntimeException;
 
 final class SalesBookMcpService
@@ -17,22 +18,59 @@ final class SalesBookMcpService
     ) {}
 
     /**
-     * @return array{articles: list<array{id: int, title: string, parent_id: int|null, parent_title: string|null}>}
+     * @return array{articles: list<array{
+     *     id: int,
+     *     title: string,
+     *     parent_id: int|null,
+     *     parent_title: string|null,
+     *     matched_in: string|null,
+     *     excerpt: string|null
+     * }>}
      */
     public function search(User $user, string $query, int $limit): array
     {
         $this->ensureCanRead($user);
 
+        $limit = max(1, min($limit, 50));
+        $trimmedQuery = trim($query);
+
         $builder = SalesBookArticle::query()
             ->orderBy('sort_order')
             ->orderBy('id');
 
-        $trimmedQuery = trim($query);
         if ($trimmedQuery !== '') {
-            $builder->where('title', 'like', '%'.$trimmedQuery.'%');
+            $tokens = $this->searchTokens($trimmedQuery);
+
+            if ($tokens !== []) {
+                $builder->where(function ($builder) use ($tokens): void {
+                    foreach ($tokens as $token) {
+                        $builder->orWhere(function ($nested) use ($token): void {
+                            $nested->where('title', 'like', '%'.$token.'%')
+                                ->orWhere('markdown_content', 'like', '%'.$token.'%');
+                        });
+                    }
+                });
+            } else {
+                $builder->where(function ($builder) use ($trimmedQuery): void {
+                    $builder->where('title', 'like', '%'.$trimmedQuery.'%')
+                        ->orWhere('markdown_content', 'like', '%'.$trimmedQuery.'%');
+                });
+            }
         }
 
-        $articles = $builder->limit(max(1, min($limit, 50)))->get();
+        $fetchLimit = $trimmedQuery !== '' ? min(100, $limit * 3) : $limit;
+        $articles = $builder->limit($fetchLimit)->get();
+
+        if ($trimmedQuery !== '') {
+            $articles = $articles
+                ->sortBy(fn (SalesBookArticle $article): array => [
+                    $this->titleMatchScore($article, $trimmedQuery) * -1,
+                    mb_stripos($article->title, $trimmedQuery) !== false ? 0 : 1,
+                ])
+                ->values()
+                ->take($limit);
+        }
+
         $parentsById = SalesBookArticle::query()
             ->whereIn('id', $articles->pluck('parent_id')->filter()->unique())
             ->pluck('title', 'id');
@@ -45,7 +83,64 @@ final class SalesBookMcpService
                 'parent_title' => $article->parent_id !== null
                     ? (string) ($parentsById[$article->parent_id] ?? null)
                     : null,
+                'matched_in' => $this->resolveMatchedIn($article, $trimmedQuery),
+                'excerpt' => $this->buildSearchExcerpt($article, $trimmedQuery),
             ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @return array{article: array{
+     *     id: int,
+     *     title: string,
+     *     parent_id: int|null,
+     *     parent_title: string|null,
+     *     breadcrumb: list<array{id: int, title: string}>,
+     *     markdown_content: string,
+     *     content_truncated: bool,
+     *     book_url: string,
+     *     updated_at: string|null
+     * }}
+     */
+    public function get(User $user, int $articleId, ?int $maxChars = null): array
+    {
+        $this->ensureCanRead($user);
+
+        /** @var SalesBookArticle|null $article */
+        $article = SalesBookArticle::query()->find($articleId);
+
+        if ($article === null) {
+            throw new ModelNotFoundException('Sales book article not found.');
+        }
+
+        $maxChars ??= (int) config('ai.sales_book.article_max_chars', 12000);
+        $markdown = $this->contentNormalizer->forReader((string) ($article->markdown_content ?? ''));
+        $contentTruncated = false;
+
+        if (mb_strlen($markdown) > $maxChars) {
+            $markdown = rtrim(mb_substr($markdown, 0, $maxChars))."\n\n…";
+            $contentTruncated = true;
+        }
+
+        $parentTitle = null;
+        if ($article->parent_id !== null) {
+            $parentTitle = SalesBookArticle::query()
+                ->whereKey($article->parent_id)
+                ->value('title');
+        }
+
+        return [
+            'article' => [
+                'id' => $article->id,
+                'title' => $article->title,
+                'parent_id' => $article->parent_id,
+                'parent_title' => is_string($parentTitle) ? $parentTitle : null,
+                'breadcrumb' => $this->buildBreadcrumb($article),
+                'markdown_content' => $markdown,
+                'content_truncated' => $contentTruncated,
+                'book_url' => route('sales-assistant.book', ['article_id' => $article->id]),
+                'updated_at' => $article->updated_at?->toIso8601String(),
+            ],
         ];
     }
 
@@ -107,6 +202,127 @@ final class SalesBookMcpService
             'parent_title' => $parent->title,
             'book_url' => route('sales-assistant.book', ['article_id' => $article->id]),
         ];
+    }
+
+    /**
+     * @return list<array{id: int, title: string}>
+     */
+    private function buildBreadcrumb(SalesBookArticle $article): array
+    {
+        $trail = [];
+        $parentId = $article->parent_id;
+
+        while ($parentId !== null) {
+            /** @var SalesBookArticle|null $parent */
+            $parent = SalesBookArticle::query()->find($parentId);
+
+            if ($parent === null) {
+                break;
+            }
+
+            array_unshift($trail, [
+                'id' => $parent->id,
+                'title' => $parent->title,
+            ]);
+
+            $parentId = $parent->parent_id;
+        }
+
+        return $trail;
+    }
+
+    private function resolveMatchedIn(SalesBookArticle $article, string $query): ?string
+    {
+        if ($query === '') {
+            return null;
+        }
+
+        if (mb_stripos($article->title, $query) !== false) {
+            return 'title';
+        }
+
+        $readerContent = $this->contentNormalizer->forReader((string) ($article->markdown_content ?? ''));
+
+        if (mb_stripos($readerContent, $query) !== false) {
+            return 'content';
+        }
+
+        return null;
+    }
+
+    private function buildSearchExcerpt(SalesBookArticle $article, string $query): ?string
+    {
+        if ($query === '') {
+            return null;
+        }
+
+        if (mb_stripos($article->title, $query) !== false) {
+            return null;
+        }
+
+        $readerContent = $this->contentNormalizer->forReader((string) ($article->markdown_content ?? ''));
+        $position = mb_stripos($readerContent, $query);
+
+        if ($position === false) {
+            return null;
+        }
+
+        $maxChars = (int) config('ai.sales_book.excerpt_chars', 240);
+        $start = max(0, $position - (int) ($maxChars / 3));
+        $excerpt = mb_substr($readerContent, $start, $maxChars);
+        $excerpt = preg_replace('/\s+/u', ' ', trim($excerpt)) ?? '';
+
+        $prefix = $start > 0 ? '…' : '';
+        $suffix = mb_strlen($readerContent) > $start + $maxChars ? '…' : '';
+
+        return $prefix.$excerpt.$suffix;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function searchTokens(string $query): array
+    {
+        $normalized = mb_strtolower(preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $query) ?? '');
+
+        $parts = preg_split('/\s+/u', trim($normalized)) ?: [];
+        $stopWords = ['как', 'что', 'где', 'или', 'для', 'про', 'это', 'the', 'and'];
+
+        $tokens = [];
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+
+            if ($part === '' || mb_strlen($part) < 2) {
+                continue;
+            }
+
+            if (in_array($part, $stopWords, true)) {
+                continue;
+            }
+
+            $tokens[] = $part;
+        }
+
+        return array_values(array_unique($tokens));
+    }
+
+    private function titleMatchScore(SalesBookArticle $article, string $query): int
+    {
+        $score = 0;
+        $title = mb_strtolower($article->title);
+
+        foreach ($this->searchTokens($query) as $token) {
+            if (str_contains($title, $token)) {
+                $score++;
+            }
+        }
+
+        if (mb_stripos($article->title, $query) !== false) {
+            $score += 2;
+        }
+
+        return $score;
     }
 
     private function resolveParentByTitle(string $parentTitle): SalesBookArticle

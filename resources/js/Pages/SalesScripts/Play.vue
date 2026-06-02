@@ -289,6 +289,13 @@
                         </p>
                     </div>
 
+                    <div v-if="trainerCoaching?.coaching_hint" class="space-y-2 rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                        <div class="font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                            Коучинг: диалог застрял
+                        </div>
+                        <p class="whitespace-pre-wrap leading-relaxed">{{ trainerCoaching.coaching_hint }}</p>
+                    </div>
+
                     <div v-if="trainerSuggestedFocus" class="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
                         <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Ближайший узел по теме</div>
                         <p class="whitespace-pre-wrap leading-relaxed">{{ trainerSuggestedFocus.excerpt }}</p>
@@ -467,6 +474,7 @@ const promptSaveHint = ref('');
 const trainerContextualHints = ref(
     Array.isArray(props.playContext?.trainer_contextual_hints) ? [...props.playContext.trainer_contextual_hints] : [],
 );
+const trainerCoaching = ref(props.playContext?.trainer_coaching ?? null);
 const trainerEndIntent = ref(false);
 const peerReactionBusyId = ref(null);
 
@@ -763,6 +771,9 @@ async function sendTrainerMessage() {
         trainerChatHistory.value = Array.isArray(payload?.history) ? payload.history : optimisticHistory;
         if (Array.isArray(payload?.contextual_hints)) {
             trainerContextualHints.value = payload.contextual_hints;
+        }
+        if (payload?.coaching) {
+            trainerCoaching.value = payload.coaching;
         }
     } catch (error) {
         trainerChatHistory.value = [

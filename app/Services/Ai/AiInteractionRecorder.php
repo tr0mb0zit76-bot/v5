@@ -145,6 +145,72 @@ class AiInteractionRecorder
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function findConversationTurnMetadata(string $turnId): array
+    {
+        if (! Schema::hasTable('ai_interaction_events') || $turnId === '') {
+            return [];
+        }
+
+        $row = DB::table('ai_interaction_events')
+            ->where('event_type', AiInteractionEventType::ConversationTurn->value)
+            ->where('metadata->turn_id', $turnId)
+            ->orderByDesc('id')
+            ->first(['metadata', 'prompt_fingerprint', 'user_prompt_redacted']);
+
+        if ($row === null) {
+            return [];
+        }
+
+        $metadata = json_decode((string) ($row->metadata ?? ''), true);
+
+        if (! is_array($metadata)) {
+            $metadata = [];
+        }
+
+        $metadata['prompt_fingerprint'] = $row->prompt_fingerprint;
+        $metadata['user_prompt_redacted'] = $row->user_prompt_redacted;
+
+        return $metadata;
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public function recordUserFeedback(
+        User $user,
+        AiInteractionFeature $feature,
+        string $turnId,
+        string $rating,
+        ?string $comment = null,
+        array $metadata = [],
+    ): void {
+        if (! $this->isEnabled()) {
+            return;
+        }
+
+        $this->insert([
+            'user_id' => $user->id,
+            'feature' => $feature->value,
+            'event_type' => AiInteractionEventType::UserFeedback->value,
+            'channel' => null,
+            'outcome' => $rating === 'helpful'
+                ? AiInteractionOutcome::Success->value
+                : AiInteractionOutcome::WeakAnswer->value,
+            'ok' => true,
+            'metadata' => json_encode([
+                'turn_id' => $turnId,
+                'rating' => $rating,
+                'comment' => $comment !== null && trim($comment) !== ''
+                    ? $this->truncate($this->sanitizer->sanitizeText(trim($comment), 'command_bar'), 500)
+                    : null,
+                ...$metadata,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      */
     private function insert(array $row): void
