@@ -2,12 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\LeadCloseOutcomeFlag;
 use App\Support\CurrencyDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreLeadRequest extends FormRequest
 {
@@ -65,6 +67,8 @@ class StoreLeadRequest extends FormRequest
             'expected_margin' => ['nullable', 'numeric'],
             'next_contact_at' => ['nullable', 'date'],
             'lost_reason' => ['nullable', 'string', 'max:255'],
+            'close_outcome_primary_flag' => ['nullable', 'string', Rule::enum(LeadCloseOutcomeFlag::class)],
+            'close_outcome_note' => ['nullable', 'string', 'max:255'],
             'qualification' => ['nullable', 'array'],
             'qualification.need' => ['nullable', 'string', 'max:255'],
             'qualification.timeline' => ['nullable', 'string', 'max:255'],
@@ -122,5 +126,42 @@ class StoreLeadRequest extends FormRequest
         $rules[] = $unique;
 
         return $rules;
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $status = (string) $this->input('status', '');
+            $flagValue = $this->input('close_outcome_primary_flag');
+            $note = $this->input('close_outcome_note');
+
+            if ($status === 'lost' && blank($flagValue)) {
+                $validator->errors()->add('close_outcome_primary_flag', 'Укажите причину проигрыша.');
+            }
+
+            if ($flagValue === null || $flagValue === '') {
+                return;
+            }
+
+            $flag = LeadCloseOutcomeFlag::tryFrom((string) $flagValue);
+
+            if ($flag === null) {
+                $validator->errors()->add('close_outcome_primary_flag', 'Недопустимая причина закрытия.');
+
+                return;
+            }
+
+            if ($status === 'lost' && $flag->terminalOutcome() !== 'lost') {
+                $validator->errors()->add('close_outcome_primary_flag', 'Для проигрыша выберите причину из списка отказов.');
+            }
+
+            if ($status === 'won' && $flag->terminalOutcome() !== 'won') {
+                $validator->errors()->add('close_outcome_primary_flag', 'Для выигрыша выберите причину из списка успехов.');
+            }
+
+            if ($flag === LeadCloseOutcomeFlag::LostOther && blank($note) && blank($this->input('lost_reason'))) {
+                $validator->errors()->add('close_outcome_note', 'Кратко уточните причину «Другое».');
+            }
+        });
     }
 }

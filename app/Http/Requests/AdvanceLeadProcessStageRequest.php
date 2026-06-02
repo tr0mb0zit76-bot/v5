@@ -19,6 +19,8 @@ class AdvanceLeadProcessStageRequest extends FormRequest
     {
         return [
             'stage_id' => ['required', 'integer', 'exists:business_process_stages,id'],
+            'close_outcome_primary_flag' => ['nullable', 'string', 'max:64'],
+            'close_outcome_note' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

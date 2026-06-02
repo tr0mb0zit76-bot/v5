@@ -5,6 +5,7 @@ namespace App\Services\Agents;
 use App\Agents\AgentToolDefinition;
 use App\Models\User;
 use App\Services\Ai\AiUsageAnalyticsService;
+use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
 use App\Services\Mcp\DispositionMcpService;
@@ -41,6 +42,7 @@ class AgentToolRegistry
         private readonly OrderActivityTimelineService $orderTimeline,
         private readonly AiUsageAnalyticsService $aiUsageAnalytics,
         private readonly TrainerCoachingInsightsService $trainerCoachingInsights,
+        private readonly ManagerSalesCoachingInsightsService $managerSalesCoachingInsights,
     ) {}
 
     /**
@@ -508,6 +510,26 @@ class AgentToolRegistry
                     (int) ($args['days'] ?? 30),
                     isset($args['user_id']) ? (int) $args['user_id'] : null,
                     (int) ($args['sample_limit'] ?? 15),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_manager_sales_coaching_insights',
+                description: 'Outcome Intelligence: почему проваливаются/выигрываются лиды, гигиена сделки, простой vs активность на этапах, рекомендации.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
+                        'sample_limit' => ['type' => 'integer', 'minimum' => 3, 'maximum' => 25],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canViewSalesCoachingInsights($user),
+                invoke: fn (User $user, array $args): array => $this->managerSalesCoachingInsights->insights(
+                    $user,
+                    (int) ($args['days'] ?? config('outcome_intelligence.coaching_default_days', 90)),
+                    isset($args['user_id']) ? (int) $args['user_id'] : null,
+                    (int) ($args['sample_limit'] ?? config('outcome_intelligence.coaching_sample_limit', 10)),
                 ),
             ),
         ];

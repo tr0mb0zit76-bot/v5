@@ -47,11 +47,16 @@
                 <LeadProcessPanel
                     v-if="businessProcessesEnabled"
                     v-model:advance-stage-id="advanceStageId"
+                    v-model:close-outcome-primary-flag="processStageForm.close_outcome_primary_flag"
+                    v-model:close-outcome-note="processStageForm.close_outcome_note"
                     :selected-lead-id="selectedLeadId"
                     :business-processes="businessProcesses"
                     :business-process-id="form.business_process_id"
                     :process-progress="processProgress"
                     :processing="processStageForm.processing"
+                    :lost-close-outcome-options="lostCloseOutcomeOptions"
+                    :won-close-outcome-options="wonCloseOutcomeOptions"
+                    :close-outcome-error="processStageForm.errors.close_outcome_primary_flag"
                     @update:business-process-id="form.business_process_id = $event"
                     @advance="submitProcessStage"
                 />
@@ -174,11 +179,18 @@
                         <label :class="crmLabel">Следующий контакт</label>
                         <input v-model="form.next_contact_at" type="datetime-local" :class="crmFieldFluid" />
                     </div>
-                    <div class="space-y-2">
-                        <label :class="crmLabel">Причина потери</label>
-                        <input v-model="form.lost_reason" type="text" :class="crmFieldFluid" placeholder="Заполняется для проигранных лидов" />
-                    </div>
                 </div>
+
+                <LeadCloseOutcomeFields
+                    v-if="form.status === 'lost' || form.status === 'won'"
+                    v-model:primary-flag="form.close_outcome_primary_flag"
+                    v-model:note="form.close_outcome_note"
+                    :terminal-outcome="form.status === 'won' ? 'won' : 'lost'"
+                    :lost-options="lostCloseOutcomeOptions"
+                    :won-options="wonCloseOutcomeOptions"
+                    :error="form.errors.close_outcome_primary_flag || form.errors.close_outcome_note"
+                    :input-class="crmFieldFluid"
+                />
 
                 <div class="grid gap-4 xl:grid-cols-4">
                     <div class="space-y-2"><label :class="crmLabel">Потребность</label><input v-model="form.qualification.need" type="text" :class="crmFieldFluid" /></div>
@@ -364,6 +376,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
+import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadWizardCommercialTab from '@/Components/Leads/LeadWizardCommercialTab.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
@@ -405,6 +418,14 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    lostCloseOutcomeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    wonCloseOutcomeOptions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(['close']);
@@ -439,6 +460,8 @@ function blankForm() {
         expected_margin: null,
         next_contact_at: '',
         lost_reason: '',
+        close_outcome_primary_flag: '',
+        close_outcome_note: '',
         qualification: { need: '', timeline: '', authority: '', budget: '' },
         route_points: [],
         cargo_items: [],
@@ -465,6 +488,8 @@ function leadToForm(lead) {
             authority: lead.qualification?.authority ?? '',
             budget: lead.qualification?.budget ?? '',
         },
+        close_outcome_primary_flag: lead.close_outcome_primary_flag ?? '',
+        close_outcome_note: lead.lost_reason ?? '',
         route_points: lead.route_points ?? [],
         cargo_items: lead.cargo_items ?? [],
         activities: lead.activities ?? [],
@@ -476,7 +501,11 @@ function leadToForm(lead) {
 
 const form = useForm(leadToForm(props.selectedLead));
 const advanceStageId = ref('');
-const processStageForm = useForm({ stage_id: null });
+const processStageForm = useForm({
+    stage_id: null,
+    close_outcome_primary_flag: '',
+    close_outcome_note: '',
+});
 const nextStepForm = useForm({
     title: '',
     description: '',
@@ -745,6 +774,8 @@ function submitProcessStage() {
         preserveScroll: true,
         onSuccess: () => {
             advanceStageId.value = '';
+            processStageForm.close_outcome_primary_flag = '';
+            processStageForm.close_outcome_note = '';
         },
     });
 }

@@ -727,6 +727,23 @@ class RoleAccess
     }
 
     /**
+     * Коучинг по воронке (Outcome Intelligence) — область leads или admin.
+     */
+    public static function canViewSalesCoachingInsights(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'leads')
+            || static::canViewAiAnalytics($user);
+    }
+
+    /**
      * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
      */
     public static function canManageSalesScripts(?User $user): bool

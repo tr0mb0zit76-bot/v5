@@ -57,24 +57,37 @@
                 </span>
             </div>
 
-            <div v-if="advanceableStages.length" class="flex flex-wrap items-end gap-2">
-                <div class="min-w-[14rem] flex-1 space-y-1">
-                    <label class="label">Перевести на этап</label>
-                    <select :value="advanceStageId" class="field" @change="onAdvanceChange">
-                        <option value="">— выберите —</option>
-                        <option v-for="stage in advanceableStages" :key="stage.id" :value="stage.id">
-                            {{ stage.name }}
-                        </option>
-                    </select>
+            <div v-if="advanceableStages.length" class="space-y-3">
+                <div class="flex flex-wrap items-end gap-2">
+                    <div class="min-w-[14rem] flex-1 space-y-1">
+                        <label class="label">Перевести на этап</label>
+                        <select :value="advanceStageId" class="field" @change="onAdvanceChange">
+                            <option value="">— выберите —</option>
+                            <option v-for="stage in advanceableStages" :key="stage.id" :value="stage.id">
+                                {{ stage.name }}
+                            </option>
+                        </select>
+                    </div>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        :disabled="!advanceStageId || processing || !canSubmitAdvance"
+                        @click="emit('advance')"
+                    >
+                        Перейти
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    class="secondary-button"
-                    :disabled="!advanceStageId || processing"
-                    @click="emit('advance')"
-                >
-                    Перейти
-                </button>
+
+                <LeadCloseOutcomeFields
+                    v-if="selectedAdvanceStage?.is_terminal"
+                    v-model:primary-flag="closeOutcomePrimaryFlag"
+                    v-model:note="closeOutcomeNote"
+                    :terminal-outcome="selectedAdvanceStage?.terminal_outcome"
+                    :lost-options="lostCloseOutcomeOptions"
+                    :won-options="wonCloseOutcomeOptions"
+                    :error="closeOutcomeError"
+                    input-class="field"
+                />
             </div>
         </template>
     </section>
@@ -82,6 +95,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 
 const props = defineProps({
     selectedLeadId: [Number, null],
@@ -90,7 +104,13 @@ const props = defineProps({
     processProgress: { type: Object, default: null },
     advanceStageId: { type: [Number, String], default: '' },
     processing: { type: Boolean, default: false },
+    lostCloseOutcomeOptions: { type: Array, default: () => [] },
+    wonCloseOutcomeOptions: { type: Array, default: () => [] },
+    closeOutcomeError: { type: String, default: '' },
 });
+
+const closeOutcomePrimaryFlag = defineModel('closeOutcomePrimaryFlag', { type: String, default: '' });
+const closeOutcomeNote = defineModel('closeOutcomeNote', { type: String, default: '' });
 
 const emit = defineEmits(['update:businessProcessId', 'update:advanceStageId', 'advance']);
 
@@ -106,6 +126,26 @@ const advanceableStages = computed(() => {
     }
 
     return props.processProgress.stages.filter((stage) => stage.state !== 'current');
+});
+
+const selectedAdvanceStage = computed(() => {
+    if (!props.advanceStageId) {
+        return null;
+    }
+
+    return advanceableStages.value.find((stage) => Number(stage.id) === Number(props.advanceStageId)) ?? null;
+});
+
+const canSubmitAdvance = computed(() => {
+    if (!selectedAdvanceStage.value?.is_terminal) {
+        return true;
+    }
+
+    if (selectedAdvanceStage.value.terminal_outcome === 'lost') {
+        return Boolean(closeOutcomePrimaryFlag.value);
+    }
+
+    return true;
 });
 
 function stageStateClass(state) {

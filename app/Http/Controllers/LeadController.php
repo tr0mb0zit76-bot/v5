@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\LeadCloseOutcomeFlag;
 use App\Http\Requests\AdvanceLeadProcessStageRequest;
 use App\Http\Requests\ConvertLeadRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
@@ -17,6 +18,8 @@ use App\Models\LeadOffer;
 use App\Models\PrintFormTemplate;
 use App\Models\Task;
 use App\Services\ActivityLedgerService;
+use App\Services\Commercial\LeadCloseOutcomeService;
+use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
@@ -24,6 +27,7 @@ use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\LeadCloseOutcomeFlagCatalog;
 use App\Support\LeadStatus;
 use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
@@ -34,7 +38,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -43,6 +47,8 @@ class LeadController extends Controller
     public function __construct(
         private readonly LeadBusinessProcessService $leadBusinessProcessService,
         private readonly ActivityLedgerService $activityLedger,
+        private readonly LeadCloseOutcomeService $leadCloseOutcome,
+        private readonly ManagerSalesCoachingInsightsService $salesCoachingInsights,
     ) {}
 
     public function index(Request $request): Response
@@ -110,6 +116,8 @@ class LeadController extends Controller
             ]);
 
             $this->syncNestedData($lead, $request);
+
+            $this->maybeApplyCloseOutcomeFromRequest($lead, $request);
 
             if ($this->leadBusinessProcessService->tablesReady() && $request->filled('business_process_id')) {
                 $process = BusinessProcess::query()
@@ -198,6 +206,8 @@ class LeadController extends Controller
             ]);
 
             $this->syncNestedData($lead, $request);
+
+            $this->maybeApplyCloseOutcomeFromRequest($lead, $request);
         });
 
         return to_route('leads.show', $lead);
@@ -412,6 +422,12 @@ class LeadController extends Controller
             'leadColumns' => LeadTableColumns::options(),
             'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
             'isCreating' => $isCreating,
+            'salesCoachingInsights' => RoleAccess::canViewSalesCoachingInsights($request->user())
+                ? $this->salesCoachingInsights->insights(
+                    $request->user(),
+                    (int) config('outcome_intelligence.coaching_default_days', 90),
+                )
+                : null,
             ...$this->sharedWizardProps($selectedLead),
         ]);
     }
@@ -533,6 +549,9 @@ class LeadController extends Controller
                     ->values()
                     ->all()
                 : [],
+            'closeOutcomeOptions' => LeadCloseOutcomeService::optionsForUi(),
+            'lostCloseOutcomeOptions' => LeadCloseOutcomeFlagCatalog::lostOptions(),
+            'wonCloseOutcomeOptions' => LeadCloseOutcomeFlagCatalog::wonOptions(),
         ];
     }
 
@@ -786,6 +805,8 @@ class LeadController extends Controller
             'proposal_sent_at' => optional($lead->proposal_sent_at)?->toIso8601String(),
             'next_contact_at' => optional($lead->next_contact_at)?->format('Y-m-d\TH:i'),
             'lost_reason' => $lead->lost_reason,
+            'close_outcome_primary_flag' => $lead->close_outcome_primary_flag,
+            'close_outcome_primary_label' => LeadCloseOutcomeFlagCatalog::label($lead->close_outcome_primary_flag),
             'qualification' => $lead->lead_qualification ?? [],
             'route_points' => $lead->routePoints->map(fn ($point): array => [
                 'id' => $point->id,
@@ -865,7 +886,23 @@ class LeadController extends Controller
 
         $stage = BusinessProcessStage::query()->findOrFail((int) $request->integer('stage_id'));
 
+        if ($stage->is_terminal) {
+            $this->validateTerminalCloseOutcome($request, $stage);
+        }
+
         $this->leadBusinessProcessService->moveLeadToStage($lead, $stage, $request->user());
+
+        if ($stage->is_terminal && $request->filled('close_outcome_primary_flag')) {
+            $flag = LeadCloseOutcomeFlag::from((string) $request->string('close_outcome_primary_flag'));
+            $this->leadCloseOutcome->apply(
+                $lead->fresh(),
+                $flag,
+                $request->user(),
+                $request->filled('close_outcome_note')
+                    ? $request->string('close_outcome_note')->toString()
+                    : null,
+            );
+        }
 
         return to_route('leads.show', $lead);
     }
@@ -939,5 +976,67 @@ class LeadController extends Controller
         ]);
 
         return $offer->refresh();
+    }
+
+    private function maybeApplyCloseOutcomeFromRequest(Lead $lead, StoreLeadRequest $request): void
+    {
+        if (! $request->filled('close_outcome_primary_flag')) {
+            return;
+        }
+
+        if (! in_array($lead->status, ['won', 'lost'], true)) {
+            return;
+        }
+
+        $flag = LeadCloseOutcomeFlag::from((string) $request->string('close_outcome_primary_flag'));
+
+        $this->leadCloseOutcome->apply(
+            $lead,
+            $flag,
+            $request->user(),
+            $this->resolveCloseOutcomeNote($request),
+        );
+    }
+
+    private function resolveCloseOutcomeNote(StoreLeadRequest $request): ?string
+    {
+        if ($request->filled('close_outcome_note')) {
+            return $request->string('close_outcome_note')->toString();
+        }
+
+        return $request->string('lost_reason')->toString() ?: null;
+    }
+
+    private function validateTerminalCloseOutcome(AdvanceLeadProcessStageRequest $request, BusinessProcessStage $stage): void
+    {
+        if ($stage->terminal_outcome === 'lost' && ! $request->filled('close_outcome_primary_flag')) {
+            throw ValidationException::withMessages([
+                'close_outcome_primary_flag' => 'Укажите причину проигрыша перед закрытием лида.',
+            ]);
+        }
+
+        if (! $request->filled('close_outcome_primary_flag')) {
+            return;
+        }
+
+        $flag = LeadCloseOutcomeFlag::tryFrom((string) $request->string('close_outcome_primary_flag'));
+
+        if ($flag === null) {
+            throw ValidationException::withMessages([
+                'close_outcome_primary_flag' => 'Недопустимая причина закрытия.',
+            ]);
+        }
+
+        if ($stage->terminal_outcome === 'lost' && $flag->terminalOutcome() !== 'lost') {
+            throw ValidationException::withMessages([
+                'close_outcome_primary_flag' => 'Для этапа отказа выберите причину проигрыша.',
+            ]);
+        }
+
+        if ($stage->terminal_outcome === 'won' && $flag->terminalOutcome() !== 'won') {
+            throw ValidationException::withMessages([
+                'close_outcome_primary_flag' => 'Для этапа успеха выберите причину выигрыша.',
+            ]);
+        }
     }
 }

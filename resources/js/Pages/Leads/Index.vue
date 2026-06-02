@@ -21,6 +21,8 @@
             </template>
         </CrmPageHeader>
 
+        <LeadSalesCoachingPanel v-if="!featureUnavailable" :insights="salesCoachingInsights" />
+
         <div :class="crmGridPanel">
             <LeadsGrid
                 :rows="rows"
@@ -52,6 +54,8 @@
                     :can-use-lead-tasks="Boolean(page.props.canUseLeadTasks)"
                     :business-processes-enabled="Boolean(page.props.businessProcessesEnabled)"
                     :business-processes="page.props.businessProcesses ?? []"
+                    :lost-close-outcome-options="page.props.lostCloseOutcomeOptions ?? []"
+                    :won-close-outcome-options="page.props.wonCloseOutcomeOptions ?? []"
                     @close="closeLeadModal"
                 />
             </section>
@@ -66,6 +70,7 @@ import { Plus } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmGridPanel } from '@/support/crmUi.js';
 import LeadsGrid from '@/Components/Leads/LeadsGrid.vue';
+import LeadSalesCoachingPanel from '@/Components/Leads/LeadSalesCoachingPanel.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import LeadWizard from '@/Pages/Leads/Wizard.vue';
@@ -77,6 +82,7 @@ defineOptions({
 const page = usePage();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const rows = computed(() => page.props.leads ?? []);
+const salesCoachingInsights = computed(() => page.props.salesCoachingInsights ?? null);
 const availableColumns = computed(() => page.props.leadColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
