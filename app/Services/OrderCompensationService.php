@@ -146,6 +146,7 @@ class OrderCompensationService
         $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
             (string) ($order->customer_payment_form ?? ''),
             $contractorsCosts,
+            $this->kpiConfigurationService->vatZero22MarginSupplementPercent(),
         );
         $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
@@ -200,6 +201,7 @@ class OrderCompensationService
         $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
+            $this->kpiConfigurationService->vatZero22MarginSupplementPercent(),
         );
         $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
@@ -267,6 +269,7 @@ class OrderCompensationService
         $vatMarginSupplement = VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
+            $this->kpiConfigurationService->vatZero22MarginSupplementPercent(),
         );
         $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 

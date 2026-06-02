@@ -16,6 +16,8 @@ class KpiConfigurationService
 
     public const VAT_ZERO_22_PERCENT_KEY = 'vat_zero_22_kpi_percent';
 
+    public const VAT_ZERO_22_SUPPLEMENT_PERCENT_KEY = 'vat_zero_22_margin_supplement_percent';
+
     public const CASH_PRIMARY_PERCENT_KEY = 'cash_primary_kpi_percent';
 
     public const CASH_SECONDARY_PERCENT_KEY = 'cash_secondary_kpi_percent';
@@ -25,6 +27,8 @@ class KpiConfigurationService
     public const DEFAULT_VAT_PERCENT = 3.0;
 
     public const DEFAULT_VAT_ZERO_22_PERCENT = 3.0;
+
+    public const DEFAULT_VAT_ZERO_22_SUPPLEMENT_PERCENT = 15.0;
 
     public const DEFAULT_CASH_PRIMARY_PERCENT = 3.0;
 
@@ -56,6 +60,7 @@ class KpiConfigurationService
      * @return array{
      *     vat_percent: float,
      *     vat_zero_22_percent: float,
+     *     vat_zero_22_supplement_percent: float,
      *     cash_primary_percent: float,
      *     cash_secondary_percent: float,
      * }
@@ -69,15 +74,29 @@ class KpiConfigurationService
         return [
             'vat_percent' => $this->readVatPercentSetting(),
             'vat_zero_22_percent' => $this->readPercentSetting(self::VAT_ZERO_22_PERCENT_KEY, self::DEFAULT_VAT_ZERO_22_PERCENT),
+            'vat_zero_22_supplement_percent' => $this->vatZero22MarginSupplementPercent(),
             'cash_primary_percent' => $this->readPercentSetting(self::CASH_PRIMARY_PERCENT_KEY, self::DEFAULT_CASH_PRIMARY_PERCENT),
             'cash_secondary_percent' => $this->readPercentSetting(self::CASH_SECONDARY_PERCENT_KEY, self::DEFAULT_CASH_SECONDARY_PERCENT),
         ];
+    }
+
+    public function vatZero22MarginSupplementPercent(): float
+    {
+        if (! Schema::hasTable('kpi_settings')) {
+            return self::DEFAULT_VAT_ZERO_22_SUPPLEMENT_PERCENT;
+        }
+
+        return $this->readPercentSetting(
+            self::VAT_ZERO_22_SUPPLEMENT_PERCENT_KEY,
+            self::DEFAULT_VAT_ZERO_22_SUPPLEMENT_PERCENT,
+        );
     }
 
     /**
      * @param  array{
      *     vat_percent: float|int,
      *     vat_zero_22_percent: float|int,
+     *     vat_zero_22_supplement_percent: float|int,
      *     cash_primary_percent: float|int,
      *     cash_secondary_percent: float|int,
      * }  $rates
@@ -97,6 +116,13 @@ class KpiConfigurationService
             'float',
             'kpi',
             'Вычет KPI при НДС 0% у заказчика и 22% у перевозчика, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::VAT_ZERO_22_SUPPLEMENT_PERCENT_KEY,
+            number_format((float) $rates['vat_zero_22_supplement_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Доплата к марже при НДС 0% / 22%, % от суммы перевозчиков с НДС 22%',
         );
         KpiSetting::setValue(
             self::CASH_PRIMARY_PERCENT_KEY,
@@ -149,6 +175,7 @@ class KpiConfigurationService
      * @return array{
      *     vat_percent: float,
      *     vat_zero_22_percent: float,
+     *     vat_zero_22_supplement_percent: float,
      *     cash_primary_percent: float,
      *     cash_secondary_percent: float,
      * }
@@ -158,6 +185,7 @@ class KpiConfigurationService
         return [
             'vat_percent' => self::DEFAULT_VAT_PERCENT,
             'vat_zero_22_percent' => self::DEFAULT_VAT_ZERO_22_PERCENT,
+            'vat_zero_22_supplement_percent' => self::DEFAULT_VAT_ZERO_22_SUPPLEMENT_PERCENT,
             'cash_primary_percent' => self::DEFAULT_CASH_PRIMARY_PERCENT,
             'cash_secondary_percent' => self::DEFAULT_CASH_SECONDARY_PERCENT,
         ];

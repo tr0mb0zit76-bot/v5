@@ -94,10 +94,10 @@
                 <div class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
                     <h3 class="font-semibold text-zinc-900 dark:text-zinc-50">НДС 0% / 22%</h3>
                     <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                        Заказчик с НДС 0%, перевозчик с НДС 22% (на рейс или на плечо). Доплата к марже — отдельно в формуле delta.
+                        Заказчик «С НДС 0%», у перевозчика (рейс или плечо) «С НДС 22%». Не путать с вариантом 0% / 0% — он в блоке «НДС».
                     </p>
                     <label class="block space-y-1">
-                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Вычет с суммы заказчика, %</span>
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Вычет KPI с суммы заказчика, %</span>
                         <div class="flex items-center gap-2">
                             <input
                                 v-model.number="settingsForm.deduction_rates.vat_zero_22_percent"
@@ -110,6 +110,23 @@
                             <span class="text-zinc-500 dark:text-zinc-400">%</span>
                         </div>
                     </label>
+                    <label class="block space-y-1">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Доплата к марже (delta), %</span>
+                        <div class="flex items-center gap-2">
+                            <input
+                                v-model.number="settingsForm.deduction_rates.vat_zero_22_supplement_percent"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                :class="`${crmField} w-28`"
+                            >
+                            <span class="text-zinc-500 dark:text-zinc-400">%</span>
+                        </div>
+                    </label>
+                    <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                        Доплата считается от суммы перевозчиков с НДС 22% и прибавляется к delta после вычета KPI и расходов.
+                    </p>
                 </div>
             </div>
 
@@ -155,6 +172,7 @@ const props = defineProps({
         default: () => ({
             vat_percent: 3,
             vat_zero_22_percent: 3,
+            vat_zero_22_supplement_percent: 15,
             cash_primary_percent: 3,
             cash_secondary_percent: 21,
         }),
@@ -166,6 +184,7 @@ const settingsForm = useForm({
     deduction_rates: {
         vat_percent: Number(props.deductionRates.vat_percent ?? props.deductionRates.cashless_percent ?? 3),
         vat_zero_22_percent: Number(props.deductionRates.vat_zero_22_percent ?? 3),
+        vat_zero_22_supplement_percent: Number(props.deductionRates.vat_zero_22_supplement_percent ?? 15),
         cash_primary_percent: Number(props.deductionRates.cash_primary_percent ?? 3),
         cash_secondary_percent: Number(props.deductionRates.cash_secondary_percent ?? 21),
     },
