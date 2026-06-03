@@ -920,6 +920,28 @@ class ContractorManagementTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        $ownCompanyId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Универсал Своя компания',
+            'full_name' => null,
+            'inn' => null,
+            'is_active' => true,
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'type' => 'customer',
+            'name' => 'ООО Универсал Только заказчик',
+            'full_name' => null,
+            'inn' => null,
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $response = $this->actingAs($admin)->getJson(route('contractors.search', [
             'type' => 'carrier',
             'q' => 'Универсал',
@@ -928,6 +950,8 @@ class ContractorManagementTest extends TestCase
         $response->assertOk();
         $ids = collect($response->json('contractors'))->pluck('id')->map(fn ($id): int => (int) $id)->all();
         $this->assertContains($bothId, $ids);
+        $this->assertContains($ownCompanyId, $ids);
+        $this->assertNotContains($customerId, $ids);
     }
 
     public function test_contractor_search_matches_full_name(): void
@@ -953,6 +977,30 @@ class ContractorManagementTest extends TestCase
         $response->assertOk();
         $ids = collect($response->json('contractors'))->pluck('id')->map(fn ($i): int => (int) $i)->all();
         $this->assertContains($id, $ids);
+    }
+
+    public function test_contractor_search_without_type_does_not_default_to_customers(): void
+    {
+        $admin = $this->createAdminUser();
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'type' => 'carrier',
+            'name' => 'Владелец Автопарка',
+            'full_name' => null,
+            'inn' => null,
+            'is_active' => true,
+            'is_own_company' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->getJson(route('contractors.search', [
+            'q' => 'Автопарка',
+        ]));
+
+        $response->assertOk();
+        $ids = collect($response->json('contractors'))->pluck('id')->map(fn ($i): int => (int) $i)->all();
+        $this->assertContains($carrierId, $ids);
     }
 
     public function test_contractor_search_is_allowed_for_user_with_orders_but_without_contractors_area(): void

@@ -41,6 +41,8 @@ class ImportSalesBookArticleRequest extends FormRequest
             ],
             'parent_id' => ['nullable', 'integer', Rule::exists((new SalesBookArticle)->getTable(), 'id')],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'tags' => ['nullable', 'array', 'max:20'],
+            'tags.*' => ['string', 'max:50'],
         ];
     }
 }

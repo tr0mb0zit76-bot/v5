@@ -550,6 +550,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    showFlashBanner: {
+        type: Boolean,
+        default: true,
+    },
 });
 
 const page = usePage();
@@ -557,7 +561,7 @@ const page = usePage();
 const flashBanner = computed(() => {
     const flash = page.props.flash;
 
-    if (!flash?.message) {
+    if (!props.showFlashBanner || !flash?.message) {
         return null;
     }
 

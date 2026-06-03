@@ -241,7 +241,9 @@ class Contractor extends Model
         )));
 
         if ($user->isAdmin() || RoleAccess::userHasPermission($user, 'view_all_contractors')) {
-            if (in_array($typeFilter, ['customer', 'carrier', 'contractor', 'both'], true)) {
+            if ($typeFilter === 'carrier') {
+                $this->applyCarrierLikeFilter($query);
+            } elseif (in_array($typeFilter, ['customer', 'contractor', 'both'], true)) {
                 $query->where('type', $typeFilter);
             }
 
@@ -251,7 +253,9 @@ class Contractor extends Model
         $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'contractors');
 
         if ($scope === 'all') {
-            if (in_array($typeFilter, ['customer', 'carrier', 'contractor', 'both'], true)) {
+            if ($typeFilter === 'carrier') {
+                $this->applyCarrierLikeFilter($query);
+            } elseif (in_array($typeFilter, ['customer', 'contractor', 'both'], true)) {
                 $query->where('type', $typeFilter);
             }
 
@@ -274,7 +278,7 @@ class Contractor extends Model
                 }
 
                 if ($typeFilter === 'carrier') {
-                    $visibility->whereIn('type', ['carrier', 'both']);
+                    $this->applyCarrierLikeFilter($visibility);
 
                     return;
                 }
@@ -297,6 +301,23 @@ class Contractor extends Model
                             ->where('owner_id', $user->id);
                     });
             });
+        });
+    }
+
+    /**
+     * Контрагенты, которых можно выбирать как перевозчика/владельца ТС: перевозчики,
+     * универсальные контрагенты и собственные компании.
+     *
+     * @param  Builder  $query
+     */
+    private function applyCarrierLikeFilter($query): void
+    {
+        $query->where(function ($carrierLike): void {
+            $carrierLike->whereIn('type', ['carrier', 'both']);
+
+            if (Schema::hasColumn('contractors', 'is_own_company')) {
+                $carrierLike->orWhere('is_own_company', true);
+            }
         });
     }
 

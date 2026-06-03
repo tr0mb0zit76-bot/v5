@@ -16,6 +16,8 @@ class SalesBookArticleFeedback extends Model
         'rating',
         'comment',
         'source',
+        'turn_id',
+        'metadata',
     ];
 
     /**
@@ -27,6 +29,7 @@ class SalesBookArticleFeedback extends Model
             'sales_book_article_id' => 'integer',
             'user_id' => 'integer',
             'rating' => SalesBookArticleFeedbackRating::class,
+            'metadata' => 'array',
         ];
     }
 

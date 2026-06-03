@@ -1,6 +1,12 @@
 <template>
     <div class="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-900/60">
         <p class="text-xs font-medium text-zinc-700 dark:text-zinc-200">Насколько статья помогла?</p>
+        <textarea
+            v-model="comment"
+            class="mt-2 min-h-16 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-0 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            maxlength="2000"
+            placeholder="Что поправить? Необязательно."
+        />
         <div class="mt-2 flex flex-wrap gap-2">
             <button
                 v-for="option in ratingOptions"
@@ -13,7 +19,7 @@
                         ? 'border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-950/40'
                         : 'border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800'"
                 :disabled="busy"
-                @click="$emit('rate', option.value)"
+                @click="submit(option.value)"
             >
                 {{ option.label }}
             </button>
@@ -32,6 +38,8 @@
 </template>
 
 <script setup>
+import { ref } from 'vue';
+
 defineProps({
     articleId: {
         type: Number,
@@ -47,11 +55,22 @@ defineProps({
     },
 });
 
-defineEmits(['rate']);
+const emit = defineEmits(['rate']);
+
+const comment = ref('');
 
 const ratingOptions = [
     { value: 'helpful', label: 'Полезно' },
     { value: 'unclear', label: 'Непонятно' },
     { value: 'outdated', label: 'Устарело' },
 ];
+
+function submit(rating) {
+    emit('rate', {
+        rating,
+        comment: comment.value.trim(),
+    });
+
+    comment.value = '';
+}
 </script>

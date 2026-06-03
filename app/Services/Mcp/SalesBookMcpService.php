@@ -2,6 +2,7 @@
 
 namespace App\Services\Mcp;
 
+use App\Enums\SalesBookArticleStatus;
 use App\Models\SalesBookArticle;
 use App\Models\User;
 use App\Services\SalesBookParentChildLinksService;
@@ -23,6 +24,7 @@ final class SalesBookMcpService
      *     title: string,
      *     parent_id: int|null,
      *     parent_title: string|null,
+     *     tags: list<string>,
      *     matched_in: string|null,
      *     excerpt: string|null
      * }>}
@@ -35,6 +37,7 @@ final class SalesBookMcpService
         $trimmedQuery = trim($query);
 
         $builder = SalesBookArticle::query()
+            ->published()
             ->orderBy('sort_order')
             ->orderBy('id');
 
@@ -46,14 +49,16 @@ final class SalesBookMcpService
                     foreach ($tokens as $token) {
                         $builder->orWhere(function ($nested) use ($token): void {
                             $nested->where('title', 'like', '%'.$token.'%')
-                                ->orWhere('markdown_content', 'like', '%'.$token.'%');
+                                ->orWhere('markdown_content', 'like', '%'.$token.'%')
+                                ->orWhere('tags', 'like', '%'.$token.'%');
                         });
                     }
                 });
             } else {
                 $builder->where(function ($builder) use ($trimmedQuery): void {
                     $builder->where('title', 'like', '%'.$trimmedQuery.'%')
-                        ->orWhere('markdown_content', 'like', '%'.$trimmedQuery.'%');
+                        ->orWhere('markdown_content', 'like', '%'.$trimmedQuery.'%')
+                        ->orWhere('tags', 'like', '%'.$trimmedQuery.'%');
                 });
             }
         }
@@ -72,6 +77,7 @@ final class SalesBookMcpService
         }
 
         $parentsById = SalesBookArticle::query()
+            ->published()
             ->whereIn('id', $articles->pluck('parent_id')->filter()->unique())
             ->pluck('title', 'id');
 
@@ -83,6 +89,7 @@ final class SalesBookMcpService
                 'parent_title' => $article->parent_id !== null
                     ? (string) ($parentsById[$article->parent_id] ?? null)
                     : null,
+                'tags' => $this->normalizeTags($article->tags ?? []),
                 'matched_in' => $this->resolveMatchedIn($article, $trimmedQuery),
                 'excerpt' => $this->buildSearchExcerpt($article, $trimmedQuery),
             ])->values()->all(),
@@ -96,6 +103,7 @@ final class SalesBookMcpService
      *     parent_id: int|null,
      *     parent_title: string|null,
      *     breadcrumb: list<array{id: int, title: string}>,
+     *     tags: list<string>,
      *     markdown_content: string,
      *     content_truncated: bool,
      *     book_url: string,
@@ -107,7 +115,7 @@ final class SalesBookMcpService
         $this->ensureCanRead($user);
 
         /** @var SalesBookArticle|null $article */
-        $article = SalesBookArticle::query()->find($articleId);
+        $article = SalesBookArticle::query()->published()->find($articleId);
 
         if ($article === null) {
             throw new ModelNotFoundException('Sales book article not found.');
@@ -125,6 +133,7 @@ final class SalesBookMcpService
         $parentTitle = null;
         if ($article->parent_id !== null) {
             $parentTitle = SalesBookArticle::query()
+                ->published()
                 ->whereKey($article->parent_id)
                 ->value('title');
         }
@@ -136,6 +145,7 @@ final class SalesBookMcpService
                 'parent_id' => $article->parent_id,
                 'parent_title' => is_string($parentTitle) ? $parentTitle : null,
                 'breadcrumb' => $this->buildBreadcrumb($article),
+                'tags' => $this->normalizeTags($article->tags ?? []),
                 'markdown_content' => $markdown,
                 'content_truncated' => $contentTruncated,
                 'book_url' => route('sales-assistant.book', ['article_id' => $article->id]),
@@ -160,6 +170,7 @@ final class SalesBookMcpService
         string $childTitle,
         string $markdownContent,
         ?int $sortOrder = null,
+        array $tags = [],
     ): array {
         $this->ensureCanWrite($user);
 
@@ -179,6 +190,8 @@ final class SalesBookMcpService
             $article->update([
                 'markdown_content' => $normalizedMarkdown,
                 'sort_order' => $sortOrder ?? $article->sort_order,
+                'status' => SalesBookArticleStatus::Draft->value,
+                'tags' => $this->normalizeTags($tags),
                 'updated_by' => $user->id,
             ]);
         } else {
@@ -187,6 +200,8 @@ final class SalesBookMcpService
                 'markdown_content' => $normalizedMarkdown,
                 'parent_id' => $parent->id,
                 'sort_order' => $this->resolveSortOrder($parent->id, $sortOrder),
+                'status' => SalesBookArticleStatus::Draft->value,
+                'tags' => $this->normalizeTags($tags),
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);
@@ -214,7 +229,7 @@ final class SalesBookMcpService
 
         while ($parentId !== null) {
             /** @var SalesBookArticle|null $parent */
-            $parent = SalesBookArticle::query()->find($parentId);
+            $parent = SalesBookArticle::query()->published()->find($parentId);
 
             if ($parent === null) {
                 break;
@@ -239,6 +254,12 @@ final class SalesBookMcpService
 
         if (mb_stripos($article->title, $query) !== false) {
             return 'title';
+        }
+
+        foreach ($this->normalizeTags($article->tags ?? []) as $tag) {
+            if (mb_stripos($tag, $query) !== false) {
+                return 'tags';
+            }
         }
 
         $readerContent = $this->contentNormalizer->forReader((string) ($article->markdown_content ?? ''));
@@ -311,9 +332,14 @@ final class SalesBookMcpService
     {
         $score = 0;
         $title = mb_strtolower($article->title);
+        $tags = mb_strtolower(implode(' ', $this->normalizeTags($article->tags ?? [])));
 
         foreach ($this->searchTokens($query) as $token) {
             if (str_contains($title, $token)) {
+                $score++;
+            }
+
+            if (str_contains($tags, $token)) {
                 $score++;
             }
         }
@@ -358,6 +384,25 @@ final class SalesBookMcpService
             ->max('sort_order');
 
         return $maxSortOrder + 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeTags(mixed $tags): array
+    {
+        if (! is_array($tags)) {
+            return [];
+        }
+
+        return collect($tags)
+            ->map(fn (mixed $tag): string => trim((string) $tag))
+            ->filter(fn (string $tag): bool => $tag !== '')
+            ->map(fn (string $tag): string => mb_substr($tag, 0, 50))
+            ->unique(fn (string $tag): string => mb_strtolower($tag))
+            ->values()
+            ->take(20)
+            ->all();
     }
 
     private function ensureCanRead(User $user): void

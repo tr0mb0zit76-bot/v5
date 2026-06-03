@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\SalesBookArticleStatus;
 use App\Models\SalesBookArticle;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -47,6 +48,9 @@ class UpdateSalesBookArticleRequest extends FormRequest
                 Rule::notIn($articleId !== null ? [$articleId] : []),
             ],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'status' => ['nullable', 'string', Rule::enum(SalesBookArticleStatus::class)],
+            'tags' => ['nullable', 'array', 'max:20'],
+            'tags.*' => ['string', 'max:50'],
         ];
     }
 }

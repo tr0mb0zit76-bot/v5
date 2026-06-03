@@ -240,7 +240,7 @@ class ContractorController extends Controller
         ]);
 
         $query = $request->get('q', '');
-        $type = $request->get('type', 'customer');
+        $type = $request->filled('type') ? (string) $request->get('type') : null;
         $limit = $request->get('limit', 100);
 
         $contractorsQuery = Contractor::query()->visibleTo($request->user(), $type);

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\SalesBookArticleStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,8 +15,14 @@ class SalesBookArticle extends Model
         'title',
         'markdown_content',
         'sort_order',
+        'status',
+        'tags',
         'created_by',
         'updated_by',
+    ];
+
+    protected $attributes = [
+        'status' => 'published',
     ];
 
     /**
@@ -25,7 +33,18 @@ class SalesBookArticle extends Model
         return [
             'parent_id' => 'integer',
             'sort_order' => 'integer',
+            'status' => SalesBookArticleStatus::class,
+            'tags' => 'array',
         ];
+    }
+
+    /**
+     * @param  Builder<SalesBookArticle>  $query
+     * @return Builder<SalesBookArticle>
+     */
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('status', SalesBookArticleStatus::Published->value);
     }
 
     /**

@@ -43,6 +43,12 @@
                 >
                     {{ node.title }}
                 </button>
+                <span
+                    v-if="node.status === 'draft'"
+                    class="mr-1 shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/60 dark:text-amber-100"
+                >
+                    Черновик
+                </span>
             </div>
 
             <div

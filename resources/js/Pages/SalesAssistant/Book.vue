@@ -7,12 +7,104 @@
                 <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Пространство в стиле Notion: вложенные страницы, импорт markdown и визуальный редактор.</p>
             </div>
 
+            <section
+                v-if="canWrite && feedbackProblemArticles.length > 0"
+                class="mt-4 shrink-0 rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/70 dark:bg-amber-950/30"
+            >
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-100">
+                        Требует правки
+                    </h2>
+                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
+                        {{ feedbackProblemArticles.length }}
+                    </span>
+                </div>
+                <div class="mt-2 space-y-1.5">
+                    <button
+                        v-for="article in feedbackProblemArticles"
+                        :key="`problem-${article.id}`"
+                        type="button"
+                        class="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-amber-100/80 dark:hover:bg-amber-900/40"
+                        @click="openArticle(article.id)"
+                    >
+                        <span class="block truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                            {{ article.title }}
+                        </span>
+                        <span class="mt-0.5 block text-[11px] text-amber-800 dark:text-amber-200">
+                            Негативных: {{ article.negative }}
+                            <template v-if="article.unclear"> · непонятно {{ article.unclear }}</template>
+                            <template v-if="article.outdated"> · устарело {{ article.outdated }}</template>
+                            <template v-if="article.command_bar"> · из AI {{ article.command_bar }}</template>
+                        </span>
+                    </button>
+                </div>
+            </section>
+
+            <section
+                v-if="canWrite && qualityInsights"
+                class="mt-3 shrink-0 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"
+            >
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
+                        Качество базы
+                    </h2>
+                    <span class="text-[11px] text-zinc-500 dark:text-zinc-400">30 дней</span>
+                </div>
+
+                <div class="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                    <div class="rounded-lg bg-zinc-50 px-2 py-1.5 dark:bg-zinc-800/70">
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ qualityInsights.summary?.published_articles ?? 0 }}</div>
+                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">опубл.</div>
+                    </div>
+                    <div class="rounded-lg bg-amber-50 px-2 py-1.5 dark:bg-amber-950/40">
+                        <div class="text-sm font-semibold text-amber-900 dark:text-amber-100">{{ qualityInsights.summary?.draft_articles ?? 0 }}</div>
+                        <div class="text-[10px] text-amber-700 dark:text-amber-200">черн.</div>
+                    </div>
+                    <div class="rounded-lg bg-rose-50 px-2 py-1.5 dark:bg-rose-950/40">
+                        <div class="text-sm font-semibold text-rose-900 dark:text-rose-100">{{ negativeFeedbackTotal }}</div>
+                        <div class="text-[10px] text-rose-700 dark:text-rose-200">сигналов</div>
+                    </div>
+                </div>
+
+                <div v-if="qualityInsights.hints?.length" class="mt-2 space-y-1">
+                    <p
+                        v-for="hint in qualityInsights.hints"
+                        :key="hint"
+                        class="rounded-lg bg-zinc-50 px-2 py-1.5 text-[11px] text-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-300"
+                    >
+                        {{ hint }}
+                    </p>
+                </div>
+
+                <div v-if="qualityInsights.recent_feedback?.length" class="mt-2 space-y-1.5">
+                    <p class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Последние замечания</p>
+                    <button
+                        v-for="item in qualityInsights.recent_feedback"
+                        :key="`feedback-${item.id}`"
+                        type="button"
+                        class="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        @click="openArticle(item.article_id)"
+                    >
+                        <span class="block truncate text-xs font-medium text-zinc-800 dark:text-zinc-100">{{ item.article_title }}</span>
+                        <span class="mt-0.5 block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {{ item.rating_label }} · {{ item.source_label }}<template v-if="item.comment"> · {{ item.comment }}</template>
+                        </span>
+                    </button>
+                </div>
+            </section>
+
             <form v-if="canWrite" class="mt-4 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="createArticle">
                 <input
                     v-model="createForm.title"
                     type="text"
                     required
                     placeholder="Новый заголовок страницы"
+                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                />
+                <input
+                    v-model="createForm.tags_text"
+                    type="text"
+                    placeholder="Теги через запятую"
                     class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
                 />
                 <select
@@ -49,6 +141,12 @@
                         {{ option.label }}
                     </option>
                 </select>
+                <input
+                    v-model="importForm.tags_text"
+                    type="text"
+                    placeholder="Теги импортируемой статьи"
+                    class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                />
                 <button
                     type="submit"
                     :disabled="importForm.processing"
@@ -123,7 +221,33 @@
                                 {{ option.label }}
                             </option>
                         </select>
+                        <span>Статус:</span>
+                        <select
+                            v-model="editForm.status"
+                            class="rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                        >
+                            <option v-for="option in articleStatusOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <span>Теги:</span>
+                        <input
+                            v-model="editForm.tags_text"
+                            type="text"
+                            placeholder="через запятую"
+                            class="min-w-[12rem] rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                        />
                         <span v-if="selectedArticle.updated_at">Обновлено: {{ formatDate(selectedArticle.updated_at) }}</span>
+                    </div>
+
+                    <div v-if="selectedArticleTags.length > 0" class="flex shrink-0 flex-wrap gap-1">
+                        <span
+                            v-for="tag in selectedArticleTags"
+                            :key="`tag-${tag}`"
+                            class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                        >
+                            {{ tag }}
+                        </span>
                     </div>
 
                     <TiptapEditor
@@ -161,6 +285,12 @@
                         <h2 class="min-w-0 flex-1 border-0 border-b border-zinc-200 px-0 py-2 text-3xl font-semibold text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">
                             {{ selectedArticle.title }}
                         </h2>
+                        <span
+                            v-if="selectedArticle.status === 'draft'"
+                            class="mt-2 shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                        >
+                            Черновик
+                        </span>
                         <button
                             type="button"
                             :class="`${crmBtnNeutral} shrink-0 px-3 py-2 text-xs`"
@@ -181,6 +311,16 @@
 
                     <div v-if="selectedArticle.updated_at" class="shrink-0 text-xs text-zinc-500">
                         Обновлено: {{ formatDate(selectedArticle.updated_at) }}
+                    </div>
+
+                    <div v-if="selectedArticleTags.length > 0" class="flex shrink-0 flex-wrap gap-1">
+                        <span
+                            v-for="tag in selectedArticleTags"
+                            :key="`readonly-tag-${tag}`"
+                            class="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                        >
+                            {{ tag }}
+                        </span>
                     </div>
 
                     <TiptapEditor
@@ -224,7 +364,7 @@ import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book', mainFill: true }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book', mainFill: true, showFlashBanner: false }, () => page),
 });
 
 const props = defineProps({
@@ -252,6 +392,18 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    feedbackProblemArticles: {
+        type: Array,
+        default: () => [],
+    },
+    qualityInsights: {
+        type: Object,
+        default: null,
+    },
+    articleStatusOptions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -259,17 +411,21 @@ const page = usePage();
 const createForm = useForm({
     title: '',
     parent_id: '',
+    tags_text: '',
 });
 
 const importForm = useForm({
     file: null,
     parent_id: '',
+    tags_text: '',
 });
 
 const editForm = useForm({
     title: '',
     markdown_content: '',
     parent_id: '',
+    status: 'published',
+    tags_text: '',
 });
 
 const feedbackForm = useForm({
@@ -324,6 +480,12 @@ const parentOptionsForEdit = computed(() => {
     return indentedArticleOptions.value.filter((option) => !blockedIds.has(option.id));
 });
 
+const selectedArticleTags = computed(() => normalizeTags(props.selectedArticle?.tags ?? []));
+const negativeFeedbackTotal = computed(() => (
+    Number(props.qualityInsights?.summary?.unclear ?? 0)
+    + Number(props.qualityInsights?.summary?.outdated ?? 0)
+));
+
 watch(
     () => props.selectedArticle,
     (value, oldValue) => {
@@ -338,6 +500,8 @@ watch(
             title: value.title ?? '',
             markdown_content: value.markdown_content ?? '',
             parent_id: value.parent_id ? String(value.parent_id) : '',
+            status: value.status ?? 'published',
+            tags_text: formatTags(value.tags ?? []),
         });
 
         if (articleChanged || serverMarkdownChanged) {
@@ -346,6 +510,8 @@ watch(
         } else {
             editForm.title = value.title ?? '';
             editForm.parent_id = value.parent_id ? String(value.parent_id) : '';
+            editForm.status = value.status ?? 'published';
+            editForm.tags_text = formatTags(value.tags ?? []);
         }
     },
     { immediate: true },
@@ -415,7 +581,45 @@ function withNormalizedParent(form) {
     return form.transform((data) => ({
         ...data,
         parent_id: normalizeParentId(data.parent_id),
+        tags: parseTags(data.tags_text),
     }));
+}
+
+function parseTags(value) {
+    if (typeof value !== 'string') {
+        return [];
+    }
+
+    return normalizeTags(value.split(','));
+}
+
+function normalizeTags(tags) {
+    if (!Array.isArray(tags)) {
+        return [];
+    }
+
+    const seen = new Set();
+
+    return tags
+        .map((tag) => String(tag ?? '').trim())
+        .filter((tag) => tag.length > 0)
+        .map((tag) => tag.slice(0, 50))
+        .filter((tag) => {
+            const key = tag.toLocaleLowerCase('ru-RU');
+
+            if (seen.has(key)) {
+                return false;
+            }
+
+            seen.add(key);
+
+            return true;
+        })
+        .slice(0, 20);
+}
+
+function formatTags(tags) {
+    return normalizeTags(tags).join(', ');
 }
 
 function formatDate(value) {
@@ -431,7 +635,7 @@ function openArticle(articleId) {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary'],
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary', 'feedbackProblemArticles', 'qualityInsights'],
     });
 }
 
@@ -483,6 +687,8 @@ function saveArticle() {
     router.patch(route('sales-assistant.book.articles.update', props.selectedArticle.id), {
         title: editForm.title,
         parent_id: normalizeParentId(editForm.parent_id),
+        status: editForm.status,
+        tags: parseTags(editForm.tags_text),
         markdown_content: markdownContent,
     }, {
         preserveScroll: true,
@@ -517,12 +723,13 @@ function destroyArticle() {
 const canWrite = computed(() => Boolean(props.capabilities?.can_write));
 const canComment = computed(() => Boolean(props.capabilities?.can_comment));
 
-function submitArticleFeedback(rating) {
+function submitArticleFeedback(payload) {
     if (!props.selectedArticle?.id) {
         return;
     }
 
-    feedbackForm.rating = rating;
+    feedbackForm.rating = payload.rating;
+    feedbackForm.comment = payload.comment ?? '';
     feedbackForm.post(route('sales-assistant.book.articles.feedback', props.selectedArticle.id), {
         preserveScroll: true,
         onSuccess: () => {

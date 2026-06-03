@@ -15,6 +15,7 @@ use App\Services\Mcp\OrderMcpService;
 use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
+use App\Services\SalesBook\SalesBookQualityInsightsService;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Support\AiInteractionFeature;
 use App\Support\DispositionSlot;
@@ -38,6 +39,7 @@ class AgentToolRegistry
         private readonly TaskMcpService $tasks,
         private readonly OrderDocumentMcpService $orderDocuments,
         private readonly SalesBookMcpService $salesBook,
+        private readonly SalesBookQualityInsightsService $salesBookQualityInsights,
         private readonly DispositionMcpService $disposition,
         private readonly OrderActivityTimelineService $orderTimeline,
         private readonly AiUsageAnalyticsService $aiUsageAnalytics,
@@ -461,6 +463,11 @@ class AgentToolRegistry
                         'title' => ['type' => 'string'],
                         'markdown_content' => ['type' => 'string'],
                         'sort_order' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 1000000],
+                        'tags' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'maxItems' => 20,
+                        ],
                     ],
                     'required' => ['parent_title', 'title', 'markdown_content'],
                     'additionalProperties' => false,
@@ -472,6 +479,24 @@ class AgentToolRegistry
                     (string) $args['title'],
                     (string) $args['markdown_content'],
                     isset($args['sort_order']) ? (int) $args['sort_order'] : null,
+                    is_array($args['tags'] ?? null) ? $args['tags'] : [],
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_sales_book_quality_insights',
+                description: 'Качество Книги продаж: проблемные статьи, свежие замечания, черновики и подсказки редактору.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canWriteSalesBook($user),
+                invoke: fn (User $user, array $args): array => $this->salesBookQualityInsights->insights(
+                    (int) ($args['days'] ?? 30),
+                    (int) ($args['limit'] ?? 10),
                 ),
             ),
             new AgentToolDefinition(

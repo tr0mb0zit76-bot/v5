@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Ai\AiInteractionRecorder;
 use App\Services\Inference\ExternalLlmPayloadSanitizer;
 use App\Services\Mcp\AiToolAuditLogger;
+use App\Services\SalesBook\SalesBookArticleFeedbackRecorder;
 use App\Support\AiChannel;
 use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
@@ -28,6 +29,7 @@ class CommandBarAgentService
         private readonly ExternalLlmPayloadSanitizer $sanitizer,
         private readonly SalesBookKnowledgeQuestionDetector $salesBookKnowledgeQuestionDetector,
         private readonly SalesBookTurnAnalyzer $salesBookTurnAnalyzer,
+        private readonly SalesBookArticleFeedbackRecorder $salesBookArticleFeedbackRecorder,
     ) {}
 
     /**
@@ -300,11 +302,16 @@ class CommandBarAgentService
     }
 
     /**
-     * @return array{ok: bool, message?: string}
+     * @return array{ok: bool, message?: string, linked_article_feedback_count?: int}
      */
     public function submitFeedback(User $user, string $turnId, string $rating, ?string $comment = null): array
     {
         $linkedTurn = $this->interactionRecorder->findConversationTurnMetadata($turnId);
+
+        $linkedSalesBook = is_array($linkedTurn['sales_book'] ?? null) ? $linkedTurn['sales_book'] : null;
+        $prompt = is_string($linkedTurn['user_prompt_redacted'] ?? null)
+            ? $linkedTurn['user_prompt_redacted']
+            : null;
 
         $this->interactionRecorder->recordUserFeedback(
             $user,
@@ -313,17 +320,29 @@ class CommandBarAgentService
             $rating,
             $comment,
             [
-                'linked_sales_book' => is_array($linkedTurn['sales_book'] ?? null) ? $linkedTurn['sales_book'] : null,
+                'linked_sales_book' => $linkedSalesBook,
                 'linked_prompt_fingerprint' => is_string($linkedTurn['prompt_fingerprint'] ?? null)
                     ? $linkedTurn['prompt_fingerprint']
                     : null,
-                'user_prompt_redacted' => is_string($linkedTurn['user_prompt_redacted'] ?? null)
-                    ? $linkedTurn['user_prompt_redacted']
-                    : null,
+                'user_prompt_redacted' => $prompt,
             ],
         );
 
-        return ['ok' => true];
+        $linkedArticleFeedbackCount = $linkedSalesBook === null
+            ? 0
+            : $this->salesBookArticleFeedbackRecorder->recordCommandBarFeedback(
+                $user,
+                $turnId,
+                $rating,
+                $comment,
+                $linkedSalesBook,
+                $prompt,
+            );
+
+        return [
+            'ok' => true,
+            'linked_article_feedback_count' => $linkedArticleFeedbackCount,
+        ];
     }
 
     /**

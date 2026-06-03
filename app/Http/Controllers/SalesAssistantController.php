@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SalesBookArticleStatus;
 use App\Enums\SalesPlaySessionOutcome;
 use App\Enums\SalesTrainerDialogQuality;
 use App\Http\Requests\CalculateSalesMarginCounterRequest;
@@ -18,6 +19,7 @@ use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Services\KpiConfigurationService;
 use App\Services\SalesBook\SalesBookArticleFeedbackSummaryService;
+use App\Services\SalesBook\SalesBookQualityInsightsService;
 use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
@@ -73,10 +75,14 @@ class SalesAssistantController extends Controller
         SalesBookArticleTreeService $treeService,
         SalesBookParentChildLinksService $childLinksService,
         SalesBookContentNormalizer $contentNormalizer,
+        SalesBookArticleFeedbackSummaryService $feedbackSummaryService,
+        SalesBookQualityInsightsService $qualityInsights,
     ): Response {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
 
+        $canWriteSalesBook = RoleAccess::canWriteSalesBook($request->user());
         $articles = SalesBookArticle::query()
+            ->when(! $canWriteSalesBook, fn ($query) => $query->published())
             ->orderBy('parent_id')
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -107,7 +113,7 @@ class SalesAssistantController extends Controller
 
         $feedbackSummary = $selectedArticle === null
             ? null
-            : app(SalesBookArticleFeedbackSummaryService::class)->forArticle($selectedArticle->id);
+            : $feedbackSummaryService->forArticle($selectedArticle->id);
 
         return Inertia::render('SalesAssistant/Book', [
             'articlesTree' => $treeService->buildTree($articles)->values()->all(),
@@ -115,6 +121,8 @@ class SalesAssistantController extends Controller
                 'id' => $article->id,
                 'title' => $article->title,
                 'parent_id' => $article->parent_id,
+                'status' => $article->status?->value ?? SalesBookArticleStatus::Published->value,
+                'tags' => $article->tags ?? [],
             ])->values(),
             'directChildPages' => $directChildPages,
             'selectedArticle' => $selectedArticle === null
@@ -124,6 +132,8 @@ class SalesAssistantController extends Controller
                     'title' => $selectedArticle->title,
                     'parent_id' => $selectedArticle->parent_id,
                     'sort_order' => $selectedArticle->sort_order,
+                    'status' => $selectedArticle->status?->value ?? SalesBookArticleStatus::Published->value,
+                    'tags' => $selectedArticle->tags ?? [],
                     'markdown_content' => $contentNormalizer->forEditor((string) ($selectedArticle->markdown_content ?? '')),
                     'markdown_content_display' => $contentNormalizer->forReader((string) ($selectedArticle->markdown_content ?? '')),
                     'updated_at' => $selectedArticle->updated_at?->toIso8601String(),
@@ -131,9 +141,22 @@ class SalesAssistantController extends Controller
             'capabilities' => [
                 'can_read' => RoleAccess::canReadSalesBook($request->user()),
                 'can_comment' => RoleAccess::canCommentSalesBook($request->user()),
-                'can_write' => RoleAccess::canWriteSalesBook($request->user()),
+                'can_write' => $canWriteSalesBook,
             ],
+            'articleStatusOptions' => array_map(
+                fn (SalesBookArticleStatus $status): array => [
+                    'value' => $status->value,
+                    'label' => $status->label(),
+                ],
+                SalesBookArticleStatus::cases(),
+            ),
             'articleFeedbackSummary' => $feedbackSummary,
+            'feedbackProblemArticles' => $canWriteSalesBook
+                ? $feedbackSummaryService->problemArticles()
+                : [],
+            'qualityInsights' => $canWriteSalesBook
+                ? $qualityInsights->insights(30, 8)
+                : null,
         ]);
     }
 
@@ -145,13 +168,19 @@ class SalesAssistantController extends Controller
 
         $data = $request->validated();
 
-        SalesBookArticleFeedback::query()->create([
-            'sales_book_article_id' => $salesBookArticle->id,
-            'user_id' => $request->user()->id,
-            'rating' => $data['rating'],
-            'comment' => $data['comment'] ?? null,
-            'source' => $data['source'] ?? 'web',
-        ]);
+        $source = $data['source'] ?? 'web';
+
+        SalesBookArticleFeedback::query()->updateOrCreate(
+            [
+                'sales_book_article_id' => $salesBookArticle->id,
+                'user_id' => $request->user()->id,
+                'source' => $source,
+            ],
+            [
+                'rating' => $data['rating'],
+                'comment' => $data['comment'] ?? null,
+            ],
+        );
 
         return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
             'type' => 'success',
@@ -175,6 +204,8 @@ class SalesAssistantController extends Controller
             'markdown_content' => $this->resolveMarkdownPayload($data, $contentNormalizer),
             'parent_id' => $parentId,
             'sort_order' => $this->resolveSortOrder($parentId, $data['sort_order'] ?? null),
+            'status' => $data['status'] ?? SalesBookArticleStatus::Draft->value,
+            'tags' => $this->normalizeArticleTags($data['tags'] ?? []),
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ]);
@@ -214,6 +245,8 @@ class SalesAssistantController extends Controller
             'title' => $data['title'],
             'parent_id' => $parentId,
             'sort_order' => $sortOrder,
+            'status' => $data['status'] ?? $salesBookArticle->status?->value ?? SalesBookArticleStatus::Published->value,
+            'tags' => $this->normalizeArticleTags($data['tags'] ?? []),
             'updated_by' => $request->user()?->id,
         ];
 
@@ -306,6 +339,8 @@ class SalesAssistantController extends Controller
             'markdown_content' => $markdown,
             'parent_id' => $parentId,
             'sort_order' => $this->resolveSortOrder($parentId, $data['sort_order'] ?? null),
+            'status' => SalesBookArticleStatus::Draft->value,
+            'tags' => $this->normalizeArticleTags($data['tags'] ?? []),
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ]);
@@ -715,5 +750,24 @@ class SalesAssistantController extends Controller
             ->max('sort_order');
 
         return $maxSortOrder + 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeArticleTags(mixed $tags): array
+    {
+        if (! is_array($tags)) {
+            return [];
+        }
+
+        return collect($tags)
+            ->map(fn (mixed $tag): string => trim((string) $tag))
+            ->filter(fn (string $tag): bool => $tag !== '')
+            ->map(fn (string $tag): string => mb_substr($tag, 0, 50))
+            ->unique(fn (string $tag): string => mb_strtolower($tag))
+            ->values()
+            ->take(20)
+            ->all();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SalesBookArticleStatus;
 use App\Models\SalesBookArticle;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -10,7 +11,7 @@ class SalesBookArticleTreeService
 {
     /**
      * @param  Collection<int, SalesBookArticle>  $articles
-     * @return Collection<int, array{id:int,title:string,parent_id:int|null,sort_order:int,children:Collection<int, mixed>}>
+     * @return Collection<int, array{id:int,title:string,parent_id:int|null,sort_order:int,status:string,children:Collection<int, mixed>}>
      */
     public function buildTree(Collection $articles, ?int $parentId = null): Collection
     {
@@ -29,6 +30,7 @@ class SalesBookArticleTreeService
                     'title' => $article->title,
                     'parent_id' => $article->parent_id,
                     'sort_order' => $article->sort_order,
+                    'status' => $article->status?->value ?? SalesBookArticleStatus::Published->value,
                     'children' => $children->values()->all(),
                 ];
             });

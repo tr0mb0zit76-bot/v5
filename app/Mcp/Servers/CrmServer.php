@@ -12,6 +12,7 @@ use App\Mcp\Tools\GetOrderIntakeDraftTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
 use App\Mcp\Tools\GetOrderTool;
 use App\Mcp\Tools\GetSalesBookArticleTool;
+use App\Mcp\Tools\GetSalesBookQualityInsightsTool;
 use App\Mcp\Tools\GetTaskTool;
 use App\Mcp\Tools\GetTrainerCoachingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
@@ -46,7 +47,7 @@ use Laravel\Mcp\Server\Tool;
         - update_order_field — одно поле заказа (whitelist)
         - update_order_route_actual — фактическая погрузка/выгрузка
         - upsert_disposition_entry — ячейка диспозиции (утро/вечер)
-        - search_sales_book_articles / get_sales_book_article / upsert_sales_book_article
+        - search_sales_book_articles / get_sales_book_article / upsert_sales_book_article / get_sales_book_quality_insights
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
@@ -78,6 +79,7 @@ class CrmServer extends Server
         SearchSalesBookArticlesTool::class,
         GetSalesBookArticleTool::class,
         UpsertSalesBookArticleTool::class,
+        GetSalesBookQualityInsightsTool::class,
         GetAiUsageInsightsTool::class,
         GetTrainerCoachingInsightsTool::class,
         GetManagerSalesCoachingInsightsTool::class,
