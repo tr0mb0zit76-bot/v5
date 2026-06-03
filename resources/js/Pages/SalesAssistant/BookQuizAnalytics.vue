@@ -194,7 +194,7 @@
 import { computed, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import CrmPageHeader from '@/Components/Layout/CrmPageHeader.vue';
+import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmField, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
