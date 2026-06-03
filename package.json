@@ -21,12 +21,15 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "@tiptap/extension-color": "^3.22.4",
+        "@tiptap/extension-highlight": "^3.22.4",
         "@tiptap/extension-image": "^3.22.4",
         "@tiptap/extension-link": "^3.22.4",
         "@tiptap/extension-placeholder": "^3.22.4",
         "@tiptap/extension-table": "^3.22.4",
         "@tiptap/extension-task-item": "^3.22.4",
         "@tiptap/extension-task-list": "^3.22.4",
+        "@tiptap/extension-text-style": "^3.22.4",
         "@tiptap/extension-underline": "^3.22.4",
         "@tiptap/markdown": "^3.22.4",
         "@tiptap/pm": "^3.22.4",

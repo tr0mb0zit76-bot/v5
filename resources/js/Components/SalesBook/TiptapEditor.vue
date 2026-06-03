@@ -15,6 +15,48 @@
             <button type="button" :class="buttonClass(false)" @click="setLink">Ссылка</button>
             <button type="button" :class="buttonClass(false)" @click="triggerImageUpload">Картинка</button>
             <button type="button" :class="buttonClass(false)" @click="triggerFileUpload">Файл</button>
+
+            <span class="mx-1 self-stretch w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden="true" />
+
+            <span class="self-center px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Цвет</span>
+            <label
+                class="relative flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700"
+                title="Свой цвет текста"
+            >
+                <span class="pointer-events-none text-[10px] font-bold leading-none text-zinc-600 dark:text-zinc-300">A</span>
+                <input
+                    type="color"
+                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    :value="textColorPickerValue"
+                    @input="applyTextColor($event.target.value)"
+                />
+            </label>
+            <button
+                v-for="swatch in textColorSwatches"
+                :key="`text-${swatch}`"
+                type="button"
+                :title="`Цвет текста ${swatch}`"
+                :class="swatchButtonClass(isTextColorActive(swatch))"
+                :style="{ color: swatch }"
+                @click="applyTextColor(swatch)"
+            >
+                A
+            </button>
+            <button type="button" title="Сбросить цвет текста" :class="buttonClass(false)" @click="clearTextColor">×</button>
+
+            <span class="mx-1 self-stretch w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden="true" />
+
+            <span class="self-center px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Маркер</span>
+            <button
+                v-for="swatch in highlightSwatches"
+                :key="`mark-${swatch}`"
+                type="button"
+                :title="`Маркер ${swatch}`"
+                :class="swatchButtonClass(isHighlightActive(swatch))"
+                :style="{ backgroundColor: swatch }"
+                @click="applyHighlight(swatch)"
+            />
+            <button type="button" title="Убрать маркер" :class="buttonClass(false)" @click="clearHighlight">×</button>
         </div>
 
         <div
@@ -70,6 +112,9 @@ import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Underline from '@tiptap/extension-underline';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import Highlight from '@tiptap/extension-highlight';
 import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { SalesBookOrderedList } from '@/Components/SalesBook/SalesBookOrderedList.js';
@@ -108,6 +153,11 @@ const imageInput = ref(null);
 const fileInput = ref(null);
 const isApplyingExternalContent = ref(false);
 const isEditorBootstrapping = ref(true);
+const toolbarRevision = ref(0);
+
+const textColorSwatches = ['#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#2563eb', '#9333ea', '#18181b'];
+const highlightSwatches = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#fed7aa', '#e9d5ff'];
+const defaultTextColorPickerValue = '#2563eb';
 
 function setEditorContent(value) {
     if (!editor.value?.markdown) {
@@ -183,6 +233,9 @@ const editor = useEditor({
         TaskList,
         TaskItem.configure({ nested: true }),
         Underline,
+        TextStyle,
+        Color,
+        Highlight.configure({ multicolor: true }),
         TableKit.configure({
             table: {
                 resizable: true,
@@ -233,13 +286,18 @@ watch(
 
 watch(
     editor,
-    (instance) => {
+    (instance, previousInstance) => {
+        previousInstance?.off('selectionUpdate', bumpToolbarRevision);
+        previousInstance?.off('transaction', bumpToolbarRevision);
+
         if (!instance) {
             return;
         }
 
         isEditorBootstrapping.value = true;
         instance.setEditable(props.editable);
+        instance.on('selectionUpdate', bumpToolbarRevision);
+        instance.on('transaction', bumpToolbarRevision);
         finishEditorBootstrap();
     },
     { immediate: true },
@@ -253,7 +311,17 @@ defineExpose({
     getMarkdown: () => editor.value?.getMarkdown() ?? '',
 });
 
+const textColorPickerValue = computed(() => {
+    toolbarRevision.value;
+
+    const color = editor.value?.getAttributes('textStyle').color;
+
+    return typeof color === 'string' && color !== '' ? color : defaultTextColorPickerValue;
+});
+
 const toolbarItems = computed(() => {
+    toolbarRevision.value;
+
     if (!editor.value || !props.editable) {
         return [];
     }
@@ -413,10 +481,70 @@ function splitHardBreaksInSelection() {
     chain.setTextSelection({ from, to }).run();
 }
 
+function bumpToolbarRevision() {
+    toolbarRevision.value += 1;
+}
+
 function buttonClass(active) {
     return active
         ? `${crmSegmentedBtnActive} px-2 py-1 text-xs`
         : `${crmSegmentedBtn} px-2 py-1 text-xs`;
+}
+
+function swatchButtonClass(active) {
+    return active
+        ? `${crmSegmentedBtnActive} h-7 w-7 rounded-md border border-zinc-300 text-xs font-bold dark:border-zinc-600`
+        : `${crmSegmentedBtn} h-7 w-7 rounded-md border border-zinc-200 text-xs font-bold dark:border-zinc-700`;
+}
+
+function isTextColorActive(color) {
+    toolbarRevision.value;
+
+    return editor.value?.isActive('textStyle', { color }) ?? false;
+}
+
+function isHighlightActive(color) {
+    toolbarRevision.value;
+
+    return editor.value?.isActive('highlight', { color }) ?? false;
+}
+
+function applyTextColor(color) {
+    if (!editor.value || !props.editable || !color) {
+        return;
+    }
+
+    editor.value.chain().focus().setColor(color).run();
+}
+
+function clearTextColor() {
+    if (!editor.value || !props.editable) {
+        return;
+    }
+
+    editor.value.chain().focus().unsetColor().run();
+}
+
+function applyHighlight(color) {
+    if (!editor.value || !props.editable || !color) {
+        return;
+    }
+
+    if (editor.value.isActive('highlight', { color })) {
+        editor.value.chain().focus().unsetHighlight().run();
+
+        return;
+    }
+
+    editor.value.chain().focus().setHighlight({ color }).run();
+}
+
+function clearHighlight() {
+    if (!editor.value || !props.editable) {
+        return;
+    }
+
+    editor.value.chain().focus().unsetHighlight().run();
 }
 
 function extractBookArticleId(href) {
@@ -837,6 +965,11 @@ async function uploadAndInsert(event, shouldInsertAsImage) {
     border-radius: 0.5rem;
     margin: 0.75rem 0;
     max-width: 100%;
+}
+
+:deep(.tiptap-body .sales-book-editor mark) {
+    border-radius: 0.125rem;
+    padding: 0.05em 0.125em;
 }
 
 :deep(.tiptap-body .sales-book-editor a) {
