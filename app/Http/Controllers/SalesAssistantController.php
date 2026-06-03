@@ -12,6 +12,7 @@ use App\Http\Requests\StoreSalesBookArticleFeedbackRequest;
 use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
 use App\Http\Requests\UploadSalesBookAssetRequest;
+use App\Http\Requests\UploadSalesBookCoverRequest;
 use App\Models\SalesBookArticle;
 use App\Models\SalesBookArticleFeedback;
 use App\Models\SalesScript;
@@ -41,6 +42,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class SalesAssistantController extends Controller
 {
     private const string BOOK_ASSET_PREFIX = 'sales-book-assets/';
+
+    private const string BOOK_COVER_PREFIX = 'sales-book-covers/';
 
     public function counter(Request $request, KpiConfigurationService $kpiConfigurationService): Response
     {
@@ -134,8 +137,10 @@ class SalesAssistantController extends Controller
                     'sort_order' => $selectedArticle->sort_order,
                     'status' => $selectedArticle->status?->value ?? SalesBookArticleStatus::Published->value,
                     'tags' => $selectedArticle->tags ?? [],
+                    'cover_image_url' => $this->bookAssetUrl($selectedArticle->cover_image_path),
                     'markdown_content' => $contentNormalizer->forEditor((string) ($selectedArticle->markdown_content ?? '')),
                     'markdown_content_display' => $contentNormalizer->forReader((string) ($selectedArticle->markdown_content ?? '')),
+                    'quiz' => $contentNormalizer->parseQuiz((string) ($selectedArticle->markdown_content ?? '')),
                     'updated_at' => $selectedArticle->updated_at?->toIso8601String(),
                 ],
             'capabilities' => [
@@ -252,7 +257,10 @@ class SalesAssistantController extends Controller
 
         if (array_key_exists('markdown_content', $data)) {
             $payload['markdown_content'] = $childLinksService->mergeChildLinksIntoContent(
-                $this->resolveMarkdownPayload($data, $contentNormalizer),
+                $contentNormalizer->preserveQuizBlock(
+                    $this->resolveMarkdownPayload($data, $contentNormalizer),
+                    (string) ($salesBookArticle->markdown_content ?? ''),
+                ),
                 $salesBookArticle->id,
             );
         }
@@ -375,6 +383,52 @@ class SalesAssistantController extends Controller
         ]);
     }
 
+    public function uploadBookCover(
+        UploadSalesBookCoverRequest $request,
+        SalesBookArticle $salesBookArticle,
+    ): RedirectResponse {
+        abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
+
+        $uploaded = $request->file('file');
+        $oldPath = $salesBookArticle->cover_image_path;
+        $path = $uploaded->store(self::BOOK_COVER_PREFIX, 'local');
+
+        $salesBookArticle->update([
+            'cover_image_path' => $path,
+            'updated_by' => $request->user()?->id,
+        ]);
+
+        if (is_string($oldPath) && $oldPath !== '' && $oldPath !== $path) {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
+            'type' => 'success',
+            'message' => 'Обложка страницы обновлена.',
+        ]);
+    }
+
+    public function destroyBookCover(Request $request, SalesBookArticle $salesBookArticle): RedirectResponse
+    {
+        abort_unless(RoleAccess::canWriteSalesBook($request->user()), 403);
+
+        $oldPath = $salesBookArticle->cover_image_path;
+
+        $salesBookArticle->update([
+            'cover_image_path' => null,
+            'updated_by' => $request->user()?->id,
+        ]);
+
+        if (is_string($oldPath) && $oldPath !== '') {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
+            'type' => 'success',
+            'message' => 'Обложка страницы удалена.',
+        ]);
+    }
+
     public function showBookAsset(Request $request): StreamedResponse
     {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
@@ -382,7 +436,7 @@ class SalesAssistantController extends Controller
         $path = ltrim($request->string('path')->toString(), '/');
 
         abort_unless(
-            str_starts_with($path, self::BOOK_ASSET_PREFIX),
+            str_starts_with($path, self::BOOK_ASSET_PREFIX) || str_starts_with($path, self::BOOK_COVER_PREFIX),
             404
         );
         abort_unless(Storage::disk('local')->exists($path), 404);
@@ -737,6 +791,17 @@ class SalesAssistantController extends Controller
         }
 
         return trim((string) pathinfo($originalFilename, PATHINFO_FILENAME)) ?: 'Новая статья';
+    }
+
+    private function bookAssetUrl(?string $path): ?string
+    {
+        $path = trim((string) $path);
+
+        if ($path === '') {
+            return null;
+        }
+
+        return route('sales-assistant.book.assets.show', ['path' => $path]);
     }
 
     private function resolveSortOrder(?int $parentId, ?int $requestedSortOrder): int

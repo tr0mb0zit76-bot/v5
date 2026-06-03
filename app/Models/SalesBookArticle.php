@@ -17,6 +17,7 @@ class SalesBookArticle extends Model
         'sort_order',
         'status',
         'tags',
+        'cover_image_path',
         'created_by',
         'updated_by',
     ];

@@ -190,7 +190,6 @@ final class SalesBookMcpService
             $article->update([
                 'markdown_content' => $normalizedMarkdown,
                 'sort_order' => $sortOrder ?? $article->sort_order,
-                'status' => SalesBookArticleStatus::Draft->value,
                 'tags' => $this->normalizeTags($tags),
                 'updated_by' => $user->id,
             ]);

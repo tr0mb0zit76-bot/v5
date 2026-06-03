@@ -184,6 +184,45 @@
 
             <template v-if="selectedArticle">
                 <form v-if="canWrite" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
+                    <div class="relative h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
+                        <img
+                            v-if="selectedArticle.cover_image_url"
+                            :src="selectedArticle.cover_image_url"
+                            alt=""
+                            class="h-full w-full object-cover"
+                        />
+                        <div v-else class="h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
+
+                        <div class="absolute bottom-2 right-2 flex gap-2">
+                            <input
+                                ref="coverInputRef"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                class="hidden"
+                                @change="uploadCover"
+                            />
+                            <button
+                                type="button"
+                                class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                                :disabled="coverUploading"
+                                @click="coverInputRef?.click()"
+                            >
+                                {{ selectedArticle.cover_image_url ? 'Заменить обложку' : 'Загрузить обложку' }}
+                            </button>
+                            <button
+                                v-if="selectedArticle.cover_image_url"
+                                type="button"
+                                class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-rose-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-rose-200 dark:hover:bg-zinc-900"
+                                :disabled="coverUploading"
+                                @click="destroyCover"
+                            >
+                                Убрать
+                            </button>
+                        </div>
+                    </div>
+                    <p v-if="coverError" class="shrink-0 text-xs text-rose-600 dark:text-rose-300">{{ coverError }}</p>
+                    <p v-else class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">Рекомендуемая обложка: широкое изображение с пропорцией 8–10:1.</p>
+
                     <div class="flex shrink-0 items-start gap-2">
                         <input
                             v-model="editForm.title"
@@ -250,6 +289,13 @@
                         </span>
                     </div>
 
+                    <p
+                        v-if="selectedArticleQuiz"
+                        class="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100"
+                    >
+                        На странице настроен интерактивный тест: {{ selectedArticleQuiz.questions.length }} вопросов. Данные теста сохраняются автоматически при редактировании текста.
+                    </p>
+
                     <TiptapEditor
                         ref="editEditorRef"
                         :key="editEditorKey"
@@ -281,6 +327,16 @@
                 </form>
 
                 <div v-else class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                    <div class="h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
+                        <img
+                            v-if="selectedArticle.cover_image_url"
+                            :src="selectedArticle.cover_image_url"
+                            alt=""
+                            class="h-full w-full object-cover"
+                        />
+                        <div v-else class="h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
+                    </div>
+
                     <div class="flex shrink-0 items-start gap-2">
                         <h2 class="min-w-0 flex-1 border-0 border-b border-zinc-200 px-0 py-2 text-3xl font-semibold text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">
                             {{ selectedArticle.title }}
@@ -323,14 +379,24 @@
                         </span>
                     </div>
 
-                    <TiptapEditor
-                        :key="readonlyEditorKey"
-                        class="min-h-0 flex-1"
-                        :model-value="selectedArticle.markdown_content_display"
-                        :upload-url="route('sales-assistant.book.assets.upload')"
-                        :editable="false"
-                        placeholder=""
-                    />
+                    <div class="min-h-0 flex-1 overflow-y-auto">
+                        <TiptapEditor
+                            :key="readonlyEditorKey"
+                            class="min-h-[12rem]"
+                            :model-value="selectedArticle.markdown_content_display"
+                            :upload-url="route('sales-assistant.book.assets.upload')"
+                            :editable="false"
+                            placeholder=""
+                        />
+
+                        <SalesBookQuiz
+                            v-if="selectedArticleQuiz"
+                            :key="`quiz-${selectedArticle.id}`"
+                            class="mt-4"
+                            :article-id="selectedArticle.id"
+                            :quiz="selectedArticleQuiz"
+                        />
+                    </div>
                 </div>
             </template>
 
@@ -360,6 +426,7 @@ import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
 import SalesBookArticleFeedbackBar from '@/Components/SalesBook/SalesBookArticleFeedbackBar.vue';
+import SalesBookQuiz from '@/Components/SalesBook/SalesBookQuiz.vue';
 import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
 
@@ -436,6 +503,9 @@ const feedbackForm = useForm({
 const contentDirty = ref(false);
 const copyLinkFeedback = ref(false);
 const editEditorRef = ref(null);
+const coverInputRef = ref(null);
+const coverUploading = ref(false);
+const coverError = ref('');
 
 const readonlyEditorKey = computed(() => {
     if (!props.selectedArticle) {
@@ -481,6 +551,7 @@ const parentOptionsForEdit = computed(() => {
 });
 
 const selectedArticleTags = computed(() => normalizeTags(props.selectedArticle?.tags ?? []));
+const selectedArticleQuiz = computed(() => props.selectedArticle?.quiz ?? null);
 const negativeFeedbackTotal = computed(() => (
     Number(props.qualityInsights?.summary?.unclear ?? 0)
     + Number(props.qualityInsights?.summary?.outdated ?? 0)
@@ -636,6 +707,50 @@ function openArticle(articleId) {
         preserveScroll: true,
         replace: true,
         only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary', 'feedbackProblemArticles', 'qualityInsights'],
+    });
+}
+
+function uploadCover(event) {
+    const file = event.target.files?.[0] ?? null;
+
+    if (!file || !props.selectedArticle?.id) {
+        return;
+    }
+
+    coverError.value = '';
+    coverUploading.value = true;
+
+    router.post(route('sales-assistant.book.articles.cover.upload', props.selectedArticle.id), {
+        file,
+    }, {
+        forceFormData: true,
+        preserveScroll: true,
+        onError: (errors) => {
+            coverError.value = errors?.file ?? 'Не удалось загрузить обложку.';
+        },
+        onFinish: () => {
+            coverUploading.value = false;
+
+            if (event.target) {
+                event.target.value = '';
+            }
+        },
+    });
+}
+
+function destroyCover() {
+    if (!props.selectedArticle?.id) {
+        return;
+    }
+
+    coverError.value = '';
+    coverUploading.value = true;
+
+    router.delete(route('sales-assistant.book.articles.cover.destroy', props.selectedArticle.id), {
+        preserveScroll: true,
+        onFinish: () => {
+            coverUploading.value = false;
+        },
     });
 }
 
