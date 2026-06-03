@@ -12,6 +12,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ReconnectOnPreparedStatementError;
 use App\Http\Middleware\VerifyAstralEpdWebhookSignature;
 use App\Http\Middleware\VerifyOneCFreshToken;
+use App\Support\UserFacingDatabaseMessageResolver;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -69,5 +70,32 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response($message, 413)->header('Content-Type', 'text/plain; charset=UTF-8');
+        });
+
+        $exceptions->renderable(function (Throwable $e, Request $request): ?Response {
+            if ($request->is('up')) {
+                return null;
+            }
+
+            $message = app(UserFacingDatabaseMessageResolver::class)->resolve($e);
+
+            if ($message === null) {
+                return null;
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            $flash = [
+                'type' => 'error',
+                'message' => $message,
+            ];
+
+            if ($request->header('X-Inertia')) {
+                return redirect()->back()->with('flash', $flash);
+            }
+
+            return redirect()->back()->with('flash', $flash);
         });
     })->create();

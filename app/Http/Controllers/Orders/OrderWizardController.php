@@ -166,6 +166,18 @@ class OrderWizardController extends Controller
                 ->whereIn('order_leg_id', $order->legs->pluck('id'))
                 ->delete();
 
+            $legIds = $order->legs->pluck('id');
+
+            if ($legIds->isNotEmpty()) {
+                if (Schema::hasTable('leg_costs')) {
+                    DB::table('leg_costs')->whereIn('order_leg_id', $legIds)->delete();
+                }
+
+                if (Schema::hasTable('leg_contractor_assignments')) {
+                    DB::table('leg_contractor_assignments')->whereIn('order_leg_id', $legIds)->delete();
+                }
+            }
+
             if (Schema::hasTable('order_documents')) {
                 $order->documents()->delete();
             }

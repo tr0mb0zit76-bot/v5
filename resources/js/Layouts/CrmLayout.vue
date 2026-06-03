@@ -448,6 +448,16 @@
                     ? 'flex h-0 flex-col overflow-hidden pb-[110px] md:pb-[130px]'
                     : 'overflow-y-auto pb-[110px] lg:flex lg:h-0 lg:flex-col lg:overflow-hidden md:pb-[130px]'"
             >
+                <div
+                    v-if="flashBanner"
+                    class="mb-3 shrink-0 rounded-lg border px-3 py-2 text-sm"
+                    :class="flashBanner.type === 'error'
+                        ? 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-100'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'"
+                    role="alert"
+                >
+                    {{ flashBanner.message }}
+                </div>
                 <div v-if="mainFill" class="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <slot />
                 </div>
@@ -543,6 +553,19 @@ const props = defineProps({
 });
 
 const page = usePage();
+
+const flashBanner = computed(() => {
+    const flash = page.props.flash;
+
+    if (!flash?.message) {
+        return null;
+    }
+
+    return {
+        type: flash.type === 'error' ? 'error' : 'success',
+        message: flash.message,
+    };
+});
 const menuStateStorageKey = 'crm-sidebar-expanded-groups';
 const sidebarCollapsedStorageKey = 'crm-sidebar-collapsed';
 const companyLogoSrc = '/assets/favicon/favicon-96x96.png';

@@ -7,14 +7,17 @@ use App\Enums\SalesTrainerDialogQuality;
 use App\Http\Requests\CalculateSalesMarginCounterRequest;
 use App\Http\Requests\ImportSalesBookArticleRequest;
 use App\Http\Requests\MoveSalesBookArticleRequest;
+use App\Http\Requests\StoreSalesBookArticleFeedbackRequest;
 use App\Http\Requests\StoreSalesBookArticleRequest;
 use App\Http\Requests\UpdateSalesBookArticleRequest;
 use App\Http\Requests\UploadSalesBookAssetRequest;
 use App\Models\SalesBookArticle;
+use App\Models\SalesBookArticleFeedback;
 use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Services\KpiConfigurationService;
+use App\Services\SalesBook\SalesBookArticleFeedbackSummaryService;
 use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
@@ -102,6 +105,10 @@ class SalesAssistantController extends Controller
                 $treeService->directChildren($articles, $selectedArticle->id),
             );
 
+        $feedbackSummary = $selectedArticle === null
+            ? null
+            : app(SalesBookArticleFeedbackSummaryService::class)->forArticle($selectedArticle->id);
+
         return Inertia::render('SalesAssistant/Book', [
             'articlesTree' => $treeService->buildTree($articles)->values()->all(),
             'articleOptions' => $articles->map(fn (SalesBookArticle $article): array => [
@@ -126,6 +133,29 @@ class SalesAssistantController extends Controller
                 'can_comment' => RoleAccess::canCommentSalesBook($request->user()),
                 'can_write' => RoleAccess::canWriteSalesBook($request->user()),
             ],
+            'articleFeedbackSummary' => $feedbackSummary,
+        ]);
+    }
+
+    public function storeBookArticleFeedback(
+        StoreSalesBookArticleFeedbackRequest $request,
+        SalesBookArticle $salesBookArticle,
+    ): RedirectResponse {
+        abort_unless(RoleAccess::canCommentSalesBook($request->user()), 403);
+
+        $data = $request->validated();
+
+        SalesBookArticleFeedback::query()->create([
+            'sales_book_article_id' => $salesBookArticle->id,
+            'user_id' => $request->user()->id,
+            'rating' => $data['rating'],
+            'comment' => $data['comment'] ?? null,
+            'source' => $data['source'] ?? 'web',
+        ]);
+
+        return to_route('sales-assistant.book', ['article_id' => $salesBookArticle->id])->with('flash', [
+            'type' => 'success',
+            'message' => 'Спасибо, оценка сохранена.',
         ]);
     }
 

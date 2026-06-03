@@ -375,6 +375,14 @@ const handleRowDelete = (row) => {
 
     router.delete(route('orders.destroy', row.id), {
         preserveScroll: true,
+        onError: (errors) => {
+            const message = errors?.message
+                ?? (typeof errors === 'object' ? Object.values(errors).flat().find(Boolean) : null);
+
+            if (message && typeof window !== 'undefined') {
+                window.alert(message);
+            }
+        },
     });
 };
 

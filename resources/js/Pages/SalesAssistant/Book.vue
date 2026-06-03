@@ -75,7 +75,11 @@
         <section :class="`${crmPanel} flex min-h-0 flex-col overflow-hidden p-5`">
             <p
                 v-if="page.props.flash?.message"
-                class="mb-4 shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                class="mb-4 shrink-0 rounded-lg border px-3 py-2 text-sm"
+                :class="page.props.flash?.type === 'error'
+                    ? 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-100'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'"
+                role="alert"
             >
                 {{ page.props.flash.message }}
             </p>
@@ -99,6 +103,14 @@
                             {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
                         </button>
                     </div>
+
+                    <SalesBookArticleFeedbackBar
+                        v-if="canComment"
+                        :article-id="selectedArticle.id"
+                        :summary="articleFeedbackSummary"
+                        :busy="feedbackForm.processing"
+                        @rate="submitArticleFeedback"
+                    />
 
                     <div class="flex shrink-0 flex-wrap items-center gap-2 text-xs text-zinc-500">
                         <span>Родитель:</span>
@@ -159,6 +171,14 @@
                         </button>
                     </div>
 
+                    <SalesBookArticleFeedbackBar
+                        v-if="canComment"
+                        :article-id="selectedArticle.id"
+                        :summary="articleFeedbackSummary"
+                        :busy="feedbackForm.processing"
+                        @rate="submitArticleFeedback"
+                    />
+
                     <div v-if="selectedArticle.updated_at" class="shrink-0 text-xs text-zinc-500">
                         Обновлено: {{ formatDate(selectedArticle.updated_at) }}
                     </div>
@@ -199,6 +219,7 @@ import { computed, ref, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
+import SalesBookArticleFeedbackBar from '@/Components/SalesBook/SalesBookArticleFeedbackBar.vue';
 import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
 
@@ -227,6 +248,10 @@ const props = defineProps({
         type: Object,
         default: () => ({ can_read: false, can_comment: false, can_write: false }),
     },
+    articleFeedbackSummary: {
+        type: Object,
+        default: null,
+    },
 });
 
 const page = usePage();
@@ -245,6 +270,11 @@ const editForm = useForm({
     title: '',
     markdown_content: '',
     parent_id: '',
+});
+
+const feedbackForm = useForm({
+    rating: '',
+    comment: '',
 });
 
 const contentDirty = ref(false);
@@ -401,7 +431,7 @@ function openArticle(articleId) {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages'],
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary'],
     });
 }
 
@@ -485,4 +515,19 @@ function destroyArticle() {
 }
 
 const canWrite = computed(() => Boolean(props.capabilities?.can_write));
+const canComment = computed(() => Boolean(props.capabilities?.can_comment));
+
+function submitArticleFeedback(rating) {
+    if (!props.selectedArticle?.id) {
+        return;
+    }
+
+    feedbackForm.rating = rating;
+    feedbackForm.post(route('sales-assistant.book.articles.feedback', props.selectedArticle.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            feedbackForm.reset();
+        },
+    });
+}
 </script>
