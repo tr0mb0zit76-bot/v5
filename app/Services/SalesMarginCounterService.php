@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\PaymentFormDictionary;
+
 class SalesMarginCounterService
 {
-    public const SCENARIO_VAT = 'vat';
-
     public const SCENARIO_CASH = 'cash';
 
-    public const SCENARIO_VAT_ZERO_22 = 'vat_zero_22';
+    public const SCENARIO_VAT = 'vat';
 
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
@@ -31,39 +31,30 @@ class SalesMarginCounterService
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $fixedExpense = $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
 
-        $customerWithout = $this->nullableAmount($input['customer_without_vat'] ?? null);
-        $customerWith = $this->nullableAmount($input['customer_with_vat'] ?? null);
-        $carrierWithout = $this->nullableAmount($input['carrier_without_vat'] ?? null);
-        $carrierWith = $this->nullableAmount($input['carrier_with_vat'] ?? null);
+        $customerRate = $this->resolveCustomerRate($input);
+        $carrierCash = $this->nullableAmount($input['carrier_cash_rate'] ?? null);
+        $carrierCashless = $this->nullableAmount($input['carrier_cashless_rate'] ?? null);
+
+        $defaultVatForm = PaymentFormDictionary::defaultClientVatCode();
+        $deductionRates = $this->kpiConfigurationService->deductionRates();
 
         $result = [
             'fixed_expense' => round($fixedExpense, 2),
+            'kpi_settings' => [
+                'deduction_rates' => $deductionRates,
+                'bonus_multiplier' => $bonusMultiplier,
+            ],
             'scenarios' => [
-                $this->buildScenario(
-                    self::SCENARIO_VAT,
-                    'vat',
-                    'НДС',
-                    $customerWith ?? $customerWithout,
-                    $carrierWith ?? $carrierWithout,
-                    'vat_0',
-                    'vat_0',
-                    'НДС: сочетания ставок НДС (в т.ч. 0% / 0%), безнал; наличные у заказчика без наличных у перевозчика.',
-                    $managerId,
-                    $orderDate,
-                    $additionalExpenses,
-                    $insurance,
-                    $bonus,
-                    $fixedExpense,
-                ),
                 $this->buildScenario(
                     self::SCENARIO_CASH,
                     'cash',
-                    'Наличка',
-                    $customerWithout ?? $customerWith,
-                    $carrierWithout ?? $carrierWith,
+                    'Сделка с наличкой',
+                    $customerRate,
+                    $carrierCash,
+                    $defaultVatForm,
                     'cash',
-                    'cash',
-                    'Наличка: наличные у заказчика и у перевозчика; два вычета KPI с суммы заказчика.',
+                    'Заказчик платит безналом; перевозчик — наличные. Укажите ставку заказчика и «Ставка перевозчика, нал.».',
+                    $deductionRates,
                     $managerId,
                     $orderDate,
                     $additionalExpenses,
@@ -72,14 +63,15 @@ class SalesMarginCounterService
                     $fixedExpense,
                 ),
                 $this->buildScenario(
-                    self::SCENARIO_VAT_ZERO_22,
-                    'vat_zero_22',
-                    'НДС 0% / 22%',
-                    $customerWith ?? $customerWithout,
-                    $carrierWith ?? $carrierWithout,
-                    'vat_0',
-                    'vat_22',
-                    'Заказчик с НДС 0%, перевозчик с НДС 22% (рейс или плечо); к марже добавляется доплата из бюджета.',
+                    self::SCENARIO_VAT,
+                    'vat',
+                    'Сделка с НДС',
+                    $customerRate,
+                    $carrierCashless,
+                    $defaultVatForm,
+                    $defaultVatForm,
+                    'Заказчик и перевозчик — безнал (НДС). Укажите ставку заказчика и «Ставка перевозчика, безнал».',
+                    $deductionRates,
                     $managerId,
                     $orderDate,
                     $additionalExpenses,
@@ -89,7 +81,7 @@ class SalesMarginCounterService
                 ),
             ],
             'summary' => [
-                'hints' => $this->summaryHints($customerWithout, $customerWith, $carrierWithout, $carrierWith),
+                'hints' => $this->summaryHints($customerRate, $carrierCash, $carrierCashless, $deductionRates),
             ],
         ];
 
@@ -98,6 +90,21 @@ class SalesMarginCounterService
         }
 
         return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     */
+    private function resolveCustomerRate(array $input): ?float
+    {
+        $rate = $this->nullableAmount($input['customer_rate'] ?? null);
+
+        if ($rate !== null) {
+            return $rate;
+        }
+
+        return $this->nullableAmount($input['customer_with_vat'] ?? null)
+            ?? $this->nullableAmount($input['customer_without_vat'] ?? null);
     }
 
     /**
@@ -112,6 +119,7 @@ class SalesMarginCounterService
         string $customerPaymentForm,
         string $carrierPaymentForm,
         string $amountComment,
+        array $deductionRates,
         int $managerId,
         mixed $orderDate,
         float $additionalExpenses,
@@ -119,6 +127,8 @@ class SalesMarginCounterService
         float $bonus,
         float $fixedExpense,
     ): array {
+        $kpiRatesLabel = $this->deductionRatesLabel($paymentCategory, $deductionRates);
+
         $column = [
             'scenario_key' => $scenarioKey,
             'deal_type' => $paymentCategory,
@@ -128,6 +138,8 @@ class SalesMarginCounterService
             'carrier_amount' => $carrierAmount,
             'customer_payment_form' => $customerPaymentForm,
             'carrier_payment_form' => $carrierPaymentForm,
+            'kpi_deduction_rates_label' => $kpiRatesLabel,
+            'kpi_deduction_amount' => null,
             'margin' => null,
             'margin_percent' => null,
             'comment' => null,
@@ -135,13 +147,20 @@ class SalesMarginCounterService
         ];
 
         if ($customerAmount === null || $customerAmount <= 0) {
-            $column['comment'] = 'Укажите сумму заказчика для этого варианта.';
+            $column['comment'] = 'Укажите ставку заказчика.';
 
             return $column;
         }
 
+        $column['kpi_deduction_amount'] = round(
+            $this->kpiConfigurationService->kpiDeductionAmount($customerAmount, $paymentCategory),
+            2,
+        );
+
         if ($carrierAmount === null || $carrierAmount < 0) {
-            $column['comment'] = 'Укажите сумму перевозчика для этого варианта.';
+            $column['comment'] = $scenarioKey === self::SCENARIO_CASH
+                ? 'Укажите ставку перевозчика (нал.).'
+                : 'Укажите ставку перевозчика (безнал).';
 
             return $column;
         }
@@ -167,6 +186,7 @@ class SalesMarginCounterService
             ],
         ];
 
+        $kpiDeduction = (float) $column['kpi_deduction_amount'];
         $evaluation = $this->orderCompensationService->calculateMarginScenario($compensationPayload, $paymentCategory);
         $delta = (float) $evaluation['delta'];
         $marginPercent = $customerAmount > 0 ? ($delta / $customerAmount) * 100 : 0.0;
@@ -175,13 +195,14 @@ class SalesMarginCounterService
         $column['margin_percent'] = round($marginPercent, 2);
         $column['kpi_percent'] = round((float) $evaluation['kpi_percent'], 2);
         $column['comment'] = sprintf(
-            'Заказчик %s ₽, перевозчик %s ₽, доп. расходы %s ₽ (в т.ч. бонус с коэфф.). Маржа %s ₽ (%s%%). KPI %s%%.',
+            'Заказчик %s ₽, вычет KPI %s ₽ (%s), перевозчик %s ₽, доп. расходы %s ₽ (в т.ч. бонус с коэфф.). Маржа %s ₽ (%s%%).',
             $this->formatAmount($customerAmount),
+            $this->formatAmount($kpiDeduction),
+            $kpiRatesLabel,
             $this->formatAmount($carrierAmount),
             $this->formatAmount($fixedExpense),
             $this->formatAmount($delta),
             $this->formatPercent($marginPercent),
-            $this->formatPercent((float) $evaluation['kpi_percent']),
         );
 
         return $column;
@@ -190,37 +211,78 @@ class SalesMarginCounterService
     /**
      * @return list<string>
      */
+    /**
+     * @param  array{
+     *     vat_percent: float,
+     *     vat_zero_22_percent: float,
+     *     cash_primary_percent: float,
+     *     cash_secondary_percent: float,
+     * }  $deductionRates
+     * @return list<string>
+     */
     private function summaryHints(
-        ?float $customerWithout,
-        ?float $customerWith,
-        ?float $carrierWithout,
-        ?float $carrierWith,
+        ?float $customerRate,
+        ?float $carrierCash,
+        ?float $carrierCashless,
+        array $deductionRates,
     ): array {
+        $cashLabel = $this->deductionRatesLabel('cash', $deductionRates);
+        $vatLabel = $this->deductionRatesLabel('vat', $deductionRates);
+
         return [
-            'Поля «Без НДС» и «С НДС» не связаны: вводите суммы независимо.',
-            'Три столбца: НДС, наличка (только при наличных у перевозчика), НДС 0% у заказчика и 22% у перевозчика.',
-            $this->filledFieldsHint($customerWithout, $customerWith, $carrierWithout, $carrierWith),
+            'Заказчик — одна ставка (оплата только безналом). Перевозчик — отдельно наличные и безнал.',
+            sprintf(
+                'Вычеты KPI из настроек мотивации: «Сделка с наличкой» — %s с суммы заказчика; «Сделка с НДС» — %s.',
+                $cashLabel,
+                $vatLabel,
+            ),
+            'Сначала заполните ставку заказчика и перевозчика (нал.) — появится обзор «Сделка с наличкой». Затем ставку перевозчика (безнал) — обзор «Сделка с НДС».',
+            $this->filledFieldsHint($customerRate, $carrierCash, $carrierCashless),
         ];
     }
 
-    private function filledFieldsHint(
-        ?float $customerWithout,
-        ?float $customerWith,
-        ?float $carrierWithout,
-        ?float $carrierWith,
-    ): string {
+    /**
+     * @param  array{
+     *     vat_percent: float,
+     *     vat_zero_22_percent: float,
+     *     cash_primary_percent: float,
+     *     cash_secondary_percent: float,
+     * }  $deductionRates
+     */
+    private function deductionRatesLabel(string $paymentCategory, array $deductionRates): string
+    {
+        if ($paymentCategory === 'cash') {
+            return sprintf(
+                '%s%% + %s%%',
+                $this->formatPercent((float) $deductionRates['cash_primary_percent']),
+                $this->formatPercent((float) $deductionRates['cash_secondary_percent']),
+            );
+        }
+
+        if ($paymentCategory === 'vat_zero_22') {
+            return sprintf(
+                '%s%%',
+                $this->formatPercent((float) $deductionRates['vat_zero_22_percent']),
+            );
+        }
+
+        return sprintf(
+            '%s%%',
+            $this->formatPercent((float) $deductionRates['vat_percent']),
+        );
+    }
+
+    private function filledFieldsHint(?float $customerRate, ?float $carrierCash, ?float $carrierCashless): string
+    {
         $parts = [];
-        if ($customerWithout !== null) {
-            $parts[] = 'заказчик без НДС';
+        if ($customerRate !== null) {
+            $parts[] = 'ставка заказчика';
         }
-        if ($customerWith !== null) {
-            $parts[] = 'заказчик с НДС';
+        if ($carrierCash !== null) {
+            $parts[] = 'перевозчик, нал.';
         }
-        if ($carrierWithout !== null) {
-            $parts[] = 'перевозчик без НДС';
-        }
-        if ($carrierWith !== null) {
-            $parts[] = 'перевозчик с НДС';
+        if ($carrierCashless !== null) {
+            $parts[] = 'перевозчик, безнал';
         }
 
         if ($parts === []) {

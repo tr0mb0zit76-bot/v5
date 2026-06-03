@@ -242,14 +242,11 @@ class PrintFormVariableCatalog
             ];
         }
 
-        for ($i = 0; $i < 15; $i++) {
-            $n = $i + 1;
-            foreach ($sharedKeys as [$key, $suffix]) {
-                $rows[] = [
-                    'value' => 'financial.carrier_norms_by_leg.'.$i.'.'.$key,
-                    'label' => 'Перевозчик, плечо №'.$n.' (порядок в мастере): '.$suffix,
-                ];
-            }
+        foreach ($sharedKeys as [$key, $suffix]) {
+            $rows[] = [
+                'value' => 'financial.carrier_norms_penalties.'.$key,
+                'label' => 'Перевозчик (плечо из контекста печати): '.$suffix,
+            ];
         }
 
         return $rows;

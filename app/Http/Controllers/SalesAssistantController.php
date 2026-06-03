@@ -14,6 +14,7 @@ use App\Models\SalesBookArticle;
 use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
+use App\Services\KpiConfigurationService;
 use App\Services\SalesBookArticleTreeService;
 use App\Services\SalesBookParentChildLinksService;
 use App\Services\SalesMarginCounterService;
@@ -36,12 +37,16 @@ class SalesAssistantController extends Controller
 {
     private const string BOOK_ASSET_PREFIX = 'sales-book-assets/';
 
-    public function counter(Request $request): Response
+    public function counter(Request $request, KpiConfigurationService $kpiConfigurationService): Response
     {
         abort_unless(RoleAccess::canAccessSalesAssistantCounter($request->user()), 403);
 
         return Inertia::render('SalesAssistant/Counter', [
             'orderDate' => now()->toDateString(),
+            'kpiSettings' => [
+                'deduction_rates' => $kpiConfigurationService->deductionRates(),
+                'bonus_multiplier' => $kpiConfigurationService->getBonusMultiplier(),
+            ],
         ]);
     }
 

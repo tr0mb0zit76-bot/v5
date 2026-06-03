@@ -1,43 +1,27 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <CrmPageHeader
-            lead="Введите суммы заказчика и перевозчика — маржа и KPI по трём вариантам: НДС, наличка, НДС 0% / 22%. Поля «Без НДС» и «С НДС» не пересчитывают друг друга."
+            lead="Ставка заказчика — безнал. Перевозчик — наличные и безнал: две сводки по марже и KPI (сделка с наличкой и сделка с НДС)."
             title="Считалка"
         />
 
         <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <section :class="`${crmPanel} space-y-5 p-5`">
                 <div
-                    class="grid min-w-[28rem] grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(5.5rem,7.5rem)] gap-x-3 gap-y-4 text-sm"
+                    class="grid min-w-[24rem] grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_minmax(5.5rem,7.5rem)] gap-x-3 gap-y-4 text-sm"
                 >
                     <div />
                     <div class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                        Без НДС, ₽
+                        Сумма, ₽
                     </div>
-                    <div class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                        С НДС, ₽
-                    </div>
-                    <div class="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        Бонус
-                    </div>
+                    <div />
 
                     <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
-                        Заказчик
+                        Ставка заказчика
                     </div>
                     <div class="min-w-0 self-center">
                         <input
-                            v-model="amounts.customer_without_vat"
-                            type="text"
-                            inputmode="decimal"
-                            autocomplete="off"
-                            :class="crmFieldFluid"
-                            placeholder="—"
-                            @input="scheduleRecalculate"
-                        />
-                    </div>
-                    <div class="min-w-0 self-center">
-                        <input
-                            v-model="amounts.customer_with_vat"
+                            v-model="amounts.customer_rate"
                             type="text"
                             inputmode="decimal"
                             autocomplete="off"
@@ -54,16 +38,17 @@
                             autocomplete="off"
                             :class="crmFieldFluid"
                             placeholder="0"
+                            title="Бонус"
                             @input="scheduleRecalculate"
                         />
                     </div>
 
                     <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
-                        Перевозчик
+                        Ставка перевозчика, нал.
                     </div>
-                    <div class="min-w-0 self-end">
+                    <div class="min-w-0 self-center">
                         <input
-                            v-model="amounts.carrier_without_vat"
+                            v-model="amounts.carrier_cash_rate"
                             type="text"
                             inputmode="decimal"
                             autocomplete="off"
@@ -72,9 +57,14 @@
                             @input="scheduleRecalculate"
                         />
                     </div>
-                    <div class="min-w-0 self-end">
+                    <div />
+
+                    <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
+                        Ставка перевозчика, безнал
+                    </div>
+                    <div class="min-w-0 self-center">
                         <input
-                            v-model="amounts.carrier_with_vat"
+                            v-model="amounts.carrier_cashless_rate"
                             type="text"
                             inputmode="decimal"
                             autocomplete="off"
@@ -83,7 +73,7 @@
                             @input="scheduleRecalculate"
                         />
                     </div>
-                    <label class="block min-w-0 space-y-1 self-end">
+                    <label class="block min-w-0 space-y-1 self-center">
                         <span class="text-xs text-zinc-500 dark:text-zinc-400">Доп. расходы</span>
                         <input
                             v-model="amounts.additional_expenses"
@@ -96,6 +86,10 @@
                         />
                     </label>
                 </div>
+
+                <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                    {{ kpiRatesFootnote }}
+                </p>
             </section>
 
             <section :class="`${crmPanel} space-y-4 p-5`">
@@ -127,6 +121,16 @@
                         <p class="text-xs leading-5 text-zinc-600 dark:text-zinc-400">
                             {{ scenario.amount_comment }}
                         </p>
+                        <p
+                            v-if="scenario.kpi_deduction_rates_label"
+                            class="text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                        >
+                            Вычет KPI с заказчика:
+                            {{ scenario.kpi_deduction_rates_label }}
+                            <template v-if="scenario.kpi_deduction_amount != null">
+                                · {{ formatMoney(scenario.kpi_deduction_amount) }}
+                            </template>
+                        </p>
 
                         <div
                             v-if="scenario.margin !== null"
@@ -152,7 +156,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
@@ -170,13 +174,43 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    kpiSettings: {
+        type: Object,
+        default: () => ({}),
+    },
+});
+
+const activeKpiSettings = computed(() => result.value?.kpi_settings ?? props.kpiSettings ?? {});
+
+function formatPercent(value) {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric)) {
+        return '0';
+    }
+
+    return String(numeric).replace(/\.?0+$/, '');
+}
+
+const kpiRatesFootnote = computed(() => {
+    const rates = activeKpiSettings.value?.deduction_rates;
+    const multiplier = activeKpiSettings.value?.bonus_multiplier;
+
+    if (!rates) {
+        return 'Бонус и доп. расходы учитываются в обеих сводках. Вычеты KPI — из настроек мотивации.';
+    }
+
+    const cash = `${formatPercent(rates.cash_primary_percent)}% + ${formatPercent(rates.cash_secondary_percent)}%`;
+    const vat = `${formatPercent(rates.vat_percent)}%`;
+    const bonusPart = multiplier != null ? ` Бонус ×${formatPercent(multiplier)}.` : '';
+
+    return `Вычеты KPI (настройки мотивации): наличка ${cash}, НДС ${vat} с суммы заказчика.${bonusPart} Доп. расходы и бонус — в обеих сводках.`;
 });
 
 const amounts = reactive({
-    customer_without_vat: '',
-    customer_with_vat: '',
-    carrier_without_vat: '',
-    carrier_with_vat: '',
+    customer_rate: '',
+    carrier_cash_rate: '',
+    carrier_cashless_rate: '',
     bonus: '0',
     additional_expenses: '0',
 });
@@ -219,10 +253,9 @@ async function recalculate() {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
             },
             body: JSON.stringify({
-                customer_without_vat: parseAmount(amounts.customer_without_vat),
-                customer_with_vat: parseAmount(amounts.customer_with_vat),
-                carrier_without_vat: parseAmount(amounts.carrier_without_vat),
-                carrier_with_vat: parseAmount(amounts.carrier_with_vat),
+                customer_rate: parseAmount(amounts.customer_rate),
+                carrier_cash_rate: parseAmount(amounts.carrier_cash_rate),
+                carrier_cashless_rate: parseAmount(amounts.carrier_cashless_rate),
                 bonus: parseAmount(amounts.bonus) ?? 0,
                 additional_expenses: parseAmount(amounts.additional_expenses) ?? 0,
                 order_date: props.orderDate || undefined,

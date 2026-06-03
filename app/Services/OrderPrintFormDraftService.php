@@ -8,6 +8,7 @@ use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\PrintFormTemplate;
+use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\OrderPrintFormContext;
@@ -356,7 +357,7 @@ class OrderPrintFormDraftService
                 'hs_codes' => $this->resolveCargoHsCodesSummary($cargoItems),
                 'first_hs_code' => $this->resolveCargoFirstHsCode($cargoItems),
             ], $this->cargoPerLinePlaceholderMap($cargoItems, $order, $context)),
-            'financial' => $this->financialNormsPenaltiesSnapshot($order),
+            'financial' => $this->financialNormsPenaltiesSnapshot($order, $context),
         ];
     }
 
@@ -2199,22 +2200,56 @@ class OrderPrintFormDraftService
     /**
      * Штрафы, нормативы и пеня из мастера заказа ({@see Order::$wizard_state} → financial_term).
      *
-     * @return array{client_norms_penalties: array<string, mixed>, carrier_norms_by_leg: list<array<string, mixed>>}
+     * @return array{
+     *     client_norms_penalties: array<string, mixed>,
+     *     carrier_norms_penalties: array<string, mixed>,
+     *     carrier_norms_by_leg: list<array<string, mixed>>,
+     * }
      */
-    private function financialNormsPenaltiesSnapshot(Order $order): array
+    private function financialNormsPenaltiesSnapshot(Order $order, ?OrderPrintFormContext $context = null): array
     {
         $wizard = is_array($order->wizard_state) ? $order->wizard_state : [];
         $ft = is_array($wizard['financial_term'] ?? null) ? $wizard['financial_term'] : [];
         $client = is_array($ft['client_norms_penalties'] ?? null) ? $ft['client_norms_penalties'] : [];
         $carrier = is_array($ft['carrier_norms_by_leg'] ?? null) ? $ft['carrier_norms_by_leg'] : [];
+        $carrierRowForContext = CarrierNormsPenaltiesForPrintContext::resolveRow(
+            $carrier,
+            $this->resolveStageForCarrierNormsPenalties($order, $context),
+        );
 
         return [
             'client_norms_penalties' => $this->normsPenaltiesRowForPrintSnapshot($client),
+            'carrier_norms_penalties' => $this->normsPenaltiesRowForPrintSnapshot($carrierRowForContext),
             'carrier_norms_by_leg' => array_values(array_map(
                 fn (mixed $row): array => $this->normsPenaltiesRowForPrintSnapshot(is_array($row) ? $row : []),
                 $carrier,
             )),
         ];
+    }
+
+    private function resolveStageForCarrierNormsPenalties(Order $order, ?OrderPrintFormContext $context): ?string
+    {
+        if ($context === null) {
+            return null;
+        }
+
+        if ($context->legStage !== null && $context->legStage !== '') {
+            return $this->normalizeStageIdentifier($context->legStage);
+        }
+
+        if ($context->carrierContractorId === null || $context->carrierContractorId <= 0 || ! $order->relationLoaded('legs')) {
+            return null;
+        }
+
+        $leg = $order->legs
+            ->sortBy('sequence')
+            ->first(fn (OrderLeg $leg): bool => $this->legBelongsToCarrier($leg, $context->carrierContractorId));
+
+        if ($leg === null) {
+            return null;
+        }
+
+        return $this->normalizeStageIdentifier((string) $leg->description);
     }
 
     /**

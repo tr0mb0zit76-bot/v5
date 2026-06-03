@@ -17,6 +17,9 @@ class CalculateSalesMarginCounterRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'customer_rate' => ['nullable', 'numeric', 'min:0'],
+            'carrier_cash_rate' => ['nullable', 'numeric', 'min:0'],
+            'carrier_cashless_rate' => ['nullable', 'numeric', 'min:0'],
             'customer_without_vat' => ['nullable', 'numeric', 'min:0'],
             'customer_with_vat' => ['nullable', 'numeric', 'min:0'],
             'carrier_without_vat' => ['nullable', 'numeric', 'min:0'],
