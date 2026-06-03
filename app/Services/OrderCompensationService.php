@@ -13,6 +13,7 @@ use App\Support\OrderPersistedId;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\PaymentScheduleSettlementPreserver;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\VatZeroCustomerStandardVatCarrierMarginSupplement;
 use Carbon\Carbon;
@@ -400,6 +401,7 @@ class OrderCompensationService
         }
 
         $invoiceByKey = $this->snapshotInvoiceNumbersByOrder($orderId);
+        $settlementSnapshot = app(PaymentScheduleSettlementPreserver::class)->snapshot($orderId);
 
         try {
             // Используем chunk для удаления, чтобы избежать ошибки 1615 Prepared statement needs to be re-prepared
@@ -515,6 +517,8 @@ class OrderCompensationService
         }
 
         DB::table('payment_schedules')->insert($rows);
+
+        app(PaymentScheduleSettlementPreserver::class)->restore($orderId, $settlementSnapshot);
 
         PaymentScheduleAutomaticStatus::refreshForOrder($orderId);
     }
