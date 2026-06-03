@@ -30,7 +30,8 @@
                             @input="scheduleRecalculate"
                         />
                     </div>
-                    <div class="min-w-0 self-center">
+                    <label class="block min-w-0 space-y-1 self-center">
+                        <span class="text-xs text-zinc-500 dark:text-zinc-400">Бонус</span>
                         <input
                             v-model="amounts.bonus"
                             type="text"
@@ -38,17 +39,16 @@
                             autocomplete="off"
                             :class="crmFieldFluid"
                             placeholder="0"
-                            title="Бонус"
                             @input="scheduleRecalculate"
                         />
-                    </div>
+                    </label>
 
                     <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
-                        Ставка перевозчика, нал.
+                        Ставка перевозчика, безнал
                     </div>
                     <div class="min-w-0 self-center">
                         <input
-                            v-model="amounts.carrier_cash_rate"
+                            v-model="amounts.carrier_cashless_rate"
                             type="text"
                             inputmode="decimal"
                             autocomplete="off"
@@ -60,11 +60,11 @@
                     <div />
 
                     <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
-                        Ставка перевозчика, безнал
+                        Ставка перевозчика, нал.
                     </div>
                     <div class="min-w-0 self-center">
                         <input
-                            v-model="amounts.carrier_cashless_rate"
+                            v-model="amounts.carrier_cash_rate"
                             type="text"
                             inputmode="decimal"
                             autocomplete="off"
