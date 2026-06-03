@@ -151,6 +151,13 @@
                         </span>
                     </button>
                 </div>
+
+                <Link
+                    :href="route('sales-assistant.book.quiz-analytics')"
+                    class="mt-2 inline-block text-[11px] font-medium text-sky-800 underline-offset-4 hover:underline dark:text-sky-200"
+                >
+                    Полный отчёт →
+                </Link>
             </section>
 
             <form v-if="canWrite" class="mt-4 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="createArticle">
@@ -504,7 +511,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
 import SalesBookArticleFeedbackBar from '@/Components/SalesBook/SalesBookArticleFeedbackBar.vue';

@@ -34,12 +34,14 @@ class GetSalesBookQuizInsightsTool extends Tool
             $validated = $request->validate([
                 'days' => ['nullable', 'integer', 'min:1', 'max:365'],
                 'article_id' => ['nullable', 'integer', 'min:1'],
+                'user_id' => ['nullable', 'integer', 'min:1'],
                 'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
             ]);
 
             return Response::json($this->insights->insights(
                 (int) ($validated['days'] ?? 30),
                 isset($validated['article_id']) ? (int) $validated['article_id'] : null,
+                isset($validated['user_id']) ? (int) $validated['user_id'] : null,
                 (int) ($validated['limit'] ?? 20),
             ));
         });
@@ -57,6 +59,9 @@ class GetSalesBookQuizInsightsTool extends Tool
                 ->max(365),
             'article_id' => $schema->integer()
                 ->description('Ограничить статистику одной страницей с тестом.')
+                ->min(1),
+            'user_id' => $schema->integer()
+                ->description('Ограничить статистику одним сотрудником.')
                 ->min(1),
             'limit' => $schema->integer()
                 ->description('Сколько строк вернуть в каждой секции (1-100).')

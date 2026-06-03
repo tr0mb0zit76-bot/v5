@@ -169,8 +169,35 @@ class SalesAssistantController extends Controller
                 ? $qualityInsights->insights(30, 8)
                 : null,
             'quizInsights' => $canViewQuizAnalytics
-                ? $quizInsights->insights(30, null, 12)
+                ? $quizInsights->insights(30, null, null, 12)
                 : null,
+        ]);
+    }
+
+    public function bookQuizAnalytics(Request $request, SalesBookQuizInsightsService $quizInsights): Response
+    {
+        abort_unless(RoleAccess::canViewSalesBookQuizInsights($request->user()), 403);
+
+        $daysInput = (int) $request->query('days', '30');
+        $allowedDays = [7, 30, 90, 180];
+        $days = in_array($daysInput, $allowedDays, true) ? $daysInput : 30;
+
+        $articleId = $request->filled('article_id') && $request->integer('article_id') > 0
+            ? $request->integer('article_id')
+            : null;
+        $userId = $request->filled('user_id') && $request->integer('user_id') > 0
+            ? $request->integer('user_id')
+            : null;
+
+        return Inertia::render('SalesAssistant/BookQuizAnalytics', [
+            'filters' => [
+                'days' => $days,
+                'article_id' => $articleId,
+                'user_id' => $userId,
+            ],
+            'filterUsers' => $quizInsights->participantUsers(max($days, 90)),
+            'filterArticles' => $quizInsights->attemptedArticles(max($days, 90)),
+            'insights' => $quizInsights->insights($days, $articleId, $userId, 50),
         ]);
     }
 

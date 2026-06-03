@@ -509,6 +509,7 @@ class AgentToolRegistry
                     'properties' => [
                         'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
                         'article_id' => ['type' => 'integer', 'minimum' => 1],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
                         'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
                     ],
                     'additionalProperties' => false,
@@ -517,6 +518,7 @@ class AgentToolRegistry
                 invoke: fn (User $user, array $args): array => $this->salesBookQuizInsights->insights(
                     (int) ($args['days'] ?? 30),
                     isset($args['article_id']) ? (int) $args['article_id'] : null,
+                    isset($args['user_id']) ? (int) $args['user_id'] : null,
                     (int) ($args['limit'] ?? 20),
                 ),
             ),

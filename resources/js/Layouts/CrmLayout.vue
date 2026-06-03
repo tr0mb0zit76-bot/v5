@@ -713,6 +713,7 @@ const MENU_ROUTES = {
     'modules-how-much-costs': '/modules/how-much-costs',
     'sales-assistant-scripts': '/scripts',
     'sales-assistant-book': '/sales-assistant/book',
+    'sales-assistant-book-quiz-analytics': '/sales-assistant/book/quiz-analytics',
     'sales-assistant-trainer': '/sales-assistant/trainer',
     'sales-assistant-trainer-analytics': '/sales-assistant/trainer/analytics',
     'sales-assistant-counter': '/sales-assistant/counter',
@@ -973,6 +974,7 @@ const menuItems = computed(() => {
     const assistantParts = [
         { area: 'sales_assistant_scripts', key: 'sales-assistant-scripts', label: 'Скрипты' },
         { area: 'sales_assistant_book', key: 'sales-assistant-book', label: 'Книга продаж' },
+        { area: 'sales_assistant_book_analytics', key: 'sales-assistant-book-quiz-analytics', label: 'Статистика тестов' },
         { area: 'sales_assistant_trainer', key: 'sales-assistant-trainer', label: 'Тренажёр' },
         { area: 'sales_assistant_trainer_analytics', key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
         { area: 'sales_assistant_counter', key: 'sales-assistant-counter', label: 'Считалка' },

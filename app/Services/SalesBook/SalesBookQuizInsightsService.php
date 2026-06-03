@@ -51,7 +51,7 @@ final class SalesBookQuizInsightsService
      *     }>
      * }
      */
-    public function insights(int $days = 30, ?int $articleId = null, int $limit = 20): array
+    public function insights(int $days = 30, ?int $articleId = null, ?int $userId = null, int $limit = 20): array
     {
         if (! Schema::hasTable('sales_book_quiz_attempts')) {
             return $this->emptyInsights();
@@ -68,6 +68,10 @@ final class SalesBookQuizInsightsService
             $baseQuery->where('sales_book_article_id', $articleId);
         }
 
+        if ($userId !== null) {
+            $baseQuery->where('user_id', $userId);
+        }
+
         $summaryRow = (clone $baseQuery)
             ->selectRaw('COUNT(*) as attempts_count')
             ->selectRaw('COUNT(DISTINCT user_id) as unique_users_count')
@@ -78,16 +82,81 @@ final class SalesBookQuizInsightsService
 
         return [
             'summary' => [
+                'window_days' => $days,
                 'attempts' => (int) ($summaryRow->attempts_count ?? 0),
                 'unique_users' => (int) ($summaryRow->unique_users_count ?? 0),
                 'unique_articles' => (int) ($summaryRow->unique_articles_count ?? 0),
                 'avg_score' => $summaryRow->avg_score !== null ? round((float) $summaryRow->avg_score, 1) : null,
                 'avg_percent' => $summaryRow->avg_percent !== null ? round((float) $summaryRow->avg_percent, 1) : null,
             ],
-            'by_article' => $this->byArticle($since, $articleId, $limit),
-            'by_user' => $this->byUser($since, $articleId, $limit),
-            'recent_attempts' => $this->recentAttempts($since, $articleId, $limit),
+            'by_article' => $this->byArticle($since, $articleId, $userId, $limit),
+            'by_user' => $this->byUser($since, $articleId, $userId, $limit),
+            'recent_attempts' => $this->recentAttempts($since, $articleId, $userId, $limit),
         ];
+    }
+
+    /**
+     * @return list<array{id: int, name: string}>
+     */
+    public function participantUsers(int $days = 365): array
+    {
+        if (! Schema::hasTable('sales_book_quiz_attempts')) {
+            return [];
+        }
+
+        $since = now()->subDays(max(1, min($days, 365)));
+
+        $userIds = SalesBookQuizAttempt::query()
+            ->where('completed_at', '>=', $since)
+            ->distinct()
+            ->pluck('user_id');
+
+        if ($userIds->isEmpty()) {
+            return [];
+        }
+
+        return User::query()
+            ->whereIn('id', $userIds)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{id: int, title: string}>
+     */
+    public function attemptedArticles(int $days = 365): array
+    {
+        if (! Schema::hasTable('sales_book_quiz_attempts')) {
+            return [];
+        }
+
+        $since = now()->subDays(max(1, min($days, 365)));
+
+        $articleIds = SalesBookQuizAttempt::query()
+            ->where('completed_at', '>=', $since)
+            ->distinct()
+            ->pluck('sales_book_article_id');
+
+        if ($articleIds->isEmpty()) {
+            return [];
+        }
+
+        return SalesBookArticle::query()
+            ->whereIn('id', $articleIds)
+            ->orderBy('title')
+            ->get(['id', 'title'])
+            ->map(fn (SalesBookArticle $article): array => [
+                'id' => $article->id,
+                'title' => $article->title,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -101,7 +170,7 @@ final class SalesBookQuizInsightsService
      *     last_attempt_at: string|null
      * }>
      */
-    private function byArticle(mixed $since, ?int $articleId, int $limit): array
+    private function byArticle(mixed $since, ?int $articleId, ?int $userId, int $limit): array
     {
         $attempt = new SalesBookQuizAttempt;
         $article = new SalesBookArticle;
@@ -123,6 +192,10 @@ final class SalesBookQuizInsightsService
 
         if ($articleId !== null) {
             $query->where("{$attemptTable}.sales_book_article_id", $articleId);
+        }
+
+        if ($userId !== null) {
+            $query->where("{$attemptTable}.user_id", $userId);
         }
 
         /** @var Collection<int, object> $rows */
@@ -151,7 +224,7 @@ final class SalesBookQuizInsightsService
      *     last_attempt_at: string|null
      * }>
      */
-    private function byUser(mixed $since, ?int $articleId, int $limit): array
+    private function byUser(mixed $since, ?int $articleId, ?int $userId, int $limit): array
     {
         $attempt = new SalesBookQuizAttempt;
         $user = new User;
@@ -174,6 +247,10 @@ final class SalesBookQuizInsightsService
 
         if ($articleId !== null) {
             $query->where("{$attemptTable}.sales_book_article_id", $articleId);
+        }
+
+        if ($userId !== null) {
+            $query->where("{$attemptTable}.user_id", $userId);
         }
 
         /** @var Collection<int, object> $rows */
@@ -213,7 +290,7 @@ final class SalesBookQuizInsightsService
      *     completed_at: string|null
      * }>
      */
-    private function recentAttempts(mixed $since, ?int $articleId, int $limit): array
+    private function recentAttempts(mixed $since, ?int $articleId, ?int $userId, int $limit): array
     {
         $query = SalesBookQuizAttempt::query()
             ->with(['user:id,name', 'article:id,title'])
@@ -223,6 +300,10 @@ final class SalesBookQuizInsightsService
 
         if ($articleId !== null) {
             $query->where('sales_book_article_id', $articleId);
+        }
+
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
         }
 
         return $query->get()->map(function (SalesBookQuizAttempt $attempt): array {
@@ -260,6 +341,7 @@ final class SalesBookQuizInsightsService
     {
         return [
             'summary' => [
+                'window_days' => 0,
                 'attempts' => 0,
                 'unique_users' => 0,
                 'unique_articles' => 0,
