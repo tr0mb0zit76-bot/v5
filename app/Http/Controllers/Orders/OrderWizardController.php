@@ -339,9 +339,7 @@ class OrderWizardController extends Controller
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($request, $order, $canManageOrderDocuments, $canApproveOrderDocuments),
             'contractors' => $contractors->values(),
-            'ownCompanies' => Schema::hasColumn('contractors', 'is_own_company')
-                ? $contractors->where('is_own_company', true)->values()
-                : collect(),
+            'ownCompanies' => $this->loadOwnCompaniesForWizard($order)->values(),
             'ownFleetContractor' => $this->ownFleetContractorPayload(),
             'cargoTypeOptions' => $this->atiDictionaryOptions('cargo_type', $this->fallbackCargoTypeOptions()),
             'packageTypeOptions' => $this->atiDictionaryOptions('pack_type', $this->fallbackPackageTypeOptions()),
@@ -2678,6 +2676,34 @@ class OrderWizardController extends Controller
         $costs[$firstLegIndex]['amount'] = max(0, (float) $carrierRate - $rest);
 
         return $costs;
+    }
+
+    /**
+     * Все «свои компании» из справочника (флаг is_own_company), без лимита и visibleTo.
+     *
+     * @return Collection<int, Contractor>
+     */
+    private function loadOwnCompaniesForWizard(?Order $order): Collection
+    {
+        if (! Schema::hasColumn('contractors', 'is_own_company')) {
+            return collect();
+        }
+
+        $ensureIds = [];
+        if ($order?->own_company_id) {
+            $ensureIds[] = (int) $order->own_company_id;
+        }
+
+        return Contractor::query()
+            ->where(function ($query) use ($ensureIds): void {
+                $query->ownCompanyProfiles();
+
+                if ($ensureIds !== []) {
+                    $query->orWhereIn('id', $ensureIds);
+                }
+            })
+            ->orderBy('name')
+            ->get($this->contractorSelectColumns());
     }
 
     /**

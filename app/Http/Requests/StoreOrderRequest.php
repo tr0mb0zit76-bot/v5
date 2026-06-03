@@ -469,7 +469,7 @@ class StoreOrderRequest extends FormRequest
     {
         return [
             'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled', 'disruption'])],
-            'own_company_id' => ['nullable', 'integer', 'exists:contractors,id'],
+            'own_company_id' => $this->ownCompanyIdRules(),
             'own_company_bank_account_id' => ['nullable', 'string', 'max:100'],
             'client_id' => ['required', 'integer', 'exists:contractors,id'],
             'order_date' => ['required', 'date'],
@@ -698,5 +698,25 @@ class StoreOrderRequest extends FormRequest
                 new DocumentWithinPageBudget,
             ],
         ];
+    }
+
+    /**
+     * @return list<string|ValidationRule>
+     */
+    protected function ownCompanyIdRules(): array
+    {
+        $rules = ['nullable', 'integer'];
+
+        if (! Schema::hasTable('contractors')) {
+            return $rules;
+        }
+
+        if (Schema::hasColumn('contractors', 'is_own_company')) {
+            $rules[] = Rule::exists('contractors', 'id')->where('is_own_company', true);
+        } else {
+            $rules[] = Rule::exists('contractors', 'id');
+        }
+
+        return $rules;
     }
 }

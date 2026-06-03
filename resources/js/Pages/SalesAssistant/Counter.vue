@@ -8,7 +8,7 @@
         <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <section :class="`${crmPanel} space-y-5 p-5`">
                 <div
-                    class="grid min-w-[24rem] grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_minmax(5.5rem,7.5rem)] gap-x-3 gap-y-4 text-sm"
+                    class="grid min-w-[24rem] grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)_minmax(5.5rem,7.5rem)] items-end gap-x-3 gap-y-4 text-sm"
                 >
                     <div />
                     <div class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
@@ -16,10 +16,10 @@
                     </div>
                     <div />
 
-                    <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
+                    <div class="pb-0.5 font-semibold text-zinc-800 dark:text-zinc-100">
                         Ставка заказчика
                     </div>
-                    <div class="min-w-0 self-center">
+                    <div class="min-w-0">
                         <input
                             v-model="amounts.customer_rate"
                             type="text"
@@ -30,8 +30,8 @@
                             @input="scheduleRecalculate"
                         />
                     </div>
-                    <label class="block min-w-0 space-y-1 self-center">
-                        <span class="text-xs text-zinc-500 dark:text-zinc-400">Бонус</span>
+                    <div class="min-w-0 space-y-1">
+                        <span class="block text-xs leading-4 text-zinc-500 dark:text-zinc-400">Бонус</span>
                         <input
                             v-model="amounts.bonus"
                             type="text"
@@ -41,12 +41,12 @@
                             placeholder="0"
                             @input="scheduleRecalculate"
                         />
-                    </label>
+                    </div>
 
-                    <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
+                    <div class="pb-0.5 font-semibold text-zinc-800 dark:text-zinc-100">
                         Ставка перевозчика, безнал
                     </div>
-                    <div class="min-w-0 self-center">
+                    <div class="min-w-0">
                         <input
                             v-model="amounts.carrier_cashless_rate"
                             type="text"
@@ -57,12 +57,12 @@
                             @input="scheduleRecalculate"
                         />
                     </div>
-                    <div />
+                    <div class="min-w-0" aria-hidden="true" />
 
-                    <div class="self-center font-semibold text-zinc-800 dark:text-zinc-100">
+                    <div class="pb-0.5 font-semibold text-zinc-800 dark:text-zinc-100">
                         Ставка перевозчика, нал.
                     </div>
-                    <div class="min-w-0 self-center">
+                    <div class="min-w-0">
                         <input
                             v-model="amounts.carrier_cash_rate"
                             type="text"
@@ -73,8 +73,8 @@
                             @input="scheduleRecalculate"
                         />
                     </div>
-                    <label class="block min-w-0 space-y-1 self-center">
-                        <span class="text-xs text-zinc-500 dark:text-zinc-400">Доп. расходы</span>
+                    <div class="min-w-0 space-y-1">
+                        <span class="block text-xs leading-4 text-zinc-500 dark:text-zinc-400">Доп. расходы</span>
                         <input
                             v-model="amounts.additional_expenses"
                             type="text"
@@ -84,7 +84,7 @@
                             placeholder="0"
                             @input="scheduleRecalculate"
                         />
-                    </label>
+                    </div>
                 </div>
 
                 <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">

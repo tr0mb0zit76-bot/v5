@@ -131,6 +131,21 @@ class Contractor extends Model
     }
 
     /**
+     * Контрагенты с признаком «Своя компания» в справочнике.
+     *
+     * @param  Builder<Contractor>  $query
+     * @return Builder<Contractor>
+     */
+    public function scopeOwnCompanyProfiles(Builder $query): Builder
+    {
+        if (! Schema::hasColumn($this->getTable(), 'is_own_company')) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where('is_own_company', true);
+    }
+
+    /**
      * @return HasMany<ContractorContact, $this>
      */
     public function contacts(): HasMany
