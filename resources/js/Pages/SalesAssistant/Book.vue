@@ -243,7 +243,7 @@
             </p>
 
             <template v-if="selectedArticle">
-                <form v-if="canWrite" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
+                <form v-if="canWrite && !readerPreview" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
                     <div class="relative h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
                         <img
                             v-if="selectedArticle.cover_image_url"
@@ -349,12 +349,19 @@
                         </span>
                     </div>
 
-                    <p
+                    <div
                         v-if="selectedArticleQuiz"
-                        class="shrink-0 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100"
+                        class="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100"
                     >
-                        На странице настроен интерактивный тест: {{ selectedArticleQuiz.questions.length }} вопросов. Данные теста сохраняются автоматически при редактировании текста.
-                    </p>
+                        <span>На странице настроен интерактивный тест: {{ selectedArticleQuiz.questions.length }} вопросов.</span>
+                        <button
+                            type="button"
+                            class="rounded-md bg-sky-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600"
+                            @click="readerPreview = true"
+                        >
+                            Предпросмотр и тест
+                        </button>
+                    </div>
 
                     <TiptapEditor
                         ref="editEditorRef"
@@ -387,6 +394,20 @@
                 </form>
 
                 <div v-else class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                    <div
+                        v-if="canWrite && readerPreview"
+                        class="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-100"
+                    >
+                        <span>Режим предпросмотра — так страницу видят сотрудники.</span>
+                        <button
+                            type="button"
+                            class="rounded-md border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-medium text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-100 dark:hover:bg-indigo-950"
+                            @click="readerPreview = false"
+                        >
+                            Вернуться к редактированию
+                        </button>
+                    </div>
+
                     <div class="h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
                         <img
                             v-if="selectedArticle.cover_image_url"
@@ -571,6 +592,7 @@ const editEditorRef = ref(null);
 const coverInputRef = ref(null);
 const coverUploading = ref(false);
 const coverError = ref('');
+const readerPreview = ref(false);
 
 const readonlyEditorKey = computed(() => {
     if (!props.selectedArticle) {
@@ -648,6 +670,10 @@ watch(
             editForm.parent_id = value.parent_id ? String(value.parent_id) : '';
             editForm.status = value.status ?? 'published';
             editForm.tags_text = formatTags(value.tags ?? []);
+        }
+
+        if (articleChanged) {
+            readerPreview.value = false;
         }
     },
     { immediate: true },

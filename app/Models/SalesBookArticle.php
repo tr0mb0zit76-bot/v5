@@ -73,6 +73,14 @@ class SalesBookArticle extends Model
     }
 
     /**
+     * @return HasMany<SalesBookQuizAttempt, $this>
+     */
+    public function quizAttempts(): HasMany
+    {
+        return $this->hasMany(SalesBookQuizAttempt::class, 'sales_book_article_id');
+    }
+
+    /**
      * @return BelongsTo<User, $this>
      */
     public function updater(): BelongsTo
