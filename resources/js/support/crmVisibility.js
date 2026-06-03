@@ -1,6 +1,7 @@
 export const SALES_ASSISTANT_SUBMODULE_KEYS = [
     'sales_assistant_scripts',
     'sales_assistant_book',
+    'sales_assistant_book_analytics',
     'sales_assistant_trainer',
     'sales_assistant_trainer_analytics',
     'sales_assistant_counter',

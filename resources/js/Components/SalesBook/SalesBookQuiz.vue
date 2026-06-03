@@ -12,7 +12,7 @@
                 class="rounded-lg px-3 py-2 text-sm font-semibold"
                 :class="scoreBadgeClass"
             >
-                {{ score }} из {{ totalQuestions }}
+                {{ displayedScore }} из {{ totalQuestions }}
             </div>
         </div>
 
@@ -39,7 +39,7 @@
                             :name="`sales-book-quiz-${question.id}`"
                             :value="option.id"
                             class="mt-0.5 shrink-0"
-                            :disabled="submitted"
+                            :disabled="submitted || recording"
                         />
                         <span class="text-zinc-700 dark:text-zinc-200">{{ option.text }}</span>
                     </label>
@@ -58,12 +58,16 @@
             <button
                 type="button"
                 :class="crmBtnPrimary"
+                :disabled="recording"
                 @click="submitted ? resetQuiz() : submitQuiz()"
             >
-                {{ submitted ? 'Пройти заново' : 'Проверить' }}
+                {{ recording ? 'Сохранение…' : (submitted ? 'Пройти заново' : 'Проверить') }}
             </button>
             <p v-if="validationMessage" class="text-xs text-amber-700 dark:text-amber-200">
                 {{ validationMessage }}
+            </p>
+            <p v-else-if="recordError" class="text-xs text-rose-700 dark:text-rose-200">
+                {{ recordError }}
             </p>
             <p v-else-if="submitted && resultMessage" class="text-xs text-zinc-600 dark:text-zinc-300">
                 {{ resultMessage }}
@@ -73,6 +77,7 @@
 </template>
 
 <script setup>
+import axios from 'axios';
 import { computed, reactive, ref, watch } from 'vue';
 import { crmBtnPrimary } from '@/support/crmUi.js';
 
@@ -87,13 +92,18 @@ const props = defineProps({
     },
 });
 
+const emit = defineEmits(['attempt-recorded']);
+
 const answers = reactive({});
 const submitted = ref(false);
+const recording = ref(false);
 const validationMessage = ref('');
+const recordError = ref('');
+const serverAttempt = ref(null);
 
 const totalQuestions = computed(() => props.quiz?.questions?.length ?? 0);
 
-const score = computed(() => {
+const clientScore = computed(() => {
     if (!submitted.value) {
         return 0;
     }
@@ -103,12 +113,20 @@ const score = computed(() => {
     ), 0);
 });
 
+const displayedScore = computed(() => {
+    if (serverAttempt.value?.score !== undefined && serverAttempt.value?.score !== null) {
+        return serverAttempt.value.score;
+    }
+
+    return clientScore.value;
+});
+
 const unansweredCount = computed(() => (
     (props.quiz?.questions ?? []).filter((question) => !answers[question.id]).length
 ));
 
 const scoreBadgeClass = computed(() => {
-    const ratio = totalQuestions.value > 0 ? score.value / totalQuestions.value : 0;
+    const ratio = totalQuestions.value > 0 ? displayedScore.value / totalQuestions.value : 0;
 
     if (ratio >= 0.83) {
         return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100';
@@ -126,7 +144,7 @@ const resultMessage = computed(() => {
         return '';
     }
 
-    const currentScore = score.value;
+    const currentScore = displayedScore.value;
 
     if (currentScore >= 10) {
         return 'Уверенный результат: можно опираться на эти подходы в реальных разговорах.';
@@ -164,8 +182,9 @@ function optionClass(question, optionId) {
     return 'border-zinc-200 opacity-70 dark:border-zinc-700';
 }
 
-function submitQuiz() {
+async function submitQuiz() {
     validationMessage.value = '';
+    recordError.value = '';
 
     if (unansweredCount.value > 0) {
         validationMessage.value = `Ответьте на все вопросы. Осталось: ${unansweredCount.value}.`;
@@ -173,7 +192,25 @@ function submitQuiz() {
         return;
     }
 
-    submitted.value = true;
+    recording.value = true;
+
+    try {
+        const response = await axios.post(
+            route('sales-assistant.book.articles.quiz-attempt', props.articleId),
+            { answers: { ...answers } },
+        );
+
+        serverAttempt.value = response.data?.attempt ?? null;
+        submitted.value = true;
+        emit('attempt-recorded');
+    } catch (error) {
+        const errors = error.response?.data?.errors ?? {};
+        recordError.value = errors.answers?.[0]
+            ?? error.response?.data?.message
+            ?? 'Не удалось сохранить результат теста.';
+    } finally {
+        recording.value = false;
+    }
 }
 
 function resetQuiz() {
@@ -182,5 +219,7 @@ function resetQuiz() {
     });
     submitted.value = false;
     validationMessage.value = '';
+    recordError.value = '';
+    serverAttempt.value = null;
 }
 </script>

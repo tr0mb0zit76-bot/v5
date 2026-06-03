@@ -68,6 +68,7 @@ class RoleAccess
             ['key' => 'scripts', 'label' => 'Помощник продавца', 'description' => 'Общий доступ к модулю; при выборе компонентов уточните строки ниже'],
             ['key' => 'sales_assistant_scripts', 'label' => 'Помощник продавца: скрипты', 'description' => 'Список сценариев и прохождение шагов (в т.ч. из тренажёра)'],
             ['key' => 'sales_assistant_book', 'label' => 'Помощник продавца: книга продаж', 'description' => 'База знаний и статьи'],
+            ['key' => 'sales_assistant_book_analytics', 'label' => 'Помощник продавца: статистика тестов', 'description' => 'Результаты прохождения тестов в Книге продаж'],
             ['key' => 'sales_assistant_trainer', 'label' => 'Помощник продавца: тренажёр', 'description' => 'Запуск тренировок по сценариям'],
             ['key' => 'sales_assistant_trainer_analytics', 'label' => 'Помощник продавца: аналитика тренажёра', 'description' => 'Сводки и отчёты по тренировкам'],
             ['key' => 'sales_assistant_counter', 'label' => 'Считалка', 'description' => 'Помощник продавца: калькулятор маржи и ставок для переговоров'],
@@ -521,6 +522,7 @@ class RoleAccess
         return [
             'sales_assistant_scripts',
             'sales_assistant_book',
+            'sales_assistant_book_analytics',
             'sales_assistant_trainer',
             'sales_assistant_trainer_analytics',
             'sales_assistant_counter',
@@ -1083,6 +1085,22 @@ class RoleAccess
         }
 
         return static::userHasPermission($user, 'sales_book_write');
+    }
+
+    /**
+     * Статистика прохождения тестов Книги продаж — область sales_assistant_book_analytics или admin.
+     */
+    public static function canViewSalesBookQuizInsights(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_book_analytics');
     }
 
     private static function userHasSalesBookPermissionKeysConfigured(?User $user): bool

@@ -16,6 +16,7 @@ use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\SalesBook\SalesBookQualityInsightsService;
+use App\Services\SalesBook\SalesBookQuizInsightsService;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Support\AiInteractionFeature;
 use App\Support\DispositionSlot;
@@ -40,6 +41,7 @@ class AgentToolRegistry
         private readonly OrderDocumentMcpService $orderDocuments,
         private readonly SalesBookMcpService $salesBook,
         private readonly SalesBookQualityInsightsService $salesBookQualityInsights,
+        private readonly SalesBookQuizInsightsService $salesBookQuizInsights,
         private readonly DispositionMcpService $disposition,
         private readonly OrderActivityTimelineService $orderTimeline,
         private readonly AiUsageAnalyticsService $aiUsageAnalytics,
@@ -497,6 +499,25 @@ class AgentToolRegistry
                 invoke: fn (User $user, array $args): array => $this->salesBookQualityInsights->insights(
                     (int) ($args['days'] ?? 30),
                     (int) ($args['limit'] ?? 10),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_sales_book_quiz_insights',
+                description: 'Статистика тестов Книги продаж: попытки, средний балл, сводка по сотрудникам и статьям.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
+                        'article_id' => ['type' => 'integer', 'minimum' => 1],
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canViewSalesBookQuizInsights($user),
+                invoke: fn (User $user, array $args): array => $this->salesBookQuizInsights->insights(
+                    (int) ($args['days'] ?? 30),
+                    isset($args['article_id']) ? (int) $args['article_id'] : null,
+                    (int) ($args['limit'] ?? 20),
                 ),
             ),
             new AgentToolDefinition(

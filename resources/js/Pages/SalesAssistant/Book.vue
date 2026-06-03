@@ -93,6 +93,66 @@
                 </div>
             </section>
 
+            <section
+                v-if="canViewQuizAnalytics && quizInsights"
+                class="mt-3 shrink-0 rounded-xl border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900/60 dark:bg-sky-950/25"
+            >
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-xs font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-100">
+                        Статистика тестов
+                    </h2>
+                    <span class="text-[11px] text-sky-700 dark:text-sky-300">30 дней</span>
+                </div>
+
+                <div class="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                    <div class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70">
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ quizInsights.summary?.attempts ?? 0 }}</div>
+                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">попыток</div>
+                    </div>
+                    <div class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70">
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ quizInsights.summary?.unique_users ?? 0 }}</div>
+                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">людей</div>
+                    </div>
+                    <div class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70">
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ quizAvgPercentLabel }}</div>
+                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">ср. %</div>
+                    </div>
+                </div>
+
+                <div v-if="quizInsights.by_user?.length" class="mt-2 space-y-1.5">
+                    <p class="text-[11px] font-medium text-sky-800 dark:text-sky-200">По сотрудникам</p>
+                    <div
+                        v-for="row in quizInsights.by_user"
+                        :key="`quiz-user-${row.user_id}`"
+                        class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70"
+                    >
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">{{ row.name }}</span>
+                            <span class="shrink-0 text-[11px] text-zinc-600 dark:text-zinc-300">{{ row.avg_percent }}%</span>
+                        </div>
+                        <p class="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {{ row.attempts }} попыток · лучший {{ row.best_score }}/{{ row.best_total }}
+                        </p>
+                    </div>
+                </div>
+
+                <div v-if="quizInsights.recent_attempts?.length" class="mt-2 space-y-1.5">
+                    <p class="text-[11px] font-medium text-sky-800 dark:text-sky-200">Последние прохождения</p>
+                    <button
+                        v-for="item in quizInsights.recent_attempts"
+                        :key="`quiz-attempt-${item.id}`"
+                        type="button"
+                        class="w-full rounded-lg bg-white/80 px-2 py-1.5 text-left transition-colors hover:bg-white dark:bg-zinc-900/70 dark:hover:bg-zinc-800"
+                        @click="openArticle(item.article_id)"
+                    >
+                        <span class="block truncate text-xs font-medium text-zinc-800 dark:text-zinc-100">{{ item.user_name }}</span>
+                        <span class="mt-0.5 block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {{ item.article_title }} · {{ item.score }}/{{ item.total_questions }} ({{ item.percent }}%)
+                        </span>
+                    </button>
+                </div>
+            </section>
+
             <form v-if="canWrite" class="mt-4 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="createArticle">
                 <input
                     v-model="createForm.title"
@@ -395,6 +455,7 @@
                             class="mt-4"
                             :article-id="selectedArticle.id"
                             :quiz="selectedArticleQuiz"
+                            @attempt-recorded="reloadQuizInsights"
                         />
                     </div>
                 </div>
@@ -464,6 +525,10 @@ const props = defineProps({
         default: () => [],
     },
     qualityInsights: {
+        type: Object,
+        default: null,
+    },
+    quizInsights: {
         type: Object,
         default: null,
     },
@@ -706,7 +771,18 @@ function openArticle(articleId) {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary', 'feedbackProblemArticles', 'qualityInsights'],
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary', 'feedbackProblemArticles', 'qualityInsights', 'quizInsights'],
+    });
+}
+
+function reloadQuizInsights() {
+    if (!canViewQuizAnalytics.value) {
+        return;
+    }
+
+    router.reload({
+        only: ['quizInsights'],
+        preserveScroll: true,
     });
 }
 
@@ -837,6 +913,17 @@ function destroyArticle() {
 
 const canWrite = computed(() => Boolean(props.capabilities?.can_write));
 const canComment = computed(() => Boolean(props.capabilities?.can_comment));
+const canViewQuizAnalytics = computed(() => Boolean(props.capabilities?.can_view_quiz_analytics));
+
+const quizAvgPercentLabel = computed(() => {
+    const value = props.quizInsights?.summary?.avg_percent;
+
+    if (value === null || value === undefined) {
+        return '—';
+    }
+
+    return `${value}%`;
+});
 
 function submitArticleFeedback(payload) {
     if (!props.selectedArticle?.id) {
