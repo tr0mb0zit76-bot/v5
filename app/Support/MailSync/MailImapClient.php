@@ -231,7 +231,8 @@ final class MailImapClient
         $fromEmail = $this->normalizeEmail($meta->from ?? '') ?? $this->headerValue($header, 'From') ?? '';
         $toRaw = $meta->to ?? $this->headerValue($header, 'To') ?? '';
         $ccRaw = $meta->cc ?? $this->headerValue($header, 'Cc') ?? '';
-        $subject = isset($meta->subject) ? $this->decodeMimeHeader((string) $meta->subject) : ($this->headerValue($header, 'Subject') ?? '');
+        $rawSubject = isset($meta->subject) ? (string) $meta->subject : ($this->headerValue($header, 'Subject') ?? '');
+        $subject = $this->decodeMimeHeader($rawSubject);
         $sentAt = null;
 
         if (isset($meta->date) && is_string($meta->date)) {
@@ -250,8 +251,8 @@ final class MailImapClient
             fromEmail: $this->extractEmailAddress($fromEmail) ?? strtolower(trim($fromEmail)),
             toEmails: $this->extractEmailAddresses($toRaw),
             ccEmails: $this->extractEmailAddresses($ccRaw),
-            subject: trim($subject),
-            bodyText: $bodyText !== '' ? $bodyText : null,
+            subject: MailUtf8Sanitizer::sanitize(trim($subject)),
+            bodyText: $bodyText !== '' ? MailUtf8Sanitizer::sanitize($bodyText) : null,
             inReplyTo: $this->normalizeMessageId($this->headerValue($header, 'In-Reply-To') ?? ''),
             sentAt: $sentAt,
             folder: $folder,
@@ -276,7 +277,7 @@ final class MailImapClient
 
         $decoded = imap_utf8($body);
 
-        return trim(strip_tags($decoded));
+        return MailUtf8Sanitizer::sanitize(trim(strip_tags($decoded)));
     }
 
     private function resolveMessageId(string $header, int $uid, string $folder): string
@@ -321,14 +322,47 @@ final class MailImapClient
 
     private function decodeMimeHeader(string $value): string
     {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        if (! function_exists('imap_mime_header_decode')) {
+            return MailUtf8Sanitizer::sanitize($value);
+        }
+
         $decoded = imap_mime_header_decode($value);
+
+        if (! is_array($decoded)) {
+            return MailUtf8Sanitizer::sanitize($value);
+        }
+
         $parts = [];
 
         foreach ($decoded as $part) {
-            $parts[] = $part->text ?? '';
+            $text = (string) ($part->text ?? '');
+            $charset = strtolower(trim((string) ($part->charset ?? 'default')));
+
+            if ($charset === 'default' || $charset === 'ascii' || $charset === 'us-ascii') {
+                $parts[] = MailUtf8Sanitizer::sanitize($text);
+
+                continue;
+            }
+
+            if ($charset === 'utf-8' || $charset === 'utf8') {
+                $parts[] = MailUtf8Sanitizer::sanitize($text);
+
+                continue;
+            }
+
+            $converted = @mb_convert_encoding($text, 'UTF-8', $charset);
+            $parts[] = MailUtf8Sanitizer::sanitize(is_string($converted) ? $converted : $text);
         }
 
-        return trim(implode('', $parts));
+        $joined = trim(implode('', $parts));
+
+        return $joined !== '' ? $joined : MailUtf8Sanitizer::sanitize($value);
     }
 
     private function normalizeEmail(string $value): ?string
