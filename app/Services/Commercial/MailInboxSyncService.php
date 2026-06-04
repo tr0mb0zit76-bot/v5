@@ -184,13 +184,23 @@ final class MailInboxSyncService
 
                     if ($verbose) {
                         $debug[] = sprintf(
-                            '%s/%s: uid=%d, разобрано=%d, режим=%s',
+                            '%s/%s: uid=%d, разобрано=%d, режим=%s, SINCE=%s',
                             $plan['direction'],
                             $folder,
                             $diagnostics['uids'] ?? 0,
                             $diagnostics['parsed'] ?? count($messages),
                             $diagnostics['search'] ?? '?',
+                            $diagnostics['since'] ?? '?',
                         );
+
+                        if (($diagnostics['uids'] ?? 0) === 0 && isset($diagnostics['imap_error'])) {
+                            $debug[] = sprintf(
+                                '%s/%s: imap_last_error=%s',
+                                $plan['direction'],
+                                $folder,
+                                $diagnostics['imap_error'],
+                            );
+                        }
                     }
                 } catch (Throwable $exception) {
                     $folderErrors[] = "{$folder}: ".Str::limit($exception->getMessage(), 200);

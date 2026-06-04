@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Services\Commercial\MailInboxSyncService;
+use App\Support\MailSync\MailImapClient;
+use App\Support\MailSync\MailSyncMailboxUri;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 
@@ -15,7 +17,7 @@ class ProbeMailImapCommand extends Command
 
     protected $description = 'Диагностика IMAP: список папок и число писем SINCE (без записи в CRM)';
 
-    public function handle(MailInboxSyncService $syncService): int
+    public function handle(MailInboxSyncService $syncService, MailImapClient $imapClient): int
     {
         if (! function_exists('imap_open')) {
             $this->error('PHP extension imap не установлена.');
@@ -51,11 +53,12 @@ class ProbeMailImapCommand extends Command
         $days = max(1, min(365, (int) $this->option('days')));
         $since = CarbonImmutable::now()->subDays($days);
         $searchDate = $since->format('d-M-Y');
-        $prefix = $this->mailboxPrefix();
+        $prefix = MailSyncMailboxUri::prefix();
         $username = (string) $user->email;
 
         $this->info("Ящик: {$username}");
         $this->line("IMAP: {$prefix} (SINCE \"{$searchDate}\")");
+        $this->line('Хост из config: '.config('mail_sync.imap.host').':'.config('mail_sync.imap.port'));
         $this->newLine();
 
         $inboxMailbox = $prefix.'INBOX';
@@ -132,6 +135,35 @@ class ProbeMailImapCommand extends Command
         imap_close($connection);
 
         $this->newLine();
+        $this->info('Тот же код, что mail:sync (MailImapClient::fetchSince):');
+
+        foreach ($candidates as $folder) {
+            if (str_contains((string) $folder, '/')) {
+                continue;
+            }
+
+            $diagnostics = [];
+            $fetched = $imapClient->fetchSince(
+                $username,
+                $password,
+                (string) $folder,
+                'probe',
+                $since,
+                500,
+                $diagnostics,
+            );
+            $imapClient->disconnect();
+
+            $this->line(sprintf(
+                '  %-20s  fetchSince: uid=%d, разобрано=%d, режим=%s',
+                $folder,
+                $diagnostics['uids'] ?? 0,
+                $diagnostics['parsed'] ?? count($fetched),
+                $diagnostics['search'] ?? '?',
+            ));
+        }
+
+        $this->newLine();
 
         if ($anySince === 0) {
             $this->warn('На сервере IMAP за период нет писем (или неверные имена папок).');
@@ -143,20 +175,9 @@ class ProbeMailImapCommand extends Command
         }
 
         $this->info("На сервере найдено писем SINCE (сумма по папкам): {$anySince}.");
-        $this->line('Если sync всё ещё 0 — обновите код (521af61+) и смотрите вывод mail:sync.');
+        $this->line('Если imap_search > 0, а fetchSince uid=0 — обновите код и php artisan optimize:clear.');
 
         return self::SUCCESS;
-    }
-
-    private function mailboxPrefix(): string
-    {
-        return sprintf(
-            '{%s:%d/imap/%s%s}',
-            config('mail_sync.imap.host'),
-            (int) config('mail_sync.imap.port', 993),
-            config('mail_sync.imap.encryption', 'ssl'),
-            config('mail_sync.imap.validate_cert', true) ? '' : '/novalidate-cert',
-        );
     }
 
     /**

@@ -38,6 +38,11 @@ class SyncMailInboxesCommand extends Command
             }
         }
 
+        if ($this->output->isVerbose()) {
+            $this->line('mail:sync engine v3 (fetchSince + num_msg fallback)');
+            $this->line('IMAP: '.config('mail_sync.imap.host').':'.config('mail_sync.imap.port'));
+        }
+
         $result = $syncService->syncAllMailboxes($parsedUserId, $parsedDays, $this->output->isVerbose());
 
         $processed = $result['users_processed'] ?? 0;

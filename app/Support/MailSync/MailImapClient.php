@@ -57,6 +57,9 @@ final class MailImapClient
                 'uids' => count($uids),
                 'parsed' => $parsed,
                 'search' => $searchMode,
+                'since' => $since->format('d-M-Y'),
+                'mailbox' => MailSyncMailboxUri::prefix(),
+                'imap_error' => trim((string) imap_last_error()) ?: null,
             ];
         }
 
@@ -88,27 +91,68 @@ final class MailImapClient
         /** @var list<int>|false $all */
         $all = imap_search($this->connection, 'ALL', SE_UID);
 
-        if (! is_array($all) || $all === []) {
-            return [[], is_array($uids) ? 'SINCE(empty)' : 'SINCE(failed)'];
+        if (is_array($all) && $all !== []) {
+            rsort($all);
+            $sinceTs = $since->getTimestamp();
+            $matched = [];
+
+            foreach ($all as $uid) {
+                if (! $this->uidIsSince((int) $uid, $sinceTs)) {
+                    continue;
+                }
+
+                $matched[] = (int) $uid;
+
+                if (count($matched) >= $limit) {
+                    break;
+                }
+            }
+
+            if ($matched !== []) {
+                return [$matched, 'ALL(filtered)'];
+            }
         }
 
-        rsort($all);
+        return [$this->scanUidsSince($since, $limit), 'num_msg(scan)'];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function scanUidsSince(CarbonImmutable $since, int $limit): array
+    {
+        if (! is_resource($this->connection)) {
+            return [];
+        }
+
+        $total = imap_num_msg($this->connection);
+
+        if (! is_int($total) || $total <= 0) {
+            return [];
+        }
+
         $sinceTs = $since->getTimestamp();
         $matched = [];
 
-        foreach ($all as $uid) {
-            if (! $this->uidIsSince((int) $uid, $sinceTs)) {
+        for ($msgno = $total; $msgno >= 1; $msgno--) {
+            $uid = imap_uid($this->connection, $msgno);
+
+            if (! is_int($uid) || $uid <= 0) {
                 continue;
             }
 
-            $matched[] = (int) $uid;
+            if (! $this->uidIsSince($uid, $sinceTs)) {
+                continue;
+            }
+
+            $matched[] = $uid;
 
             if (count($matched) >= $limit) {
                 break;
             }
         }
 
-        return [$matched, 'ALL(filtered)'];
+        return $matched;
     }
 
     private function uidIsSince(int $uid, int $sinceTimestamp): bool
@@ -154,14 +198,7 @@ final class MailImapClient
 
         $this->disconnect();
 
-        $mailbox = sprintf(
-            '{%s:%d/imap/%s%s}%s',
-            config('mail_sync.imap.host'),
-            (int) config('mail_sync.imap.port', 993),
-            config('mail_sync.imap.encryption', 'ssl'),
-            config('mail_sync.imap.validate_cert', true) ? '' : '/novalidate-cert',
-            $folder,
-        );
+        $mailbox = MailSyncMailboxUri::folder($folder);
 
         $connection = imap_open($mailbox, $username, $password, OP_READONLY, 1, [
             'DISABLE_AUTHENTICATOR' => 'GSSAPI',
