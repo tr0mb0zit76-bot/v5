@@ -170,6 +170,7 @@ final class MailInboxSyncService
                 }
 
                 try {
+                    $diagnostics = [];
                     $messages = $this->imapClient->fetchSince(
                         $username,
                         $password,
@@ -177,11 +178,19 @@ final class MailInboxSyncService
                         $plan['direction'],
                         $since,
                         $remaining,
+                        $diagnostics,
                     );
                     $folderUsed = true;
 
                     if ($verbose) {
-                        $debug[] = "{$plan['direction']}/{$folder}: получено ".count($messages).' писем для импорта';
+                        $debug[] = sprintf(
+                            '%s/%s: uid=%d, разобрано=%d, режим=%s',
+                            $plan['direction'],
+                            $folder,
+                            $diagnostics['uids'] ?? 0,
+                            $diagnostics['parsed'] ?? count($messages),
+                            $diagnostics['search'] ?? '?',
+                        );
                     }
                 } catch (Throwable $exception) {
                     $folderErrors[] = "{$folder}: ".Str::limit($exception->getMessage(), 200);
