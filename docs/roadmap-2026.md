@@ -177,7 +177,8 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 #### 1.6.4 AI / MCP tools
 
-- [x] `get_order_intake_draft` / `list_order_intake_drafts` — MCP (черновик после POST `/orders/intake/extract`)
+- [x] `get_order_intake_draft` / `list_order_intake_drafts` / `create_order_intake_draft_from_text` — MCP и command bar
+- [x] `search_mail_threads` / `get_mail_thread` / `get_mail_sync_status` — MCP (IMAP sync, область «Почта»)
 - [ ] `extract_order_draft_from_document` — прямая загрузка файла в MCP (позже)
 - [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
 - [ ] Command bar: загрузка файла в чате

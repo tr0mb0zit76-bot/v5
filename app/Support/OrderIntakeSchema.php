@@ -18,7 +18,15 @@ final class OrderIntakeSchema
     "unloading": {"address": string|null, "planned_date": string|null, "contact": string|null, "phone": string|null}
   },
   "cargo": {"name": string|null, "description": string|null, "weight_kg": number|null, "volume_m3": number|null, "package_count": number|null},
-  "commercial": {"customer_rate": number|null, "customer_order_number": string|null, "order_date": string|null},
+  "commercial": {
+    "customer_rate": number|null,
+    "customer_vat_percent": number|null,
+    "customer_payment_terms": string|null,
+    "carrier_rate": number|null,
+    "carrier_payment_terms": string|null,
+    "customer_order_number": string|null,
+    "order_date": string|null
+  },
   "notes": string|null,
   "confidence": number,
   "field_confidence": object
@@ -30,6 +38,8 @@ final class OrderIntakeSchema
 - confidence: 0..1 общая уверенность.
 - field_confidence: ключи как в схеме, значения 0..1.
 - Не выдумывай адреса и суммы.
+- Суммы в рублях: «100 тысяч» → 100000; «сорок» → 40000.
+- Условия оплаты заказчика и перевозчика — в customer_payment_terms / carrier_payment_terms текстом, как в заявке.
 TEXT;
     }
 
@@ -59,7 +69,6 @@ TEXT;
             'customer_contact_name' => self::nullableString($customer['contact_name'] ?? null),
             'customer_contact_phone' => self::nullableString($customer['contact_phone'] ?? null),
             'customer_contact_email' => self::nullableString($customer['contact_email'] ?? null),
-            'special_notes' => self::nullableString($extracted['notes'] ?? null),
             'loading_date' => self::normalizeDate($loading['planned_date'] ?? null),
             'unloading_date' => self::normalizeDate($unloading['planned_date'] ?? null),
             'cargo_sender_name' => self::nullableString($loading['contact'] ?? null),
@@ -111,10 +120,43 @@ TEXT;
             ]];
         }
 
+        $financialTerm = [];
+
         if (isset($commercial['customer_rate']) && $commercial['customer_rate'] !== null && $commercial['customer_rate'] !== '') {
-            $patch['financial_term'] = [
-                'client_price' => round((float) $commercial['customer_rate'], 2),
-            ];
+            $financialTerm['client_price'] = round((float) $commercial['customer_rate'], 2);
+        }
+
+        $clientPaymentTerms = self::nullableString($commercial['customer_payment_terms'] ?? null);
+
+        if ($clientPaymentTerms !== null) {
+            $financialTerm['client_payment_terms'] = $clientPaymentTerms;
+        }
+
+        $carrierRate = $commercial['carrier_rate'] ?? null;
+
+        if ($carrierRate !== null && $carrierRate !== '') {
+            $carrierTerms = self::nullableString($commercial['carrier_payment_terms'] ?? null);
+            $financialTerm['contractors_costs'] = [[
+                'stage' => 'leg_1',
+                'amount' => round((float) $carrierRate, 2),
+                'payment_terms' => $carrierTerms,
+            ]];
+        }
+
+        if ($financialTerm !== []) {
+            $patch['financial_term'] = $financialTerm;
+        }
+
+        $notesParts = array_filter([
+            self::nullableString($extracted['notes'] ?? null),
+            $clientPaymentTerms !== null ? 'Оплата заказчика: '.$clientPaymentTerms : null,
+            isset($commercial['customer_vat_percent']) && $commercial['customer_vat_percent'] !== null && $commercial['customer_vat_percent'] !== ''
+                ? 'НДС заказчика: '.$commercial['customer_vat_percent'].'%'
+                : null,
+        ]);
+
+        if ($notesParts !== []) {
+            $patch['special_notes'] = implode("\n", $notesParts);
         }
 
         $fieldConfidence = is_array($extracted['field_confidence'] ?? null) ? $extracted['field_confidence'] : [];
@@ -126,6 +168,9 @@ TEXT;
             self::previewRow('Выгрузка', $unloadingAddress, self::confidence($fieldConfidence, 'route.unloading.address')),
             self::previewRow('Груз', $cargoName, self::confidence($fieldConfidence, 'cargo.name')),
             self::previewRow('Ставка заказчика', isset($commercial['customer_rate']) ? (string) $commercial['customer_rate'] : null, self::confidence($fieldConfidence, 'commercial.customer_rate')),
+            self::previewRow('Условия оплаты заказчика', self::nullableString($commercial['customer_payment_terms'] ?? null), self::confidence($fieldConfidence, 'commercial.customer_payment_terms')),
+            self::previewRow('Ставка перевозчика', isset($commercial['carrier_rate']) ? (string) $commercial['carrier_rate'] : null, self::confidence($fieldConfidence, 'commercial.carrier_rate')),
+            self::previewRow('Условия оплаты перевозчика', self::nullableString($commercial['carrier_payment_terms'] ?? null), self::confidence($fieldConfidence, 'commercial.carrier_payment_terms')),
         ];
 
         if ($contractorMatches !== []) {

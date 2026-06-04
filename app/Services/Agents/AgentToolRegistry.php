@@ -9,8 +9,10 @@ use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
 use App\Services\Mcp\DispositionMcpService;
+use App\Services\Mcp\MailMcpService;
 use App\Services\Mcp\McpAccessGate;
 use App\Services\Mcp\OrderDocumentMcpService;
+use App\Services\Mcp\OrderIntakeMcpService;
 use App\Services\Mcp\OrderMcpService;
 use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
@@ -47,6 +49,8 @@ class AgentToolRegistry
         private readonly AiUsageAnalyticsService $aiUsageAnalytics,
         private readonly TrainerCoachingInsightsService $trainerCoachingInsights,
         private readonly ManagerSalesCoachingInsightsService $managerSalesCoachingInsights,
+        private readonly OrderIntakeMcpService $orderIntake,
+        private readonly MailMcpService $mail,
     ) {}
 
     /**
@@ -564,6 +568,98 @@ class AgentToolRegistry
                 ),
             ),
             new AgentToolDefinition(
+                name: 'create_order_intake_draft_from_text',
+                description: 'Создать черновик заявки на заказ из текста (маршрут, груз, ставки, условия оплаты). Возвращает draft_id и wizard_patch для мастера.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'instruction' => ['type' => 'string', 'description' => 'Полный текст заявки от пользователя.'],
+                    ],
+                    'required' => ['instruction'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orderIntake->createDraftFromText(
+                    $user,
+                    (string) ($args['instruction'] ?? ''),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_order_intake_draft',
+                description: 'Черновик заявки по draft_id: wizard_patch, предупреждения, совпадения контрагентов.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'draft_id' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'required' => ['draft_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: function (User $user, array $args): array {
+                    return ['draft' => $this->orderIntake->getDraft($user, (int) $args['draft_id'])];
+                },
+            ),
+            new AgentToolDefinition(
+                name: 'list_order_intake_drafts',
+                description: 'Последние черновики заявок текущего пользователя.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 25],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => [
+                    'drafts' => $this->orderIntake->listRecentDrafts($user, (int) ($args['limit'] ?? 10)),
+                ],
+            ),
+            new AgentToolDefinition(
+                name: 'search_mail_threads',
+                description: 'Поиск переписки (IMAP sync): тема, текст, email контрагента.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'query' => ['type' => 'string'],
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 25],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: fn (User $user, array $args): array => $this->mail->searchThreads(
+                    $user,
+                    (string) ($args['query'] ?? ''),
+                    (int) ($args['limit'] ?? 15),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_mail_thread',
+                description: 'Письма в цепочке по thread_id.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'thread_id' => ['type' => 'integer', 'minimum' => 1],
+                        'message_limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'required' => ['thread_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: fn (User $user, array $args): array => $this->mail->getThread(
+                    $user,
+                    (int) $args['thread_id'],
+                    (int) ($args['message_limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_mail_sync_status',
+                description: 'Статус синхронизации почты: mail_last_sync_at, mail_last_sync_error, IMAP host.',
+                parameters: $emptyObject,
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: fn (User $user): array => $this->mail->syncStatus($user),
+            ),
+            new AgentToolDefinition(
                 name: 'get_manager_sales_coaching_insights',
                 description: 'Outcome Intelligence: почему проваливаются/выигрываются лиды, гигиена сделки, простой vs активность на этапах, рекомендации.',
                 parameters: [
@@ -606,5 +702,10 @@ class AgentToolRegistry
     private function canDocuments(User $user): bool
     {
         return RoleAccess::canAccessVisibilityArea($user, 'documents');
+    }
+
+    private function canMail(User $user): bool
+    {
+        return RoleAccess::canAccessVisibilityArea($user, 'mail');
     }
 }

@@ -14,6 +14,7 @@ use App\Support\AiChannel;
 use App\Support\OrderIntakeSchema;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -32,21 +33,45 @@ class OrderDocumentIntakeService
     /**
      * @return array<string, mixed>
      */
+    public function extractFromText(User $user, string $instruction, string $sourceLabel = 'text-instruction'): array
+    {
+        $text = trim($instruction);
+
+        if ($text === '') {
+            throw ValidationException::withMessages([
+                'instruction' => 'Укажите текст заявки (маршрут, груз, ставки, условия оплаты).',
+            ]);
+        }
+
+        $maxChars = max(500, (int) config('ai.order_intake.max_text_chars', 12000));
+
+        if (mb_strlen($text) > $maxChars) {
+            $text = mb_substr($text, 0, $maxChars);
+            $warnings = ['Текст заявки обрезан до '.$maxChars.' символов для LLM.'];
+        } else {
+            $warnings = [];
+        }
+
+        return $this->extractFromPlainText(
+            $user,
+            $text,
+            $warnings,
+            Str::limit($sourceLabel, 200, ''),
+            'text/plain',
+            null,
+            null,
+            null,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function extractFromUpload(User $user, UploadedFile $file): array
     {
         $startedAt = hrtime(true);
 
-        if (! (bool) config('ai.order_intake.enabled', true)) {
-            throw ValidationException::withMessages([
-                'file' => 'Распознавание заявок отключено в конфигурации.',
-            ]);
-        }
-
-        if ($this->aiGate->channelFor('order_intake', $user) === AiChannel::LocalOnly) {
-            throw ValidationException::withMessages([
-                'file' => 'Для распознавания заявок нужен DEEPSEEK_API_KEY.',
-            ]);
-        }
+        $this->assertIntakeEnabled($user);
 
         $extraction = $this->textExtractor->extractFromUpload($file);
         $text = trim($extraction['text']);
@@ -64,6 +89,40 @@ class OrderDocumentIntakeService
             $warnings[] = 'Текст заявки обрезан до '.$maxChars.' символов для LLM.';
         }
 
+        $stored = $this->documentStorage->storeOrderUpload($file, null);
+
+        return $this->extractFromPlainText(
+            $user,
+            $text,
+            $warnings,
+            $file->getClientOriginalName(),
+            $file->getMimeType(),
+            $stored['file_path'],
+            $stored['storage_driver'],
+            $extraction['method'],
+            $startedAt,
+        );
+    }
+
+    /**
+     * @param  list<string>  $warnings
+     * @return array<string, mixed>
+     */
+    private function extractFromPlainText(
+        User $user,
+        string $text,
+        array $warnings,
+        string $sourceName,
+        ?string $sourceMimeType,
+        ?string $sourceStoragePath,
+        ?string $sourceStorageDriver,
+        ?string $extractionMethod,
+        ?int $startedAt = null,
+    ): array {
+        $startedAt ??= hrtime(true);
+
+        $this->assertIntakeEnabled($user);
+
         try {
             $extracted = $this->structureWithLlm($text);
         } catch (Throwable $throwable) {
@@ -79,11 +138,13 @@ class OrderDocumentIntakeService
                 null,
                 $throwable->getMessage(),
                 (int) ((hrtime(true) - $startedAt) / 1_000_000),
-                ['source_name' => $file->getClientOriginalName()],
+                ['source_name' => $sourceName],
             );
 
+            $field = $sourceStoragePath === null ? 'instruction' : 'file';
+
             throw ValidationException::withMessages([
-                'file' => 'Не удалось структурировать заявку: '.$throwable->getMessage(),
+                $field => 'Не удалось структурировать заявку: '.$throwable->getMessage(),
             ]);
         }
 
@@ -91,14 +152,12 @@ class OrderDocumentIntakeService
         $contractorMatches = $this->contractorResolver->match($user, $customer);
         $wizard = OrderIntakeSchema::toWizardPatch($extracted, $contractorMatches);
 
-        $stored = $this->documentStorage->storeOrderUpload($file, null);
-
         $draft = OrderIntakeDraft::query()->create([
             'user_id' => $user->id,
-            'source_original_name' => $file->getClientOriginalName(),
-            'source_mime_type' => $file->getMimeType(),
-            'source_storage_path' => $stored['file_path'],
-            'source_storage_driver' => $stored['storage_driver'],
+            'source_original_name' => $sourceName,
+            'source_mime_type' => $sourceMimeType,
+            'source_storage_path' => $sourceStoragePath,
+            'source_storage_driver' => $sourceStorageDriver,
             'source_text_hash' => hash('sha256', $text),
             'source_text_length' => mb_strlen($text),
             'model' => (string) config('ai.inference.deepseek.default_model', 'deepseek-chat'),
@@ -109,6 +168,12 @@ class OrderDocumentIntakeService
             'matched_contractors' => $contractorMatches,
         ]);
 
+        $meta = ['source_name' => $sourceName];
+
+        if ($extractionMethod !== null) {
+            $meta['extraction_method'] = $extractionMethod;
+        }
+
         $this->interactionRecorder->recordIntakeExtracted(
             $user,
             true,
@@ -116,22 +181,40 @@ class OrderDocumentIntakeService
             $draft->id,
             null,
             (int) ((hrtime(true) - $startedAt) / 1_000_000),
-            [
-                'source_name' => $file->getClientOriginalName(),
-                'extraction_method' => $extraction['method'],
-            ],
+            $meta,
         );
 
-        return [
+        $result = [
             'draft_id' => $draft->id,
             'confidence' => $draft->confidence,
-            'extraction_method' => $extraction['method'],
             'warnings' => $warnings,
             'preview' => $wizard['preview'],
             'wizard_patch' => $wizard['patch'],
             'matched_contractors' => $contractorMatches,
             'extracted' => $extracted,
+            'note' => 'Черновик заявки сохранён. Откройте мастер создания заказа и примените черновик по draft_id, либо уточните поля в CRM.',
         ];
+
+        if ($extractionMethod !== null) {
+            $result['extraction_method'] = $extractionMethod;
+        }
+
+        return $result;
+    }
+
+    private function assertIntakeEnabled(User $user): void
+    {
+        if (! (bool) config('ai.order_intake.enabled', true)) {
+            throw ValidationException::withMessages([
+                'instruction' => 'Распознавание заявок отключено в конфигурации.',
+            ]);
+        }
+
+        if ($this->aiGate->channelFor('order_intake', $user) === AiChannel::LocalOnly) {
+            throw ValidationException::withMessages([
+                'instruction' => 'Для распознавания заявок нужен DEEPSEEK_API_KEY.',
+            ]);
+        }
     }
 
     /**

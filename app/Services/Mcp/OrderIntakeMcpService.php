@@ -4,6 +4,7 @@ namespace App\Services\Mcp;
 
 use App\Models\OrderIntakeDraft;
 use App\Models\User;
+use App\Services\Orders\OrderDocumentIntakeService;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -13,7 +14,18 @@ class OrderIntakeMcpService
 {
     public function __construct(
         private readonly McpAccessGate $access,
+        private readonly OrderDocumentIntakeService $intakeExtractor,
     ) {}
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function createDraftFromText(User $user, string $instruction): array
+    {
+        $this->access->requireOrdersArea($user);
+
+        return $this->intakeExtractor->extractFromText($user, $instruction, 'mcp:instruction');
+    }
 
     /**
      * @return array<string, mixed>
@@ -83,7 +95,7 @@ class OrderIntakeMcpService
             'matched_contractors' => $draft->matched_contractors ?? [],
             'extracted' => $draft->extracted_payload ?? [],
             'created_at' => optional($draft->created_at)?->toIso8601String(),
-            'note' => 'Черновик создан через POST /orders/intake/extract в мастере заказа. Для применения в CRM используйте wizard_patch в UI или создайте заказ вручную.',
+            'note' => 'Черновик заявки: из файла (POST /orders/intake/extract) или из текста (create_order_intake_draft_from_text). Откройте мастер заказа и примените по draft_id.',
         ];
     }
 

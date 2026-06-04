@@ -3,9 +3,12 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Tools\AddOrderNoteTool;
+use App\Mcp\Tools\CreateOrderIntakeDraftFromTextTool;
 use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
+use App\Mcp\Tools\GetMailSyncStatusTool;
+use App\Mcp\Tools\GetMailThreadTool;
 use App\Mcp\Tools\GetManagerSalesCoachingInsightsTool;
 use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderIntakeDraftTool;
@@ -20,6 +23,7 @@ use App\Mcp\Tools\GetUserContextTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
 use App\Mcp\Tools\SearchContractorsTool;
+use App\Mcp\Tools\SearchMailThreadsTool;
 use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\SearchTasksTool;
@@ -52,7 +56,8 @@ use Laravel\Mcp\Server\Tool;
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
-        - get_order_intake_draft / list_order_intake_drafts — черновики заявок после распознавания в мастере
+        - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text — черновики заявок (файл или текст)
+        - search_mail_threads / get_mail_thread / get_mail_sync_status — переписка и ошибки IMAP sync
 
         Аутентификация: Bearer Sanctum token.
         MARKDOWN)]
@@ -87,6 +92,10 @@ class CrmServer extends Server
         GetManagerSalesCoachingInsightsTool::class,
         GetOrderIntakeDraftTool::class,
         ListOrderIntakeDraftsTool::class,
+        CreateOrderIntakeDraftFromTextTool::class,
+        SearchMailThreadsTool::class,
+        GetMailThreadTool::class,
+        GetMailSyncStatusTool::class,
     ];
 
     /**

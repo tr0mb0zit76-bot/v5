@@ -152,6 +152,13 @@ class McpAccessGate
         }
     }
 
+    public function requireMailArea(User $user): void
+    {
+        if (! RoleAccess::canAccessVisibilityArea($user, 'mail')) {
+            throw new AuthenticationException('Нет доступа к разделу «Почта».');
+        }
+    }
+
     /**
      * @param  Builder<Task>  $query
      */

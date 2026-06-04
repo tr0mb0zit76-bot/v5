@@ -13,6 +13,10 @@ final class MailImapClient
 
     private ?string $connectedFolder = null;
 
+    public function __construct(
+        private readonly MailMimeBodyExtractor $bodyExtractor = new MailMimeBodyExtractor,
+    ) {}
+
     public function extensionLoaded(): bool
     {
         return function_exists('imap_open');
@@ -243,7 +247,7 @@ final class MailImapClient
             }
         }
 
-        $bodyText = $this->fetchPlainBody($uid);
+        $bodyText = $this->bodyExtractor->extractPlainText($this->connection, $uid);
 
         return new ImportedMailMessage(
             internetMessageId: $this->normalizeMessageId($internetMessageId),
@@ -257,27 +261,6 @@ final class MailImapClient
             sentAt: $sentAt,
             folder: $folder,
         );
-    }
-
-    private function fetchPlainBody(int $uid): string
-    {
-        if (! MailImapConnection::isActive($this->connection)) {
-            return '';
-        }
-
-        $body = imap_fetchbody($this->connection, $uid, '1', FT_UID);
-
-        if (! is_string($body) || $body === '') {
-            $body = imap_body($this->connection, $uid, FT_UID);
-        }
-
-        if (! is_string($body)) {
-            return '';
-        }
-
-        $decoded = imap_utf8($body);
-
-        return MailUtf8Sanitizer::sanitize(trim(strip_tags($decoded)));
     }
 
     private function resolveMessageId(string $header, int $uid, string $folder): string
