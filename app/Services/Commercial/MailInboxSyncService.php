@@ -58,7 +58,7 @@ final class MailInboxSyncService
     /**
      * @return array{imported: int, skipped: int, errors: list<string>, users_processed: int}
      */
-    public function syncAllMailboxes(?int $userId = null, ?int $days = null): array
+    public function syncAllMailboxes(?int $userId = null, ?int $days = null, bool $verbose = false): array
     {
         if (! config('mail_sync.enabled', true)) {
             return ['imported' => 0, 'skipped' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).'], 'users_processed' => 0];
@@ -102,9 +102,15 @@ final class MailInboxSyncService
         foreach ($users as $user) {
             $totals['users_processed']++;
             try {
-                $result = $this->syncUserMailbox($user, $since, $limit);
+                $result = $this->syncUserMailbox($user, $since, $limit, $verbose);
                 $totals['imported'] += $result['imported'];
                 $totals['skipped'] += $result['skipped'];
+
+                if ($verbose && isset($result['debug'])) {
+                    foreach ($result['debug'] as $line) {
+                        $totals['errors'][] = "[debug] {$user->email}: {$line}";
+                    }
+                }
 
                 $user->forceFill([
                     'mail_last_sync_at' => now(),
@@ -126,9 +132,9 @@ final class MailInboxSyncService
     }
 
     /**
-     * @return array{imported: int, skipped: int}
+     * @return array{imported: int, skipped: int, debug?: list<string>}
      */
-    public function syncUserMailbox(User $user, CarbonImmutable $since, int $limit): array
+    public function syncUserMailbox(User $user, CarbonImmutable $since, int $limit, bool $verbose = false): array
     {
         if (! $user->hasMailImapCredential()) {
             throw new RuntimeException('Пароль почты не задан.');
@@ -145,6 +151,7 @@ final class MailInboxSyncService
         $skipped = 0;
         $remaining = $limit;
         $folderErrors = [];
+        $debug = [];
 
         foreach ($this->folderPlan() as $plan) {
             if ($remaining <= 0) {
@@ -154,7 +161,11 @@ final class MailInboxSyncService
             $folderUsed = false;
 
             foreach ($plan['candidates'] as $folder) {
-                if (! is_string($folder) || trim($folder) === '') {
+                if (! $this->isUsableImapFolderName($folder)) {
+                    if ($verbose) {
+                        $debug[] = "{$plan['direction']}/{$folder}: пропуск (недопустимое имя папки)";
+                    }
+
                     continue;
                 }
 
@@ -168,9 +179,17 @@ final class MailInboxSyncService
                         $remaining,
                     );
                     $folderUsed = true;
+
+                    if ($verbose) {
+                        $debug[] = "{$plan['direction']}/{$folder}: получено ".count($messages).' писем для импорта';
+                    }
                 } catch (Throwable $exception) {
                     $folderErrors[] = "{$folder}: ".Str::limit($exception->getMessage(), 200);
                     $this->imapClient->disconnect();
+
+                    if ($verbose) {
+                        $debug[] = "{$plan['direction']}/{$folder}: ошибка — ".$folderErrors[array_key_last($folderErrors)];
+                    }
 
                     continue;
                 }
@@ -204,7 +223,24 @@ final class MailInboxSyncService
             );
         }
 
-        return ['imported' => $imported, 'skipped' => $skipped];
+        $result = ['imported' => $imported, 'skipped' => $skipped];
+
+        if ($verbose) {
+            $result['debug'] = $debug;
+        }
+
+        return $result;
+    }
+
+    private function isUsableImapFolderName(mixed $folder): bool
+    {
+        if (! is_string($folder)) {
+            return false;
+        }
+
+        $folder = trim($folder);
+
+        return $folder !== '' && ! str_contains($folder, '/');
     }
 
     /**

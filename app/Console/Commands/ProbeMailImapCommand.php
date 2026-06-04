@@ -74,6 +74,8 @@ class ProbeMailImapCommand extends Command
         /** @var list<string>|false $folders */
         $folders = imap_list($connection, $prefix, '*');
 
+        $serverFolderNames = [];
+
         if ($folders === false) {
             $this->warn('  imap_list не вернул список.');
         } else {
@@ -81,7 +83,9 @@ class ProbeMailImapCommand extends Command
                 $short = str_starts_with($folder, $prefix)
                     ? substr($folder, strlen($prefix))
                     : $folder;
-                $this->line('  - '.$short);
+                $serverFolderNames[] = $short;
+                $decoded = function_exists('imap_utf7_decode') ? imap_utf7_decode($short) : $short;
+                $this->line('  - '.$decoded.($decoded !== $short ? " ({$short})" : ''));
             }
         }
 
@@ -96,6 +100,18 @@ class ProbeMailImapCommand extends Command
         $anySince = 0;
 
         foreach ($candidates as $folder) {
+            if (str_contains((string) $folder, '/')) {
+                $this->line("  {$folder}: пропуск (сервер reg.ru не принимает «/» в имени папки)");
+
+                continue;
+            }
+
+            if ($serverFolderNames !== [] && ! in_array($folder, $serverFolderNames, true)) {
+                $this->line("  {$folder}: пропуск (нет в списке папок на сервере)");
+
+                continue;
+            }
+
             $result = $this->probeFolder($prefix, $username, $password, (string) $folder, $searchDate);
             $anySince += $result['since_count'];
 

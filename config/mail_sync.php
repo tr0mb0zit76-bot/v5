@@ -26,7 +26,7 @@ return [
         ))),
         'outbound' => array_values(array_filter(array_map(
             static fn (string $value): string => trim($value),
-            explode(',', (string) env('MAIL_SYNC_IMAP_SENT_FOLDERS', 'Sent,INBOX.Sent,INBOX/Sent,Отправленные')),
+            explode(',', (string) env('MAIL_SYNC_IMAP_SENT_FOLDERS', 'Sent')),
         ))),
     ],
 
