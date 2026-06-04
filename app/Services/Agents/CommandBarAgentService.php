@@ -12,6 +12,7 @@ use App\Support\AiChannel;
 use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
 use App\Support\OrderAgentLexicon;
+use App\Support\OrderIntakeDraftNavigation;
 use App\Support\RoleAccess;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -38,7 +39,8 @@ class CommandBarAgentService
      *     reply: string,
      *     channel: string,
      *     tool_rounds: int,
-     *     turn_id: string|null
+     *     turn_id: string|null,
+     *     navigate_to: string|null
      * }
      */
     public function chat(User $user, string $message, array $history = []): array
@@ -119,6 +121,7 @@ class CommandBarAgentService
         $maxRounds = (int) config('ai.command_bar.max_tool_rounds', 6);
         $toolRounds = 0;
         $hadException = false;
+        $navigateTo = null;
 
         try {
             for ($round = 0; $round < $maxRounds; $round++) {
@@ -157,6 +160,8 @@ class CommandBarAgentService
                         $messages,
                         $knowledgeQuestion,
                         $hadException,
+                        null,
+                        $navigateTo,
                     );
                 }
 
@@ -173,6 +178,11 @@ class CommandBarAgentService
                     $arguments = is_array($decodedArgs) ? $decodedArgs : [];
 
                     $result = $this->tools->invoke($user, $name, $arguments);
+
+                    $wizardPath = OrderIntakeDraftNavigation::pathAfterCreateDraftTool($name, $result);
+                    if ($wizardPath !== null) {
+                        $navigateTo = $wizardPath;
+                    }
 
                     $messages[] = [
                         'role' => 'tool',
@@ -199,6 +209,8 @@ class CommandBarAgentService
                 $messages,
                 $knowledgeQuestion,
                 $hadException,
+                null,
+                $navigateTo,
             );
         } catch (Throwable $throwable) {
             $hadException = true;
@@ -239,7 +251,7 @@ class CommandBarAgentService
     /**
      * @param  list<string>  $toolsUsed
      * @param  list<array<string, mixed>>  $conversationMessages
-     * @return array{reply: string, channel: string, tool_rounds: int, turn_id: string|null}
+     * @return array{reply: string, channel: string, tool_rounds: int, turn_id: string|null, navigate_to: string|null}
      */
     private function finishTurn(
         User $user,
@@ -256,6 +268,7 @@ class CommandBarAgentService
         bool $knowledgeQuestion,
         bool $hadException = false,
         ?string $errorMessage = null,
+        ?string $navigateTo = null,
     ): array {
         $salesBookMeta = $this->salesBookTurnAnalyzer->analyze($conversationMessages, $knowledgeQuestion);
         $turnId = (string) Str::uuid();
@@ -298,6 +311,7 @@ class CommandBarAgentService
             'channel' => $channel->value,
             'tool_rounds' => $toolRounds,
             'turn_id' => $turnId,
+            'navigate_to' => $navigateTo,
         ];
     }
 
@@ -394,7 +408,7 @@ class CommandBarAgentService
 - Используй инструменты для фактов (заказы, задачи, контрагенты, диспозиция, документы). Не выдумывай id и номера.
 - Поиск заказа: search_orders по номеру, id или названию клиента/перевозчика (не только номер).
 - Создание задач, заметок к заказу, изменение полей заказа и запись диспозиции — только если пользователь явно просит изменить данные.
-- Заявка на новый заказ из текста (маршрут, груз, ставки, оплата) → create_order_intake_draft_from_text; затем можно get_order_intake_draft по draft_id. Не отказывай «не могу создать заказ», если есть доступ к заказам. Скажи пользователю открыть мастер «Добавить заказ» и применить черновик из списка «Черновики из ассистента».
+- Заявка на новый заказ из текста (маршрут, груз, ставки, оплата) → create_order_intake_draft_from_text. После успешного вызова интерфейс сам откроет мастер «Добавить заказ» с применением черновика; кратко сообщи, что данные подставлены и их нужно проверить перед сохранением.
 - Ответы ассистента можно оформлять в Markdown (таблицы, списки) — интерфейс их отрисует.
 - Переписка с клиентами и ошибки IMAP → search_mail_threads, get_mail_thread, get_mail_sync_status (область «Почта»).
 - Пользователю отвечай русскими названиями полей, без технических ключей (track_sent_date_customer и т.п.).

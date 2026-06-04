@@ -46,4 +46,14 @@ class OrderIntakeController extends Controller
             'drafts' => $intakeMcp->listRecentDrafts($user, max(1, min($limit, 25))),
         ]);
     }
+
+    public function show(Request $request, int $draft, OrderIntakeMcpService $intakeMcp): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            abort(403);
+        }
+
+        return response()->json($intakeMcp->getDraft($user, $draft));
+    }
 }

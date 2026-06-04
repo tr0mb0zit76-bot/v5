@@ -263,47 +263,72 @@
                     </ul>
                 </div>
                 <div class="mt-4 border-t border-sky-200/60 pt-3 dark:border-sky-900/50">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div class="text-xs font-semibold text-sky-950 dark:text-sky-100">
-                            Черновики из ассистента и распознавания
-                        </div>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-sky-300 px-2 py-1 text-[11px] font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-100"
-                            :disabled="intakeDraftsLoading"
-                            @click="refreshIntakeDrafts"
-                        >
-                            {{ intakeDraftsLoading ? 'Обновление…' : 'Обновить' }}
-                        </button>
-                    </div>
-                    <p class="mt-1 text-[11px] text-sky-900/80 dark:text-sky-200/80">
-                        После команды в ИИ-консоли («Создай заказ…») выберите черновик здесь и нажмите «Применить к форме».
+                    <p
+                        v-if="appliedIntakeDraftId"
+                        class="text-xs text-emerald-800 dark:text-emerald-200"
+                    >
+                        Черновик #{{ appliedIntakeDraftId }} применён к форме. Проверьте данные перед сохранением.
                     </p>
-                    <p v-if="intakeDraftsError" class="mt-2 text-xs text-rose-700 dark:text-rose-300">{{ intakeDraftsError }}</p>
-                    <ul v-if="intakeDraftsList.length" class="mt-2 space-y-2">
-                        <li
-                            v-for="draft in intakeDraftsList"
-                            :key="draft.draft_id"
-                            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200/70 bg-white/80 px-3 py-2 text-xs dark:border-sky-900/40 dark:bg-zinc-900/50"
-                        >
-                            <div class="min-w-0 text-zinc-700 dark:text-zinc-200">
-                                <span class="font-semibold">#{{ draft.draft_id }}</span>
-                                <span v-if="draft.source_original_name"> · {{ draft.source_original_name }}</span>
-                                <span v-if="draft.confidence != null"> · {{ Math.round(draft.confidence * 100) }}%</span>
-                                <span v-if="draft.summary" class="block truncate text-zinc-500">{{ draft.summary }}</span>
+                    <button
+                        v-if="!intakeDraftsPickerOpen"
+                        type="button"
+                        class="mt-2 rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-100"
+                        @click="openIntakeDraftsPicker"
+                    >
+                        {{ intakeDraftsPickerLabel }}
+                    </button>
+                    <div v-else class="mt-2 space-y-2">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="text-xs font-semibold text-sky-950 dark:text-sky-100">
+                                Черновики из ассистента и распознавания
                             </div>
-                            <button
-                                type="button"
-                                class="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-                                @click="applyIntakeDraftPayload(draft)"
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-sky-300 px-2 py-1 text-[11px] font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-100"
+                                    :disabled="intakeDraftsLoading"
+                                    @click="refreshIntakeDrafts"
+                                >
+                                    {{ intakeDraftsLoading ? 'Обновление…' : 'Обновить' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-zinc-300 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200"
+                                    @click="intakeDraftsPickerOpen = false"
+                                >
+                                    Свернуть
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-sky-900/80 dark:text-sky-200/80">
+                            Выберите черновик и нажмите «Применить к форме». После применения список скрывается.
+                        </p>
+                        <p v-if="intakeDraftsError" class="text-xs text-rose-700 dark:text-rose-300">{{ intakeDraftsError }}</p>
+                        <ul v-if="intakeDraftsList.length" class="space-y-2">
+                            <li
+                                v-for="draft in intakeDraftsList"
+                                :key="draft.draft_id"
+                                class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200/70 bg-white/80 px-3 py-2 text-xs dark:border-sky-900/40 dark:bg-zinc-900/50"
                             >
-                                Применить к форме
-                            </button>
-                        </li>
-                    </ul>
-                    <p v-else-if="!intakeDraftsLoading" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        Нет сохранённых черновиков. Создайте заявку через ИИ-консоль или загрузите файл выше.
-                    </p>
+                                <div class="min-w-0 text-zinc-700 dark:text-zinc-200">
+                                    <span class="font-semibold">#{{ draft.draft_id }}</span>
+                                    <span v-if="draft.source_original_name"> · {{ draft.source_original_name }}</span>
+                                    <span v-if="draft.confidence != null"> · {{ Math.round(draft.confidence * 100) }}%</span>
+                                    <span v-if="draft.summary" class="block truncate text-zinc-500">{{ draft.summary }}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                                    @click="applyIntakeDraftPayload(draft)"
+                                >
+                                    Применить к форме
+                                </button>
+                            </li>
+                        </ul>
+                        <p v-else-if="!intakeDraftsLoading" class="text-xs text-zinc-500 dark:text-zinc-400">
+                            Нет сохранённых черновиков. Создайте заявку через ИИ-консоль или загрузите файл выше.
+                        </p>
+                    </div>
                 </div>
             </div>
             <div v-if="activeTab === 'main'" class="space-y-6">
@@ -2024,6 +2049,15 @@ onMounted(() => {
     }
     if (tab) {
         url.searchParams.delete('tab');
+    }
+
+    const intakeDraftParam = url.searchParams.get('intake_draft');
+    if (intakeDraftParam && !isEditing.value) {
+        void loadAndApplyIntakeDraftById(intakeDraftParam);
+        url.searchParams.delete('intake_draft');
+    }
+
+    if (tab || intakeDraftParam) {
         const qs = url.searchParams.toString();
         const next = `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`;
         window.history.replaceState({}, '', next);
@@ -3193,9 +3227,55 @@ const intakeSelectedFile = ref(null);
 const intakeLoading = ref(false);
 const intakePreview = ref(null);
 const intakeError = ref('');
-const intakeDraftsList = ref(Array.isArray(props.recentIntakeDrafts) ? [...props.recentIntakeDrafts] : []);
+const intakeDraftsList = ref([]);
 const intakeDraftsLoading = ref(false);
 const intakeDraftsError = ref('');
+const intakeDraftsPickerOpen = ref(false);
+const appliedIntakeDraftId = ref(null);
+
+const intakeDraftsPickerLabel = computed(() => {
+    const count = intakeDraftsList.value.length;
+
+    if (count > 0) {
+        return `Другие черновики (${count})`;
+    }
+
+    return 'Черновики из ассистента';
+});
+
+function openIntakeDraftsPicker() {
+    intakeDraftsPickerOpen.value = true;
+
+    if (intakeDraftsList.value.length === 0) {
+        void refreshIntakeDrafts();
+    }
+}
+
+function mergeFinancialTermFromIntake(patchTerm) {
+    if (!patchTerm || typeof patchTerm !== 'object') {
+        return;
+    }
+
+    const current = form.financial_term;
+    const merged = {
+        ...current,
+        ...patchTerm,
+    };
+
+    merged.client_payment_schedule = normalizePaymentSchedule(
+        patchTerm.client_payment_schedule !== undefined
+            ? patchTerm.client_payment_schedule
+            : current.client_payment_schedule,
+    );
+
+    if (Array.isArray(patchTerm.contractors_costs)) {
+        merged.contractors_costs = patchTerm.contractors_costs.map((row) => normalizeContractorCost(row));
+    } else if (Array.isArray(merged.contractors_costs)) {
+        merged.contractors_costs = merged.contractors_costs.map((row) => normalizeContractorCost(row));
+    }
+
+    form.financial_term = merged;
+}
 
 function onIntakeFileSelected(event) {
     intakeError.value = '';
@@ -3235,7 +3315,9 @@ async function extractIntakeDraft() {
         }
 
         intakePreview.value = payload;
-        await refreshIntakeDrafts();
+        if (intakeDraftsPickerOpen.value) {
+            await refreshIntakeDrafts();
+        }
     } catch (error) {
         console.error('order intake extract failed', error);
         intakeError.value = 'Ошибка сети при распознавании заявки.';
@@ -3270,10 +3352,8 @@ function applyIntakeDraft() {
         }
 
         if (key === 'financial_term' && value && typeof value === 'object') {
-            form.financial_term = {
-                ...form.financial_term,
-                ...value,
-            };
+            mergeFinancialTermFromIntake(value);
+
             return;
         }
 
@@ -3298,6 +3378,16 @@ function applyIntakeDraft() {
         }
     });
 
+    syncContractorCostsFromPerformers();
+
+    const appliedId = Number(intakePreview.value?.draft_id ?? 0);
+    if (appliedId > 0) {
+        appliedIntakeDraftId.value = appliedId;
+        intakeDraftsList.value = intakeDraftsList.value.filter((draft) => Number(draft.draft_id) !== appliedId);
+        intakeDraftsPickerOpen.value = false;
+        intakePreview.value = null;
+    }
+
     activeTab.value = 'main';
 }
 
@@ -3315,6 +3405,35 @@ function applyIntakeDraftPayload(payload) {
         matched_contractors: payload.matched_contractors ?? [],
     };
     applyIntakeDraft();
+}
+
+async function loadAndApplyIntakeDraftById(draftId) {
+    const id = Number(draftId);
+    if (!Number.isFinite(id) || id <= 0) {
+        return;
+    }
+
+    intakeError.value = '';
+
+    try {
+        const response = await fetch(route('orders.intake.draft', { draft: id }), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            intakeError.value = data?.message ?? 'Не удалось загрузить черновик заявки.';
+            return;
+        }
+
+        applyIntakeDraftPayload(data);
+    } catch (error) {
+        console.error('order intake draft load failed', error);
+        intakeError.value = 'Ошибка сети при загрузке черновика.';
+    }
 }
 
 async function refreshIntakeDrafts() {

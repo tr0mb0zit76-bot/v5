@@ -301,6 +301,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/orders/intake/drafts', [OrderIntakeController::class, 'drafts'])
         ->middleware('visibility.area:orders')
         ->name('orders.intake.drafts');
+    Route::get('/orders/intake/drafts/{draft}', [OrderIntakeController::class, 'show'])
+        ->whereNumber('draft')
+        ->middleware('visibility.area:orders')
+        ->name('orders.intake.draft');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');

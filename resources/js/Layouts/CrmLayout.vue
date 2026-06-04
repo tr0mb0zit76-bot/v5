@@ -1398,6 +1398,11 @@ async function handleAiSubmit(payload) {
         });
         agentChannel.value = String(data?.channel ?? '');
         agentToolRounds.value = Number(data?.tool_rounds ?? 0);
+
+        const navigateTo = String(data?.navigate_to ?? '').trim();
+        if (navigateTo !== '') {
+            visitInertiaPath(navigateTo);
+        }
     } catch (error) {
         console.error('Command bar agent request failed', error);
 
