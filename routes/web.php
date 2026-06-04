@@ -306,6 +306,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->whereNumber('draft')
         ->middleware('visibility.area:orders')
         ->name('orders.intake.draft');
+    Route::post('/orders/intake/drafts/{draft}/activate-learning', [OrderIntakeController::class, 'activateLearning'])
+        ->whereNumber('draft')
+        ->middleware('visibility.area:orders')
+        ->name('orders.intake.learning.activate');
+    Route::post('/orders/intake/drafts/{draft}/discard-learning', [OrderIntakeController::class, 'discardLearning'])
+        ->whereNumber('draft')
+        ->middleware('visibility.area:orders')
+        ->name('orders.intake.learning.discard');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/suggest-order-number', 'suggestOrderNumber')->name('orders.suggest-order-number');
         Route::get('/orders/create', 'create')->name('orders.create');

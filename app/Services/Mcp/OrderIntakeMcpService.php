@@ -4,6 +4,7 @@ namespace App\Services\Mcp;
 
 use App\Models\OrderIntakeDraft;
 use App\Models\User;
+use App\Services\OrderIntakeGoldenLibraryService;
 use App\Services\OrderIntakeLearnedPhrasesService;
 use App\Services\Orders\OrderDocumentIntakeService;
 use App\Support\RoleAccess;
@@ -17,6 +18,7 @@ class OrderIntakeMcpService
         private readonly McpAccessGate $access,
         private readonly OrderDocumentIntakeService $intakeExtractor,
         private readonly OrderIntakeLearnedPhrasesService $learnedPhrases,
+        private readonly OrderIntakeGoldenLibraryService $goldenLibrary,
     ) {}
 
     /**
@@ -26,7 +28,7 @@ class OrderIntakeMcpService
     {
         $this->access->requireOrdersArea($user);
 
-        return $this->intakeExtractor->extractFromText($user, $instruction, 'mcp:instruction');
+        return $this->intakeExtractor->extractFromText($user, $instruction, 'mcp:instruction', 'mcp');
     }
 
     /**
@@ -36,7 +38,27 @@ class OrderIntakeMcpService
     {
         $this->access->requireOrdersArea($user);
 
-        return $this->learnedPhrases->remember($user, $sourcePhrase, $canonicalValue, $field);
+        $result = $this->learnedPhrases->remember($user, $sourcePhrase, $canonicalValue, $field);
+
+        if ($result['ok'] ?? false) {
+            $this->goldenLibrary->recordDialogLearning($user, $sourcePhrase, $canonicalValue, $field);
+        }
+
+        return $result;
+    }
+
+    public function activateDraftForLearning(User $user, int $draftId): void
+    {
+        $this->access->requireOrdersArea($user);
+
+        $this->goldenLibrary->activateDraft($user, $draftId);
+    }
+
+    public function discardDraftLearning(User $user, int $draftId): bool
+    {
+        $this->access->requireOrdersArea($user);
+
+        return $this->goldenLibrary->discard($user, $draftId);
     }
 
     /**

@@ -468,6 +468,7 @@ class StoreOrderRequest extends FormRequest
     protected function baseRules(): array
     {
         return [
+            'intake_draft_id' => ['nullable', 'integer', 'min:1'],
             'status' => ['required', Rule::in(['draft', 'pending', 'confirmed', 'new', 'in_progress', 'documents', 'payment', 'closed', 'completed', 'cancelled', 'disruption'])],
             'own_company_id' => $this->ownCompanyIdRules(),
             'own_company_bank_account_id' => ['nullable', 'string', 'max:100'],

@@ -56,4 +56,28 @@ class OrderIntakeController extends Controller
 
         return response()->json($intakeMcp->getDraft($user, $draft));
     }
+
+    public function activateLearning(Request $request, int $draft, OrderIntakeMcpService $intakeMcp): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            abort(403);
+        }
+
+        $intakeMcp->activateDraftForLearning($user, $draft);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function discardLearning(Request $request, int $draft, OrderIntakeMcpService $intakeMcp): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            abort(403);
+        }
+
+        return response()->json([
+            'ok' => $intakeMcp->discardDraftLearning($user, $draft),
+        ]);
+    }
 }

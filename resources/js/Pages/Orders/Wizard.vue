@@ -1828,7 +1828,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ClipboardList, FileText, Gavel, History, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
@@ -3213,6 +3213,55 @@ const intakeSelectedFile = ref(null);
 const intakeLoading = ref(false);
 const intakePreview = ref(null);
 const intakeError = ref('');
+const activeIntakeDraftId = ref(null);
+const intakeDraftCommitted = ref(false);
+
+function getCsrfToken() {
+    if (typeof document === 'undefined') {
+        return '';
+    }
+
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+}
+
+async function activateIntakeDraftLearning(draftId) {
+    try {
+        await fetch(route('orders.intake.learning.activate', { draft: draftId }), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': getCsrfToken(),
+            },
+        });
+    } catch (error) {
+        console.error('intake learning activate failed', error);
+    }
+}
+
+function discardActiveIntakeLearning() {
+    if (isEditing.value || intakeDraftCommitted.value || !activeIntakeDraftId.value) {
+        return;
+    }
+
+    const id = activeIntakeDraftId.value;
+    activeIntakeDraftId.value = null;
+
+    try {
+        fetch(route('orders.intake.learning.discard', { draft: id }), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': getCsrfToken(),
+            },
+            keepalive: true,
+        });
+    } catch (error) {
+        console.error('intake learning discard failed', error);
+    }
+}
+
 function mergeFinancialTermFromIntake(patchTerm) {
     if (!patchTerm || typeof patchTerm !== 'object') {
         return;
@@ -3339,6 +3388,13 @@ function applyIntakeDraft() {
 
     syncContractorCostsFromPerformers();
 
+    const draftId = Number(intakePreview.value?.draft_id ?? 0);
+    if (draftId > 0 && !isEditing.value) {
+        activeIntakeDraftId.value = draftId;
+        intakeDraftCommitted.value = false;
+        void activateIntakeDraftLearning(draftId);
+    }
+
     activeTab.value = 'main';
 }
 
@@ -3381,6 +3437,9 @@ async function loadAndApplyIntakeDraftById(draftId) {
         }
 
         applyIntakeDraftPayload(data);
+        activeIntakeDraftId.value = id;
+        intakeDraftCommitted.value = false;
+        void activateIntakeDraftLearning(id);
     } catch (error) {
         console.error('order intake draft load failed', error);
         intakeError.value = 'Ошибка сети при загрузке черновика.';
@@ -6244,14 +6303,23 @@ function buildSubmitPayload() {
                 template_id: document.template_id,
                 file: document.file instanceof File ? document.file : null,
             })),
+        ...(activeIntakeDraftId.value && !isEditing.value
+            ? { intake_draft_id: activeIntakeDraftId.value }
+            : {}),
     };
 }
 
-function buildWizardSubmitOptions(onError) {
+function markIntakeDraftCommitted() {
+    intakeDraftCommitted.value = true;
+    activeIntakeDraftId.value = null;
+}
+
+function buildWizardSubmitOptions(onError, extra = {}) {
     return {
         preserveScroll: true,
         preserveState: true,
         onError,
+        ...extra,
     };
 }
 
@@ -6385,7 +6453,14 @@ function submit(options = {}) {
         });
 
         const url = isEditing.value ? route('orders.save', props.order.id) : route('orders.store');
-        postWizardPayload(url, formData, handleRequestError, { forceFormData: true });
+        postWizardPayload(url, formData, handleRequestError, {
+            forceFormData: true,
+            onSuccess: () => {
+                if (!isEditing.value) {
+                    markIntakeDraftCommitted();
+                }
+            },
+        });
 
         return;
     }
@@ -6402,10 +6477,17 @@ function submit(options = {}) {
         return;
     }
 
-    postWizardPayload(route('orders.store'), payload, handleRequestError);
+    postWizardPayload(route('orders.store'), payload, handleRequestError, {
+        onSuccess: markIntakeDraftCommitted,
+    });
 }
 
+onBeforeUnmount(() => {
+    discardActiveIntakeLearning();
+});
+
 function goBack() {
+    discardActiveIntakeLearning();
     // Всегда запрашиваем реестр с сервера: history.back() отдаёт старый снимок Inertia без свежих строк.
     router.get(route('orders.index'), {}, { preserveScroll: true });
 }

@@ -10,6 +10,7 @@ use App\Services\Ai\AiInteractionRecorder;
 use App\Services\Documents\DocumentTextExtractor;
 use App\Services\DocumentStorageService;
 use App\Services\Inference\ExternalLlmPayloadSanitizer;
+use App\Services\OrderIntakeGoldenLibraryService;
 use App\Support\AiChannel;
 use App\Support\OrderIntakeLlmContext;
 use App\Support\OrderIntakePhraseNormalizer;
@@ -30,13 +31,18 @@ class OrderDocumentIntakeService
         private readonly OrderIntakeContractorResolver $contractorResolver,
         private readonly DocumentStorageService $documentStorage,
         private readonly AiInteractionRecorder $interactionRecorder,
+        private readonly OrderIntakeGoldenLibraryService $goldenLibrary,
     ) {}
 
     /**
      * @return array<string, mixed>
      */
-    public function extractFromText(User $user, string $instruction, string $sourceLabel = 'text-instruction'): array
-    {
+    public function extractFromText(
+        User $user,
+        string $instruction,
+        string $sourceLabel = 'text-instruction',
+        string $sourceKind = 'text',
+    ): array {
         $text = trim($instruction);
 
         if ($text === '') {
@@ -63,6 +69,8 @@ class OrderDocumentIntakeService
             null,
             null,
             null,
+            $text,
+            $sourceKind,
         );
     }
 
@@ -103,6 +111,8 @@ class OrderDocumentIntakeService
             $stored['storage_driver'],
             $extraction['method'],
             $startedAt,
+            null,
+            'file',
         );
     }
 
@@ -120,6 +130,8 @@ class OrderDocumentIntakeService
         ?string $sourceStorageDriver,
         ?string $extractionMethod,
         ?int $startedAt = null,
+        ?string $userInstruction = null,
+        string $sourceKind = 'text',
     ): array {
         $startedAt ??= hrtime(true);
 
@@ -189,6 +201,16 @@ class OrderDocumentIntakeService
             null,
             (int) ((hrtime(true) - $startedAt) / 1_000_000),
             $meta,
+        );
+
+        $this->goldenLibrary->openPendingForDraft(
+            $user,
+            $draft,
+            $userInstruction ?? $text,
+            $sourceKind,
+            $extracted,
+            $wizard['patch'],
+            $warnings,
         );
 
         $result = [

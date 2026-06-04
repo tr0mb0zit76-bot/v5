@@ -21,6 +21,7 @@ use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
+use App\Services\OrderIntakeGoldenLibraryService;
 use App\Services\OrderNumberingService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
@@ -79,10 +80,20 @@ class OrderWizardController extends Controller
 
     public function store(StoreOrderRequest $request, OrderWizardService $orderWizardService): RedirectResponse
     {
-        $order = $orderWizardService->create(
-            $request->validatedForWizard(),
-            $request->user(),
-        );
+        $validated = $request->validatedForWizard();
+        $user = $request->user();
+
+        $order = $orderWizardService->create($validated, $user);
+
+        $draftId = (int) $request->input('intake_draft_id', 0);
+        if ($draftId > 0 && $user !== null) {
+            app(OrderIntakeGoldenLibraryService::class)->commit(
+                $user,
+                $draftId,
+                $order->id,
+                $validated,
+            );
+        }
 
         return to_route('orders.edit', $order);
     }
