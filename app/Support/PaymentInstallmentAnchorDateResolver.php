@@ -85,7 +85,10 @@ final class PaymentInstallmentAnchorDateResolver
 
             $d = $point->planned_date ?? null;
             if ($d !== null) {
-                return Carbon::parse($d)->startOfDay();
+                $parsed = self::parseDateString(is_string($d) ? $d : (string) $d);
+                if ($parsed !== null) {
+                    return $parsed;
+                }
             }
         }
 
@@ -106,7 +109,10 @@ final class PaymentInstallmentAnchorDateResolver
 
                 $d = $point->planned_date ?? null;
                 if ($d !== null) {
-                    $last = Carbon::parse($d)->startOfDay();
+                    $parsed = self::parseDateString(is_string($d) ? $d : (string) $d);
+                    if ($parsed !== null) {
+                        $last = $parsed;
+                    }
                 }
             }
         }

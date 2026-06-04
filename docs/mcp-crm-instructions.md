@@ -29,7 +29,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 
 | Tool | Когда вызывать |
 |------|----------------|
-| `create_order_intake_draft_from_text` | Пользователь описывает заявку на перевозку текстом → `draft_id`, `wizard_patch` |
+| `create_order_intake_draft_from_text` | Пользователь описывает заявку на перевозку текстом → `draft_id`, `wizard_path`, `wizard_patch`. MCP не открывает UI; пользователь переходит по `wizard_path` (command bar в CRM — автоматически). |
 | `search_mail_threads` | Контекст переписки с клиентом, поиск по теме/email/тексту |
 | `get_mail_thread` | Полные письма цепочки по `thread_id` |
 | `get_mail_sync_status` | Ошибки IMAP (`mail_last_sync_error`), время последнего sync |

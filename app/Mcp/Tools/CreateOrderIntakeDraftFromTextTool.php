@@ -14,7 +14,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('create_order_intake_draft_from_text')]
-#[Description('Создать черновик заявки на заказ из текста (маршрут, груз, ставки, условия оплаты). Возвращает draft_id и wizard_patch для мастера заказа.')]
+#[Description('Создать черновик заявки на заказ из текста. Возвращает draft_id, wizard_path и wizard_patch. Откройте мастер по wizard_path.')]
 class CreateOrderIntakeDraftFromTextTool extends Tool
 {
     use LogsMcpToolCalls;

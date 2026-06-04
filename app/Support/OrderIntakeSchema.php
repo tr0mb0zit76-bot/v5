@@ -235,7 +235,7 @@ TEXT;
         }
 
         return [
-            'patch' => $patch,
+            'patch' => self::sanitizeWizardPatch($patch),
             'preview' => array_values(array_filter($preview, fn (array $row): bool => filled($row['value']))),
         ];
     }
@@ -281,6 +281,33 @@ TEXT;
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $patch
+     * @return array<string, mixed>
+     */
+    public static function sanitizeWizardPatch(array $patch): array
+    {
+        foreach (['order_date', 'loading_date', 'unloading_date'] as $key) {
+            if (! array_key_exists($key, $patch)) {
+                continue;
+            }
+
+            $patch[$key] = self::normalizeDate($patch[$key]);
+        }
+
+        if (isset($patch['route_points']) && is_array($patch['route_points'])) {
+            foreach ($patch['route_points'] as $index => $point) {
+                if (! is_array($point) || ! array_key_exists('planned_date', $point)) {
+                    continue;
+                }
+
+                $patch['route_points'][$index]['planned_date'] = self::normalizeDate($point['planned_date']);
+            }
+        }
+
+        return $patch;
     }
 
     private static function nullableString(mixed $value): ?string

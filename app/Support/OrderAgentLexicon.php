@@ -212,8 +212,8 @@ final class OrderAgentLexicon
             return null;
         }
 
-        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $string) === 1) {
-            return substr($string, 0, 10);
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $string, $matches) === 1) {
+            return self::toIsoDateOrNull((int) $matches[1], (int) $matches[2], (int) $matches[3]);
         }
 
         if (preg_match('#^(\d{1,2})[.\-/](\d{1,2})(?:[.\-/](\d{2,4}))?$#u', $string, $matches) === 1) {
@@ -227,9 +227,28 @@ final class OrderAgentLexicon
                 $year += 2000;
             }
 
-            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            return self::toIsoDateOrNull($year, $month, $day);
         }
 
-        return PerformerRouteActualDates::normalizeDate($string);
+        $fallback = PerformerRouteActualDates::normalizeDate($string);
+
+        if ($fallback === null) {
+            return null;
+        }
+
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $fallback, $matches) !== 1) {
+            return null;
+        }
+
+        return self::toIsoDateOrNull((int) $matches[1], (int) $matches[2], (int) $matches[3]);
+    }
+
+    private static function toIsoDateOrNull(int $year, int $month, int $day): ?string
+    {
+        if (! checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', $year, $month, $day);
     }
 }

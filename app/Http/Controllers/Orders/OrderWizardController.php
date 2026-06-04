@@ -37,8 +37,8 @@ use App\Support\ContractorCostRowClassification;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
 use App\Support\OrderAdditionalCostNormalizer;
+use App\Support\OrderAgentLexicon;
 use App\Support\OrderCargoItemsPayloadNormalizer;
-use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPrintWorkflowLock;
@@ -286,7 +286,7 @@ class OrderWizardController extends Controller
             'insurance' => ['nullable', 'numeric', 'min:0'],
             'bonus' => ['nullable', 'numeric', 'min:0'],
             'manager_id' => ['nullable', 'integer', 'exists:users,id'],
-            'order_date' => ['nullable', 'date'],
+            'order_date' => ['nullable', 'string', 'max:64'],
             'client_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'carrier_id' => ['nullable', 'integer', 'exists:contractors,id'],
             'customer_payment_form' => ['nullable', 'string', 'max:50', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
@@ -295,7 +295,10 @@ class OrderWizardController extends Controller
             'contractors_costs.*.payment_form' => ['nullable', 'string', 'max:50', Rule::in(PaymentFormDictionary::allowedCodesForValidation())],
         ]);
 
-        $calculation = $orderCompensationService->calculateRealtime($request->all());
+        $payload = $request->all();
+        $payload['order_date'] = OrderAgentLexicon::normalizeDateValue($payload['order_date'] ?? null);
+
+        $calculation = $orderCompensationService->calculateRealtime($payload);
 
         return response()->json($calculation);
     }

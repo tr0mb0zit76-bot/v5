@@ -12,6 +12,7 @@ use App\Services\DocumentStorageService;
 use App\Services\Inference\ExternalLlmPayloadSanitizer;
 use App\Services\OrderIntakeGoldenLibraryService;
 use App\Support\AiChannel;
+use App\Support\OrderIntakeDraftNavigation;
 use App\Support\OrderIntakeLlmContext;
 use App\Support\OrderIntakePhraseNormalizer;
 use App\Support\OrderIntakeSchema;
@@ -66,6 +67,7 @@ class OrderDocumentIntakeService
             $warnings,
             Str::limit($sourceLabel, 200, ''),
             'text/plain',
+            null,
             null,
             null,
             null,
@@ -203,25 +205,34 @@ class OrderDocumentIntakeService
             $meta,
         );
 
-        $this->goldenLibrary->openPendingForDraft(
-            $user,
-            $draft,
-            $userInstruction ?? $text,
-            $sourceKind,
-            $extracted,
-            $wizard['patch'],
-            $warnings,
-        );
+        try {
+            $this->goldenLibrary->openPendingForDraft(
+                $user,
+                $draft,
+                $userInstruction ?? $text,
+                $sourceKind,
+                $extracted,
+                $wizard['patch'],
+                $warnings,
+            );
+        } catch (Throwable $throwable) {
+            Log::warning('order_intake_golden_library_open_failed', [
+                'user_id' => $user->id,
+                'draft_id' => $draft->id,
+                'message' => $throwable->getMessage(),
+            ]);
+        }
 
         $result = [
             'draft_id' => $draft->id,
+            'wizard_path' => OrderIntakeDraftNavigation::wizardPathForDraft($draft->id),
             'confidence' => $draft->confidence,
             'warnings' => $warnings,
             'preview' => $wizard['preview'],
             'wizard_patch' => $wizard['patch'],
             'matched_contractors' => $contractorMatches,
             'extracted' => $extracted,
-            'note' => 'Черновик заявки сохранён. Откройте мастер создания заказа и примените черновик по draft_id, либо уточните поля в CRM.',
+            'note' => 'Черновик заявки сохранён. Откройте мастер: wizard_path (в command bar откроется автоматически). Проверьте поля перед сохранением.',
         ];
 
         if ($extractionMethod !== null) {

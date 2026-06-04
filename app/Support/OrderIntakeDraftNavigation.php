@@ -18,6 +18,10 @@ final class OrderIntakeDraftNavigation
             return null;
         }
 
+        if (isset($toolResult['error']) && is_string($toolResult['error']) && $toolResult['error'] !== '') {
+            return null;
+        }
+
         $draftId = (int) ($toolResult['draft_id'] ?? 0);
 
         return $draftId > 0 ? self::wizardPathForDraft($draftId) : null;

@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Services\OrderIntakeGoldenLibraryService;
 use App\Services\OrderIntakeLearnedPhrasesService;
 use App\Services\Orders\OrderDocumentIntakeService;
+use App\Support\OrderIntakeDraftNavigation;
+use App\Support\OrderIntakeSchema;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -118,18 +120,21 @@ class OrderIntakeMcpService
      */
     private function serializeDraft(OrderIntakeDraft $draft): array
     {
+        $wizardPatch = is_array($draft->wizard_patch) ? $draft->wizard_patch : [];
+
         return [
             'draft_id' => $draft->id,
+            'wizard_path' => OrderIntakeDraftNavigation::wizardPathForDraft($draft->id),
             'user_id' => $draft->user_id,
             'order_id' => $draft->order_id,
             'source_original_name' => $draft->source_original_name,
             'confidence' => $draft->confidence,
             'warnings' => $draft->warnings ?? [],
-            'wizard_patch' => $draft->wizard_patch ?? [],
+            'wizard_patch' => OrderIntakeSchema::sanitizeWizardPatch($wizardPatch),
             'matched_contractors' => $draft->matched_contractors ?? [],
             'extracted' => $draft->extracted_payload ?? [],
             'created_at' => optional($draft->created_at)?->toIso8601String(),
-            'note' => 'Черновик заявки: из файла (POST /orders/intake/extract) или из текста (create_order_intake_draft_from_text). Откройте мастер заказа и примените по draft_id.',
+            'note' => 'Откройте мастер заказа по wizard_path (в CRM: /orders/create?intake_draft={draft_id}). Command bar откроет автоматически.',
         ];
     }
 
@@ -144,7 +149,9 @@ class OrderIntakeMcpService
             'source_original_name' => $draft->source_original_name,
             'confidence' => $draft->confidence,
             'summary' => $this->draftSummaryLine($draft),
-            'wizard_patch' => $draft->wizard_patch ?? [],
+            'wizard_patch' => OrderIntakeSchema::sanitizeWizardPatch(
+                is_array($draft->wizard_patch) ? $draft->wizard_patch : [],
+            ),
             'matched_contractors' => $draft->matched_contractors ?? [],
             'created_at' => optional($draft->created_at)?->toIso8601String(),
         ];
