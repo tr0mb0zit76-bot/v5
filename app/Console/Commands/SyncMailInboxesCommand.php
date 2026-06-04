@@ -27,9 +27,25 @@ class SyncMailInboxesCommand extends Command
         $parsedUserId = is_numeric($userId) ? (int) $userId : null;
         $parsedDays = is_numeric($days) ? (int) $days : null;
 
+        if ($parsedUserId !== null && $parsedUserId > 0) {
+            $eligibility = $syncService->syncEligibilityForUserId($parsedUserId);
+
+            if (! $eligibility['eligible']) {
+                $this->warn('Пользователь не готов к sync: '.implode(' ', $eligibility['reasons']));
+                $this->line('IMAP: '.config('mail_sync.imap.host').':'.config('mail_sync.imap.port').' (логин = users.email)');
+
+                return self::FAILURE;
+            }
+        }
+
         $result = $syncService->syncAllMailboxes($parsedUserId, $parsedDays);
 
-        $this->info("Импортировано: {$result['imported']}, пропущено (дубли): {$result['skipped']}.");
+        $processed = $result['users_processed'] ?? 0;
+        $this->info("Импортировано: {$result['imported']}, пропущено (дубли): {$result['skipped']}, ящиков обработано: {$processed}.");
+
+        if ($processed === 0 && ($parsedUserId === null || $parsedUserId <= 0)) {
+            $this->warn('Нет активных пользователей с паролем почты (mail_imap_secret).');
+        }
 
         foreach ($result['errors'] as $error) {
             $this->warn($error);

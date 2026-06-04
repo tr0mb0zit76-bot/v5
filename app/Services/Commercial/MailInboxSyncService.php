@@ -32,18 +32,42 @@ final class MailInboxSyncService
     }
 
     /**
-     * @return array{imported: int, skipped: int, errors: list<string>}
+     * @return array{eligible: bool, reasons: list<string>, email: string|null}
+     */
+    public function syncEligibilityForUserId(int $userId): array
+    {
+        $user = User::query()->find($userId);
+
+        if ($user === null) {
+            return [
+                'eligible' => false,
+                'reasons' => ['Пользователь с таким ID не найден.'],
+                'email' => null,
+            ];
+        }
+
+        $reasons = $this->syncIneligibilityReasons($user);
+
+        return [
+            'eligible' => $reasons === [],
+            'reasons' => $reasons,
+            'email' => $user->email,
+        ];
+    }
+
+    /**
+     * @return array{imported: int, skipped: int, errors: list<string>, users_processed: int}
      */
     public function syncAllMailboxes(?int $userId = null, ?int $days = null): array
     {
         if (! config('mail_sync.enabled', true)) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).']];
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).'], 'users_processed' => 0];
         }
 
         abort_unless($this->tablesReady(), 503, 'Таблицы почты не готовы. Выполните migrate.');
 
         if (! $this->imapClient->extensionLoaded()) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['PHP extension imap не установлена.']];
+            return ['imported' => 0, 'skipped' => 0, 'errors' => ['PHP extension imap не установлена.'], 'users_processed' => 0];
         }
 
         $days = $days ?? (int) config('mail_sync.initial_sync_days', 30);
@@ -59,9 +83,24 @@ final class MailInboxSyncService
             $query->whereKey($userId);
         }
 
-        $totals = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $users = $query->get();
+        $totals = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'users_processed' => 0];
 
-        foreach ($query->get() as $user) {
+        if ($users->isEmpty() && $userId !== null && $userId > 0) {
+            $eligibility = $this->syncEligibilityForUserId($userId);
+            $email = $eligibility['email'] ?? "id={$userId}";
+
+            if ($eligibility['reasons'] !== []) {
+                $totals['errors'][] = "{$email}: синхронизация пропущена — ".implode(' ', $eligibility['reasons']);
+            } else {
+                $totals['errors'][] = "{$email}: не попал в очередь sync (проверьте is_active, mail_sync_enabled, mail_imap_secret).";
+            }
+
+            return $totals;
+        }
+
+        foreach ($users as $user) {
+            $totals['users_processed']++;
             try {
                 $result = $this->syncUserMailbox($user, $since, $limit);
                 $totals['imported'] += $result['imported'];
@@ -105,6 +144,7 @@ final class MailInboxSyncService
         $imported = 0;
         $skipped = 0;
         $remaining = $limit;
+        $folderErrors = [];
 
         foreach ($this->folderPlan() as $plan) {
             if ($remaining <= 0) {
@@ -128,7 +168,8 @@ final class MailInboxSyncService
                         $remaining,
                     );
                     $folderUsed = true;
-                } catch (Throwable) {
+                } catch (Throwable $exception) {
+                    $folderErrors[] = "{$folder}: ".Str::limit($exception->getMessage(), 200);
                     $this->imapClient->disconnect();
 
                     continue;
@@ -157,7 +198,35 @@ final class MailInboxSyncService
             }
         }
 
+        if ($imported === 0 && $skipped === 0 && $folderErrors !== []) {
+            throw new RuntimeException(
+                'Не удалось прочитать папки IMAP ('.config('mail_sync.imap.host').'): '.implode('; ', $folderErrors),
+            );
+        }
+
         return ['imported' => $imported, 'skipped' => $skipped];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function syncIneligibilityReasons(User $user): array
+    {
+        $reasons = [];
+
+        if (! $user->is_active) {
+            $reasons[] = 'учётная запись неактивна (is_active=0);';
+        }
+
+        if (! ($user->mail_sync_enabled ?? true)) {
+            $reasons[] = 'синхронизация почты выключена (mail_sync_enabled=0);';
+        }
+
+        if (! $user->hasMailImapCredential()) {
+            $reasons[] = 'не задан пароль почты (mail_imap_secret) — укажите в карточке пользователя или перелогиньтесь в CRM;';
+        }
+
+        return $reasons;
     }
 
     public function importMessage(User $mailboxUser, ImportedMailMessage $message): ?MailMessage
