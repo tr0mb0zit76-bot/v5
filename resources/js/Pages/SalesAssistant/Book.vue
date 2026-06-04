@@ -1,166 +1,10 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div class="grid min-h-0 flex-1 gap-4 overflow-hidden grid-rows-[minmax(0,38vh)_minmax(0,1fr)] lg:grid-cols-[320px,minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-        <aside :class="`${crmPanel} flex min-h-0 flex-col overflow-hidden p-4`">
-            <div class="shrink-0">
-                <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Книга продаж</h1>
-                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Пространство в стиле Notion: вложенные страницы, импорт markdown и визуальный редактор.</p>
-            </div>
+        <div class="grid min-h-0 flex-1 gap-3 overflow-hidden grid-rows-[minmax(0,28vh)_minmax(0,1fr)] lg:grid-cols-[minmax(220px,260px),minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+        <aside :class="`${crmPanel} flex min-h-0 flex-col overflow-hidden p-3`">
+            <h1 class="shrink-0 text-sm font-semibold text-zinc-900 dark:text-zinc-50">Книга продаж</h1>
 
-            <section
-                v-if="canWrite && feedbackProblemArticles.length > 0"
-                class="mt-4 shrink-0 rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/70 dark:bg-amber-950/30"
-            >
-                <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-xs font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-100">
-                        Требует правки
-                    </h2>
-                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/60 dark:text-amber-100">
-                        {{ feedbackProblemArticles.length }}
-                    </span>
-                </div>
-                <div class="mt-2 space-y-1.5">
-                    <button
-                        v-for="article in feedbackProblemArticles"
-                        :key="`problem-${article.id}`"
-                        type="button"
-                        class="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-amber-100/80 dark:hover:bg-amber-900/40"
-                        @click="openArticle(article.id)"
-                    >
-                        <span class="block truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                            {{ article.title }}
-                        </span>
-                        <span class="mt-0.5 block text-[11px] text-amber-800 dark:text-amber-200">
-                            Негативных: {{ article.negative }}
-                            <template v-if="article.unclear"> · непонятно {{ article.unclear }}</template>
-                            <template v-if="article.outdated"> · устарело {{ article.outdated }}</template>
-                            <template v-if="article.command_bar"> · из AI {{ article.command_bar }}</template>
-                        </span>
-                    </button>
-                </div>
-            </section>
-
-            <section
-                v-if="canWrite && qualityInsights"
-                class="mt-3 shrink-0 rounded-xl border border-zinc-200 bg-white/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"
-            >
-                <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-700 dark:text-zinc-200">
-                        Качество базы
-                    </h2>
-                    <span class="text-[11px] text-zinc-500 dark:text-zinc-400">30 дней</span>
-                </div>
-
-                <div class="mt-2 grid grid-cols-3 gap-1.5 text-center">
-                    <div class="rounded-lg bg-zinc-50 px-2 py-1.5 dark:bg-zinc-800/70">
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ qualityInsights.summary?.published_articles ?? 0 }}</div>
-                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">опубл.</div>
-                    </div>
-                    <div class="rounded-lg bg-amber-50 px-2 py-1.5 dark:bg-amber-950/40">
-                        <div class="text-sm font-semibold text-amber-900 dark:text-amber-100">{{ qualityInsights.summary?.draft_articles ?? 0 }}</div>
-                        <div class="text-[10px] text-amber-700 dark:text-amber-200">черн.</div>
-                    </div>
-                    <div class="rounded-lg bg-rose-50 px-2 py-1.5 dark:bg-rose-950/40">
-                        <div class="text-sm font-semibold text-rose-900 dark:text-rose-100">{{ negativeFeedbackTotal }}</div>
-                        <div class="text-[10px] text-rose-700 dark:text-rose-200">сигналов</div>
-                    </div>
-                </div>
-
-                <div v-if="qualityInsights.hints?.length" class="mt-2 space-y-1">
-                    <p
-                        v-for="hint in qualityInsights.hints"
-                        :key="hint"
-                        class="rounded-lg bg-zinc-50 px-2 py-1.5 text-[11px] text-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-300"
-                    >
-                        {{ hint }}
-                    </p>
-                </div>
-
-                <div v-if="qualityInsights.recent_feedback?.length" class="mt-2 space-y-1.5">
-                    <p class="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Последние замечания</p>
-                    <button
-                        v-for="item in qualityInsights.recent_feedback"
-                        :key="`feedback-${item.id}`"
-                        type="button"
-                        class="w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        @click="openArticle(item.article_id)"
-                    >
-                        <span class="block truncate text-xs font-medium text-zinc-800 dark:text-zinc-100">{{ item.article_title }}</span>
-                        <span class="mt-0.5 block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {{ item.rating_label }} · {{ item.source_label }}<template v-if="item.comment"> · {{ item.comment }}</template>
-                        </span>
-                    </button>
-                </div>
-            </section>
-
-            <section
-                v-if="canViewQuizAnalytics && quizInsights"
-                class="mt-3 shrink-0 rounded-xl border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-900/60 dark:bg-sky-950/25"
-            >
-                <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-xs font-semibold uppercase tracking-wide text-sky-900 dark:text-sky-100">
-                        Статистика тестов
-                    </h2>
-                    <span class="text-[11px] text-sky-700 dark:text-sky-300">30 дней</span>
-                </div>
-
-                <div class="mt-2 grid grid-cols-3 gap-1.5 text-center">
-                    <div class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70">
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ quizInsights.summary?.attempts ?? 0 }}</div>
-                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">попыток</div>
-                    </div>
-                    <div class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70">
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ quizInsights.summary?.unique_users ?? 0 }}</div>
-                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">людей</div>
-                    </div>
-                    <div class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70">
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ quizAvgPercentLabel }}</div>
-                        <div class="text-[10px] text-zinc-500 dark:text-zinc-400">ср. %</div>
-                    </div>
-                </div>
-
-                <div v-if="quizInsights.by_user?.length" class="mt-2 space-y-1.5">
-                    <p class="text-[11px] font-medium text-sky-800 dark:text-sky-200">По сотрудникам</p>
-                    <div
-                        v-for="row in quizInsights.by_user"
-                        :key="`quiz-user-${row.user_id}`"
-                        class="rounded-lg bg-white/80 px-2 py-1.5 dark:bg-zinc-900/70"
-                    >
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">{{ row.name }}</span>
-                            <span class="shrink-0 text-[11px] text-zinc-600 dark:text-zinc-300">{{ row.avg_percent }}%</span>
-                        </div>
-                        <p class="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {{ row.attempts }} попыток · лучший {{ row.best_score }}/{{ row.best_total }}
-                        </p>
-                    </div>
-                </div>
-
-                <div v-if="quizInsights.recent_attempts?.length" class="mt-2 space-y-1.5">
-                    <p class="text-[11px] font-medium text-sky-800 dark:text-sky-200">Последние прохождения</p>
-                    <button
-                        v-for="item in quizInsights.recent_attempts"
-                        :key="`quiz-attempt-${item.id}`"
-                        type="button"
-                        class="w-full rounded-lg bg-white/80 px-2 py-1.5 text-left transition-colors hover:bg-white dark:bg-zinc-900/70 dark:hover:bg-zinc-800"
-                        @click="openArticle(item.article_id)"
-                    >
-                        <span class="block truncate text-xs font-medium text-zinc-800 dark:text-zinc-100">{{ item.user_name }}</span>
-                        <span class="mt-0.5 block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {{ item.article_title }} · {{ item.score }}/{{ item.total_questions }} ({{ item.percent }}%)
-                        </span>
-                    </button>
-                </div>
-
-                <Link
-                    :href="route('sales-assistant.book.quiz-analytics')"
-                    class="mt-2 inline-block text-[11px] font-medium text-sky-800 underline-offset-4 hover:underline dark:text-sky-200"
-                >
-                    Полный отчёт →
-                </Link>
-            </section>
-
-            <form v-if="canWrite" class="mt-4 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="createArticle">
+            <form v-if="canWrite" class="mt-3 shrink-0 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800" @submit.prevent="createArticle">
                 <input
                     v-model="createForm.title"
                     type="text"
@@ -192,7 +36,7 @@
                 </button>
             </form>
 
-            <form v-if="canWrite" class="mt-3 shrink-0 space-y-2 border-t border-zinc-100 pt-4 dark:border-zinc-800" @submit.prevent="importMarkdown">
+            <form v-if="canWrite" class="mt-3 shrink-0 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800" @submit.prevent="importMarkdown">
                 <input
                     type="file"
                     accept=".md,.markdown,.txt,text/markdown,text/plain"
@@ -223,7 +67,7 @@
                 </button>
             </form>
 
-            <div class="mt-4 min-h-0 flex-1 overflow-y-auto border-t border-zinc-100 pt-4 dark:border-zinc-800">
+            <div class="mt-3 min-h-0 flex-1 overflow-y-auto border-t border-zinc-100 pt-3 dark:border-zinc-800">
                 <p v-if="articlesTree.length === 0" class="text-sm text-zinc-500">Пока нет страниц.</p>
                 <SalesBookTreeNav
                     v-else
@@ -483,7 +327,6 @@
                             class="mt-4"
                             :article-id="selectedArticle.id"
                             :quiz="selectedArticleQuiz"
-                            @attempt-recorded="reloadQuizInsights"
                         />
                     </div>
                 </div>
@@ -511,7 +354,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import TiptapEditor from '@/Components/SalesBook/TiptapEditor.vue';
 import SalesBookArticleFeedbackBar from '@/Components/SalesBook/SalesBookArticleFeedbackBar.vue';
@@ -545,18 +388,6 @@ const props = defineProps({
         default: () => ({ can_read: false, can_comment: false, can_write: false }),
     },
     articleFeedbackSummary: {
-        type: Object,
-        default: null,
-    },
-    feedbackProblemArticles: {
-        type: Array,
-        default: () => [],
-    },
-    qualityInsights: {
-        type: Object,
-        default: null,
-    },
-    quizInsights: {
         type: Object,
         default: null,
     },
@@ -646,10 +477,6 @@ const parentOptionsForEdit = computed(() => {
 
 const selectedArticleTags = computed(() => normalizeTags(props.selectedArticle?.tags ?? []));
 const selectedArticleQuiz = computed(() => props.selectedArticle?.quiz ?? null);
-const negativeFeedbackTotal = computed(() => (
-    Number(props.qualityInsights?.summary?.unclear ?? 0)
-    + Number(props.qualityInsights?.summary?.outdated ?? 0)
-));
 
 watch(
     () => props.selectedArticle,
@@ -804,18 +631,7 @@ function openArticle(articleId) {
         preserveState: true,
         preserveScroll: true,
         replace: true,
-        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary', 'feedbackProblemArticles', 'qualityInsights', 'quizInsights'],
-    });
-}
-
-function reloadQuizInsights() {
-    if (!canViewQuizAnalytics.value) {
-        return;
-    }
-
-    router.reload({
-        only: ['quizInsights'],
-        preserveScroll: true,
+        only: ['selectedArticle', 'articlesTree', 'articleOptions', 'directChildPages', 'articleFeedbackSummary'],
     });
 }
 
@@ -946,17 +762,6 @@ function destroyArticle() {
 
 const canWrite = computed(() => Boolean(props.capabilities?.can_write));
 const canComment = computed(() => Boolean(props.capabilities?.can_comment));
-const canViewQuizAnalytics = computed(() => Boolean(props.capabilities?.can_view_quiz_analytics));
-
-const quizAvgPercentLabel = computed(() => {
-    const value = props.quizInsights?.summary?.avg_percent;
-
-    if (value === null || value === undefined) {
-        return '—';
-    }
-
-    return `${value}%`;
-});
 
 function submitArticleFeedback(payload) {
     if (!props.selectedArticle?.id) {

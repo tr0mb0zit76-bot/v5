@@ -21,7 +21,6 @@ use App\Models\SalesScriptPlaySession;
 use App\Models\User;
 use App\Services\KpiConfigurationService;
 use App\Services\SalesBook\SalesBookArticleFeedbackSummaryService;
-use App\Services\SalesBook\SalesBookQualityInsightsService;
 use App\Services\SalesBook\SalesBookQuizAttemptService;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
 use App\Services\SalesBookArticleTreeService;
@@ -82,13 +81,10 @@ class SalesAssistantController extends Controller
         SalesBookParentChildLinksService $childLinksService,
         SalesBookContentNormalizer $contentNormalizer,
         SalesBookArticleFeedbackSummaryService $feedbackSummaryService,
-        SalesBookQualityInsightsService $qualityInsights,
-        SalesBookQuizInsightsService $quizInsights,
     ): Response {
         abort_unless(RoleAccess::canReadSalesBook($request->user()), 403);
 
         $canWriteSalesBook = RoleAccess::canWriteSalesBook($request->user());
-        $canViewQuizAnalytics = RoleAccess::canViewSalesBookQuizInsights($request->user());
         $articles = SalesBookArticle::query()
             ->when(! $canWriteSalesBook, fn ($query) => $query->published())
             ->orderBy('parent_id')
@@ -152,7 +148,6 @@ class SalesAssistantController extends Controller
                 'can_read' => RoleAccess::canReadSalesBook($request->user()),
                 'can_comment' => RoleAccess::canCommentSalesBook($request->user()),
                 'can_write' => $canWriteSalesBook,
-                'can_view_quiz_analytics' => $canViewQuizAnalytics,
             ],
             'articleStatusOptions' => array_map(
                 fn (SalesBookArticleStatus $status): array => [
@@ -162,15 +157,6 @@ class SalesAssistantController extends Controller
                 SalesBookArticleStatus::cases(),
             ),
             'articleFeedbackSummary' => $feedbackSummary,
-            'feedbackProblemArticles' => $canWriteSalesBook
-                ? $feedbackSummaryService->problemArticles()
-                : [],
-            'qualityInsights' => $canWriteSalesBook
-                ? $qualityInsights->insights(30, 8)
-                : null,
-            'quizInsights' => $canViewQuizAnalytics
-                ? $quizInsights->insights(30, null, null, 12)
-                : null,
         ]);
     }
 
