@@ -9,8 +9,7 @@ class SyncMailInboxesCommand extends Command
 {
     protected $signature = 'mail:sync
                             {--user= : ID пользователя (один ящик)}
-                            {--days= : Глубина синхронизации в днях}
-                            {--verbose : Подробный лог по папкам IMAP}';
+                            {--days= : Глубина синхронизации в днях}';
 
     protected $description = 'Синхронизирует переписку из IMAP (reg.ru) в CRM для активных пользователей с паролем почты';
 
@@ -39,7 +38,7 @@ class SyncMailInboxesCommand extends Command
             }
         }
 
-        $result = $syncService->syncAllMailboxes($parsedUserId, $parsedDays, (bool) $this->option('verbose'));
+        $result = $syncService->syncAllMailboxes($parsedUserId, $parsedDays, $this->output->isVerbose());
 
         $processed = $result['users_processed'] ?? 0;
         $this->info("Импортировано: {$result['imported']}, пропущено (дубли): {$result['skipped']}, ящиков обработано: {$processed}.");
