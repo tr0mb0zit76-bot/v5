@@ -518,7 +518,10 @@ class AgentToolRegistry
                 invoke: fn (User $user, array $args): array => $this->salesBookQuizInsights->insights(
                     (int) ($args['days'] ?? 30),
                     isset($args['article_id']) ? (int) $args['article_id'] : null,
-                    isset($args['user_id']) ? (int) $args['user_id'] : null,
+                    RoleAccess::resolveSalesBookQuizInsightsUserId(
+                        $user,
+                        isset($args['user_id']) ? (int) $args['user_id'] : null,
+                    ),
                     (int) ($args['limit'] ?? 20),
                 ),
             ),

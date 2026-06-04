@@ -15,7 +15,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('get_sales_book_quiz_insights')]
-#[Description('Статистика тестов Книги продаж: попытки, средний балл, сводка по сотрудникам и статьям. Для руководителей с областью «статистика тестов».')]
+#[Description('Статистика тестов Книги продаж. Руководитель видит всех; менеджер — только свои попытки.')]
 class GetSalesBookQuizInsightsTool extends Tool
 {
     use LogsMcpToolCalls;
@@ -38,10 +38,13 @@ class GetSalesBookQuizInsightsTool extends Tool
                 'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
             ]);
 
+            $requestedUserId = isset($validated['user_id']) ? (int) $validated['user_id'] : null;
+            $userId = RoleAccess::resolveSalesBookQuizInsightsUserId($user, $requestedUserId);
+
             return Response::json($this->insights->insights(
                 (int) ($validated['days'] ?? 30),
                 isset($validated['article_id']) ? (int) $validated['article_id'] : null,
-                isset($validated['user_id']) ? (int) $validated['user_id'] : null,
+                $userId,
                 (int) ($validated['limit'] ?? 20),
             ));
         });
@@ -61,7 +64,7 @@ class GetSalesBookQuizInsightsTool extends Tool
                 ->description('Ограничить статистику одной страницей с тестом.')
                 ->min(1),
             'user_id' => $schema->integer()
-                ->description('Ограничить статистику одним сотрудником.')
+                ->description('Фильтр по сотруднику (только admin / supervisor).')
                 ->min(1),
             'limit' => $schema->integer()
                 ->description('Сколько строк вернуть в каждой секции (1-100).')

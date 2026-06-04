@@ -1088,19 +1088,47 @@ class RoleAccess
     }
 
     /**
-     * Статистика прохождения тестов Книги продаж — область sales_assistant_book_analytics или admin.
+     * Статистика прохождения тестов Книги продаж — читатели Книги продаж (свои попытки) и admin.
      */
     public static function canViewSalesBookQuizInsights(?User $user): bool
+    {
+        return static::canReadSalesBook($user);
+    }
+
+    /**
+     * Сводная статистика тестов по всем сотрудникам — admin и руководитель (supervisor).
+     */
+    public static function canViewAllSalesBookQuizInsights(?User $user): bool
     {
         if ($user === null) {
             return false;
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isSupervisor()) {
             return true;
         }
 
-        return static::hasVisibilityArea(static::userVisibilityAreas($user), 'sales_assistant_book_analytics');
+        return false;
+    }
+
+    /**
+     * user_id для выборки quiz insights: руководитель может фильтровать, остальные — только себя.
+     */
+    public static function resolveSalesBookQuizInsightsUserId(?User $user, ?int $requestedUserId): ?int
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        if (! static::canViewAllSalesBookQuizInsights($user)) {
+            return $user->id;
+        }
+
+        if ($requestedUserId !== null && $requestedUserId > 0) {
+            return $requestedUserId;
+        }
+
+        return null;
     }
 
     private static function userHasSalesBookPermissionKeysConfigured(?User $user): bool

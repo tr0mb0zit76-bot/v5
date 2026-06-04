@@ -262,7 +262,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             });
         });
 
-        Route::middleware('visibility.area:sales_assistant_book_analytics')->group(function () {
+        Route::middleware('visibility.area:sales_assistant_book')->group(function () {
             Route::controller(SalesAssistantController::class)->group(function () {
                 Route::get('/book/quiz-analytics', 'bookQuizAnalytics')->name('book.quiz-analytics');
             });

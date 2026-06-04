@@ -162,7 +162,11 @@ class SalesAssistantController extends Controller
 
     public function bookQuizAnalytics(Request $request, SalesBookQuizInsightsService $quizInsights): Response
     {
-        abort_unless(RoleAccess::canViewSalesBookQuizInsights($request->user()), 403);
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless(RoleAccess::canViewSalesBookQuizInsights($user), 403);
+
+        $canViewAll = RoleAccess::canViewAllSalesBookQuizInsights($user);
 
         $daysInput = (int) $request->query('days', '30');
         $allowedDays = [7, 30, 90, 180];
@@ -171,18 +175,24 @@ class SalesAssistantController extends Controller
         $articleId = $request->filled('article_id') && $request->integer('article_id') > 0
             ? $request->integer('article_id')
             : null;
-        $userId = $request->filled('user_id') && $request->integer('user_id') > 0
+        $requestedUserId = $request->filled('user_id') && $request->integer('user_id') > 0
             ? $request->integer('user_id')
             : null;
+        $userId = RoleAccess::resolveSalesBookQuizInsightsUserId($user, $requestedUserId);
+
+        $filterWindowDays = max($days, 90);
 
         return Inertia::render('SalesAssistant/BookQuizAnalytics', [
             'filters' => [
                 'days' => $days,
                 'article_id' => $articleId,
                 'user_id' => $userId,
+                'can_view_all' => $canViewAll,
             ],
-            'filterUsers' => $quizInsights->participantUsers(max($days, 90)),
-            'filterArticles' => $quizInsights->attemptedArticles(max($days, 90)),
+            'filterUsers' => $canViewAll
+                ? $quizInsights->participantUsers($filterWindowDays)
+                : [],
+            'filterArticles' => $quizInsights->attemptedArticles($filterWindowDays, $userId),
             'insights' => $quizInsights->insights($days, $articleId, $userId, 50),
         ]);
     }

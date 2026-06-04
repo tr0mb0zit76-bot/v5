@@ -1,7 +1,9 @@
 <template>
     <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
         <CrmPageHeader
-            lead="Результаты прохождения тестов в Книге продаж: по сотрудникам, страницам и попыткам."
+            :lead="filters.can_view_all
+                ? 'Результаты прохождения тестов по всем сотрудникам.'
+                : 'Ваши результаты прохождения тестов в Книге продаж.'"
             title="Статистика тестов"
         />
 
@@ -28,7 +30,10 @@
                         <option :value="180">180 дней</option>
                     </select>
                 </label>
-                <label class="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <label
+                    v-if="filters.can_view_all"
+                    class="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400"
+                >
                     <span class="font-medium">Сотрудник</span>
                     <select v-model="localUserId" :class="`${crmField} min-w-[14rem]`">
                         <option value="">Все</option>
@@ -52,14 +57,20 @@
             </div>
         </section>
 
-        <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <section
+            class="grid gap-3 md:grid-cols-2"
+            :class="filters.can_view_all ? 'xl:grid-cols-5' : 'xl:grid-cols-4'"
+        >
             <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
                     Попытки ({{ summary.window_days }}д)
                 </div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{{ summary.attempts }}</div>
             </article>
-            <article class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <article
+                v-if="filters.can_view_all"
+                class="border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+            >
                 <div class="text-xs uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">Сотрудников</div>
                 <div class="mt-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">{{ summary.unique_users }}</div>
             </article>
@@ -77,7 +88,7 @@
             </article>
         </section>
 
-        <section v-if="insights.by_user.length" :class="`${crmPanel} overflow-x-auto p-4 md:p-6`">
+        <section v-if="filters.can_view_all && insights.by_user.length" :class="`${crmPanel} overflow-x-auto p-4 md:p-6`">
             <h2 class="text-sm font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По сотрудникам</h2>
             <table class="mt-4 min-w-[40rem] w-full text-left text-sm">
                 <thead>
@@ -114,7 +125,7 @@
                     <tr class="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                         <th class="pb-2 pr-2 font-medium">Страница</th>
                         <th class="pb-2 pr-2 font-medium">Попыток</th>
-                        <th class="pb-2 pr-2 font-medium">Людей</th>
+                        <th v-if="filters.can_view_all" class="pb-2 pr-2 font-medium">Людей</th>
                         <th class="pb-2 pr-2 font-medium">Ср. %</th>
                         <th class="pb-2 font-medium">Последняя попытка</th>
                     </tr>
@@ -134,7 +145,7 @@
                             </Link>
                         </td>
                         <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ row.attempts }}</td>
-                        <td class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ row.unique_users }}</td>
+                        <td v-if="filters.can_view_all" class="py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ row.unique_users }}</td>
                         <td class="py-2 pr-2">
                             <span :class="percentBadgeClass(row.avg_percent)">{{ row.avg_percent }}%</span>
                         </td>
@@ -150,7 +161,7 @@
                 <thead>
                     <tr class="border-b border-zinc-200 text-xs uppercase text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
                         <th class="pb-2 pr-2 font-medium">Дата</th>
-                        <th class="pb-2 pr-2 font-medium">Сотрудник</th>
+                        <th v-if="filters.can_view_all" class="pb-2 pr-2 font-medium">Сотрудник</th>
                         <th class="pb-2 pr-2 font-medium">Тест</th>
                         <th class="pb-2 pr-2 font-medium">Результат</th>
                         <th class="pb-2 font-medium">%</th>
@@ -163,7 +174,7 @@
                         class="border-b border-zinc-100 dark:border-zinc-800/80"
                     >
                         <td class="whitespace-nowrap py-2 pr-2 text-zinc-600 dark:text-zinc-300">{{ formatDate(row.completed_at) }}</td>
-                        <td class="py-2 pr-2 text-zinc-900 dark:text-zinc-100">{{ row.user_name }}</td>
+                        <td v-if="filters.can_view_all" class="py-2 pr-2 text-zinc-900 dark:text-zinc-100">{{ row.user_name }}</td>
                         <td class="max-w-[14rem] truncate py-2 pr-2">
                             <Link
                                 :href="route('sales-assistant.book', { article_id: row.article_id })"

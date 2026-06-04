@@ -98,7 +98,7 @@ final class SalesBookQuizInsightsService
     /**
      * @return list<array{id: int, name: string}>
      */
-    public function participantUsers(int $days = 365): array
+    public function participantUsers(int $days = 365, ?int $userId = null): array
     {
         if (! Schema::hasTable('sales_book_quiz_attempts')) {
             return [];
@@ -106,8 +106,14 @@ final class SalesBookQuizInsightsService
 
         $since = now()->subDays(max(1, min($days, 365)));
 
-        $userIds = SalesBookQuizAttempt::query()
-            ->where('completed_at', '>=', $since)
+        $userIdsQuery = SalesBookQuizAttempt::query()
+            ->where('completed_at', '>=', $since);
+
+        if ($userId !== null) {
+            $userIdsQuery->where('user_id', $userId);
+        }
+
+        $userIds = $userIdsQuery
             ->distinct()
             ->pluck('user_id');
 
@@ -130,7 +136,7 @@ final class SalesBookQuizInsightsService
     /**
      * @return list<array{id: int, title: string}>
      */
-    public function attemptedArticles(int $days = 365): array
+    public function attemptedArticles(int $days = 365, ?int $userId = null): array
     {
         if (! Schema::hasTable('sales_book_quiz_attempts')) {
             return [];
@@ -138,8 +144,14 @@ final class SalesBookQuizInsightsService
 
         $since = now()->subDays(max(1, min($days, 365)));
 
-        $articleIds = SalesBookQuizAttempt::query()
-            ->where('completed_at', '>=', $since)
+        $articleIdsQuery = SalesBookQuizAttempt::query()
+            ->where('completed_at', '>=', $since);
+
+        if ($userId !== null) {
+            $articleIdsQuery->where('user_id', $userId);
+        }
+
+        $articleIds = $articleIdsQuery
             ->distinct()
             ->pluck('sales_book_article_id');
 
