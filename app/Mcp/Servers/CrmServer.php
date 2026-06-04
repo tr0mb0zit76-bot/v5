@@ -22,6 +22,7 @@ use App\Mcp\Tools\GetTrainerCoachingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
+use App\Mcp\Tools\RememberOrderIntakePhraseTool;
 use App\Mcp\Tools\SearchContractorsTool;
 use App\Mcp\Tools\SearchMailThreadsTool;
 use App\Mcp\Tools\SearchOrdersTool;
@@ -56,7 +57,7 @@ use Laravel\Mcp\Server\Tool;
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
-        - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text — черновики заявок (файл или текст)
+        - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / remember_order_intake_phrase — черновики заявок и обучение фразам из диалога
         - search_mail_threads / get_mail_thread / get_mail_sync_status — переписка и ошибки IMAP sync
 
         Аутентификация: Bearer Sanctum token.
@@ -93,6 +94,7 @@ class CrmServer extends Server
         GetOrderIntakeDraftTool::class,
         ListOrderIntakeDraftsTool::class,
         CreateOrderIntakeDraftFromTextTool::class,
+        RememberOrderIntakePhraseTool::class,
         SearchMailThreadsTool::class,
         GetMailThreadTool::class,
         GetMailSyncStatusTool::class,

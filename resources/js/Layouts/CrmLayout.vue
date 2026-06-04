@@ -469,7 +469,14 @@
                 :class="collapsed ? 'lg:left-20' : 'lg:left-64'"
             >
                 <div class="px-3 py-3 md:px-4">
-                    <CrmCommandBar @submit="handleAiSubmit" @badges="dynamicCabinetBadges = $event" />
+                    <CrmCommandBar
+                        :agent-message-count="agentMessages.length"
+                        :agent-has-saved-thread="agentHasSavedThread"
+                        @submit="handleAiSubmit"
+                        @badges="dynamicCabinetBadges = $event"
+                        @agent-history-open="openAgentPanelFromHistory"
+                        @agent-history-clear="clearAgentThread"
+                    />
                     <CrmAgentPanel
                         :open="agentPanelOpen"
                         :messages="agentMessages"
@@ -532,6 +539,11 @@ import {
     resolveCrmAppearance,
 } from '@/support/crmAppearance.js';
 import { visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
+import {
+    clearAgentThread as clearPersistedAgentThread,
+    loadAgentThread,
+    saveAgentThread,
+} from '@/support/commandBarAgentHistory.js';
 
 const props = defineProps({
     activeKey: {
@@ -614,6 +626,9 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
         const leaf = activeLeafKey ?? activeSubKey ?? '';
         if (['users', 'roles', 'business-processes', 'ai-analytics'].includes(leaf)) {
             keys.push('administration');
+        }
+        if (['system', 'order-numbering'].includes(leaf)) {
+            keys.push('system');
         }
         if (['table-presets', 'dictionaries', 'templates'].includes(leaf)) {
             keys.push('configuration');
@@ -728,6 +743,8 @@ const MENU_ROUTES = {
     'kpi-settings': '/settings/motivation/kpi',
     'salary-settings': '/settings/motivation/salary',
     'ai-analytics': '/settings/ai-analytics',
+    system: '/settings/system',
+    'order-numbering': '/settings/system/order-numbering',
 };
 
 const MOBILE_BROWSER_BYPASS = 'crm_mobile_browser_cabinet_v1';
@@ -1096,6 +1113,15 @@ const menuItems = computed(() => {
                         ],
                     });
                 }
+                if (hasSettingsSystemAccess.value) {
+                    children.push({
+                        key: 'system',
+                        label: 'Системные',
+                        children: [
+                            { key: 'order-numbering', label: 'Автонумератор' },
+                        ],
+                    });
+                }
                 if (hasSettingsMotivationAccess.value) {
                     children.push({
                         key: 'motivation',
@@ -1359,7 +1385,8 @@ function handleMenuSelect(key, event) {
 }
 
 const agentPanelOpen = ref(false);
-const agentMessages = ref([]);
+const agentMessages = ref(loadAgentThread());
+const agentHasSavedThread = ref(agentMessages.value.length > 0);
 const agentLoading = ref(false);
 const agentError = ref('');
 const agentChannel = ref('');
@@ -1439,5 +1466,37 @@ async function submitAgentFeedback({ turnId, rating }) {
     } finally {
         agentFeedbackBusyTurnId.value = '';
     }
+}
+
+watch(
+    agentMessages,
+    (messages) => {
+        saveAgentThread(messages);
+        agentHasSavedThread.value = messages.length > 0;
+    },
+    { deep: true },
+);
+
+function openAgentPanelFromHistory() {
+    agentPanelOpen.value = true;
+    agentError.value = '';
+}
+
+function clearAgentThread() {
+    if (agentMessages.value.length === 0) {
+        clearPersistedAgentThread();
+        agentHasSavedThread.value = false;
+
+        return;
+    }
+
+    if (!window.confirm('Очистить историю диалога с ассистентом на этом устройстве?')) {
+        return;
+    }
+
+    agentMessages.value = [];
+    agentError.value = '';
+    clearPersistedAgentThread();
+    agentHasSavedThread.value = false;
 }
 </script>

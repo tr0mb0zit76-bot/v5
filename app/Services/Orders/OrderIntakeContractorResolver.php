@@ -56,6 +56,69 @@ class OrderIntakeContractorResolver
     }
 
     /**
+     * @param  array<string, mixed>  $ownCompany
+     * @return array{id: int, name: string, inn: string|null, score: float}|null
+     */
+    public function matchOwnCompany(User $user, array $ownCompany): ?array
+    {
+        $inn = trim((string) ($ownCompany['inn'] ?? ''));
+        if ($inn !== '' && preg_match('/^\d{10,12}$/', $inn) === 1) {
+            $byInn = Contractor::query()
+                ->where('is_own_company', true)
+                ->where('inn', $inn)
+                ->first(['id', 'name', 'inn']);
+
+            if ($byInn !== null) {
+                return [
+                    'id' => $byInn->id,
+                    'name' => (string) $byInn->name,
+                    'inn' => $byInn->inn,
+                    'score' => 1.0,
+                ];
+            }
+        }
+
+        $name = trim((string) ($ownCompany['name'] ?? ''));
+        if ($name === '') {
+            return null;
+        }
+
+        $candidates = Contractor::query()
+            ->where('is_own_company', true)
+            ->where(function (Builder $scoped) use ($name): void {
+                $scoped->where('name', 'like', '%'.$name.'%');
+
+                if ($this->hasFullNameColumn() && mb_strlen($name) >= 3) {
+                    $scoped->orWhere('full_name', 'like', '%'.$name.'%');
+                }
+            })
+            ->orderBy('name')
+            ->limit(8)
+            ->get(['id', 'name', 'inn']);
+
+        $best = null;
+        $bestScore = 0.0;
+
+        foreach ($candidates as $row) {
+            $percent = 0.0;
+            similar_text(mb_strtolower($name), mb_strtolower((string) $row->name), $percent);
+            $score = round($percent / 100, 2);
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $best = [
+                    'id' => $row->id,
+                    'name' => (string) $row->name,
+                    'inn' => $row->inn,
+                    'score' => $score,
+                ];
+            }
+        }
+
+        return $bestScore >= 0.45 ? $best : null;
+    }
+
+    /**
      * @param  array<string, mixed>  $customer
      * @return list<array{id: int, name: string, inn: string|null, score: float}>
      *

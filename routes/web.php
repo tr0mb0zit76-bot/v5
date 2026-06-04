@@ -43,6 +43,7 @@ use App\Http\Controllers\SettingsBusinessProcessController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
+use App\Http\Controllers\SettingsSystemController;
 use App\Http\Controllers\SettingsTableManagementController;
 use App\Http\Controllers\SettingsTemplateController;
 use App\Http\Controllers\TaskController;
@@ -306,6 +307,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:orders')
         ->name('orders.intake.draft');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
+        Route::get('/orders/suggest-order-number', 'suggestOrderNumber')->name('orders.suggest-order-number');
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');
         Route::post('/orders/calculate-compensation', 'calculateCompensation')->name('orders.calculate-compensation');
@@ -363,6 +365,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/settings/ai-analytics', SettingsAiAnalyticsController::class)
         ->middleware('visibility.area:settings_system')
         ->name('settings.ai-analytics');
+
+    Route::controller(SettingsSystemController::class)->middleware('visibility.area:settings_system')->group(function () {
+        Route::get('/settings/system', 'index')->name('settings.system.index');
+        Route::get('/settings/system/order-numbering', 'orderNumbering')->name('settings.system.order-numbering');
+        Route::post('/settings/system/order-numbering', 'store')->name('settings.system.order-numbering.store');
+        Route::post('/settings/system/order-numbering/preview', 'preview')->name('settings.system.order-numbering.preview');
+        Route::patch('/settings/system/order-numbering/{orderNumberingRule}', 'update')->name('settings.system.order-numbering.update');
+        Route::delete('/settings/system/order-numbering/{orderNumberingRule}', 'destroy')->name('settings.system.order-numbering.destroy');
+    });
 
     Route::controller(SettingsTableManagementController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/tables', 'index')->name('settings.tables.index');

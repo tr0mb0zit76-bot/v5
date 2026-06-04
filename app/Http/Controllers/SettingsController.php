@@ -79,6 +79,15 @@ class SettingsController extends Controller
                 'icon' => 'bot',
                 'accent' => 'violet',
             ],
+            [
+                'key' => 'system',
+                'title' => 'Системные',
+                'description' => 'Автонумератор заявок и другие системные параметры CRM.',
+                'href' => route('settings.system.index'),
+                'group' => 'Системные',
+                'icon' => 'cog',
+                'accent' => 'slate',
+            ],
         ];
 
         $sections = array_values(array_filter($allSections, function (array $section) use ($user): bool {
@@ -132,6 +141,10 @@ class SettingsController extends Controller
 
         if ($key === 'ai-analytics') {
             return RoleAccess::canViewAiAnalytics($user);
+        }
+
+        if ($key === 'system') {
+            return RoleAccess::canAccessSettingsSystem($user);
         }
 
         if ($key === 'motivation') {

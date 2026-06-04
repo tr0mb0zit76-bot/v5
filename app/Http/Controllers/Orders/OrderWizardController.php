@@ -21,6 +21,7 @@ use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
+use App\Services\OrderNumberingService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
@@ -62,6 +63,18 @@ class OrderWizardController extends Controller
     public function create(Request $request): Response
     {
         return $this->renderPage($request);
+    }
+
+    public function suggestOrderNumber(Request $request, OrderNumberingService $orderNumbering): JsonResponse
+    {
+        $ownCompanyId = $request->integer('own_company_id');
+        $ownCompany = $ownCompanyId > 0
+            ? Contractor::query()
+                ->where('is_own_company', true)
+                ->find($ownCompanyId)
+            : null;
+
+        return response()->json($orderNumbering->preview($ownCompany));
     }
 
     public function store(StoreOrderRequest $request, OrderWizardService $orderWizardService): RedirectResponse

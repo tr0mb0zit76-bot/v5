@@ -6,9 +6,31 @@ use App\Models\Contractor;
 use App\Models\Order;
 use Illuminate\Support\Str;
 
+/**
+ * Резервный генератор, если для своей компании нет правила в настройках.
+ */
 class OrderNumberGenerator
 {
+    public function __construct(
+        private readonly OrderNumberingService $orderNumbering,
+    ) {}
+
+    /**
+     * @return array{company_code: string, order_number: string, cipher?: string|null}
+     */
     public function generate(?Contractor $ownCompany = null): array
+    {
+        if ($this->orderNumbering->findRuleForOwnCompany($ownCompany !== null ? (int) $ownCompany->id : null) !== null) {
+            return $this->orderNumbering->generateAndReserve($ownCompany);
+        }
+
+        return $this->generateLegacy($ownCompany);
+    }
+
+    /**
+     * @return array{company_code: string, order_number: string}
+     */
+    private function generateLegacy(?Contractor $ownCompany = null): array
     {
         $companyCode = $this->resolveCompanyCode($ownCompany);
         $prefix = $companyCode.'-'.now()->format('ym');
@@ -71,7 +93,6 @@ class OrderNumberGenerator
 
     /**
      * Аббревиатура по наименованию: убираем типовые префиксы (ООО, ЗАО, …), берём первые буквы слов (кириллица/латиница), макс. 4 символа.
-     * Пример: «ООО Альфа-Плюс Перевозки» → «АПП», «ООО Логистика России» → «ЛР».
      */
     private function abbreviateLegalEntityName(string $name): string
     {

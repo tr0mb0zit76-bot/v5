@@ -392,6 +392,45 @@
                         <input type="file" class="hidden" multiple @change="handleFiles">
                     </label>
 
+                    <div class="relative shrink-0">
+                        <button
+                            type="button"
+                            class="relative flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700/70"
+                            :class="agentHistoryMenuOpen ? 'border-sky-500 bg-sky-50 text-sky-900 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-100' : ''"
+                            title="История диалога с ассистентом"
+                            @click="toggleAgentHistoryMenu"
+                        >
+                            <History class="h-4 w-4" />
+                            <span
+                                v-if="agentMessageCount > 0"
+                                class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-0.5 text-[9px] font-bold text-white"
+                            >
+                                {{ agentMessageCount > 9 ? '9+' : agentMessageCount }}
+                            </span>
+                        </button>
+                        <div
+                            v-if="agentHistoryMenuOpen"
+                            class="absolute bottom-full right-0 z-20 mb-2 w-52 rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                        >
+                            <button
+                                type="button"
+                                class="block w-full px-3 py-2 text-left text-xs text-zinc-800 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                                @click="emitAgentHistoryOpen"
+                            >
+                                Продолжить диалог
+                                <span v-if="agentMessageCount > 0" class="text-zinc-500"> ({{ agentMessageCount }})</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="block w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                :disabled="agentMessageCount === 0 && !agentHasSavedThread"
+                                @click="emitAgentHistoryClear"
+                            >
+                                Очистить историю
+                            </button>
+                        </div>
+                    </div>
+
                     <button
                         type="button"
                         :class="`${crmBtnPrimary} flex h-9 w-9 shrink-0 items-center justify-center !gap-0 !px-0`"
@@ -436,13 +475,19 @@ import {
     ScrollText,
     Search,
     SendHorizontal,
+    History,
     Sparkles,
     Target,
     Users,
     X,
 } from 'lucide-vue-next';
 
-const emit = defineEmits(['submit', 'badges']);
+const props = defineProps({
+    agentMessageCount: { type: Number, default: 0 },
+    agentHasSavedThread: { type: Boolean, default: false },
+});
+
+const emit = defineEmits(['submit', 'badges', 'agent-history-open', 'agent-history-clear']);
 
 const page = usePage();
 const message = ref('');
@@ -474,6 +519,7 @@ const documentChipsLoading = ref(false);
 const documentChipSearch = ref('');
 const mentionState = ref(null);
 const mentionHighlightIndex = ref(0);
+const agentHistoryMenuOpen = ref(false);
 
 let pollUnreadTimer = null;
 let documentChipSearchTimer = null;
@@ -898,6 +944,20 @@ function removeFile(fileToRemove) {
     attachedFiles.value = attachedFiles.value.filter(
         (file) => !(file.name === fileToRemove.name && file.size === fileToRemove.size),
     );
+}
+
+function toggleAgentHistoryMenu() {
+    agentHistoryMenuOpen.value = !agentHistoryMenuOpen.value;
+}
+
+function emitAgentHistoryOpen() {
+    agentHistoryMenuOpen.value = false;
+    emit('agent-history-open');
+}
+
+function emitAgentHistoryClear() {
+    agentHistoryMenuOpen.value = false;
+    emit('agent-history-clear');
 }
 
 async function submit() {

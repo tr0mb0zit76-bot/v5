@@ -262,74 +262,6 @@
                         <li v-for="(warning, index) in intakePreview.warnings" :key="index">{{ warning }}</li>
                     </ul>
                 </div>
-                <div class="mt-4 border-t border-sky-200/60 pt-3 dark:border-sky-900/50">
-                    <p
-                        v-if="appliedIntakeDraftId"
-                        class="text-xs text-emerald-800 dark:text-emerald-200"
-                    >
-                        Черновик #{{ appliedIntakeDraftId }} применён к форме. Проверьте данные перед сохранением.
-                    </p>
-                    <button
-                        v-if="!intakeDraftsPickerOpen"
-                        type="button"
-                        class="mt-2 rounded-lg border border-sky-300 px-3 py-1.5 text-xs font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-100"
-                        @click="openIntakeDraftsPicker"
-                    >
-                        {{ intakeDraftsPickerLabel }}
-                    </button>
-                    <div v-else class="mt-2 space-y-2">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="text-xs font-semibold text-sky-950 dark:text-sky-100">
-                                Черновики из ассистента и распознавания
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded-lg border border-sky-300 px-2 py-1 text-[11px] font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-100"
-                                    :disabled="intakeDraftsLoading"
-                                    @click="refreshIntakeDrafts"
-                                >
-                                    {{ intakeDraftsLoading ? 'Обновление…' : 'Обновить' }}
-                                </button>
-                                <button
-                                    type="button"
-                                    class="rounded-lg border border-zinc-300 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200"
-                                    @click="intakeDraftsPickerOpen = false"
-                                >
-                                    Свернуть
-                                </button>
-                            </div>
-                        </div>
-                        <p class="text-[11px] text-sky-900/80 dark:text-sky-200/80">
-                            Выберите черновик и нажмите «Применить к форме». После применения список скрывается.
-                        </p>
-                        <p v-if="intakeDraftsError" class="text-xs text-rose-700 dark:text-rose-300">{{ intakeDraftsError }}</p>
-                        <ul v-if="intakeDraftsList.length" class="space-y-2">
-                            <li
-                                v-for="draft in intakeDraftsList"
-                                :key="draft.draft_id"
-                                class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200/70 bg-white/80 px-3 py-2 text-xs dark:border-sky-900/40 dark:bg-zinc-900/50"
-                            >
-                                <div class="min-w-0 text-zinc-700 dark:text-zinc-200">
-                                    <span class="font-semibold">#{{ draft.draft_id }}</span>
-                                    <span v-if="draft.source_original_name"> · {{ draft.source_original_name }}</span>
-                                    <span v-if="draft.confidence != null"> · {{ Math.round(draft.confidence * 100) }}%</span>
-                                    <span v-if="draft.summary" class="block truncate text-zinc-500">{{ draft.summary }}</span>
-                                </div>
-                                <button
-                                    type="button"
-                                    class="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-                                    @click="applyIntakeDraftPayload(draft)"
-                                >
-                                    Применить к форме
-                                </button>
-                            </li>
-                        </ul>
-                        <p v-else-if="!intakeDraftsLoading" class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Нет сохранённых черновиков. Создайте заявку через ИИ-консоль или загрузите файл выше.
-                        </p>
-                    </div>
-                </div>
             </div>
             <div v-if="activeTab === 'main'" class="space-y-6">
                 <div class="grid gap-6 lg:grid-cols-2">
@@ -423,7 +355,16 @@
                         </div>
                         <div class="space-y-2">
                             <label class="text-sm font-medium">Номер</label>
-                            <input v-model="form.order_number" type="text" :class="crmFieldFluid" placeholder="Сгенерируется автоматически" />
+                            <input
+                                v-model="form.order_number"
+                                type="text"
+                                :class="crmFieldFluid"
+                                placeholder="Сгенерируется автоматически"
+                                @input="onOrderNumberManualInput"
+                            />
+                            <p v-if="!isEditing && suggestedOrderNumberCipher" class="text-xs text-zinc-500">
+                                По правилу «{{ suggestedOrderNumberCipher }}»; можно изменить вручную.
+                            </p>
                         </div>
                     </div>
 
@@ -2015,7 +1956,6 @@ const props = defineProps({
     currentUser: { type: Object, default: () => ({}) },
     bonusMultiplier: { type: Number, default: 0 },
     cargoTitleSuggestions: { type: Array, default: () => [] },
-    recentIntakeDrafts: { type: Array, default: () => [] },
 });
 
 const tabs = computed(() => [
@@ -2083,6 +2023,10 @@ onMounted(() => {
             };
         }
     });
+
+    if (!isEditing.value && form.own_company_id && !orderNumberManual.value) {
+        void refreshSuggestedOrderNumber();
+    }
 });
 
 const workflowTemplateId = ref(null);
@@ -3077,8 +3021,50 @@ const form = useForm({
 
 const documentsTabRef = ref(null);
 
+const orderNumberManual = ref(Boolean(props.order?.order_number));
+const suggestedOrderNumberCipher = ref('');
+
+function onOrderNumberManualInput() {
+    orderNumberManual.value = true;
+}
+
+async function refreshSuggestedOrderNumber() {
+    const companyId = Number(form.own_company_id);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+        suggestedOrderNumberCipher.value = '';
+        return;
+    }
+
+    try {
+        const url = route('orders.suggest-order-number', { own_company_id: companyId });
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            return;
+        }
+
+        suggestedOrderNumberCipher.value = data?.cipher ? String(data.cipher) : '';
+
+        if (!orderNumberManual.value && data?.order_number) {
+            form.order_number = String(data.order_number);
+        }
+    } catch (error) {
+        console.error('suggest order number failed', error);
+    }
+}
+
 watch(() => form.own_company_id, () => {
     form.own_company_bank_account_id = null;
+
+    if (!isEditing.value && !orderNumberManual.value) {
+        void refreshSuggestedOrderNumber();
+    }
 });
 
 watch(
@@ -3227,30 +3213,6 @@ const intakeSelectedFile = ref(null);
 const intakeLoading = ref(false);
 const intakePreview = ref(null);
 const intakeError = ref('');
-const intakeDraftsList = ref([]);
-const intakeDraftsLoading = ref(false);
-const intakeDraftsError = ref('');
-const intakeDraftsPickerOpen = ref(false);
-const appliedIntakeDraftId = ref(null);
-
-const intakeDraftsPickerLabel = computed(() => {
-    const count = intakeDraftsList.value.length;
-
-    if (count > 0) {
-        return `Другие черновики (${count})`;
-    }
-
-    return 'Черновики из ассистента';
-});
-
-function openIntakeDraftsPicker() {
-    intakeDraftsPickerOpen.value = true;
-
-    if (intakeDraftsList.value.length === 0) {
-        void refreshIntakeDrafts();
-    }
-}
-
 function mergeFinancialTermFromIntake(patchTerm) {
     if (!patchTerm || typeof patchTerm !== 'object') {
         return;
@@ -3315,9 +3277,6 @@ async function extractIntakeDraft() {
         }
 
         intakePreview.value = payload;
-        if (intakeDraftsPickerOpen.value) {
-            await refreshIntakeDrafts();
-        }
     } catch (error) {
         console.error('order intake extract failed', error);
         intakeError.value = 'Ошибка сети при распознавании заявки.';
@@ -3380,14 +3339,6 @@ function applyIntakeDraft() {
 
     syncContractorCostsFromPerformers();
 
-    const appliedId = Number(intakePreview.value?.draft_id ?? 0);
-    if (appliedId > 0) {
-        appliedIntakeDraftId.value = appliedId;
-        intakeDraftsList.value = intakeDraftsList.value.filter((draft) => Number(draft.draft_id) !== appliedId);
-        intakeDraftsPickerOpen.value = false;
-        intakePreview.value = null;
-    }
-
     activeTab.value = 'main';
 }
 
@@ -3433,33 +3384,6 @@ async function loadAndApplyIntakeDraftById(draftId) {
     } catch (error) {
         console.error('order intake draft load failed', error);
         intakeError.value = 'Ошибка сети при загрузке черновика.';
-    }
-}
-
-async function refreshIntakeDrafts() {
-    intakeDraftsLoading.value = true;
-    intakeDraftsError.value = '';
-
-    try {
-        const response = await fetch(route('orders.intake.drafts'), {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
-        const data = await response.json();
-
-        if (!response.ok) {
-            intakeDraftsError.value = data?.message ?? 'Не удалось загрузить черновики.';
-            return;
-        }
-
-        intakeDraftsList.value = Array.isArray(data?.drafts) ? data.drafts : [];
-    } catch (error) {
-        console.error('order intake drafts load failed', error);
-        intakeDraftsError.value = 'Ошибка сети при загрузке черновиков.';
-    } finally {
-        intakeDraftsLoading.value = false;
     }
 }
 

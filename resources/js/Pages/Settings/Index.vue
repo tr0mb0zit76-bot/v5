@@ -54,7 +54,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Bot, Files, Shield, Table2, TrendingUp, Users } from 'lucide-vue-next';
+import { BookOpen, Bot, Cog, Files, Shield, Table2, TrendingUp, Users } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmModuleCard } from '@/support/crmUi.js';
@@ -95,6 +95,7 @@ function iconFor(icon) {
         files: Files,
         'trending-up': TrendingUp,
         bot: Bot,
+        cog: Cog,
     }[icon] || Table2;
 }
 

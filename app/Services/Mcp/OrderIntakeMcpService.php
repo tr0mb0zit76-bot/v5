@@ -4,6 +4,7 @@ namespace App\Services\Mcp;
 
 use App\Models\OrderIntakeDraft;
 use App\Models\User;
+use App\Services\OrderIntakeLearnedPhrasesService;
 use App\Services\Orders\OrderDocumentIntakeService;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
@@ -15,6 +16,7 @@ class OrderIntakeMcpService
     public function __construct(
         private readonly McpAccessGate $access,
         private readonly OrderDocumentIntakeService $intakeExtractor,
+        private readonly OrderIntakeLearnedPhrasesService $learnedPhrases,
     ) {}
 
     /**
@@ -25,6 +27,16 @@ class OrderIntakeMcpService
         $this->access->requireOrdersArea($user);
 
         return $this->intakeExtractor->extractFromText($user, $instruction, 'mcp:instruction');
+    }
+
+    /**
+     * @return array{ok: bool, id: int, message: string}
+     */
+    public function rememberPhrase(User $user, string $sourcePhrase, string $canonicalValue, string $field): array
+    {
+        $this->access->requireOrdersArea($user);
+
+        return $this->learnedPhrases->remember($user, $sourcePhrase, $canonicalValue, $field);
     }
 
     /**

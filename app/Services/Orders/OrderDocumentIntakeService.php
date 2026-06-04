@@ -11,6 +11,8 @@ use App\Services\Documents\DocumentTextExtractor;
 use App\Services\DocumentStorageService;
 use App\Services\Inference\ExternalLlmPayloadSanitizer;
 use App\Support\AiChannel;
+use App\Support\OrderIntakeLlmContext;
+use App\Support\OrderIntakePhraseNormalizer;
 use App\Support\OrderIntakeSchema;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
@@ -124,7 +126,7 @@ class OrderDocumentIntakeService
         $this->assertIntakeEnabled($user);
 
         try {
-            $extracted = $this->structureWithLlm($text);
+            $extracted = $this->structureWithLlm($user, $text);
         } catch (Throwable $throwable) {
             Log::warning('order_intake_llm_failed', [
                 'user_id' => $user->id,
@@ -148,10 +150,14 @@ class OrderDocumentIntakeService
             ]);
         }
 
+        $extracted = OrderIntakePhraseNormalizer::normalizeExtracted($extracted, $user);
+
         $customer = is_array($extracted['customer'] ?? null) ? $extracted['customer'] : [];
         $carrier = is_array($extracted['carrier'] ?? null) ? $extracted['carrier'] : [];
+        $ownCompany = is_array($extracted['own_company'] ?? null) ? $extracted['own_company'] : [];
         $contractorMatches = $this->contractorResolver->matchParties($user, $customer, $carrier);
-        $wizard = OrderIntakeSchema::toWizardPatch($extracted, $contractorMatches);
+        $ownCompanyMatch = $this->contractorResolver->matchOwnCompany($user, $ownCompany);
+        $wizard = OrderIntakeSchema::toWizardPatch($extracted, $contractorMatches, $ownCompanyMatch);
 
         $draft = OrderIntakeDraft::query()->create([
             'user_id' => $user->id,
@@ -221,11 +227,11 @@ class OrderDocumentIntakeService
     /**
      * @return array<string, mixed>
      */
-    private function structureWithLlm(string $text): array
+    private function structureWithLlm(User $user, string $text): array
     {
         $messages = [
             ['role' => 'system', 'content' => OrderIntakeSchema::llmSystemPrompt()],
-            ['role' => 'user', 'content' => "Текст заявки:\n\n".$text],
+            ['role' => 'user', 'content' => OrderIntakeLlmContext::wrapUserInstruction($user, $text)],
         ];
 
         $messages = $this->sanitizer->sanitizeMessages($messages, 'command_bar');

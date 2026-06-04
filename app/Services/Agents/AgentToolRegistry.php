@@ -568,8 +568,33 @@ class AgentToolRegistry
                 ),
             ),
             new AgentToolDefinition(
+                name: 'remember_order_intake_phrase',
+                description: 'Запомнить формулировку пользователя для распознавания заявок после уточнения в диалоге (например «оплата через месяц» → «30 календарных дней»).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'source_phrase' => ['type' => 'string', 'description' => 'Как сказал пользователь.'],
+                        'canonical_value' => ['type' => 'string', 'description' => 'Как записать в CRM.'],
+                        'field' => [
+                            'type' => 'string',
+                            'enum' => ['payment_terms', 'own_company', 'general'],
+                            'description' => 'payment_terms | own_company | general',
+                        ],
+                    ],
+                    'required' => ['source_phrase', 'canonical_value', 'field'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orderIntake->rememberPhrase(
+                    $user,
+                    (string) ($args['source_phrase'] ?? ''),
+                    (string) ($args['canonical_value'] ?? ''),
+                    (string) ($args['field'] ?? 'general'),
+                ),
+            ),
+            new AgentToolDefinition(
                 name: 'create_order_intake_draft_from_text',
-                description: 'Создать черновик заявки на заказ из текста (маршрут, груз, ставки, условия оплаты). Возвращает draft_id и wizard_patch для мастера.',
+                description: 'Создать черновик заявки на заказ из полного текста (маршрут, груз, ставки, оплата, своя компания). Вызывай только когда данных достаточно или пользователь подтвердил уточнения.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
