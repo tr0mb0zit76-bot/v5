@@ -149,7 +149,8 @@ class OrderDocumentIntakeService
         }
 
         $customer = is_array($extracted['customer'] ?? null) ? $extracted['customer'] : [];
-        $contractorMatches = $this->contractorResolver->match($user, $customer);
+        $carrier = is_array($extracted['carrier'] ?? null) ? $extracted['carrier'] : [];
+        $contractorMatches = $this->contractorResolver->matchParties($user, $customer, $carrier);
         $wizard = OrderIntakeSchema::toWizardPatch($extracted, $contractorMatches);
 
         $draft = OrderIntakeDraft::query()->create([

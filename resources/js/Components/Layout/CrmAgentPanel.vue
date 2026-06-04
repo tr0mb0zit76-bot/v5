@@ -45,7 +45,12 @@
                                 ? 'whitespace-pre-wrap bg-sky-600 text-white'
                                 : 'border border-zinc-200 bg-zinc-50 text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100'"
                         >
-                            <p class="whitespace-pre-wrap">{{ item.content }}</p>
+                            <div
+                                v-if="item.role === 'assistant'"
+                                class="agent-markdown text-sm leading-relaxed"
+                                v-html="renderMarkdown(item.content)"
+                            />
+                            <p v-else class="whitespace-pre-wrap">{{ item.content }}</p>
 
                             <div
                                 v-if="item.role === 'assistant' && item.turnId && !loading"
@@ -105,6 +110,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { Sparkles, X } from 'lucide-vue-next';
+import { renderAgentMarkdown } from '@/support/renderAgentMarkdown.js';
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -119,6 +125,10 @@ const props = defineProps({
 defineEmits(['close', 'feedback']);
 
 const threadRef = ref(null);
+
+function renderMarkdown(content) {
+    return renderAgentMarkdown(content);
+}
 
 const metaLabel = computed(() => {
     if (props.loading || props.error) {
@@ -154,3 +164,60 @@ watch(
     },
 );
 </script>
+
+<style scoped>
+.agent-markdown :deep(p) {
+    margin: 0.35rem 0;
+}
+
+.agent-markdown :deep(p:first-child) {
+    margin-top: 0;
+}
+
+.agent-markdown :deep(p:last-child) {
+    margin-bottom: 0;
+}
+
+.agent-markdown :deep(ul),
+.agent-markdown :deep(ol) {
+    margin: 0.35rem 0;
+    padding-left: 1.25rem;
+}
+
+.agent-markdown :deep(table) {
+    margin: 0.5rem 0;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.agent-markdown :deep(th),
+.agent-markdown :deep(td) {
+    border: 1px solid rgb(212 212 216);
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+:global(.dark) .agent-markdown :deep(th),
+:global(.dark) .agent-markdown :deep(td) {
+    border-color: rgb(63 63 70);
+}
+
+.agent-markdown :deep(th) {
+    background: rgb(244 244 245);
+    font-weight: 600;
+}
+
+:global(.dark) .agent-markdown :deep(th) {
+    background: rgb(39 39 42);
+}
+
+.agent-markdown :deep(strong) {
+    font-weight: 600;
+}
+
+.agent-markdown :deep(code) {
+    font-size: 0.75rem;
+}
+</style>

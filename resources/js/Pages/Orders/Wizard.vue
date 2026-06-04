@@ -262,6 +262,49 @@
                         <li v-for="(warning, index) in intakePreview.warnings" :key="index">{{ warning }}</li>
                     </ul>
                 </div>
+                <div class="mt-4 border-t border-sky-200/60 pt-3 dark:border-sky-900/50">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="text-xs font-semibold text-sky-950 dark:text-sky-100">
+                            Черновики из ассистента и распознавания
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-sky-300 px-2 py-1 text-[11px] font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-100"
+                            :disabled="intakeDraftsLoading"
+                            @click="refreshIntakeDrafts"
+                        >
+                            {{ intakeDraftsLoading ? 'Обновление…' : 'Обновить' }}
+                        </button>
+                    </div>
+                    <p class="mt-1 text-[11px] text-sky-900/80 dark:text-sky-200/80">
+                        После команды в ИИ-консоли («Создай заказ…») выберите черновик здесь и нажмите «Применить к форме».
+                    </p>
+                    <p v-if="intakeDraftsError" class="mt-2 text-xs text-rose-700 dark:text-rose-300">{{ intakeDraftsError }}</p>
+                    <ul v-if="intakeDraftsList.length" class="mt-2 space-y-2">
+                        <li
+                            v-for="draft in intakeDraftsList"
+                            :key="draft.draft_id"
+                            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200/70 bg-white/80 px-3 py-2 text-xs dark:border-sky-900/40 dark:bg-zinc-900/50"
+                        >
+                            <div class="min-w-0 text-zinc-700 dark:text-zinc-200">
+                                <span class="font-semibold">#{{ draft.draft_id }}</span>
+                                <span v-if="draft.source_original_name"> · {{ draft.source_original_name }}</span>
+                                <span v-if="draft.confidence != null"> · {{ Math.round(draft.confidence * 100) }}%</span>
+                                <span v-if="draft.summary" class="block truncate text-zinc-500">{{ draft.summary }}</span>
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 rounded-lg border border-emerald-300 bg-emerald-50 px-2 py-1 font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                                @click="applyIntakeDraftPayload(draft)"
+                            >
+                                Применить к форме
+                            </button>
+                        </li>
+                    </ul>
+                    <p v-else-if="!intakeDraftsLoading" class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        Нет сохранённых черновиков. Создайте заявку через ИИ-консоль или загрузите файл выше.
+                    </p>
+                </div>
             </div>
             <div v-if="activeTab === 'main'" class="space-y-6">
                 <div class="grid gap-6 lg:grid-cols-2">
@@ -1696,7 +1739,7 @@
                 :additional-costs="form.financial_term.additional_costs"
                 :client-request-mode="form.financial_term.client_request_mode"
                 :is-order-form-editable="isOrderFormEditable"
-                :all-documents="order?.documents ?? []"
+                :all-documents="orderAllDocuments"
                 :print-form-template-catalog="printFormTemplateCatalog"
                 :print-form-template-options-customer="printFormTemplateOptionsCustomer"
                 :print-form-template-options-carrier="printFormTemplateOptionsCarrier"
@@ -1836,6 +1879,7 @@ import {
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
+import { EMPTY_ORDER_DOCUMENTS } from '@/support/emptyOrderDocuments.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -1946,6 +1990,7 @@ const props = defineProps({
     currentUser: { type: Object, default: () => ({}) },
     bonusMultiplier: { type: Number, default: 0 },
     cargoTitleSuggestions: { type: Array, default: () => [] },
+    recentIntakeDrafts: { type: Array, default: () => [] },
 });
 
 const tabs = computed(() => [
@@ -1960,6 +2005,12 @@ const tabs = computed(() => [
 
 const activeTab = ref('main');
 const borderCrossingLegPicker = ref('');
+
+const orderAllDocuments = computed(() => {
+    const docs = props.order?.documents;
+
+    return Array.isArray(docs) ? docs : EMPTY_ORDER_DOCUMENTS;
+});
 
 onMounted(() => {
     if (typeof window === 'undefined') {
@@ -3142,6 +3193,9 @@ const intakeSelectedFile = ref(null);
 const intakeLoading = ref(false);
 const intakePreview = ref(null);
 const intakeError = ref('');
+const intakeDraftsList = ref(Array.isArray(props.recentIntakeDrafts) ? [...props.recentIntakeDrafts] : []);
+const intakeDraftsLoading = ref(false);
+const intakeDraftsError = ref('');
 
 function onIntakeFileSelected(event) {
     intakeError.value = '';
@@ -3181,6 +3235,7 @@ async function extractIntakeDraft() {
         }
 
         intakePreview.value = payload;
+        await refreshIntakeDrafts();
     } catch (error) {
         console.error('order intake extract failed', error);
         intakeError.value = 'Ошибка сети при распознавании заявки.';
@@ -3222,12 +3277,71 @@ function applyIntakeDraft() {
             return;
         }
 
+        if (key === 'carrier_contractor_id' && value != null && form.performers[0]) {
+            const carrierId = Number(value);
+            form.performers[0].contractor_id = carrierId;
+            const carrierName = patch.carrier_contractor_name ?? getContractorById(carrierId)?.name ?? '';
+            if (carrierName) {
+                form.performers[0].contractor_name = carrierName;
+                setCarrierSearchValue('performer', 0, carrierName);
+            }
+            const costIndex = form.financial_term.contractors_costs.findIndex((cost) => stageMatches(cost.stage, form.performers[0].stage));
+            if (costIndex !== -1) {
+                form.financial_term.contractors_costs[costIndex].contractor_id = carrierId;
+            }
+
+            return;
+        }
+
         if (Object.prototype.hasOwnProperty.call(form, key)) {
             form[key] = value;
         }
     });
 
     activeTab.value = 'main';
+}
+
+function applyIntakeDraftPayload(payload) {
+    if (!payload?.wizard_patch || typeof payload.wizard_patch !== 'object') {
+        return;
+    }
+
+    intakePreview.value = {
+        draft_id: payload.draft_id,
+        confidence: payload.confidence,
+        preview: payload.preview ?? [],
+        warnings: payload.warnings ?? [],
+        wizard_patch: payload.wizard_patch,
+        matched_contractors: payload.matched_contractors ?? [],
+    };
+    applyIntakeDraft();
+}
+
+async function refreshIntakeDrafts() {
+    intakeDraftsLoading.value = true;
+    intakeDraftsError.value = '';
+
+    try {
+        const response = await fetch(route('orders.intake.drafts'), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            intakeDraftsError.value = data?.message ?? 'Не удалось загрузить черновики.';
+            return;
+        }
+
+        intakeDraftsList.value = Array.isArray(data?.drafts) ? data.drafts : [];
+    } catch (error) {
+        console.error('order intake drafts load failed', error);
+        intakeDraftsError.value = 'Ошибка сети при загрузке черновиков.';
+    } finally {
+        intakeDraftsLoading.value = false;
+    }
 }
 
 const orderStatusBadgeLabel = computed(() => {

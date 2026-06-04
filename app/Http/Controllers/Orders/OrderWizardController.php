@@ -15,10 +15,12 @@ use App\Models\LegContractorAssignment;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
+use App\Models\User;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
 use App\Services\KpiConfigurationService;
+use App\Services\Mcp\OrderIntakeMcpService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderPrintFormDraftService;
@@ -400,6 +402,9 @@ class OrderWizardController extends Controller
                 'name' => $request->user()?->name,
                 'role_name' => $request->user()?->loadMissing('role')->role?->name,
             ],
+            'recentIntakeDrafts' => $request->user() instanceof User
+                ? app(OrderIntakeMcpService::class)->listRecentDrafts($request->user(), 10)
+                : [],
             'cargoTitleSuggestions' => Cargo::query()
                 ->whereNotNull('title')
                 ->where('title', '!=', '')

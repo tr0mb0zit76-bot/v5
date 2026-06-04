@@ -13,6 +13,7 @@ final class OrderIntakeSchema
 Схема:
 {
   "customer": {"name": string|null, "inn": string|null, "contact_name": string|null, "contact_phone": string|null, "contact_email": string|null},
+  "carrier": {"name": string|null, "inn": string|null},
   "route": {
     "loading": {"address": string|null, "planned_date": string|null, "contact": string|null, "phone": string|null},
     "unloading": {"address": string|null, "planned_date": string|null, "contact": string|null, "phone": string|null}
@@ -57,10 +58,12 @@ TEXT;
         $cargo = is_array($extracted['cargo'] ?? null) ? $extracted['cargo'] : [];
         $commercial = is_array($extracted['commercial'] ?? null) ? $extracted['commercial'] : [];
 
-        $matchedClientId = null;
-        if ($contractorMatches !== [] && isset($contractorMatches[0]['id'])) {
-            $matchedClientId = (int) $contractorMatches[0]['id'];
-        }
+        $customerMatch = self::firstContractorMatch($contractorMatches, 'customer')
+            ?? ($contractorMatches[0] ?? null);
+        $carrierMatch = self::firstContractorMatch($contractorMatches, 'carrier');
+
+        $matchedClientId = isset($customerMatch['id']) ? (int) $customerMatch['id'] : null;
+        $matchedCarrierId = isset($carrierMatch['id']) ? (int) $carrierMatch['id'] : null;
 
         $patch = array_filter([
             'client_id' => $matchedClientId,
@@ -136,11 +139,25 @@ TEXT;
 
         if ($carrierRate !== null && $carrierRate !== '') {
             $carrierTerms = self::nullableString($commercial['carrier_payment_terms'] ?? null);
-            $financialTerm['contractors_costs'] = [[
+            $costRow = [
                 'stage' => 'leg_1',
                 'amount' => round((float) $carrierRate, 2),
                 'payment_terms' => $carrierTerms,
-            ]];
+            ];
+
+            if ($matchedCarrierId !== null) {
+                $costRow['contractor_id'] = $matchedCarrierId;
+            }
+
+            $financialTerm['contractors_costs'] = [$costRow];
+        }
+
+        if ($matchedCarrierId !== null) {
+            $patch['carrier_contractor_id'] = $matchedCarrierId;
+
+            if ($carrierMatch !== null && isset($carrierMatch['name'])) {
+                $patch['carrier_contractor_name'] = (string) $carrierMatch['name'];
+            }
         }
 
         if ($financialTerm !== []) {
@@ -173,11 +190,19 @@ TEXT;
             self::previewRow('Условия оплаты перевозчика', self::nullableString($commercial['carrier_payment_terms'] ?? null), self::confidence($fieldConfidence, 'commercial.carrier_payment_terms')),
         ];
 
-        if ($contractorMatches !== []) {
+        if ($customerMatch !== null) {
             $preview[] = self::previewRow(
-                'Контрагент в CRM',
-                (string) ($contractorMatches[0]['name'] ?? ''),
-                isset($contractorMatches[0]['score']) ? (float) $contractorMatches[0]['score'] : null,
+                'Заказчик в CRM',
+                (string) ($customerMatch['name'] ?? ''),
+                isset($customerMatch['score']) ? (float) $customerMatch['score'] : null,
+            );
+        }
+
+        if ($carrierMatch !== null) {
+            $preview[] = self::previewRow(
+                'Перевозчик в CRM',
+                (string) ($carrierMatch['name'] ?? ''),
+                isset($carrierMatch['score']) ? (float) $carrierMatch['score'] : null,
             );
         }
 
@@ -209,6 +234,25 @@ TEXT;
             'value' => $value,
             'confidence' => $confidence,
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $matches
+     * @return array<string, mixed>|null
+     */
+    private static function firstContractorMatch(array $matches, string $role): ?array
+    {
+        foreach ($matches as $match) {
+            if (! is_array($match)) {
+                continue;
+            }
+
+            if (($match['role'] ?? '') === $role && isset($match['id'])) {
+                return $match;
+            }
+        }
+
+        return null;
     }
 
     private static function nullableString(mixed $value): ?string

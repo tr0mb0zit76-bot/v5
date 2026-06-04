@@ -298,6 +298,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/orders/intake/extract', [OrderIntakeController::class, 'extract'])
         ->middleware(['visibility.area:orders', 'throttle:order-intake'])
         ->name('orders.intake.extract');
+    Route::get('/orders/intake/drafts', [OrderIntakeController::class, 'drafts'])
+        ->middleware('visibility.area:orders')
+        ->name('orders.intake.drafts');
     Route::controller(OrderWizardController::class)->middleware('visibility.area:orders')->group(function () {
         Route::get('/orders/create', 'create')->name('orders.create');
         Route::post('/orders', 'store')->name('orders.store');

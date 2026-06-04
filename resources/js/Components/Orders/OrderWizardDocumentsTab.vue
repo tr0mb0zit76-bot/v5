@@ -205,7 +205,7 @@ watch(
     (docs) => {
         signedDocuments.value = signedRegistryDocuments(docs).map((doc) => ({ ...doc }));
     },
-    { immediate: true, deep: true },
+    { immediate: true },
 );
 
 watch(

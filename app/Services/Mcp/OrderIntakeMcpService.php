@@ -109,7 +109,36 @@ class OrderIntakeMcpService
             'user_id' => $draft->user_id,
             'source_original_name' => $draft->source_original_name,
             'confidence' => $draft->confidence,
+            'summary' => $this->draftSummaryLine($draft),
+            'wizard_patch' => $draft->wizard_patch ?? [],
+            'matched_contractors' => $draft->matched_contractors ?? [],
             'created_at' => optional($draft->created_at)?->toIso8601String(),
         ];
+    }
+
+    private function draftSummaryLine(OrderIntakeDraft $draft): string
+    {
+        $patch = is_array($draft->wizard_patch) ? $draft->wizard_patch : [];
+        $parts = [];
+
+        $points = is_array($patch['route_points'] ?? null) ? $patch['route_points'] : [];
+        $loading = collect($points)->firstWhere('type', 'loading');
+        $unloading = collect($points)->firstWhere('type', 'unloading');
+
+        if (is_array($loading) && filled($loading['address'] ?? null)) {
+            $parts[] = 'погрузка: '.$loading['address'];
+        }
+
+        if (is_array($unloading) && filled($unloading['address'] ?? null)) {
+            $parts[] = 'выгрузка: '.$unloading['address'];
+        }
+
+        $cargo = is_array($patch['cargo_items'] ?? null) ? ($patch['cargo_items'][0] ?? null) : null;
+
+        if (is_array($cargo) && filled($cargo['name'] ?? null)) {
+            $parts[] = 'груз: '.$cargo['name'];
+        }
+
+        return $parts !== [] ? implode(' · ', $parts) : (string) $draft->source_original_name;
     }
 }
