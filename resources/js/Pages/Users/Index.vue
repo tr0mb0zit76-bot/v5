@@ -336,6 +336,68 @@
                         </div>
                     </div>
 
+                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">Почта (IMAP reg.ru)</div>
+                                <p class="mt-1 text-xs leading-snug text-zinc-500 dark:text-zinc-400">
+                                    Логин ящика — адрес email выше. Пароль хранится зашифрованно для фоновой синхронизации переписки в CRM.
+                                </p>
+                            </div>
+                            <label class="inline-flex shrink-0 items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                                <input v-model="form.mail_sync_enabled" type="checkbox" :class="crmCheckbox" />
+                                Синхронизировать
+                            </label>
+                        </div>
+
+                        <div
+                            v-if="editingUser !== null"
+                            class="mt-3 text-sm text-zinc-700 dark:text-zinc-200"
+                        >
+                            <template v-if="editingUser.has_mail_imap_password">
+                                Пароль почты задан
+                                <span class="ml-1.5 select-none tracking-[0.35em] text-zinc-500 dark:text-zinc-400" aria-hidden="true">••••••••</span>
+                            </template>
+                            <template v-else>
+                                <span class="text-amber-800 dark:text-amber-200">Пароль почты не задан</span>
+                            </template>
+                            <p
+                                v-if="editingUser.mail_last_sync_error"
+                                class="mt-1 text-xs text-rose-600 dark:text-rose-300"
+                            >
+                                Последняя ошибка sync: {{ editingUser.mail_last_sync_error }}
+                            </p>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                {{ editingUser === null ? 'Пароль почты' : 'Новый пароль почты' }}
+                            </label>
+                            <div class="relative mt-2 max-w-md">
+                                <input
+                                    v-model="form.mail_password"
+                                    :type="mailPasswordVisible ? 'text' : 'password'"
+                                    autocomplete="new-password"
+                                    class="w-full rounded-xl border border-zinc-200 bg-white py-2 pl-3 pr-10 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:border-zinc-50"
+                                />
+                                <button
+                                    type="button"
+                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                                    :disabled="editingUser !== null && form.mail_password.length === 0"
+                                    :aria-pressed="mailPasswordVisible"
+                                    :title="mailPasswordFieldToggleTitle"
+                                    aria-label="Показать или скрыть пароль почты"
+                                    @click="mailPasswordVisible = !mailPasswordVisible"
+                                >
+                                    <EyeOff v-if="mailPasswordVisible" class="h-4 w-4" />
+                                    <Eye v-else class="h-4 w-4" />
+                                </button>
+                            </div>
+                            <div v-if="form.errors.mail_password" class="mt-1 text-sm text-rose-600">{{ form.errors.mail_password }}</div>
+                            <div v-if="form.errors.mail_sync_enabled" class="mt-1 text-sm text-rose-600">{{ form.errors.mail_sync_enabled }}</div>
+                        </div>
+                    </div>
+
                     <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
                         <button
                             type="button"
@@ -404,6 +466,7 @@ const editingUser = ref(null);
 const activeTab = ref('active');
 const passwordVisible = ref(false);
 const passwordConfirmVisible = ref(false);
+const mailPasswordVisible = ref(false);
 
 const activeUsers = computed(() => props.users.filter((user) => user.is_active));
 const inactiveUsers = computed(() => props.users.filter((user) => !user.is_active));
@@ -425,6 +488,14 @@ const passwordConfirmFieldToggleTitle = computed(() => {
     return passwordConfirmVisible.value ? 'Скрыть подтверждение' : 'Показать подтверждение';
 });
 
+const mailPasswordFieldToggleTitle = computed(() => {
+    if (editingUser.value !== null && form.mail_password.length === 0) {
+        return 'Сначала введите пароль почты — нечего показывать';
+    }
+
+    return mailPasswordVisible.value ? 'Скрыть пароль почты' : 'Показать пароль почты';
+});
+
 const tabs = computed(() => [
     { key: 'active', label: `Активные (${activeUsers.value.length})` },
     { key: 'inactive', label: `Неактивные (${inactiveUsers.value.length})` },
@@ -442,6 +513,8 @@ const form = useForm({
     signing_own_company_ids: [],
     password: '',
     password_confirmation: '',
+    mail_password: '',
+    mail_sync_enabled: true,
 });
 
 function formatDate(value) {
@@ -455,6 +528,7 @@ function formatDate(value) {
 function resetPasswordVisibility() {
     passwordVisible.value = false;
     passwordConfirmVisible.value = false;
+    mailPasswordVisible.value = false;
 }
 
 function resetForm() {
@@ -471,6 +545,8 @@ function resetForm() {
     form.signing_own_company_ids = [];
     form.password = '';
     form.password_confirmation = '';
+    form.mail_password = '';
+    form.mail_sync_enabled = true;
     resetPasswordVisibility();
 }
 
@@ -499,6 +575,8 @@ function openEditModal(user) {
         : [];
     form.password = '';
     form.password_confirmation = '';
+    form.mail_password = '';
+    form.mail_sync_enabled = user.mail_sync_enabled !== false;
     showModal.value = true;
 }
 
@@ -592,6 +670,8 @@ function buildUpdatePayload(user, overrides = {}) {
             : [],
         password: '',
         password_confirmation: '',
+        mail_password: '',
+        mail_sync_enabled: user.mail_sync_enabled !== false,
         ...overrides,
     };
 }

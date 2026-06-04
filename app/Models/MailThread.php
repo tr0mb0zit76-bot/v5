@@ -21,6 +21,7 @@ class MailThread extends Model
         'last_outbound_at',
         'last_inbound_at',
         'created_by',
+        'mailbox_user_id',
     ];
 
     /**

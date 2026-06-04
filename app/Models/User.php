@@ -18,6 +18,7 @@ class User extends Authenticatable
 
     /** @use HasFactory<UserFactory> */
     use HasFactory;
+
     use Notifiable;
 
     /**
@@ -37,6 +38,7 @@ class User extends Authenticatable
         'ai_learning_enabled',
         'mobile_nav_keys',
         'ui_preferences',
+        'mail_sync_enabled',
     ];
 
     /**
@@ -45,6 +47,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'mail_imap_secret',
     ];
 
     /**
@@ -59,6 +62,9 @@ class User extends Authenticatable
             'has_signing_authority' => 'boolean',
             'belongs_to_management' => 'boolean',
             'ai_learning_enabled' => 'boolean',
+            'mail_imap_secret' => 'encrypted',
+            'mail_sync_enabled' => 'boolean',
+            'mail_last_sync_at' => 'datetime',
             'ai_preferences' => 'array',
             'mobile_nav_keys' => 'array',
             'ui_preferences' => 'array',
@@ -189,5 +195,19 @@ class User extends Authenticatable
         }
 
         return in_array($ownCompanyId, $this->signingOwnCompanyIds(), true);
+    }
+
+    public function hasMailImapCredential(): bool
+    {
+        return filled($this->getRawOriginal('mail_imap_secret'));
+    }
+
+    public function applyMailImapPassword(?string $plain): void
+    {
+        if (! is_string($plain) || $plain === '') {
+            return;
+        }
+
+        $this->forceFill(['mail_imap_secret' => $plain]);
     }
 }

@@ -1,6 +1,7 @@
 # Commercial Intelligence — фазы 0 и 1 (реализовано)
 
-> **Полная дорожная карта и черновики фаз 2–7:** [commercial-intelligence-roadmap.md](./commercial-intelligence-roadmap.md)
+> **Полная дорожная карта и черновики фаз 2–7:** [commercial-intelligence-roadmap.md](./commercial-intelligence-roadmap.md)  
+> **P0 (портрет + ingest почты):** [contractor-portrait-mvp.md](./contractor-portrait-mvp.md)
 
 ## Контекст
 
@@ -47,3 +48,10 @@
 php artisan migrate
 php artisan test --compact tests/Unit/ActivityLedgerServiceTest.php tests/Feature/LeadOfferMailSendTest.php
 ```
+
+### Синхронизация IMAP (фаза 2a)
+
+- `config/mail_sync.php`, команда `mail:sync` (cron каждые 10 мин).
+- Пароль почты — в карточке пользователя (`mail_imap_secret`, encrypted).
+- На сервере нужна PHP extension **imap** (`php-imap` / `docker-php-ext-install imap`).
+- Первый прогон: `php artisan mail:sync --user=ID --days=30`

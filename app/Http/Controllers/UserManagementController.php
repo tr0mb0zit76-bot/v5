@@ -55,9 +55,15 @@ class UserManagementController extends Controller
         $validated = $request->validated();
         $signingOwnCompanyIds = $validated['signing_own_company_ids'] ?? [];
         $roleIds = $validated['role_ids'] ?? [];
-        unset($validated['signing_own_company_ids'], $validated['role_ids']);
+        $mailPassword = $validated['mail_password'] ?? null;
+        unset($validated['signing_own_company_ids'], $validated['role_ids'], $validated['mail_password']);
 
         $user = User::query()->create($validated);
+        $user->applyMailImapPassword(is_string($mailPassword) ? $mailPassword : null);
+
+        if ($user->isDirty('mail_imap_secret')) {
+            $user->save();
+        }
 
         RoleAccess::syncUserRoles($user, is_array($roleIds) ? $roleIds : []);
 
@@ -77,13 +83,19 @@ class UserManagementController extends Controller
         $validated = $request->validated();
         $signingOwnCompanyIds = $validated['signing_own_company_ids'] ?? [];
         $roleIds = $validated['role_ids'] ?? null;
-        unset($validated['signing_own_company_ids'], $validated['role_ids']);
+        $mailPassword = $validated['mail_password'] ?? null;
+        unset($validated['signing_own_company_ids'], $validated['role_ids'], $validated['mail_password']);
 
         if (($validated['password'] ?? null) === null) {
             unset($validated['password']);
         }
 
         $user->update($validated);
+        $user->applyMailImapPassword(is_string($mailPassword) ? $mailPassword : null);
+
+        if ($user->isDirty('mail_imap_secret')) {
+            $user->save();
+        }
 
         if (is_array($roleIds)) {
             RoleAccess::syncUserRoles($user, $roleIds);
@@ -123,6 +135,10 @@ class UserManagementController extends Controller
             'role_id' => $user->role_id,
             'role_ids' => RoleAccess::userRoleIds($user),
             'has_password' => filled($user->getRawOriginal('password')),
+            'has_mail_imap_password' => $user->hasMailImapCredential(),
+            'mail_sync_enabled' => (bool) ($user->mail_sync_enabled ?? true),
+            'mail_last_sync_at' => $user->mail_last_sync_at?->toIso8601String(),
+            'mail_last_sync_error' => $user->mail_last_sync_error,
             'role' => $user->role === null ? null : [
                 'id' => $user->role->id,
                 'name' => $user->role->name,

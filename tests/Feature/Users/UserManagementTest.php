@@ -36,6 +36,10 @@ class UserManagementTest extends TestCase
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->text('mail_imap_secret')->nullable();
+            $table->boolean('mail_sync_enabled')->default(true);
+            $table->timestamp('mail_last_sync_at')->nullable();
+            $table->string('mail_last_sync_error', 500)->nullable();
             $table->string('theme', 20)->default('light');
             $table->boolean('is_active')->default(true);
             $table->boolean('has_signing_authority')->default(false);
@@ -132,6 +136,39 @@ class UserManagementTest extends TestCase
             'is_active' => false,
             'has_signing_authority' => true,
         ]);
+    }
+
+    public function test_admin_can_store_encrypted_mail_imap_password(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $managerRoleId = $this->createRole('manager', 'Менеджер');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $managedUser = User::factory()->create([
+            'email' => 'manager@example.com',
+            'role_id' => $managerRoleId,
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('users.update', $managedUser), [
+            'name' => $managedUser->name,
+            'email' => $managedUser->email,
+            'password' => '',
+            'password_confirmation' => '',
+            'role_id' => $managerRoleId,
+            'is_active' => true,
+            'has_signing_authority' => false,
+            'mail_password' => 'reg-mail-secret',
+            'mail_sync_enabled' => true,
+        ]);
+
+        $response->assertRedirect(route('settings.users.index'));
+
+        $managedUser->refresh();
+
+        $this->assertTrue($managedUser->hasMailImapCredential());
+        $this->assertSame('reg-mail-secret', $managedUser->mail_imap_secret);
+        $this->assertTrue($managedUser->mail_sync_enabled);
+        $this->assertNotSame('reg-mail-secret', $managedUser->getRawOriginal('mail_imap_secret'));
     }
 
     public function test_admin_cannot_delete_self(): void

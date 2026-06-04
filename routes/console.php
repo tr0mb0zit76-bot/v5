@@ -11,6 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('tasks:escalate-breached-sla')->hourly();
 Schedule::command('commercial:check-offer-mail-nudges')->dailyAt('08:30');
 Schedule::command('mail:purge-non-important-bodies')->monthlyOn(1, '03:00');
+Schedule::command('mail:sync')->everyTenMinutes();
 Schedule::command('contractors:sync-operational-status')->dailyAt('02:30');
 
 $dispositionTimezone = config('disposition.timezone', 'Europe/Moscow');

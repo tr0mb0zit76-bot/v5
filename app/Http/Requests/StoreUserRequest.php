@@ -41,6 +41,19 @@ class StoreUserRequest extends FormRequest
                     }
                 }),
             ],
+            'mail_password' => ['nullable', 'string', 'max:255'],
+            'mail_sync_enabled' => ['nullable', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'mail_password' => 'пароль почты',
+            'mail_sync_enabled' => 'синхронизация почты',
         ];
     }
 

@@ -29,6 +29,7 @@ class MailMessage extends Model
         'sent_at',
         'lead_offer_id',
         'created_by',
+        'mailbox_user_id',
     ];
 
     /**
