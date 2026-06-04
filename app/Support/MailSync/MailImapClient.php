@@ -3,13 +3,12 @@
 namespace App\Support\MailSync;
 
 use Carbon\CarbonImmutable;
+use IMAP\Connection;
 use RuntimeException;
 
 final class MailImapClient
 {
-    /**
-     * @var resource|null
-     */
+    /** @var Connection|resource|null */
     private $connection = null;
 
     private ?string $connectedFolder = null;
@@ -71,7 +70,7 @@ final class MailImapClient
      */
     private function searchUidsSince(CarbonImmutable $since, int $limit): array
     {
-        if (! is_resource($this->connection)) {
+        if (! MailImapConnection::isActive($this->connection)) {
             return [[], 'none'];
         }
 
@@ -121,7 +120,7 @@ final class MailImapClient
      */
     private function scanUidsSince(CarbonImmutable $since, int $limit): array
     {
-        if (! is_resource($this->connection)) {
+        if (! MailImapConnection::isActive($this->connection)) {
             return [];
         }
 
@@ -157,7 +156,7 @@ final class MailImapClient
 
     private function uidIsSince(int $uid, int $sinceTimestamp): bool
     {
-        if (! is_resource($this->connection)) {
+        if (! MailImapConnection::isActive($this->connection)) {
             return false;
         }
 
@@ -177,7 +176,7 @@ final class MailImapClient
 
     public function disconnect(): void
     {
-        if (is_resource($this->connection)) {
+        if (MailImapConnection::isActive($this->connection)) {
             imap_close($this->connection);
         }
 
@@ -192,7 +191,7 @@ final class MailImapClient
 
     private function openFolder(string $username, string $password, string $folder): void
     {
-        if (is_resource($this->connection) && $this->connectedFolder === $folder) {
+        if (MailImapConnection::isActive($this->connection) && $this->connectedFolder === $folder) {
             return;
         }
 
@@ -214,7 +213,7 @@ final class MailImapClient
 
     private function parseMessage(int $uid, string $direction, string $folder): ?ImportedMailMessage
     {
-        if (! is_resource($this->connection)) {
+        if (! MailImapConnection::isActive($this->connection)) {
             return null;
         }
 
@@ -261,7 +260,7 @@ final class MailImapClient
 
     private function fetchPlainBody(int $uid): string
     {
-        if (! is_resource($this->connection)) {
+        if (! MailImapConnection::isActive($this->connection)) {
             return '';
         }
 

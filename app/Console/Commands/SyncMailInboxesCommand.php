@@ -39,7 +39,7 @@ class SyncMailInboxesCommand extends Command
         }
 
         if ($this->output->isVerbose()) {
-            $this->line('mail:sync engine v3 (fetchSince + num_msg fallback)');
+            $this->line('mail:sync engine v4 (IMAP\\Connection + fetchSince)');
             $this->line('IMAP: '.config('mail_sync.imap.host').':'.config('mail_sync.imap.port'));
         }
 
