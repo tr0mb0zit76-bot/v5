@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\MailSync\MailOutboundAttachmentRules;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SendReplyMailRequest extends FormRequest
@@ -22,6 +23,7 @@ class SendReplyMailRequest extends FormRequest
             'cc' => ['nullable', 'array'],
             'cc.*' => ['email'],
             'body' => ['required', 'string', 'max:20000'],
+            ...MailOutboundAttachmentRules::validationRules(),
         ];
     }
 

@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Support\ActivityEventType;
 use App\Support\MailSync\OutboundMailMessageId;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -31,6 +32,7 @@ class CommercialMailService
     /**
      * @param  list<string>  $toEmails
      * @param  list<string>  $ccEmails
+     * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null, file_size?: int}>  $attachments
      * @return array{thread: MailThread, message: MailMessage}
      */
     public function sendOutbound(
@@ -41,9 +43,7 @@ class CommercialMailService
         ?Lead $lead = null,
         ?LeadOffer $offer = null,
         array $ccEmails = [],
-        ?string $attachmentPath = null,
-        ?string $attachmentName = null,
-        ?string $attachmentDriver = null,
+        array $attachments = [],
         ?MailThread $existingThread = null,
         ?MailMessage $inReplyToMessage = null,
         ?int $orderId = null,
@@ -120,6 +120,10 @@ class CommercialMailService
             $messageAttributes['internet_message_id'] = $internetMessageId;
         }
 
+        if (Schema::hasColumn('mail_messages', 'attachments') && $attachments !== []) {
+            $messageAttributes['attachments'] = $this->serializeAttachmentsForStorage($attachments);
+        }
+
         $message = MailMessage::query()->create($messageAttributes);
 
         $mailable = new CommercialOutboundMail(
@@ -130,9 +134,7 @@ class CommercialMailService
             messageId: $internetMessageId,
             inReplyTo: $inReplyToHeader,
             references: $referencesHeader,
-            attachmentPath: $attachmentPath,
-            attachmentName: $attachmentName,
-            attachmentDriver: $attachmentDriver,
+            outboundAttachments: $this->normalizeAttachmentsForMailable($attachments),
         );
 
         Mail::to($toEmails)->cc($ccEmails)->send($mailable);
@@ -158,8 +160,36 @@ class CommercialMailService
     }
 
     /**
+     * @param  list<UploadedFile>  $uploadedFiles
+     * @return list<array{path: string, name: string, driver: string|null, mime_type: string|null, file_size: int}>
+     */
+    public function storeUploadedAttachments(array $uploadedFiles, User $sender, ?int $orderId = null): array
+    {
+        $stored = [];
+
+        foreach ($uploadedFiles as $file) {
+            if (! $file instanceof UploadedFile || ! $file->isValid()) {
+                continue;
+            }
+
+            $meta = $this->documentStorage->storeMailOutboundUpload($file, $sender->id, $orderId);
+
+            $stored[] = [
+                'path' => $meta['file_path'],
+                'name' => $meta['original_name'],
+                'driver' => $meta['storage_driver'],
+                'mime_type' => $meta['mime_type'],
+                'file_size' => $meta['file_size'],
+            ];
+        }
+
+        return $stored;
+    }
+
+    /**
      * @param  list<string>  $toEmails
      * @param  list<string>  $ccEmails
+     * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null, file_size?: int}>  $attachments
      * @return array{thread: MailThread, message: MailMessage}
      */
     public function replyInThread(
@@ -168,6 +198,7 @@ class CommercialMailService
         array $toEmails,
         User $sender,
         array $ccEmails = [],
+        array $attachments = [],
     ): array {
         $lead = $thread->lead_id !== null
             ? Lead::query()->find($thread->lead_id)
@@ -185,6 +216,7 @@ class CommercialMailService
             sender: $sender,
             lead: $lead,
             ccEmails: $ccEmails,
+            attachments: $attachments,
             existingThread: $thread,
             inReplyToMessage: $latestMessage,
             orderId: $thread->order_id,
@@ -367,5 +399,40 @@ class CommercialMailService
                 );
             }
         }
+    }
+
+    /**
+     * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null, file_size?: int}>  $attachments
+     * @return list<array{original_name: string, file_path: string, storage_driver: string|null, mime_type: string|null, file_size: int|null}>
+     */
+    private function serializeAttachmentsForStorage(array $attachments): array
+    {
+        return array_values(array_map(
+            static fn (array $attachment): array => [
+                'original_name' => (string) $attachment['name'],
+                'file_path' => (string) $attachment['path'],
+                'storage_driver' => $attachment['driver'] ?? null,
+                'mime_type' => $attachment['mime_type'] ?? null,
+                'file_size' => isset($attachment['file_size']) ? (int) $attachment['file_size'] : null,
+            ],
+            $attachments,
+        ));
+    }
+
+    /**
+     * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null, file_size?: int}>  $attachments
+     * @return list<array{path: string, name: string, driver: string|null, mime_type: string|null}>
+     */
+    private function normalizeAttachmentsForMailable(array $attachments): array
+    {
+        return array_values(array_map(
+            static fn (array $attachment): array => [
+                'path' => (string) $attachment['path'],
+                'name' => (string) $attachment['name'],
+                'driver' => $attachment['driver'] ?? null,
+                'mime_type' => $attachment['mime_type'] ?? null,
+            ],
+            $attachments,
+        ));
     }
 }

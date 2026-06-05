@@ -304,6 +304,19 @@ class MailMcpService
                 : $message->body_text,
             'body_purged' => $message->bodyPurged(),
             'sent_at' => optional($message->sent_at)?->toIso8601String(),
+            'attachments' => collect(is_array($message->attachments) ? $message->attachments : [])
+                ->map(static function (mixed $attachment): ?string {
+                    if (! is_array($attachment)) {
+                        return null;
+                    }
+
+                    $name = trim((string) ($attachment['original_name'] ?? $attachment['name'] ?? ''));
+
+                    return $name !== '' ? $name : null;
+                })
+                ->filter()
+                ->values()
+                ->all(),
         ];
     }
 }

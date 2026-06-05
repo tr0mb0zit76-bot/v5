@@ -22,7 +22,17 @@ class LeadOfferMailController extends Controller
         abort_unless((int) $offer->lead_id === (int) $lead->id, 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
 
-        $attachment = $this->commercialMail->resolveOfferAttachment($offer);
+        $attachments = [];
+        $offerAttachment = $this->commercialMail->resolveOfferAttachment($offer);
+
+        if ($offerAttachment !== null) {
+            $attachments[] = [
+                'path' => $offerAttachment['path'],
+                'name' => $offerAttachment['name'],
+                'driver' => $offerAttachment['driver'],
+                'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ];
+        }
 
         $this->commercialMail->sendOutbound(
             subject: $request->string('subject')->toString(),
@@ -32,9 +42,7 @@ class LeadOfferMailController extends Controller
             lead: $lead,
             offer: $offer,
             ccEmails: $request->input('cc', []),
-            attachmentPath: $attachment['path'] ?? null,
-            attachmentName: $attachment['name'] ?? null,
-            attachmentDriver: $attachment['driver'] ?? null,
+            attachments: $attachments,
         );
 
         return back()->with('flash', [

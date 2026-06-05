@@ -63,6 +63,33 @@ class DocumentStorageService
     /**
      * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
      */
+    /**
+     * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
+     */
+    public function storeMailOutboundUpload(UploadedFile $file, int $senderUserId, ?int $orderId = null): array
+    {
+        $originalName = $file->getClientOriginalName();
+        $directory = $orderId !== null
+            ? 'mail_outbound/'.$senderUserId.'/order_'.$orderId
+            : 'mail_outbound/'.$senderUserId;
+        $path = $this->resolveUniquePathInDirectory($directory, $originalName);
+        $contents = $file->get();
+        $driver = $this->configuredDriver();
+        $this->put($path, $contents, $driver);
+        $size = $file->getSize();
+        if ($size === false) {
+            $size = strlen($contents);
+        }
+
+        return [
+            'original_name' => $originalName,
+            'file_path' => $path,
+            'file_size' => (int) $size,
+            'mime_type' => $file->getMimeType(),
+            'storage_driver' => $driver,
+        ];
+    }
+
     public function storeContractorUpload(UploadedFile $file, ?int $contractorId = null): array
     {
         $originalName = $file->getClientOriginalName();

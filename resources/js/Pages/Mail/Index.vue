@@ -83,6 +83,16 @@
                                 </button>
                             </div>
                             <pre class="mt-3 whitespace-pre-wrap font-sans text-sm text-zinc-700 dark:text-zinc-200">{{ message.body_text }}</pre>
+                            <ul
+                                v-if="message.attachments?.length"
+                                class="mt-3 space-y-1 text-xs text-zinc-600 dark:text-zinc-300"
+                            >
+                                <li v-for="(file, fileIndex) in message.attachments" :key="`${message.id}-att-${fileIndex}`" class="flex items-center gap-1.5">
+                                    <Paperclip class="h-3.5 w-3.5 shrink-0" />
+                                    <span>{{ file.name }}</span>
+                                    <span v-if="file.file_size" class="text-zinc-400">({{ formatFileSize(file.file_size) }})</span>
+                                </li>
+                            </ul>
                         </article>
                     </div>
 
@@ -99,6 +109,21 @@
                         <div>
                             <label :class="crmLabel">Текст</label>
                             <textarea v-model="replyForm.body" rows="5" :class="crmFieldFluid" />
+                        </div>
+                        <div>
+                            <label :class="crmLabel">Вложения</label>
+                            <input
+                                type="file"
+                                multiple
+                                :class="crmFieldFluid"
+                                @change="onReplyAttachmentsSelected"
+                            />
+                            <p v-if="attachmentLimits.hint" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{{ attachmentLimits.hint }}</p>
+                            <ul v-if="replyForm.attachments.length" class="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                                <li v-for="(file, index) in replyForm.attachments" :key="`reply-att-${index}`">
+                                    {{ file.name }}
+                                </li>
+                            </ul>
                         </div>
                         <p class="text-xs text-zinc-500 dark:text-zinc-400">От: {{ fromEmail }}</p>
                         <button type="submit" :class="crmBtnPrimary" :disabled="replyForm.processing">Отправить ответ</button>
@@ -141,6 +166,21 @@
                         <label :class="crmLabel">Текст</label>
                         <textarea v-model="sendForm.body" rows="8" :class="crmFieldFluid" />
                     </div>
+                    <div>
+                        <label :class="crmLabel">Вложения</label>
+                        <input
+                            type="file"
+                            multiple
+                            :class="crmFieldFluid"
+                            @change="onSendAttachmentsSelected"
+                        />
+                        <p v-if="attachmentLimits.hint" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{{ attachmentLimits.hint }}</p>
+                        <ul v-if="sendForm.attachments.length" class="mt-2 space-y-1 text-xs text-zinc-600 dark:text-zinc-300">
+                            <li v-for="(file, index) in sendForm.attachments" :key="`send-att-${index}`">
+                                {{ file.name }}
+                            </li>
+                        </ul>
+                    </div>
                     <p class="text-xs text-zinc-500 dark:text-zinc-400">От: {{ fromEmail }}</p>
                     <button type="submit" :class="crmBtnPrimary" :disabled="sendForm.processing">Отправить</button>
                 </form>
@@ -151,7 +191,7 @@
 
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
-import { Star } from 'lucide-vue-next';
+import { Paperclip, Star } from 'lucide-vue-next';
 import { onMounted, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -192,6 +232,14 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    attachmentLimits: {
+        type: Object,
+        default: () => ({
+            hint: '',
+            max_files: 5,
+            max_file_kb: 10240,
+        }),
+    },
 });
 
 const sendForm = useForm({
@@ -201,12 +249,14 @@ const sendForm = useForm({
     cc_raw: '',
     subject: '',
     body: '',
+    attachments: [],
 });
 
 const replyForm = useForm({
     to_raw: '',
     cc_raw: '',
     body: '',
+    attachments: [],
 });
 
 function applyComposeDefaults(defaults) {
@@ -262,6 +312,21 @@ function parseEmails(raw) {
         .filter(Boolean);
 }
 
+function pickAttachmentFiles(event) {
+    const files = Array.from(event.target?.files ?? []);
+    const maxFiles = Math.max(1, Number(props.attachmentLimits.max_files) || 5);
+
+    return files.slice(0, maxFiles);
+}
+
+function onSendAttachmentsSelected(event) {
+    sendForm.attachments = pickAttachmentFiles(event);
+}
+
+function onReplyAttachmentsSelected(event) {
+    replyForm.attachments = pickAttachmentFiles(event);
+}
+
 function submitSend() {
     sendForm
         .transform((data) => ({
@@ -271,11 +336,13 @@ function submitSend() {
             cc: parseEmails(data.cc_raw),
             subject: data.subject,
             body: data.body,
+            attachments: data.attachments,
         }))
         .post(route('mail.send'), {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => {
-                sendForm.reset('to_raw', 'cc_raw', 'subject', 'body');
+                sendForm.reset('to_raw', 'cc_raw', 'subject', 'body', 'attachments');
             },
         });
 }
@@ -290,13 +357,33 @@ function submitReply() {
             to: parseEmails(data.to_raw),
             cc: parseEmails(data.cc_raw),
             body: data.body,
+            attachments: data.attachments,
         }))
         .post(route('mail.threads.reply', props.selectedThread.id), {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => {
-                replyForm.reset('body');
+                replyForm.reset('body', 'attachments');
             },
         });
+}
+
+function formatFileSize(bytes) {
+    const value = Number(bytes);
+
+    if (!Number.isFinite(value) || value <= 0) {
+        return '';
+    }
+
+    if (value < 1024) {
+        return `${value} Б`;
+    }
+
+    if (value < 1024 * 1024) {
+        return `${(value / 1024).toFixed(1)} КиБ`;
+    }
+
+    return `${(value / 1024 / 1024).toFixed(1)} МиБ`;
 }
 
 function toggleImportance(message) {

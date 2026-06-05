@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
+use App\Support\MailSync\MailOutboundAttachmentRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -46,6 +47,7 @@ class MailMailboxController extends Controller
             'fromEmail' => (string) ($user->email ?: config('mail.from.address')),
             'replyDefaults' => null,
             'composeDefaults' => $composeDefaults,
+            'attachmentLimits' => $this->attachmentLimitsPayload(),
         ]);
     }
 
@@ -72,6 +74,8 @@ class MailMailboxController extends Controller
                 'to' => $this->commercialMail->suggestReplyRecipients($mailThread, $user),
                 'subject' => $mailThread->subject,
             ],
+            'composeDefaults' => null,
+            'attachmentLimits' => $this->attachmentLimitsPayload(),
         ]);
     }
 
@@ -94,6 +98,12 @@ class MailMailboxController extends Controller
             $contractorId = $contractorId !== null ? (int) $contractorId : null;
         }
 
+        $attachments = $this->commercialMail->storeUploadedAttachments(
+            $request->file('attachments', []),
+            $user,
+            $orderId,
+        );
+
         $result = $this->commercialMail->sendOutbound(
             subject: $request->string('subject')->toString(),
             bodyText: $request->string('body')->toString(),
@@ -101,6 +111,7 @@ class MailMailboxController extends Controller
             sender: $user,
             lead: $lead,
             ccEmails: $request->input('cc', []),
+            attachments: $attachments,
             orderId: $orderId,
             contractorId: $contractorId,
         );
@@ -119,12 +130,19 @@ class MailMailboxController extends Controller
         abort_if($user === null, 403);
         abort_unless($this->mailboxAuth->canAccessThread($user, $mailThread), 403);
 
+        $attachments = $this->commercialMail->storeUploadedAttachments(
+            $request->file('attachments', []),
+            $user,
+            $mailThread->order_id,
+        );
+
         $this->commercialMail->replyInThread(
             thread: $mailThread,
             bodyText: $request->string('body')->toString(),
             toEmails: $request->input('to', []),
             sender: $user,
             ccEmails: $request->input('cc', []),
+            attachments: $attachments,
         );
 
         return redirect()
@@ -245,6 +263,53 @@ class MailMailboxController extends Controller
             'body_purged' => $message->bodyPurged(),
             'is_important' => (bool) $message->is_important,
             'sent_at' => $message->sent_at?->toIso8601String(),
+            'attachments' => $this->serializeMessageAttachments($message),
+        ];
+    }
+
+    /**
+     * @return list<array{name: string, file_size: int|null, mime_type: string|null}>
+     */
+    private function serializeMessageAttachments(MailMessage $message): array
+    {
+        $attachments = $message->attachments;
+
+        if (! is_array($attachments)) {
+            return [];
+        }
+
+        return collect($attachments)
+            ->map(static function (mixed $attachment): ?array {
+                if (! is_array($attachment)) {
+                    return null;
+                }
+
+                $name = trim((string) ($attachment['original_name'] ?? $attachment['name'] ?? ''));
+
+                if ($name === '') {
+                    return null;
+                }
+
+                return [
+                    'name' => $name,
+                    'file_size' => isset($attachment['file_size']) ? (int) $attachment['file_size'] : null,
+                    'mime_type' => isset($attachment['mime_type']) ? (string) $attachment['mime_type'] : null,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{hint: string, max_files: int, max_file_kb: int}
+     */
+    private function attachmentLimitsPayload(): array
+    {
+        return [
+            'hint' => MailOutboundAttachmentRules::hintRu(),
+            'max_files' => max(1, (int) config('mail_sync.outbound_attachments.max_files', 5)),
+            'max_file_kb' => max(256, (int) config('mail_sync.outbound_attachments.max_file_kb', 10240)),
         ];
     }
 

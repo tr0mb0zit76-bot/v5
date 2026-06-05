@@ -43,6 +43,12 @@ return [
     /*
     | Для этих доменов в allowlist попадает только полный адрес, не весь домен.
     */
+    'outbound_attachments' => [
+        'max_files' => max(1, min(10, (int) env('MAIL_OUTBOUND_MAX_ATTACHMENTS', 5))),
+        'max_file_kb' => max(256, min(51200, (int) env('MAIL_OUTBOUND_MAX_ATTACHMENT_KB', 10240))),
+        'allowed_mimes' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'txt', 'csv'],
+    ],
+
     'public_mail_domains' => [
         'gmail.com',
         'googlemail.com',

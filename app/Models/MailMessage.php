@@ -24,6 +24,7 @@ class MailMessage extends Model
         'subject',
         'body_text',
         'body_html',
+        'attachments',
         'is_important',
         'retention_summary',
         'content_purged_at',
@@ -41,6 +42,7 @@ class MailMessage extends Model
         return [
             'to_emails' => 'array',
             'cc_emails' => 'array',
+            'attachments' => 'array',
             'is_important' => 'boolean',
             'content_purged_at' => 'datetime',
             'sent_at' => 'datetime',

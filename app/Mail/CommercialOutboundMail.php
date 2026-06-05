@@ -17,6 +17,9 @@ class CommercialOutboundMail extends Mailable
     use Queueable;
     use SerializesModels;
 
+    /**
+     * @param  list<array{path: string, name: string, driver: string|null, mime_type: string|null}>  $outboundAttachments
+     */
     public function __construct(
         public string $subjectLine,
         public string $bodyText,
@@ -25,9 +28,7 @@ class CommercialOutboundMail extends Mailable
         public ?string $messageId = null,
         public ?string $inReplyTo = null,
         public ?string $references = null,
-        public ?string $attachmentPath = null,
-        public ?string $attachmentName = null,
-        public ?string $attachmentDriver = null,
+        public array $outboundAttachments = [],
     ) {}
 
     public function envelope(): Envelope
@@ -69,16 +70,31 @@ class CommercialOutboundMail extends Mailable
      */
     public function attachments(): array
     {
-        if (blank($this->attachmentPath)) {
+        if ($this->outboundAttachments === []) {
             return [];
         }
 
-        return [
-            Attachment::fromData(
-                fn (): string => app(DocumentStorageService::class)
-                    ->get((string) $this->attachmentPath, $this->attachmentDriver),
-                (string) ($this->attachmentName ?: 'attachment.docx'),
-            )->withMime('application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        ];
+        $storage = app(DocumentStorageService::class);
+
+        return array_values(array_map(
+            static function (array $attachment) use ($storage): Attachment {
+                $mime = trim((string) ($attachment['mime_type'] ?? ''));
+
+                $mailAttachment = Attachment::fromData(
+                    fn (): string => $storage->get(
+                        (string) $attachment['path'],
+                        $attachment['driver'] ?? null,
+                    ),
+                    (string) ($attachment['name'] ?: 'attachment'),
+                );
+
+                if ($mime !== '') {
+                    $mailAttachment = $mailAttachment->withMime($mime);
+                }
+
+                return $mailAttachment;
+            },
+            $this->outboundAttachments,
+        ));
     }
 }
