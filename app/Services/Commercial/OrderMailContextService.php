@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\CommercialMailService;
 use App\Support\MailSync\MailMessageBodyPresenter;
+use App\Support\RoleAccess;
 
 final class OrderMailContextService
 {
