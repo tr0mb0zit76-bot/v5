@@ -12,6 +12,7 @@ use App\Models\MailThread;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
+use App\Services\Commercial\MailThreadDeletionService;
 use App\Services\Commercial\MailThreadLinkService;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
@@ -19,6 +20,7 @@ use App\Services\DocumentStorageService;
 use App\Support\MailSync\MailMailboxOwnerCatalog;
 use App\Support\MailSync\MailMessageBodyPresenter;
 use App\Support\MailSync\MailOutboundAttachmentRules;
+use App\Support\VisibleOrderScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +37,7 @@ class MailMailboxController extends Controller
         private readonly OrderMailContextService $orderMailContext,
         private readonly MailMailboxOwnerCatalog $mailboxOwnerCatalog,
         private readonly MailThreadLinkService $threadLinks,
+        private readonly MailThreadDeletionService $threadDeletion,
     ) {}
 
     public function index(Request $request): Response
@@ -204,6 +207,22 @@ class MailMailboxController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, MailThread $mailThread): RedirectResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless($this->mailboxAuth->canAccessThread($user, $mailThread), 403);
+
+        $this->threadDeletion->delete($mailThread);
+
+        return redirect()
+            ->route('mail.index', $this->mailboxRedirectParams($request))
+            ->with('flash', [
+                'type' => 'success',
+                'message' => 'Цепочка писем удалена из CRM.',
+            ]);
+    }
+
     public function updateLinks(UpdateMailThreadLinksRequest $request, MailThread $mailThread): RedirectResponse
     {
         $user = $request->user();
@@ -269,7 +288,7 @@ class MailMailboxController extends Controller
                 return response()->json(['items' => []]);
             }
 
-            $builder = Order::query()->orderByDesc('id')->limit(25);
+            $builder = VisibleOrderScope::apply(Order::query())->orderByDesc('id')->limit(25);
 
             if ($query !== '') {
                 if (ctype_digit($query)) {
@@ -368,14 +387,16 @@ class MailMailboxController extends Controller
         $latest = $thread->relationLoaded('messages') ? $thread->messages->first() : null;
         $includeMailboxMeta = $viewer !== null && $this->mailboxAuth->canViewAllMailboxes($viewer);
 
+        $visibleOrderId = $this->visibleOrderId($thread);
+
         $data = [
             'id' => $thread->id,
             'subject' => $thread->subject,
             'lead_id' => $thread->lead_id,
             'lead_number' => $thread->lead?->number,
             'lead_title' => $thread->lead?->title,
-            'order_id' => $thread->order_id,
-            'order_number' => $thread->order?->order_number,
+            'order_id' => $visibleOrderId,
+            'order_number' => $visibleOrderId !== null ? $thread->order?->order_number : null,
             'contractor_id' => $thread->contractor_id,
             'contractor_name' => $thread->contractor?->name,
             'last_message_at' => $thread->last_message_at?->toIso8601String(),
@@ -507,7 +528,7 @@ class MailMailboxController extends Controller
             return [];
         }
 
-        return Order::query()
+        return VisibleOrderScope::apply(Order::query())
             ->orderByDesc('id')
             ->limit(150)
             ->get(['id', 'order_number'])
@@ -517,5 +538,38 @@ class MailMailboxController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function visibleOrderId(MailThread $thread): ?int
+    {
+        if ($thread->order_id === null) {
+            return null;
+        }
+
+        $order = $thread->relationLoaded('order') ? $thread->order : null;
+
+        if ($order === null) {
+            $order = Order::query()->find($thread->order_id);
+        }
+
+        if ($order === null || $order->trashed()) {
+            return null;
+        }
+
+        return (int) $thread->order_id;
+    }
+
+    /**
+     * @return array<string, int|null>
+     */
+    private function mailboxRedirectParams(Request $request): array
+    {
+        $params = [];
+
+        if ($request->filled('mailbox')) {
+            $params['mailbox'] = (int) $request->input('mailbox');
+        }
+
+        return $params;
     }
 }

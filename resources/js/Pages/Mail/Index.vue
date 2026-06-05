@@ -76,9 +76,9 @@
                 </div>
             </aside>
 
-            <section class="flex min-h-0 flex-col gap-4">
+            <section class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                 <template v-if="selectedThread">
-                    <div :class="`${crmPanel} space-y-2 p-4`">
+                    <div :class="`${crmPanel} shrink-0 space-y-3 p-4`">
                         <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ selectedThread.subject }}</h2>
                         <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
                             <span v-if="selectedThread.mailbox_owner_name">
@@ -102,37 +102,75 @@
                             </Link>
                             <span v-if="selectedThread.contractor_name">{{ selectedThread.contractor_name }}</span>
                         </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                :class="threadActionButtonClass(showLinkPanel)"
+                                @click="toggleLinkPanel"
+                            >
+                                <Link2 class="h-4 w-4" />
+                                Привязка
+                            </button>
+                            <button
+                                type="button"
+                                :class="threadActionButtonClass(showReplyForm)"
+                                @click="toggleReplyForm"
+                            >
+                                <Reply class="h-4 w-4" />
+                                Ответить
+                            </button>
+                            <button
+                                type="button"
+                                :class="`${crmBtnSecondaryOutline} ml-auto`"
+                                @click="deleteThread"
+                            >
+                                <Trash2 class="h-4 w-4" />
+                                Удалить
+                            </button>
+                        </div>
+
+                        <form
+                            v-if="showLinkPanel"
+                            class="space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-800"
+                            @submit.prevent="submitLinks"
+                        >
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                Укажите лид или заказ, если система не определила их автоматически.
+                            </p>
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <MailLinkPicker
+                                    v-model="linkForm.lead_id"
+                                    type="lead"
+                                    :seeds="linkLeadSeeds"
+                                    label="Лид"
+                                    placeholder="Номер или название лида"
+                                />
+                                <MailLinkPicker
+                                    v-model="linkForm.order_id"
+                                    type="order"
+                                    :seeds="linkOrderSeeds"
+                                    label="Заказ"
+                                    placeholder="Номер заказа"
+                                />
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="submit" :class="crmBtnSecondary" :disabled="linkForm.processing">
+                                    Сохранить привязку
+                                </button>
+                                <button
+                                    v-if="threadHasLinks"
+                                    type="button"
+                                    :class="crmBtnSecondaryOutline"
+                                    @click="showLinkPanel = false"
+                                >
+                                    Свернуть
+                                </button>
+                            </div>
+                        </form>
                     </div>
 
-                    <form :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitLinks">
-                        <div>
-                            <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Привязка к сделке</h3>
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Если система не определила лид или заказ автоматически, укажите вручную.
-                            </p>
-                        </div>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <MailLinkPicker
-                                v-model="linkForm.lead_id"
-                                type="lead"
-                                :seeds="linkLeadSeeds"
-                                label="Лид"
-                                placeholder="Номер или название лида"
-                            />
-                            <MailLinkPicker
-                                v-model="linkForm.order_id"
-                                type="order"
-                                :seeds="linkOrderSeeds"
-                                label="Заказ"
-                                placeholder="Номер заказа"
-                            />
-                        </div>
-                        <button type="submit" :class="crmBtnSecondary" :disabled="linkForm.processing">
-                            Сохранить привязку
-                        </button>
-                    </form>
-
-                    <div :class="`${crmPanel} min-h-0 flex-1 space-y-3 overflow-y-auto p-4`">
+                    <div :class="`${crmPanel} flex min-h-0 flex-1 flex-col overflow-hidden`">
+                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                         <article
                             v-for="message in messages"
                             :key="message.id"
@@ -216,10 +254,20 @@
                                 </li>
                             </ul>
                         </article>
+                        </div>
                     </div>
 
-                    <form :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitReply">
-                        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Ответить</h3>
+                    <form
+                        v-if="showReplyForm"
+                        :class="`${crmPanel} max-h-[min(42vh,22rem)] shrink-0 space-y-3 overflow-y-auto p-4`"
+                        @submit.prevent="submitReply"
+                    >
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Ответить</h3>
+                            <button type="button" :class="crmBtnSecondaryOutline" @click="showReplyForm = false">
+                                Свернуть
+                            </button>
+                        </div>
                         <div>
                             <label :class="crmLabel">Кому (через запятую)</label>
                             <input v-model="replyForm.to_raw" type="text" :class="crmFieldFluid" />
@@ -315,8 +363,8 @@
 
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
-import { Paperclip, Star } from 'lucide-vue-next';
-import { computed, onMounted, reactive, watch } from 'vue';
+import { Link2, Paperclip, Reply, Star, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import MailLinkPicker from '@/Components/Mail/MailLinkPicker.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -400,6 +448,10 @@ const linkForm = useForm({
 });
 
 const messageViewMode = reactive({});
+const showLinkPanel = ref(false);
+const showReplyForm = ref(false);
+
+const threadHasLinks = computed(() => Boolean(props.selectedThread?.lead_id || props.selectedThread?.order_id));
 
 const linkLeadSeeds = computed(() => {
     const seeds = [...props.leads];
@@ -464,11 +516,16 @@ watch(
     () => props.selectedThread,
     (thread) => {
         if (!thread) {
+            showLinkPanel.value = false;
+            showReplyForm.value = false;
+
             return;
         }
 
         linkForm.lead_id = thread.lead_id ?? null;
         linkForm.order_id = thread.order_id ?? null;
+        showLinkPanel.value = !thread.lead_id && !thread.order_id;
+        showReplyForm.value = false;
     },
     { immediate: true },
 );
@@ -487,6 +544,26 @@ onMounted(() => {
     sendForm.order_id = Number.parseInt(orderId, 10) || null;
 });
 
+function threadActionButtonClass(active) {
+    return active ? crmBtnSecondary : crmBtnSecondaryOutline;
+}
+
+function toggleLinkPanel() {
+    showLinkPanel.value = !showLinkPanel.value;
+
+    if (showLinkPanel.value) {
+        showReplyForm.value = false;
+    }
+}
+
+function toggleReplyForm() {
+    showReplyForm.value = !showReplyForm.value;
+
+    if (showReplyForm.value) {
+        showLinkPanel.value = false;
+    }
+}
+
 function submitLinks() {
     if (!props.selectedThread) {
         return;
@@ -494,6 +571,31 @@ function submitLinks() {
 
     linkForm.patch(route('mail.threads.links', props.selectedThread.id), {
         preserveScroll: true,
+        onSuccess: () => {
+            if (linkForm.lead_id || linkForm.order_id) {
+                showLinkPanel.value = false;
+            }
+        },
+    });
+}
+
+function deleteThread() {
+    if (!props.selectedThread) {
+        return;
+    }
+
+    if (!window.confirm('Удалить цепочку писем из CRM? В почтовом ящике письма останутся.')) {
+        return;
+    }
+
+    const params = {};
+
+    if (props.mailView.selected_mailbox_user_id !== null && props.mailView.selected_mailbox_user_id !== undefined) {
+        params.mailbox = props.mailView.selected_mailbox_user_id;
+    }
+
+    router.delete(route('mail.threads.destroy', props.selectedThread.id), {
+        data: params,
     });
 }
 
