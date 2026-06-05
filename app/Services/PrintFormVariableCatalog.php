@@ -148,12 +148,12 @@ class PrintFormVariableCatalog
             ['value' => 'vehicle.cargo_body_type', 'label' => 'Транспорт: Кузов (из заказа — груз, поле «Кузов»)'],
             ['value' => 'vehicle.trailer_type', 'label' => 'Транспорт: Кузов — то же, что cargo_body_type (совместимость)'],
 
-            ['value' => 'contacts.customer_name', 'label' => 'Контакты: Имя заказчика'],
-            ['value' => 'contacts.customer_phone', 'label' => 'Контакты: Телефон заказчика'],
-            ['value' => 'contacts.customer_email', 'label' => 'Контакты: Email заказчика'],
-            ['value' => 'contacts.carrier_name', 'label' => 'Контакты: Имя перевозчика'],
-            ['value' => 'contacts.carrier_phone', 'label' => 'Контакты: Телефон перевозчика'],
-            ['value' => 'contacts.carrier_email', 'label' => 'Контакты: Email перевозчика'],
+            ['value' => 'contacts.customer_name', 'label' => 'Контакты: Имя заказчика (заказ → основной контакт контрагента)'],
+            ['value' => 'contacts.customer_phone', 'label' => 'Контакты: Телефон заказчика (заказ → основной контакт контрагента)'],
+            ['value' => 'contacts.customer_email', 'label' => 'Контакты: Email заказчика (заказ → основной контакт контрагента)'],
+            ['value' => 'contacts.carrier_name', 'label' => 'Контакты: Имя перевозчика (заказ → основной контакт контрагента)'],
+            ['value' => 'contacts.carrier_phone', 'label' => 'Контакты: Телефон перевозчика (заказ → основной контакт контрагента)'],
+            ['value' => 'contacts.carrier_email', 'label' => 'Контакты: Email перевозчика (заказ → основной контакт контрагента)'],
 
             ['value' => 'route.loading_addresses', 'label' => 'Маршрут: Адреса загрузки'],
             ['value' => 'route.loading_cities', 'label' => 'Маршрут: Города загрузки'],

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Rules\DocumentWithinPageBudget;
+use App\Support\ContractorDuplicateGuard;
 use App\Support\ContractorIdentity;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
@@ -274,10 +275,24 @@ class StoreContractorRequest extends FormRequest
     {
         return [
             'type' => ['required', Rule::in(['customer', 'carrier', 'contractor', 'both'])],
-            'name' => ['required', 'string', 'max:255', Rule::unique('contractors', 'name')],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    ContractorDuplicateGuard::failIfNameTaken($value, $this->user(), null, $fail);
+                },
+            ],
             'full_name' => ['nullable', 'string', 'max:255'],
             'short_description' => ['nullable', 'string', 'max:1000'],
-            'inn' => ['nullable', 'string', 'max:20', Rule::unique('contractors', 'inn')],
+            'inn' => [
+                'nullable',
+                'string',
+                'max:20',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    ContractorDuplicateGuard::failIfInnTaken($value, $this->user(), null, $fail);
+                },
+            ],
             'kpp' => ['nullable', 'string', 'max:20'],
             'ogrn' => ['nullable', 'string', 'max:20'],
             'okpo' => ['nullable', 'string', 'max:20'],

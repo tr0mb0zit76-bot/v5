@@ -16,6 +16,7 @@ use App\Services\ContractorPartnerCardService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\ContractorDuplicateGuard;
 use App\Support\ContractorTableColumns;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
@@ -136,6 +137,24 @@ class ContractorController extends Controller
         return response()->json([
             'suggestions' => $daDataService->suggestParty($request->string('query')->toString()),
         ]);
+    }
+
+    public function checkDuplicate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'inn' => ['nullable', 'string', 'max:20'],
+            'name' => ['nullable', 'string', 'max:255'],
+            'ignore_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json(
+            ContractorDuplicateGuard::checkPayload(
+                isset($validated['inn']) ? (string) $validated['inn'] : null,
+                isset($validated['name']) ? (string) $validated['name'] : null,
+                $request->user(),
+                isset($validated['ignore_id']) ? (int) $validated['ignore_id'] : null,
+            ),
+        );
     }
 
     public function suggestAddress(Request $request, DaDataService $daDataService): JsonResponse

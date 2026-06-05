@@ -42,6 +42,7 @@ import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/suppor
 import {
     applyContractorPartySuggestion,
     ensureContractorPartyAutofill,
+    fetchContractorDuplicateCheck,
     fetchContractorPartySuggestion,
     isCompleteContractorInn,
     normalizedContractorInn,
@@ -120,6 +121,12 @@ const isCreateRouteDismissed = ref(false);
 const isDetailsModalDismissed = ref(false);
 const isInnLookupPending = ref(false);
 const submitError = ref('');
+const duplicateWarning = ref({
+    message: '',
+    contractorId: null,
+    openUrl: null,
+    canOpen: false,
+});
 let activeInnLookup = null;
 const addressSuggestions = ref({
     legal_address: [],
@@ -1030,6 +1037,7 @@ function openCreateForm() {
     isCreateRouteDismissed.value = false;
     isDetailsModalDismissed.value = false;
     submitError.value = '';
+    clearDuplicateWarning();
     applyFormState(null);
     activeTab.value = 'general';
     isCreateModalOpen.value = true;
@@ -1146,6 +1154,13 @@ async function submit() {
         }
 
         sanitizeOwnerIdForSubmit();
+
+        if (await refreshDuplicateWarning()) {
+            submitError.value = duplicateWarning.value.message;
+            focusContractorSubmitIssue('inn');
+
+            return;
+        }
     } catch (error) {
         console.error('Contractor submit preparation error', error);
         submitError.value = 'Не удалось подготовить данные к сохранению. Попробуйте ещё раз.';
@@ -1471,6 +1486,8 @@ async function fetchPartySuggestions() {
                 applyPartySuggestion(suggestion);
                 lastAutoFilledInn.value = normalizedContractorInn(form.inn) || query;
             }
+
+            await refreshDuplicateWarning();
         } catch (error) {
             console.error('DaData party suggestion error', error);
         } finally {
@@ -1515,9 +1532,79 @@ function sanitizeOwnerIdForSubmit() {
     form.owner_id = defaultOwnerId();
 }
 
+function clearDuplicateWarning() {
+    duplicateWarning.value = {
+        message: '',
+        contractorId: null,
+        openUrl: null,
+        canOpen: false,
+    };
+}
+
+async function refreshDuplicateWarning() {
+    if (!isCreating.value && selectedContractorId.value !== null) {
+        const result = await fetchContractorDuplicateCheck({
+            inn: form.inn,
+            name: form.name,
+            ignoreId: selectedContractorId.value,
+        });
+
+        if (result.duplicate) {
+            duplicateWarning.value = {
+                message: result.message ?? 'Контрагент с такими данными уже существует.',
+                contractorId: result.contractor_id,
+                openUrl: result.open_url,
+                canOpen: Boolean(result.can_open),
+            };
+
+            return true;
+        }
+
+        clearDuplicateWarning();
+
+        return false;
+    }
+
+    if (!isCompleteContractorInn(form.inn) && contractorNameForSubmit() === '') {
+        clearDuplicateWarning();
+
+        return false;
+    }
+
+    const result = await fetchContractorDuplicateCheck({
+        inn: form.inn,
+        name: form.name,
+    });
+
+    if (!result.duplicate) {
+        clearDuplicateWarning();
+
+        return false;
+    }
+
+    duplicateWarning.value = {
+        message: result.message ?? 'Контрагент с такими данными уже существует.',
+        contractorId: result.contractor_id,
+        openUrl: result.open_url,
+        canOpen: Boolean(result.can_open),
+    };
+
+    return true;
+}
+
 function handleContractorSubmitErrors(errors) {
-    const firstError = Object.values(errors ?? {}).find((message) => String(message ?? '').trim() !== '');
+    const duplicateMessage = errors?.inn || errors?.name;
+    const firstError = duplicateMessage || Object.values(errors ?? {}).find((message) => String(message ?? '').trim() !== '');
     submitError.value = firstError ? String(firstError) : 'Не удалось сохранить контрагента.';
+
+    if (duplicateMessage) {
+        duplicateWarning.value = {
+            message: String(duplicateMessage),
+            contractorId: null,
+            openUrl: null,
+            canOpen: false,
+        };
+    }
 
     if (errors?.name || errors?.inn || errors?.type || errors?.owner_id) {
         focusContractorSubmitIssue('name');
@@ -1623,6 +1710,7 @@ function paymentFormLabel(value) {
 
 watch(() => form.inn, (inn) => {
     clearTimeout(innLookupTimer);
+    clearDuplicateWarning();
 
     const normalizedInn = normalizedContractorInn(inn);
 
@@ -1638,6 +1726,12 @@ watch(() => form.inn, (inn) => {
         form.inn = normalizedInn;
         fetchPartySuggestions();
     }, 500);
+});
+
+watch(() => form.name, () => {
+    if (isCreating.value) {
+        clearDuplicateWarning();
+    }
 });
 
 function goToPage(pageNumber) {
@@ -2168,6 +2262,20 @@ function goToPage(pageNumber) {
                                                 После ввода корректного ИНН DaData попробует заполнить реквизиты автоматически.
                                             </div>
                                             <div v-if="form.errors.inn" class="text-sm text-rose-600">{{ form.errors.inn }}</div>
+                                            <div
+                                                v-else-if="duplicateWarning.message"
+                                                class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                                            >
+                                                <p>{{ duplicateWarning.message }}</p>
+                                                <button
+                                                    v-if="duplicateWarning.canOpen && duplicateWarning.contractorId"
+                                                    type="button"
+                                                    class="mt-2 text-sm font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+                                                    @click="openContractor(duplicateWarning.contractorId)"
+                                                >
+                                                    Открыть существующую карточку
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div class="space-y-2">
@@ -3088,7 +3196,7 @@ function goToPage(pageNumber) {
                     <div v-else-if="activeTab === 'contacts'" class="space-y-4">
                         <div class="flex items-center justify-between gap-3">
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                Отдельные контакты удобно хранить отдельно от основной карточки компании.
+                                Отдельные контакты удобно хранить отдельно от основной карточки компании. Основной контакт подставляется в заявку и печатные формы, если в заказе не указан другой.
                             </div>
                             <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addContact">
                                 <Plus class="h-4 w-4" />
@@ -3117,7 +3225,7 @@ function goToPage(pageNumber) {
                                     <div class="flex flex-col gap-3 md:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:row-span-2">
                                         <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
                                             <input v-model="contact.is_primary" type="checkbox" :class="crmCheckbox" />
-                                            Основной контакт
+                                            Основной контакт (для заявок и печати)
                                         </label>
                                         <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
                                             <input v-model="contact.is_decision_maker" type="checkbox" :class="crmCheckbox" />

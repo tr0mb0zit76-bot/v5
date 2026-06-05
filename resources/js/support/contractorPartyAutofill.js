@@ -101,6 +101,68 @@ export function applyContractorPartySuggestion(target, suggestion) {
     }
 }
 
+/**
+ * @param {{ inn?: string|null, name?: string|null, ignoreId?: number|null }} params
+ * @returns {Promise<{
+ *   duplicate: boolean,
+ *   matched_by: string|null,
+ *   message: string|null,
+ *   contractor_id: number|null,
+ *   contractor_name: string|null,
+ *   can_open: boolean,
+ *   open_url: string|null
+ * }>}
+ */
+export async function fetchContractorDuplicateCheck(params = {}) {
+    const searchParams = new URLSearchParams();
+
+    if (params.inn) {
+        searchParams.set('inn', String(params.inn));
+    }
+
+    if (params.name) {
+        searchParams.set('name', String(params.name));
+    }
+
+    if (params.ignoreId) {
+        searchParams.set('ignore_id', String(params.ignoreId));
+    }
+
+    const query = searchParams.toString();
+    if (query === '') {
+        return {
+            duplicate: false,
+            matched_by: null,
+            message: null,
+            contractor_id: null,
+            contractor_name: null,
+            can_open: false,
+            open_url: null,
+        };
+    }
+
+    const response = await fetch(`${route('contractors.duplicate-check')}?${query}`, {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    if (!response.ok) {
+        return {
+            duplicate: false,
+            matched_by: null,
+            message: null,
+            contractor_id: null,
+            contractor_name: null,
+            can_open: false,
+            open_url: null,
+        };
+    }
+
+    return response.json();
+}
+
 export async function ensureContractorPartyAutofill(target, options = {}) {
     const normalizedInn = normalizedContractorInn(target.inn);
     const hasName = String(target.name ?? '').trim() !== '';

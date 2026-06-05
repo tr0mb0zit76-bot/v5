@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Contractor;
 use App\Models\User;
+use App\Support\ContractorDuplicateGuard;
 use App\Support\ContractorWorkStatus;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\Schema;
@@ -25,14 +26,18 @@ class UpdateContractorRequest extends StoreContractorRequest
             'required',
             'string',
             'max:255',
-            Rule::unique('contractors', 'name')->ignore($contractor->id),
+            function (string $attribute, mixed $value, \Closure $fail) use ($contractor): void {
+                ContractorDuplicateGuard::failIfNameTaken($value, $this->user(), $contractor->id, $fail);
+            },
         ];
 
         $rules['inn'] = [
             'nullable',
             'string',
             'max:20',
-            Rule::unique('contractors', 'inn')->ignore($contractor->id),
+            function (string $attribute, mixed $value, \Closure $fail) use ($contractor): void {
+                ContractorDuplicateGuard::failIfInnTaken($value, $this->user(), $contractor->id, $fail);
+            },
         ];
 
         $allowedWorkStatuses = ContractorWorkStatus::manualValues();

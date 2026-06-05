@@ -452,6 +452,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
         Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
         Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
+        Route::get('/contractors/duplicate-check', 'checkDuplicate')->name('contractors.duplicate-check');
         Route::get('/contractors-suggest/party', 'suggestParty')->name('contractors.suggest-party');
         Route::get('/contractors-suggest/address', 'suggestAddress')->name('contractors.suggest-address');
         Route::get('/contractors-suggest/bank', 'suggestBank')->name('contractors.suggest-bank');

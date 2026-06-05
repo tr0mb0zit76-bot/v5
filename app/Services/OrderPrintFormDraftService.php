@@ -8,8 +8,10 @@ use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\PrintFormTemplate;
+use App\Models\User;
 use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\ContractorPrimaryContactResolver;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
@@ -22,6 +24,7 @@ use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormRouteTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
+use App\Support\RussianGivenName;
 use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -230,6 +233,9 @@ class OrderPrintFormDraftService
 
         $paymentTermsPayload = $this->decodeOrderPaymentTermsPayload($order);
         $scopedPaymentTermsPayload = $this->paymentTermsPayloadForPrintContext($order, $paymentTermsPayload, $context);
+        $carrierContractor = $this->resolveCarrierContractorForPrint($order, $context);
+        $this->ensureContractorContactsLoaded($order->client);
+        $this->ensureContractorContactsLoaded($carrierContractor instanceof Contractor ? $carrierContractor : null);
 
         return [
             'order' => [
@@ -290,28 +296,13 @@ class OrderPrintFormDraftService
                 'all_contact_phones' => $this->resolvePartyContactPhoneList($unloadingPoints, 'recipient_contact', 'recipient_phone'),
             ],
             'customer' => $this->contractorPayload($order->client),
-            'carrier' => $this->contractorPayload($this->resolveCarrierContractorForPrint($order, $context)),
+            'carrier' => $this->contractorPayload($carrierContractor),
             'own_company' => $this->contractorPayload($order->ownCompany, $order->own_company_bank_account_id),
-            'manager' => [
-                'name' => $order->manager?->name,
-                'email' => $order->manager?->email,
-                'phone' => $order->manager?->phone,
-            ],
-            'responsible' => [
-                'name' => $order->manager?->name,
-                'email' => $order->manager?->email,
-                'phone' => $order->manager?->phone,
-            ],
+            'manager' => $this->managerPayload($order->manager),
+            'responsible' => $this->managerPayload($order->manager),
             'driver' => $driver,
             'vehicle' => $vehicle,
-            'contacts' => [
-                'customer_name' => $order->customer_contact_name,
-                'customer_phone' => $order->customer_contact_phone,
-                'customer_email' => $order->customer_contact_email,
-                'carrier_name' => $order->carrier_contact_name,
-                'carrier_phone' => $order->carrier_contact_phone,
-                'carrier_email' => $order->carrier_contact_email,
-            ],
+            'contacts' => $this->partyContactsPayload($order, $order->client, $carrierContractor),
             'route' => [
                 'loading_addresses' => $this->resolvePartyAddressList($loadingPoints),
                 'loading_cities' => $this->resolvePointCityList($loadingPoints),
@@ -1134,12 +1125,103 @@ class OrderPrintFormDraftService
             $relations[] = 'financialTerms';
         }
 
+        if (Schema::hasTable('contractor_contacts')) {
+            $relations[] = 'client.contacts';
+            $relations[] = 'carrier.contacts';
+        }
+
         return $order->loadMissing($relations);
+    }
+
+    private function ensureContractorContactsLoaded(?Contractor $contractor): void
+    {
+        if (! $contractor instanceof Contractor || ! Schema::hasTable('contractor_contacts')) {
+            return;
+        }
+
+        $contractor->loadMissing('contacts');
+    }
+
+    /**
+     * @return array{
+     *     customer_name: ?string,
+     *     customer_phone: ?string,
+     *     customer_email: ?string,
+     *     carrier_name: ?string,
+     *     carrier_phone: ?string,
+     *     carrier_email: ?string
+     * }
+     */
+    private function partyContactsPayload(Order $order, ?Contractor $customerContractor, mixed $carrierContractor): array
+    {
+        $customerFallback = ContractorPrimaryContactResolver::resolve($customerContractor);
+        $carrierFallback = ContractorPrimaryContactResolver::resolve(
+            $carrierContractor instanceof Contractor ? $carrierContractor : null,
+        );
+
+        return [
+            'customer_name' => $this->firstNonEmptyString(
+                $order->customer_contact_name,
+                $customerFallback['full_name'],
+            ),
+            'customer_phone' => $this->firstNonEmptyString(
+                $order->customer_contact_phone,
+                $customerFallback['phone'],
+            ),
+            'customer_email' => $this->firstNonEmptyString(
+                $order->customer_contact_email,
+                $customerFallback['email'],
+            ),
+            'carrier_name' => $this->firstNonEmptyString(
+                $order->carrier_contact_name,
+                $carrierFallback['full_name'],
+            ),
+            'carrier_phone' => $this->firstNonEmptyString(
+                $order->carrier_contact_phone,
+                $carrierFallback['phone'],
+            ),
+            'carrier_email' => $this->firstNonEmptyString(
+                $order->carrier_contact_email,
+                $carrierFallback['email'],
+            ),
+        ];
+    }
+
+    private function firstNonEmptyString(mixed ...$values): ?string
+    {
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $trimmed = trim((string) $value);
+
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return null;
     }
 
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @return array{name: string|null, full_name: string|null, email: string|null, phone: string|null}
+     */
+    private function managerPayload(?User $manager): array
+    {
+        $fullName = $manager?->name;
+
+        return [
+            'name' => RussianGivenName::fromFullName($fullName),
+            'full_name' => $fullName,
+            'email' => $manager?->email,
+            'phone' => $manager?->phone,
+        ];
+    }
+
     private function contractorPayload(mixed $contractor, ?string $preferredOwnCompanyBankAccountId = null): array
     {
         $acct = $contractor instanceof Contractor
