@@ -23,11 +23,13 @@ use App\Mcp\Tools\GetUserContextTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
 use App\Mcp\Tools\RememberOrderIntakePhraseTool;
+use App\Mcp\Tools\ReplyMailThreadTool;
 use App\Mcp\Tools\SearchContractorsTool;
 use App\Mcp\Tools\SearchMailThreadsTool;
 use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\SearchTasksTool;
+use App\Mcp\Tools\SendMailTool;
 use App\Mcp\Tools\UpdateOrderFieldTool;
 use App\Mcp\Tools\UpdateOrderRouteActualTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
@@ -59,7 +61,7 @@ use Laravel\Mcp\Server\Tool;
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / remember_order_intake_phrase — черновики заявок и обучение фразам из диалога
         - После create_order_intake_draft_from_text в ответе есть draft_id и wizard_path (/orders/create?intake_draft=…). MCP не открывает UI — пользователь переходит по wizard_path (command bar в CRM делает это сам через navigate_to).
-        - search_mail_threads / get_mail_thread / get_mail_sync_status — переписка и ошибки IMAP sync
+        - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
 
         Аутентификация: Bearer Sanctum token.
         MARKDOWN)]
@@ -99,6 +101,8 @@ class CrmServer extends Server
         SearchMailThreadsTool::class,
         GetMailThreadTool::class,
         GetMailSyncStatusTool::class,
+        SendMailTool::class,
+        ReplyMailThreadTool::class,
     ];
 
     /**

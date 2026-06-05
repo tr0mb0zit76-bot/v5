@@ -685,6 +685,74 @@ class AgentToolRegistry
                 invoke: fn (User $user): array => $this->mail->syncStatus($user),
             ),
             new AgentToolDefinition(
+                name: 'send_mail',
+                description: 'Отправить исходящее письмо из CRM (SMTP). Возвращает thread_id и message_id.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'subject' => ['type' => 'string', 'maxLength' => 255],
+                        'body' => ['type' => 'string', 'maxLength' => 20000],
+                        'to' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string', 'format' => 'email'],
+                            'minItems' => 1,
+                        ],
+                        'cc' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string', 'format' => 'email'],
+                        ],
+                        'lead_id' => ['type' => 'integer', 'minimum' => 1],
+                        'order_id' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'required' => ['subject', 'body', 'to'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: function (User $user, array $args): array {
+                    return $this->mail->sendMail(
+                        $user,
+                        (string) $args['subject'],
+                        (string) $args['body'],
+                        $args['to'],
+                        $args['cc'] ?? [],
+                        isset($args['lead_id']) ? (int) $args['lead_id'] : null,
+                        isset($args['order_id']) ? (int) $args['order_id'] : null,
+                    );
+                },
+            ),
+            new AgentToolDefinition(
+                name: 'reply_mail_thread',
+                description: 'Ответить в существующую цепочку писем (thread_id из search_mail_threads / get_mail_thread).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'thread_id' => ['type' => 'integer', 'minimum' => 1],
+                        'body' => ['type' => 'string', 'maxLength' => 20000],
+                        'to' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string', 'format' => 'email'],
+                            'minItems' => 1,
+                        ],
+                        'cc' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string', 'format' => 'email'],
+                        ],
+                    ],
+                    'required' => ['thread_id', 'body'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: function (User $user, array $args): array {
+                    return $this->mail->replyToThread(
+                        $user,
+                        (int) $args['thread_id'],
+                        (string) $args['body'],
+                        $args['to'] ?? null,
+                        $args['cc'] ?? [],
+                    );
+                },
+            ),
+            new AgentToolDefinition(
                 name: 'get_manager_sales_coaching_insights',
                 description: 'Outcome Intelligence: почему проваливаются/выигрываются лиды, гигиена сделки, простой vs активность на этапах, рекомендации.',
                 parameters: [

@@ -17,6 +17,7 @@ class MailMessage extends Model
     protected $fillable = [
         'mail_thread_id',
         'direction',
+        'internet_message_id',
         'from_email',
         'to_emails',
         'cc_emails',

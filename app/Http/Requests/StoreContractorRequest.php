@@ -8,6 +8,7 @@ use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\DocumentUploadBudget;
 use App\Support\EdoProviderDictionary;
+use App\Support\MailSync\PublicMailDomainCatalog;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -106,6 +107,27 @@ class StoreContractorRequest extends FormRequest
             }
 
             $this->merge([$key => trim((string) $value)]);
+        }
+
+        if ($this->has('mail_sync_domains')) {
+            $domains = $this->input('mail_sync_domains');
+
+            if (is_string($domains)) {
+                $domains = preg_split('/[\n,;]+/u', $domains) ?: [];
+            }
+
+            if (is_array($domains)) {
+                $normalized = collect($domains)
+                    ->map(fn (mixed $domain): string => PublicMailDomainCatalog::normalizeDomain((string) $domain))
+                    ->filter(fn (string $domain): bool => $domain !== '' && ! PublicMailDomainCatalog::isPublic($domain))
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $this->merge([
+                    'mail_sync_domains' => $normalized === [] ? null : $normalized,
+                ]);
+            }
         }
 
         $bankAccounts = $this->input('bank_accounts');
@@ -261,6 +283,8 @@ class StoreContractorRequest extends FormRequest
             'postal_address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
+            'mail_sync_domains' => ['nullable', 'array', 'max:20'],
+            'mail_sync_domains.*' => ['string', 'max:255'],
             'website' => ['nullable', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
             'contact_person_phone' => ['nullable', 'string', 'max:50'],

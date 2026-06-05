@@ -20,6 +20,7 @@ use App\Support\ContractorTableColumns;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
 use App\Support\EdoProviderDictionary;
+use App\Support\MailSync\MailContractorAllowlist;
 use App\Support\PartyNormsPenalties;
 use App\Support\PaymentFormDictionary;
 use Illuminate\Database\QueryException;
@@ -70,6 +71,8 @@ class ContractorController extends Controller
             return $contractor;
         });
 
+        MailContractorAllowlist::forgetCache();
+
         return to_route('contractors.show', [
             'contractor' => $contractor,
             ...$this->listContext($request),
@@ -101,6 +104,8 @@ class ContractorController extends Controller
 
         $contractor->refresh();
 
+        MailContractorAllowlist::forgetCache();
+
         return to_route('contractors.show', [
             'contractor' => $contractor,
             ...$this->listContext($request),
@@ -116,6 +121,8 @@ class ContractorController extends Controller
         );
 
         $contractor->delete();
+
+        MailContractorAllowlist::forgetCache();
 
         return to_route('contractors.index');
     }
@@ -836,6 +843,7 @@ class ContractorController extends Controller
             'non_resident_corr_bank_account',
             'cnaps_code',
             'owner_id',
+            'mail_sync_domains',
             'is_own_company',
             'ati_id',
             'rating',

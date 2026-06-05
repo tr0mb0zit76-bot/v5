@@ -33,4 +33,41 @@ return [
     'initial_sync_days' => max(1, min(180, (int) env('MAIL_SYNC_INITIAL_DAYS', 30))),
     'max_messages_per_user' => max(10, min(1000, (int) env('MAIL_SYNC_MAX_MESSAGES', 200))),
 
+    /*
+    | Импортировать только письма, где участник совпадает с email/доменами контрагентов.
+    */
+    'require_contractor_match' => filter_var(env('MAIL_SYNC_REQUIRE_CONTRACTOR_MATCH', true), FILTER_VALIDATE_BOOL),
+
+    'allowlist_cache_seconds' => max(60, min(3600, (int) env('MAIL_SYNC_ALLOWLIST_CACHE_SECONDS', 300))),
+
+    /*
+    | Для этих доменов в allowlist попадает только полный адрес, не весь домен.
+    */
+    'public_mail_domains' => [
+        'gmail.com',
+        'googlemail.com',
+        'yandex.ru',
+        'ya.ru',
+        'yandex.com',
+        'mail.ru',
+        'inbox.ru',
+        'list.ru',
+        'bk.ru',
+        'internet.ru',
+        'outlook.com',
+        'hotmail.com',
+        'live.com',
+        'msn.com',
+        'icloud.com',
+        'me.com',
+        'mac.com',
+        'rambler.ru',
+        'lenta.ru',
+        'autorambler.ru',
+        'ro.ru',
+        'yahoo.com',
+        'proton.me',
+        'protonmail.com',
+    ],
+
 ];

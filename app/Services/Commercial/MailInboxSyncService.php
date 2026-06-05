@@ -9,7 +9,9 @@ use App\Models\User;
 use App\Services\ActivityLedgerService;
 use App\Support\ActivityEventType;
 use App\Support\MailSync\ImportedMailMessage;
+use App\Support\MailSync\MailContractorAllowlist;
 use App\Support\MailSync\MailImapClient;
+use App\Support\MailSync\MailImportAllowance;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -21,6 +23,7 @@ final class MailInboxSyncService
     public function __construct(
         private readonly MailImapClient $imapClient,
         private readonly MailCounterpartyResolver $counterpartyResolver,
+        private readonly MailImportAllowance $importAllowance,
         private readonly ActivityLedgerService $activityLedger,
     ) {}
 
@@ -56,18 +59,18 @@ final class MailInboxSyncService
     }
 
     /**
-     * @return array{imported: int, skipped: int, errors: list<string>, users_processed: int}
+     * @return array{imported: int, skipped: int, skipped_contractor_filter: int, errors: list<string>, users_processed: int}
      */
     public function syncAllMailboxes(?int $userId = null, ?int $days = null, bool $verbose = false): array
     {
         if (! config('mail_sync.enabled', true)) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).'], 'users_processed' => 0];
+            return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).'], 'users_processed' => 0];
         }
 
         abort_unless($this->tablesReady(), 503, 'Таблицы почты не готовы. Выполните migrate.');
 
         if (! $this->imapClient->extensionLoaded()) {
-            return ['imported' => 0, 'skipped' => 0, 'errors' => ['PHP extension imap не установлена.'], 'users_processed' => 0];
+            return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['PHP extension imap не установлена.'], 'users_processed' => 0];
         }
 
         $days = $days ?? (int) config('mail_sync.initial_sync_days', 30);
@@ -84,7 +87,7 @@ final class MailInboxSyncService
         }
 
         $users = $query->get();
-        $totals = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'users_processed' => 0];
+        $totals = ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => [], 'users_processed' => 0];
 
         if ($users->isEmpty() && $userId !== null && $userId > 0) {
             $eligibility = $this->syncEligibilityForUserId($userId);
@@ -105,6 +108,7 @@ final class MailInboxSyncService
                 $result = $this->syncUserMailbox($user, $since, $limit, $verbose);
                 $totals['imported'] += $result['imported'];
                 $totals['skipped'] += $result['skipped'];
+                $totals['skipped_contractor_filter'] += $result['skipped_contractor_filter'] ?? 0;
 
                 if ($verbose && isset($result['debug'])) {
                     foreach ($result['debug'] as $line) {
@@ -132,7 +136,7 @@ final class MailInboxSyncService
     }
 
     /**
-     * @return array{imported: int, skipped: int, debug?: list<string>}
+     * @return array{imported: int, skipped: int, skipped_contractor_filter: int, debug?: list<string>}
      */
     public function syncUserMailbox(User $user, CarbonImmutable $since, int $limit, bool $verbose = false): array
     {
@@ -149,7 +153,10 @@ final class MailInboxSyncService
         $username = (string) $user->email;
         $imported = 0;
         $skipped = 0;
+        $skippedContractorFilter = 0;
         $remaining = $limit;
+        $allowlist = MailContractorAllowlist::cached();
+        $mailboxEmail = strtolower(trim((string) $user->email));
         $folderErrors = [];
         $debug = [];
 
@@ -220,6 +227,13 @@ final class MailInboxSyncService
                         continue;
                     }
 
+                    if (! $this->importAllowance->shouldImport($message, $mailboxEmail, $allowlist)) {
+                        $skipped++;
+                        $skippedContractorFilter++;
+
+                        continue;
+                    }
+
                     if ($this->importMessage($user, $message)) {
                         $imported++;
                         $remaining--;
@@ -242,7 +256,11 @@ final class MailInboxSyncService
             );
         }
 
-        $result = ['imported' => $imported, 'skipped' => $skipped];
+        $result = [
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'skipped_contractor_filter' => $skippedContractorFilter,
+        ];
 
         if ($verbose) {
             $result['debug'] = $debug;

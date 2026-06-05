@@ -2,20 +2,26 @@
 
 namespace App\Services\Mcp;
 
+use App\Models\Lead;
 use App\Models\MailMessage;
 use App\Models\MailThread;
 use App\Models\User;
+use App\Services\Commercial\MailMailboxAuthorization;
+use App\Services\CommercialMailService;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class MailMcpService
 {
     public function __construct(
         private readonly McpAccessGate $access,
+        private readonly MailMailboxAuthorization $mailboxAuth,
+        private readonly CommercialMailService $commercialMail,
     ) {}
 
     /**
@@ -114,6 +120,7 @@ class MailMcpService
             'mail_last_sync_at' => optional($user->mail_last_sync_at)?->toIso8601String(),
             'mail_last_sync_error' => $user->mail_last_sync_error,
             'imap_host' => (string) config('mail_sync.imap.host'),
+            'require_contractor_match' => (bool) config('mail_sync.require_contractor_match', true),
         ];
 
         $team = [];
@@ -141,27 +148,110 @@ class MailMcpService
     }
 
     /**
+     * @param  list<string>  $toEmails
+     * @param  list<string>  $ccEmails
+     * @return array<string, mixed>
+     */
+    public function sendMail(
+        User $user,
+        string $subject,
+        string $body,
+        array $toEmails,
+        array $ccEmails = [],
+        ?int $leadId = null,
+        ?int $orderId = null,
+    ): array {
+        $this->access->requireMailArea($user);
+
+        $lead = $leadId !== null ? Lead::query()->find($leadId) : null;
+
+        $result = $this->commercialMail->sendOutbound(
+            subject: $subject,
+            bodyText: $body,
+            toEmails: $toEmails,
+            sender: $user,
+            lead: $lead,
+            ccEmails: $ccEmails,
+            orderId: $orderId,
+            contractorId: $lead?->counterparty_id,
+        );
+
+        return [
+            'thread_id' => $result['thread']->id,
+            'message_id' => $result['message']->id,
+            'wizard_path' => null,
+            'note' => 'Письмо отправлено. Цепочка: thread_id '.$result['thread']->id,
+        ];
+    }
+
+    /**
+     * @param  list<string>|null  $toEmails
+     * @param  list<string>  $ccEmails
+     * @return array<string, mixed>
+     */
+    public function replyToThread(
+        User $user,
+        int $threadId,
+        string $body,
+        ?array $toEmails = null,
+        array $ccEmails = [],
+    ): array {
+        $this->access->requireMailArea($user);
+
+        $thread = $this->findAccessibleThread($user, $threadId);
+
+        $recipients = $toEmails ?? $this->commercialMail->suggestReplyRecipients($thread, $user);
+
+        if ($recipients === []) {
+            throw ValidationException::withMessages([
+                'to' => 'Не удалось определить адрес получателя. Укажите to явно.',
+            ]);
+        }
+
+        $result = $this->commercialMail->replyInThread(
+            thread: $thread,
+            bodyText: $body,
+            toEmails: $recipients,
+            sender: $user,
+            ccEmails: $ccEmails,
+        );
+
+        return [
+            'thread_id' => $result['thread']->id,
+            'message_id' => $result['message']->id,
+            'note' => 'Ответ отправлен в цепочку thread_id '.$result['thread']->id,
+        ];
+    }
+
+    private function findAccessibleThread(User $user, int $threadId): MailThread
+    {
+        if (! Schema::hasTable('mail_threads')) {
+            throw new ModelNotFoundException('Почта недоступна.');
+        }
+
+        $builder = MailThread::query()->whereKey($threadId);
+        $this->applyMailboxScope($builder, $user);
+
+        /** @var MailThread|null $thread */
+        $thread = $builder->first();
+
+        if ($thread === null) {
+            throw new ModelNotFoundException('Цепочка писем не найдена.');
+        }
+
+        return $thread;
+    }
+
+    /**
      * @param  Builder<MailThread>  $query
      */
     private function applyMailboxScope(Builder $query, User $user): void
     {
-        if ($this->canViewAllMailboxes($user)) {
-            return;
-        }
-
-        if (! Schema::hasColumn('mail_threads', 'mailbox_user_id')) {
+        try {
+            $this->mailboxAuth->applyThreadScope($query, $user);
+        } catch (\Throwable) {
             throw new AuthenticationException('Нет доступа к чужим почтовым ящикам.');
         }
-
-        $query->where(function (Builder $scoped) use ($user): void {
-            $scoped->where('mailbox_user_id', $user->id)
-                ->orWhereNull('mailbox_user_id');
-        });
-    }
-
-    private function canViewAllMailboxes(User $user): bool
-    {
-        return $user->isAdmin() || RoleAccess::canAccessSettingsSystem($user);
     }
 
     private function canViewTeamMailSyncStatus(User $user): bool

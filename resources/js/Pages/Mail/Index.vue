@@ -1,63 +1,161 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4">
         <CrmPageHeader
-            lead="Исходящие письма и переписка по лидам. Входящие (IMAP) — в следующих фазах."
+            lead="Входящие и исходящие письма по лидам и заказам. Ответы уходят с вашего адреса."
             title="Почта"
         />
 
-        <div class="grid gap-4 xl:grid-cols-[1fr,1.1fr]">
-            <form :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitSend">
-                <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Новое письмо</h2>
-                <div>
-                    <label :class="crmLabel">Лид (необязательно)</label>
-                    <select v-model="sendForm.lead_id" :class="crmFieldFluid">
-                        <option :value="null">Без привязки</option>
-                        <option v-for="lead in leads" :key="lead.id" :value="lead.id">
-                            {{ lead.number }} — {{ lead.title }}
-                        </option>
-                    </select>
+        <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(240px,300px),minmax(0,1fr)]">
+            <aside :class="`${crmPanel} flex min-h-0 flex-col p-3`">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Цепочки</h2>
+                    <Link :href="route('mail.index')" :class="crmBtnSecondary" preserve-scroll>Новое</Link>
                 </div>
-                <div>
-                    <label :class="crmLabel">Кому (через запятую)</label>
-                    <input v-model="sendForm.to_raw" type="text" :class="crmFieldFluid" placeholder="client@example.com" />
-                </div>
-                <div>
-                    <label :class="crmLabel">Тема</label>
-                    <input v-model="sendForm.subject" type="text" :class="crmFieldFluid" />
-                </div>
-                <div>
-                    <label :class="crmLabel">Текст</label>
-                    <textarea v-model="sendForm.body" rows="6" :class="crmFieldFluid" />
-                </div>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400">От: {{ fromEmail }}</p>
-                <button type="submit" :class="crmBtnPrimary" :disabled="sendForm.processing">Отправить</button>
-            </form>
-
-            <div :class="`${crmPanel} space-y-3 p-4`">
-                <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Недавние цепочки</h2>
                 <div v-if="threads.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Писем пока нет.</div>
-                <div
-                    v-for="thread in threads"
-                    :key="thread.id"
-                    class="rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
-                >
-                    <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ thread.subject }}</div>
-                    <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        <span v-if="thread.lead_number">Лид {{ thread.lead_number }}</span>
-                        <span v-if="thread.last_message_at"> · {{ formatWhen(thread.last_message_at) }}</span>
-                    </div>
-                    <p v-if="thread.preview" class="mt-2 line-clamp-2 text-zinc-600 dark:text-zinc-300">{{ thread.preview }}</p>
+                <div v-else class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                    <Link
+                        v-for="thread in threads"
+                        :key="thread.id"
+                        :href="route('mail.threads.show', thread.id)"
+                        preserve-scroll
+                        :class="threadLinkClass(thread.id)"
+                    >
+                        <div class="truncate font-medium text-zinc-900 dark:text-zinc-50">{{ thread.subject }}</div>
+                        <div class="mt-1 flex flex-wrap gap-x-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            <span v-if="thread.lead_number">Лид {{ thread.lead_number }}</span>
+                            <span v-if="thread.order_number">Заказ {{ thread.order_number }}</span>
+                            <span v-if="thread.contractor_name">{{ thread.contractor_name }}</span>
+                        </div>
+                        <div v-if="thread.last_message_at" class="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                            {{ formatWhen(thread.last_message_at) }}
+                        </div>
+                        <p v-if="thread.preview" class="mt-2 line-clamp-2 text-xs text-zinc-600 dark:text-zinc-300">
+                            {{ thread.preview }}
+                        </p>
+                    </Link>
                 </div>
-            </div>
+            </aside>
+
+            <section class="flex min-h-0 flex-col gap-4">
+                <template v-if="selectedThread">
+                    <div :class="`${crmPanel} space-y-2 p-4`">
+                        <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ selectedThread.subject }}</h2>
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            <span v-if="selectedThread.lead_number">
+                                Лид {{ selectedThread.lead_number }}
+                                <span v-if="selectedThread.lead_title">— {{ selectedThread.lead_title }}</span>
+                            </span>
+                            <span v-if="selectedThread.order_number">Заказ {{ selectedThread.order_number }}</span>
+                            <span v-if="selectedThread.contractor_name">{{ selectedThread.contractor_name }}</span>
+                        </div>
+                    </div>
+
+                    <div :class="`${crmPanel} min-h-0 flex-1 space-y-3 overflow-y-auto p-4`">
+                        <article
+                            v-for="message in messages"
+                            :key="message.id"
+                            class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800"
+                            :class="message.direction === 'outbound' ? 'bg-zinc-50/80 dark:bg-zinc-900/40' : ''"
+                        >
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <div class="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                                        {{ message.from_email || '—' }}
+                                        <span class="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                                            {{ directionLabel(message.direction) }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                        Кому: {{ formatRecipients(message.to_emails) }}
+                                        <span v-if="message.cc_emails?.length"> · CC: {{ formatRecipients(message.cc_emails) }}</span>
+                                    </div>
+                                    <div v-if="message.sent_at" class="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                                        {{ formatWhen(message.sent_at) }}
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    :class="importanceButtonClass(message.is_important)"
+                                    :title="message.is_important ? 'Снять отметку «важно»' : 'Пометить как важное'"
+                                    @click="toggleImportance(message)"
+                                >
+                                    <Star class="h-4 w-4" :class="message.is_important ? 'fill-current' : ''" />
+                                </button>
+                            </div>
+                            <pre class="mt-3 whitespace-pre-wrap font-sans text-sm text-zinc-700 dark:text-zinc-200">{{ message.body_text }}</pre>
+                        </article>
+                    </div>
+
+                    <form :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitReply">
+                        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Ответить</h3>
+                        <div>
+                            <label :class="crmLabel">Кому (через запятую)</label>
+                            <input v-model="replyForm.to_raw" type="text" :class="crmFieldFluid" />
+                        </div>
+                        <div>
+                            <label :class="crmLabel">Копия (необязательно)</label>
+                            <input v-model="replyForm.cc_raw" type="text" :class="crmFieldFluid" placeholder="cc@example.com" />
+                        </div>
+                        <div>
+                            <label :class="crmLabel">Текст</label>
+                            <textarea v-model="replyForm.body" rows="5" :class="crmFieldFluid" />
+                        </div>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">От: {{ fromEmail }}</p>
+                        <button type="submit" :class="crmBtnPrimary" :disabled="replyForm.processing">Отправить ответ</button>
+                    </form>
+                </template>
+
+                <form v-else :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitSend">
+                    <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Новое письмо</h2>
+                    <div>
+                        <label :class="crmLabel">Лид (необязательно)</label>
+                        <select v-model="sendForm.lead_id" :class="crmFieldFluid">
+                            <option :value="null">Без привязки</option>
+                            <option v-for="lead in leads" :key="lead.id" :value="lead.id">
+                                {{ lead.number }} — {{ lead.title }}
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label :class="crmLabel">Заказ (необязательно)</label>
+                        <select v-model="sendForm.order_id" :class="crmFieldFluid">
+                            <option :value="null">Без привязки</option>
+                            <option v-for="order in orders" :key="order.id" :value="order.id">
+                                {{ order.order_number }}
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label :class="crmLabel">Кому (через запятую)</label>
+                        <input v-model="sendForm.to_raw" type="text" :class="crmFieldFluid" placeholder="client@example.com" />
+                    </div>
+                    <div>
+                        <label :class="crmLabel">Копия (необязательно)</label>
+                        <input v-model="sendForm.cc_raw" type="text" :class="crmFieldFluid" placeholder="cc@example.com" />
+                    </div>
+                    <div>
+                        <label :class="crmLabel">Тема</label>
+                        <input v-model="sendForm.subject" type="text" :class="crmFieldFluid" />
+                    </div>
+                    <div>
+                        <label :class="crmLabel">Текст</label>
+                        <textarea v-model="sendForm.body" rows="8" :class="crmFieldFluid" />
+                    </div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">От: {{ fromEmail }}</p>
+                    <button type="submit" :class="crmBtnPrimary" :disabled="sendForm.processing">Отправить</button>
+                </form>
+            </section>
         </div>
     </div>
 </template>
 
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
+import { Star } from 'lucide-vue-next';
+import { watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnPrimary, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
+import { crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'mail' }, () => page) });
 
@@ -66,7 +164,19 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    selectedThread: {
+        type: Object,
+        default: null,
+    },
+    messages: {
+        type: Array,
+        default: () => [],
+    },
     leads: {
+        type: Array,
+        default: () => [],
+    },
+    orders: {
         type: Array,
         default: () => [],
     },
@@ -74,34 +184,122 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    replyDefaults: {
+        type: Object,
+        default: null,
+    },
 });
 
 const sendForm = useForm({
     lead_id: null,
+    order_id: null,
     to_raw: '',
+    cc_raw: '',
     subject: '',
     body: '',
 });
 
-function submitSend() {
-    const to = sendForm.to_raw
-        .split(/[,;]/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+const replyForm = useForm({
+    to_raw: '',
+    cc_raw: '',
+    body: '',
+});
 
+watch(
+    () => props.replyDefaults,
+    (defaults) => {
+        if (!defaults) {
+            return;
+        }
+
+        replyForm.to_raw = (defaults.to ?? []).join(', ');
+        replyForm.cc_raw = '';
+        replyForm.body = '';
+    },
+    { immediate: true },
+);
+
+function parseEmails(raw) {
+    return String(raw ?? '')
+        .split(/[,;]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+}
+
+function submitSend() {
     sendForm
         .transform((data) => ({
             lead_id: data.lead_id,
-            to,
+            order_id: data.order_id,
+            to: parseEmails(data.to_raw),
+            cc: parseEmails(data.cc_raw),
             subject: data.subject,
             body: data.body,
         }))
         .post(route('mail.send'), {
             preserveScroll: true,
             onSuccess: () => {
-                sendForm.reset('to_raw', 'subject', 'body');
+                sendForm.reset('to_raw', 'cc_raw', 'subject', 'body');
             },
         });
+}
+
+function submitReply() {
+    if (!props.selectedThread) {
+        return;
+    }
+
+    replyForm
+        .transform((data) => ({
+            to: parseEmails(data.to_raw),
+            cc: parseEmails(data.cc_raw),
+            body: data.body,
+        }))
+        .post(route('mail.threads.reply', props.selectedThread.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                replyForm.reset('body');
+            },
+        });
+}
+
+function toggleImportance(message) {
+    router.patch(
+        route('mail.messages.importance', message.id),
+        { is_important: !message.is_important },
+        { preserveScroll: true },
+    );
+}
+
+function threadLinkClass(threadId) {
+    const active = props.selectedThread?.id === threadId;
+
+    return [
+        'block rounded-xl border p-3 text-sm transition',
+        active
+            ? 'border-indigo-300 bg-indigo-50/80 dark:border-indigo-700 dark:bg-indigo-950/40'
+            : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700',
+    ];
+}
+
+function importanceButtonClass(isImportant) {
+    return [
+        crmBtnSecondary,
+        'shrink-0 p-2',
+        isImportant ? 'text-amber-500' : 'text-zinc-400',
+    ];
+}
+
+function directionLabel(direction) {
+    return direction === 'outbound' ? 'исходящее' : 'входящее';
+}
+
+function formatRecipients(emails) {
+    if (!Array.isArray(emails) || emails.length === 0) {
+        return '—';
+    }
+
+    return emails.join(', ');
 }
 
 function formatWhen(iso) {

@@ -209,7 +209,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::middleware('visibility.area:mail')->prefix('mail')->name('mail.')->group(function () {
         Route::get('/', [MailMailboxController::class, 'index'])->name('index');
+        Route::get('/threads/{mailThread}', [MailMailboxController::class, 'show'])->name('threads.show');
         Route::post('/send', [MailMailboxController::class, 'send'])->name('send');
+        Route::post('/threads/{mailThread}/reply', [MailMailboxController::class, 'reply'])->name('threads.reply');
         Route::patch('/messages/{mailMessage}/importance', [MailMailboxController::class, 'updateImportance'])->name('messages.importance');
     });
 

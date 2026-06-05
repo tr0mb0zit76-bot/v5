@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class SendCommercialMailRequest extends FormRequest
+class SendReplyMailRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -17,13 +17,10 @@ class SendCommercialMailRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'lead_id' => ['nullable', 'integer', 'exists:leads,id'],
-            'order_id' => ['nullable', 'integer', 'exists:orders,id'],
             'to' => ['required', 'array', 'min:1'],
             'to.*' => ['required', 'email'],
             'cc' => ['nullable', 'array'],
             'cc.*' => ['email'],
-            'subject' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:20000'],
         ];
     }
@@ -36,8 +33,7 @@ class SendCommercialMailRequest extends FormRequest
         return [
             'to.required' => 'Укажите адрес получателя.',
             'to.*.email' => 'Некорректный e-mail получателя.',
-            'subject.required' => 'Укажите тему письма.',
-            'body.required' => 'Укажите текст письма.',
+            'body.required' => 'Укажите текст ответа.',
         ];
     }
 }

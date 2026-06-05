@@ -348,6 +348,7 @@ function blankForm() {
         postal_address: '',
         phone: '',
         email: '',
+        mail_sync_domains: [],
         website: '',
         contact_person: '',
         contact_person_phone: '',
@@ -523,6 +524,7 @@ function contractorToForm(contractor) {
         postal_address: contractor.postal_address ?? '',
         phone: contractor.phone ?? '',
         email: contractor.email ?? '',
+        mail_sync_domains: Array.isArray(contractor.mail_sync_domains) ? contractor.mail_sync_domains : [],
         website: contractor.website ?? '',
         contact_person: contractor.contact_person ?? '',
         contact_person_phone: contractor.contact_person_phone ?? '',
@@ -698,6 +700,7 @@ function togglePostalMatchesActual(event) {
 }
 
 const transportRequirementsText = ref('');
+const mailSyncDomainsText = ref('');
 const globalActivityTypeOptions = ref(
     [...new Set((props.activityTypeOptions ?? []).map((item) => String(item ?? '').trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'ru'))
 );
@@ -745,6 +748,7 @@ function applyFormState(contractor, options = {}) {
     }
 
     transportRequirementsText.value = payload.transport_requirements.join('\n');
+    mailSyncDomainsText.value = formatMailSyncDomainsList(payload.mail_sync_domains);
     if (resetTab) {
         activeTab.value = 'general';
     }
@@ -1057,6 +1061,21 @@ function parseMultilineList(value) {
         .filter((item) => item !== '');
 }
 
+function formatMailSyncDomainsList(domains) {
+    if (!Array.isArray(domains)) {
+        return '';
+    }
+
+    return domains.map((item) => String(item).trim()).filter(Boolean).join('\n');
+}
+
+function parseMailSyncDomainsList(value) {
+    return String(value ?? '')
+        .split(/[\n,;]+/)
+        .map((item) => item.trim().replace(/^@+/, '').toLowerCase())
+        .filter((item) => item !== '');
+}
+
 function buildContractorSubmitPayload() {
     const documents = (form.documents ?? []).map(({ file: _file, preview_url: _previewUrl, ...meta }) => meta);
 
@@ -1088,6 +1107,7 @@ function filterEmptyNestedRowsForSubmit() {
 function submit() {
     filterEmptyNestedRowsForSubmit();
     form.transport_requirements = parseMultilineList(transportRequirementsText.value);
+    form.mail_sync_domains = parseMailSyncDomainsList(mailSyncDomainsText.value);
     form.activity_types = [...new Set((form.activity_types ?? []).map((item) => String(item).trim()).filter(Boolean))];
     form.default_customer_payment_schedule = normalizePaymentSchedule(form.default_customer_payment_schedule);
     form.default_carrier_payment_schedule = normalizePaymentSchedule(form.default_carrier_payment_schedule);
@@ -1954,6 +1974,19 @@ function goToPage(pageNumber) {
                                             :class="crmFieldFluid"
                                         />
                                     </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Домены для синхронизации почты</label>
+                                    <textarea
+                                        v-model="mailSyncDomainsText"
+                                        rows="3"
+                                        placeholder="exwill.ru&#10;logistics.exwill.ru"
+                                        :class="crmFieldFluid"
+                                    />
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                                        Письма с этих доменов попадут в CRM. Для Gmail и других публичных почт укажите полный адрес в Email или контактах — домен gmail.com сюда не добавляйте.
+                                    </p>
                                 </div>
 
                                 <div class="space-y-2">
