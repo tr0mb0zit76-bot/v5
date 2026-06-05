@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class MailMailboxController extends Controller
 {
@@ -155,7 +155,7 @@ class MailMailboxController extends Controller
             ]);
     }
 
-    public function downloadAttachment(Request $request, MailMessage $mailMessage, int $attachmentIndex): Response
+    public function downloadAttachment(Request $request, MailMessage $mailMessage, int $attachmentIndex): HttpResponse
     {
         $user = $request->user();
         abort_if($user === null, 403);
