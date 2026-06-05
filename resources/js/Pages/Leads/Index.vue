@@ -56,6 +56,12 @@
                     :business-processes="page.props.businessProcesses ?? []"
                     :lost-close-outcome-options="page.props.lostCloseOutcomeOptions ?? []"
                     :won-close-outcome-options="page.props.wonCloseOutcomeOptions ?? []"
+                    :cargo-type-options="page.props.cargoTypeOptions ?? []"
+                    :package-type-options="page.props.packageTypeOptions ?? []"
+                    :loading-type-options="page.props.loadingTypeOptions ?? []"
+                    :truck-body-type-options="page.props.truckBodyTypeOptions ?? []"
+                    :trailer-type-options="page.props.trailerTypeOptions ?? []"
+                    :cargo-title-suggestions="page.props.cargoTitleSuggestions ?? []"
                     @close="closeLeadModal"
                 />
             </section>

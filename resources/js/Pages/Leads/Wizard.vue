@@ -240,40 +240,21 @@
                 </section>
             </div>
 
-            <div v-else-if="activeTab === 'route'" class="space-y-4">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Маршрут</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Точки до конверсии в заказ.</p></div><button type="button" :class="crmBtnSecondary" @click="addRoutePoint('loading')"><Plus class="h-4 w-4" />Погрузка</button></div>
-                <div v-for="(point, index) in form.route_points" :key="`point-${index}`" class="grid gap-3 border border-zinc-200 p-4 dark:border-zinc-800 xl:grid-cols-[140px,1fr,170px,170px,170px,44px]">
-                    <select v-model="point.type" :class="crmFieldFluid"><option value="loading">Погрузка</option><option value="unloading">Выгрузка</option></select>
-                    <input v-model="point.address" type="text" :class="crmFieldFluid" placeholder="Адрес" />
-                    <input v-model="point.planned_date" type="date" :class="crmFieldFluid" />
-                    <input v-model="point.contact_person" type="text" :class="crmFieldFluid" placeholder="Контакт" />
-                    <input v-model="point.contact_phone" type="text" :class="crmFieldFluid" placeholder="Телефон" />
-                    <button type="button" :class="`${crmBtnDangerMuted} inline-flex h-11 w-11 shrink-0 items-center justify-center`" @click="removeRoutePoint(index)"><Trash2 class="h-4 w-4" /></button>
-                </div>
-            </div>
+            <LeadWizardRouteTab
+                v-else-if="activeTab === 'route'"
+                v-model:route-points="form.route_points"
+            />
 
-            <div v-else-if="activeTab === 'cargo'" class="space-y-4">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Груз</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">Позиции груза для просчёта.</p></div><button type="button" :class="crmBtnSecondary" @click="addCargoItem"><Plus class="h-4 w-4" />Добавить груз</button></div>
-                <div v-for="(cargo, index) in form.cargo_items" :key="`cargo-${index}`" class="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
-                    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <input v-model="cargo.name" type="text" :class="crmFieldFluid" placeholder="Наименование" />
-                        <input v-model="cargo.weight_kg" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Вес, кг" />
-                        <input v-model="cargo.volume_m3" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="Объём, м3" />
-                        <input v-model="cargo.package_count" type="number" min="0" step="1" :class="crmFieldFluid" placeholder="Кол-во мест" />
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <select v-model="cargo.package_type" :class="crmFieldFluid"><option value="">Упаковка</option><option value="pallet">Паллета</option><option value="box">Короб</option><option value="crate">Ящик</option><option value="roll">Рулон</option><option value="bag">Мешок</option></select>
-                        <select v-model="cargo.cargo_type" :class="crmFieldFluid"><option value="general">Общий</option><option value="dangerous">Опасный</option><option value="temperature_controlled">Температурный</option><option value="oversized">Негабарит</option><option value="fragile">Хрупкий</option></select>
-                        <input v-model="cargo.hs_code" type="text" :class="crmFieldFluid" placeholder="Код ТН ВЭД" />
-                        <label class="flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700"><input v-model="cargo.dangerous_goods" type="checkbox" class="h-4 w-4" />Опасный груз</label>
-                    </div>
-                    <div class="grid gap-3 xl:grid-cols-[1fr,180px,44px]">
-                        <textarea v-model="cargo.description" rows="2" :class="crmFieldFluid" placeholder="Описание" />
-                        <input v-model="cargo.dangerous_class" type="text" :class="crmFieldFluid" placeholder="Класс опасности" />
-                        <button type="button" :class="`${crmBtnDangerMuted} inline-flex h-11 w-11 shrink-0 items-center justify-center`" @click="removeCargoItem(index)"><Trash2 class="h-4 w-4" /></button>
-                    </div>
-                </div>
-            </div>
+            <LeadWizardCargoTab
+                v-else-if="activeTab === 'cargo'"
+                v-model:cargo-items="form.cargo_items"
+                :cargo-type-options="cargoTypeOptions"
+                :package-type-options="packageTypeOptions"
+                :loading-type-options="loadingTypeOptions"
+                :truck-body-type-options="truckBodyTypeOptions"
+                :trailer-type-options="trailerTypeOptions"
+                :cargo-title-suggestions="cargoTitleSuggestions"
+            />
 
             <div v-else-if="activeTab === 'activities'" class="space-y-4">
                 <div class="flex items-center justify-between gap-3"><div><h3 class="text-base font-semibold">Коммуникации</h3><p class="text-sm text-zinc-500 dark:text-zinc-400">История контактов и единая лента событий.</p></div><button type="button" :class="crmBtnSecondary" @click="addActivity"><Plus class="h-4 w-4" />Добавить активность</button></div>
@@ -378,7 +359,11 @@ import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeli
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
+import LeadWizardCargoTab from '@/Components/Leads/LeadWizardCargoTab.vue';
 import LeadWizardCommercialTab from '@/Components/Leads/LeadWizardCommercialTab.vue';
+import LeadWizardRouteTab from '@/Components/Leads/LeadWizardRouteTab.vue';
+import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
+import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
@@ -426,7 +411,39 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    cargoTypeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    packageTypeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    loadingTypeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    truckBodyTypeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    trailerTypeOptions: {
+        type: Array,
+        default: () => [],
+    },
+    cargoTitleSuggestions: {
+        type: Array,
+        default: () => [],
+    },
 });
+
+const dictionaryProps = computed(() => ({
+    cargoTypeOptions: props.cargoTypeOptions,
+    packageTypeOptions: props.packageTypeOptions,
+    loadingTypeOptions: props.loadingTypeOptions,
+    truckBodyTypeOptions: props.truckBodyTypeOptions,
+    trailerTypeOptions: props.trailerTypeOptions,
+}));
 
 const emit = defineEmits(['close']);
 
@@ -463,8 +480,8 @@ function blankForm() {
         close_outcome_primary_flag: '',
         close_outcome_note: '',
         qualification: { need: '', timeline: '', authority: '', budget: '' },
-        route_points: [],
-        cargo_items: [],
+        route_points: defaultLeadRoutePoints(),
+        cargo_items: normalizeLeadCargoItems([], dictionaryProps.value),
         activities: [],
         offers: [],
         orders: [],
@@ -490,8 +507,8 @@ function leadToForm(lead) {
         },
         close_outcome_primary_flag: lead.close_outcome_primary_flag ?? '',
         close_outcome_note: lead.lost_reason ?? '',
-        route_points: lead.route_points ?? [],
-        cargo_items: lead.cargo_items ?? [],
+        route_points: normalizeLeadRoutePoints(lead.route_points),
+        cargo_items: normalizeLeadCargoItems(lead.cargo_items, dictionaryProps.value),
         activities: lead.activities ?? [],
         offers: lead.offers ?? [],
         orders: lead.orders ?? [],
@@ -756,10 +773,6 @@ async function createInlineLeadCounterparty() {
     }
 }
 
-function addRoutePoint(type = 'loading') { form.route_points.push({ type, sequence: form.route_points.length + 1, address: '', normalized_data: {}, planned_date: '', contact_person: '', contact_phone: '' }); }
-function removeRoutePoint(index) { form.route_points.splice(index, 1); form.route_points = form.route_points.map((point, pointIndex) => ({ ...point, sequence: pointIndex + 1 })); }
-function addCargoItem() { form.cargo_items.push({ name: '', description: '', weight_kg: null, volume_m3: null, package_type: '', package_count: null, dangerous_goods: false, dangerous_class: '', hs_code: '', cargo_type: 'general' }); }
-function removeCargoItem(index) { form.cargo_items.splice(index, 1); }
 function addActivity() { form.activities.push({ type: 'note', subject: '', content: '', next_action_at: '' }); }
 function removeActivity(index) { form.activities.splice(index, 1); }
 function openTask(taskId) { router.get(route('tasks.index'), taskId ? { task: taskId } : {}); }

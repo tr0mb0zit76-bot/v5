@@ -12,6 +12,7 @@ use App\Http\Requests\UpdateLeadRequest;
 use App\Http\Requests\UpdateLeadStatusRequest;
 use App\Models\BusinessProcess;
 use App\Models\BusinessProcessStage;
+use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\LeadOffer;
@@ -25,9 +26,12 @@ use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
+use App\Support\AtiDictionaryOptionCatalog;
 use App\Support\ContractorIdentity;
 use App\Support\CurrencyDictionary;
+use App\Support\LeadCargoItemPayloadNormalizer;
 use App\Support\LeadCloseOutcomeFlagCatalog;
+use App\Support\LeadRoutePointPayloadNormalizer;
 use App\Support\LeadStatus;
 use App\Support\LeadTableColumns;
 use App\Support\RoleAccess;
@@ -553,6 +557,22 @@ class LeadController extends Controller
             'closeOutcomeOptions' => LeadCloseOutcomeService::optionsForUi(),
             'lostCloseOutcomeOptions' => LeadCloseOutcomeFlagCatalog::lostOptions(),
             'wonCloseOutcomeOptions' => LeadCloseOutcomeFlagCatalog::wonOptions(),
+            'cargoTypeOptions' => AtiDictionaryOptionCatalog::options('cargo_type', AtiDictionaryOptionCatalog::fallbackCargoTypeOptions()),
+            'packageTypeOptions' => AtiDictionaryOptionCatalog::options('pack_type', AtiDictionaryOptionCatalog::fallbackPackageTypeOptions()),
+            'loadingTypeOptions' => AtiDictionaryOptionCatalog::options('loading_type', AtiDictionaryOptionCatalog::fallbackLoadingTypeOptions()),
+            'truckBodyTypeOptions' => AtiDictionaryOptionCatalog::options('truck_body_type', AtiDictionaryOptionCatalog::fallbackTruckBodyTypeOptions()),
+            'trailerTypeOptions' => AtiDictionaryOptionCatalog::options('trailer_type', AtiDictionaryOptionCatalog::fallbackTrailerTypeOptions()),
+            'cargoTitleSuggestions' => Schema::hasTable('cargos')
+                ? Cargo::query()
+                    ->whereNotNull('title')
+                    ->where('title', '!=', '')
+                    ->distinct()
+                    ->orderBy('title')
+                    ->limit(200)
+                    ->pluck('title')
+                    ->values()
+                    ->all()
+                : [],
         ];
     }
 
@@ -659,20 +679,25 @@ class LeadController extends Controller
         $lead->cargoItems()->delete();
         $lead->activities()->where('type', '!=', 'status_change')->delete();
 
-        foreach ($request->input('route_points', []) as $index => $routePoint) {
-            $lead->routePoints()->create([
-                'type' => $routePoint['type'],
-                'sequence' => $routePoint['sequence'] ?? ($index + 1),
-                'address' => $routePoint['address'],
-                'normalized_data' => $routePoint['normalized_data'] ?? [],
-                'planned_date' => $routePoint['planned_date'] ?? null,
-                'contact_person' => $routePoint['contact_person'] ?? null,
-                'contact_phone' => $routePoint['contact_phone'] ?? null,
-            ]);
+        $routeSequence = 0;
+        foreach ($request->input('route_points', []) as $routePoint) {
+            if (! is_array($routePoint) || ! LeadRoutePointPayloadNormalizer::isMeaningful($routePoint)) {
+                continue;
+            }
+
+            $routeSequence++;
+            $payload = LeadRoutePointPayloadNormalizer::toDatabase($routePoint);
+            $payload['sequence'] = $payload['sequence'] ?? $routeSequence;
+
+            $lead->routePoints()->create($payload);
         }
 
         foreach ($request->input('cargo_items', []) as $cargoItem) {
-            $lead->cargoItems()->create($cargoItem);
+            if (! is_array($cargoItem) || ! LeadCargoItemPayloadNormalizer::isMeaningful($cargoItem)) {
+                continue;
+            }
+
+            $lead->cargoItems()->create(LeadCargoItemPayloadNormalizer::toDatabase($cargoItem));
         }
 
         foreach ($request->input('activities', []) as $activity) {
@@ -809,29 +834,14 @@ class LeadController extends Controller
             'close_outcome_primary_flag' => $lead->close_outcome_primary_flag,
             'close_outcome_primary_label' => LeadCloseOutcomeFlagCatalog::label($lead->close_outcome_primary_flag),
             'qualification' => $lead->lead_qualification ?? [],
-            'route_points' => $lead->routePoints->map(fn ($point): array => [
-                'id' => $point->id,
-                'type' => $point->type,
-                'sequence' => $point->sequence,
-                'address' => $point->address,
-                'normalized_data' => $point->normalized_data ?? [],
-                'planned_date' => optional($point->planned_date)->toDateString(),
-                'contact_person' => $point->contact_person,
-                'contact_phone' => $point->contact_phone,
-            ])->values()->all(),
-            'cargo_items' => $lead->cargoItems->map(fn ($cargo): array => [
-                'id' => $cargo->id,
-                'name' => $cargo->name,
-                'description' => $cargo->description,
-                'weight_kg' => $cargo->weight_kg,
-                'volume_m3' => $cargo->volume_m3,
-                'package_type' => $cargo->package_type,
-                'package_count' => $cargo->package_count,
-                'dangerous_goods' => $cargo->dangerous_goods,
-                'dangerous_class' => $cargo->dangerous_class,
-                'hs_code' => $cargo->hs_code,
-                'cargo_type' => $cargo->cargo_type,
-            ])->values()->all(),
+            'route_points' => $lead->routePoints
+                ->map(fn ($point): array => LeadRoutePointPayloadNormalizer::toFrontend($point))
+                ->values()
+                ->all(),
+            'cargo_items' => $lead->cargoItems
+                ->map(fn ($cargo): array => LeadCargoItemPayloadNormalizer::toFrontend($cargo))
+                ->values()
+                ->all(),
             'activities' => $lead->activities
                 ->where('type', '!=', 'status_change')
                 ->map(fn ($activity): array => [

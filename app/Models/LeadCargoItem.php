@@ -27,6 +27,7 @@ class LeadCargoItem extends Model
         'dangerous_class',
         'hs_code',
         'cargo_type',
+        'metadata',
     ];
 
     /**
@@ -38,6 +39,7 @@ class LeadCargoItem extends Model
             'weight_kg' => 'decimal:2',
             'volume_m3' => 'decimal:2',
             'dangerous_goods' => 'boolean',
+            'metadata' => 'array',
         ];
     }
 
