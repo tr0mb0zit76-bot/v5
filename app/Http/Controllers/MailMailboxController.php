@@ -14,6 +14,7 @@ use App\Services\Commercial\MailMailboxAuthorization;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
 use App\Services\DocumentStorageService;
+use App\Support\MailSync\MailMailboxOwnerCatalog;
 use App\Support\MailSync\MailOutboundAttachmentRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class MailMailboxController extends Controller
         private readonly CommercialMailService $commercialMail,
         private readonly MailMailboxAuthorization $mailboxAuth,
         private readonly OrderMailContextService $orderMailContext,
+        private readonly MailMailboxOwnerCatalog $mailboxOwnerCatalog,
     ) {}
 
     public function index(Request $request): Response
@@ -40,8 +42,11 @@ class MailMailboxController extends Controller
             ? $this->orderMailContext->composeDefaultsForOrderId((int) $request->input('order_id'))
             : null;
 
+        $mailView = $this->mailboxOwnerCatalog->viewContext($user, $request);
+
         return Inertia::render('Mail/Index', [
-            'threads' => $this->loadThreadSummaries($user),
+            'threads' => $this->loadThreadSummaries($user, $mailView['selected_mailbox_user_id']),
+            'mailView' => $mailView,
             'selectedThread' => null,
             'messages' => [],
             'leads' => $this->loadLeadOptions(),
@@ -63,11 +68,15 @@ class MailMailboxController extends Controller
             'lead:id,number,title',
             'contractor:id,name',
             'order:id,order_number',
+            'mailboxUser:id,name,email',
         ]);
 
+        $mailView = $this->mailboxOwnerCatalog->viewContext($user, $request);
+
         return Inertia::render('Mail/Index', [
-            'threads' => $this->loadThreadSummaries($user),
-            'selectedThread' => $this->serializeThread($mailThread, detailed: true),
+            'threads' => $this->loadThreadSummaries($user, $mailView['selected_mailbox_user_id']),
+            'mailView' => $mailView,
+            'selectedThread' => $this->serializeThread($mailThread, detailed: true, viewer: $user),
             'messages' => $this->loadThreadMessages($mailThread),
             'leads' => $this->loadLeadOptions(),
             'orders' => $this->loadOrderOptions(),
@@ -212,7 +221,7 @@ class MailMailboxController extends Controller
     /**
      * @return list<array<string, mixed>>
      */
-    private function loadThreadSummaries(User $user): array
+    private function loadThreadSummaries(User $user, ?int $mailboxUserId = null): array
     {
         if (! $this->commercialMail->tablesReady()) {
             return [];
@@ -224,15 +233,17 @@ class MailMailboxController extends Controller
                 'lead:id,number,title',
                 'contractor:id,name',
                 'order:id,order_number',
+                'mailboxUser:id,name,email',
             ])
             ->orderByDesc('last_message_at')
             ->limit(100);
 
         $this->mailboxAuth->applyThreadScope($query, $user);
+        $this->mailboxOwnerCatalog->applyMailboxFilterToQuery($query, $user, $mailboxUserId);
 
         return $query
             ->get()
-            ->map(fn (MailThread $thread): array => $this->serializeThread($thread))
+            ->map(fn (MailThread $thread): array => $this->serializeThread($thread, viewer: $user))
             ->values()
             ->all();
     }
@@ -254,9 +265,10 @@ class MailMailboxController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function serializeThread(MailThread $thread, bool $detailed = false): array
+    private function serializeThread(MailThread $thread, bool $detailed = false, ?User $viewer = null): array
     {
         $latest = $thread->relationLoaded('messages') ? $thread->messages->first() : null;
+        $includeMailboxMeta = $viewer !== null && $this->mailboxAuth->canViewAllMailboxes($viewer);
 
         $data = [
             'id' => $thread->id,
@@ -276,8 +288,21 @@ class MailMailboxController extends Controller
                 : null,
         ];
 
+        if ($includeMailboxMeta) {
+            $data['mailbox_user_id'] = $thread->mailbox_user_id;
+            $data['mailbox_owner_label'] = $thread->mailboxUser !== null
+                ? MailMailboxOwnerCatalog::shortLabel($thread->mailboxUser)
+                : null;
+            $data['mailbox_owner_name'] = $thread->mailboxUser?->name;
+        }
+
         if ($detailed) {
             $data['mailbox_user_id'] = $thread->mailbox_user_id;
+            $data['mailbox_owner_label'] = $thread->mailboxUser !== null
+                ? MailMailboxOwnerCatalog::shortLabel($thread->mailboxUser)
+                : null;
+            $data['mailbox_owner_name'] = $thread->mailboxUser?->name;
+            $data['mailbox_owner_email'] = $thread->mailboxUser?->email;
         }
 
         return $data;

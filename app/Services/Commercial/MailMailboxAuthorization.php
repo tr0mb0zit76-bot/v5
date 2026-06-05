@@ -13,7 +13,9 @@ final class MailMailboxAuthorization
 {
     public function canViewAllMailboxes(User $user): bool
     {
-        return $user->isAdmin() || RoleAccess::canAccessSettingsSystem($user);
+        return $user->isAdmin()
+            || $user->isSupervisor()
+            || RoleAccess::canAccessSettingsSystem($user);
     }
 
     public function canAccessThread(User $user, MailThread $thread): bool

@@ -7,21 +7,61 @@
 
         <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(240px,300px),minmax(0,1fr)]">
             <aside :class="`${crmPanel} flex min-h-0 flex-col p-3`">
+                <div v-if="mailView.can_view_all_mailboxes" class="mb-4 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+                    <h2 class="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-50">Ящики</h2>
+                    <div class="max-h-44 space-y-1 overflow-y-auto pr-1">
+                        <Link
+                            :href="mailboxIndexUrl(null)"
+                            preserve-scroll
+                            :class="mailboxFolderClass(null)"
+                        >
+                            <span>Все</span>
+                            <span class="text-xs text-zinc-500">{{ mailView.total_thread_count }}</span>
+                        </Link>
+                        <Link
+                            v-for="owner in mailView.owners"
+                            :key="owner.user_id"
+                            :href="mailboxIndexUrl(owner.user_id)"
+                            preserve-scroll
+                            :class="mailboxFolderClass(owner.user_id)"
+                            :title="owner.full_name"
+                        >
+                            <span class="truncate">{{ owner.label }}</span>
+                            <span class="shrink-0 text-xs text-zinc-500">{{ owner.thread_count }}</span>
+                        </Link>
+                        <Link
+                            v-if="mailView.unassigned_thread_count > 0"
+                            :href="mailboxIndexUrl(0)"
+                            preserve-scroll
+                            :class="mailboxFolderClass(0)"
+                        >
+                            <span>Без владельца</span>
+                            <span class="text-xs text-zinc-500">{{ mailView.unassigned_thread_count }}</span>
+                        </Link>
+                    </div>
+                </div>
+
                 <div class="mb-3 flex items-center justify-between gap-2">
                     <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Цепочки</h2>
-                    <Link :href="route('mail.index')" :class="crmBtnSecondary" preserve-scroll>Новое</Link>
+                    <Link :href="mailboxIndexUrl(mailView.selected_mailbox_user_id)" :class="crmBtnSecondary" preserve-scroll>Новое</Link>
                 </div>
                 <div v-if="threads.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">Писем пока нет.</div>
                 <div v-else class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                     <Link
                         v-for="thread in threads"
                         :key="thread.id"
-                        :href="route('mail.threads.show', thread.id)"
+                        :href="threadShowUrl(thread.id)"
                         preserve-scroll
                         :class="threadLinkClass(thread.id)"
                     >
                         <div class="truncate font-medium text-zinc-900 dark:text-zinc-50">{{ thread.subject }}</div>
                         <div class="mt-1 flex flex-wrap gap-x-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            <span
+                                v-if="mailView.can_view_all_mailboxes && mailView.selected_mailbox_user_id === null && thread.mailbox_owner_label"
+                                class="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800"
+                            >
+                                {{ thread.mailbox_owner_label }}
+                            </span>
                             <span v-if="thread.lead_number">Лид {{ thread.lead_number }}</span>
                             <span v-if="thread.order_number">Заказ {{ thread.order_number }}</span>
                             <span v-if="thread.contractor_name">{{ thread.contractor_name }}</span>
@@ -41,6 +81,10 @@
                     <div :class="`${crmPanel} space-y-2 p-4`">
                         <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ selectedThread.subject }}</h2>
                         <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            <span v-if="selectedThread.mailbox_owner_name">
+                                Ящик: {{ selectedThread.mailbox_owner_name }}
+                                <span v-if="selectedThread.mailbox_owner_email">({{ selectedThread.mailbox_owner_email }})</span>
+                            </span>
                             <span v-if="selectedThread.lead_number">
                                 Лид {{ selectedThread.lead_number }}
                                 <span v-if="selectedThread.lead_title">— {{ selectedThread.lead_title }}</span>
@@ -273,6 +317,16 @@ const props = defineProps({
             max_file_kb: 10240,
         }),
     },
+    mailView: {
+        type: Object,
+        default: () => ({
+            can_view_all_mailboxes: false,
+            selected_mailbox_user_id: null,
+            owners: [],
+            unassigned_thread_count: 0,
+            total_thread_count: 0,
+        }),
+    },
 });
 
 const sendForm = useForm({
@@ -339,6 +393,42 @@ onMounted(() => {
 
     sendForm.order_id = Number.parseInt(orderId, 10) || null;
 });
+
+function mailboxIndexUrl(mailboxUserId) {
+    const params = {};
+
+    if (props.composeDefaults?.order_id) {
+        params.order_id = props.composeDefaults.order_id;
+    }
+
+    if (mailboxUserId !== null && mailboxUserId !== undefined) {
+        params.mailbox = mailboxUserId;
+    }
+
+    return route('mail.index', params);
+}
+
+function threadShowUrl(threadId) {
+    const params = {};
+
+    if (props.mailView.can_view_all_mailboxes && props.mailView.selected_mailbox_user_id !== null) {
+        params.mailbox = props.mailView.selected_mailbox_user_id;
+    }
+
+    return route('mail.threads.show', { mailThread: threadId, ...params });
+}
+
+function mailboxFolderClass(mailboxUserId) {
+    const active = props.mailView.selected_mailbox_user_id === mailboxUserId
+        || (mailboxUserId === null && props.mailView.selected_mailbox_user_id === null);
+
+    return [
+        'flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm transition',
+        active
+            ? 'bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300'
+            : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900',
+    ];
+}
 
 function setMessageViewMode(messageId, mode) {
     messageViewMode[messageId] = mode;

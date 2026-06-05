@@ -69,6 +69,14 @@ class MailThread extends Model
     }
 
     /**
+     * @return BelongsTo<User, $this>
+     */
+    public function mailboxUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'mailbox_user_id');
+    }
+
+    /**
      * @return BelongsTo<LeadOffer, $this>
      */
     public function leadOffer(): BelongsTo
