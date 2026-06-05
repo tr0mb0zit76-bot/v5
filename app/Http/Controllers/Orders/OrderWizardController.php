@@ -15,6 +15,7 @@ use App\Models\LegContractorAssignment;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
+use App\Services\Commercial\OrderMailContextService;
 use App\Services\ContractorCreditService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
@@ -375,6 +376,9 @@ class OrderWizardController extends Controller
             && $order !== null
             && $user->canSignDocumentsForOwnCompany($order->own_company_id);
 
+        $orderMailContext = app(OrderMailContextService::class);
+        $canAccessMail = $orderMailContext->userCanAccessMail($user);
+
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($request, $order, $canManageOrderDocuments, $canApproveOrderDocuments),
             'contractors' => $contractors->values(),
@@ -436,6 +440,13 @@ class OrderWizardController extends Controller
                 ->limit(30)
                 ->pluck('title')
                 ->values(),
+            'canAccessMail' => $canAccessMail,
+            'orderMailThreads' => $order !== null && $canAccessMail && $user !== null
+                ? $orderMailContext->threadSummariesForOrder($user, $order)
+                : [],
+            'mailComposeDefaults' => $order !== null && $canAccessMail
+                ? $orderMailContext->composeDefaultsForOrder($order)
+                : null,
         ]);
     }
 

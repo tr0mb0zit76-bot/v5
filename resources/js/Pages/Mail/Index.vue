@@ -152,7 +152,7 @@
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { Star } from 'lucide-vue-next';
-import { watch } from 'vue';
+import { onMounted, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
@@ -188,6 +188,10 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    composeDefaults: {
+        type: Object,
+        default: null,
+    },
 });
 
 const sendForm = useForm({
@@ -205,6 +209,16 @@ const replyForm = useForm({
     body: '',
 });
 
+function applyComposeDefaults(defaults) {
+    if (!defaults) {
+        return;
+    }
+
+    sendForm.order_id = defaults.order_id ?? null;
+    sendForm.to_raw = (defaults.to ?? []).join(', ');
+    sendForm.subject = defaults.subject ?? '';
+}
+
 watch(
     () => props.replyDefaults,
     (defaults) => {
@@ -218,6 +232,28 @@ watch(
     },
     { immediate: true },
 );
+
+watch(
+    () => props.composeDefaults,
+    (defaults) => {
+        applyComposeDefaults(defaults);
+    },
+    { immediate: true },
+);
+
+onMounted(() => {
+    if (typeof window === 'undefined' || props.composeDefaults) {
+        return;
+    }
+
+    const orderId = new URL(window.location.href).searchParams.get('order_id');
+
+    if (!orderId) {
+        return;
+    }
+
+    sendForm.order_id = Number.parseInt(orderId, 10) || null;
+});
 
 function parseEmails(raw) {
     return String(raw ?? '')

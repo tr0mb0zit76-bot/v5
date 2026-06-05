@@ -11,6 +11,7 @@ use App\Models\MailThread;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
+use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,12 +25,17 @@ class MailMailboxController extends Controller
     public function __construct(
         private readonly CommercialMailService $commercialMail,
         private readonly MailMailboxAuthorization $mailboxAuth,
+        private readonly OrderMailContextService $orderMailContext,
     ) {}
 
     public function index(Request $request): Response
     {
         $user = $request->user();
         abort_if($user === null, 403);
+
+        $composeDefaults = $request->filled('order_id')
+            ? $this->orderMailContext->composeDefaultsForOrderId((int) $request->input('order_id'))
+            : null;
 
         return Inertia::render('Mail/Index', [
             'threads' => $this->loadThreadSummaries($user),
@@ -39,6 +45,7 @@ class MailMailboxController extends Controller
             'orders' => $this->loadOrderOptions(),
             'fromEmail' => (string) ($user->email ?: config('mail.from.address')),
             'replyDefaults' => null,
+            'composeDefaults' => $composeDefaults,
         ]);
     }
 
@@ -79,6 +86,14 @@ class MailMailboxController extends Controller
             $lead = Lead::query()->findOrFail((int) $request->input('lead_id'));
         }
 
+        $orderId = $request->filled('order_id') ? (int) $request->input('order_id') : null;
+        $contractorId = $lead?->counterparty_id;
+
+        if ($contractorId === null && $orderId !== null) {
+            $contractorId = Order::query()->whereKey($orderId)->value('customer_id');
+            $contractorId = $contractorId !== null ? (int) $contractorId : null;
+        }
+
         $result = $this->commercialMail->sendOutbound(
             subject: $request->string('subject')->toString(),
             bodyText: $request->string('body')->toString(),
@@ -86,8 +101,8 @@ class MailMailboxController extends Controller
             sender: $user,
             lead: $lead,
             ccEmails: $request->input('cc', []),
-            orderId: $request->filled('order_id') ? (int) $request->input('order_id') : null,
-            contractorId: $lead?->counterparty_id,
+            orderId: $orderId,
+            contractorId: $contractorId,
         );
 
         return redirect()

@@ -1690,8 +1690,44 @@
             </div>
 
             <div v-else-if="activeTab === 'timeline' && order?.id" class="space-y-4">
+                <div v-if="canAccessMail" :class="`${crmPanel} space-y-3 p-4`">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Переписка</h3>
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400">Письма, привязанные к этому заказу.</p>
+                        </div>
+                        <Link
+                            v-if="mailComposeUrl"
+                            :href="mailComposeUrl"
+                            :class="crmBtnSecondary"
+                        >
+                            <Mail class="h-4 w-4" />
+                            Написать клиенту
+                        </Link>
+                    </div>
+                    <div v-if="orderMailThreads.length === 0" class="text-sm text-zinc-500 dark:text-zinc-400">
+                        Писем по заказу пока нет.
+                    </div>
+                    <div v-else class="space-y-2">
+                        <Link
+                            v-for="thread in orderMailThreads"
+                            :key="thread.id"
+                            :href="route('mail.threads.show', thread.id)"
+                            class="block rounded-xl border border-zinc-200 p-3 text-sm transition hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+                        >
+                            <div class="font-medium text-zinc-900 dark:text-zinc-50">{{ thread.subject }}</div>
+                            <div v-if="thread.last_message_at" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                {{ formatOrderMailWhen(thread.last_message_at) }}
+                            </div>
+                            <p v-if="thread.preview" class="mt-2 line-clamp-2 text-xs text-zinc-600 dark:text-zinc-300">
+                                {{ thread.preview }}
+                            </p>
+                        </Link>
+                    </div>
+                </div>
+
                 <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    Хронология по заказу: комментарии диспозиции, письма и другие события (по мере подключения модулей).
+                    Хронология по заказу: комментарии диспозиции, письма и другие события.
                 </p>
                 <ActivityTimeline :order-id="order.id" />
             </div>
@@ -1830,7 +1866,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileText, Gavel, History, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
+import { ClipboardList, FileText, Gavel, History, Mail, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
@@ -1850,6 +1886,7 @@ import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnCreate,
     crmBtnNeutral,
+    crmBtnSecondary,
     crmField,
     crmFieldFluid,
     crmModalPanel,
@@ -1956,6 +1993,9 @@ const props = defineProps({
     currentUser: { type: Object, default: () => ({}) },
     bonusMultiplier: { type: Number, default: 0 },
     cargoTitleSuggestions: { type: Array, default: () => [] },
+    canAccessMail: { type: Boolean, default: false },
+    orderMailThreads: { type: Array, default: () => [] },
+    mailComposeDefaults: { type: Object, default: null },
 });
 
 const tabs = computed(() => [
@@ -1976,6 +2016,26 @@ const orderAllDocuments = computed(() => {
 
     return Array.isArray(docs) ? docs : EMPTY_ORDER_DOCUMENTS;
 });
+
+const mailComposeUrl = computed(() => {
+    if (!props.canAccessMail || !props.order?.id) {
+        return null;
+    }
+
+    if (props.mailComposeDefaults?.order_id) {
+        return route('mail.index', { order_id: props.mailComposeDefaults.order_id });
+    }
+
+    return route('mail.index', { order_id: props.order.id });
+});
+
+function formatOrderMailWhen(iso) {
+    if (!iso) {
+        return '';
+    }
+
+    return new Date(iso).toLocaleString('ru-RU');
+}
 
 onMounted(() => {
     if (typeof window === 'undefined') {
