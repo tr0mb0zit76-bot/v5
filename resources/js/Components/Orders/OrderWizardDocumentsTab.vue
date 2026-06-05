@@ -13,6 +13,8 @@ import {
 } from '@/support/documentRegistryClient.js';
 import {
     buildDocumentRequirementRules,
+    carrierAttachTargetOptions,
+    customerRequestSlots,
     documentMatchesRequirementRule,
     findRequirementRuleForUpload,
 } from '@/support/orderDocumentRequirementSlots.js';
@@ -157,6 +159,7 @@ const attachForm = reactive({
     document_date: '',
     stage: null,
     contractor_id: null,
+    carrier_target_key: null,
     file: null,
 });
 
@@ -172,27 +175,27 @@ const attachContractorOptions = computed(() => (
 
 const showAttachContractorPicker = computed(() => attachForm.party === 'contractor' && attachContractorOptions.value.length > 0);
 
-const showAttachLegPicker = computed(() => {
-    const legs = Array.isArray(props.performers) ? props.performers : [];
+const attachCustomerLegOptions = computed(() => customerRequestSlots(props.performers, props.clientRequestMode)
+    .filter((slot) => slot.orderLegStage)
+    .map((slot) => ({
+        stage: slot.orderLegStage,
+        label: `Плечо ${stageLabel(slot.orderLegStage)}`,
+    })));
 
-    if (legs.length <= 1) {
-        return false;
-    }
+const attachCarrierTargetOptions = computed(() => carrierAttachTargetOptions(
+    props.performers,
+    props.clientRequestMode,
+));
 
-    if (props.clientRequestMode === 'split_by_leg') {
-        return true;
-    }
+const showAttachCustomerLegPicker = computed(() => (
+    attachForm.party === 'customer'
+    && attachCustomerLegOptions.value.length > 1
+));
 
-    return attachForm.party === 'carrier';
-});
-
-const attachLegOptions = computed(() => (
-    Array.isArray(props.performers) ? props.performers : []
-).map((performer) => ({
-    stage: performer.stage ?? 'leg_1',
-    label: stageLabel(performer.stage ?? 'leg_1'),
-    contractorName: performer.contractor_name ? String(performer.contractor_name).trim() : '',
-})));
+const showAttachCarrierTargetPicker = computed(() => (
+    attachForm.party === 'carrier'
+    && attachCarrierTargetOptions.value.length > 1
+));
 
 const orderDocumentGlobalFileInputRef = ref(null);
 const orderDocumentGlobalDropActive = ref(false);
@@ -211,7 +214,8 @@ watch(
 watch(
     () => attachForm.party,
     (party) => {
-        attachForm.stage = defaultAttachStage(party);
+        attachForm.stage = defaultAttachCustomerStage();
+        attachForm.carrier_target_key = defaultAttachCarrierTargetKey();
         if (party === 'contractor') {
             attachForm.contractor_id = attachContractorOptions.value[0]?.id ?? null;
         } else {
@@ -490,19 +494,24 @@ function confirmDiscardPrintWorkflow(doc) {
     });
 }
 
-function defaultAttachStage(party) {
-    const legs = Array.isArray(props.performers) ? props.performers : [];
-    if (legs.length === 0) {
+function defaultAttachCustomerStage() {
+    return attachCustomerLegOptions.value[0]?.stage ?? null;
+}
+
+function defaultAttachCarrierTargetKey() {
+    return attachCarrierTargetOptions.value[0]?.key ?? null;
+}
+
+function resolveAttachCarrierTarget() {
+    const options = attachCarrierTargetOptions.value;
+
+    if (options.length === 0) {
         return null;
     }
 
-    if (party === 'carrier') {
-        const withCarrier = legs.find((p) => p?.contractor_id);
+    const selected = options.find((row) => row.key === attachForm.carrier_target_key);
 
-        return withCarrier?.stage ?? legs[0]?.stage ?? null;
-    }
-
-    return legs[0]?.stage ?? null;
+    return selected ?? options[0] ?? null;
 }
 
 async function openAttachModal(preset = {}) {
@@ -510,7 +519,10 @@ async function openAttachModal(preset = {}) {
     attachForm.type = preset.type ?? 'request';
     attachForm.number = '';
     attachForm.document_date = '';
-    attachForm.stage = preset.stage ?? defaultAttachStage(attachForm.party);
+    attachForm.stage = preset.stage ?? defaultAttachCustomerStage();
+    attachForm.carrier_target_key = preset.carrier_target_key
+        ?? (preset.slot_key ? String(preset.slot_key) : null)
+        ?? defaultAttachCarrierTargetKey();
     attachForm.contractor_id = preset.contractor_id ?? (attachForm.party === 'contractor' ? attachContractorOptions.value[0]?.id ?? null : null);
     attachForm.file = null;
     attachError.value = '';
@@ -584,6 +596,16 @@ async function submitAttach() {
         return;
     }
 
+    if (attachForm.party === 'carrier') {
+        const carrierTarget = resolveAttachCarrierTarget();
+
+        if (!carrierTarget?.contractor_id) {
+            attachError.value = 'Укажите перевозчика на вкладке «Маршрут» или выберите его в списке.';
+
+            return;
+        }
+    }
+
     attachSubmitting.value = true;
     attachError.value = '';
 
@@ -593,21 +615,28 @@ async function submitAttach() {
     body.append('type', attachForm.type);
     body.append('status', 'signed');
 
-    const performer = (Array.isArray(props.performers) ? props.performers : [])
-        .find((row) => toStageKey(row?.stage ?? '') === toStageKey(attachForm.stage ?? ''));
-    const carrierContractorId = attachForm.party === 'carrier' && performer?.contractor_id
-        ? Number(performer.contractor_id)
-        : null;
+    const carrierTarget = attachForm.party === 'carrier' ? resolveAttachCarrierTarget() : null;
+    const carrierContractorId = carrierTarget?.contractor_id ? Number(carrierTarget.contractor_id) : null;
+    const carrierSlot = carrierTarget?.carrier_slot ? Number(carrierTarget.carrier_slot) : null;
+    const carrierStage = carrierTarget?.stage ? toStageKey(String(carrierTarget.stage)) : null;
     const contractorId = attachForm.party === 'contractor' && attachForm.contractor_id
         ? Number(attachForm.contractor_id)
         : null;
 
-    if (showAttachLegPicker.value && attachForm.stage) {
+    if (showAttachCustomerLegPicker.value && attachForm.stage) {
         body.append('order_leg_stage', toStageKey(String(attachForm.stage)));
+    }
+
+    if (attachForm.party === 'carrier' && carrierStage) {
+        body.append('order_leg_stage', carrierStage);
     }
 
     if (carrierContractorId) {
         body.append('carrier_contractor_id', String(carrierContractorId));
+    }
+
+    if (carrierSlot) {
+        body.append('carrier_slot', String(carrierSlot));
     }
 
     if (contractorId) {
@@ -617,7 +646,7 @@ async function submitAttach() {
     const matchedRule = findRequirementRuleForUpload(effectiveRequiredDocumentRules.value, {
         party: attachForm.party,
         type: attachForm.type,
-        stage: attachForm.stage,
+        stage: attachForm.party === 'carrier' ? carrierStage : attachForm.stage,
         contractor_id: contractorId ?? carrierContractorId,
     });
 
@@ -954,15 +983,27 @@ async function onGlobalDrop(event) {
                             </option>
                         </select>
                     </div>
-                    <div v-if="showAttachLegPicker" class="space-y-1 sm:col-span-2">
-                        <label class="text-xs font-medium">Плечо маршрута</label>
+                    <div v-if="showAttachCustomerLegPicker" class="space-y-1 sm:col-span-2">
+                        <label class="text-xs font-medium">Плечо маршрута (заказчик)</label>
                         <select v-model="attachForm.stage" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
                             <option
-                                v-for="leg in attachLegOptions"
-                                :key="`attach-leg-${leg.stage}`"
+                                v-for="leg in attachCustomerLegOptions"
+                                :key="`attach-customer-leg-${leg.stage}`"
                                 :value="leg.stage"
                             >
-                                {{ leg.label }}{{ leg.contractorName ? ` · ${leg.contractorName}` : '' }}
+                                {{ leg.label }}
+                            </option>
+                        </select>
+                    </div>
+                    <div v-if="showAttachCarrierTargetPicker" class="space-y-1 sm:col-span-2">
+                        <label class="text-xs font-medium">Перевозчик на плече</label>
+                        <select v-model="attachForm.carrier_target_key" class="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950">
+                            <option
+                                v-for="target in attachCarrierTargetOptions"
+                                :key="`attach-carrier-${target.key}`"
+                                :value="target.key"
+                            >
+                                {{ target.label }}
                             </option>
                         </select>
                     </div>

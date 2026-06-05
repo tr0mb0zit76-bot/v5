@@ -98,6 +98,10 @@ class DocumentRegistryController extends Controller
             $metadata['carrier_contractor_id'] = (int) $payload['carrier_contractor_id'];
         }
 
+        if (isset($payload['carrier_slot']) && (int) $payload['carrier_slot'] > 0) {
+            $metadata['carrier_slot'] = (int) $payload['carrier_slot'];
+        }
+
         if (isset($payload['contractor_id']) && (int) $payload['contractor_id'] > 0) {
             $metadata['contractor_id'] = (int) $payload['contractor_id'];
         }

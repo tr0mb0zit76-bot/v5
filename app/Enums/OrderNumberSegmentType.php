@@ -8,6 +8,7 @@ enum OrderNumberSegmentType: string
     case Sequence = 'sequence';
     case Day = 'day';
     case Month = 'month';
+    case ManagerInitials = 'manager_initials';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum OrderNumberSegmentType: string
             self::Sequence => 'Автонумератор',
             self::Day => 'День месяца',
             self::Month => 'Месяц',
+            self::ManagerInitials => 'Инициалы менеджера',
         };
     }
 

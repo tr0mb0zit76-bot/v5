@@ -62,8 +62,8 @@ class OrderWizardService
             $validated = $this->normalizeValidatedPaymentForms($validated);
             $ownCompany = $this->resolveOwnCompany($validated);
             $generatedNumber = blank($validated['order_number'] ?? null)
-                ? $this->orderNumberGenerator->generate($ownCompany)
-                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany)['company_code'], 'order_number' => $validated['order_number']];
+                ? $this->orderNumberGenerator->generate($ownCompany, $user)
+                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $user)['company_code'], 'order_number' => $validated['order_number']];
 
             $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null, null));
 
@@ -89,9 +89,10 @@ class OrderWizardService
             $previousManagerId = $order->manager_id;
 
             $ownCompany = $this->resolveOwnCompany($validated);
+            $manager = User::query()->find($order->manager_id) ?? $user;
             $generatedNumber = blank($validated['order_number'] ?? null)
-                ? $this->orderNumberGenerator->generate($ownCompany)
-                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany)['company_code'], 'order_number' => $validated['order_number']];
+                ? $this->orderNumberGenerator->generate($ownCompany, $manager)
+                : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $manager)['company_code'], 'order_number' => $validated['order_number']];
 
             $existingMetadata = is_array($order->metadata) ? $order->metadata : null;
             $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order->manager_id, $existingMetadata));

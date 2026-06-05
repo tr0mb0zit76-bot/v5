@@ -76,7 +76,7 @@ class OrderWizardController extends Controller
                 ->find($ownCompanyId)
             : null;
 
-        return response()->json($orderNumbering->preview($ownCompany));
+        return response()->json($orderNumbering->preview($ownCompany, null, $request->user()));
     }
 
     public function store(StoreOrderRequest $request, OrderWizardService $orderWizardService): RedirectResponse
@@ -826,6 +826,7 @@ class OrderWizardController extends Controller
             'order_leg_stage' => data_get($document->metadata, 'order_leg_stage')
                 ?? data_get($document->metadata, 'stage'),
             'carrier_contractor_id' => data_get($document->metadata, 'carrier_contractor_id'),
+            'carrier_slot' => data_get($document->metadata, 'carrier_slot'),
             'contractor_id' => data_get($document->metadata, 'contractor_id'),
             'requirement_slot_key' => data_get($document->metadata, 'requirement_slot_key'),
             'route_legs_as_table_rows' => (bool) data_get($document->metadata, 'route_legs_as_table_rows', false),

@@ -37,6 +37,7 @@ class StoreDocumentRegistryRequest extends FormRequest
             'status' => ['required', Rule::in(['draft', 'pending', 'signed', 'sent'])],
             'order_leg_stage' => ['nullable', 'string', 'max:80'],
             'carrier_contractor_id' => ['nullable', 'integer', 'min:1'],
+            'carrier_slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'requirement_slot_key' => ['nullable', 'string', 'max:120'],
             'file' => [
                 'required',

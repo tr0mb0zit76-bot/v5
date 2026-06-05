@@ -80,6 +80,7 @@ export function carrierRequestSlots(performers, clientRequestMode) {
                 orderLegStage: stage,
                 contractorId,
                 contractorName: name !== '' ? name : null,
+                carrier_slot: performer.carrier_slot ?? null,
                 labelSuffix: suffix,
             };
         });
@@ -119,9 +120,29 @@ export function carrierRequestSlots(performers, clientRequestMode) {
             orderLegStage: null,
             contractorId: Number(contractorId),
             contractorName: name !== '' ? name : null,
+            carrier_slot: null,
             labelSuffix: suffix,
         };
     });
+}
+
+/**
+ * Цели прикрепления подписанного документа к перевозчику (плечо + контрагент + слот split).
+ *
+ * @param {Array<Record<string, unknown>>} performers
+ * @param {string} clientRequestMode
+ * @returns {Array<{key: string, stage: string|null, contractor_id: number, carrier_slot: number|null, label: string}>}
+ */
+export function carrierAttachTargetOptions(performers, clientRequestMode) {
+    return carrierRequestSlots(performers, clientRequestMode)
+        .filter((slot) => slot.contractorId)
+        .map((slot) => ({
+            key: slot.slotKey,
+            stage: slot.orderLegStage,
+            contractor_id: Number(slot.contractorId),
+            carrier_slot: slot.carrier_slot ?? null,
+            label: `${slot.contractorName || 'Перевозчик'}${slot.labelSuffix || ''}`,
+        }));
 }
 
 /**

@@ -21,6 +21,7 @@
                 />
             </div>
         </div>
+        <p v-if="typeHint" class="mt-2 text-xs text-zinc-500">{{ typeHint }}</p>
     </div>
 </template>
 
@@ -42,6 +43,14 @@ const showValue = computed(() => props.typeModel === 'text');
 const valuePlaceholder = computed(() => {
     if (props.typeModel === 'text') {
         return 'Напр. X';
+    }
+
+    return '';
+});
+
+const typeHint = computed(() => {
+    if (props.typeModel === 'manager_initials') {
+        return 'Буквы из ФИО менеджера заказа (ответственного).';
     }
 
     return '';

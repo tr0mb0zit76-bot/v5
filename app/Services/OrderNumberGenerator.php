@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Contractor;
 use App\Models\Order;
+use App\Models\User;
 use Illuminate\Support\Str;
 
 /**
@@ -18,10 +19,10 @@ class OrderNumberGenerator
     /**
      * @return array{company_code: string, order_number: string, cipher?: string|null}
      */
-    public function generate(?Contractor $ownCompany = null): array
+    public function generate(?Contractor $ownCompany = null, ?User $manager = null): array
     {
         if ($this->orderNumbering->findRuleForOwnCompany($ownCompany !== null ? (int) $ownCompany->id : null) !== null) {
-            return $this->orderNumbering->generateAndReserve($ownCompany);
+            return $this->orderNumbering->generateAndReserve($ownCompany, null, $manager);
         }
 
         return $this->generateLegacy($ownCompany);

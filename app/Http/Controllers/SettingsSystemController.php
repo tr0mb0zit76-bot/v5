@@ -135,9 +135,11 @@ class SettingsSystemController extends Controller
         $at = Carbon::now();
         $sampleSequence = 1;
 
+        $manager = $request->user();
+
         return response()->json([
-            'sample' => $this->orderNumbering->composeNumber($rule, $sampleSequence, $at),
-            'sample_next' => $this->orderNumbering->composeNumber($rule, $sampleSequence + 1, $at),
+            'sample' => $this->orderNumbering->composeNumber($rule, $sampleSequence, $at, $manager),
+            'sample_next' => $this->orderNumbering->composeNumber($rule, $sampleSequence + 1, $at, $manager),
         ]);
     }
 
