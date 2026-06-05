@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Enums\LeadCloseOutcomeFlag;
 use App\Support\CurrencyDictionary;
-use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Schema;
@@ -21,9 +20,7 @@ class StoreLeadRequest extends FormRequest
             return;
         }
 
-        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
-
-        if ($scope === 'own') {
+        if (! $this->filled('responsible_id')) {
             $this->merge(['responsible_id' => $user->id]);
         }
 

@@ -61,6 +61,10 @@ class StoreContractorRequest extends FormRequest
             $this->merge(['owner_id' => null]);
         }
 
+        if ($this->routeIs('contractors.store') && ! $this->filled('owner_id') && $this->user() !== null) {
+            $this->merge(['owner_id' => $this->user()->id]);
+        }
+
         foreach (['inn', 'kpp', 'ogrn', 'okpo', 'bik', 'account_number'] as $key) {
             if (! $this->has($key)) {
                 continue;

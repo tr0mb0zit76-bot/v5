@@ -76,9 +76,12 @@
                     </div>
                     <div class="space-y-2">
                         <label :class="crmLabel">Ответственный</label>
-                        <select v-model="form.responsible_id" :class="crmFieldFluid" :disabled="!canAssignResponsible">
+                        <select v-model.number="form.responsible_id" :class="crmFieldFluid" :disabled="!canAssignResponsible">
                             <option v-for="user in responsibleUsers" :key="user.id" :value="user.id">{{ user.name }}</option>
                         </select>
+                        <p v-if="!selectedLeadId && canAssignResponsible" class="text-xs text-zinc-500 dark:text-zinc-400">
+                            По умолчанию — вы; при необходимости можно назначить коллегу.
+                        </p>
                     </div>
                     <div class="space-y-2">
                         <label :class="crmLabel">Плановая отгрузка</label>
@@ -324,7 +327,7 @@
                     <button
                         type="button"
                         :class="crmBtnPrimary"
-                        :disabled="inlineContractorSaving || !counterpartyForm.name?.trim()"
+                        :disabled="inlineContractorSaving"
                         @click="createInlineLeadCounterparty"
                     >
                         {{ inlineContractorSaving ? 'Создание…' : 'Создать' }}
@@ -362,6 +365,11 @@ import LeadProcessPanel from '@/Components/Leads/LeadProcessPanel.vue';
 import LeadWizardCargoTab from '@/Components/Leads/LeadWizardCargoTab.vue';
 import LeadWizardCommercialTab from '@/Components/Leads/LeadWizardCommercialTab.vue';
 import LeadWizardRouteTab from '@/Components/Leads/LeadWizardRouteTab.vue';
+import {
+    ensureContractorPartyAutofill,
+    isCompleteContractorInn,
+    normalizedContractorInn,
+} from '@/support/contractorPartyAutofill.js';
 import { normalizeLeadCargoItems } from '@/support/leadWizardCargo.js';
 import { defaultLeadRoutePoints, normalizeLeadRoutePoints } from '@/support/leadWizardRoute.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
@@ -458,13 +466,24 @@ const tabs = [
     { key: 'commercial', label: 'Коммерческое', icon: FileText },
 ];
 
+function defaultResponsibleId() {
+    const currentUserId = Number(props.currentUserId);
+    if (Number.isFinite(currentUserId) && currentUserId > 0) {
+        return currentUserId;
+    }
+
+    const fallbackUserId = Number(props.responsibleUsers?.[0]?.id);
+
+    return Number.isFinite(fallbackUserId) && fallbackUserId > 0 ? fallbackUserId : null;
+}
+
 function blankForm() {
     return {
         number: '',
         status: 'new',
         source: '',
         counterparty_id: null,
-        responsible_id: props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null,
+        responsible_id: defaultResponsibleId(),
         title: '',
         description: '',
         transport_type: '',
@@ -527,7 +546,7 @@ const nextStepForm = useForm({
     title: '',
     description: '',
     due_at: '',
-    responsible_id: props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null,
+    responsible_id: defaultResponsibleId(),
     priority: 'high',
 });
 
@@ -539,7 +558,7 @@ watch(() => props.selectedLead, (lead) => {
     activeTab.value = 'main';
     selectedTemplateId.value = props.printFormTemplateOptions?.[0]?.id ? String(props.printFormTemplateOptions[0].id) : '';
     nextStepForm.reset();
-    nextStepForm.responsible_id = lead?.responsible_id ?? props.currentUserId ?? props.responsibleUsers?.[0]?.id ?? null;
+    nextStepForm.responsible_id = lead?.responsible_id ?? defaultResponsibleId();
     nextStepForm.priority = 'high';
     advanceStageId.value = '';
 }, { immediate: true });
@@ -565,6 +584,8 @@ const showCounterpartyModal = ref(false);
 const counterpartyNameInput = ref(null);
 const inlineContractorSaving = ref(false);
 const inlineContractorError = ref('');
+const leadCounterpartyInnLookupTimer = ref(null);
+const leadCounterpartyLastAutofilledInn = ref('');
 
 const counterpartyForm = useForm({
     name: '',
@@ -708,16 +729,57 @@ function hideCounterpartyResultsWithDelay() {
     }, 150);
 }
 
+async function lookupLeadCounterpartyByInn() {
+    const normalizedInn = normalizedContractorInn(counterpartyForm.inn);
+    if (!isCompleteContractorInn(normalizedInn) || normalizedInn === leadCounterpartyLastAutofilledInn.value) {
+        return;
+    }
+
+    counterpartyForm.inn = normalizedInn;
+    const filled = await ensureContractorPartyAutofill(counterpartyForm);
+    if (filled) {
+        leadCounterpartyLastAutofilledInn.value = normalizedInn;
+    }
+}
+
+watch(() => counterpartyForm.inn, (inn) => {
+    clearTimeout(leadCounterpartyInnLookupTimer.value);
+
+    const normalizedInn = normalizedContractorInn(inn);
+    if (isCompleteContractorInn(normalizedInn) && counterpartyForm.inn !== normalizedInn) {
+        counterpartyForm.inn = normalizedInn;
+    }
+
+    if (!isCompleteContractorInn(normalizedInn) || normalizedInn === leadCounterpartyLastAutofilledInn.value) {
+        return;
+    }
+
+    leadCounterpartyInnLookupTimer.value = window.setTimeout(() => {
+        lookupLeadCounterpartyByInn();
+    }, 500);
+});
+
 async function openLeadCounterpartyModal() {
     inlineContractorError.value = '';
     counterpartyForm.clearErrors();
     counterpartyForm.reset();
     counterpartyForm.type = 'customer';
-    counterpartyForm.name = counterpartySearch.value.trim();
+    const searchTrimmed = counterpartySearch.value.trim();
+    if (isCompleteContractorInn(searchTrimmed)) {
+        counterpartyForm.inn = normalizedContractorInn(searchTrimmed);
+        counterpartyForm.name = '';
+    } else {
+        counterpartyForm.name = searchTrimmed;
+    }
+    leadCounterpartyLastAutofilledInn.value = '';
     showCounterpartyModal.value = true;
     showCounterpartyResults.value = false;
     await nextTick();
-    counterpartyNameInput.value?.focus?.();
+    if (isCompleteContractorInn(counterpartyForm.inn)) {
+        await lookupLeadCounterpartyByInn();
+    } else {
+        counterpartyNameInput.value?.focus?.();
+    }
 }
 
 function closeLeadCounterpartyModal() {
@@ -732,6 +794,19 @@ async function createInlineLeadCounterparty() {
     inlineContractorSaving.value = true;
 
     try {
+        if (isCompleteContractorInn(counterpartyForm.inn) && !String(counterpartyForm.name ?? '').trim()) {
+            const filled = await ensureContractorPartyAutofill(counterpartyForm);
+            if (!filled) {
+                inlineContractorError.value = 'Не удалось получить данные по ИНН. Укажите название вручную.';
+                return;
+            }
+        }
+
+        if (!String(counterpartyForm.name ?? '').trim()) {
+            inlineContractorError.value = 'Укажите название контрагента или корректный ИНН.';
+            return;
+        }
+
         const response = await fetch(route('leads.contractors.store'), {
             method: 'POST',
             headers: {

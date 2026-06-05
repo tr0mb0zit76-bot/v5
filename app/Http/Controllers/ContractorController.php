@@ -59,12 +59,12 @@ class ContractorController extends Controller
         $contractor = DB::transaction(function () use ($request): Contractor {
             $validated = $request->validated();
 
-            $contractor = Contractor::query()->create([
-                ...$this->extractContractorAttributes($validated),
-                'owner_id' => $request->user()?->id,
-                'created_by' => $request->user()?->id,
-                'updated_by' => $request->user()?->id,
-            ]);
+            $attributes = $this->extractContractorAttributes($validated);
+            $attributes['owner_id'] = $validated['owner_id'] ?? $request->user()?->id;
+            $attributes['created_by'] = $request->user()?->id;
+            $attributes['updated_by'] = $request->user()?->id;
+
+            $contractor = Contractor::query()->create($attributes);
 
             $this->syncNestedData($contractor, $validated, $request->user()?->id);
 

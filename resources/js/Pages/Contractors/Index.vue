@@ -39,6 +39,13 @@ import {
     crmWizardHeader,
 } from '@/support/crmUi.js';
 import { blankPartyNormsPenalties, normalizePartyNormsPenalties } from '@/support/normsPenalties.js';
+import {
+    applyContractorPartySuggestion,
+    ensureContractorPartyAutofill,
+    fetchContractorPartySuggestion,
+    isCompleteContractorInn,
+    normalizedContractorInn,
+} from '@/support/contractorPartyAutofill.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'contractors' }, () => page),
@@ -332,6 +339,12 @@ function parsePaymentTermPreset(term) {
     return blankPaymentSchedule();
 }
 
+function defaultOwnerId() {
+    const currentUserId = Number(page.props.auth?.user?.id);
+
+    return Number.isFinite(currentUserId) && currentUserId > 0 ? currentUserId : null;
+}
+
 function blankForm() {
     return {
         type: 'customer',
@@ -402,7 +415,7 @@ function blankForm() {
         non_resident_corr_settlement_account: '',
         non_resident_corr_bank_account: '',
         cnaps_code: '',
-        owner_id: null,
+        owner_id: defaultOwnerId(),
         contacts: [],
         interactions: [],
         documents: [],
@@ -1104,7 +1117,18 @@ function filterEmptyNestedRowsForSubmit() {
     });
 }
 
-function submit() {
+async function submit() {
+    if (isInnLookupPending.value) {
+        const startedAt = Date.now();
+        while (isInnLookupPending.value && Date.now() - startedAt < 5000) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+    }
+
+    if (isCompleteContractorInn(form.inn) && !String(form.name ?? '').trim()) {
+        await ensureContractorPartyAutofill(form);
+    }
+
     filterEmptyNestedRowsForSubmit();
     form.transport_requirements = parseMultilineList(transportRequirementsText.value);
     form.mail_sync_domains = parseMailSyncDomainsList(mailSyncDomainsText.value);
@@ -1414,19 +1438,11 @@ async function fetchPartySuggestions() {
     isInnLookupPending.value = true;
 
     try {
-        const response = await fetch(`${route('contractors.suggest-party')}?query=${encodeURIComponent(query)}`, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
+        const suggestion = await fetchContractorPartySuggestion(query);
 
-        const data = await response.json();
-        const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
-
-        if (suggestions.length > 0) {
-            applyPartySuggestion(suggestions[0]);
-            lastAutoFilledInn.value = query;
+        if (suggestion) {
+            applyPartySuggestion(suggestion);
+            lastAutoFilledInn.value = normalizedContractorInn(form.inn) || query;
         }
     } catch (error) {
         console.error('DaData party suggestion error', error);
@@ -1436,22 +1452,7 @@ async function fetchPartySuggestions() {
 }
 
 function applyPartySuggestion(suggestion) {
-    const party = suggestion?.data ?? {};
-
-    form.name = suggestion.value ?? form.name;
-    form.full_name = party.name?.full_with_opf ?? form.full_name;
-    form.inn = party.inn != null && party.inn !== '' ? String(party.inn) : form.inn;
-    form.kpp = party.kpp != null && party.kpp !== '' ? String(party.kpp) : form.kpp;
-    form.ogrn = party.ogrn != null && party.ogrn !== '' ? String(party.ogrn) : form.ogrn;
-    form.okpo = party.okpo != null && party.okpo !== '' ? String(party.okpo) : form.okpo;
-    form.legal_address = party.address?.value ?? form.legal_address;
-    form.actual_address = party.address?.value ?? form.actual_address;
-    form.postal_address = party.address?.value ?? form.postal_address;
-
-    if (party.type === 'INDIVIDUAL') {
-        form.legal_form = 'ip';
-    }
-
+    applyContractorPartySuggestion(form, suggestion);
     inferAddressLinkFlagsFromForm();
     syncAddressLinkTargets();
 }
@@ -1550,13 +1551,13 @@ function paymentFormLabel(value) {
 watch(() => form.inn, (inn) => {
     clearTimeout(innLookupTimer);
 
-    const normalizedInn = String(inn ?? '').replace(/\D/g, '');
+    const normalizedInn = normalizedContractorInn(inn);
 
-    if ([10, 12].includes(normalizedInn.length) && form.inn !== normalizedInn) {
+    if (isCompleteContractorInn(normalizedInn) && form.inn !== normalizedInn) {
         form.inn = normalizedInn;
     }
 
-    if (![10, 12].includes(normalizedInn.length) || normalizedInn === lastAutoFilledInn.value) {
+    if (!isCompleteContractorInn(normalizedInn) || normalizedInn === lastAutoFilledInn.value) {
         return;
     }
 
@@ -2168,7 +2169,7 @@ function goToPage(pageNumber) {
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Владелец</label>
                                         <select
-                                            v-model="form.owner_id"
+                                            v-model.number="form.owner_id"
                                             :class="crmFieldFluid"
                                         >
                                             <option :value="null">Не назначен</option>

@@ -166,6 +166,10 @@ class LeadController extends Controller
             $attributes['is_own_company'] = false;
         }
 
+        if (Schema::hasColumn('contractors', 'owner_id')) {
+            $attributes['owner_id'] = $request->user()?->id;
+        }
+
         $contractor = Contractor::query()->create($attributes);
 
         return response()->json([
@@ -605,7 +609,7 @@ class LeadController extends Controller
             return true;
         }
 
-        return RoleAccess::resolveVisibilityScopeForUser($user, 'leads') === 'all';
+        return RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'leads');
     }
 
     private function canUseLeadTasks(Request $request): bool
@@ -649,6 +653,14 @@ class LeadController extends Controller
             ->map(fn ($userRow): array => ['id' => $userRow->id, 'name' => $userRow->name])
             ->values();
 
+        $currentUserId = (int) $user->id;
+        if (! $users->contains(fn (array $row): bool => (int) $row['id'] === $currentUserId)) {
+            $users->prepend([
+                'id' => $user->id,
+                'name' => $user->name,
+            ]);
+        }
+
         if ($users->isNotEmpty()) {
             return $users;
         }
@@ -661,16 +673,27 @@ class LeadController extends Controller
 
     private function sanitizeResponsibleId(Request $request, ?int $fallbackResponsibleId = null): int
     {
-        if (! $this->canAssignResponsible($request)) {
-            return $fallbackResponsibleId ?? (int) $request->user()->id;
+        $user = $request->user();
+
+        if ($user === null) {
+            return $fallbackResponsibleId ?? 0;
         }
 
+        $allowedIds = $this->responsibleUsers($request)
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
         $responsibleId = (int) $request->integer('responsible_id');
-        if ($responsibleId > 0) {
+        if ($responsibleId > 0 && in_array($responsibleId, $allowedIds, true)) {
             return $responsibleId;
         }
 
-        return $fallbackResponsibleId ?? (int) $request->user()->id;
+        if ($fallbackResponsibleId !== null && in_array($fallbackResponsibleId, $allowedIds, true)) {
+            return $fallbackResponsibleId;
+        }
+
+        return (int) $user->id;
     }
 
     private function syncNestedData(Lead $lead, Request $request): void

@@ -40,7 +40,7 @@
             <section class="flex max-h-[calc(100dvh-3rem)] min-h-[78dvh] flex-col overflow-hidden bg-white dark:bg-zinc-900">
                 <LeadWizard
                     embedded
-                    :selected-lead="selectedLead"
+                    :selected-lead="(isCreateModalOpen || isCreateRoute) ? null : selectedLead"
                     :is-creating="isCreateModalOpen || isCreateRoute"
                     :contractors="page.props.contractors ?? []"
                     :responsible-users="page.props.responsibleUsers ?? []"
