@@ -7,7 +7,7 @@ namespace App\Support;
 /**
  * Категории KPI по формам оплаты заказчика и перевозчиков (с 01.06).
  *
- * — cash: наличка только при наличных у заказчика и у всех перевозчиков на рейсе;
+ * — cash: наличка при наличных у всех перевозчиков на рейсе (форма заказчика любая);
  * — vat_zero_22: заказчик с НДС 0%, у перевозчика (рейс или плечо) — НДС 22%;
  * — vat: прочие сочетания (в т.ч. НДС 0% / НДС 0%, безнал, смешанные ставки НДС).
  */
@@ -64,9 +64,7 @@ final class KpiPaymentCategoryResolver
      */
     private static function isCashDeal(string $customerPaymentForm, array $carrierPaymentForms): bool
     {
-        if ($customerPaymentForm !== 'cash') {
-            return false;
-        }
+        unset($customerPaymentForm);
 
         foreach ($carrierPaymentForms as $carrierForm) {
             if ($carrierForm !== 'cash') {

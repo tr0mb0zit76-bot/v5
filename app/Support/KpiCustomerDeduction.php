@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Вычеты KPI с суммы заказчика по категории оплаты.
+ * Вычеты с суммы заказчика по категории оплаты.
+ * Для налички: первый процент от суммы заказчика, второй — от остатка после первого.
  */
 final class KpiCustomerDeduction
 {
@@ -24,8 +25,11 @@ final class KpiCustomerDeduction
         }
 
         return match ($paymentCategory) {
-            'cash' => self::percentOf($customerRate, (float) $rates['cash_primary_percent'])
-                + self::percentOf($customerRate, (float) $rates['cash_secondary_percent']),
+            'cash' => self::sequentialCashDeduction(
+                $customerRate,
+                (float) $rates['cash_primary_percent'],
+                (float) $rates['cash_secondary_percent'],
+            ),
             'vat_zero_22' => self::percentOf($customerRate, (float) $rates['vat_zero_22_percent']),
             'vat', 'cashless' => self::percentOf($customerRate, (float) $rates['vat_percent']),
             default => 0.0,
@@ -44,5 +48,13 @@ final class KpiCustomerDeduction
     private static function percentOf(float $base, float $percent): float
     {
         return $base * ($percent / 100);
+    }
+
+    private static function sequentialCashDeduction(float $customerRate, float $primaryPercent, float $secondaryPercent): float
+    {
+        $primaryAmount = self::percentOf($customerRate, $primaryPercent);
+        $remainder = $customerRate - $primaryAmount;
+
+        return $primaryAmount + self::percentOf($remainder, $secondaryPercent);
     }
 }

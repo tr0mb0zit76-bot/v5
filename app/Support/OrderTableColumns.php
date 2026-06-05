@@ -38,7 +38,7 @@ class OrderTableColumns
             ['field' => 'insurance', 'label' => 'Страховка', 'width' => 130, 'minWidth' => 110, 'type' => 'numeric'],
             ['field' => 'bonus', 'label' => 'Бонус', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'delta', 'label' => 'Маржа', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
-            ['field' => 'kpi_percent', 'label' => 'KPI %', 'width' => 100, 'minWidth' => 80, 'type' => 'numeric'],
+            ['field' => 'kpi_percent', 'label' => 'Вычет %', 'width' => 100, 'minWidth' => 80, 'type' => 'numeric'],
             ['field' => 'salary_accrued', 'label' => 'ЗП начисл.', 'width' => 130, 'minWidth' => 110, 'type' => 'numeric'],
             ['field' => 'salary_paid', 'label' => 'ЗП выпл.', 'width' => 120, 'minWidth' => 100, 'type' => 'numeric'],
             ['field' => 'status', 'label' => 'Статус системы', 'width' => 140, 'minWidth' => 120, 'type' => null],

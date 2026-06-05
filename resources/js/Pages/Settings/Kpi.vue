@@ -1,7 +1,7 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <CrmPageHeader
-            lead="Вычеты KPI с суммы заказчика: НДС, наличка (только при наличных у перевозчика), НДС 0% / 22%."
+            lead="Вычеты с суммы заказчика: НДС, наличка (при наличных у всех перевозчиков), НДС 0% / 22%."
             title="Настройки KPI"
         />
 
@@ -56,7 +56,7 @@
                 <div class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
                     <h3 class="font-semibold text-zinc-900 dark:text-zinc-50">Наличка</h3>
                     <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                        Только когда и заказчик, и перевозчик (все плечи) — «Наличные».
+                        Когда у всех перевозчиков (все плечи) — «Наличные». Форма оплаты заказчика не важна.
                     </p>
                     <label class="block space-y-1">
                         <span class="text-sm text-zinc-600 dark:text-zinc-400">Первый вычет, %</span>
@@ -87,7 +87,8 @@
                         </div>
                     </label>
                     <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                        Суммарно: {{ formattedCashTotalPercent }}%.
+                        Эффективный вычет (последовательно): {{ formattedCashEffectivePercent }}%.
+                        Не сумма процентов ({{ formattedCashNominalPercent }}%).
                     </p>
                 </div>
 
@@ -192,11 +193,19 @@ const settingsForm = useForm({
 
 const formattedBonusMultiplier = computed(() => Number(settingsForm.bonus_multiplier || 0).toFixed(2));
 
-const formattedCashTotalPercent = computed(() => {
+const formattedCashNominalPercent = computed(() => {
     const primary = Number(settingsForm.deduction_rates.cash_primary_percent || 0);
     const secondary = Number(settingsForm.deduction_rates.cash_secondary_percent || 0);
 
     return (primary + secondary).toFixed(2);
+});
+
+const formattedCashEffectivePercent = computed(() => {
+    const primary = Number(settingsForm.deduction_rates.cash_primary_percent || 0);
+    const secondary = Number(settingsForm.deduction_rates.cash_secondary_percent || 0);
+    const effective = 100 * (1 - (1 - primary / 100) * (1 - secondary / 100));
+
+    return effective.toFixed(2);
 });
 
 function saveSettings() {

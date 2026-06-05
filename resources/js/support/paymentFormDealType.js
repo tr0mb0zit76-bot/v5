@@ -79,7 +79,7 @@ export function classifyDealType(customerPaymentForm, carrierPaymentForms = [], 
 
     const allCarriersCash = carriers.every((form) => form === 'cash');
 
-    if (customer === 'cash' && allCarriersCash) {
+    if (allCarriersCash) {
         return { key: 'cash', label: 'Наличка' };
     }
 
