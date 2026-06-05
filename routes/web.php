@@ -212,6 +212,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/threads/{mailThread}', [MailMailboxController::class, 'show'])->name('threads.show');
         Route::post('/send', [MailMailboxController::class, 'send'])->name('send');
         Route::post('/threads/{mailThread}/reply', [MailMailboxController::class, 'reply'])->name('threads.reply');
+        Route::patch('/threads/{mailThread}/links', [MailMailboxController::class, 'updateLinks'])->name('threads.links');
+        Route::get('/link-options', [MailMailboxController::class, 'linkOptions'])->name('link-options');
         Route::patch('/messages/{mailMessage}/importance', [MailMailboxController::class, 'updateImportance'])->name('messages.importance');
         Route::get('/messages/{mailMessage}/attachments/{attachmentIndex}', [MailMailboxController::class, 'downloadAttachment'])
             ->whereNumber('attachmentIndex')

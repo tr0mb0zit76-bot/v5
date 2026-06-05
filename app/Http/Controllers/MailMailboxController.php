@@ -5,18 +5,21 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SendCommercialMailRequest;
 use App\Http\Requests\SendReplyMailRequest;
 use App\Http\Requests\UpdateMailMessageImportanceRequest;
+use App\Http\Requests\UpdateMailThreadLinksRequest;
 use App\Models\Lead;
 use App\Models\MailMessage;
 use App\Models\MailThread;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
+use App\Services\Commercial\MailThreadLinkService;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
 use App\Services\DocumentStorageService;
 use App\Support\MailSync\MailMailboxOwnerCatalog;
 use App\Support\MailSync\MailMessageBodyPresenter;
 use App\Support\MailSync\MailOutboundAttachmentRules;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -31,6 +34,7 @@ class MailMailboxController extends Controller
         private readonly MailMailboxAuthorization $mailboxAuth,
         private readonly OrderMailContextService $orderMailContext,
         private readonly MailMailboxOwnerCatalog $mailboxOwnerCatalog,
+        private readonly MailThreadLinkService $threadLinks,
     ) {}
 
     public function index(Request $request): Response
@@ -198,6 +202,91 @@ class MailMailboxController extends Controller
             'Content-Type' => $mime !== '' ? $mime : 'application/octet-stream',
             'Content-Disposition' => 'attachment; filename="'.str_replace('"', '', $filename).'"',
         ]);
+    }
+
+    public function updateLinks(UpdateMailThreadLinksRequest $request, MailThread $mailThread): RedirectResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless($this->mailboxAuth->canAccessThread($user, $mailThread), 403);
+
+        $leadId = $request->filled('lead_id') ? (int) $request->input('lead_id') : null;
+        $orderId = $request->filled('order_id') ? (int) $request->input('order_id') : null;
+
+        $this->threadLinks->apply($mailThread, $leadId, $orderId);
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Привязка цепочки обновлена.',
+        ]);
+    }
+
+    public function linkOptions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $type = $request->string('type')->toString();
+        $query = trim($request->string('q')->toString());
+
+        if ($type === 'lead') {
+            $builder = Lead::query()->orderByDesc('id')->limit(25);
+
+            if ($query !== '') {
+                $needle = '%'.$query.'%';
+                $builder->where(function ($scoped) use ($needle): void {
+                    $scoped->where('number', 'like', $needle)
+                        ->orWhere('title', 'like', $needle);
+                });
+            }
+
+            return response()->json([
+                'items' => $builder
+                    ->get(['id', 'number', 'title', 'counterparty_id'])
+                    ->map(fn (Lead $lead): array => [
+                        'id' => $lead->id,
+                        'number' => $lead->number,
+                        'title' => $lead->title,
+                        'counterparty_id' => $lead->counterparty_id,
+                        'label' => trim($lead->number.' — '.$lead->title),
+                    ])
+                    ->values()
+                    ->all(),
+            ]);
+        }
+
+        if ($type === 'order') {
+            if (! Schema::hasTable('orders')) {
+                return response()->json(['items' => []]);
+            }
+
+            $builder = Order::query()->orderByDesc('id')->limit(25);
+
+            if ($query !== '') {
+                if (ctype_digit($query)) {
+                    $builder->where(function ($scoped) use ($query): void {
+                        $scoped->whereKey((int) $query)
+                            ->orWhere('order_number', 'like', '%'.$query.'%');
+                    });
+                } else {
+                    $builder->where('order_number', 'like', '%'.$query.'%');
+                }
+            }
+
+            return response()->json([
+                'items' => $builder
+                    ->get(['id', 'order_number'])
+                    ->map(fn (Order $order): array => [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'label' => (string) ($order->order_number ?: '#'.$order->id),
+                    ])
+                    ->values()
+                    ->all(),
+            ]);
+        }
+
+        abort(422, 'Укажите type=lead или type=order.');
     }
 
     public function updateImportance(UpdateMailMessageImportanceRequest $request, MailMessage $mailMessage): RedirectResponse

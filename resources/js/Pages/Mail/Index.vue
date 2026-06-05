@@ -85,14 +85,68 @@
                                 Ящик: {{ selectedThread.mailbox_owner_name }}
                                 <span v-if="selectedThread.mailbox_owner_email">({{ selectedThread.mailbox_owner_email }})</span>
                             </span>
-                            <span v-if="selectedThread.lead_number">
+                            <Link
+                                v-if="selectedThread.lead_id"
+                                :href="route('leads.show', selectedThread.lead_id)"
+                                class="text-indigo-600 hover:underline dark:text-indigo-400"
+                            >
                                 Лид {{ selectedThread.lead_number }}
                                 <span v-if="selectedThread.lead_title">— {{ selectedThread.lead_title }}</span>
-                            </span>
-                            <span v-if="selectedThread.order_number">Заказ {{ selectedThread.order_number }}</span>
+                            </Link>
+                            <Link
+                                v-if="selectedThread.order_id"
+                                :href="route('orders.edit', selectedThread.order_id)"
+                                class="text-indigo-600 hover:underline dark:text-indigo-400"
+                            >
+                                Заказ {{ selectedThread.order_number }}
+                            </Link>
                             <span v-if="selectedThread.contractor_name">{{ selectedThread.contractor_name }}</span>
                         </div>
                     </div>
+
+                    <form :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitLinks">
+                        <div>
+                            <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Привязка к сделке</h3>
+                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                Если система не определила лид или заказ автоматически, укажите вручную.
+                            </p>
+                        </div>
+                        <div>
+                            <label :class="crmLabel">Лид</label>
+                            <input
+                                v-model="leadSearchQuery"
+                                type="text"
+                                :class="crmFieldFluid"
+                                placeholder="Поиск по номеру или названию"
+                                @input="scheduleLeadSearch"
+                            />
+                            <select v-model="linkForm.lead_id" :class="`${crmFieldFluid} mt-2`">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="lead in mergedLeadOptions" :key="lead.id" :value="lead.id">
+                                    {{ lead.number }} — {{ lead.title }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label :class="crmLabel">Заказ</label>
+                            <input
+                                v-model="orderSearchQuery"
+                                type="text"
+                                :class="crmFieldFluid"
+                                placeholder="Поиск по номеру заказа"
+                                @input="scheduleOrderSearch"
+                            />
+                            <select v-model="linkForm.order_id" :class="`${crmFieldFluid} mt-2`">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="order in mergedOrderOptions" :key="order.id" :value="order.id">
+                                    {{ order.order_number }}
+                                </option>
+                            </select>
+                        </div>
+                        <button type="submit" :class="crmBtnSecondary" :disabled="linkForm.processing">
+                            Сохранить привязку
+                        </button>
+                    </form>
 
                     <div :class="`${crmPanel} min-h-0 flex-1 space-y-3 overflow-y-auto p-4`">
                         <article
@@ -276,7 +330,7 @@
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { Paperclip, Star } from 'lucide-vue-next';
-import { onMounted, reactive, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnPrimary, crmBtnSecondary, crmBtnSecondaryOutline, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
@@ -353,7 +407,62 @@ const replyForm = useForm({
     attachments: [],
 });
 
+const linkForm = useForm({
+    lead_id: null,
+    order_id: null,
+});
+
+const leadSearchQuery = ref('');
+const orderSearchQuery = ref('');
+const leadSearchResults = ref([]);
+const orderSearchResults = ref([]);
+let leadSearchTimer = null;
+let orderSearchTimer = null;
+
 const messageViewMode = reactive({});
+
+const mergedLeadOptions = computed(() => {
+    const map = new Map();
+
+    for (const lead of props.leads) {
+        map.set(lead.id, lead);
+    }
+
+    for (const lead of leadSearchResults.value) {
+        map.set(lead.id, lead);
+    }
+
+    if (props.selectedThread?.lead_id && !map.has(props.selectedThread.lead_id)) {
+        map.set(props.selectedThread.lead_id, {
+            id: props.selectedThread.lead_id,
+            number: props.selectedThread.lead_number,
+            title: props.selectedThread.lead_title,
+        });
+    }
+
+    return Array.from(map.values());
+});
+
+const mergedOrderOptions = computed(() => {
+    const map = new Map();
+
+    for (const order of props.orders) {
+        map.set(order.id, order);
+    }
+
+    for (const order of orderSearchResults.value) {
+        map.set(order.id, order);
+    }
+
+    if (props.selectedThread?.order_id && !map.has(props.selectedThread.order_id)) {
+        map.set(props.selectedThread.order_id, {
+            id: props.selectedThread.order_id,
+            order_number: props.selectedThread.order_number,
+        });
+    }
+
+    return Array.from(map.values());
+});
 
 function applyComposeDefaults(defaults) {
     if (!defaults) {
@@ -387,6 +496,23 @@ watch(
     { immediate: true },
 );
 
+watch(
+    () => props.selectedThread,
+    (thread) => {
+        if (!thread) {
+            return;
+        }
+
+        linkForm.lead_id = thread.lead_id ?? null;
+        linkForm.order_id = thread.order_id ?? null;
+        leadSearchQuery.value = '';
+        orderSearchQuery.value = '';
+        leadSearchResults.value = [];
+        orderSearchResults.value = [];
+    },
+    { immediate: true },
+);
+
 onMounted(() => {
     if (typeof window === 'undefined' || props.composeDefaults) {
         return;
@@ -400,6 +526,84 @@ onMounted(() => {
 
     sendForm.order_id = Number.parseInt(orderId, 10) || null;
 });
+
+onUnmounted(() => {
+    if (leadSearchTimer !== null) {
+        clearTimeout(leadSearchTimer);
+    }
+
+    if (orderSearchTimer !== null) {
+        clearTimeout(orderSearchTimer);
+    }
+});
+
+async function fetchLinkOptions(type, query) {
+    const url = new URL(route('mail.link-options'), window.location.origin);
+    url.searchParams.set('type', type);
+    url.searchParams.set('q', query);
+
+    const response = await fetch(url.toString(), {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+        return [];
+    }
+
+    const payload = await response.json();
+
+    return Array.isArray(payload.items) ? payload.items : [];
+}
+
+function scheduleLeadSearch() {
+    if (leadSearchTimer !== null) {
+        clearTimeout(leadSearchTimer);
+    }
+
+    leadSearchTimer = setTimeout(async () => {
+        const query = leadSearchQuery.value.trim();
+
+        if (query.length < 2) {
+            leadSearchResults.value = [];
+
+            return;
+        }
+
+        leadSearchResults.value = await fetchLinkOptions('lead', query);
+    }, 300);
+}
+
+function scheduleOrderSearch() {
+    if (orderSearchTimer !== null) {
+        clearTimeout(orderSearchTimer);
+    }
+
+    orderSearchTimer = setTimeout(async () => {
+        const query = orderSearchQuery.value.trim();
+
+        if (query.length < 1) {
+            orderSearchResults.value = [];
+
+            return;
+        }
+
+        orderSearchResults.value = await fetchLinkOptions('order', query);
+    }, 300);
+}
+
+function submitLinks() {
+    if (!props.selectedThread) {
+        return;
+    }
+
+    linkForm.patch(route('mail.threads.links', props.selectedThread.id), {
+        preserveScroll: true,
+    });
+}
 
 function mailboxIndexUrl(mailboxUserId) {
     const params = {};
