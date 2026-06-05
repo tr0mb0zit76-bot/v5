@@ -942,14 +942,9 @@
             </div>
 
             <div v-else-if="activeTab === 'cargo'" class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-base font-semibold">Грузовые позиции</h2>
-                        <p class="text-sm text-zinc-500">Несколько грузов в одном заказе</p>
-                    </div>
-                    <button type="button" class="rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" @click="addCargoItem">
-                        Добавить груз
-                    </button>
+                <div>
+                    <h2 class="text-base font-semibold">Грузовые позиции</h2>
+                    <p class="text-sm text-zinc-500">Несколько грузов в одном заказе</p>
                 </div>
 
                 <div class="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
@@ -1155,10 +1150,19 @@
                     <option v-for="title in cargoTitleSuggestions" :key="title" :value="title" />
                 </datalist>
 
-                <div class="grid gap-3 rounded-2xl border border-zinc-200 p-4 text-sm dark:border-zinc-800 md:grid-cols-3">
-                    <div>Общий вес: <span class="font-medium">{{ cargoSummary.totalWeight.toFixed(2) }} кг</span></div>
-                    <div>Общий объём: <span class="font-medium">{{ cargoSummary.totalVolume.toFixed(2) }} м³</span></div>
-                    <div>Всего мест: <span class="font-medium">{{ cargoSummary.totalPackages }}</span></div>
+                <div class="flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="grid flex-1 gap-3 text-sm md:grid-cols-3">
+                        <div>Общий вес: <span class="font-medium">{{ cargoSummary.totalWeight.toFixed(2) }} кг</span></div>
+                        <div>Общий объём: <span class="font-medium">{{ cargoSummary.totalVolume.toFixed(2) }} м³</span></div>
+                        <div>Всего мест: <span class="font-medium">{{ cargoSummary.totalPackages }}</span></div>
+                    </div>
+                    <button
+                        type="button"
+                        class="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                        @click="addCargoItem"
+                    >
+                        Добавить груз
+                    </button>
                 </div>
 
                 <div v-if="needsCargoPerformerAllocationUi" class="space-y-3 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
