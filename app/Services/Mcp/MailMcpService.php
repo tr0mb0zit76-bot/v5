@@ -302,6 +302,7 @@ class MailMcpService
             'body_text' => $message->bodyPurged()
                 ? ($message->retention_summary ?? '(тело письма удалено по политике хранения)')
                 : $message->body_text,
+            'body_html' => $message->bodyPurged() ? null : $message->body_html,
             'body_purged' => $message->bodyPurged(),
             'sent_at' => optional($message->sent_at)?->toIso8601String(),
             'attachments' => collect(is_array($message->attachments) ? $message->attachments : [])

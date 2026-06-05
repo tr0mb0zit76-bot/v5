@@ -213,6 +213,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/send', [MailMailboxController::class, 'send'])->name('send');
         Route::post('/threads/{mailThread}/reply', [MailMailboxController::class, 'reply'])->name('threads.reply');
         Route::patch('/messages/{mailMessage}/importance', [MailMailboxController::class, 'updateImportance'])->name('messages.importance');
+        Route::get('/messages/{mailMessage}/attachments/{attachmentIndex}', [MailMailboxController::class, 'downloadAttachment'])
+            ->whereNumber('attachmentIndex')
+            ->name('messages.attachments.download');
     });
 
     Route::middleware('visibility.area:sales_assistant_scripts')->group(function () {

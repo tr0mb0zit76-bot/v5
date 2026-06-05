@@ -44,13 +44,13 @@ final class MailMimeBodyExtractor
             )));
         }
 
-        $plain = $this->findPartText($connection, $uid, $structure->parts, '', 'text/plain');
+        $plain = $this->findPartText($connection, $uid, $structure->parts, '', 'text/plain', stripTags: true);
 
         if ($plain !== '') {
             return MailUtf8Sanitizer::sanitize(trim(strip_tags($plain)));
         }
 
-        $html = $this->findPartText($connection, $uid, $structure->parts, '', 'text/html');
+        $html = $this->findPartText($connection, $uid, $structure->parts, '', 'text/html', stripTags: true);
 
         return $html !== ''
             ? MailUtf8Sanitizer::sanitize(trim(strip_tags($html)))
@@ -59,9 +59,41 @@ final class MailMimeBodyExtractor
 
     /**
      * @param  Connection|resource  $connection
+     */
+    public function extractHtml($connection, int $uid): ?string
+    {
+        if (! is_resource($connection) && ! $connection instanceof Connection) {
+            return null;
+        }
+
+        $structure = @imap_fetchstructure($connection, $uid, FT_UID);
+
+        if ($structure === false) {
+            return null;
+        }
+
+        if (! isset($structure->parts) || ! is_array($structure->parts) || $structure->parts === []) {
+            $subtype = strtolower((string) ($structure->subtype ?? ''));
+
+            if ((int) ($structure->type ?? -1) === 0 && $subtype === 'html') {
+                $html = trim($this->decodePart($connection, $uid, '1', $structure));
+
+                return $html !== '' ? MailHtmlSanitizer::sanitize($html) : null;
+            }
+
+            return null;
+        }
+
+        $html = trim($this->findPartText($connection, $uid, $structure->parts, '', 'text/html', stripTags: false));
+
+        return $html !== '' ? MailHtmlSanitizer::sanitize($html) : null;
+    }
+
+    /**
+     * @param  Connection|resource  $connection
      * @param  list<object>  $parts
      */
-    private function findPartText($connection, int $uid, array $parts, string $prefix, string $mimeType): string
+    private function findPartText($connection, int $uid, array $parts, string $prefix, string $mimeType, bool $stripTags = true): string
     {
         $wantedSubtype = strtolower(str_replace('text/', '', $mimeType));
 
@@ -69,7 +101,7 @@ final class MailMimeBodyExtractor
             $partNumber = $prefix === '' ? (string) ($index + 1) : $prefix.'.'.($index + 1);
 
             if (isset($part->parts) && is_array($part->parts) && $part->parts !== []) {
-                $nested = $this->findPartText($connection, $uid, $part->parts, $partNumber, $mimeType);
+                $nested = $this->findPartText($connection, $uid, $part->parts, $partNumber, $mimeType, $stripTags);
 
                 if ($nested !== '') {
                     return $nested;
@@ -83,7 +115,7 @@ final class MailMimeBodyExtractor
                 $decoded = $this->decodePart($connection, $uid, $partNumber, $part);
 
                 if ($decoded !== '') {
-                    return $decoded;
+                    return $stripTags ? strip_tags($decoded) : $decoded;
                 }
             }
         }

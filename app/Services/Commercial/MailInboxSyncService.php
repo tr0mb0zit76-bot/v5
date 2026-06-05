@@ -25,6 +25,7 @@ final class MailInboxSyncService
         private readonly MailCounterpartyResolver $counterpartyResolver,
         private readonly MailImportAllowance $importAllowance,
         private readonly ActivityLedgerService $activityLedger,
+        private readonly MailInboundAttachmentStorage $inboundAttachmentStorage,
     ) {}
 
     public function tablesReady(): bool
@@ -335,10 +336,21 @@ final class MailInboxSyncService
             'cc_emails' => $message->ccEmails === [] ? null : $message->ccEmails,
             'subject' => $message->subject !== '' ? $message->subject : '(без темы)',
             'body_text' => $message->bodyText,
+            'body_html' => $message->bodyHtml,
             'sent_at' => $sentAt,
             'mailbox_user_id' => $mailboxUser->id,
             'created_by' => $mailboxUser->id,
         ]);
+
+        $storedAttachments = $this->inboundAttachmentStorage->storeForMessage(
+            $mailboxUser,
+            $mailMessage->id,
+            $message->rawAttachments,
+        );
+
+        if ($storedAttachments !== [] && Schema::hasColumn('mail_messages', 'attachments')) {
+            $mailMessage->forceFill(['attachments' => $storedAttachments])->save();
+        }
 
         $threadUpdates = [
             'last_message_at' => $sentAt,

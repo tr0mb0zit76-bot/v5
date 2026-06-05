@@ -66,6 +66,25 @@ class DocumentStorageService
     /**
      * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
      */
+    /**
+     * @return array{original_name: string, file_path: string, file_size: int, mime_type: string|null, storage_driver: string}
+     */
+    public function storeMailInboundAttachment(string $contents, string $originalName, int $mailboxUserId, int $messageId): array
+    {
+        $directory = 'mail_inbound/'.$mailboxUserId.'/'.$messageId;
+        $path = $this->resolveUniquePathInDirectory($directory, $originalName);
+        $driver = $this->configuredDriver();
+        $this->put($path, $contents, $driver);
+
+        return [
+            'original_name' => basename(str_replace('\\', '/', $originalName)),
+            'file_path' => $path,
+            'file_size' => strlen($contents),
+            'mime_type' => null,
+            'storage_driver' => $driver,
+        ];
+    }
+
     public function storeMailOutboundUpload(UploadedFile $file, int $senderUserId, ?int $orderId = null): array
     {
         $originalName = $file->getClientOriginalName();

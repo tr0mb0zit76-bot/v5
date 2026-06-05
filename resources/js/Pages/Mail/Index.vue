@@ -82,14 +82,47 @@
                                     <Star class="h-4 w-4" :class="message.is_important ? 'fill-current' : ''" />
                                 </button>
                             </div>
-                            <pre class="mt-3 whitespace-pre-wrap font-sans text-sm text-zinc-700 dark:text-zinc-200">{{ message.body_text }}</pre>
+                            <div class="mt-3 space-y-2">
+                                <div v-if="message.body_html" class="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        :class="messageViewMode[message.id] === 'html' ? crmBtnSecondary : crmBtnSecondaryOutline"
+                                        @click="setMessageViewMode(message.id, 'html')"
+                                    >
+                                        Форматированный
+                                    </button>
+                                    <button
+                                        type="button"
+                                        :class="messageViewMode[message.id] !== 'html' ? crmBtnSecondary : crmBtnSecondaryOutline"
+                                        @click="setMessageViewMode(message.id, 'text')"
+                                    >
+                                        Текст
+                                    </button>
+                                </div>
+                                <div
+                                    v-if="message.body_html && messageViewMode[message.id] === 'html'"
+                                    class="prose prose-sm max-w-none text-zinc-700 dark:prose-invert dark:text-zinc-200"
+                                    v-html="message.body_html"
+                                />
+                                <pre
+                                    v-else
+                                    class="whitespace-pre-wrap font-sans text-sm text-zinc-700 dark:text-zinc-200"
+                                >{{ message.body_text }}</pre>
+                            </div>
                             <ul
                                 v-if="message.attachments?.length"
                                 class="mt-3 space-y-1 text-xs text-zinc-600 dark:text-zinc-300"
                             >
                                 <li v-for="(file, fileIndex) in message.attachments" :key="`${message.id}-att-${fileIndex}`" class="flex items-center gap-1.5">
                                     <Paperclip class="h-3.5 w-3.5 shrink-0" />
-                                    <span>{{ file.name }}</span>
+                                    <a
+                                        v-if="file.download_url"
+                                        :href="file.download_url"
+                                        class="text-indigo-600 hover:underline dark:text-indigo-400"
+                                    >
+                                        {{ file.name }}
+                                    </a>
+                                    <span v-else>{{ file.name }}</span>
                                     <span v-if="file.file_size" class="text-zinc-400">({{ formatFileSize(file.file_size) }})</span>
                                 </li>
                             </ul>
@@ -192,10 +225,10 @@
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { Paperclip, Star } from 'lucide-vue-next';
-import { onMounted, watch } from 'vue';
+import { onMounted, reactive, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
+import { crmBtnPrimary, crmBtnSecondary, crmBtnSecondaryOutline, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'mail' }, () => page) });
 
@@ -259,6 +292,8 @@ const replyForm = useForm({
     attachments: [],
 });
 
+const messageViewMode = reactive({});
+
 function applyComposeDefaults(defaults) {
     if (!defaults) {
         return;
@@ -304,6 +339,10 @@ onMounted(() => {
 
     sendForm.order_id = Number.parseInt(orderId, 10) || null;
 });
+
+function setMessageViewMode(messageId, mode) {
+    messageViewMode[messageId] = mode;
+}
 
 function parseEmails(raw) {
     return String(raw ?? '')

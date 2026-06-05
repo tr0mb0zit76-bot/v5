@@ -15,6 +15,7 @@ final class MailImapClient
 
     public function __construct(
         private readonly MailMimeBodyExtractor $bodyExtractor = new MailMimeBodyExtractor,
+        private readonly MailMimeAttachmentExtractor $attachmentExtractor = new MailMimeAttachmentExtractor,
     ) {}
 
     public function extensionLoaded(): bool
@@ -248,6 +249,22 @@ final class MailImapClient
         }
 
         $bodyText = $this->bodyExtractor->extractPlainText($this->connection, $uid);
+        $bodyHtml = config('mail_sync.import_html_body', true)
+            ? $this->bodyExtractor->extractHtml($this->connection, $uid)
+            : null;
+        $rawAttachments = config('mail_sync.inbound_attachments.enabled', true)
+            ? $this->attachmentExtractor->extract($this->connection, $uid)
+            : [];
+
+        if ($bodyText === '' && $bodyHtml !== null && $bodyHtml !== '') {
+            $bodyText = MailUtf8Sanitizer::sanitize(trim(strip_tags($bodyHtml)));
+        }
+
+        $maxHtmlChars = max(10_000, (int) config('mail_sync.max_html_body_chars', 200_000));
+
+        if ($bodyHtml !== null && mb_strlen($bodyHtml) > $maxHtmlChars) {
+            $bodyHtml = mb_substr($bodyHtml, 0, $maxHtmlChars);
+        }
 
         return new ImportedMailMessage(
             internetMessageId: $this->normalizeMessageId($internetMessageId),
@@ -257,9 +274,11 @@ final class MailImapClient
             ccEmails: $this->extractEmailAddresses($ccRaw),
             subject: MailUtf8Sanitizer::sanitize(trim($subject)),
             bodyText: $bodyText !== '' ? MailUtf8Sanitizer::sanitize($bodyText) : null,
+            bodyHtml: $bodyHtml,
             inReplyTo: $this->normalizeMessageId($this->headerValue($header, 'In-Reply-To') ?? ''),
             sentAt: $sentAt,
             folder: $folder,
+            rawAttachments: $rawAttachments,
         );
     }
 

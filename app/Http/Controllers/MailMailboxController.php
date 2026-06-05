@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
+use App\Services\DocumentStorageService;
 use App\Support\MailSync\MailOutboundAttachmentRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response;
 
 class MailMailboxController extends Controller
 {
@@ -153,6 +155,42 @@ class MailMailboxController extends Controller
             ]);
     }
 
+    public function downloadAttachment(Request $request, MailMessage $mailMessage, int $attachmentIndex): Response
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+        abort_unless($this->mailboxAuth->canAccessMessage($user, $mailMessage), 403);
+
+        $attachments = $mailMessage->attachments;
+
+        if (! is_array($attachments)) {
+            abort(404);
+        }
+
+        $attachment = $attachments[$attachmentIndex] ?? null;
+
+        if (! is_array($attachment)) {
+            abort(404);
+        }
+
+        $path = trim((string) ($attachment['file_path'] ?? ''));
+
+        if ($path === '') {
+            abort(404);
+        }
+
+        $filename = trim((string) ($attachment['original_name'] ?? $attachment['name'] ?? 'attachment'));
+        $mime = trim((string) ($attachment['mime_type'] ?? 'application/octet-stream'));
+        $driver = isset($attachment['storage_driver']) ? (string) $attachment['storage_driver'] : null;
+
+        $contents = app(DocumentStorageService::class)->get($path, $driver);
+
+        return response($contents, 200, [
+            'Content-Type' => $mime !== '' ? $mime : 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="'.str_replace('"', '', $filename).'"',
+        ]);
+    }
+
     public function updateImportance(UpdateMailMessageImportanceRequest $request, MailMessage $mailMessage): RedirectResponse
     {
         $user = $request->user();
@@ -260,6 +298,7 @@ class MailMailboxController extends Controller
             'body_text' => $message->bodyPurged()
                 ? ($message->retention_summary ?? '(тело письма удалено по политике хранения)')
                 : $message->body_text,
+            'body_html' => $message->bodyPurged() ? null : $message->body_html,
             'body_purged' => $message->bodyPurged(),
             'is_important' => (bool) $message->is_important,
             'sent_at' => $message->sent_at?->toIso8601String(),
@@ -268,7 +307,7 @@ class MailMailboxController extends Controller
     }
 
     /**
-     * @return list<array{name: string, file_size: int|null, mime_type: string|null}>
+     * @return list<array{name: string, file_size: int|null, mime_type: string|null, download_url: string|null}>
      */
     private function serializeMessageAttachments(MailMessage $message): array
     {
@@ -279,7 +318,8 @@ class MailMailboxController extends Controller
         }
 
         return collect($attachments)
-            ->map(static function (mixed $attachment): ?array {
+            ->values()
+            ->map(function (mixed $attachment, int $index) use ($message): ?array {
                 if (! is_array($attachment)) {
                     return null;
                 }
@@ -290,10 +330,15 @@ class MailMailboxController extends Controller
                     return null;
                 }
 
+                $path = trim((string) ($attachment['file_path'] ?? ''));
+
                 return [
                     'name' => $name,
                     'file_size' => isset($attachment['file_size']) ? (int) $attachment['file_size'] : null,
                     'mime_type' => isset($attachment['mime_type']) ? (string) $attachment['mime_type'] : null,
+                    'download_url' => $path !== ''
+                        ? route('mail.messages.attachments.download', [$message->id, $index])
+                        : null,
                 ];
             })
             ->filter()
