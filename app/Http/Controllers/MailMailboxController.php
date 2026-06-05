@@ -234,10 +234,19 @@ class MailMailboxController extends Controller
 
             if ($query !== '') {
                 $needle = '%'.$query.'%';
-                $builder->where(function ($scoped) use ($needle): void {
-                    $scoped->where('number', 'like', $needle)
-                        ->orWhere('title', 'like', $needle);
-                });
+
+                if (ctype_digit($query)) {
+                    $builder->where(function ($scoped) use ($query, $needle): void {
+                        $scoped->whereKey((int) $query)
+                            ->orWhere('number', 'like', $needle)
+                            ->orWhere('title', 'like', $needle);
+                    });
+                } else {
+                    $builder->where(function ($scoped) use ($needle): void {
+                        $scoped->where('number', 'like', $needle)
+                            ->orWhere('title', 'like', $needle);
+                    });
+                }
             }
 
             return response()->json([

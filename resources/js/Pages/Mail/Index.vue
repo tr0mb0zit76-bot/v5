@@ -111,37 +111,21 @@
                                 Если система не определила лид или заказ автоматически, укажите вручную.
                             </p>
                         </div>
-                        <div>
-                            <label :class="crmLabel">Лид</label>
-                            <input
-                                v-model="leadSearchQuery"
-                                type="text"
-                                :class="crmFieldFluid"
-                                placeholder="Поиск по номеру или названию"
-                                @input="scheduleLeadSearch"
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <MailLinkPicker
+                                v-model="linkForm.lead_id"
+                                type="lead"
+                                :seeds="linkLeadSeeds"
+                                label="Лид"
+                                placeholder="Номер или название лида"
                             />
-                            <select v-model="linkForm.lead_id" :class="`${crmFieldFluid} mt-2`">
-                                <option :value="null">Без привязки</option>
-                                <option v-for="lead in mergedLeadOptions" :key="lead.id" :value="lead.id">
-                                    {{ lead.number }} — {{ lead.title }}
-                                </option>
-                            </select>
-                        </div>
-                        <div>
-                            <label :class="crmLabel">Заказ</label>
-                            <input
-                                v-model="orderSearchQuery"
-                                type="text"
-                                :class="crmFieldFluid"
-                                placeholder="Поиск по номеру заказа"
-                                @input="scheduleOrderSearch"
+                            <MailLinkPicker
+                                v-model="linkForm.order_id"
+                                type="order"
+                                :seeds="linkOrderSeeds"
+                                label="Заказ"
+                                placeholder="Номер заказа"
                             />
-                            <select v-model="linkForm.order_id" :class="`${crmFieldFluid} mt-2`">
-                                <option :value="null">Без привязки</option>
-                                <option v-for="order in mergedOrderOptions" :key="order.id" :value="order.id">
-                                    {{ order.order_number }}
-                                </option>
-                            </select>
                         </div>
                         <button type="submit" :class="crmBtnSecondary" :disabled="linkForm.processing">
                             Сохранить привязку
@@ -270,23 +254,25 @@
 
                 <form v-else :class="`${crmPanel} space-y-3 p-4`" @submit.prevent="submitSend">
                     <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Новое письмо</h2>
-                    <div>
-                        <label :class="crmLabel">Лид (необязательно)</label>
-                        <select v-model="sendForm.lead_id" :class="crmFieldFluid">
-                            <option :value="null">Без привязки</option>
-                            <option v-for="lead in leads" :key="lead.id" :value="lead.id">
-                                {{ lead.number }} — {{ lead.title }}
-                            </option>
-                        </select>
-                    </div>
-                    <div>
-                        <label :class="crmLabel">Заказ (необязательно)</label>
-                        <select v-model="sendForm.order_id" :class="crmFieldFluid">
-                            <option :value="null">Без привязки</option>
-                            <option v-for="order in orders" :key="order.id" :value="order.id">
-                                {{ order.order_number }}
-                            </option>
-                        </select>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label :class="crmLabel">Лид (необязательно)</label>
+                            <select v-model="sendForm.lead_id" :class="crmFieldFluid">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="lead in leads" :key="lead.id" :value="lead.id">
+                                    {{ lead.number }} — {{ lead.title }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label :class="crmLabel">Заказ (необязательно)</label>
+                            <select v-model="sendForm.order_id" :class="crmFieldFluid">
+                                <option :value="null">Без привязки</option>
+                                <option v-for="order in orders" :key="order.id" :value="order.id">
+                                    {{ order.order_number }}
+                                </option>
+                            </select>
+                        </div>
                     </div>
                     <div>
                         <label :class="crmLabel">Кому (через запятую)</label>
@@ -330,8 +316,9 @@
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { Paperclip, Star } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, watch } from 'vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import MailLinkPicker from '@/Components/Mail/MailLinkPicker.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnPrimary, crmBtnSecondary, crmBtnSecondaryOutline, crmFieldFluid, crmLabel, crmPanel } from '@/support/crmUi.js';
 
@@ -412,56 +399,33 @@ const linkForm = useForm({
     order_id: null,
 });
 
-const leadSearchQuery = ref('');
-const orderSearchQuery = ref('');
-const leadSearchResults = ref([]);
-const orderSearchResults = ref([]);
-let leadSearchTimer = null;
-let orderSearchTimer = null;
-
 const messageViewMode = reactive({});
 
-const mergedLeadOptions = computed(() => {
-    const map = new Map();
+const linkLeadSeeds = computed(() => {
+    const seeds = [...props.leads];
 
-    for (const lead of props.leads) {
-        map.set(lead.id, lead);
-    }
-
-    for (const lead of leadSearchResults.value) {
-        map.set(lead.id, lead);
-    }
-
-    if (props.selectedThread?.lead_id && !map.has(props.selectedThread.lead_id)) {
-        map.set(props.selectedThread.lead_id, {
+    if (props.selectedThread?.lead_id && !seeds.some((lead) => lead.id === props.selectedThread.lead_id)) {
+        seeds.unshift({
             id: props.selectedThread.lead_id,
             number: props.selectedThread.lead_number,
             title: props.selectedThread.lead_title,
         });
     }
 
-    return Array.from(map.values());
+    return seeds;
 });
 
-const mergedOrderOptions = computed(() => {
-    const map = new Map();
+const linkOrderSeeds = computed(() => {
+    const seeds = [...props.orders];
 
-    for (const order of props.orders) {
-        map.set(order.id, order);
-    }
-
-    for (const order of orderSearchResults.value) {
-        map.set(order.id, order);
-    }
-
-    if (props.selectedThread?.order_id && !map.has(props.selectedThread.order_id)) {
-        map.set(props.selectedThread.order_id, {
+    if (props.selectedThread?.order_id && !seeds.some((order) => order.id === props.selectedThread.order_id)) {
+        seeds.unshift({
             id: props.selectedThread.order_id,
             order_number: props.selectedThread.order_number,
         });
     }
 
-    return Array.from(map.values());
+    return seeds;
 });
 
 function applyComposeDefaults(defaults) {
@@ -505,10 +469,6 @@ watch(
 
         linkForm.lead_id = thread.lead_id ?? null;
         linkForm.order_id = thread.order_id ?? null;
-        leadSearchQuery.value = '';
-        orderSearchQuery.value = '';
-        leadSearchResults.value = [];
-        orderSearchResults.value = [];
     },
     { immediate: true },
 );
@@ -526,74 +486,6 @@ onMounted(() => {
 
     sendForm.order_id = Number.parseInt(orderId, 10) || null;
 });
-
-onUnmounted(() => {
-    if (leadSearchTimer !== null) {
-        clearTimeout(leadSearchTimer);
-    }
-
-    if (orderSearchTimer !== null) {
-        clearTimeout(orderSearchTimer);
-    }
-});
-
-async function fetchLinkOptions(type, query) {
-    const url = new URL(route('mail.link-options'), window.location.origin);
-    url.searchParams.set('type', type);
-    url.searchParams.set('q', query);
-
-    const response = await fetch(url.toString(), {
-        headers: {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'same-origin',
-    });
-
-    if (!response.ok) {
-        return [];
-    }
-
-    const payload = await response.json();
-
-    return Array.isArray(payload.items) ? payload.items : [];
-}
-
-function scheduleLeadSearch() {
-    if (leadSearchTimer !== null) {
-        clearTimeout(leadSearchTimer);
-    }
-
-    leadSearchTimer = setTimeout(async () => {
-        const query = leadSearchQuery.value.trim();
-
-        if (query.length < 2) {
-            leadSearchResults.value = [];
-
-            return;
-        }
-
-        leadSearchResults.value = await fetchLinkOptions('lead', query);
-    }, 300);
-}
-
-function scheduleOrderSearch() {
-    if (orderSearchTimer !== null) {
-        clearTimeout(orderSearchTimer);
-    }
-
-    orderSearchTimer = setTimeout(async () => {
-        const query = orderSearchQuery.value.trim();
-
-        if (query.length < 1) {
-            orderSearchResults.value = [];
-
-            return;
-        }
-
-        orderSearchResults.value = await fetchLinkOptions('order', query);
-    }, 300);
-}
 
 function submitLinks() {
     if (!props.selectedThread) {
