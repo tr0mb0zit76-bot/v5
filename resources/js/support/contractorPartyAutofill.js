@@ -32,12 +32,40 @@ export async function fetchContractorPartySuggestion(query) {
 }
 
 /**
+ * @param {Record<string, unknown>|null|undefined} suggestion
+ */
+export function resolveContractorNameFromSuggestion(suggestion) {
+    const party = suggestion?.data ?? {};
+    const partyName = party.name ?? {};
+
+    const candidates = [
+        suggestion?.value,
+        partyName.short_with_opf,
+        partyName.full_with_opf,
+        partyName.short,
+        partyName.full,
+    ];
+
+    for (const candidate of candidates) {
+        const normalized = String(candidate ?? '').trim();
+        if (normalized !== '') {
+            return normalized;
+        }
+    }
+
+    return '';
+}
+
+/**
  * @param {Record<string, unknown>} target
  */
 export function applyContractorPartySuggestion(target, suggestion) {
     const party = suggestion?.data ?? {};
 
-    target.name = suggestion?.value ?? target.name ?? '';
+    const resolvedName = resolveContractorNameFromSuggestion(suggestion);
+    if (resolvedName !== '') {
+        target.name = resolvedName;
+    }
     target.inn = party.inn != null && party.inn !== '' ? String(party.inn) : (target.inn ?? '');
     target.kpp = party.kpp != null && party.kpp !== '' ? String(party.kpp) : (target.kpp ?? '');
 

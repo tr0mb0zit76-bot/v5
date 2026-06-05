@@ -80,6 +80,13 @@ class McpAccessGate
         }
     }
 
+    public function requireDriversArea(User $user): void
+    {
+        if (! RoleAccess::canAccessVisibilityArea($user, 'drivers')) {
+            throw new AuthenticationException('Нет доступа к разделу «Водители».');
+        }
+    }
+
     public function requireTasksArea(User $user): void
     {
         if (! RoleAccess::canAccessVisibilityArea($user, 'tasks')) {

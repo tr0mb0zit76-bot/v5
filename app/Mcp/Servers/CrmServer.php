@@ -3,6 +3,9 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Tools\AddOrderNoteTool;
+use App\Mcp\Tools\CreateContractorTool;
+use App\Mcp\Tools\CreateFleetDriverTool;
+use App\Mcp\Tools\CreateFleetVehicleTool;
 use App\Mcp\Tools\CreateOrderIntakeDraftFromTextTool;
 use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
@@ -49,7 +52,8 @@ use Laravel\Mcp\Server\Tool;
         - get_user_context — роль и области видимости
         - search_orders / get_order / get_order_timeline / list_order_documents
         - get_order_field_lexicon — русские названия полей и синонимы
-        - search_contractors / get_contractor
+        - search_contractors / get_contractor / create_contractor
+        - create_fleet_driver / create_fleet_vehicle — водитель и авто (модалки в заказе)
         - search_tasks / get_task / create_task
         - add_order_note — заметка в ленту заказа
         - update_order_field — одно поле заказа (whitelist)
@@ -79,6 +83,9 @@ class CrmServer extends Server
         ListOrderDocumentsTool::class,
         SearchContractorsTool::class,
         GetContractorTool::class,
+        CreateContractorTool::class,
+        CreateFleetDriverTool::class,
+        CreateFleetVehicleTool::class,
         SearchTasksTool::class,
         GetTaskTool::class,
         CreateTaskTool::class,

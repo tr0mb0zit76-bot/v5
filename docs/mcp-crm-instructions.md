@@ -9,7 +9,8 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - get_user_context — роль и области видимости
 - search_orders / get_order / get_order_timeline / list_order_documents
 - get_order_field_lexicon — русские названия полей и синонимы
-- search_contractors / get_contractor
+- search_contractors / get_contractor / create_contractor
+- create_fleet_driver / create_fleet_vehicle — водитель и авто (модалки в заказе)
 - search_tasks / get_task / create_task
 - add_order_note — заметка в ленту заказа
 - update_order_field — одно поле заказа (whitelist)
@@ -29,6 +30,9 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 
 | Tool | Когда вызывать |
 |------|----------------|
+| `create_contractor` | Создать контрагента: `type` + `name` или полный ИНН (автозаполнение DaData). В ответе `show_path`. |
+| `create_fleet_driver` | Модалка «Водитель»: `carrier_contractor_id`, `full_name`, опционально паспорт/ВУ/телефон. |
+| `create_fleet_vehicle` | Модалка «Авто»: `owner_contractor_id`, госномера или марки тягача/прицепа. |
 | `create_order_intake_draft_from_text` | Пользователь описывает заявку на перевозку текстом → `draft_id`, `wizard_path`, `wizard_patch`. MCP не открывает UI; пользователь переходит по `wizard_path` (command bar в CRM — автоматически). |
 | `search_mail_threads` | Контекст переписки с клиентом, поиск по теме/email/тексту |
 | `get_mail_thread` | Полные письма цепочки по `thread_id` |

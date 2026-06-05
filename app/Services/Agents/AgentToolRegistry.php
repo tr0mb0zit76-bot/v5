@@ -9,6 +9,7 @@ use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
 use App\Services\Mcp\DispositionMcpService;
+use App\Services\Mcp\FleetMcpService;
 use App\Services\Mcp\MailMcpService;
 use App\Services\Mcp\McpAccessGate;
 use App\Services\Mcp\OrderDocumentMcpService;
@@ -39,6 +40,7 @@ class AgentToolRegistry
         private readonly AiToolAuditLogger $audit,
         private readonly OrderMcpService $orders,
         private readonly ContractorMcpService $contractors,
+        private readonly FleetMcpService $fleet,
         private readonly TaskMcpService $tasks,
         private readonly OrderDocumentMcpService $orderDocuments,
         private readonly SalesBookMcpService $salesBook,
@@ -260,6 +262,92 @@ class AgentToolRegistry
                 invoke: function (User $user, array $args): array {
                     return ['contractor' => $this->contractors->get($user, (int) $args['contractor_id'])];
                 },
+            ),
+            new AgentToolDefinition(
+                name: 'create_contractor',
+                description: 'Создать контрагента. Минимум type и name; при полном ИНН без названия — автозаполнение из DaData. Владелец — текущий пользователь.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'type' => ['type' => 'string', 'enum' => ['customer', 'carrier', 'contractor', 'both'], 'description' => 'По умолчанию customer.'],
+                        'name' => ['type' => 'string', 'description' => 'Краткое название. Можно опустить при полном ИНН.'],
+                        'inn' => ['type' => 'string'],
+                        'kpp' => ['type' => 'string'],
+                        'ogrn' => ['type' => 'string'],
+                        'okpo' => ['type' => 'string'],
+                        'legal_form' => ['type' => 'string', 'enum' => ['ooo', 'zao', 'ao', 'ip', 'samozanyaty', 'other']],
+                        'full_name' => ['type' => 'string'],
+                        'legal_address' => ['type' => 'string'],
+                        'actual_address' => ['type' => 'string'],
+                        'phone' => ['type' => 'string'],
+                        'email' => ['type' => 'string', 'format' => 'email'],
+                        'contact_person' => ['type' => 'string'],
+                        'autofill_from_inn' => ['type' => 'boolean', 'description' => 'По умолчанию true.'],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canContractors($user),
+                invoke: fn (User $user, array $args): array => $this->contractors->create($user, $args),
+            ),
+            new AgentToolDefinition(
+                name: 'create_fleet_driver',
+                description: 'Создать водителя (модалка «Водитель»): carrier_contractor_id перевозчика и full_name обязательны.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'carrier_contractor_id' => ['type' => 'integer', 'minimum' => 1],
+                        'full_name' => ['type' => 'string'],
+                        'passport_series' => ['type' => 'string'],
+                        'passport_number' => ['type' => 'string'],
+                        'passport_issued_by' => ['type' => 'string'],
+                        'passport_issued_at' => ['type' => 'string', 'description' => 'Y-m-d'],
+                        'phone' => ['type' => 'string'],
+                        'license_number' => ['type' => 'string'],
+                        'license_categories' => ['type' => 'string'],
+                        'notes' => ['type' => 'string'],
+                    ],
+                    'required' => ['carrier_contractor_id', 'full_name'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canDrivers($user),
+                invoke: fn (User $user, array $args): array => $this->fleet->createDriver($user, [
+                    'carrier_contractor_id' => (int) ($args['carrier_contractor_id'] ?? 0),
+                    'full_name' => (string) ($args['full_name'] ?? ''),
+                    'passport_series' => $args['passport_series'] ?? null,
+                    'passport_number' => $args['passport_number'] ?? null,
+                    'passport_issued_by' => $args['passport_issued_by'] ?? null,
+                    'passport_issued_at' => $args['passport_issued_at'] ?? null,
+                    'phone' => $args['phone'] ?? null,
+                    'license_number' => $args['license_number'] ?? null,
+                    'license_categories' => $args['license_categories'] ?? null,
+                    'notes' => $args['notes'] ?? null,
+                ]),
+            ),
+            new AgentToolDefinition(
+                name: 'create_fleet_vehicle',
+                description: 'Создать авто (модалка «Авто»): owner_contractor_id владельца ТС и хотя бы госномер или марка.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner_contractor_id' => ['type' => 'integer', 'minimum' => 1],
+                        'tractor_brand' => ['type' => 'string'],
+                        'trailer_brand' => ['type' => 'string'],
+                        'tractor_plate' => ['type' => 'string'],
+                        'trailer_plate' => ['type' => 'string'],
+                        'notes' => ['type' => 'string'],
+                    ],
+                    'required' => ['owner_contractor_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canDrivers($user),
+                invoke: fn (User $user, array $args): array => $this->fleet->createVehicle($user, [
+                    'owner_contractor_id' => (int) ($args['owner_contractor_id'] ?? 0),
+                    'tractor_brand' => $args['tractor_brand'] ?? null,
+                    'trailer_brand' => $args['trailer_brand'] ?? null,
+                    'tractor_plate' => $args['tractor_plate'] ?? null,
+                    'trailer_plate' => $args['trailer_plate'] ?? null,
+                    'notes' => $args['notes'] ?? null,
+                ]),
             ),
             new AgentToolDefinition(
                 name: 'search_tasks',
@@ -800,5 +888,10 @@ class AgentToolRegistry
     private function canMail(User $user): bool
     {
         return RoleAccess::canAccessVisibilityArea($user, 'mail');
+    }
+
+    private function canDrivers(User $user): bool
+    {
+        return RoleAccess::canAccessVisibilityArea($user, 'drivers');
     }
 }

@@ -119,6 +119,8 @@ const isCreateModalOpen = ref(false);
 const isCreateRouteDismissed = ref(false);
 const isDetailsModalDismissed = ref(false);
 const isInnLookupPending = ref(false);
+const submitError = ref('');
+let activeInnLookup = null;
 const addressSuggestions = ref({
     legal_address: [],
     actual_address: [],
@@ -1027,6 +1029,7 @@ const relatedOrderDocumentsCount = computed(() => props.selectedContractor?.orde
 function openCreateForm() {
     isCreateRouteDismissed.value = false;
     isDetailsModalDismissed.value = false;
+    submitError.value = '';
     applyFormState(null);
     activeTab.value = 'general';
     isCreateModalOpen.value = true;
@@ -1118,15 +1121,36 @@ function filterEmptyNestedRowsForSubmit() {
 }
 
 async function submit() {
-    if (isInnLookupPending.value) {
-        const startedAt = Date.now();
-        while (isInnLookupPending.value && Date.now() - startedAt < 5000) {
-            await new Promise((resolve) => setTimeout(resolve, 50));
-        }
-    }
+    submitError.value = '';
+    form.clearErrors();
 
-    if (isCompleteContractorInn(form.inn) && !String(form.name ?? '').trim()) {
-        await ensureContractorPartyAutofill(form);
+    try {
+        clearTimeout(innLookupTimer);
+        await waitForActiveInnLookup();
+
+        if (isCompleteContractorInn(form.inn) && contractorNameForSubmit() === '') {
+            const filled = await ensureContractorPartyAutofill(form);
+            if (!filled) {
+                submitError.value = 'Не удалось получить данные по ИНН. Укажите краткое название вручную.';
+                focusContractorSubmitIssue('name');
+
+                return;
+            }
+        }
+
+        if (contractorNameForSubmit() === '') {
+            submitError.value = 'Укажите краткое название контрагента или корректный ИНН.';
+            focusContractorSubmitIssue('name');
+
+            return;
+        }
+
+        sanitizeOwnerIdForSubmit();
+    } catch (error) {
+        console.error('Contractor submit preparation error', error);
+        submitError.value = 'Не удалось подготовить данные к сохранению. Попробуйте ещё раз.';
+
+        return;
     }
 
     filterEmptyNestedRowsForSubmit();
@@ -1194,10 +1218,12 @@ async function submit() {
                 form.processing = false;
             },
             onSuccess: () => {
+                submitError.value = '';
                 if (selectedContractorId.value === null) {
                     isCreateModalOpen.value = false;
                 }
             },
+            onError: handleContractorSubmitErrors,
         };
 
         if (selectedContractorId.value !== null) {
@@ -1213,8 +1239,10 @@ async function submit() {
         form.post(route('contractors.store'), {
             preserveScroll: true,
             onSuccess: () => {
+                submitError.value = '';
                 isCreateModalOpen.value = false;
             },
+            onError: handleContractorSubmitErrors,
         });
 
         return;
@@ -1222,9 +1250,7 @@ async function submit() {
 
     form.patch(route('contractors.update', selectedContractorId.value), {
         preserveScroll: true,
-        onError: () => {
-            // Оставляем введённые значения (в т.ч. type), не перезаписываем форму из props.
-        },
+        onError: handleContractorSubmitErrors,
     });
 }
 
@@ -1435,19 +1461,66 @@ async function fetchPartySuggestions() {
         return;
     }
 
-    isInnLookupPending.value = true;
+    const lookup = (async () => {
+        isInnLookupPending.value = true;
+
+        try {
+            const suggestion = await fetchContractorPartySuggestion(query);
+
+            if (suggestion) {
+                applyPartySuggestion(suggestion);
+                lastAutoFilledInn.value = normalizedContractorInn(form.inn) || query;
+            }
+        } catch (error) {
+            console.error('DaData party suggestion error', error);
+        } finally {
+            isInnLookupPending.value = false;
+        }
+    })();
+
+    activeInnLookup = lookup;
 
     try {
-        const suggestion = await fetchContractorPartySuggestion(query);
-
-        if (suggestion) {
-            applyPartySuggestion(suggestion);
-            lastAutoFilledInn.value = normalizedContractorInn(form.inn) || query;
-        }
-    } catch (error) {
-        console.error('DaData party suggestion error', error);
+        await lookup;
     } finally {
-        isInnLookupPending.value = false;
+        if (activeInnLookup === lookup) {
+            activeInnLookup = null;
+        }
+    }
+}
+
+async function waitForActiveInnLookup() {
+    if (activeInnLookup) {
+        await activeInnLookup;
+    }
+}
+
+function contractorNameForSubmit() {
+    return String(form.name ?? '').trim();
+}
+
+function focusContractorSubmitIssue(field = 'name') {
+    activeTab.value = field === 'name' || field === 'inn' || field === 'type' ? 'general' : activeTab.value;
+}
+
+function sanitizeOwnerIdForSubmit() {
+    const ownerId = Number(form.owner_id);
+
+    if (Number.isFinite(ownerId) && ownerId > 0) {
+        form.owner_id = ownerId;
+
+        return;
+    }
+
+    form.owner_id = defaultOwnerId();
+}
+
+function handleContractorSubmitErrors(errors) {
+    const firstError = Object.values(errors ?? {}).find((message) => String(message ?? '').trim() !== '');
+    submitError.value = firstError ? String(firstError) : 'Не удалось сохранить контрагента.';
+
+    if (errors?.name || errors?.inn || errors?.type || errors?.owner_id) {
+        focusContractorSubmitIssue('name');
     }
 }
 
@@ -1773,6 +1846,12 @@ function goToPage(pageNumber) {
                     </div>
 
                     <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                        <p
+                            v-if="submitError"
+                            class="w-full text-right text-sm text-rose-600 dark:text-rose-400"
+                        >
+                            {{ submitError }}
+                        </p>
                         <button
                             type="button"
                             :class="crmBtnNeutral"
@@ -2088,6 +2167,7 @@ function goToPage(pageNumber) {
                                             <div class="text-xs text-zinc-500 dark:text-zinc-400">
                                                 После ввода корректного ИНН DaData попробует заполнить реквизиты автоматически.
                                             </div>
+                                            <div v-if="form.errors.inn" class="text-sm text-rose-600">{{ form.errors.inn }}</div>
                                         </div>
 
                                         <div class="space-y-2">
