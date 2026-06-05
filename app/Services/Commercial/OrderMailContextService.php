@@ -7,8 +7,7 @@ use App\Models\MailThread;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\CommercialMailService;
-use App\Support\RoleAccess;
-use Illuminate\Support\Str;
+use App\Support\MailSync\MailMessageBodyPresenter;
 
 final class OrderMailContextService
 {
@@ -133,7 +132,7 @@ final class OrderMailContextService
             'last_inbound_at' => $thread->last_inbound_at?->toIso8601String(),
             'last_outbound_at' => $thread->last_outbound_at?->toIso8601String(),
             'preview' => $latest !== null
-                ? ($latest->retention_summary ?? Str::limit((string) ($latest->body_text ?? ''), 240))
+                ? MailMessageBodyPresenter::preview($latest)
                 : null,
         ];
     }

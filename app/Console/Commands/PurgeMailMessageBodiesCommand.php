@@ -41,7 +41,7 @@ class PurgeMailMessageBodiesCommand extends Command
 
         $query->orderBy('id')->chunkById(100, function ($messages) use (&$count, $maxChars): void {
             foreach ($messages as $message) {
-                $body = trim((string) ($message->body_text ?: strip_tags((string) $message->body_html)));
+                $body = MailMessageBodyPresenter::plainText($message) ?? '';
 
                 $message->forceFill([
                     'retention_summary' => $body !== ''

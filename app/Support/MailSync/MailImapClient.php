@@ -257,7 +257,7 @@ final class MailImapClient
             : [];
 
         if ($bodyText === '' && $bodyHtml !== null && $bodyHtml !== '') {
-            $bodyText = MailUtf8Sanitizer::sanitize(trim(strip_tags($bodyHtml)));
+            $bodyText = MailHtmlSanitizer::toPlainText($bodyHtml);
         }
 
         $maxHtmlChars = max(10_000, (int) config('mail_sync.max_html_body_chars', 200_000));

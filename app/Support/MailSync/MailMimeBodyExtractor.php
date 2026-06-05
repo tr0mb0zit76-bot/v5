@@ -34,27 +34,25 @@ final class MailMimeBodyExtractor
             $fallback = imap_body($connection, $uid, FT_UID);
 
             return is_string($fallback)
-                ? MailUtf8Sanitizer::sanitize(trim(strip_tags(self::decodeTransferEncoding($fallback, self::ENCODING_8BIT))))
+                ? MailHtmlSanitizer::toPlainText(self::decodeTransferEncoding($fallback, self::ENCODING_8BIT))
                 : '';
         }
 
         if (! isset($structure->parts) || ! is_array($structure->parts) || $structure->parts === []) {
-            return MailUtf8Sanitizer::sanitize(trim(strip_tags(
+            return MailHtmlSanitizer::toPlainText(
                 $this->decodePart($connection, $uid, '1', $structure),
-            )));
+            );
         }
 
         $plain = $this->findPartText($connection, $uid, $structure->parts, '', 'text/plain', stripTags: true);
 
         if ($plain !== '') {
-            return MailUtf8Sanitizer::sanitize(trim(strip_tags($plain)));
+            return MailHtmlSanitizer::toPlainText($plain);
         }
 
         $html = $this->findPartText($connection, $uid, $structure->parts, '', 'text/html', stripTags: true);
 
-        return $html !== ''
-            ? MailUtf8Sanitizer::sanitize(trim(strip_tags($html)))
-            : '';
+        return MailHtmlSanitizer::toPlainText($html);
     }
 
     /**
@@ -115,7 +113,7 @@ final class MailMimeBodyExtractor
                 $decoded = $this->decodePart($connection, $uid, $partNumber, $part);
 
                 if ($decoded !== '') {
-                    return $stripTags ? strip_tags($decoded) : $decoded;
+                    return $stripTags ? MailHtmlSanitizer::toPlainText($decoded) : $decoded;
                 }
             }
         }

@@ -15,11 +15,11 @@ use App\Services\Commercial\OrderMailContextService;
 use App\Services\CommercialMailService;
 use App\Services\DocumentStorageService;
 use App\Support\MailSync\MailMailboxOwnerCatalog;
+use App\Support\MailSync\MailMessageBodyPresenter;
 use App\Support\MailSync\MailOutboundAttachmentRules;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -284,7 +284,7 @@ class MailMailboxController extends Controller
             'last_inbound_at' => $thread->last_inbound_at?->toIso8601String(),
             'last_outbound_at' => $thread->last_outbound_at?->toIso8601String(),
             'preview' => $latest !== null
-                ? ($latest->retention_summary ?? Str::limit((string) ($latest->body_text ?? ''), 240))
+                ? MailMessageBodyPresenter::preview($latest)
                 : null,
         ];
 
@@ -320,9 +320,7 @@ class MailMailboxController extends Controller
             'to_emails' => $message->to_emails ?? [],
             'cc_emails' => $message->cc_emails ?? [],
             'subject' => $message->subject,
-            'body_text' => $message->bodyPurged()
-                ? ($message->retention_summary ?? '(тело письма удалено по политике хранения)')
-                : $message->body_text,
+            'body_text' => MailMessageBodyPresenter::plainText($message),
             'body_html' => $message->bodyPurged() ? null : $message->body_html,
             'body_purged' => $message->bodyPurged(),
             'is_important' => (bool) $message->is_important,

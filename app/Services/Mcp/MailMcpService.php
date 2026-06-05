@@ -8,12 +8,12 @@ use App\Models\MailThread;
 use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
 use App\Services\CommercialMailService;
+use App\Support\MailSync\MailMessageBodyPresenter;
 use App\Support\RoleAccess;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class MailMcpService
@@ -275,7 +275,7 @@ class MailMcpService
             'mailbox_user_id' => $thread->mailbox_user_id ?? null,
             'last_message_at' => optional($thread->last_message_at)?->toIso8601String(),
             'preview' => $latest !== null
-                ? ($latest->retention_summary ?? Str::limit((string) ($latest->body_text ?? ''), 240))
+                ? MailMessageBodyPresenter::preview($latest)
                 : null,
         ];
 
@@ -299,9 +299,7 @@ class MailMcpService
             'to_emails' => $message->to_emails ?? [],
             'cc_emails' => $message->cc_emails ?? [],
             'subject' => $message->subject,
-            'body_text' => $message->bodyPurged()
-                ? ($message->retention_summary ?? '(тело письма удалено по политике хранения)')
-                : $message->body_text,
+            'body_text' => MailMessageBodyPresenter::plainText($message),
             'body_html' => $message->bodyPurged() ? null : $message->body_html,
             'body_purged' => $message->bodyPurged(),
             'sent_at' => optional($message->sent_at)?->toIso8601String(),

@@ -49,9 +49,20 @@ php artisan migrate
 php artisan test --compact tests/Unit/ActivityLedgerServiceTest.php tests/Feature/LeadOfferMailSendTest.php
 ```
 
-### Синхронизация IMAP (фаза 2a)
+### Синхронизация IMAP (фаза 2a) ✅
 
 - `config/mail_sync.php`, команда `mail:sync` (cron каждые 10 мин).
 - Пароль почты — в карточке пользователя (`mail_imap_secret`, encrypted).
+- Фильтр ingest по доменам контрагентов (`contractors.mail_sync_domains`).
+- HTML-тело входящих + читаемый plain (`MailHtmlSanitizer`, `MailMessageBodyPresenter`).
 - На сервере нужна PHP extension **imap** (`php-imap` / `docker-php-ext-install imap`).
 - Первый прогон: `php artisan mail:sync --user=ID --days=30`
+
+### Почта в UI (фаза 2b) 🚧
+
+- Раздел **Почта**: цепочки, reply, compose, флаг «важно», вложения исходящих.
+- Отправка — **SMTP** (`CommercialMailService`), `From` = `users.email` менеджера.
+- MCP: `send_mail`, `reply_mail_thread`.
+- Admin/supervisor: папки «Ящики» по владельцам.
+- Мастер заказа: блок почты на вкладке «Лента».
+- **Backlog:** стабильный import вложений входящих; push по новому входящему.

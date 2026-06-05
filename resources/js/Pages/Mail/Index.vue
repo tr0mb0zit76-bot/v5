@@ -130,24 +130,31 @@
                                 <div v-if="message.body_html" class="flex flex-wrap gap-2">
                                     <button
                                         type="button"
-                                        :class="messageViewMode[message.id] === 'html' ? crmBtnSecondary : crmBtnSecondaryOutline"
+                                        :class="messageShowsHtml(message) ? crmBtnSecondary : crmBtnSecondaryOutline"
                                         @click="setMessageViewMode(message.id, 'html')"
                                     >
                                         Форматированный
                                     </button>
                                     <button
                                         type="button"
-                                        :class="messageViewMode[message.id] !== 'html' ? crmBtnSecondary : crmBtnSecondaryOutline"
+                                        :class="!messageShowsHtml(message) ? crmBtnSecondary : crmBtnSecondaryOutline"
                                         @click="setMessageViewMode(message.id, 'text')"
                                     >
                                         Текст
                                     </button>
                                 </div>
                                 <div
-                                    v-if="message.body_html && messageViewMode[message.id] === 'html'"
-                                    class="prose prose-sm max-w-none text-zinc-700 dark:prose-invert dark:text-zinc-200"
-                                    v-html="message.body_html"
-                                />
+                                    v-if="message.body_html && messageShowsHtml(message)"
+                                    class="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
+                                >
+                                    <iframe
+                                        :srcdoc="mailHtmlSrcdoc(message.body_html)"
+                                        class="block min-h-[120px] w-full border-0"
+                                        sandbox="allow-popups allow-popups-to-escape-sandbox"
+                                        :title="`Письмо от ${message.from_email || 'отправителя'}`"
+                                        @load="resizeMailIframe"
+                                    />
+                                </div>
                                 <pre
                                     v-else
                                     class="whitespace-pre-wrap font-sans text-sm text-zinc-700 dark:text-zinc-200"
@@ -432,6 +439,24 @@ function mailboxFolderClass(mailboxUserId) {
 
 function setMessageViewMode(messageId, mode) {
     messageViewMode[messageId] = mode;
+}
+
+function messageShowsHtml(message) {
+    return Boolean(message.body_html) && messageViewMode[message.id] !== 'text';
+}
+
+function mailHtmlSrcdoc(html) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><base target="_blank"><style>body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;margin:12px;color:#334155;word-break:break-word;background:#fff;}img{max-width:100%;height:auto;}a{color:#4f46e5;}table{max-width:100%;}</style></head><body>${html}</body></html>`;
+}
+
+function resizeMailIframe(event) {
+    const iframe = event.target;
+
+    if (!iframe?.contentDocument?.body) {
+        return;
+    }
+
+    iframe.style.height = `${Math.max(120, iframe.contentDocument.body.scrollHeight + 16)}px`;
 }
 
 function parseEmails(raw) {

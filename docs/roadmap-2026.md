@@ -179,6 +179,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 - [x] `get_order_intake_draft` / `list_order_intake_drafts` / `create_order_intake_draft_from_text` — MCP и command bar
 - [x] `search_mail_threads` / `get_mail_thread` / `get_mail_sync_status` — MCP (IMAP sync, область «Почта»)
+- [x] `send_mail` / `reply_mail_thread` — отправка из CRM (SMTP, From = email сотрудника)
 - [ ] `extract_order_draft_from_document` — прямая загрузка файла в MCP (позже)
 - [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
 - [ ] Command bar: загрузка файла в чате
@@ -268,7 +269,8 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] Вкладка **Лента** в мастере заказа + API `orders.activity-timeline`
 - [x] `OrderActivityTimelineService` — ledger + статусы, задачи, документы (v1)
 - [x] MCP tool: `get_order_timeline`
-- [ ] Письма в ленте заказа — **отложено** до агента с чтением/анализом почты
+- [x] Блок почты по заказу (цепочки + ссылка «Написать») — вкладка «Лента» мастера заказа
+- [ ] Письма как события в timeline заказа — **отложено** до агента с чтением/анализом почты
 
 ---
 
