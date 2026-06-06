@@ -3,8 +3,10 @@
 namespace App\Services\Checko;
 
 use App\Models\Contractor;
+use App\Models\ContractorRiskAssessment;
 use App\Services\ContractorCreditService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class ContractorScoringService
 {
@@ -12,6 +14,7 @@ class ContractorScoringService
         private readonly ContractorCreditService $creditService,
         private readonly CheckoDataNormalizer $normalizer,
         private readonly ContractorScoringCalculator $calculator,
+        private readonly ContractorRiskAssessmentService $assessmentService,
     ) {}
 
     /**
@@ -94,6 +97,31 @@ class ContractorScoringService
         $statusText = is_string($normalized['status_text'] ?? null) ? $normalized['status_text'] : null;
         $egrStatus = $this->calculator->classifyEgrStatus($statusText);
 
+        $assessmentId = null;
+        if ($contractor->id && Schema::hasTable('contractor_risk_snapshots')) {
+            $existingAssessment = ContractorRiskAssessment::query()
+                ->where('contractor_id', $contractor->id)
+                ->whereIn('status', [
+                    ContractorRiskAssessment::STATUS_DRAFT,
+                    ContractorRiskAssessment::STATUS_PENDING_APPROVAL,
+                ])
+                ->latest('id')
+                ->first();
+
+            if (! $refresh && $existingAssessment !== null) {
+                $assessmentId = $existingAssessment->id;
+            } else {
+                $assessment = $this->assessmentService->recordSnapshotAndDraft(
+                    $contractor,
+                    $inn,
+                    $normalized,
+                    $result,
+                    $fromCache,
+                );
+                $assessmentId = $assessment->id;
+            }
+        }
+
         return [
             'ok' => true,
             'inn' => $inn,
@@ -103,14 +131,21 @@ class ContractorScoringService
             'checko_from_cache' => $fromCache,
             'score' => $result['score'],
             'grade' => $result['grade'],
+            'tier' => $result['tier'],
+            'tier_label' => $result['tier_label'],
+            'components' => $result['components'],
+            'scoring_model_version' => $result['scoring_model_version'],
             'recommended_postpayment_days' => $result['recommended_postpayment_days'],
             'recommended_debt_limit_rub' => $result['recommended_debt_limit_rub'] ?? 0,
             'factors' => $result['factors'],
             'summary' => $result['summary'],
+            'assessment_id' => $assessmentId,
             'meta' => [
                 'enforcement_count' => $normalized['enforcement_count'],
                 'enforcement_sum_rub' => $normalized['enforcement_sum_rub'],
                 'defendant_cases' => $normalized['defendant_cases'],
+                'last_revenue_rub' => $normalized['last_revenue_rub'],
+                'company_age_years' => $normalized['company_age_years'],
             ],
         ];
     }

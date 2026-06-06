@@ -34,6 +34,7 @@ class User extends Authenticatable
         'is_active',
         'has_signing_authority',
         'belongs_to_management',
+        'ntfy_topic',
         'ai_preferences',
         'ai_learning_enabled',
         'mobile_nav_keys',
@@ -125,6 +126,73 @@ class User extends Authenticatable
     public function belongsToManagement(): bool
     {
         return (bool) $this->belongs_to_management;
+    }
+
+    /**
+     * @return BelongsToMany<Department, $this>
+     */
+    public function departments(): BelongsToMany
+    {
+        return $this->belongsToMany(Department::class, 'department_user')
+            ->withPivot(['is_primary', 'receives_approvals'])
+            ->withTimestamps();
+    }
+
+    public function primaryDepartmentId(): ?int
+    {
+        if (! Schema::hasTable('department_user')) {
+            return null;
+        }
+
+        if ($this->relationLoaded('departments')) {
+            $primary = $this->departments->first(fn (Department $department): bool => (bool) $department->pivot->is_primary);
+
+            if ($primary !== null) {
+                return (int) $primary->id;
+            }
+
+            $first = $this->departments->first();
+
+            return $first !== null ? (int) $first->id : null;
+        }
+
+        $primaryDepartmentId = $this->departments()
+            ->wherePivot('is_primary', true)
+            ->value('departments.id');
+
+        if ($primaryDepartmentId !== null) {
+            return (int) $primaryDepartmentId;
+        }
+
+        $fallbackDepartmentId = $this->departments()->value('departments.id');
+
+        return $fallbackDepartmentId !== null ? (int) $fallbackDepartmentId : null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function approvalDepartmentIds(): array
+    {
+        if (! Schema::hasTable('department_user')) {
+            return [];
+        }
+
+        if ($this->relationLoaded('departments')) {
+            return $this->departments
+                ->filter(fn (Department $department): bool => (bool) $department->pivot->receives_approvals)
+                ->pluck('id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return $this->departments()
+            ->wherePivot('receives_approvals', true)
+            ->pluck('departments.id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Services\Checko;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 
 /**
  * Приводит «сырые» ответы Checko к компактной форме для скоринга.
@@ -43,6 +44,11 @@ class CheckoDataNormalizer
             'finances_available' => $fin['available'],
             'last_profit_positive' => $fin['last_profit_positive'],
             'last_revenue_rub' => $fin['last_revenue_rub'],
+            'last_assets_rub' => $fin['last_assets_rub'],
+            'revenue_trend' => $fin['revenue_trend'],
+            'company_age_years' => $this->extractCompanyAgeYears($companyBody),
+            'founders_count' => $this->extractFoundersCount($companyBody),
+            'bankruptcy_risk_flag' => $this->extractBankruptcyRiskFlag($companyBody, $statusText),
             'enforcement_count' => $enf['count'],
             'enforcement_sum_rub' => $enf['sum_rub'],
             'defendant_cases' => $this->countLegalCases($defBody),
@@ -174,23 +180,29 @@ class CheckoDataNormalizer
 
     /**
      * @param  array<string, mixed>  $financesBody
-     * @return array{available: bool, last_profit_positive: bool|null, last_revenue_rub: float|null}
+     * @return array{available: bool, last_profit_positive: bool|null, last_revenue_rub: float|null, last_assets_rub: float|null, revenue_trend: string|null}
      */
     private function extractFinancesHints(array $financesBody): array
     {
+        $empty = [
+            'available' => false,
+            'last_profit_positive' => null,
+            'last_revenue_rub' => null,
+            'last_assets_rub' => null,
+            'revenue_trend' => null,
+        ];
+
         $rows = data_get($financesBody, 'data');
         if (! is_array($rows)) {
-            return ['available' => false, 'last_profit_positive' => null, 'last_revenue_rub' => null];
+            return $empty;
         }
 
         $list = array_is_list($rows) ? $rows : Arr::wrap($rows);
         if ($list === []) {
-            return ['available' => false, 'last_profit_positive' => null, 'last_revenue_rub' => null];
+            return $empty;
         }
 
-        $bestYear = null;
-        $bestRow = null;
-
+        $byYear = [];
         foreach ($list as $row) {
             if (! is_array($row)) {
                 continue;
@@ -202,28 +214,48 @@ class CheckoDataNormalizer
                 continue;
             }
 
-            if ($bestYear === null || $y > $bestYear) {
-                $bestYear = $y;
-                $bestRow = $row;
-            }
+            $byYear[$y] = $row;
         }
 
-        if ($bestRow === null) {
-            return ['available' => false, 'last_profit_positive' => null, 'last_revenue_rub' => null];
+        if ($byYear === []) {
+            return $empty;
         }
+
+        ksort($byYear);
+        $years = array_keys($byYear);
+        $bestYear = (int) end($years);
+        $bestRow = $byYear[$bestYear];
 
         $profit = $this->findNumericKey($bestRow, ['profit', 'Прибыль', 'ЧистаяПрибыль', 'ФинРез']);
         $revenue = $this->findNumericKey($bestRow, ['revenue', 'Выручка', 'Оборот']);
+        $assets = $this->findNumericKey($bestRow, ['assets', 'Активы', 'Баланс', 'balance']);
 
         $profitPositive = null;
         if ($profit !== null) {
             $profitPositive = $profit >= 0.0;
         }
 
+        $revenueTrend = null;
+        if (count($years) >= 2) {
+            $prevYear = $years[count($years) - 2];
+            $prevRevenue = $this->findNumericKey($byYear[$prevYear], ['revenue', 'Выручка', 'Оборот']);
+            if ($revenue !== null && $prevRevenue !== null && $prevRevenue > 0) {
+                if ($revenue > $prevRevenue * 1.03) {
+                    $revenueTrend = 'growing';
+                } elseif ($revenue < $prevRevenue * 0.97) {
+                    $revenueTrend = 'declining';
+                } else {
+                    $revenueTrend = 'stable';
+                }
+            }
+        }
+
         return [
             'available' => true,
             'last_profit_positive' => $profitPositive,
             'last_revenue_rub' => $revenue,
+            'last_assets_rub' => $assets,
+            'revenue_trend' => $revenueTrend,
         ];
     }
 
@@ -303,5 +335,55 @@ class CheckoDataNormalizer
         $total = data_get($legalBody, 'meta.total');
 
         return is_numeric($total) ? (int) $total : 0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $companyBody
+     */
+    private function extractCompanyAgeYears(array $companyBody): ?int
+    {
+        $regDate = data_get($companyBody, 'data.ДатаРег')
+            ?? data_get($companyBody, 'data.ДатаРегистрации')
+            ?? data_get($companyBody, 'data.registration_date');
+
+        if (! is_string($regDate) || trim($regDate) === '') {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($regDate);
+
+            return max(0, (int) $parsed->diffInYears(now()));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $companyBody
+     */
+    private function extractFoundersCount(array $companyBody): int
+    {
+        $founders = data_get($companyBody, 'data.Учредители')
+            ?? data_get($companyBody, 'data.founders')
+            ?? data_get($companyBody, 'data.СвУчредители');
+
+        if (is_array($founders) && array_is_list($founders)) {
+            return count($founders);
+        }
+
+        return 0;
+    }
+
+    private function extractBankruptcyRiskFlag(array $companyBody, ?string $statusText): bool
+    {
+        if ($statusText !== null && mb_stripos($statusText, 'банкрот') !== false) {
+            return true;
+        }
+
+        $stage = data_get($companyBody, 'data.СтадияБанкротства')
+            ?? data_get($companyBody, 'data.bankruptcy_stage');
+
+        return is_string($stage) && trim($stage) !== '';
     }
 }

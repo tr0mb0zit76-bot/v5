@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Contractor;
+use App\Models\Department;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\RoleAccess;
+use App\Support\UserDepartmentSync;
 use App\Support\UserSigningOwnCompanySync;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +31,7 @@ class UserManagementController extends Controller
                     'role:id,name,display_name',
                     'roles:id,name,display_name',
                     'signingOwnCompanies:id,name',
+                    'departments:id,name',
                 ])
                 ->orderBy('is_active', 'desc')
                 ->orderBy('name')
@@ -47,6 +50,16 @@ class UserManagementController extends Controller
                 ])
                 ->values(),
             'ownCompanies' => $ownCompanies,
+            'departments' => Department::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Department $department): array => [
+                    'id' => $department->id,
+                    'name' => $department->name,
+                ])
+                ->values(),
         ]);
     }
 
@@ -56,7 +69,15 @@ class UserManagementController extends Controller
         $signingOwnCompanyIds = $validated['signing_own_company_ids'] ?? [];
         $roleIds = $validated['role_ids'] ?? [];
         $mailPassword = $validated['mail_password'] ?? null;
-        unset($validated['signing_own_company_ids'], $validated['role_ids'], $validated['mail_password']);
+        $primaryDepartmentId = isset($validated['primary_department_id']) ? (int) $validated['primary_department_id'] : null;
+        $approvalDepartmentIds = $validated['approval_department_ids'] ?? [];
+        unset(
+            $validated['signing_own_company_ids'],
+            $validated['role_ids'],
+            $validated['mail_password'],
+            $validated['primary_department_id'],
+            $validated['approval_department_ids'],
+        );
 
         $user = User::query()->create($validated);
         $user->applyMailImapPassword(is_string($mailPassword) ? $mailPassword : null);
@@ -73,6 +94,12 @@ class UserManagementController extends Controller
             is_array($signingOwnCompanyIds) ? $signingOwnCompanyIds : [],
         );
 
+        UserDepartmentSync::sync(
+            $user,
+            $primaryDepartmentId > 0 ? $primaryDepartmentId : null,
+            is_array($approvalDepartmentIds) ? $approvalDepartmentIds : [],
+        );
+
         return to_route('settings.users.index');
     }
 
@@ -84,7 +111,17 @@ class UserManagementController extends Controller
         $signingOwnCompanyIds = $validated['signing_own_company_ids'] ?? [];
         $roleIds = $validated['role_ids'] ?? null;
         $mailPassword = $validated['mail_password'] ?? null;
-        unset($validated['signing_own_company_ids'], $validated['role_ids'], $validated['mail_password']);
+        $primaryDepartmentId = array_key_exists('primary_department_id', $validated)
+            ? (int) $validated['primary_department_id']
+            : null;
+        $approvalDepartmentIds = $validated['approval_department_ids'] ?? null;
+        unset(
+            $validated['signing_own_company_ids'],
+            $validated['role_ids'],
+            $validated['mail_password'],
+            $validated['primary_department_id'],
+            $validated['approval_department_ids'],
+        );
 
         if (($validated['password'] ?? null) === null) {
             unset($validated['password']);
@@ -106,6 +143,14 @@ class UserManagementController extends Controller
             (bool) ($validated['has_signing_authority'] ?? false),
             is_array($signingOwnCompanyIds) ? $signingOwnCompanyIds : [],
         );
+
+        if ($primaryDepartmentId !== null || is_array($approvalDepartmentIds)) {
+            UserDepartmentSync::sync(
+                $user,
+                $primaryDepartmentId !== null && $primaryDepartmentId > 0 ? $primaryDepartmentId : null,
+                is_array($approvalDepartmentIds) ? $approvalDepartmentIds : [],
+            );
+        }
 
         return to_route('settings.users.index');
     }
@@ -158,8 +203,43 @@ class UserManagementController extends Controller
             'signing_own_company_ids' => $signingOwnCompanyIds,
             'signing_own_companies_unrestricted' => $user->signingOwnCompaniesUnrestricted(),
             'signing_own_companies_label' => $this->signingOwnCompaniesLabel($user, $signingOwnCompanyIds),
+            'primary_department_id' => $user->primaryDepartmentId(),
+            'approval_department_ids' => $user->approvalDepartmentIds(),
+            'departments_label' => $this->departmentsLabel($user),
             'created_at' => optional($user->created_at)?->toIso8601String(),
         ];
+    }
+
+    private function departmentsLabel(User $user): string
+    {
+        if (! $user->relationLoaded('departments') || $user->departments->isEmpty()) {
+            return '—';
+        }
+
+        $primaryId = $user->primaryDepartmentId();
+        $names = $user->departments
+            ->sortBy(fn (Department $department): int => $primaryId !== null && (int) $department->id === $primaryId ? 0 : 1)
+            ->map(function (Department $department) use ($primaryId): string {
+                $name = (string) $department->name;
+                $flags = [];
+
+                if ($primaryId !== null && (int) $department->id === $primaryId) {
+                    $flags[] = 'основное';
+                }
+
+                if ((bool) $department->pivot->receives_approvals) {
+                    $flags[] = 'согласования';
+                }
+
+                if ($flags === []) {
+                    return $name;
+                }
+
+                return sprintf('%s (%s)', $name, implode(', ', $flags));
+            })
+            ->values();
+
+        return $names->implode('; ');
     }
 
     /**

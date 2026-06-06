@@ -39,6 +39,7 @@
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Email</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Телефон</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Роль</th>
+                            <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Подразделение</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Подпись</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Статус</th>
                             <th class="border-b border-zinc-200 px-3 py-3 font-medium dark:border-zinc-700">Создан</th>
@@ -65,6 +66,9 @@
                                     </span>
                                     <span v-if="!user.roles?.length && !user.role" class="text-xs text-zinc-500">Без роли</span>
                                 </span>
+                            </td>
+                            <td class="px-3 py-3 text-xs text-zinc-600 dark:text-zinc-300">
+                                {{ user.departments_label || '—' }}
                             </td>
                             <td class="px-3 py-3">
                                 <span
@@ -203,6 +207,60 @@
                             />
                             Активный пользователь
                         </label>
+                    </div>
+
+                    <div v-if="departments.length > 0" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                Основное подразделение
+                            </label>
+                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                Используется для маршрутизации согласований (заявки, лимиты контрагентов).
+                            </p>
+                            <select
+                                v-model="form.primary_department_id"
+                                :class="`mt-2 ${crmFieldFluid}`"
+                            >
+                                <option :value="null">Не выбрано</option>
+                                <option
+                                    v-for="department in departments"
+                                    :key="`dept-primary-${department.id}`"
+                                    :value="department.id"
+                                >
+                                    {{ department.name }}
+                                </option>
+                            </select>
+                            <div v-if="form.errors.primary_department_id" class="mt-1 text-sm text-rose-600">
+                                {{ form.errors.primary_department_id }}
+                            </div>
+                        </div>
+
+                        <div v-if="showApprovalDepartmentsField">
+                            <label class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                Согласования за подразделения
+                            </label>
+                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                Для руководителя подразделения — одно; для главного руководителя — несколько.
+                            </p>
+                            <div class="mt-2 max-h-44 space-y-2 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                                <label
+                                    v-for="department in departments"
+                                    :key="`dept-approval-${department.id}`"
+                                    class="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm text-zinc-800 transition hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="mt-0.5 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                                        :checked="isApprovalDepartmentSelected(department.id)"
+                                        @change="toggleApprovalDepartment(department.id)"
+                                    >
+                                    <span>{{ department.name }}</span>
+                                </label>
+                            </div>
+                            <div v-if="form.errors.approval_department_ids" class="mt-1 text-sm text-rose-600">
+                                {{ form.errors.approval_department_ids }}
+                            </div>
+                        </div>
                     </div>
 
                     <label class="flex items-start gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
@@ -457,6 +515,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    departments: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -471,6 +533,13 @@ const mailPasswordVisible = ref(false);
 const activeUsers = computed(() => props.users.filter((user) => user.is_active));
 const inactiveUsers = computed(() => props.users.filter((user) => !user.is_active));
 const displayedUsers = computed(() => activeTab.value === 'active' ? activeUsers.value : inactiveUsers.value);
+
+const showApprovalDepartmentsField = computed(() => {
+    const selectedRoles = props.roles.filter((role) => form.role_ids.includes(Number(role.id)));
+    const hasSupervisorRole = selectedRoles.some((role) => role.name === 'supervisor' || role.name === 'admin');
+
+    return hasSupervisorRole || form.belongs_to_management;
+});
 
 const passwordFieldToggleTitle = computed(() => {
     if (editingUser.value !== null && form.password.length === 0) {
@@ -511,6 +580,8 @@ const form = useForm({
     has_signing_authority: false,
     belongs_to_management: false,
     signing_own_company_ids: [],
+    primary_department_id: null,
+    approval_department_ids: [],
     password: '',
     password_confirmation: '',
     mail_password: '',
@@ -543,6 +614,8 @@ function resetForm() {
     form.has_signing_authority = false;
     form.belongs_to_management = false;
     form.signing_own_company_ids = [];
+    form.primary_department_id = null;
+    form.approval_department_ids = [];
     form.password = '';
     form.password_confirmation = '';
     form.mail_password = '';
@@ -573,6 +646,10 @@ function openEditModal(user) {
     form.signing_own_company_ids = Array.isArray(user.signing_own_company_ids)
         ? user.signing_own_company_ids.map((id) => Number(id))
         : [];
+    form.primary_department_id = user.primary_department_id ? Number(user.primary_department_id) : null;
+    form.approval_department_ids = Array.isArray(user.approval_department_ids)
+        ? user.approval_department_ids.map((id) => Number(id))
+        : [];
     form.password = '';
     form.password_confirmation = '';
     form.mail_password = '';
@@ -585,6 +662,29 @@ watch(() => form.has_signing_authority, (enabled) => {
         form.signing_own_company_ids = [];
     }
 });
+
+watch(showApprovalDepartmentsField, (visible) => {
+    if (!visible) {
+        form.approval_department_ids = [];
+    }
+});
+
+function isApprovalDepartmentSelected(departmentId) {
+    const id = Number(departmentId);
+
+    return form.approval_department_ids.some((selectedId) => Number(selectedId) === id);
+}
+
+function toggleApprovalDepartment(departmentId) {
+    const id = Number(departmentId);
+    const ids = form.approval_department_ids.map((selectedId) => Number(selectedId));
+
+    if (ids.includes(id)) {
+        form.approval_department_ids = ids.filter((selectedId) => selectedId !== id);
+    } else {
+        form.approval_department_ids = [...ids, id];
+    }
+}
 
 function isSigningCompanySelected(companyId) {
     const id = Number(companyId);
@@ -667,6 +767,10 @@ function buildUpdatePayload(user, overrides = {}) {
         belongs_to_management: user.belongs_to_management,
         signing_own_company_ids: Array.isArray(user.signing_own_company_ids)
             ? [...user.signing_own_company_ids]
+            : [],
+        primary_department_id: user.primary_department_id ?? null,
+        approval_department_ids: Array.isArray(user.approval_department_ids)
+            ? [...user.approval_department_ids]
             : [],
         password: '',
         password_confirmation: '',

@@ -15,7 +15,7 @@ return [
 
     'api_base' => rtrim(env('CHECKO_API_BASE', 'https://api.checko.ru/v2'), '/'),
 
-    'cache_ttl_seconds' => (int) env('CHECKO_CACHE_TTL', 86400),
+    'cache_ttl_seconds' => (int) env('CHECKO_CACHE_TTL', 604800),
 
     'timeout_seconds' => (int) env('CHECKO_TIMEOUT', 20),
 

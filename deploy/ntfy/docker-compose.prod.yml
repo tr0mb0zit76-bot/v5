@@ -1,0 +1,17 @@
+services:
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy-prod
+    restart: unless-stopped
+    command: serve
+    ports:
+      - 127.0.0.1:8092:80
+    environment:
+      TZ: Europe/Moscow
+      NTFY_BASE_URL: https://ntfy.avtoaliyans.ru
+    volumes:
+      - ntfy-cache:/var/lib/ntfy
+      - ./etc:/etc/ntfy
+
+volumes:
+  ntfy-cache:

@@ -460,6 +460,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors/{contractor}/partner-card', 'downloadPartnerCard')->name('contractors.partner-card');
         Route::get('/contractors/{contractor}/documents/{contractorDocument}/preview', 'previewDocument')->name('contractors.documents.preview');
         Route::get('/contractors/{contractor}/scoring', 'scoring')->name('contractors.scoring');
+        Route::post('/contractors/{contractor}/risk-assessment/confirm', 'confirmRiskAssessment')->name('contractors.risk-assessment.confirm');
+        Route::post('/contractors/{contractor}/limit-approval/request', 'requestLimitApproval')->name('contractors.limit-approval.request');
         Route::get('/contractors/{contractor}/edit', 'edit')->name('contractors.edit');
         Route::patch('/contractors/{contractor}', 'update')->name('contractors.update');
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
@@ -642,6 +644,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/summary', [CabinetNotificationController::class, 'summary'])->name('summary');
         Route::get('/', [CabinetNotificationController::class, 'index'])->name('index');
         Route::post('/{notification}/read', [CabinetNotificationController::class, 'markRead'])->name('read');
+        Route::post('/{notification}/unread', [CabinetNotificationController::class, 'markUnread'])->name('unread');
+        Route::delete('/{notification}', [CabinetNotificationController::class, 'destroy'])->name('destroy');
         Route::post('/read-all', [CabinetNotificationController::class, 'markAllRead'])->name('read-all');
     });
 });

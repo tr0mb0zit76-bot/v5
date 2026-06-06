@@ -27,3 +27,12 @@ Thumbs.db
 .zip
 .osp
 *test*
+
+# Локальные скрипты Obsidian / Hive Mind — не для прода (vault синхронизируется через Yandex Disk)
+/tools/hivemind-*
+/tools/install-obsidian-mcp-plugin.py
+/tools/migrate-vault-to-exchange.py
+
+# Случайные загрузки в public/change — не деплоить
+/public/change/*.xls
+/public/change/*.xlsx

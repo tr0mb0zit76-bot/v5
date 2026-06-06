@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ConfirmContractorRiskAssessmentRequest;
 use App\Http\Requests\StoreContractorRequest;
 use App\Http\Requests\UpdateContractorRequest;
 use App\Models\Contractor;
 use App\Models\ContractorActivityType;
 use App\Models\ContractorDocument;
+use App\Models\ContractorRiskAssessment;
 use App\Models\User;
+use App\Services\Checko\ContractorRiskAssessmentService;
 use App\Services\Checko\ContractorScoringService;
+use App\Services\Contractor\ContractorLimitApprovalService;
 use App\Services\ContractorCreditService;
 use App\Services\ContractorDocumentSyncService;
 use App\Services\ContractorOperationalStatusService;
@@ -248,13 +252,69 @@ class ContractorController extends Controller
 
         $payload = $scoringService->buildPayload($contractor, $refresh);
 
-        if ($refresh && ($payload['ok'] ?? false)) {
-            $statusService->markVerifiedFromScoring($contractor, $payload);
-            $contractor->refresh();
-            $payload['verification'] = $this->verificationPayload($contractor, $statusService);
+        return response()->json($payload);
+    }
+
+    public function confirmRiskAssessment(
+        ConfirmContractorRiskAssessmentRequest $request,
+        Contractor $contractor,
+        ContractorRiskAssessmentService $assessmentService,
+    ): JsonResponse {
+        if ($contractor->isOwnCompanyProfile()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Скоринг и проверка не применяются к своей компании.',
+            ], 422);
         }
 
-        return response()->json($payload);
+        $validated = $request->validated();
+        $assessment = ContractorRiskAssessment::query()->findOrFail($validated['assessment_id']);
+
+        $outcome = (string) $validated['outcome'];
+        $scheduleTarget = (string) ($validated['schedule_target'] ?? 'customer');
+
+        $result = $assessmentService->confirm(
+            $contractor,
+            $assessment,
+            $request->user(),
+            $outcome,
+            (float) ($validated['applied_debt_limit'] ?? 0),
+            (int) ($validated['applied_postpayment_days'] ?? 0),
+            $scheduleTarget,
+        );
+
+        return response()->json([
+            'ok' => true,
+            'assessment_id' => $result['assessment']->id,
+            'outcome' => $result['assessment']->outcome,
+            'verification' => $result['verification'],
+        ]);
+    }
+
+    public function requestLimitApproval(
+        Request $request,
+        Contractor $contractor,
+        ContractorLimitApprovalService $approvalService,
+    ): JsonResponse {
+        if ($contractor->isOwnCompanyProfile()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Согласование лимита недоступно для своей компании.',
+            ], 422);
+        }
+
+        $assessment = $approvalService->submit(
+            $contractor,
+            $request->user(),
+            $request->string('reason')->toString() ?: null,
+        );
+
+        return response()->json([
+            'ok' => true,
+            'assessment_id' => $assessment->id,
+            'limit_approval' => $approvalService->pendingPayloadFor($contractor->refresh()),
+            'can_request_limit_approval' => false,
+        ]);
     }
 
     public function search(Request $request): JsonResponse
@@ -588,6 +648,9 @@ class ContractorController extends Controller
                 ...$selectedContractor->toArray(),
                 'current_debt' => $currentDebt,
                 'debt_limit_reached' => $creditService->isBlockedByDebtLimit($selectedContractor, $currentDebt),
+                'limit_approval' => app(ContractorLimitApprovalService::class)->pendingPayloadFor($selectedContractor),
+                'can_request_limit_approval' => app(ContractorLimitApprovalService::class)->canSubmit($selectedContractor, $currentDebt),
+                'limit_approval_reason' => app(ContractorLimitApprovalService::class)->resolveReason($selectedContractor, $currentDebt),
                 'contacts' => $hasContactsTable ? $selectedContractor->contacts->map(fn ($contact): array => [
                     'id' => $contact->id,
                     'full_name' => $contact->full_name,

@@ -54,4 +54,45 @@ class CabinetInAppNotificationsTest extends TestCase
 
         $this->assertSame(0, $user->fresh()->unreadNotifications()->count());
     }
+
+    public function test_mark_unread_restores_unread_state(): void
+    {
+        $user = User::factory()->create();
+        $user->notify(new CabinetInAppNotification(
+            'task_assigned',
+            'Тест',
+            'Текст',
+            '/tasks',
+            [],
+        ));
+
+        $notification = $user->fresh()->notifications()->first();
+        $notification->markAsRead();
+
+        $this->actingAs($user)->postJson(route('cabinet-notifications.unread', $notification->id))
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
+    }
+
+    public function test_destroy_removes_notification(): void
+    {
+        $user = User::factory()->create();
+        $user->notify(new CabinetInAppNotification(
+            'task_assigned',
+            'Тест',
+            'Текст',
+            '/tasks',
+            [],
+        ));
+
+        $notification = $user->fresh()->notifications()->first();
+
+        $this->actingAs($user)->deleteJson(route('cabinet-notifications.destroy', $notification->id))
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertSame(0, $user->fresh()->notifications()->count());
+    }
 }

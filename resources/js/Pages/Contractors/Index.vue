@@ -858,8 +858,50 @@ const isContractorModalOpen = computed(() => isCreating.value || (selectedContra
 
 const contractorScoring = ref(null);
 const contractorScoringLoading = ref(false);
+const contractorScoringConfirmLoading = ref(false);
 const contractorScoringError = ref('');
+const limitApprovalSubmitLoading = ref(false);
+const limitApprovalState = ref(null);
 const verificationOverride = ref(null);
+const authUser = computed(() => page.props.auth?.user ?? null);
+
+const canApproveContractorLimit = computed(() => {
+    const role = authUser.value?.role;
+    if (!role) {
+        return false;
+    }
+
+    if (role.is_admin) {
+        return true;
+    }
+
+    return role.name === 'supervisor';
+});
+
+const canRequestLimitApproval = computed(() => {
+    if (isOwnCompanyProfile.value || selectedContractorId.value === null) {
+        return false;
+    }
+
+    if (limitApprovalState.value?.assessment_id) {
+        return false;
+    }
+
+    return Boolean(props.selectedContractor?.can_request_limit_approval);
+});
+
+const limitApprovalReasonLabel = computed(() => {
+    const reason = props.selectedContractor?.limit_approval_reason;
+    const labels = {
+        new_card: 'Новая карточка / не проверен',
+        verification_expired: 'Проверка истекла',
+        limit_reached: 'Лимит достигнут',
+        limit_zero: 'Лимит не задан или обнулён',
+        limit_insufficient: 'Лимита не хватает',
+    };
+
+    return labels[reason] ?? null;
+});
 
 const verificationState = computed(() => {
     if (verificationOverride.value) {
@@ -963,10 +1005,128 @@ async function loadContractorScoring(options = { refresh: false }) {
     }
 }
 
+const scoringScheduleTarget = computed(() => {
+    if (form.type === 'carrier') {
+        return 'carrier';
+    }
+
+    return 'customer';
+});
+
+function applyScoringRecommendations() {
+    if (!contractorScoring.value?.ok) {
+        return;
+    }
+
+    form.debt_limit = contractorScoring.value.recommended_debt_limit_rub ?? 0;
+
+    const scheduleField = scoringScheduleTarget.value === 'carrier'
+        ? 'default_carrier_payment_schedule'
+        : 'default_customer_payment_schedule';
+
+    const schedule = form[scheduleField] && typeof form[scheduleField] === 'object'
+        ? { ...form[scheduleField] }
+        : { postpayment_days: 0, postpayment_mode: 'ottn', prepayment_days: 0, prepayment_mode: 'ottn' };
+
+    schedule.postpayment_days = contractorScoring.value.recommended_postpayment_days ?? 0;
+    form[scheduleField] = schedule;
+}
+
+async function confirmRiskAssessment(outcome) {
+    if (!contractorScoring.value?.ok || !contractorScoring.value.assessment_id || selectedContractorId.value === null) {
+        return;
+    }
+
+    contractorScoringConfirmLoading.value = true;
+    contractorScoringError.value = '';
+
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const url = route('contractors.risk-assessment.confirm', selectedContractorId.value);
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                assessment_id: contractorScoring.value.assessment_id,
+                outcome,
+                applied_debt_limit: form.debt_limit,
+                applied_postpayment_days: scoringScheduleTarget.value === 'carrier'
+                    ? Number(form.default_carrier_payment_schedule?.postpayment_days ?? 0)
+                    : Number(form.default_customer_payment_schedule?.postpayment_days ?? 0),
+                schedule_target: scoringScheduleTarget.value,
+            }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.message || 'Не удалось подтвердить оценку');
+        }
+
+        if (data.verification) {
+            verificationOverride.value = data.verification;
+        }
+    } catch (e) {
+        contractorScoringError.value = e.message || 'Не удалось подтвердить оценку';
+    } finally {
+        contractorScoringConfirmLoading.value = false;
+    }
+}
+
 watch([selectedContractorId, () => props.selectedContractor?.inn], () => {
     verificationOverride.value = null;
+    limitApprovalState.value = props.selectedContractor?.limit_approval ?? null;
     loadContractorScoring({ refresh: false });
 });
+
+watch(
+    () => props.selectedContractor?.limit_approval,
+    (next) => {
+        limitApprovalState.value = next ?? null;
+    },
+    { deep: true },
+);
+
+async function submitLimitApprovalRequest() {
+    if (!canRequestLimitApproval.value || selectedContractorId.value === null) {
+        return;
+    }
+
+    limitApprovalSubmitLoading.value = true;
+    contractorScoringError.value = '';
+
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+        const url = route('contractors.limit-approval.request', selectedContractorId.value);
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrf,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({}),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.message || data.errors?.contractor?.[0] || 'Не удалось отправить на согласование');
+        }
+
+        limitApprovalState.value = data.limit_approval ?? null;
+    } catch (e) {
+        contractorScoringError.value = e.message || 'Не удалось отправить на согласование';
+    } finally {
+        limitApprovalSubmitLoading.value = false;
+    }
+}
 
 function scoringGradeClass(grade) {
     switch (grade) {
@@ -984,13 +1144,42 @@ function scoringGradeClass(grade) {
 function scoringEgrStatusLabel(egr) {
     switch (egr) {
         case 'active':
-            return 'Статус ЕГРЮЛ (авто): действующая';
+            return 'ЕГРЮЛ: действующая';
         case 'inactive':
-            return 'Статус ЕГРЮЛ (авто): ликвидация / исключение / иные блокирующие признаки';
+            return 'ЕГРЮЛ: ликвидация / исключение';
         default:
-            return 'Статус ЕГРЮЛ (авто): не распознан однозначно из ответа API';
+            return 'ЕГРЮЛ: не распознан — проверьте на checko.ru';
     }
 }
+
+const scoringComponentsLine = computed(() => {
+    const components = contractorScoring.value?.components;
+    if (!components) {
+        return '';
+    }
+
+    const parts = [];
+    if (components.legal != null) {
+        parts.push(`Юр. ${components.legal}`);
+    }
+    if (components.capacity != null) {
+        parts.push(`Фин. ${components.capacity}`);
+    }
+    if (components.relationship != null) {
+        parts.push(`CRM ${components.relationship}`);
+    }
+
+    return parts.join(' · ');
+});
+
+const scoringDisplayFactors = computed(() => {
+    const factors = contractorScoring.value?.factors;
+    if (!Array.isArray(factors)) {
+        return [];
+    }
+
+    return factors.filter((factor) => typeof factor === 'string' && factor.trim() !== '');
+});
 
 // Server-side search will be handled by the backend
 // The filtered contractors are already in props.contractors
@@ -2718,6 +2907,39 @@ function goToPage(pageNumber) {
 
                                 <div class="border-t border-zinc-200 pt-3 dark:border-zinc-800">
                                     <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Согласование лимита</div>
+                                    </div>
+
+                                    <div
+                                        v-if="limitApprovalState?.assessment_id"
+                                        class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                                    >
+                                        На согласовании у руководителя
+                                        <span v-if="limitApprovalState.submission_reason_label"> — {{ limitApprovalState.submission_reason_label }}</span>
+                                        <span v-if="limitApprovalState.submitted_at"> ({{ formatVerificationDate(limitApprovalState.submitted_at) }})</span>
+                                    </div>
+
+                                    <div v-else-if="canRequestLimitApproval" class="mb-3 space-y-2">
+                                        <p v-if="limitApprovalReasonLabel" class="text-xs text-zinc-600 dark:text-zinc-400">
+                                            Основание: {{ limitApprovalReasonLabel }}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            class="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                                            :disabled="limitApprovalSubmitLoading || selectedContractorId === null"
+                                            @click="submitLimitApprovalRequest"
+                                        >
+                                            {{ limitApprovalSubmitLoading ? 'Отправка…' : 'Отправить на согласование' }}
+                                        </button>
+                                    </div>
+
+                                    <div v-else class="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                        Отправка на согласование нужна для новых карточек, после истечения проверки или при нехватке лимита.
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
                                         <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Скоринг контрагента (Checko)</div>
                                         <button
                                             type="button"
@@ -2735,33 +2957,78 @@ function goToPage(pageNumber) {
 
                                     <div v-else-if="contractorScoringError" class="whitespace-pre-wrap text-xs text-rose-600 dark:text-rose-400">{{ contractorScoringError }}</div>
 
-                                    <div v-else-if="contractorScoring?.ok" class="space-y-2 text-xs">
+                                    <div v-else-if="contractorScoring?.ok" class="space-y-3 text-xs">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <span class="inline-flex items-center rounded-full px-2 py-0.5 font-semibold" :class="scoringGradeClass(contractorScoring.grade)">
                                                 Класс {{ contractorScoring.grade }}
                                             </span>
                                             <span class="font-medium text-zinc-800 dark:text-zinc-200">{{ contractorScoring.score }} / 100</span>
-                                            <span v-if="contractorScoring.checko_from_cache" class="text-zinc-500 dark:text-zinc-400">(кэш Checko)</span>
+                                            <span v-if="contractorScoring.tier_label" class="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                                {{ contractorScoring.tier_label }}
+                                            </span>
+                                            <span v-if="contractorScoring.checko_from_cache" class="text-zinc-500 dark:text-zinc-400">кэш Checko</span>
                                         </div>
-                                        <div v-if="contractorScoring.company_name" class="text-zinc-600 dark:text-zinc-300">{{ contractorScoring.company_name }}</div>
+
+                                        <p v-if="scoringComponentsLine" class="text-zinc-600 dark:text-zinc-300">
+                                            {{ scoringComponentsLine }}
+                                        </p>
+
+                                        <div v-if="contractorScoring.company_name" class="text-zinc-600 dark:text-zinc-300">
+                                            {{ contractorScoring.company_name }}
+                                        </div>
+
                                         <div v-if="contractorScoring.egr_status" class="text-zinc-500 dark:text-zinc-400">
                                             {{ scoringEgrStatusLabel(contractorScoring.egr_status) }}
                                             <span v-if="contractorScoring.status_text"> — «{{ contractorScoring.status_text }}»</span>
                                         </div>
-                                        <div class="space-y-1">
-                                            <div class="font-medium text-zinc-800 dark:text-zinc-200">
-                                                Рекомендуемая отсрочка: до {{ contractorScoring.recommended_postpayment_days }} дн.
-                                                <span class="font-normal text-zinc-500 dark:text-zinc-400">(макс. 10 для «сильных» профилей)</span>
-                                            </div>
-                                            <div class="font-medium text-zinc-800 dark:text-zinc-200">
-                                                Рекомендуемый лимит задолженности:
+
+                                        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/50">
+                                            <dt class="text-zinc-500 dark:text-zinc-400">Отсрочка</dt>
+                                            <dd class="font-medium text-zinc-800 dark:text-zinc-200">
+                                                до {{ contractorScoring.recommended_postpayment_days }} дн.
+                                            </dd>
+                                            <dt class="text-zinc-500 dark:text-zinc-400">Лимит</dt>
+                                            <dd class="font-medium text-zinc-800 dark:text-zinc-200">
                                                 {{ formatMoney(contractorScoring.recommended_debt_limit_rub ?? 0, 'RUB') }}
-                                                <span class="block font-normal text-zinc-500 dark:text-zinc-400">Ориентир по оценке и данным Checko; при известной выручке не выше ~8% от неё.</span>
-                                            </div>
-                                            <p class="text-zinc-600 dark:text-zinc-300">{{ contractorScoring.summary }}</p>
+                                            </dd>
+                                        </dl>
+
+                                        <p v-if="contractorScoring.summary" class="text-[10px] leading-snug text-zinc-400 dark:text-zinc-500">
+                                            {{ contractorScoring.summary }}
+                                        </p>
+
+                                        <div v-if="contractorScoring.assessment_id && canApproveContractorLimit" class="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                                :disabled="contractorScoringConfirmLoading"
+                                                @click="applyScoringRecommendations"
+                                            >
+                                                Подставить рекомендации
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                                                :disabled="contractorScoringConfirmLoading"
+                                                @click="confirmRiskAssessment('accepted_as_is')"
+                                            >
+                                                Принять без правок
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded-md border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                                                :disabled="contractorScoringConfirmLoading"
+                                                @click="confirmRiskAssessment('accepted_with_edits')"
+                                            >
+                                                Подтвердить с правками
+                                            </button>
                                         </div>
-                                        <ul class="list-disc space-y-1 pl-4 text-zinc-600 dark:text-zinc-300">
-                                            <li v-for="(factor, idx) in contractorScoring.factors" :key="`factor-${idx}`">{{ factor }}</li>
+
+                                        <ul
+                                            v-if="scoringDisplayFactors.length"
+                                            class="list-disc space-y-1 border-t border-zinc-200 pt-2 pl-4 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                                        >
+                                            <li v-for="(factor, idx) in scoringDisplayFactors" :key="`factor-${idx}`">{{ factor }}</li>
                                         </ul>
                                     </div>
                                 </div>

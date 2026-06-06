@@ -2,35 +2,32 @@
 
 namespace App\Services;
 
+use App\Models\Contractor;
+use App\Models\ContractorRiskAssessment;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\Task;
 use App\Models\TaskComment;
 use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
+use App\Services\Contractor\ContractorLimitApprovalService;
+use App\Services\Notifications\NotificationRecipientResolver;
 use Illuminate\Support\Facades\Schema;
 
 class CabinetNotifier
 {
+    public function __construct(
+        private NotificationRecipientResolver $recipientResolver,
+    ) {}
+
     public function notifyDocumentApprovalRequested(Order $order, OrderDocument $document, User $requester): void
     {
         if (! Schema::hasTable('notifications')) {
             return;
         }
 
-        $recipients = User::query()
-            ->where('is_active', true)
-            ->where('id', '!=', $requester->id)
-            ->with('signingOwnCompanies:id')
-            ->get()
-            ->filter(function (User $user) use ($order): bool {
-                if ($user->hasRole('admin') || $user->hasRole('supervisor')) {
-                    return true;
-                }
-
-                return $user->canSignDocumentsForOwnCompany($order->own_company_id);
-            })
-            ->values();
+        $recipients = $this->recipientResolver
+            ->approvalRecipientsForOrder($order, $requester);
 
         if ($recipients->isEmpty()) {
             return;
@@ -249,6 +246,53 @@ class CabinetNotifier
             $body,
             $actionUrl,
             ['task_id' => $task->id],
+        );
+
+        foreach ($recipients as $user) {
+            $user->notify($notification);
+        }
+    }
+
+    public function notifyContractorLimitApprovalRequested(
+        Contractor $contractor,
+        ContractorRiskAssessment $assessment,
+        User $requester,
+    ): void {
+        if (! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $recipients = $this->recipientResolver
+            ->approvalRecipientsForUser($requester, $requester);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $approvalService = app(ContractorLimitApprovalService::class);
+        $reasonLabel = $approvalService->reasonLabel($assessment->submission_reason);
+
+        $title = 'Согласование лимита контрагента';
+        $body = sprintf(
+            '%s отправил(а) на согласование «%s» (%s). Причина: %s.',
+            $requester->name,
+            $contractor->name,
+            $contractor->inn ?? 'без ИНН',
+            $reasonLabel,
+        );
+
+        $actionUrl = route('contractors.show', [$contractor], false);
+
+        $notification = new CabinetInAppNotification(
+            'contractor_limit_approval',
+            $title,
+            $body,
+            $actionUrl,
+            [
+                'contractor_id' => $contractor->id,
+                'contractor_risk_assessment_id' => $assessment->id,
+                'submission_reason' => $assessment->submission_reason,
+            ],
         );
 
         foreach ($recipients as $user) {

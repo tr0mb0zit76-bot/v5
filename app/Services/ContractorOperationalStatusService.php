@@ -83,6 +83,8 @@ class ContractorOperationalStatusService
         $metadata['checko_scoring'] = [
             'score' => $scoringPayload['score'] ?? null,
             'grade' => $scoringPayload['grade'] ?? null,
+            'tier' => $scoringPayload['tier'] ?? null,
+            'model_version' => config('contractor_scoring.model_version'),
             'updated_at' => now()->toIso8601String(),
         ];
 

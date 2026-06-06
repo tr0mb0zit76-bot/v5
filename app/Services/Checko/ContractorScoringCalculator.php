@@ -3,16 +3,16 @@
 namespace App\Services\Checko;
 
 /**
- * Рекомендательная оценка для внутреннего CRM (не кредитный рейтинг банка).
- * Отсрочка ограничена сверху (см. maxRecommendedDays).
+ * Рекомендательная оценка v2: tier по масштабу + компоненты legal/capacity/relationship.
  */
 class ContractorScoringCalculator
 {
     public const MAX_RECOMMENDED_POSTPAYMENT_DAYS = 10;
 
     /**
-     * @param  array<string, mixed>  $normalized  из CheckoDataNormalizer::normalize()
+     * @param  array<string, mixed>  $normalized
      * @param  array<string, mixed>  $internal
+     * @return array<string, mixed>
      */
     public function calculate(array $normalized, array $internal): array
     {
@@ -27,115 +27,44 @@ class ContractorScoringCalculator
             : null;
 
         $egrStatus = $this->classifyEgrStatus($statusText);
+        $tier = $this->resolveTier($normalized);
+        $tierLabel = (string) config('contractor_scoring.tier_labels.'.$tier, $tier);
 
         $factors = [];
 
-        $score = 35;
+        $legalScore = $this->legalScore($normalized, $egrStatus, $factors);
+        $capacityScore = $this->capacityScore($normalized, $tier, $factors);
+        $relationshipScore = $this->relationshipScore($internal, $debtLimit, $currentDebt, $debtLimitReached, $stopOnLimit, $factors);
 
-        if ($egrStatus === 'inactive') {
-            $score = min($score, 18);
-            $factors[] = 'По данным ЕГРЮЛ/статусу компания не выглядит надёжной для отсрочки (ликвидация, банкротство, исключение и т.п.).';
-        } elseif ($egrStatus === 'active') {
-            $score += 22;
-            $factors[] = 'Юридический статус допускает работу по отсрочке (действующая организация).';
-        } else {
-            $score += 8;
-            $factors[] = 'Статус ЕГРЮЛ в ответе Checko не распознан однозначно — автоматически не отнесено к ликвидации/исключению; при сомнениях сверьтесь с карточкой на checko.ru.';
-        }
-
-        $enforcementCount = (int) ($normalized['enforcement_count'] ?? 0);
-        $enforcementSum = (float) ($normalized['enforcement_sum_rub'] ?? 0);
-        $defendantCases = (int) ($normalized['defendant_cases'] ?? 0);
-        $plaintiffCases = (int) ($normalized['plaintiff_cases'] ?? 0);
-
-        if ($enforcementCount === 0 && $enforcementSum < 1.0) {
-            $score += 12;
-            $factors[] = 'По данным ФССП не выявлено исполнительных производств (или сумма неизвестна).';
-        } else {
-            $penalty = 8;
-            if ($enforcementSum >= 5_000_000) {
-                $penalty += 28;
-            } elseif ($enforcementSum >= 1_000_000) {
-                $penalty += 18;
-            } elseif ($enforcementSum >= 300_000) {
-                $penalty += 12;
-            }
-
-            if ($enforcementCount >= 5) {
-                $penalty += 12;
-            } elseif ($enforcementCount >= 2) {
-                $penalty += 6;
-            }
-
-            $score -= min($penalty, 45);
-            $factors[] = 'Исполнительные производства: '.(string) $enforcementCount.' шт., сумма ~ '.number_format($enforcementSum, 0, '.', ' ').' ₽ (рост риска неплатежа).';
-        }
-
-        if ($defendantCases === 0) {
-            $score += 6;
-            $factors[] = 'Судебные дела как ответчик не выявлены (по выборке Checko).';
-        } else {
-            $casePenalty = min(28, 10 + (int) floor($defendantCases / 3) * 2);
-            $score -= $casePenalty;
-            $factors[] = 'Судебные дела как ответчик: '.(string) $defendantCases.' — повышает риск споров и взысканий.';
-        }
-
-        if ($plaintiffCases > 20) {
-            $score -= 4;
-            $factors[] = 'Много активных судебных требований как истец — оцените деловую агрессивность/контрагентскую среду.';
-        }
-
-        $financesAvailable = (bool) ($normalized['finances_available'] ?? false);
-        $lastProfitPositive = $normalized['last_profit_positive'];
-
-        if ($financesAvailable) {
-            if ($lastProfitPositive === true) {
-                $score += 8;
-                $factors[] = 'По данным отчётности (последний доступный год) прибыль неотрицательна.';
-            } elseif ($lastProfitPositive === false) {
-                $score -= 12;
-                $factors[] = 'По данным отчётности (последний доступный год) убыток — снижает кредитную устойчивость.';
-            } else {
-                $factors[] = 'Финансовая отчётность есть, но прибыль/убыток не распознаны автоматически — проверьте вручную.';
-            }
-        } else {
-            $score -= 4;
-            $factors[] = 'Нет уверенной финансовой отчётности в ответе API — консервативная скидка к оценке.';
-        }
-
-        if ($debtLimit !== null && $debtLimit > 0) {
-            $utilization = $currentDebt / $debtLimit;
-            if ($utilization >= 0.95) {
-                $score -= 12;
-                $factors[] = 'Задолженность близка к внутреннему лимиту (высокая утилизация лимита).';
-            } elseif ($utilization >= 0.75) {
-                $score -= 6;
-                $factors[] = 'Задолженность существенная относительно внутреннего лимита.';
-            }
-        }
-
-        if ($stopOnLimit) {
-            $score -= 4;
-            $factors[] = 'В карточке включён останов при лимите — политика компании требует жёсткого контроля.';
-        }
+        $weights = config('contractor_scoring.component_weights');
+        $composite = (int) round(
+            $legalScore * ($weights['legal'] ?? 0.4)
+            + $capacityScore * ($weights['capacity'] ?? 0.4)
+            + $relationshipScore * ($weights['relationship'] ?? 0.2)
+        );
+        $composite = max(0, min(100, $composite));
 
         if ($debtLimitReached) {
-            $score = min($score, 25);
-            $factors[] = 'По данным CRM лимит задолженности достигнут — отсрочка не рекомендуется до погашения.';
+            $composite = min($composite, 25);
         }
 
-        $score = (int) max(0, min(100, round($score)));
+        if ($egrStatus === 'inactive') {
+            $composite = min($composite, 18);
+        }
 
-        $grade = $this->gradeFromScore($score);
-
-        $recommendedDays = $this->recommendedPostpaymentDays($score, $egrStatus, $debtLimitReached);
+        $grade = $this->gradeFromScore($composite);
+        $recommendedDays = $this->recommendedPostpaymentDays($composite, $egrStatus, $debtLimitReached);
 
         $lastRevenueRub = isset($normalized['last_revenue_rub']) && is_numeric($normalized['last_revenue_rub'])
             ? (float) $normalized['last_revenue_rub']
             : null;
 
+        $enforcementSum = (float) ($normalized['enforcement_sum_rub'] ?? 0);
+        $enforcementCount = (int) ($normalized['enforcement_count'] ?? 0);
+
         $recommendedDebtLimitRub = $this->recommendedDebtLimitRubles(
-            $score,
+            $tier,
+            $composite,
             $egrStatus,
             $debtLimitReached,
             $lastRevenueRub,
@@ -143,16 +72,206 @@ class ContractorScoringCalculator
             $enforcementCount,
         );
 
-        $summary = $this->buildSummary($grade, $recommendedDays, $egrStatus, $debtLimitReached);
+        $summary = $this->buildSummary($grade, $tierLabel, $recommendedDays, $egrStatus, $debtLimitReached);
 
         return [
-            'score' => $score,
+            'score' => $composite,
             'grade' => $grade,
+            'tier' => $tier,
+            'tier_label' => $tierLabel,
+            'components' => [
+                'legal' => $legalScore,
+                'capacity' => $capacityScore,
+                'relationship' => $relationshipScore,
+                'composite' => $composite,
+            ],
+            'scoring_model_version' => (string) config('contractor_scoring.model_version'),
             'recommended_postpayment_days' => $recommendedDays,
             'recommended_debt_limit_rub' => $recommendedDebtLimitRub,
             'factors' => $factors,
             'summary' => $summary,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $normalized
+     */
+    public function resolveTier(array $normalized): string
+    {
+        $revenue = isset($normalized['last_revenue_rub']) && is_numeric($normalized['last_revenue_rub'])
+            ? (float) $normalized['last_revenue_rub']
+            : null;
+
+        $assets = isset($normalized['last_assets_rub']) && is_numeric($normalized['last_assets_rub'])
+            ? (float) $normalized['last_assets_rub']
+            : null;
+
+        $scale = max($revenue ?? 0.0, $assets ?? 0.0);
+
+        if ($scale <= 0) {
+            return 'micro';
+        }
+
+        $thresholds = config('contractor_scoring.tier_thresholds_rub');
+
+        if ($scale >= ($thresholds['enterprise'] ?? 5_000_000_000)) {
+            return 'enterprise';
+        }
+
+        if ($scale >= ($thresholds['large'] ?? 1_000_000_000)) {
+            return 'large';
+        }
+
+        if ($scale >= ($thresholds['mid'] ?? 200_000_000)) {
+            return 'mid';
+        }
+
+        if ($scale >= ($thresholds['small'] ?? 20_000_000)) {
+            return 'small';
+        }
+
+        return 'micro';
+    }
+
+    /**
+     * @param  list<string>  $factors
+     */
+    private function legalScore(array $normalized, string $egrStatus, array &$factors): int
+    {
+        $score = 50;
+
+        if ($egrStatus === 'inactive') {
+            $score = 5;
+        } elseif ($egrStatus === 'active') {
+            $score += 35;
+        } else {
+            $score += 15;
+        }
+
+        $enforcementCount = (int) ($normalized['enforcement_count'] ?? 0);
+        $enforcementSum = (float) ($normalized['enforcement_sum_rub'] ?? 0);
+        $defendantCases = (int) ($normalized['defendant_cases'] ?? 0);
+
+        if ($enforcementCount === 0 && $enforcementSum < 1.0) {
+            $score += 10;
+        } else {
+            $penalty = min(45, 8 + (int) min(28, max(0, log10(max($enforcementSum, 1)) * 6)) + min(12, $enforcementCount * 3));
+            $score -= $penalty;
+            $factors[] = 'Исполнительные производства: '.(string) $enforcementCount.' шт., сумма ~ '.number_format($enforcementSum, 0, '.', ' ').' ₽.';
+        }
+
+        if ($defendantCases === 0) {
+            $score += 5;
+        } else {
+            $score -= min(25, 8 + (int) floor($defendantCases / 2));
+            $factors[] = 'Судебные дела как ответчик: '.(string) $defendantCases.' — повышает риск споров и взысканий.';
+        }
+
+        if ((bool) ($normalized['bankruptcy_risk_flag'] ?? false)) {
+            $score -= 20;
+            $factors[] = 'Признаки процедуры банкротства или наблюдения в данных Checko.';
+        }
+
+        return max(0, min(100, $score));
+    }
+
+    /**
+     * @param  list<string>  $factors
+     */
+    private function capacityScore(array $normalized, string $tier, array &$factors): int
+    {
+        $score = 40;
+
+        $tierBonus = match ($tier) {
+            'enterprise' => 25,
+            'large' => 20,
+            'mid' => 15,
+            'small' => 10,
+            default => 0,
+        };
+        $score += $tierBonus;
+
+        $financesAvailable = (bool) ($normalized['finances_available'] ?? false);
+        $lastProfitPositive = $normalized['last_profit_positive'];
+
+        if ($financesAvailable) {
+            if ($lastProfitPositive === true) {
+                $score += 15;
+                $factors[] = 'По данным отчётности (последний доступный год) прибыль неотрицательна.';
+            } elseif ($lastProfitPositive === false) {
+                $score -= 15;
+                $factors[] = 'По данным отчётности (последний доступный год) убыток — снижает устойчивость.';
+            }
+        } else {
+            $score -= 8;
+            $factors[] = 'Нет уверенной финансовой отчётности в ответе API — консервативная скидка.';
+        }
+
+        $revenueTrend = $normalized['revenue_trend'] ?? null;
+        if ($revenueTrend === 'growing') {
+            $score += 8;
+            $factors[] = 'Выручка растёт относительно предыдущего года в данных Checko.';
+        } elseif ($revenueTrend === 'declining') {
+            $score -= 10;
+            $factors[] = 'Выручка снижается относительно предыдущего года.';
+        }
+
+        $ageYears = isset($normalized['company_age_years']) && is_numeric($normalized['company_age_years'])
+            ? (int) $normalized['company_age_years']
+            : null;
+
+        if ($ageYears !== null) {
+            if ($ageYears >= 5) {
+                $score += 8;
+            } elseif ($ageYears < 2) {
+                $score -= 6;
+                $factors[] = 'Компания моложе 2 лет — повышенный риск.';
+            }
+        }
+
+        return max(0, min(100, $score));
+    }
+
+    /**
+     * @param  array<string, mixed>  $internal
+     * @param  list<string>  $factors
+     */
+    private function relationshipScore(
+        array $internal,
+        ?float $debtLimit,
+        float $currentDebt,
+        bool $debtLimitReached,
+        bool $stopOnLimit,
+        array &$factors,
+    ): int {
+        $score = 70;
+
+        if ($debtLimitReached) {
+            $score = 10;
+            $factors[] = 'По данным CRM лимит задолженности достигнут — отсрочка не рекомендуется до погашения.';
+
+            return $score;
+        }
+
+        if ($debtLimit !== null && $debtLimit > 0) {
+            $utilization = $currentDebt / $debtLimit;
+            if ($utilization >= 0.95) {
+                $score -= 30;
+                $factors[] = 'Задолженность близка к внутреннему лимиту (высокая утилизация).';
+            } elseif ($utilization >= 0.75) {
+                $score -= 15;
+                $factors[] = 'Задолженность существенная относительно внутреннего лимита.';
+            } elseif ($utilization < 0.25) {
+                $score += 10;
+            }
+        }
+
+        if ($stopOnLimit) {
+            $score -= 8;
+            $factors[] = 'В карточке включён останов при лимите — политика компании требует жёсткого контроля.';
+        }
+
+        return max(0, min(100, $score));
     }
 
     /**
@@ -211,10 +330,7 @@ class ContractorScoringCalculator
     }
 
     /**
-     * Эвристика по строке статуса ЕГРЮЛ / карточки ФНС.
-     * «прекращ»/«исключ» дают ложные срабатывания на «деятельность не прекращена», «не исключён».
-     *
-     * @deprecated Используйте {@see classifyEgrStatus()}; true только при явном «действующая» и т.п.
+     * @deprecated Используйте {@see classifyEgrStatus()}.
      */
     public function isCompanyActiveByEgrStatus(?string $status): bool
     {
@@ -246,12 +362,9 @@ class ContractorScoringCalculator
         return 'D';
     }
 
-    /**
-     * Ориентир по лимиту открытой задолженности (₽): класс оценки, исполнительные производства,
-     * при наличии выручки — не выше ~8% от последней выручки в данных Checko.
-     */
     private function recommendedDebtLimitRubles(
-        int $score,
+        string $tier,
+        int $composite,
         string $egrStatus,
         bool $debtLimitReached,
         ?float $lastRevenueRub,
@@ -262,18 +375,11 @@ class ContractorScoringCalculator
             return 0;
         }
 
-        $cap = match (true) {
-            $score >= 82 => 5_000_000,
-            $score >= 72 => 3_000_000,
-            $score >= 62 => 1_500_000,
-            $score >= 52 => 800_000,
-            $score >= 42 => 400_000,
-            default => 0,
-        };
+        $baseLimits = config('contractor_scoring.tier_base_debt_limit_rub');
+        $base = (int) ($baseLimits[$tier] ?? 150_000);
 
-        if ($cap === 0) {
-            return 0;
-        }
+        $healthMultiplier = max(0.25, $composite / 100);
+        $cap = (int) round($base * $healthMultiplier);
 
         $mult = 1.0;
         if ($enforcementSum >= 5_000_000 || $enforcementCount >= 5) {
@@ -286,12 +392,16 @@ class ContractorScoringCalculator
 
         $cap = (int) round($cap * $mult);
 
+        $revenueCapRatio = (float) config('contractor_scoring.revenue_cap_ratio', 0.08);
         if ($lastRevenueRub !== null && $lastRevenueRub > 0) {
-            $fromRevenue = $lastRevenueRub * 0.08;
+            $fromRevenue = $lastRevenueRub * $revenueCapRatio;
             $cap = (int) min($cap, $fromRevenue);
         }
 
-        $cap = (int) (round($cap / 50_000) * 50_000);
+        $step = (int) config('contractor_scoring.limit_round_step_rub', 50_000);
+        if ($step > 0) {
+            $cap = (int) (round($cap / $step) * $step);
+        }
 
         return max(0, $cap);
     }
@@ -302,8 +412,10 @@ class ContractorScoringCalculator
             return 0;
         }
 
+        $maxDays = (int) config('contractor_scoring.max_recommended_postpayment_days', self::MAX_RECOMMENDED_POSTPAYMENT_DAYS);
+
         if ($score >= 82) {
-            return self::MAX_RECOMMENDED_POSTPAYMENT_DAYS;
+            return $maxDays;
         }
 
         if ($score >= 72) {
@@ -321,16 +433,12 @@ class ContractorScoringCalculator
         return 0;
     }
 
-    private function buildSummary(string $grade, int $days, string $egrStatus, bool $debtLimitReached): string
+    private function buildSummary(string $grade, string $tierLabel, int $days, string $egrStatus, bool $debtLimitReached): string
     {
-        if ($debtLimitReached) {
-            return 'Лимит в CRM исчерпан: отсрочку не рекомендуем, работайте по предоплате или после погашения.';
+        if ($debtLimitReached || $egrStatus === 'inactive') {
+            return '';
         }
 
-        if ($egrStatus === 'inactive') {
-            return 'Юридический статус не позволяет отсрочку: требуется предоплата или отказ от сделки.';
-        }
-
-        return 'Класс '.$grade.'. Рекомендуемая отсрочка (ориентир для переговоров): до '.$days.' календарных дней. Оценка не заменяет финансовую отчётность и договор кредитной линии.';
+        return 'Ориентир для переговоров; не заменяет финансовую отчётность и договор кредитной линии.';
     }
 }

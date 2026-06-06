@@ -126,6 +126,26 @@ function toggle() {
     }
 }
 
+async function markUnread(id) {
+    await fetch(route('cabinet-notifications.unread', id, false), {
+        method: 'POST',
+        headers: csrfHeaders(),
+        credentials: 'same-origin',
+    });
+    await fetchList();
+    await pollSummary();
+}
+
+async function removeNotification(id) {
+    await fetch(route('cabinet-notifications.destroy', id, false), {
+        method: 'DELETE',
+        headers: csrfHeaders(),
+        credentials: 'same-origin',
+    });
+    await fetchList();
+    await pollSummary();
+}
+
 async function markRead(id) {
     await fetch(route('cabinet-notifications.read', id, false), {
         method: 'POST',
@@ -238,20 +258,50 @@ watch(authUser, (u) => {
                 <div v-if="loading" class="px-3 py-6 text-center text-xs text-zinc-500">Загрузка…</div>
                 <div v-else-if="items.length === 0" class="px-3 py-6 text-center text-xs text-zinc-500">Пока пусто</div>
                 <template v-else>
-                    <button
+                    <div
                         v-for="item in items"
                         :key="item.id"
-                        type="button"
-                        class="flex w-full flex-col gap-1 border-b border-zinc-50 px-3 py-2.5 text-left last:border-0 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/80"
-                        @click="visit(item)"
+                        class="group border-b border-zinc-50 last:border-0 dark:border-zinc-800"
+                        :class="item.read_at ? 'opacity-80' : ''"
                     >
-                        <div class="flex items-start justify-between gap-2">
-                            <span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">{{ item.title }}</span>
-                            <span v-if="!item.read_at" class="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">новое</span>
+                        <button
+                            type="button"
+                            class="flex w-full flex-col gap-1 px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
+                            @click="visit(item)"
+                        >
+                            <div class="flex items-start justify-between gap-2">
+                                <span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">{{ item.title }}</span>
+                                <span v-if="!item.read_at" class="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">новое</span>
+                            </div>
+                            <p class="text-xs leading-snug text-zinc-600 dark:text-zinc-400">{{ item.body }}</p>
+                            <span class="text-[10px] text-zinc-400">{{ formatTime(item.created_at) }}</span>
+                        </button>
+                        <div class="flex flex-wrap gap-2 px-3 pb-2">
+                            <button
+                                v-if="!item.read_at"
+                                type="button"
+                                class="text-[10px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                                @click.stop="markRead(item.id)"
+                            >
+                                Прочитано
+                            </button>
+                            <button
+                                v-else
+                                type="button"
+                                class="text-[10px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                                @click.stop="markUnread(item.id)"
+                            >
+                                Непрочитано
+                            </button>
+                            <button
+                                type="button"
+                                class="text-[10px] font-medium text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300"
+                                @click.stop="removeNotification(item.id)"
+                            >
+                                Удалить
+                            </button>
                         </div>
-                        <p class="text-xs leading-snug text-zinc-600 dark:text-zinc-400">{{ item.body }}</p>
-                        <span class="text-[10px] text-zinc-400">{{ formatTime(item.created_at) }}</span>
-                    </button>
+                    </div>
                 </template>
             </div>
         </div>

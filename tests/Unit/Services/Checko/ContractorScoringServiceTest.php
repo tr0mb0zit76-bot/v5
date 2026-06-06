@@ -4,6 +4,7 @@ namespace Tests\Unit\Services\Checko;
 
 use App\Models\Contractor;
 use App\Services\Checko\CheckoDataNormalizer;
+use App\Services\Checko\ContractorRiskAssessmentService;
 use App\Services\Checko\ContractorScoringCalculator;
 use App\Services\Checko\ContractorScoringService;
 use App\Services\ContractorCreditService;
@@ -33,10 +34,13 @@ class ContractorScoringServiceTest extends TestCase
         $credit->method('currentDebtForContractor')->willReturn(0.0);
         $credit->method('isBlockedByDebtLimit')->willReturn(false);
 
+        $assessment = $this->createMock(ContractorRiskAssessmentService::class);
+
         $service = new ContractorScoringService(
             $credit,
             new CheckoDataNormalizer,
             new ContractorScoringCalculator,
+            $assessment,
         );
 
         $contractor = new Contractor;
@@ -61,10 +65,12 @@ class ContractorScoringServiceTest extends TestCase
         Config::set('checko.api_key', '');
 
         $credit = $this->createMock(ContractorCreditService::class);
+        $assessment = $this->createMock(ContractorRiskAssessmentService::class);
         $service = new ContractorScoringService(
             $credit,
             new CheckoDataNormalizer,
             new ContractorScoringCalculator,
+            $assessment,
         );
 
         $contractor = new Contractor;

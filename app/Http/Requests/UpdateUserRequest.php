@@ -25,7 +25,7 @@ class UpdateUserRequest extends FormRequest
         /** @var User $managedUser */
         $managedUser = $this->route('user');
 
-        return [
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($managedUser->id)],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -48,6 +48,14 @@ class UpdateUserRequest extends FormRequest
             'mail_password' => ['nullable', 'string', 'max:255'],
             'mail_sync_enabled' => ['nullable', 'boolean'],
         ];
+
+        if (Schema::hasTable('departments')) {
+            $rules['primary_department_id'] = ['nullable', 'integer', Rule::exists('departments', 'id')->where('is_active', true)];
+            $rules['approval_department_ids'] = ['nullable', 'array', 'max:20'];
+            $rules['approval_department_ids.*'] = ['integer', Rule::exists('departments', 'id')->where('is_active', true)];
+        }
+
+        return $rules;
     }
 
     /**

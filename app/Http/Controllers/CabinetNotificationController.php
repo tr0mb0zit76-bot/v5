@@ -70,6 +70,27 @@ class CabinetNotificationController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    public function markUnread(Request $request, string $notification): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $model = $user->notifications()->where('id', $notification)->firstOrFail();
+        $model->forceFill(['read_at' => null])->save();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function destroy(Request $request, string $notification): JsonResponse
+    {
+        $user = $request->user();
+        abort_if($user === null, 403);
+
+        $user->notifications()->where('id', $notification)->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
     /**
      * @return array<string, mixed>
      */
