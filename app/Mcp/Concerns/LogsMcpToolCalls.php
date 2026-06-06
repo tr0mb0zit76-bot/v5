@@ -4,6 +4,7 @@ namespace App\Mcp\Concerns;
 
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\McpAccessGate;
+use App\Services\Mcp\McpCrossDomainGuard;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Throwable;
@@ -18,6 +19,7 @@ trait LogsMcpToolCalls
 
         try {
             $user = $gate->resolveUser($request);
+            app(McpCrossDomainGuard::class)->enforce($toolName);
             $response = $callback($user);
             $audit->log($user, $toolName, $request->toArray(), ! $response->isError());
 

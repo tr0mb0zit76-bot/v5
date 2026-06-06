@@ -54,7 +54,10 @@ class RoleAccess
             ['key' => 'users', 'label' => 'Пользователи', 'description' => 'Управление пользователями'],
             ['key' => 'roles', 'label' => 'Роли', 'description' => 'Управление ролями и правами'],
             ['key' => 'contractors', 'label' => 'Контрагенты', 'description' => 'Справочник контрагентов'],
-            ['key' => 'drivers', 'label' => 'Водители', 'description' => 'Реестр водителей и перевозчиков'],
+            ['key' => 'drivers', 'label' => 'ТС', 'description' => 'Автопарк, контейнера и реестр водителей'],
+            ['key' => 'own_fleet', 'label' => 'Собственный транспорт', 'description' => 'Общий доступ; при выборе компонентов уточните строки ниже'],
+            ['key' => 'fleet_trips', 'label' => 'Собственный транспорт: рейсы', 'description' => 'Рейсы собственного парка по заказам'],
+            ['key' => 'fleet_efficiency', 'label' => 'Собственный транспорт: эффективность', 'description' => 'Сводка эффективности рейсов'],
             ['key' => 'documents', 'label' => 'Документы', 'description' => 'Реестр документов'],
             ['key' => 'finance_salary', 'label' => 'Финансы: зарплата', 'description' => 'Зарплатные периоды, начисления и выплаты'],
             ['key' => 'payment_schedules', 'label' => 'График оплат', 'description' => 'Плановые и фактические платежи по заказам (ДДС, график)'],
@@ -477,6 +480,7 @@ class RoleAccess
 
         $expanded = static::expandLegacySalesAssistantVisibilityAreas(array_values(array_unique($filtered)));
         $expanded = static::expandLegacyModulesVisibilityAreas($expanded);
+        $expanded = static::expandLegacyOwnFleetVisibilityAreas($expanded);
 
         return $expanded !== []
             ? $expanded
@@ -512,6 +516,49 @@ class RoleAccess
         }
 
         return array_values(array_unique([...$areas, ...static::modulesComponentKeys()]));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function ownFleetComponentKeys(): array
+    {
+        return [
+            'fleet_trips',
+            'fleet_efficiency',
+        ];
+    }
+
+    /**
+     * @param  list<string>  $areas
+     * @return list<string>
+     */
+    public static function expandLegacyOwnFleetVisibilityAreas(array $areas): array
+    {
+        if (in_array('own_fleet', $areas, true)) {
+            $hasChild = false;
+
+            foreach (static::ownFleetComponentKeys() as $key) {
+                if (in_array($key, $areas, true)) {
+                    $hasChild = true;
+                    break;
+                }
+            }
+
+            if (! $hasChild) {
+                $areas = [...$areas, ...static::ownFleetComponentKeys()];
+            }
+        }
+
+        if (in_array('drivers', $areas, true)) {
+            foreach (static::ownFleetComponentKeys() as $key) {
+                if (! in_array($key, $areas, true)) {
+                    $areas[] = $key;
+                }
+            }
+        }
+
+        return array_values(array_unique($areas));
     }
 
     /**
@@ -591,6 +638,26 @@ class RoleAccess
             }
         }
 
+        $ownFleetKeys = static::ownFleetComponentKeys();
+
+        if (in_array($required, $ownFleetKeys, true)) {
+            return static::hasOwnFleetSubmoduleAccess($areas, $required);
+        }
+
+        if ($required === 'own_fleet') {
+            if (in_array('own_fleet', $areas, true)) {
+                return true;
+            }
+
+            foreach ($ownFleetKeys as $key) {
+                if (in_array($key, $areas, true)) {
+                    return true;
+                }
+            }
+
+            return in_array('drivers', $areas, true);
+        }
+
         if ($required === 'settings') {
             return in_array('settings', $areas, true)
                 || in_array('settings_system', $areas, true)
@@ -628,6 +695,36 @@ class RoleAccess
         }
 
         foreach (static::salesAssistantComponentKeys() as $key) {
+            if (in_array($key, $areas, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<string>  $areas
+     */
+    public static function hasOwnFleetSubmoduleAccess(array $areas, string $submoduleKey): bool
+    {
+        if (! in_array($submoduleKey, static::ownFleetComponentKeys(), true)) {
+            return false;
+        }
+
+        if (in_array($submoduleKey, $areas, true)) {
+            return true;
+        }
+
+        if (in_array('drivers', $areas, true)) {
+            return true;
+        }
+
+        if (! in_array('own_fleet', $areas, true)) {
+            return false;
+        }
+
+        foreach (static::ownFleetComponentKeys() as $key) {
             if (in_array($key, $areas, true)) {
                 return false;
             }

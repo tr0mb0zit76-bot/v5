@@ -7,6 +7,7 @@
         >
             <template #actions>
                 <button
+                    v-if="pageTab === 'templates'"
                     type="button"
                     :class="crmBtnNeutral"
                     @click="openCreateModal"
@@ -17,6 +18,24 @@
             </template>
         </CrmPageHeader>
 
+        <div class="flex flex-wrap gap-2">
+            <button
+                type="button"
+                :class="pageTab === 'templates' ? crmPillActive : crmPill"
+                @click="switchPageTab('templates')"
+            >
+                DOCX-шаблоны
+            </button>
+            <button
+                type="button"
+                :class="pageTab === 'basic-terms' ? crmPillActive : crmPill"
+                @click="switchPageTab('basic-terms')"
+            >
+                Базовые условия для договоров-заявок
+            </button>
+        </div>
+
+        <template v-if="pageTab === 'templates'">
         <div
             v-if="!documentPreview.pdf_preview_available"
             class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
@@ -165,6 +184,158 @@
                 </table>
             </div>
         </div>
+        </template>
+
+        <section
+            v-else-if="pageTab === 'basic-terms'"
+            :class="`${crmPanel} flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4`"
+        >
+            <div
+                v-if="!basicTermsEditor.enabled"
+                class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+            >
+                Таблица базовых условий ещё не создана. Выполните миграции базы данных.
+            </div>
+
+            <template v-else>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            v-for="option in basicTermsEditor.partyOptions"
+                            :key="option.value"
+                            type="button"
+                            :class="basicTermsParty === option.value ? crmPillActive : crmPill"
+                            @click="switchBasicTermsParty(option.value)"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+                    <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                        Общих пунктов: {{ basicTermsEditor.globalRowCounts?.[basicTermsParty] ?? 0 }}
+                    </div>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+                    <div class="flex min-h-0 flex-col gap-4">
+                        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)] sm:items-end">
+                            <label class="block text-sm">
+                                <span class="mb-1 block text-zinc-600 dark:text-zinc-300">Область редактирования</span>
+                                <select
+                                    v-model="basicTermsContractorId"
+                                    :class="crmFieldFluid"
+                                    @change="reloadBasicTermsScope"
+                                >
+                                    <option :value="null">Общие условия (по умолчанию для всех)</option>
+                                    <option
+                                        v-for="contractor in contractorOptions"
+                                        :key="contractor.id"
+                                        :value="contractor.id"
+                                    >
+                                        {{ contractor.name }}
+                                    </option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                            <template v-if="basicTermsContractorId">
+                                Условия для выбранного контрагента перекрывают общие при печати договора-заявки с его участием.
+                                Пустой список — контрагент использует общие условия.
+                            </template>
+                            <template v-else>
+                                Эти пункты подставляются в DOCX для всех заказчиков или перевозчиков, если нет переопределения на контрагента или в заказе.
+                            </template>
+                        </p>
+
+                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                            <div
+                                v-for="(row, index) in basicTermsForm.items"
+                                :key="row.key"
+                                class="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900/40"
+                            >
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <span class="text-xs font-medium uppercase tracking-wide text-zinc-500">Пункт {{ index + 1 }}</span>
+                                    <div class="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            class="rounded-lg border border-zinc-200 p-1.5 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                            :disabled="index === 0"
+                                            @click="moveBasicTermRow(index, -1)"
+                                        >
+                                            <ChevronUp class="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-lg border border-zinc-200 p-1.5 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                            :disabled="index === basicTermsForm.items.length - 1"
+                                            @click="moveBasicTermRow(index, 1)"
+                                        >
+                                            <ChevronDown class="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                            @click="removeBasicTermRow(index)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea
+                                    v-model="row.body"
+                                    rows="4"
+                                    :class="`${crmFieldFluid} min-h-[96px] resize-y`"
+                                    placeholder="Текст пункта базовых условий"
+                                />
+                            </div>
+
+                            <div
+                                v-if="basicTermsForm.items.length === 0"
+                                class="rounded-xl border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                            >
+                                Пункты не заданы. Добавьте первый пункт или сохраните пустой список, чтобы использовать только общие условия.
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                            <button
+                                type="button"
+                                :class="crmBtnCreate"
+                                :disabled="basicTermsForm.processing"
+                                @click="saveBasicTerms"
+                            >
+                                Сохранить условия
+                            </button>
+                            <button type="button" :class="crmBtnNeutral" @click="addBasicTermRow">
+                                <Plus class="h-4 w-4" />
+                                Пункт
+                            </button>
+                            <span v-if="basicTermsForm.processing" class="text-sm text-zinc-500">Сохранение…</span>
+                            <span v-if="basicTermsForm.hasErrors" class="text-sm text-rose-600 dark:text-rose-300">
+                                Проверьте заполнение пунктов.
+                            </span>
+                        </div>
+                    </div>
+
+                    <aside class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900/50">
+                        <div class="font-medium">Плейсхолдеры в DOCX</div>
+                        <p class="mt-2 text-zinc-600 dark:text-zinc-300">
+                            В таблице шаблона укажите строку с макросами PhpWord cloneRow. Якорь — поле с суффиксом
+                            <code class="rounded bg-zinc-200 px-1 dark:bg-zinc-800">{{ activeBasicTermsPlaceholderHelp.anchor }}</code>.
+                        </p>
+                        <ul class="mt-3 space-y-1 font-mono text-xs text-zinc-700 dark:text-zinc-200">
+                            <li v-for="macro in activeBasicTermsPlaceholderHelp.macros" :key="macro">
+                                ${ {{ macro }} }
+                            </li>
+                        </ul>
+                        <p class="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+                            При печати: сначала условия из заказа (если заданы), иначе для контрагента, иначе общие.
+                            Сохранение набора для контрагента доступно здесь; правки в конкретной заявке — отдельным этапом.
+                        </p>
+                    </aside>
+                </div>
+            </template>
+        </section>
 
         <Teleport to="body">
             <div
@@ -617,7 +788,7 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { FileText, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
+import { FileText, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import {
@@ -638,6 +809,10 @@ defineOptions({
 });
 
 const props = defineProps({
+    pageTab: {
+        type: String,
+        default: 'templates',
+    },
     templates: {
         type: Array,
         default: () => [],
@@ -691,7 +866,145 @@ const props = defineProps({
             hint: '',
         }),
     },
+    basicTermsEditor: {
+        type: Object,
+        default: () => ({
+            enabled: false,
+            activeParty: 'customer',
+            activeContractorId: null,
+            rows: [],
+            partyOptions: [],
+            placeholderHelp: {},
+            globalRowCounts: {},
+        }),
+    },
 });
+
+let basicTermRowKey = 0;
+
+function mapBasicTermsRows(rows) {
+    return (rows ?? []).map((row) => ({
+        key: `term-${basicTermRowKey += 1}`,
+        body: String(row?.body ?? ''),
+    }));
+}
+
+const pageTab = computed(() => (props.pageTab === 'basic-terms' ? 'basic-terms' : 'templates'));
+const basicTermsParty = ref(props.basicTermsEditor.activeParty ?? 'customer');
+const basicTermsContractorId = ref(props.basicTermsEditor.activeContractorId ?? null);
+
+const basicTermsForm = useForm({
+    party: basicTermsParty.value,
+    contractor_id: basicTermsContractorId.value,
+    items: mapBasicTermsRows(props.basicTermsEditor.rows),
+});
+
+const activeBasicTermsPlaceholderHelp = computed(() => {
+    const help = props.basicTermsEditor.placeholderHelp?.[basicTermsParty.value] ?? {};
+
+    return {
+        anchor: help.anchor ?? 'cp_basic_terms_row_text',
+        macros: Array.isArray(help.macros) ? help.macros : [],
+    };
+});
+
+function basicTermsQueryParams(overrides = {}) {
+    return {
+        tab: 'basic-terms',
+        party: overrides.party ?? basicTermsParty.value,
+        contractor_id: overrides.contractor_id ?? basicTermsContractorId.value ?? undefined,
+    };
+}
+
+function syncBasicTermsFormFromProps(editor) {
+    basicTermsParty.value = editor?.activeParty ?? 'customer';
+    basicTermsContractorId.value = editor?.activeContractorId ?? null;
+    basicTermsForm.party = basicTermsParty.value;
+    basicTermsForm.contractor_id = basicTermsContractorId.value;
+    basicTermsForm.items = mapBasicTermsRows(editor?.rows);
+    basicTermsForm.clearErrors();
+}
+
+watch(
+    () => props.basicTermsEditor,
+    (editor) => {
+        syncBasicTermsFormFromProps(editor);
+    },
+    { deep: true },
+);
+
+function switchPageTab(tab) {
+    if (tab === pageTab.value) {
+        return;
+    }
+
+    router.get(
+        route('settings.templates.index'),
+        tab === 'basic-terms' ? basicTermsQueryParams() : {},
+        { preserveState: true, preserveScroll: true },
+    );
+}
+
+function switchBasicTermsParty(party) {
+    if (party === basicTermsParty.value) {
+        return;
+    }
+
+    router.get(route('settings.templates.index'), basicTermsQueryParams({ party }), {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['basicTermsEditor', 'pageTab'],
+    });
+}
+
+function reloadBasicTermsScope() {
+    router.get(
+        route('settings.templates.index'),
+        basicTermsQueryParams({ contractor_id: basicTermsContractorId.value ?? undefined }),
+        {
+            preserveState: true,
+            preserveScroll: true,
+            only: ['basicTermsEditor', 'pageTab'],
+        },
+    );
+}
+
+function addBasicTermRow() {
+    basicTermsForm.items.push({
+        key: `term-${basicTermRowKey += 1}`,
+        body: '',
+    });
+}
+
+function removeBasicTermRow(index) {
+    basicTermsForm.items.splice(index, 1);
+}
+
+function moveBasicTermRow(index, direction) {
+    const target = index + direction;
+
+    if (target < 0 || target >= basicTermsForm.items.length) {
+        return;
+    }
+
+    const items = [...basicTermsForm.items];
+    const [row] = items.splice(index, 1);
+    items.splice(target, 0, row);
+    basicTermsForm.items = items;
+}
+
+function saveBasicTerms() {
+    basicTermsForm.party = basicTermsParty.value;
+    basicTermsForm.contractor_id = basicTermsContractorId.value;
+    basicTermsForm.transform((data) => ({
+        party: data.party,
+        contractor_id: data.contractor_id,
+        items: (data.items ?? []).map((row) => String(row.body ?? '').trim()),
+    }));
+    basicTermsForm.put(route('settings.templates.basic-terms.update'), {
+        preserveScroll: true,
+    });
+}
 
 const showModal = ref(false);
 const editingTemplate = ref(null);

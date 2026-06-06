@@ -32,6 +32,7 @@ import {
 } from '@/support/printFormTemplateMatching.js';
 
 const signedDocuments = defineModel('signedDocuments', { type: Array, default: () => [] });
+const printFormTemplateSelection = defineModel('printFormTemplateSelection', { type: Object, default: () => ({}) });
 
 const props = defineProps({
     order: { type: Object, default: null },
@@ -144,7 +145,6 @@ const effectiveDocumentChecklist = computed(() => {
     });
 });
 
-const templateSelection = reactive({});
 const workflowRejectTargetId = ref(null);
 const workflowRejectReason = ref('');
 
@@ -242,7 +242,7 @@ function hydrateTemplateSelectionFromSavedState() {
 
     Object.entries(saved).forEach(([slotKey, templateId]) => {
         if (templateId != null && templateId !== '') {
-            templateSelection[slotKey] = Number(templateId);
+            printFormTemplateSelection.value[slotKey] = Number(templateId);
         }
     });
 }
@@ -251,30 +251,30 @@ function hydrateTemplateSelectionFromWorkflowDocuments() {
     const docs = Array.isArray(props.allDocuments) ? props.allDocuments : [];
 
     customerSlots.value.forEach((slot) => {
-        if (templateSelection[slot.slotKey]) {
+        if (printFormTemplateSelection.value[slot.slotKey]) {
             return;
         }
 
         const match = docsForCustomerSlot(slot).find((doc) => doc?.template_id);
         if (match?.template_id) {
-            templateSelection[slot.slotKey] = Number(match.template_id);
+            printFormTemplateSelection.value[slot.slotKey] = Number(match.template_id);
         }
     });
 
     carrierSlots.value.forEach((slot) => {
-        if (!slot.carrierContractorId || templateSelection[slot.slotKey]) {
+        if (!slot.carrierContractorId || printFormTemplateSelection.value[slot.slotKey]) {
             return;
         }
 
         const match = docsForCarrierSlot(slot).find((doc) => doc?.template_id);
         if (match?.template_id) {
-            templateSelection[slot.slotKey] = Number(match.template_id);
+            printFormTemplateSelection.value[slot.slotKey] = Number(match.template_id);
         }
     });
 }
 
 function exportPrintFormTemplateSelection() {
-    return { ...templateSelection };
+    return { ...printFormTemplateSelection.value };
 }
 
 defineExpose({
@@ -283,24 +283,24 @@ defineExpose({
 
 function ensureDefaultTemplateSelection() {
     customerSlots.value.forEach((slot) => {
-        if (templateSelection[slot.slotKey]) {
+        if (printFormTemplateSelection.value[slot.slotKey]) {
             return;
         }
 
         const template = defaultTemplateForOptions(printFormTemplateOptionsCustomer.value, 'customer');
         if (template?.id) {
-            templateSelection[slot.slotKey] = template.id;
+            printFormTemplateSelection.value[slot.slotKey] = template.id;
         }
     });
 
     carrierSlots.value.forEach((slot) => {
-        if (!slot.carrierContractorId || templateSelection[slot.slotKey]) {
+        if (!slot.carrierContractorId || printFormTemplateSelection.value[slot.slotKey]) {
             return;
         }
 
         const template = defaultTemplateForOptions(printFormTemplateOptionsCarrier.value, 'carrier');
         if (template?.id) {
-            templateSelection[slot.slotKey] = template.id;
+            printFormTemplateSelection.value[slot.slotKey] = template.id;
         }
     });
 }
@@ -310,16 +310,16 @@ function syncInvalidTemplateSelections() {
     const carrierIds = new Set(printFormTemplateOptionsCarrier.value.map((template) => Number(template.id)));
 
     customerSlots.value.forEach((slot) => {
-        const selectedId = Number(templateSelection[slot.slotKey] ?? 0);
+        const selectedId = Number(printFormTemplateSelection.value[slot.slotKey] ?? 0);
         if (selectedId > 0 && !customerIds.has(selectedId)) {
-            delete templateSelection[slot.slotKey];
+            delete printFormTemplateSelection.value[slot.slotKey];
         }
     });
 
     carrierSlots.value.forEach((slot) => {
-        const selectedId = Number(templateSelection[slot.slotKey] ?? 0);
+        const selectedId = Number(printFormTemplateSelection.value[slot.slotKey] ?? 0);
         if (selectedId > 0 && !carrierIds.has(selectedId)) {
-            delete templateSelection[slot.slotKey];
+            delete printFormTemplateSelection.value[slot.slotKey];
         }
     });
 }
@@ -348,7 +348,7 @@ function printCreateDisabledReason(slot, party) {
         return 'Карточка закрыта для правок: все печатные формы финализированы.';
     }
 
-    if (!templateSelection[slot.slotKey]) {
+    if (!printFormTemplateSelection.value[slot.slotKey]) {
         return 'Выберите шаблон в списке.';
     }
 
@@ -390,7 +390,7 @@ function createPrintWorkflow(slot, party) {
         return;
     }
 
-    const templateId = templateSelection[slot.slotKey];
+    const templateId = printFormTemplateSelection.value[slot.slotKey];
     if (!templateId) {
         return;
     }
@@ -790,7 +790,7 @@ async function onGlobalDrop(event) {
                         <div class="min-w-[200px] flex-1 space-y-1">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Шаблон</label>
                             <select
-                                v-model="templateSelection[slot.slotKey]"
+                                v-model="printFormTemplateSelection[slot.slotKey]"
                                 class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             >
                                 <option :value="null">Выберите шаблон</option>
@@ -806,7 +806,7 @@ async function onGlobalDrop(event) {
                         <button
                             type="button"
                             class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 dark:bg-emerald-600"
-                            :disabled="!templateSelection[slot.slotKey] || !isOrderFormEditable"
+                            :disabled="!printFormTemplateSelection[slot.slotKey] || !isOrderFormEditable"
                             :title="printCreateDisabledReason(slot, 'customer')"
                             @click="createPrintWorkflow(slot, 'customer')"
                         >
@@ -858,7 +858,7 @@ async function onGlobalDrop(event) {
                         <div class="min-w-[200px] flex-1 space-y-1">
                             <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">Шаблон</label>
                             <select
-                                v-model="templateSelection[slot.slotKey]"
+                                v-model="printFormTemplateSelection[slot.slotKey]"
                                 class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             >
                                 <option :value="null">Выберите шаблон</option>
@@ -874,7 +874,7 @@ async function onGlobalDrop(event) {
                         <button
                             type="button"
                             class="rounded-xl bg-rose-700 px-4 py-2 text-sm font-medium text-white hover:bg-rose-800 disabled:opacity-50 dark:bg-rose-600"
-                            :disabled="!templateSelection[slot.slotKey] || !isOrderFormEditable"
+                            :disabled="!printFormTemplateSelection[slot.slotKey] || !isOrderFormEditable"
                             :title="printCreateDisabledReason(slot, 'carrier')"
                             @click="createPrintWorkflow(slot, 'carrier')"
                         >

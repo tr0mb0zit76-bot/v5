@@ -86,6 +86,8 @@ class Order extends Model
         'payment_statuses',
         'payment_status',
         'special_notes',
+        'customer_basic_terms',
+        'carrier_basic_terms',
         'svh_name',
         'svh_address',
         'customs_post_code',
@@ -153,6 +155,14 @@ class Order extends Model
 
         if (Schema::hasColumn($this->getTable(), 'wizard_state')) {
             $casts['wizard_state'] = 'array';
+        }
+
+        if (Schema::hasColumn($this->getTable(), 'customer_basic_terms')) {
+            $casts['customer_basic_terms'] = 'array';
+        }
+
+        if (Schema::hasColumn($this->getTable(), 'carrier_basic_terms')) {
+            $casts['carrier_basic_terms'] = 'array';
         }
 
         return $casts;

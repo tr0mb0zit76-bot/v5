@@ -3,17 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePrintFormTemplateRequest;
+use App\Http\Requests\UpdatePrintFormBasicTermsRequest;
 use App\Http\Requests\UpdatePrintFormTemplateRequest;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\Order;
+use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Services\DocxPlaceholderExtractor;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\OrderPrintFormDraftService;
+use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormVariableCatalog;
 use App\Support\DocumentPreview;
+use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormTemplateTransportScope;
@@ -36,6 +40,7 @@ class SettingsTemplateController extends Controller
         private readonly LeadPrintFormDraftService $leadDraftService,
         private readonly PrintFormDraftResponseBuilder $draftResponseBuilder,
         private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
+        private readonly PrintFormBasicTermsService $basicTermsService,
     ) {}
 
     public function index(Request $request): Response
@@ -165,7 +170,21 @@ class SettingsTemplateController extends Controller
                 ->values();
         }
 
+        $pageTab = $request->string('tab')->toString() === 'basic-terms' ? 'basic-terms' : 'templates';
+        $basicTermsParty = $request->string('party')->toString();
+        $basicTermsParty = in_array($basicTermsParty, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)
+            ? $basicTermsParty
+            : PrintFormBasicTerm::PARTY_CUSTOMER;
+        $basicTermsContractorId = $request->filled('contractor_id')
+            ? (int) $request->input('contractor_id')
+            : null;
+
+        if ($basicTermsContractorId !== null && $basicTermsContractorId <= 0) {
+            $basicTermsContractorId = null;
+        }
+
         return Inertia::render('Settings/Templates', [
+            'pageTab' => $pageTab,
             'templates' => $templates,
             'contractorOptions' => $contractorOptions,
             'ownCompanyOptions' => $ownCompanyOptions,
@@ -178,7 +197,52 @@ class SettingsTemplateController extends Controller
             'orderVariableOptions' => $this->variableCatalog->orderOptions(),
             'leadVariableOptions' => $this->variableCatalog->leadOptions(),
             'documentPreview' => DocumentPreview::inertiaMeta(),
+            'basicTermsEditor' => [
+                'enabled' => $this->basicTermsService->tablesReady(),
+                'activeParty' => $basicTermsParty,
+                'activeContractorId' => $basicTermsContractorId,
+                'rows' => $this->basicTermsService->listRows($basicTermsParty, $basicTermsContractorId),
+                'partyOptions' => [
+                    ['value' => PrintFormBasicTerm::PARTY_CUSTOMER, 'label' => 'Заказчик'],
+                    ['value' => PrintFormBasicTerm::PARTY_CARRIER, 'label' => 'Перевозчик'],
+                ],
+                'placeholderHelp' => [
+                    PrintFormBasicTerm::PARTY_CUSTOMER => PrintFormBasicTermsTableCloner::placeholderHelpForParty(PrintFormBasicTerm::PARTY_CUSTOMER),
+                    PrintFormBasicTerm::PARTY_CARRIER => PrintFormBasicTermsTableCloner::placeholderHelpForParty(PrintFormBasicTerm::PARTY_CARRIER),
+                ],
+                'globalRowCounts' => [
+                    PrintFormBasicTerm::PARTY_CUSTOMER => count($this->basicTermsService->listRows(PrintFormBasicTerm::PARTY_CUSTOMER)),
+                    PrintFormBasicTerm::PARTY_CARRIER => count($this->basicTermsService->listRows(PrintFormBasicTerm::PARTY_CARRIER)),
+                ],
+            ],
         ]);
+    }
+
+    public function updateBasicTerms(UpdatePrintFormBasicTermsRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+        $party = (string) $validated['party'];
+        $contractorId = isset($validated['contractor_id']) ? (int) $validated['contractor_id'] : null;
+
+        $this->basicTermsService->sync(
+            $party,
+            $contractorId > 0 ? $contractorId : null,
+            is_array($validated['items'] ?? null) ? $validated['items'] : [],
+        );
+
+        $scopeLabel = $contractorId > 0
+            ? 'для выбранного контрагента'
+            : 'общие';
+
+        $partyLabel = $party === PrintFormBasicTerm::PARTY_CARRIER ? 'перевозчика' : 'заказчика';
+
+        return redirect()
+            ->route('settings.templates.index', array_filter([
+                'tab' => 'basic-terms',
+                'party' => $party,
+                'contractor_id' => $contractorId > 0 ? $contractorId : null,
+            ]))
+            ->with('success', "Базовые условия {$partyLabel} ({$scopeLabel}) сохранены.");
     }
 
     public function store(StorePrintFormTemplateRequest $request): RedirectResponse

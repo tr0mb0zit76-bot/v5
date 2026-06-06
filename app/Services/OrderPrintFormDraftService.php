@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\OrderLeg;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
+use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\ContractorPrimaryContactResolver;
@@ -17,7 +18,7 @@ use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PhpWordTemplateOverlayImageInjector;
-use App\Support\PrintFormCargoScopeResolver;
+use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormCargoTableCloner;
 use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderMacroVariants;
@@ -39,6 +40,7 @@ class OrderPrintFormDraftService
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
         private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
+        private readonly PrintFormBasicTermsService $basicTermsService,
     ) {}
 
     /**
@@ -86,6 +88,15 @@ class OrderPrintFormDraftService
             $this->buildRouteTableRowsForTemplate($orderForSnapshot, $context),
         );
 
+        $basicTermsCloner = PrintFormBasicTermsTableCloner::forParty((string) ($template->party ?? ''));
+
+        if ($basicTermsCloner !== null) {
+            $basicTermsCloner->apply(
+                $processor,
+                $this->basicTermsService->resolveTableRowsForPrint($orderForSnapshot, $template, $context),
+            );
+        }
+
         foreach ($placeholders as $placeholder) {
             if (in_array($placeholder, $overlayPlaceholders, true)) {
                 continue;
@@ -96,6 +107,10 @@ class OrderPrintFormDraftService
             }
 
             if (PrintFormRouteTableCloner::isRouteTablePlaceholder($placeholder)) {
+                continue;
+            }
+
+            if (PrintFormBasicTermsTableCloner::isBasicTermsPlaceholder($placeholder)) {
                 continue;
             }
 
@@ -120,6 +135,10 @@ class OrderPrintFormDraftService
                 }
 
                 if (PrintFormRouteTableCloner::isRouteTablePlaceholder($placeholder)) {
+                    continue;
+                }
+
+                if (PrintFormBasicTermsTableCloner::isBasicTermsPlaceholder($placeholder)) {
                     continue;
                 }
 

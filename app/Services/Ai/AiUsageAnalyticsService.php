@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Models\User;
 use App\Support\AiInteractionEventType;
 use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
@@ -212,6 +213,50 @@ class AiUsageAnalyticsService
         return $hints;
     }
 
+    public function dismissSalesBookGap(int $eventId, User $user): bool
+    {
+        if (! Schema::hasTable('ai_interaction_events')) {
+            return false;
+        }
+
+        $row = DB::table('ai_interaction_events')
+            ->where('id', $eventId)
+            ->where('feature', AiInteractionFeature::CommandBar->value)
+            ->where('event_type', AiInteractionEventType::ConversationTurn->value)
+            ->where('metadata->sales_book->gap', true)
+            ->where(function ($query): void {
+                $query->whereNull('metadata->sales_book->gap_dismissed')
+                    ->orWhere('metadata->sales_book->gap_dismissed', false);
+            })
+            ->first(['id', 'metadata']);
+
+        if ($row === null) {
+            return false;
+        }
+
+        $metadata = json_decode((string) ($row->metadata ?? ''), true);
+
+        if (! is_array($metadata)) {
+            $metadata = [];
+        }
+
+        $salesBook = is_array($metadata['sales_book'] ?? null) ? $metadata['sales_book'] : [];
+        $salesBook['gap'] = false;
+        $salesBook['gap_dismissed'] = true;
+        $salesBook['gap_dismissed_at'] = now()->toIso8601String();
+        $salesBook['gap_dismissed_by'] = $user->id;
+        $metadata['sales_book'] = $salesBook;
+
+        DB::table('ai_interaction_events')
+            ->where('id', $eventId)
+            ->update([
+                'metadata' => json_encode($metadata, JSON_UNESCAPED_UNICODE),
+                'updated_at' => now(),
+            ]);
+
+        return true;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
@@ -222,9 +267,14 @@ class AiUsageAnalyticsService
             ->where('event_type', AiInteractionEventType::ConversationTurn->value)
             ->where('created_at', '>=', $since)
             ->where('metadata->sales_book->gap', true)
+            ->where(function ($query): void {
+                $query->whereNull('metadata->sales_book->gap_dismissed')
+                    ->orWhere('metadata->sales_book->gap_dismissed', false);
+            })
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get([
+                'id',
                 'created_at',
                 'user_prompt_redacted',
                 'outcome',
@@ -234,6 +284,7 @@ class AiUsageAnalyticsService
                 $metadata = json_decode((string) ($row->metadata ?? ''), true);
 
                 return [
+                    'id' => (int) $row->id,
                     'at' => (string) $row->created_at,
                     'user_prompt' => (string) ($row->user_prompt_redacted ?? ''),
                     'outcome' => (string) ($row->outcome ?? ''),

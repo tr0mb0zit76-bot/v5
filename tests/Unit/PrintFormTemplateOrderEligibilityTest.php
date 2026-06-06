@@ -116,4 +116,70 @@ class PrintFormTemplateOrderEligibilityTest extends TestCase
         $this->assertTrue(RoleAccess::userHasRoleName($user, 'admin'));
         $this->assertTrue($user->isAdmin());
     }
+
+    public function test_template_to_array_flags_basic_terms_placeholders(): void
+    {
+        $service = app(PrintFormTemplateOrderEligibility::class);
+
+        $customerTemplate = PrintFormTemplate::query()->create([
+            'name' => 'Заявка с условиями заказчика',
+            'code' => 'customer-basic-terms',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'is_active' => true,
+            'file_path' => 'print-forms/customer-basic-terms.docx',
+            'file_disk' => 'local',
+            'settings' => [
+                'variables' => ['cp_basic_terms_row_text', 'order_number'],
+            ],
+        ]);
+
+        $carrierTemplate = PrintFormTemplate::query()->create([
+            'name' => 'Заявка с условиями перевозчика',
+            'code' => 'carrier-basic-terms',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'is_active' => true,
+            'file_path' => 'print-forms/carrier-basic-terms.docx',
+            'file_disk' => 'local',
+            'settings' => [
+                'variables' => ['dp_basic_terms_row_text#1'],
+            ],
+        ]);
+
+        $plainTemplate = PrintFormTemplate::query()->create([
+            'name' => 'Заявка без условий',
+            'code' => 'plain-request',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'is_active' => true,
+            'file_path' => 'print-forms/plain-request.docx',
+            'file_disk' => 'local',
+            'settings' => [
+                'variables' => ['order_number'],
+            ],
+        ]);
+
+        $customerArray = $service->templateToArray($customerTemplate);
+        $carrierArray = $service->templateToArray($carrierTemplate);
+        $plainArray = $service->templateToArray($plainTemplate);
+
+        $this->assertTrue($customerArray['has_customer_basic_terms']);
+        $this->assertFalse($customerArray['has_carrier_basic_terms']);
+        $this->assertTrue($carrierArray['has_carrier_basic_terms']);
+        $this->assertFalse($plainArray['has_customer_basic_terms']);
+        $this->assertFalse($plainArray['has_carrier_basic_terms']);
+    }
 }

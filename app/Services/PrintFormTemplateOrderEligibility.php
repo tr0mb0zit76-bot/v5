@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
+use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormTemplateTransportScope;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -249,7 +251,38 @@ final class PrintFormTemplateOrderEligibility
             'is_default' => (bool) $template->is_default,
             'is_active' => (bool) $template->is_active,
             'file_path' => $template->file_path,
+            'has_customer_basic_terms' => $this->templateHasBasicTermsForParty($template, PrintFormBasicTerm::PARTY_CUSTOMER),
+            'has_carrier_basic_terms' => $this->templateHasBasicTermsForParty($template, PrintFormBasicTerm::PARTY_CARRIER),
         ];
+    }
+
+    public function templateHasBasicTermsForParty(PrintFormTemplate $template, string $party): bool
+    {
+        $help = PrintFormBasicTermsTableCloner::placeholderHelpForParty($party);
+
+        if ($help === []) {
+            return false;
+        }
+
+        $anchor = (string) ($help['anchor'] ?? '');
+
+        if ($anchor === '') {
+            return false;
+        }
+
+        $variables = collect($template->settings['variables'] ?? [])
+            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
+            ->map(fn (string $value): string => strtolower($value))
+            ->values()
+            ->all();
+
+        foreach ($variables as $variable) {
+            if ($variable === strtolower($anchor) || str_starts_with($variable, strtolower($anchor).'#')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function matchesParty(?string $templateParty, ?string $slotParty): bool

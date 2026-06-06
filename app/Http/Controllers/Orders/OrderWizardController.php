@@ -14,6 +14,7 @@ use App\Models\FinancialTerm;
 use App\Models\LegContractorAssignment;
 use App\Models\Order;
 use App\Models\OrderDocument;
+use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Services\Commercial\OrderMailContextService;
 use App\Services\ContractorCreditService;
@@ -29,6 +30,7 @@ use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
 use App\Services\OwnFleetContractorService;
 use App\Services\PaymentSettlementSummaryBuilder;
+use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\CargoPerformerAllocationNormalizer;
@@ -40,6 +42,7 @@ use App\Support\CurrencyDictionary;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderAgentLexicon;
 use App\Support\OrderCargoItemsPayloadNormalizer;
+use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPrintWorkflowLock;
@@ -47,6 +50,7 @@ use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PerformerRouteActualDates;
+use App\Support\RoleAccess;
 use App\Support\RoutePointNormalizedData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -491,6 +495,39 @@ class OrderWizardController extends Controller
         );
     }
 
+    /**
+     * @return array{customer: array<string, mixed>, carrier: array<string, mixed>}|null
+     */
+    private function serializeBasicTermsForWizard(Order $order): ?array
+    {
+        /** @var PrintFormBasicTermsService $service */
+        $service = app(PrintFormBasicTermsService::class);
+
+        if (! $service->tablesReady()) {
+            return null;
+        }
+
+        return [
+            'customer' => $service->wizardPayloadForOrder($order, PrintFormBasicTerm::PARTY_CUSTOMER),
+            'carrier' => $service->wizardPayloadForOrder($order, PrintFormBasicTerm::PARTY_CARRIER),
+        ];
+    }
+
+    private function canPromoteBasicTerms(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        return RoleAccess::canAccessSettingsSystem($user);
+    }
+
     public function canEditOrder(Request $request, Order $order): bool
     {
         return $this->canEditInlineField($request, $order);
@@ -696,6 +733,8 @@ class OrderWizardController extends Controller
             'responsible_name' => $order->relationLoaded('manager') ? $order->manager?->name : null,
             'payment_terms' => $order->payment_terms,
             'special_notes' => $order->special_notes,
+            'basic_terms' => $this->serializeBasicTermsForWizard($order),
+            'can_promote_basic_terms' => $this->canPromoteBasicTerms($request),
             'svh_name' => $order->svh_name,
             'svh_address' => Schema::hasColumn('orders', 'svh_address') ? $order->svh_address : null,
             'customs_post_code' => Schema::hasColumn('orders', 'customs_post_code') ? $order->customs_post_code : null,

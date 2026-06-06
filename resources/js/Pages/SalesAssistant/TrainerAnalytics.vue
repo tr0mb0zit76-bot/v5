@@ -349,7 +349,7 @@ import { crmField, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>
-        h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-trainer-analytics' }, () => page),
+        h(CrmLayout, { activeKey: 'reports', activeSubKey: 'sales-assistant-trainer-analytics' }, () => page),
 });
 
 const props = defineProps({

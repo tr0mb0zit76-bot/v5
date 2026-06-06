@@ -61,12 +61,22 @@
                 </p>
                 <ul class="space-y-2 text-sm">
                     <li
-                        v-for="(gap, index) in insights.sales_book_knowledge_gaps"
-                        :key="`gap-${index}`"
-                        class="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                        v-for="gap in insights.sales_book_knowledge_gaps"
+                        :key="`gap-${gap.id}`"
+                        class="flex items-start justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
                     >
-                        <p>{{ gap.user_prompt || '—' }}</p>
-                        <p class="mt-1 text-xs text-zinc-500">{{ gap.gap_reason || gap.outcome }}</p>
+                        <div class="min-w-0 flex-1">
+                            <p>{{ gap.user_prompt || '—' }}</p>
+                            <p class="mt-1 text-xs text-zinc-500">{{ gap.gap_reason || gap.outcome }}</p>
+                        </div>
+                        <button
+                            type="button"
+                            :class="`${crmBtnSecondaryOutline} shrink-0 p-2 text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400`"
+                            title="Убрать из списка"
+                            @click="dismissSalesBookGap(gap.id)"
+                        >
+                            <Trash2 class="h-4 w-4" />
+                        </button>
                     </li>
                 </ul>
             </section>
@@ -152,12 +162,13 @@
 
 <script setup>
 import { Link, router } from '@inertiajs/vue3';
+import { Trash2 } from 'lucide-vue-next';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnSecondary, crmPanel } from '@/support/crmUi.js';
+import { crmBtnSecondary, crmBtnSecondaryOutline, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'ai-analytics' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'reports', activeSubKey: 'ai-analytics' }, () => page),
 });
 
 const props = defineProps({
@@ -169,6 +180,17 @@ const props = defineProps({
 
 function changePeriod(value) {
     router.get(route('settings.ai-analytics'), { days: Number(value) }, { preserveState: true, preserveScroll: true });
+}
+
+function dismissSalesBookGap(eventId) {
+    if (! window.confirm('Убрать этот запрос из списка пробелов Книги продаж?')) {
+        return;
+    }
+
+    router.delete(route('settings.ai-analytics.sales-book-gaps.dismiss', eventId), {
+        data: { days: props.days },
+        preserveScroll: true,
+    });
 }
 
 function formatAt(value) {

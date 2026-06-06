@@ -263,19 +263,55 @@
 
                         <template v-for="group in visibilityMatrix" :key="group.id">
                             <tr class="bg-zinc-50/80 dark:bg-zinc-950/50">
-                                <td class="sticky left-0 z-10 border-b border-r border-zinc-200 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950/50">
-                                    <div class="font-medium">{{ group.label }}</div>
-                                    <div class="text-xs text-zinc-500">{{ group.description }}</div>
+                                <td
+                                    class="sticky left-0 z-10 border-b border-r border-zinc-200 bg-zinc-50/80 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950/50"
+                                >
+                                    <button
+                                        v-if="group.collapsible"
+                                        type="button"
+                                        class="flex w-full items-start gap-2 text-left"
+                                        @click="toggleVisibilityGroup(group.id)"
+                                    >
+                                        <ChevronDown v-if="isVisibilityGroupExpanded(group.id)" class="mt-0.5 h-4 w-4 shrink-0" />
+                                        <ChevronRight v-else class="mt-0.5 h-4 w-4 shrink-0" />
+                                        <span>
+                                            <span class="font-medium">{{ group.label }}</span>
+                                            <span class="mt-0.5 block text-xs text-zinc-500">{{ group.description }}</span>
+                                        </span>
+                                    </button>
+                                    <template v-else>
+                                        <div class="font-medium">{{ group.label }}</div>
+                                        <div class="text-xs text-zinc-500">{{ group.description }}</div>
+                                    </template>
                                 </td>
                                 <td
                                     v-for="role in roleColumns"
-                                    :key="`${group.id}-${role.id}`"
-                                    class="border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800"
-                                />
+                                    :key="`${group.id}-header-${role.id}`"
+                                    class="border-b border-zinc-200 px-3 py-2.5 align-top dark:border-zinc-800"
+                                >
+                                    <template v-if="group.collapsible && ! isVisibilityGroupExpanded(group.id) && (group.groupScopeKeys?.length ?? 0) > 0">
+                                        <div class="space-y-1">
+                                            <div class="text-xs text-zinc-500">Объём данных группы</div>
+                                            <select
+                                                class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-50"
+                                                :value="groupScopeMode(role, group)"
+                                                @change="updateGroupVisibilityScope(role, group, $event.target.value)"
+                                            >
+                                                <option
+                                                    v-for="scopeOption in visibilityScopeOptions"
+                                                    :key="`${group.id}-${scopeOption.value}`"
+                                                    :value="scopeOption.value"
+                                                >
+                                                    {{ scopeOption.label }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </template>
+                                </td>
                             </tr>
 
                             <tr
-                                v-for="row in group.rows"
+                                v-for="row in visibleGroupRows(group)"
                                 :key="row.id"
                             >
                                 <td
@@ -400,7 +436,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { Plus, Trash2 } from 'lucide-vue-next';
+import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPageTitleSm, crmPanel } from '@/support/crmUi.js';
@@ -422,13 +458,12 @@ const showCreateForm = ref(false);
 const savingRoleId = ref(null);
 const childAreaMap = {
     dashboard: ['dashboard_tiles'],
+    own_fleet: ['fleet_trips', 'fleet_efficiency'],
     settings: ['settings_system', 'settings_motivation'],
     scripts: [
         'sales_assistant_scripts',
         'sales_assistant_book',
-        'sales_assistant_book_analytics',
         'sales_assistant_trainer',
-        'sales_assistant_trainer_analytics',
         'sales_assistant_counter',
     ],
     modules: [
@@ -449,12 +484,53 @@ const scopeAreaKeys = [
     'dashboard_tiles',
 ];
 const visibilityGroupDefinitions = [
-    { id: 'core', label: 'Основные модули', description: 'Главные рабочие разделы', keys: ['dashboard', 'leads', 'mail', 'orders', 'tasks', 'kanban'] },
-    { id: 'directories', label: 'Реестры и справочники', description: 'Списки и карточки', keys: ['contractors', 'drivers', 'documents', 'users', 'roles'] },
-    { id: 'analytics', label: 'Финансы и аналитика', description: 'Отчёты и сводные показатели', keys: ['finance_salary', 'payment_schedules', 'reports'] },
-    { id: 'sales_assistant', label: 'Помощник продавца', description: 'Скрипты, книга продаж, тренажёр, считалка и аналитика', keys: ['scripts'] },
-    { id: 'system', label: 'Администрирование', description: 'Системные разделы', keys: ['modules', 'settings'] },
+    {
+        id: 'sales',
+        label: 'Продажи',
+        description: 'Дашборд, лиды, заказы, контрагенты, ТС, задачи, канбан',
+        collapsible: true,
+        keys: ['dashboard', 'leads', 'mail', 'orders', 'contractors', 'drivers', 'tasks', 'kanban'],
+        groupScopeKeys: ['orders', 'leads', 'tasks', 'kanban', 'contractors'],
+    },
+    {
+        id: 'own_fleet',
+        label: 'Собственный транспорт',
+        description: 'Рейсы и эффективность собственного парка',
+        collapsible: true,
+        keys: ['own_fleet'],
+    },
+    {
+        id: 'finance',
+        label: 'Финансы и аналитика',
+        description: 'Документы, зарплата, график оплат',
+        collapsible: true,
+        keys: ['documents', 'finance_salary', 'payment_schedules'],
+        groupScopeKeys: ['documents', 'payment_schedules'],
+    },
+    {
+        id: 'reports',
+        label: 'Отчёты',
+        description: 'Сводные отчёты и аналитика обучения',
+        collapsible: true,
+        keys: ['reports', 'sales_assistant_trainer_analytics', 'sales_assistant_book_analytics'],
+    },
+    {
+        id: 'sales_assistant',
+        label: 'Помощник продавца',
+        description: 'Скрипты, книга продаж, тренажёр, считалка',
+        collapsible: true,
+        keys: ['scripts'],
+    },
+    {
+        id: 'administration',
+        label: 'Настройки',
+        description: 'Пользователи, роли, модули и системные разделы',
+        collapsible: true,
+        keys: ['users', 'roles', 'modules', 'settings'],
+    },
 ];
+
+const expandedVisibilityGroups = ref(new Set(visibilityGroupDefinitions.map((group) => group.id)));
 
 const createForm = useForm({
     name: '',
@@ -929,6 +1005,57 @@ function toggleChildArea(role, parentKey, childKey) {
 
     role.visibility_areas = [...areas];
     role.module_modes = moduleModes;
+}
+
+function toggleVisibilityGroup(groupId) {
+    const next = new Set(expandedVisibilityGroups.value);
+
+    if (next.has(groupId)) {
+        next.delete(groupId);
+    } else {
+        next.add(groupId);
+    }
+
+    expandedVisibilityGroups.value = next;
+}
+
+function isVisibilityGroupExpanded(groupId) {
+    return expandedVisibilityGroups.value.has(groupId);
+}
+
+function visibleGroupRows(group) {
+    if (group.collapsible && ! isVisibilityGroupExpanded(group.id)) {
+        return [];
+    }
+
+    return group.rows;
+}
+
+function groupScopeMode(role, group) {
+    const keys = group.groupScopeKeys ?? [];
+
+    if (keys.length === 0) {
+        return 'own';
+    }
+
+    const modes = keys.map((key) => scopeModeFromRole(role, key));
+    const unique = [...new Set(modes)];
+
+    return unique.length === 1 ? unique[0] : 'own';
+}
+
+function updateGroupVisibilityScope(role, group, mode) {
+    if (mode !== 'own' && mode !== 'all') {
+        return;
+    }
+
+    const scopes = { ...role.visibility_scopes };
+
+    for (const key of group.groupScopeKeys ?? []) {
+        scopes[key] = { mode };
+    }
+
+    role.visibility_scopes = scopes;
 }
 
 function scopeModeFromRole(role, areaKey) {

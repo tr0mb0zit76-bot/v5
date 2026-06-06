@@ -10,8 +10,10 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\OrderLeg;
 use App\Models\OrderStatusLog;
+use App\Models\PrintFormBasicTerm;
 use App\Models\RoutePoint;
 use App\Models\User;
+use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Support\CargoPerformerAllocationBuilder;
 use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
@@ -95,6 +97,7 @@ class OrderWizardService
                 : ['company_code' => $this->orderNumberGenerator->generate($ownCompany, $manager)['company_code'], 'order_number' => $validated['order_number']];
 
             $existingMetadata = is_array($order->metadata) ? $order->metadata : null;
+            $validated = $this->normalizeBasicTermsInValidated($validated, $order);
             $order->update($this->extractOrderAttributes($validated, $user, $generatedNumber, false, $order->manager_id, $existingMetadata));
 
             $this->syncNestedData($order, $validated, $user);
@@ -254,6 +257,14 @@ class OrderWizardService
             $attributes['additional_expenses_payment_date'] = filled($incurredDate)
                 ? (is_string($incurredDate) ? substr($incurredDate, 0, 10) : (string) $incurredDate)
                 : null;
+        }
+
+        if ($isCreating || array_key_exists('customer_basic_terms', $validated)) {
+            $attributes['customer_basic_terms'] = $validated['customer_basic_terms'] ?? null;
+        }
+
+        if ($isCreating || array_key_exists('carrier_basic_terms', $validated)) {
+            $attributes['carrier_basic_terms'] = $validated['carrier_basic_terms'] ?? null;
         }
 
         return $this->onlyExistingOrderColumns($attributes);
@@ -1875,5 +1886,41 @@ class OrderWizardService
         }
 
         return $raw;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function normalizeBasicTermsInValidated(array $validated, Order $order): array
+    {
+        if (! $this->hasOrdersColumn('customer_basic_terms') || ! $this->hasOrdersColumn('carrier_basic_terms')) {
+            return $validated;
+        }
+
+        /** @var PrintFormBasicTermsService $service */
+        $service = app(PrintFormBasicTermsService::class);
+
+        if (! $service->tablesReady()) {
+            return $validated;
+        }
+
+        if (array_key_exists('customer_basic_terms', $validated)) {
+            $validated['customer_basic_terms'] = $service->normalizeOrderOverride(
+                is_array($validated['customer_basic_terms'] ?? null) ? $validated['customer_basic_terms'] : null,
+                $order,
+                PrintFormBasicTerm::PARTY_CUSTOMER,
+            );
+        }
+
+        if (array_key_exists('carrier_basic_terms', $validated)) {
+            $validated['carrier_basic_terms'] = $service->normalizeOrderOverride(
+                is_array($validated['carrier_basic_terms'] ?? null) ? $validated['carrier_basic_terms'] : null,
+                $order,
+                PrintFormBasicTerm::PARTY_CARRIER,
+            );
+        }
+
+        return $validated;
     }
 }

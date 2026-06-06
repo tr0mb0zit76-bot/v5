@@ -130,7 +130,7 @@ import { splitCarrierSlotLabel } from '@/support/orderPerformers.js';
 import { stageLabel } from '@/support/orderPrintFormSlots.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-trips' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'own-fleet', activeSubKey: 'fleet-trips' }, () => page),
 });
 
 const page = usePage();

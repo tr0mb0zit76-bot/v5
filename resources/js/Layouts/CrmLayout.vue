@@ -624,18 +624,24 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
     if (activeKey === 'settings') {
         keys.push('settings');
         const leaf = activeLeafKey ?? activeSubKey ?? '';
-        if (['users', 'roles', 'business-processes', 'ai-analytics'].includes(leaf)) {
+        if (['users', 'roles', 'business-processes'].includes(leaf)) {
             keys.push('administration');
         }
         if (['system', 'order-numbering'].includes(leaf)) {
             keys.push('system');
         }
-        if (['table-presets', 'dictionaries', 'templates'].includes(leaf)) {
+        if (['table-presets', 'dictionaries', 'templates', 'mcp-integrations'].includes(leaf)) {
             keys.push('configuration');
         }
         if (activeSubKey === 'motivation' || ['kpi-settings', 'salary-settings'].includes(leaf)) {
             keys.push('motivation');
         }
+    }
+    if (activeKey === 'own-fleet') {
+        keys.push('own-fleet');
+    }
+    if (activeKey === 'reports') {
+        keys.push('reports');
     }
     if (activeKey === 'fleet') {
         keys.push('fleet');
@@ -721,6 +727,7 @@ const MENU_ROUTES = {
     'finance-salary': '/finance/salary',
     'finance-budgeting': '/budgeting',
     reports: '/reports',
+    'reports-overview': '/reports',
     trainer: '/sales-assistant/trainer',
     modules: '/modules',
     'modules-catalog': '/modules',
@@ -739,6 +746,7 @@ const MENU_ROUTES = {
     'table-presets': '/settings/tables',
     dictionaries: '/settings/dictionaries',
     templates: '/settings/templates',
+    'mcp-integrations': '/settings/mcp-integrations',
     motivation: '/settings/motivation',
     'kpi-settings': '/settings/motivation/kpi',
     'salary-settings': '/settings/motivation/salary',
@@ -991,9 +999,7 @@ const menuItems = computed(() => {
     const assistantParts = [
         { area: 'sales_assistant_scripts', key: 'sales-assistant-scripts', label: 'Скрипты' },
         { area: 'sales_assistant_book', key: 'sales-assistant-book', label: 'Книга продаж' },
-        { area: 'sales_assistant_book', key: 'sales-assistant-book-quiz-analytics', label: 'Статистика тестов' },
         { area: 'sales_assistant_trainer', key: 'sales-assistant-trainer', label: 'Тренажёр' },
-        { area: 'sales_assistant_trainer_analytics', key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' },
         { area: 'sales_assistant_counter', key: 'sales-assistant-counter', label: 'Считалка' },
     ];
     const salesAssistantChildren = assistantParts.filter(
@@ -1021,10 +1027,18 @@ const menuItems = computed(() => {
             visibilityArea: 'drivers',
             children: [
                 { key: 'fleet-vehicles', label: 'Авто' },
-                { key: 'fleet-trips', label: 'Рейсы' },
-                { key: 'fleet-efficiency', label: 'Эффективность' },
                 { key: 'fleet-containers', label: 'Контейнера' },
                 { key: 'fleet-drivers', label: 'Водители' },
+            ],
+        },
+        {
+            key: 'own-fleet',
+            label: 'Собственный транспорт',
+            icon: Truck,
+            visibilityArea: 'own_fleet',
+            children: [
+                { key: 'fleet-trips', label: 'Рейсы' },
+                { key: 'fleet-efficiency', label: 'Эффективность' },
             ],
         },
         { key: 'documents', label: 'Документы', icon: FileText, visibilityArea: 'documents' },
@@ -1055,7 +1069,35 @@ const menuItems = computed(() => {
         },
         ...(planningItem ? [planningItem] : []),
         ...(salesAssistantItem ? [salesAssistantItem] : []),
-        { key: 'reports', label: 'Отчёты', icon: BarChart3, visibilityArea: 'reports' },
+        ...(() => {
+            const reportChildren = [];
+
+            if (isAdmin || areas.includes('reports')) {
+                reportChildren.push({ key: 'reports-overview', label: 'Сводные отчёты' });
+            }
+
+            if (hasSettingsSystemAccess.value) {
+                reportChildren.push({ key: 'ai-analytics', label: 'Аналитика AI' });
+            }
+
+            if (isAdmin || hasSalesAssistantSubmoduleAccess(areas, 'sales_assistant_trainer_analytics')) {
+                reportChildren.push({ key: 'sales-assistant-trainer-analytics', label: 'Аналитика тренажёра' });
+            }
+
+            if (isAdmin || hasSalesAssistantSubmoduleAccess(areas, 'sales_assistant_book_analytics')) {
+                reportChildren.push({ key: 'sales-assistant-book-quiz-analytics', label: 'Статистика тестов' });
+            }
+
+            return reportChildren.length > 0
+                ? [{
+                    key: 'reports',
+                    label: 'Отчёты',
+                    icon: BarChart3,
+                    visibilityArea: 'reports',
+                    children: reportChildren,
+                }]
+                : [];
+        })(),
         ...(() => {
             const moduleParts = [
                 { area: 'modules_catalog', key: 'modules-catalog', label: 'Каталог' },
@@ -1092,9 +1134,6 @@ const menuItems = computed(() => {
                 if (hasSettingsSystemAccess.value) {
                     administrationChildren.push({ key: 'business-processes', label: 'Бизнес-процессы' });
                 }
-                if (hasSettingsSystemAccess.value) {
-                    administrationChildren.push({ key: 'ai-analytics', label: 'Аналитика AI' });
-                }
                 if (administrationChildren.length > 0) {
                     children.push({
                         key: 'administration',
@@ -1110,6 +1149,7 @@ const menuItems = computed(() => {
                             { key: 'table-presets', label: 'Управление таблицами' },
                             { key: 'dictionaries', label: 'Справочники' },
                             { key: 'templates', label: 'Шаблоны' },
+                            { key: 'mcp-integrations', label: 'Связи MCP' },
                         ],
                     });
                 }
@@ -1152,6 +1192,17 @@ const menuItems = computed(() => {
 
         if (item.key === 'fleet') {
             return visibleAreas.value.includes('drivers');
+        }
+
+        if (item.key === 'own-fleet') {
+            return visibleAreas.value.includes('own_fleet')
+                || visibleAreas.value.includes('fleet_trips')
+                || visibleAreas.value.includes('fleet_efficiency')
+                || visibleAreas.value.includes('drivers');
+        }
+
+        if (item.key === 'reports') {
+            return (item.children?.length ?? 0) > 0;
         }
 
         if (item.key === 'planning') {

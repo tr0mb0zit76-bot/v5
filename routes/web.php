@@ -22,6 +22,7 @@ use App\Http\Controllers\LeadOfferMailController;
 use App\Http\Controllers\LoadingPlannerController;
 use App\Http\Controllers\MailMailboxController;
 use App\Http\Controllers\MessengerController;
+use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
 use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
@@ -43,6 +44,7 @@ use App\Http\Controllers\SettingsBusinessProcessController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsDictionariesController;
 use App\Http\Controllers\SettingsKpiController;
+use App\Http\Controllers\SettingsMcpIntegrationController;
 use App\Http\Controllers\SettingsSystemController;
 use App\Http\Controllers\SettingsTableManagementController;
 use App\Http\Controllers\SettingsTemplateController;
@@ -338,6 +340,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('orders.portal-invites.carrier.store');
             Route::get('/orders/{order}/templates/{printFormTemplate}/draft', 'generateDocumentDraft')->name('orders.templates.generate-draft');
             Route::match(['patch', 'post'], '/orders/{order}/inline', 'inlineUpdate')->name('orders.inline-update');
+            Route::post('/orders/{order}/basic-terms/promote-to-contractor', [OrderBasicTermsController::class, 'promoteToContractor'])
+                ->name('orders.basic-terms.promote');
             Route::delete('/orders/{order}', 'destroy')->withTrashed()->name('orders.destroy');
         });
     });
@@ -378,9 +382,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/roles/{role}', 'destroy')->name('roles.destroy');
     });
 
-    Route::get('/settings/ai-analytics', SettingsAiAnalyticsController::class)
-        ->middleware('visibility.area:settings_system')
-        ->name('settings.ai-analytics');
+    Route::middleware('visibility.area:settings_system')->controller(SettingsAiAnalyticsController::class)->group(function () {
+        Route::get('/settings/ai-analytics', 'index')->name('settings.ai-analytics');
+        Route::delete('/settings/ai-analytics/sales-book-gaps/{event}', 'dismissSalesBookGap')
+            ->whereNumber('event')
+            ->name('settings.ai-analytics.sales-book-gaps.dismiss');
+    });
 
     Route::controller(SettingsSystemController::class)->middleware('visibility.area:settings_system')->group(function () {
         Route::get('/settings/system', 'index')->name('settings.system.index');
@@ -400,8 +407,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:settings')
         ->name('settings.motivation.index');
 
+    Route::controller(SettingsMcpIntegrationController::class)->middleware('visibility.area:settings')->group(function () {
+        Route::get('/settings/mcp-integrations', 'index')->name('settings.mcp-integrations.index');
+        Route::put('/settings/mcp-integrations', 'update')->name('settings.mcp-integrations.update');
+    });
+
     Route::controller(SettingsTemplateController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/templates', 'index')->name('settings.templates.index');
+        Route::put('/settings/templates/basic-terms', 'updateBasicTerms')->name('settings.templates.basic-terms.update');
         Route::post('/settings/templates', 'store')->name('settings.templates.store');
         Route::patch('/settings/templates/{printFormTemplate}', 'update')->name('settings.templates.update');
         Route::delete('/settings/templates/{printFormTemplate}', 'destroy')->name('settings.templates.destroy');
@@ -494,7 +507,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('visibility.area:orders')
         ->name('fleet.options.vehicles');
 
-    Route::controller(FleetTripController::class)->middleware('visibility.area:drivers')->group(function () {
+    Route::controller(FleetTripController::class)->middleware('visibility.area.any:fleet_trips|own_fleet|drivers')->group(function () {
         Route::get('/fleet/trips', 'index')->name('fleet.trips.index');
         Route::post('/fleet/trips', 'store')->name('fleet.trips.store');
         Route::get('/fleet/trips/{fleetTrip}', 'show')->name('fleet.trips.show');
@@ -503,7 +516,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::get('/fleet/efficiency', [FleetEfficiencyController::class, 'index'])
-        ->middleware('visibility.area:drivers')
+        ->middleware('visibility.area.any:fleet_efficiency|own_fleet|drivers')
         ->name('fleet.efficiency.index');
 
     Route::get('/fleet/options/drivers', [FleetDriverController::class, 'optionsForOrder'])

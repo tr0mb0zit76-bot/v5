@@ -1740,6 +1740,7 @@
                 v-else-if="activeTab === 'documents'"
                 ref="documentsTabRef"
                 v-model:signed-documents="form.documents"
+                v-model:print-form-template-selection="printFormTemplateSelection"
                 :order="order"
                 :performers="form.performers"
                 :additional-costs="form.financial_term.additional_costs"
@@ -1756,6 +1757,17 @@
                 :document-tab-validation-messages="documentTabValidationMessages"
                 :document-storage="documentStorage"
                 :saved-print-form-template-selection="order?.print_form_template_selection ?? {}"
+            />
+
+            <OrderWizardOrderNormsTab
+                v-else-if="activeTab === 'order_norms'"
+                v-model:basic-terms-draft="orderBasicTermsDraft"
+                :order="order"
+                :basic-terms="order?.basic_terms ?? null"
+                :can-promote-basic-terms="order?.can_promote_basic_terms ?? false"
+                :is-order-form-editable="isOrderFormEditable"
+                :show-customer="orderNormsShowCustomer"
+                :show-carrier="orderNormsShowCarrier"
             />
         </div>
 
@@ -1868,9 +1880,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ClipboardList, FileText, Gavel, History, Mail, MapPinned, OctagonAlert, Package, Paperclip, Save, Wallet, X } from 'lucide-vue-next';
+import { ClipboardList, FileText, Gavel, History, Mail, MapPinned, OctagonAlert, Package, Paperclip, Save, ScrollText, Wallet, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import PaymentTermsWizardBlock from '@/Pages/Orders/Components/PaymentTermsWizardBlock.vue';
@@ -1885,6 +1897,8 @@ import {
 import Modal from '@/Components/Modal.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import OrderWizardDocumentsTab from '@/Components/Orders/OrderWizardDocumentsTab.vue';
+import OrderWizardOrderNormsTab from '@/Components/Orders/OrderWizardOrderNormsTab.vue';
+import { basicTermsPartiesForTemplateSelection } from '@/support/printFormBasicTerms.js';
 import { EMPTY_ORDER_DOCUMENTS } from '@/support/emptyOrderDocuments.js';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
@@ -2009,6 +2023,7 @@ const tabs = computed(() => [
     { key: 'finance', label: 'Финансы', icon: Wallet },
     { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
+    ...(showOrderNormsTab.value ? [{ key: 'order_norms', label: 'Нормы заявки', icon: ScrollText }] : []),
     ...(props.order?.id ? [{ key: 'timeline', label: 'Лента', icon: History }] : []),
 ]);
 
@@ -2047,7 +2062,7 @@ onMounted(() => {
     }
     const url = new URL(window.location.href);
     const tab = url.searchParams.get('tab');
-    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'timeline']);
+    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'order_norms', 'timeline']);
     if (tab && allowed.has(tab)) {
         activeTab.value = tab;
     }
@@ -3084,6 +3099,84 @@ const form = useForm({
 });
 
 const documentsTabRef = ref(null);
+
+const orderBasicTermsDraft = reactive({
+    dirty: false,
+    customer_basic_terms: undefined,
+    carrier_basic_terms: undefined,
+});
+
+function clonePrintFormTemplateSelection(raw) {
+    const next = {};
+
+    if (!raw || typeof raw !== 'object') {
+        return next;
+    }
+
+    Object.entries(raw).forEach(([slotKey, templateId]) => {
+        if (templateId != null && templateId !== '') {
+            next[slotKey] = Number(templateId);
+        }
+    });
+
+    return next;
+}
+
+const printFormTemplateSelection = reactive(clonePrintFormTemplateSelection(props.order?.print_form_template_selection));
+
+const orderNormsParties = computed(() => basicTermsPartiesForTemplateSelection(
+    printFormTemplateSelection,
+    props.printFormTemplateCatalog ?? [],
+));
+
+const showOrderNormsTab = computed(() => {
+    if (!props.order?.basic_terms) {
+        return false;
+    }
+
+    if (orderNormsParties.value.any) {
+        return true;
+    }
+
+    const basicTerms = props.order.basic_terms;
+
+    return Boolean(basicTerms.customer?.has_order_override || basicTerms.carrier?.has_order_override);
+});
+
+const orderNormsShowCustomer = computed(() => (
+    orderNormsParties.value.customer || Boolean(props.order?.basic_terms?.customer?.has_order_override)
+));
+
+const orderNormsShowCarrier = computed(() => (
+    orderNormsParties.value.carrier || Boolean(props.order?.basic_terms?.carrier?.has_order_override)
+));
+
+watch(
+    () => props.order?.print_form_template_selection,
+    (raw) => {
+        Object.keys(printFormTemplateSelection).forEach((slotKey) => {
+            delete printFormTemplateSelection[slotKey];
+        });
+        Object.assign(printFormTemplateSelection, clonePrintFormTemplateSelection(raw));
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.order?.basic_terms,
+    () => {
+        orderBasicTermsDraft.dirty = false;
+        orderBasicTermsDraft.customer_basic_terms = undefined;
+        orderBasicTermsDraft.carrier_basic_terms = undefined;
+    },
+    { deep: true },
+);
+
+watch(showOrderNormsTab, (visible) => {
+    if (!visible && activeTab.value === 'order_norms') {
+        activeTab.value = 'documents';
+    }
+});
 
 const orderNumberManual = ref(Boolean(props.order?.order_number));
 const suggestedOrderNumberCipher = ref('');
@@ -6245,9 +6338,28 @@ function buildSubmitPayload() {
         insurance: form.insurance,
         bonus: form.bonus,
 
-        print_form_template_selection: documentsTabRef.value?.exportPrintFormTemplateSelection?.()
-            ?? props.order?.print_form_template_selection
-            ?? {},
+        print_form_template_selection: {
+            ...(props.order?.print_form_template_selection ?? {}),
+            ...printFormTemplateSelection,
+        },
+
+        ...(function exportOrderBasicTermsPayload() {
+            if (!orderBasicTermsDraft.dirty) {
+                return {};
+            }
+
+            const payload = {};
+
+            if (orderBasicTermsDraft.customer_basic_terms !== undefined) {
+                payload.customer_basic_terms = orderBasicTermsDraft.customer_basic_terms ?? null;
+            }
+
+            if (orderBasicTermsDraft.carrier_basic_terms !== undefined) {
+                payload.carrier_basic_terms = orderBasicTermsDraft.carrier_basic_terms ?? null;
+            }
+
+            return payload;
+        }()),
 
         // Performers: полный снимок (split_carriers / carrier_mode), иначе «Несколько исполнителей» не доходит до сервера.
         performers: form.performers.map((performer) => {

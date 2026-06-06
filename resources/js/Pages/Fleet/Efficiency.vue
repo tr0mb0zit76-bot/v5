@@ -37,7 +37,7 @@ import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-efficiency' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'own-fleet', activeSubKey: 'fleet-efficiency' }, () => page),
 });
 
 const page = usePage();
