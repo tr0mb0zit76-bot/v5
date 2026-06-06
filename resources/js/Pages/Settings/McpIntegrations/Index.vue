@@ -11,13 +11,10 @@
                     v-model:nodes="flowNodes"
                     v-model:edges="flowEdges"
                     :fit-view-on-init="true"
-                    class="min-h-[480px] flex-1 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950/40"
+                    class="mcp-flow-canvas min-h-[480px] flex-1 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950/40"
                     @connect="onConnect"
                     @edge-double-click="onEdgeDoubleClick"
-                >
-                    <Background pattern-color="#a1a1aa" :gap="18" />
-                    <Controls />
-                </VueFlow>
+                />
             </section>
 
             <aside :class="`${crmPanel} flex flex-col gap-4 p-4`">
@@ -58,12 +55,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
-import { Background } from '@vue-flow/background';
-import { Controls } from '@vue-flow/controls';
 import { VueFlow } from '@vue-flow/core';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
-import '@vue-flow/controls/dist/style.css';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmPanel } from '@/support/crmUi.js';
@@ -194,3 +188,16 @@ function saveLinks() {
     });
 }
 </script>
+
+<style scoped>
+.mcp-flow-canvas {
+    background-color: rgb(250 250 250);
+    background-image: radial-gradient(circle, rgb(161 161 170 / 0.45) 1px, transparent 1px);
+    background-size: 18px 18px;
+}
+
+:global(.dark) .mcp-flow-canvas {
+    background-color: rgb(9 9 11 / 0.4);
+    background-image: radial-gradient(circle, rgb(113 113 122 / 0.35) 1px, transparent 1px);
+}
+</style>
