@@ -151,6 +151,14 @@ final class MailMimeBodyExtractor
         return self::convertCharset($decoded, $charset);
     }
 
+    /**
+     * Декодирование бинарных частей (PDF, изображения) без charset/UTF-8 нормализации.
+     */
+    public static function decodeBinaryContent(string $body, int $encoding): string
+    {
+        return self::decodeTransferEncoding($body, $encoding);
+    }
+
     public static function decodeTransferEncoding(string $body, int $encoding): string
     {
         return match ($encoding) {

@@ -224,6 +224,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/messages/{mailMessage}/attachments/{attachmentIndex}', [MailMailboxController::class, 'downloadAttachment'])
             ->whereNumber('attachmentIndex')
             ->name('messages.attachments.download');
+        Route::get('/messages/{mailMessage}/attachments/{attachmentIndex}/preview', [MailMailboxController::class, 'previewAttachment'])
+            ->whereNumber('attachmentIndex')
+            ->name('messages.attachments.preview');
     });
 
     Route::middleware('visibility.area:sales_assistant_scripts')->group(function () {

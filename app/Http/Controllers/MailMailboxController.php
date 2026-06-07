@@ -11,6 +11,7 @@ use App\Models\MailMessage;
 use App\Models\MailThread;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Commercial\MailAttachmentPreviewService;
 use App\Services\Commercial\MailMailboxAuthorization;
 use App\Services\Commercial\MailThreadDeletionService;
 use App\Services\Commercial\MailThreadLinkService;
@@ -38,6 +39,7 @@ class MailMailboxController extends Controller
         private readonly MailMailboxOwnerCatalog $mailboxOwnerCatalog,
         private readonly MailThreadLinkService $threadLinks,
         private readonly MailThreadDeletionService $threadDeletion,
+        private readonly MailAttachmentPreviewService $attachmentPreview,
     ) {}
 
     public function index(Request $request): Response
@@ -173,6 +175,30 @@ class MailMailboxController extends Controller
 
     public function downloadAttachment(Request $request, MailMessage $mailMessage, int $attachmentIndex): HttpResponse
     {
+        $resolved = $this->resolveAttachment($request, $mailMessage, $attachmentIndex);
+
+        return response($resolved['contents'], 200, [
+            'Content-Type' => $resolved['mime'] !== '' ? $resolved['mime'] : 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="'.str_replace('"', '', $resolved['filename']).'"',
+        ]);
+    }
+
+    public function previewAttachment(Request $request, MailMessage $mailMessage, int $attachmentIndex): HttpResponse
+    {
+        $resolved = $this->resolveAttachment($request, $mailMessage, $attachmentIndex);
+
+        return $this->attachmentPreview->buildPreviewResponse(
+            $resolved['contents'],
+            $resolved['filename'],
+            $resolved['mime'] !== '' ? $resolved['mime'] : null,
+        );
+    }
+
+    /**
+     * @return array{contents: string, filename: string, mime: string}
+     */
+    private function resolveAttachment(Request $request, MailMessage $mailMessage, int $attachmentIndex): array
+    {
         $user = $request->user();
         abort_if($user === null, 403);
         abort_unless($this->mailboxAuth->canAccessMessage($user, $mailMessage), 403);
@@ -198,13 +224,13 @@ class MailMailboxController extends Controller
         $filename = trim((string) ($attachment['original_name'] ?? $attachment['name'] ?? 'attachment'));
         $mime = trim((string) ($attachment['mime_type'] ?? 'application/octet-stream'));
         $driver = isset($attachment['storage_driver']) ? (string) $attachment['storage_driver'] : null;
-
         $contents = app(DocumentStorageService::class)->get($path, $driver);
 
-        return response($contents, 200, [
-            'Content-Type' => $mime !== '' ? $mime : 'application/octet-stream',
-            'Content-Disposition' => 'attachment; filename="'.str_replace('"', '', $filename).'"',
-        ]);
+        return [
+            'contents' => $contents,
+            'filename' => $filename,
+            'mime' => $mime,
+        ];
     }
 
     public function destroy(Request $request, MailThread $mailThread): RedirectResponse
@@ -449,7 +475,7 @@ class MailMailboxController extends Controller
     }
 
     /**
-     * @return list<array{name: string, file_size: int|null, mime_type: string|null, download_url: string|null}>
+     * @return list<array{name: string, file_size: int|null, mime_type: string|null, download_url: string|null, preview_url: string|null, preview_kind: string|null}>
      */
     private function serializeMessageAttachments(MailMessage $message): array
     {
@@ -473,13 +499,21 @@ class MailMailboxController extends Controller
                 }
 
                 $path = trim((string) ($attachment['file_path'] ?? ''));
+                $mime = isset($attachment['mime_type']) ? (string) $attachment['mime_type'] : null;
+                $canPreview = $path !== '' && $this->attachmentPreview->isPreviewable($name, $mime);
 
                 return [
                     'name' => $name,
                     'file_size' => isset($attachment['file_size']) ? (int) $attachment['file_size'] : null,
-                    'mime_type' => isset($attachment['mime_type']) ? (string) $attachment['mime_type'] : null,
+                    'mime_type' => $mime,
                     'download_url' => $path !== ''
                         ? route('mail.messages.attachments.download', [$message->id, $index])
+                        : null,
+                    'preview_url' => $canPreview
+                        ? route('mail.messages.attachments.preview', [$message->id, $index])
+                        : null,
+                    'preview_kind' => $canPreview
+                        ? $this->attachmentPreview->previewKind($name, $mime)
                         : null,
                 ];
             })

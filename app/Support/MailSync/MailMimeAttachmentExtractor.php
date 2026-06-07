@@ -64,8 +64,7 @@ final class MailMimeAttachmentExtractor
             }
 
             $encoding = (int) ($part->encoding ?? 1);
-            $charset = null;
-            $decoded = MailMimeBodyExtractor::decodeContent($raw, $encoding, $charset);
+            $decoded = MailMimeBodyExtractor::decodeBinaryContent($raw, $encoding);
 
             if ($decoded === '') {
                 continue;
@@ -99,7 +98,7 @@ final class MailMimeAttachmentExtractor
         }
 
         $encoding = (int) ($structure->encoding ?? 1);
-        $decoded = MailMimeBodyExtractor::decodeContent($raw, $encoding, null);
+        $decoded = MailMimeBodyExtractor::decodeBinaryContent($raw, $encoding);
 
         if ($decoded === '') {
             return [];

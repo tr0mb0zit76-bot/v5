@@ -240,17 +240,25 @@
                                 v-if="message.attachments?.length"
                                 class="mt-3 space-y-1 text-xs text-zinc-600 dark:text-zinc-300"
                             >
-                                <li v-for="(file, fileIndex) in message.attachments" :key="`${message.id}-att-${fileIndex}`" class="flex items-center gap-1.5">
+                                <li v-for="(file, fileIndex) in message.attachments" :key="`${message.id}-att-${fileIndex}`" class="flex flex-wrap items-center gap-x-2 gap-y-1">
                                     <Paperclip class="h-3.5 w-3.5 shrink-0" />
+                                    <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ file.name }}</span>
+                                    <span v-if="file.file_size" class="text-zinc-400">({{ formatFileSize(file.file_size) }})</span>
+                                    <button
+                                        v-if="file.preview_url"
+                                        type="button"
+                                        class="text-indigo-600 hover:underline dark:text-indigo-400"
+                                        @click="openAttachmentPreview(file)"
+                                    >
+                                        Просмотр
+                                    </button>
                                     <a
                                         v-if="file.download_url"
                                         :href="file.download_url"
-                                        class="text-indigo-600 hover:underline dark:text-indigo-400"
+                                        class="text-zinc-500 hover:underline dark:text-zinc-400"
                                     >
-                                        {{ file.name }}
+                                        Скачать
                                     </a>
-                                    <span v-else>{{ file.name }}</span>
-                                    <span v-if="file.file_size" class="text-zinc-400">({{ formatFileSize(file.file_size) }})</span>
                                 </li>
                             </ul>
                         </article>
@@ -358,6 +366,54 @@
                 </form>
             </section>
         </div>
+
+        <div
+            v-if="attachmentPreview"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="`Предпросмотр: ${attachmentPreview.name}`"
+            @click.self="closeAttachmentPreview"
+        >
+            <div class="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+                <div class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+                    <div class="min-w-0">
+                        <div class="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">{{ attachmentPreview.name }}</div>
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400">Предпросмотр в CRM</div>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <a
+                            v-if="attachmentPreview.download_url"
+                            :href="attachmentPreview.download_url"
+                            class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                        >
+                            Скачать
+                        </a>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                            @click="closeAttachmentPreview"
+                        >
+                            Закрыть
+                        </button>
+                    </div>
+                </div>
+                <div class="min-h-0 flex-1 overflow-auto bg-zinc-100 p-2 dark:bg-zinc-900">
+                    <iframe
+                        v-if="attachmentPreview.preview_kind !== 'image'"
+                        :src="attachmentPreview.preview_url"
+                        class="mx-auto block h-[min(75vh,900px)] w-full max-w-4xl rounded-lg border border-zinc-200 bg-white dark:border-zinc-800"
+                        title="Предпросмотр вложения"
+                    />
+                    <img
+                        v-else
+                        :src="attachmentPreview.preview_url"
+                        :alt="attachmentPreview.name"
+                        class="mx-auto block max-h-[75vh] max-w-full rounded-lg border border-zinc-200 bg-white dark:border-zinc-800"
+                    />
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -450,6 +506,7 @@ const linkForm = useForm({
 const messageViewMode = reactive({});
 const showLinkPanel = ref(false);
 const showReplyForm = ref(false);
+const attachmentPreview = ref(null);
 
 const threadHasLinks = computed(() => Boolean(props.selectedThread?.lead_id || props.selectedThread?.order_id));
 
@@ -736,6 +793,18 @@ function formatFileSize(bytes) {
     }
 
     return `${(value / 1024 / 1024).toFixed(1)} МиБ`;
+}
+
+function openAttachmentPreview(file) {
+    if (!file?.preview_url) {
+        return;
+    }
+
+    attachmentPreview.value = file;
+}
+
+function closeAttachmentPreview() {
+    attachmentPreview.value = null;
 }
 
 function toggleImportance(message) {
