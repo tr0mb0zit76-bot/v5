@@ -1765,6 +1765,7 @@
                 :order="order"
                 :basic-terms="order?.basic_terms ?? null"
                 :can-promote-basic-terms="order?.can_promote_basic_terms ?? false"
+                :can-direct-promote="order?.can_direct_promote_basic_terms ?? false"
                 :is-order-form-editable="isOrderFormEditable"
                 :show-customer="orderNormsShowCustomer"
                 :show-carrier="orderNormsShowCarrier"

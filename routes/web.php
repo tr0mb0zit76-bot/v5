@@ -6,6 +6,7 @@ use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\CommandBarAgentController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\ContractorPortraitController;
+use App\Http\Controllers\ContractorPrintFormController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DispositionController;
 use App\Http\Controllers\DocumentOptimizeController;
@@ -469,6 +470,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
         Route::patch('/contractors/{contractor}/portrait', [ContractorPortraitController::class, 'update'])->name('contractors.portrait.update');
         Route::post('/contractors/{contractor}/portrait-interactions', [ContractorPortraitController::class, 'storeInteraction'])->name('contractors.portrait-interactions.store');
+        Route::put('/contractors/{contractor}/print-form/basic-terms', [ContractorPrintFormController::class, 'updateBasicTerms'])->name('contractors.print-form.basic-terms.update');
+        Route::post('/contractors/{contractor}/print-form/changes', [ContractorPrintFormController::class, 'submitChange'])->name('contractors.print-form.changes.submit');
+        Route::post('/contractors/{contractor}/print-form/changes/{printFormChange}/resolve', [ContractorPrintFormController::class, 'resolveChange'])->name('contractors.print-form.changes.resolve');
         Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
         Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
         Route::get('/contractors/duplicate-check', 'checkDuplicate')->name('contractors.duplicate-check');

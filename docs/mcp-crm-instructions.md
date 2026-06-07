@@ -21,6 +21,9 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
 - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
 - get_print_form_templates_insights — шаблоны DOCX, базовые условия, диагностика печати (settings_system)
+- upsert_print_form_basic_terms — прямое сохранение базовых условий cp/dp (admin / settings_system)
+- submit_contractor_print_form_change — заявка на согласование условий контрагента (contractors)
+- resolve_contractor_print_form_change — утвердить / отклонить / вернуть на согласование с контрагентом (руководитель)
 - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text — черновики заявок (файл или текст)
 - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
 
@@ -41,3 +44,6 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 | `send_mail` | Отправить новое письмо (`subject`, `body`, `to`, опционально `cc`, `lead_id`, `order_id`) → `thread_id`, `message_id` |
 | `reply_mail_thread` | Ответ в цепочку (`thread_id`, `body`, опционально `to`, `cc`) → `thread_id`, `message_id` |
 | `get_print_form_templates_insights` | Шаблоны DOCX и базовые условия: `code` или `query`, диагностика, почему пункты не попали в черновик (settings_system / Юрик) |
+| `upsert_print_form_basic_terms` | Прямое сохранение базовых условий `party` + `items`, опционально `contractor_id` (admin / settings_system) |
+| `submit_contractor_print_form_change` | Заявка на согласование условий контрагента: `contractor_id`, `party`, `items`, опционально `manager_notes` / `yurik_summary` |
+| `resolve_contractor_print_form_change` | Решение по заявке: `change_request_id`, `action` (`approve` / `reject` / `needs_counterparty`), `reason` при reject |

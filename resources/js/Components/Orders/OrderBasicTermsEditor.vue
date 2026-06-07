@@ -36,6 +36,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    canDirectPromote: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(['update:items']);
@@ -279,7 +283,7 @@ defineExpose({
                 :disabled="promoting"
                 @click="promoteToContractor"
             >
-                {{ promoting ? 'Сохранение…' : 'Сохранить как базу для контрагента' }}
+                {{ promoting ? 'Сохранение…' : (canDirectPromote ? 'Сохранить как базу для контрагента' : 'Отправить на согласование в карточку') }}
             </button>
         </div>
     </section>

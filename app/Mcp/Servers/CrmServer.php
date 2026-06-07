@@ -28,15 +28,18 @@ use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
 use App\Mcp\Tools\RememberOrderIntakePhraseTool;
 use App\Mcp\Tools\ReplyMailThreadTool;
+use App\Mcp\Tools\ResolveContractorPrintFormChangeTool;
 use App\Mcp\Tools\SearchContractorsTool;
 use App\Mcp\Tools\SearchMailThreadsTool;
 use App\Mcp\Tools\SearchOrdersTool;
 use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\SearchTasksTool;
 use App\Mcp\Tools\SendMailTool;
+use App\Mcp\Tools\SubmitContractorPrintFormChangeTool;
 use App\Mcp\Tools\UpdateOrderFieldTool;
 use App\Mcp\Tools\UpdateOrderRouteActualTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
+use App\Mcp\Tools\UpsertPrintFormBasicTermsTool;
 use App\Mcp\Tools\UpsertSalesBookArticleTool;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Instructions;
@@ -67,6 +70,9 @@ use Laravel\Mcp\Server\Tool;
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / remember_order_intake_phrase — черновики заявок и обучение фразам из диалога
         - После create_order_intake_draft_from_text в ответе есть draft_id и wizard_path (/orders/create?intake_draft=…). MCP не открывает UI — пользователь переходит по wizard_path (command bar в CRM делает это сам через navigate_to).
         - get_print_form_templates_insights — шаблоны DOCX, базовые условия и диагностика печати (settings_system / Юрик)
+        - upsert_print_form_basic_terms — прямое сохранение базовых условий (admin / settings_system)
+        - submit_contractor_print_form_change — заявка на согласование условий контрагента (менеджер / Юрик)
+        - resolve_contractor_print_form_change — утверждение/отклонение заявки (руководитель)
         - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
 
         Аутентификация: Bearer Sanctum token.
@@ -104,6 +110,9 @@ class CrmServer extends Server
         GetTrainerCoachingInsightsTool::class,
         GetManagerSalesCoachingInsightsTool::class,
         GetPrintFormTemplatesInsightsTool::class,
+        UpsertPrintFormBasicTermsTool::class,
+        SubmitContractorPrintFormChangeTool::class,
+        ResolveContractorPrintFormChangeTool::class,
         GetOrderIntakeDraftTool::class,
         ListOrderIntakeDraftsTool::class,
         CreateOrderIntakeDraftFromTextTool::class,

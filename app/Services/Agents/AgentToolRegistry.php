@@ -3,6 +3,8 @@
 namespace App\Services\Agents;
 
 use App\Agents\AgentToolDefinition;
+use App\Models\Contractor;
+use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\User;
 use App\Services\Ai\AiUsageAnalyticsService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
@@ -15,9 +17,11 @@ use App\Services\Mcp\McpAccessGate;
 use App\Services\Mcp\OrderDocumentMcpService;
 use App\Services\Mcp\OrderIntakeMcpService;
 use App\Services\Mcp\OrderMcpService;
+use App\Services\Mcp\PrintFormTemplatesMcpService;
 use App\Services\Mcp\SalesBookMcpService;
 use App\Services\Mcp\TaskMcpService;
 use App\Services\OrderActivityTimelineService;
+use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\SalesBook\SalesBookQualityInsightsService;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
@@ -53,6 +57,8 @@ class AgentToolRegistry
         private readonly ManagerSalesCoachingInsightsService $managerSalesCoachingInsights,
         private readonly OrderIntakeMcpService $orderIntake,
         private readonly MailMcpService $mail,
+        private readonly PrintFormTemplatesMcpService $printFormTemplates,
+        private readonly ContractorPrintFormChangeRequestService $printFormChanges,
     ) {}
 
     /**
@@ -859,6 +865,134 @@ class AgentToolRegistry
                     isset($args['user_id']) ? (int) $args['user_id'] : null,
                     (int) ($args['sample_limit'] ?? config('outcome_intelligence.coaching_sample_limit', 10)),
                 ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_print_form_templates_insights',
+                description: 'Шаблоны DOCX и базовые условия: переменные, диагностика печати. Для Юрика / settings_system.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'code' => ['type' => 'string', 'description' => 'Точный код шаблона.'],
+                        'query' => ['type' => 'string', 'description' => 'Поиск по коду или названию.'],
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canAccessSettingsSystem($user),
+                invoke: fn (User $user, array $args): array => $this->printFormTemplates->insights(
+                    isset($args['code']) ? (string) $args['code'] : null,
+                    isset($args['query']) ? (string) $args['query'] : null,
+                    (int) ($args['limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'upsert_print_form_basic_terms',
+                description: 'Сохранить базовые условия cp/dp (глобальные или для контрагента). Прямая запись — только admin/settings_system.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'party' => ['type' => 'string', 'enum' => ['customer', 'carrier']],
+                        'contractor_id' => ['type' => 'integer', 'minimum' => 1],
+                        'items' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                        ],
+                    ],
+                    'required' => ['party', 'items'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->printFormChanges->canDirectManagePrintForm($user),
+                invoke: function (User $user, array $args): array {
+                    return $this->printFormTemplates->upsertBasicTerms(
+                        (string) ($args['party'] ?? ''),
+                        isset($args['contractor_id']) ? (int) $args['contractor_id'] : null,
+                        is_array($args['items'] ?? null) ? $args['items'] : [],
+                    );
+                },
+            ),
+            new AgentToolDefinition(
+                name: 'submit_contractor_print_form_change',
+                description: 'Отправить базовые условия контрагента на согласование руководителю (задача + уведомление).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'contractor_id' => ['type' => 'integer', 'minimum' => 1],
+                        'party' => ['type' => 'string', 'enum' => ['customer', 'carrier']],
+                        'items' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'minItems' => 1,
+                        ],
+                        'manager_notes' => ['type' => 'string', 'maxLength' => 5000],
+                        'yurik_summary' => ['type' => 'string', 'maxLength' => 10000],
+                    ],
+                    'required' => ['contractor_id', 'party', 'items'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canContractors($user),
+                invoke: function (User $user, array $args): array {
+                    $contractor = Contractor::query()->find((int) ($args['contractor_id'] ?? 0));
+
+                    if ($contractor === null) {
+                        throw new ModelNotFoundException('Контрагент не найден.');
+                    }
+
+                    $change = $this->printFormChanges->submitBasicTermsChange(
+                        $contractor,
+                        (string) ($args['party'] ?? ''),
+                        is_array($args['items'] ?? null) ? $args['items'] : [],
+                        $user,
+                        isset($args['manager_notes']) ? (string) $args['manager_notes'] : null,
+                        isset($args['yurik_summary']) ? (string) $args['yurik_summary'] : null,
+                    );
+
+                    return ['change_request' => $this->printFormChanges->serializeRequest($change)];
+                },
+            ),
+            new AgentToolDefinition(
+                name: 'resolve_contractor_print_form_change',
+                description: 'Утвердить, отклонить или вернуть на согласование с контрагентом заявку на изменение базовых условий.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'change_request_id' => ['type' => 'integer', 'minimum' => 1],
+                        'action' => ['type' => 'string', 'enum' => ['approve', 'reject', 'needs_counterparty']],
+                        'reason' => ['type' => 'string', 'maxLength' => 2000],
+                        'notes' => ['type' => 'string', 'maxLength' => 2000],
+                    ],
+                    'required' => ['change_request_id', 'action'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->printFormChanges->canApprovePrintFormChanges($user),
+                invoke: function (User $user, array $args): array {
+                    $changeRequest = ContractorPrintFormChangeRequest::query()->find(
+                        (int) ($args['change_request_id'] ?? 0),
+                    );
+
+                    if ($changeRequest === null) {
+                        throw new ModelNotFoundException('Заявка не найдена.');
+                    }
+
+                    $action = (string) ($args['action'] ?? '');
+
+                    if ($action === 'approve') {
+                        $changeRequest = $this->printFormChanges->approve($changeRequest, $user);
+                    } elseif ($action === 'reject') {
+                        $changeRequest = $this->printFormChanges->reject(
+                            $changeRequest,
+                            $user,
+                            (string) ($args['reason'] ?? 'Без комментария'),
+                        );
+                    } else {
+                        $changeRequest = $this->printFormChanges->markNeedsCounterparty(
+                            $changeRequest,
+                            $user,
+                            isset($args['notes']) ? (string) $args['notes'] : null,
+                        );
+                    }
+
+                    return ['change_request' => $this->printFormChanges->serializeRequest($changeRequest)];
+                },
             ),
         ];
 

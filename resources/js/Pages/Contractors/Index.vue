@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Building2,
@@ -18,6 +18,7 @@ import {
 import Modal from '@/Components/Modal.vue';
 import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
 import ContractorDocumentsSection from '@/Components/Contractors/ContractorDocumentsSection.vue';
+import ContractorPrintFormSection from '@/Components/Contractors/ContractorPrintFormSection.vue';
 import ContractorPortraitTab from '@/Components/Contractors/ContractorPortraitTab.vue';
 import ContractorInteractionOutcomeModal from '@/Components/Contractors/ContractorInteractionOutcomeModal.vue';
 import ContractorDefaultNormsPenaltiesFields from '@/Components/Contractors/ContractorDefaultNormsPenaltiesFields.vue';
@@ -862,6 +863,15 @@ function currentPagePath(url) {
 const isCreateRoute = computed(() => currentPagePath(page.url) === '/contractors/create');
 const isCreating = computed(() => isCreateModalOpen.value || (isCreateRoute.value && !isCreateRouteDismissed.value));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
+
+const printFormSectionRef = ref(null);
+
+function openPrintFormSection() {
+    activeTab.value = 'cooperation';
+    nextTick(() => {
+        printFormSectionRef.value?.focusSection?.();
+    });
+}
 
 const printFormProfileBadgeClass = computed(() => {
     const mode = props.selectedContractor?.print_form_profile?.mode;
@@ -2485,14 +2495,16 @@ function goToPage(pageNumber) {
                                                 Основные данные контрагента для повседневной работы менеджера.
                                             </div>
                                         </div>
-                                        <div
+                                        <button
                                             v-if="selectedContractor?.print_form_profile?.label"
+                                            type="button"
                                             class="rounded-full border px-3 py-1 text-xs font-medium"
                                             :class="printFormProfileBadgeClass"
                                             :title="selectedContractor.print_form_profile.summary"
+                                            @click="openPrintFormSection"
                                         >
                                             {{ selectedContractor.print_form_profile.label }}
-                                        </div>
+                                        </button>
                                     </div>
 
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -2717,6 +2729,13 @@ function goToPage(pageNumber) {
                     </div>
 
                     <div v-else-if="activeTab === 'cooperation'" class="space-y-4">
+                        <ContractorPrintFormSection
+                            v-if="selectedContractorId && selectedContractor?.print_form_editor?.enabled"
+                            ref="printFormSectionRef"
+                            :contractor-id="selectedContractorId"
+                            :editor="selectedContractor.print_form_editor"
+                        />
+
                         <div
                             class="grid grid-cols-1 gap-4"
                             :class="isOwnCompanyProfile ? '' : 'lg:grid-cols-[minmax(0,1fr)_minmax(260px,18rem)]'"

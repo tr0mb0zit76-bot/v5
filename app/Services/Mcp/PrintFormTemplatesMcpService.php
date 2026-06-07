@@ -384,4 +384,29 @@ final class PrintFormTemplatesMcpService
 
         return $trimmed === '' ? null : $trimmed;
     }
+
+    /**
+     * @param  list<string>  $items
+     * @return array{party: string, contractor_id: int|null, saved_count: int}
+     */
+    public function upsertBasicTerms(string $party, ?int $contractorId, array $items): array
+    {
+        if (! in_array($party, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)) {
+            throw new \InvalidArgumentException('Недопустимая сторона для базовых условий.');
+        }
+
+        $normalized = collect($items)
+            ->map(fn (mixed $body): string => trim((string) $body))
+            ->filter(fn (string $body): bool => $body !== '')
+            ->values()
+            ->all();
+
+        $this->basicTermsService->sync($party, $contractorId, $normalized);
+
+        return [
+            'party' => $party,
+            'contractor_id' => $contractorId,
+            'saved_count' => count($normalized),
+        ];
+    }
 }

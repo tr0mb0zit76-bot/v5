@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contractor;
+use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\ContractorRiskAssessment;
 use App\Models\Order;
 use App\Models\OrderDocument;
@@ -292,6 +293,55 @@ class CabinetNotifier
                 'contractor_id' => $contractor->id,
                 'contractor_risk_assessment_id' => $assessment->id,
                 'submission_reason' => $assessment->submission_reason,
+            ],
+        );
+
+        foreach ($recipients as $user) {
+            $user->notify($notification);
+        }
+    }
+
+    public function notifyContractorPrintFormChangeRequested(
+        Contractor $contractor,
+        ContractorPrintFormChangeRequest $changeRequest,
+        User $requester,
+    ): void {
+        if (! Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $recipients = $this->recipientResolver
+            ->approvalRecipientsForUser($requester, $requester);
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $partyLabel = $changeRequest->party === 'carrier' ? 'перевозчика' : 'заказчика';
+
+        $title = 'Согласование базовых условий';
+        $body = sprintf(
+            '%s отправил(а) на согласование условия %s для «%s».',
+            $requester->name,
+            $partyLabel,
+            $contractor->name,
+        );
+
+        $actionUrl = route('contractors.show', [
+            'contractor' => $contractor->id,
+            'tab' => 'cooperation',
+            'print_party' => $changeRequest->party,
+        ], false);
+
+        $notification = new CabinetInAppNotification(
+            'contractor_print_form_change',
+            $title,
+            $body,
+            $actionUrl,
+            [
+                'contractor_id' => $contractor->id,
+                'contractor_print_form_change_request_id' => $changeRequest->id,
+                'party' => $changeRequest->party,
             ],
         );
 

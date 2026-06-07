@@ -30,6 +30,7 @@ use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
 use App\Services\OwnFleetContractorService;
 use App\Services\PaymentSettlementSummaryBuilder;
+use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
@@ -525,7 +526,19 @@ class OrderWizardController extends Controller
             return true;
         }
 
-        return RoleAccess::canAccessSettingsSystem($user);
+        return RoleAccess::canAccessVisibilityArea($user, 'contractors')
+            || RoleAccess::canAccessSettingsSystem($user);
+    }
+
+    private function canDirectPromoteBasicTerms(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        return app(ContractorPrintFormChangeRequestService::class)->canDirectManagePrintForm($user);
     }
 
     public function canEditOrder(Request $request, Order $order): bool
@@ -735,6 +748,7 @@ class OrderWizardController extends Controller
             'special_notes' => $order->special_notes,
             'basic_terms' => $this->serializeBasicTermsForWizard($order),
             'can_promote_basic_terms' => $this->canPromoteBasicTerms($request),
+            'can_direct_promote_basic_terms' => $this->canDirectPromoteBasicTerms($request),
             'svh_name' => $order->svh_name,
             'svh_address' => Schema::hasColumn('orders', 'svh_address') ? $order->svh_address : null,
             'customs_post_code' => Schema::hasColumn('orders', 'customs_post_code') ? $order->customs_post_code : null,
