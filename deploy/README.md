@@ -10,3 +10,5 @@
 | [ntfy/](./ntfy/) | Push-уведомления (согласования) | 8092 | `NTFY_BASE_URL`, `NTFY_ENABLED` |
 
 Подробно про OCR и intake: [docs/order-intake-ocr-service.md](../docs/order-intake-ocr-service.md).
+
+Уведомления и ntfy: [docs/notifications-departments-ntfy.md](../docs/notifications-departments-ntfy.md) · Obsidian runbook: `Exchange/CRM/Runbooks/ntfy VPS deploy.md`

@@ -4,7 +4,9 @@ Self-hosted [ntfy](https://github.com/binwiederhier/ntfy). Laravel шлёт POST
 
 ## Prod (VPS)
 
-Путь на сервере: `/var/www/www-root/data/www/avtoaliyans.ru/deploy/ntfy`
+Путь: `/var/www/www-root/data/www/avtoaliyans.ru/deploy/ntfy`
+
+См. также: [docs/notifications-departments-ntfy.md](../../docs/notifications-departments-ntfy.md) · Obsidian: `CRM/Runbooks/ntfy VPS deploy.md`
 
 ```bash
 cd /var/www/www-root/data/www/avtoaliyans.ru/deploy/ntfy
