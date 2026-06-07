@@ -142,6 +142,8 @@ return [
         'max_tool_rounds' => max(1, min(12, (int) env('AI_COMMAND_BAR_MAX_TOOL_ROUNDS', 6))),
         'max_tokens' => max(256, min(4096, (int) env('AI_COMMAND_BAR_MAX_TOKENS', 1800))),
         'temperature' => (float) env('AI_COMMAND_BAR_TEMPERATURE', 0.35),
+        'max_attachment_files' => max(1, min(5, (int) env('AI_COMMAND_BAR_MAX_ATTACHMENT_FILES', 3))),
+        'max_attachment_chars' => max(2000, min(50000, (int) env('AI_COMMAND_BAR_MAX_ATTACHMENT_CHARS', 12000))),
     ],
 
     'sales_book' => [

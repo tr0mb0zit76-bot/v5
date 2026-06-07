@@ -1471,8 +1471,9 @@ function onAgentSlugChange(slug) {
 
 async function handleAiSubmit(payload) {
     const text = String(payload?.message ?? '').trim();
+    const files = Array.isArray(payload?.files) ? payload.files : [];
 
-    if (text === '') {
+    if (text === '' && files.length === 0) {
         return;
     }
 
@@ -1484,15 +1485,36 @@ async function handleAiSubmit(payload) {
         content: item.content,
     }));
 
-    agentMessages.value.push({ role: 'user', content: text });
+    const displayContent = files.length > 0
+        ? `[Файлы: ${files.map((file) => file.name).join(', ')}]${text !== '' ? `\n${text}` : ''}`
+        : text;
+
+    agentMessages.value.push({ role: 'user', content: displayContent });
     agentLoading.value = true;
 
     try {
-        const { data } = await axios.post(route('agent.command-bar.chat'), {
-            message: text,
-            history,
-            agent_slug: payload?.agent_slug ?? selectedAgentSlug.value,
-        });
+        const agentSlug = payload?.agent_slug ?? selectedAgentSlug.value;
+        let data;
+
+        if (files.length > 0) {
+            const formData = new FormData();
+            formData.append('message', text || 'Обработай приложенные файлы согласно моему запросу.');
+            formData.append('agent_slug', agentSlug);
+            formData.append('history', JSON.stringify(history));
+            files.forEach((file, index) => {
+                formData.append(`attachments[${index}]`, file);
+            });
+
+            ({ data } = await axios.post(route('agent.command-bar.chat'), formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            }));
+        } else {
+            ({ data } = await axios.post(route('agent.command-bar.chat'), {
+                message: text,
+                history,
+                agent_slug: agentSlug,
+            }));
+        }
 
         agentMessages.value.push({
             role: 'assistant',
@@ -1512,6 +1534,7 @@ async function handleAiSubmit(payload) {
 
         const message = error?.response?.data?.message
             ?? error?.response?.data?.errors?.message?.[0]
+            ?? error?.response?.data?.errors?.['attachments.0']?.[0]
             ?? (error?.response?.status === 419
                 ? 'Сессия истекла — обновите страницу (F5).'
                 : 'Не удалось связаться с ассистентом. Проверьте DEEPSEEK_API_KEY и логи сервера.');

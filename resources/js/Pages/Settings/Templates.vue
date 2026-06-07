@@ -198,7 +198,7 @@
             </div>
 
             <template v-else>
-                <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
                     <div class="flex flex-wrap gap-2">
                         <button
                             v-for="option in basicTermsEditor.partyOptions"
@@ -215,9 +215,9 @@
                     </div>
                 </div>
 
-                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-                    <div class="flex min-h-0 flex-col gap-3">
-                        <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)] sm:items-end">
+                <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+                    <div class="flex min-h-0 flex-col gap-3 overflow-hidden">
+                        <div class="grid shrink-0 gap-2 sm:grid-cols-[minmax(0,1fr)] sm:items-end">
                             <label class="block text-sm">
                                 <span class="mb-1 block text-zinc-600 dark:text-zinc-300">Область редактирования</span>
                                 <select
@@ -237,7 +237,7 @@
                             </label>
                         </div>
 
-                        <p class="text-xs leading-snug text-zinc-500 dark:text-zinc-400">
+                        <p class="shrink-0 text-xs leading-snug text-zinc-500 dark:text-zinc-400">
                             <template v-if="basicTermsContractorId">
                                 Условия для выбранного контрагента перекрывают общие при печати договора-заявки с его участием.
                                 Пустой список — контрагент использует общие условия.
@@ -247,7 +247,7 @@
                             </template>
                         </p>
 
-                        <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+                        <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
                             <div
                                 v-for="(row, index) in basicTermsForm.items"
                                 :key="row.key"
@@ -303,7 +303,7 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                        <div class="flex shrink-0 flex-wrap items-center gap-2 border-t border-zinc-200 bg-white pt-3 dark:border-zinc-800 dark:bg-zinc-900">
                             <button
                                 type="button"
                                 :class="crmBtnCreate"
@@ -323,7 +323,7 @@
                         </div>
                     </div>
 
-                    <aside class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <aside class="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900/50 lg:max-h-full">
                         <div class="font-medium">Плейсхолдеры в DOCX</div>
                         <p class="mt-2 text-zinc-600 dark:text-zinc-300">
                             В таблице шаблона укажите строку с макросами PhpWord cloneRow. Якорь — поле с суффиксом
@@ -814,7 +814,7 @@ import {
 } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'templates' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'settings', activeSubKey: 'configuration', activeLeafKey: 'templates', mainFill: true }, () => page),
 });
 
 const props = defineProps({
