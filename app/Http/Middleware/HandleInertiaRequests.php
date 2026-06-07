@@ -80,7 +80,7 @@ class HandleInertiaRequests extends Middleware
             'cabinet_notification_badges' => Inertia::always(fn () => $request->user() === null
                 ? ['total' => 0, 'orders' => 0, 'tasks' => 0]
                 : CabinetNotificationBadges::unreadFor($request->user())),
-            'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
+            'document_upload_limits' => Inertia::always(static fn (): array => DocumentUploadLimits::forSharedInertia()),
             'document_optimize' => Inertia::always(static fn (): array => [
                 'enabled' => app(OcrServiceClient::class)->isOptimizeEnabled(),
             ]),
@@ -246,12 +246,16 @@ class HandleInertiaRequests extends Middleware
             return true;
         }
 
-        if (str_starts_with(strtolower((string) config('app.url', '')), 'https://')) {
+        $forwarded = $request->header('X-Forwarded-Proto');
+
+        if (is_string($forwarded) && strtolower($forwarded) === 'https') {
             return true;
         }
 
-        $forwarded = $request->header('X-Forwarded-Proto');
+        if ($request->isSecure()) {
+            return true;
+        }
 
-        return is_string($forwarded) && strtolower($forwarded) === 'https';
+        return false;
     }
 }

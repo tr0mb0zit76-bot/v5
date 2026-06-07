@@ -12,11 +12,17 @@ class ContractorInteraction extends Model
      */
     protected $fillable = [
         'contractor_id',
+        'contractor_contact_id',
         'contacted_at',
         'channel',
+        'outcome_code',
+        'next_contact_at',
         'subject',
         'summary',
         'result',
+        'objection_tags',
+        'merge_to_portrait',
+        'mail_message_id',
         'created_by',
     ];
 
@@ -27,7 +33,18 @@ class ContractorInteraction extends Model
     {
         return [
             'contacted_at' => 'datetime',
+            'next_contact_at' => 'datetime',
+            'objection_tags' => 'array',
+            'merge_to_portrait' => 'boolean',
         ];
+    }
+
+    /**
+     * @return BelongsTo<ContractorContact, $this>
+     */
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(ContractorContact::class, 'contractor_contact_id');
     }
 
     /**

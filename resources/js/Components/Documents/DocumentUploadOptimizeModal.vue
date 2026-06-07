@@ -11,7 +11,7 @@ import {
 } from '@/support/crmUi.js';
 import {
     fileFromOptimizedPdfBase64,
-    formatFileSizeMb,
+    formatFileSizeHuman,
     optimizeDocumentPdf,
 } from '@/support/documentOptimizeClient.js';
 import { formatDocumentRegistryError } from '@/support/documentRegistryClient.js';
@@ -25,6 +25,8 @@ const props = defineProps({
 
 const emit = defineEmits(['accept', 'cancel']);
 
+const modalVisible = computed(() => Boolean(props.show && props.state?.file instanceof File));
+
 const phase = ref('offer');
 const loading = ref(false);
 const error = ref('');
@@ -34,8 +36,22 @@ const optimizedFile = ref(null);
 const optimizedBudget = ref(null);
 
 const fileName = computed(() => props.state?.file?.name ?? 'document.pdf');
-const originalBytes = computed(() => props.state?.file?.size ?? 0);
-const limitBytes = computed(() => props.state?.budget?.maxBytes ?? 0);
+const originalBytes = computed(() => Number(props.state?.file?.size) || 0);
+const limitBytes = computed(() => Number(props.state?.budget?.maxBytes) || 0);
+const estimatedPages = computed(() => Math.max(1, Number(props.state?.budget?.pages) || 1));
+const kbPerPage = computed(() => {
+    const bpp = Number(props.state?.limits?.bytes_per_page) || 600 * 1024;
+
+    return Math.round(bpp / 1024);
+});
+const limitExplanation = computed(() => {
+    const bytes = limitBytes.value;
+    if (bytes <= 0) {
+        return 'не удалось оценить (обновите страницу)';
+    }
+
+    return `~${estimatedPages.value} стр. × ${kbPerPage.value} КиБ ≈ ${formatFileSizeHuman(bytes)}`;
+});
 
 watch(
     () => props.show,
@@ -118,7 +134,7 @@ const withinBudgetAfter = computed(() => {
 </script>
 
 <template>
-    <Modal :show="show" max-width="3xl" @close="cancelFlow">
+    <Modal :show="modalVisible" max-width="3xl" @close="cancelFlow">
         <section :class="crmModalFormShell">
             <CrmModalHeader
                 eyebrow="Подготовка файла"
@@ -129,8 +145,14 @@ const withinBudgetAfter = computed(() => {
             <div :class="`${crmModalFormBody} space-y-4 px-6 pb-6 pt-2`">
                 <p class="text-sm text-zinc-600 dark:text-zinc-400">
                     <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ fileName }}</span>
-                    — {{ formatFileSizeMb(originalBytes) }}.
-                    Лимит для загрузки около {{ formatFileSizeMb(limitBytes) }}.
+                    — {{ formatFileSizeHuman(originalBytes) }}.
+                    Лимит для загрузки: {{ limitExplanation }}.
+                </p>
+                <p
+                    v-if="originalBytes === 0"
+                    class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+                >
+                    Файл пустой или браузер не передал размер. Выберите PDF заново.
                 </p>
 
                 <div v-if="phase === 'offer'" class="space-y-4">
@@ -159,12 +181,12 @@ const withinBudgetAfter = computed(() => {
                     <div class="grid gap-2 text-sm sm:grid-cols-2">
                         <div class="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
                             <div class="text-xs text-zinc-500">Было</div>
-                            <div class="font-medium">{{ formatFileSizeMb(originalBytes) }}</div>
+                            <div class="font-medium">{{ formatFileSizeHuman(originalBytes) }}</div>
                         </div>
                         <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
                             <div class="text-xs text-emerald-800 dark:text-emerald-200">Стало</div>
                             <div class="font-medium text-emerald-950 dark:text-emerald-100">
-                                {{ formatFileSizeMb(optimizedFile.size) }}
+                                {{ formatFileSizeHuman(optimizedFile.size) }}
                                 <span v-if="result?.method" class="text-xs font-normal text-emerald-800/80">({{ result.method }})</span>
                             </div>
                         </div>

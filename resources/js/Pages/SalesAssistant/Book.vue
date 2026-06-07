@@ -100,57 +100,56 @@
                             v-if="selectedArticle.cover_image_url"
                             :src="selectedArticle.cover_image_url"
                             alt=""
-                            class="h-full w-full object-cover"
+                            class="absolute inset-0 h-full w-full object-cover"
                         />
-                        <div v-else class="h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
+                        <div v-else class="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
 
-                        <div class="absolute bottom-2 right-2 flex gap-2">
+                        <div class="absolute inset-0 flex items-center justify-between gap-2 px-3 md:gap-3 md:px-4">
                             <input
-                                ref="coverInputRef"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                class="hidden"
-                                @change="uploadCover"
+                                v-model="editForm.title"
+                                type="text"
+                                required
+                                placeholder="Заголовок страницы"
+                                class="min-w-0 max-w-[min(100%,28rem)] rounded-md border-0 bg-white/90 px-3 py-1.5 text-base font-semibold text-zinc-900 shadow-sm backdrop-blur placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:ring-sky-300 dark:bg-zinc-900/90 dark:text-zinc-100 dark:focus:bg-zinc-900 dark:focus:ring-sky-800 md:text-lg"
                             />
-                            <button
-                                type="button"
-                                class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                                :disabled="coverUploading"
-                                @click="coverInputRef?.click()"
-                            >
-                                {{ selectedArticle.cover_image_url ? 'Заменить обложку' : 'Загрузить обложку' }}
-                            </button>
-                            <button
-                                v-if="selectedArticle.cover_image_url"
-                                type="button"
-                                class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-rose-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-rose-200 dark:hover:bg-zinc-900"
-                                :disabled="coverUploading"
-                                @click="destroyCover"
-                            >
-                                Убрать
-                            </button>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <button
+                                    type="button"
+                                    :class="`${crmBtnNeutral} px-3 py-1.5 text-xs`"
+                                    :title="copyLinkFeedback ? 'Скопировано' : 'Копировать ссылку на страницу'"
+                                    @click="copyArticleLink"
+                                >
+                                    {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
+                                </button>
+                                <input
+                                    ref="coverInputRef"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    class="hidden"
+                                    @change="uploadCover"
+                                />
+                                <button
+                                    type="button"
+                                    class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                                    :disabled="coverUploading"
+                                    @click="coverInputRef?.click()"
+                                >
+                                    {{ selectedArticle.cover_image_url ? 'Заменить' : 'Обложка' }}
+                                </button>
+                                <button
+                                    v-if="selectedArticle.cover_image_url"
+                                    type="button"
+                                    class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-rose-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-rose-200 dark:hover:bg-zinc-900"
+                                    :disabled="coverUploading"
+                                    @click="destroyCover"
+                                >
+                                    Убрать
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <p v-if="coverError" class="shrink-0 text-xs text-rose-600 dark:text-rose-300">{{ coverError }}</p>
                     <p v-else class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">Рекомендуемая обложка: широкое изображение с пропорцией 8–10:1.</p>
-
-                    <div class="flex shrink-0 items-start gap-2">
-                        <input
-                            v-model="editForm.title"
-                            type="text"
-                            required
-                            placeholder="Заголовок страницы"
-                            class="min-w-0 flex-1 border-0 border-b border-zinc-200 bg-transparent px-0 py-2 text-3xl font-semibold text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-0 dark:border-zinc-700 dark:text-zinc-100"
-                        />
-                        <button
-                            type="button"
-                            :class="`${crmBtnNeutral} shrink-0 px-3 py-2 text-xs`"
-                            :title="copyLinkFeedback ? 'Скопировано' : 'Копировать ссылку на страницу'"
-                            @click="copyArticleLink"
-                        >
-                            {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
-                        </button>
-                    </div>
 
                     <SalesBookArticleFeedbackBar
                         v-if="canComment"
@@ -259,34 +258,36 @@
                         </button>
                     </div>
 
-                    <div class="h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
+                    <div class="relative h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
                         <img
                             v-if="selectedArticle.cover_image_url"
                             :src="selectedArticle.cover_image_url"
                             alt=""
-                            class="h-full w-full object-cover"
+                            class="absolute inset-0 h-full w-full object-cover"
                         />
-                        <div v-else class="h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
-                    </div>
+                        <div v-else class="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
 
-                    <div class="flex shrink-0 items-start gap-2">
-                        <h2 class="min-w-0 flex-1 border-0 border-b border-zinc-200 px-0 py-2 text-3xl font-semibold text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">
-                            {{ selectedArticle.title }}
-                        </h2>
-                        <span
-                            v-if="selectedArticle.status === 'draft'"
-                            class="mt-2 shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                        >
-                            Черновик
-                        </span>
-                        <button
-                            type="button"
-                            :class="`${crmBtnNeutral} shrink-0 px-3 py-2 text-xs`"
-                            :title="copyLinkFeedback ? 'Скопировано' : 'Копировать ссылку на страницу'"
-                            @click="copyArticleLink"
-                        >
-                            {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
-                        </button>
+                        <div class="absolute inset-0 flex items-center justify-between gap-2 px-3 md:gap-3 md:px-4">
+                            <div class="flex min-w-0 flex-1 items-center gap-2">
+                                <h2 class="min-w-0 truncate rounded-md bg-white/90 px-3 py-1.5 text-base font-semibold text-zinc-900 shadow-sm backdrop-blur dark:bg-zinc-900/90 dark:text-zinc-100 md:text-lg">
+                                    {{ selectedArticle.title }}
+                                </h2>
+                                <span
+                                    v-if="selectedArticle.status === 'draft'"
+                                    class="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                                >
+                                    Черновик
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                :class="`${crmBtnNeutral} shrink-0 px-3 py-1.5 text-xs`"
+                                :title="copyLinkFeedback ? 'Скопировано' : 'Копировать ссылку на страницу'"
+                                @click="copyArticleLink"
+                            >
+                                {{ copyLinkFeedback ? 'Скопировано' : 'Ссылка' }}
+                            </button>
+                        </div>
                     </div>
 
                     <SalesBookArticleFeedbackBar

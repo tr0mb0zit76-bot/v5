@@ -5,6 +5,7 @@ use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\CommandBarAgentController;
 use App\Http\Controllers\ContractorController;
+use App\Http\Controllers\ContractorPortraitController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DispositionController;
 use App\Http\Controllers\DocumentOptimizeController;
@@ -466,6 +467,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/contractors/{contractor}/edit', 'edit')->name('contractors.edit');
         Route::patch('/contractors/{contractor}', 'update')->name('contractors.update');
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
+        Route::patch('/contractors/{contractor}/portrait', [ContractorPortraitController::class, 'update'])->name('contractors.portrait.update');
+        Route::post('/contractors/{contractor}/portrait-interactions', [ContractorPortraitController::class, 'storeInteraction'])->name('contractors.portrait-interactions.store');
         Route::post('/contractors/activity-types', 'storeActivityType')->name('contractors.activity-types.store');
         Route::post('/contractors/mass-update-owner', 'massUpdateOwner')->name('contractors.mass-update-owner');
         Route::get('/contractors/duplicate-check', 'checkDuplicate')->name('contractors.duplicate-check');

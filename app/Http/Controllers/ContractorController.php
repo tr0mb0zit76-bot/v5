@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\Checko\ContractorRiskAssessmentService;
 use App\Services\Checko\ContractorScoringService;
 use App\Services\Contractor\ContractorLimitApprovalService;
+use App\Services\Contractor\ContractorPortraitService;
 use App\Services\ContractorCreditService;
 use App\Services\ContractorDocumentSyncService;
 use App\Services\ContractorOperationalStatusService;
@@ -20,7 +21,7 @@ use App\Services\ContractorPartnerCardService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
 use App\Support\CarrierRateFromFinancialTerms;
-use App\Support\ContractorDuplicateGuard;
+use App\Support\ContractorPortraitDictionary;
 use App\Support\ContractorTableColumns;
 use App\Support\ContractorWorkStatus;
 use App\Support\CurrencyDictionary;
@@ -527,6 +528,11 @@ class ContractorController extends Controller
 
             if ($hasInteractionsTable) {
                 $relations[] = 'interactions.author:id,name';
+                $relations[] = 'interactions.contact:id,full_name,role_in_deal';
+            }
+
+            if (Schema::hasTable('contractor_portraits')) {
+                $relations[] = 'portrait';
             }
 
             if ($hasDocumentsTable) {
@@ -661,17 +667,38 @@ class ContractorController extends Controller
                     'is_decision_maker' => Schema::hasColumn('contractor_contacts', 'is_decision_maker')
                         ? $contact->is_decision_maker
                         : false,
+                    'role_in_deal' => Schema::hasColumn('contractor_contacts', 'role_in_deal')
+                        ? ($contact->role_in_deal ?: ($contact->is_decision_maker ? 'decision_maker' : 'unknown'))
+                        : 'unknown',
+                    'role_in_deal_label' => ContractorPortraitDictionary::label(
+                        'role_in_deal',
+                        Schema::hasColumn('contractor_contacts', 'role_in_deal')
+                            ? ($contact->role_in_deal ?: ($contact->is_decision_maker ? 'decision_maker' : 'unknown'))
+                            : 'unknown',
+                    ),
+                    'communication_notes' => Schema::hasColumn('contractor_contacts', 'communication_notes')
+                        ? $contact->communication_notes
+                        : null,
                     'notes' => $contact->notes,
                 ])->values() : collect(),
                 'interactions' => $hasInteractionsTable ? $selectedContractor->interactions->map(fn ($interaction): array => [
                     'id' => $interaction->id,
+                    'contractor_contact_id' => $interaction->contractor_contact_id,
+                    'contact_name' => $interaction->contact?->full_name,
                     'contacted_at' => optional($interaction->contacted_at)?->toIso8601String(),
                     'channel' => $interaction->channel,
+                    'outcome_code' => $interaction->outcome_code,
+                    'outcome_label' => ContractorPortraitDictionary::label('outcome_code', $interaction->outcome_code),
+                    'next_contact_at' => optional($interaction->next_contact_at)?->toIso8601String(),
                     'subject' => $interaction->subject,
                     'summary' => $interaction->summary,
                     'result' => $interaction->result,
+                    'objection_tags' => is_array($interaction->objection_tags) ? $interaction->objection_tags : [],
                     'author_name' => $interaction->author?->name,
                 ])->values() : collect(),
+                'portrait' => Schema::hasTable('contractor_portraits')
+                    ? app(ContractorPortraitService::class)->serializePortrait($selectedContractor->portrait, $selectedContractor)
+                    : null,
                 'documents' => $hasDocumentsTable
                     ? $selectedContractor->documents->map(
                         fn ($document): array => $this->serializeContractorDocument($document, $selectedContractor),
@@ -711,6 +738,19 @@ class ContractorController extends Controller
                 ])
                 ->values()
                 ->all(),
+            'portraitOptions' => [
+                'communication_style' => ContractorPortraitDictionary::optionsFor('communication_style'),
+                'price_sensitivity' => ContractorPortraitDictionary::optionsFor('price_sensitivity'),
+                'preferred_channel' => ContractorPortraitDictionary::optionsFor('preferred_channel'),
+                'decision_cadence' => ContractorPortraitDictionary::optionsFor('decision_cadence'),
+                'relationship_trust' => ContractorPortraitDictionary::optionsFor('relationship_trust'),
+                'role_in_deal' => ContractorPortraitDictionary::optionsFor('role_in_deal'),
+                'outcome_code' => ContractorPortraitDictionary::optionsFor('outcome_code'),
+                'objection_tag' => ContractorPortraitDictionary::optionsFor('objection_tag'),
+            ],
+            'initialTab' => in_array($request->string('tab')->toString(), [
+                'general', 'requisites', 'cooperation', 'contacts', 'portrait', 'communications', 'orders', 'documents',
+            ], true) ? $request->string('tab')->toString() : null,
         ]);
     }
 
@@ -1271,6 +1311,15 @@ class ContractorController extends Controller
             foreach ($validated['contacts'] as $contact) {
                 if (! Schema::hasColumn('contractor_contacts', 'is_decision_maker')) {
                     unset($contact['is_decision_maker']);
+                }
+
+                if (Schema::hasColumn('contractor_contacts', 'role_in_deal')) {
+                    $role = $contact['role_in_deal'] ?? null;
+                    if ($role === 'decision_maker' && Schema::hasColumn('contractor_contacts', 'is_decision_maker')) {
+                        $contact['is_decision_maker'] = true;
+                    }
+                } else {
+                    unset($contact['role_in_deal'], $contact['communication_notes']);
                 }
 
                 $contractor->contacts()->create($contact);

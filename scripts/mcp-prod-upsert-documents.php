@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * One-off: publish docs/documents-user-guide.md to prod Sales Book via MCP.
+ * Publish documents guide + regulation to prod Sales Book via MCP.
  * Usage: php scripts/mcp-prod-upsert-documents.php
  */
 $userProfile = getenv('USERPROFILE') ?: getenv('HOME') ?: '';
@@ -24,14 +24,6 @@ if (! is_string($url) || ! is_string($auth) || $auth === '') {
     exit(1);
 }
 
-$guidePath = dirname(__DIR__).'/docs/documents-user-guide.md';
-if (! is_readable($guidePath)) {
-    fwrite(STDERR, "Guide not found: {$guidePath}\n");
-    exit(1);
-}
-
-$markdown = file_get_contents($guidePath);
-
 function mcpPost(string $url, string $auth, array $payload): array
 {
     $body = json_encode($payload, JSON_THROW_ON_ERROR);
@@ -45,7 +37,7 @@ function mcpPost(string $url, string $auth, array $payload): array
             'Accept: application/json, text/event-stream',
         ],
         CURLOPT_POSTFIELDS => $body,
-        CURLOPT_TIMEOUT => 120,
+        CURLOPT_TIMEOUT => 180,
     ]);
     $raw = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -74,9 +66,66 @@ function parseMcpResponse(string $raw): mixed
     return json_decode($trimmed, true, 512, JSON_THROW_ON_ERROR);
 }
 
-$sessionId = null;
+function mcpCall(string $url, string $auth, int $id, string $tool, array $arguments): mixed
+{
+    $call = mcpPost($url, $auth, [
+        'jsonrpc' => '2.0',
+        'id' => $id,
+        'method' => 'tools/call',
+        'params' => [
+            'name' => $tool,
+            'arguments' => $arguments,
+        ],
+    ]);
 
-// Streamable HTTP: initialize session
+    if ($call['http_code'] >= 400) {
+        throw new RuntimeException("HTTP {$call['http_code']}: ".substr($call['raw'], 0, 2000));
+    }
+
+    $data = parseMcpResponse($call['raw']);
+    if (isset($data['error'])) {
+        throw new RuntimeException('MCP error: '.json_encode($data['error'], JSON_UNESCAPED_UNICODE));
+    }
+
+    $content = $data['result']['content'] ?? null;
+    if (is_array($content) && isset($content[0]['text'])) {
+        return json_decode($content[0]['text'], true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    return $data['result'] ?? $data;
+}
+
+function prepareBookMarkdown(string $path): string
+{
+    $markdown = (string) file_get_contents($path);
+    $markdown = preg_replace('/^#\s+.+\R+/u', '', $markdown) ?? $markdown;
+
+    $replacements = [
+        '[Мастер заказов](order-wizard-user-guide.md)' => '«Мастер заказов» (отдельная статья Книги продаж)',
+        '[Регламент работы с документами](documents-regulation.md)' => '«Регламент работы с документами» (раздел «Регламенты работы»)',
+        '[Инструкция пользователя](documents-user-guide.md)' => '«Документы — инструкция для пользователя» (раздел «Руководство по CRM»)',
+        '[Nextcloud / хранилище](nextcloud-install.md)' => 'Nextcloud / хранилище (для админов)',
+        '[OCR заявки](order-intake-ocr-service.md)' => 'OCR заявки (техническая документация)',
+        '[order-wizard-user-guide.md](order-wizard-user-guide.md)' => '«Мастер заказов»',
+        '[order-wizard-user-guide.md#9-вкладка-документы](order-wizard-user-guide.md#9-вкладка-документы)' => '«Мастер заказов», раздел про вкладку «Документы»',
+    ];
+
+    return str_replace(array_keys($replacements), array_values($replacements), $markdown);
+}
+
+$articles = [
+    [
+        'parent_title' => 'Руководство по CRM',
+        'title' => 'Документы',
+        'path' => dirname(__DIR__).'/docs/documents-user-guide.md',
+    ],
+    [
+        'parent_title' => 'Регламенты работы',
+        'title' => 'Регламент работы с документами',
+        'path' => dirname(__DIR__).'/docs/documents-regulation.md',
+    ],
+];
+
 $init = mcpPost($url, $auth, [
     'jsonrpc' => '2.0',
     'id' => 1,
@@ -86,20 +135,16 @@ $init = mcpPost($url, $auth, [
         'capabilities' => (object) [],
         'clientInfo' => [
             'name' => 'crm-publish-script',
-            'version' => '1.0.0',
+            'version' => '1.1.0',
         ],
     ],
 ]);
 
 echo "initialize HTTP {$init['http_code']}\n";
-
 if ($init['http_code'] >= 400) {
     fwrite(STDERR, substr($init['raw'], 0, 2000)."\n");
     exit(1);
 }
-
-$initData = parseMcpResponse($init['raw']);
-echo json_encode($initData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n";
 
 $list = mcpPost($url, $auth, [
     'jsonrpc' => '2.0',
@@ -108,33 +153,28 @@ $list = mcpPost($url, $auth, [
     'params' => (object) [],
 ]);
 echo "tools/list HTTP {$list['http_code']}\n";
-echo substr($list['raw'], 0, 1500)."\n\n";
 
-$call = mcpPost($url, $auth, [
-    'jsonrpc' => '2.0',
-    'id' => 3,
-    'method' => 'tools/call',
-    'params' => [
-        'name' => 'upsert_sales_book_article',
-        'arguments' => [
-            'parent_title' => 'Руководство по CRM',
-            'title' => 'Документы',
+$id = 10;
+foreach ($articles as $spec) {
+    if (! is_readable($spec['path'])) {
+        fwrite(STDERR, "File not found: {$spec['path']}\n");
+        exit(1);
+    }
+
+    $markdown = prepareBookMarkdown($spec['path']);
+    echo "\n--- Upsert: «{$spec['title']}» under «{$spec['parent_title']}» ---\n";
+
+    try {
+        $result = mcpCall($url, $auth, $id++, 'upsert_sales_book_article', [
+            'parent_title' => $spec['parent_title'],
+            'title' => $spec['title'],
             'markdown_content' => $markdown,
-        ],
-    ],
-]);
-
-echo "tools/call HTTP {$call['http_code']}\n";
-echo substr($call['raw'], 0, 4000)."\n";
-
-if ($call['http_code'] >= 400) {
-    exit(1);
+        ]);
+        echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n";
+    } catch (Throwable $e) {
+        fwrite(STDERR, $e->getMessage()."\n");
+        exit(1);
+    }
 }
 
-$callData = parseMcpResponse($call['raw']);
-if (isset($callData['error'])) {
-    fwrite(STDERR, 'MCP error: '.json_encode($callData['error'], JSON_UNESCAPED_UNICODE)."\n");
-    exit(1);
-}
-
-echo "OK\n";
+echo "\nOK — все статьи отправлены (новые создаются как черновик).\n";

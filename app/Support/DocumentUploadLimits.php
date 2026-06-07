@@ -22,9 +22,13 @@ final class DocumentUploadLimits
     {
         $bpp = max(1024, (int) config('documents.bytes_per_page', 600 * 1024));
         $cap = max(1, (int) config('documents.max_pages_cap', 200));
-        $abs = $cap * $bpp;
+        $policyAbs = $cap * $bpp;
         $serverHard = min(self::iniBytes('upload_max_filesize'), self::iniBytes('post_max_size'));
-        $effectiveAbs = min($abs, $serverHard);
+        // Сломанный php.ini (0, 1 байт и т.п.) не должен обнулять лимит в UI до «0.00 МиБ».
+        if ($serverHard < self::minimumTrustedServerUploadBytes()) {
+            $serverHard = $policyAbs;
+        }
+        $effectiveAbs = min($policyAbs, $serverHard);
         $kbPerPage = (int) round($bpp / 1024);
 
         return [
@@ -42,6 +46,16 @@ final class DocumentUploadLimits
                 $effectiveAbs / 1024 / 1024
             ),
         ];
+    }
+
+    /**
+     * Ниже этого порога считаем upload_max_filesize / post_max_size ошибочными для расчёта лимита.
+     *
+     * @return positive-int
+     */
+    private static function minimumTrustedServerUploadBytes(): int
+    {
+        return 512 * 1024;
     }
 
     /**

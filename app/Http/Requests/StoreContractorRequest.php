@@ -392,6 +392,8 @@ class StoreContractorRequest extends FormRequest
             'contacts.*.email' => ['nullable', 'email', 'max:255'],
             'contacts.*.is_primary' => ['nullable', 'boolean'],
             'contacts.*.is_decision_maker' => ['nullable', 'boolean'],
+            'contacts.*.role_in_deal' => ['nullable', 'string', 'max:32'],
+            'contacts.*.communication_notes' => ['nullable', 'string', 'max:2000'],
             'contacts.*.notes' => ['nullable', 'string'],
             'interactions' => ['nullable', 'array'],
             'interactions.*.contacted_at' => ['nullable', 'date'],

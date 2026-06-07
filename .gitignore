@@ -19,6 +19,8 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/scripts/_playwright/node_modules
+/storage/app/sales-book-screenshots
 /vendor
 /.codegraph
 Homestead.json

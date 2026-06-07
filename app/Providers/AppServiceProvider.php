@@ -134,6 +134,21 @@ class AppServiceProvider extends ServiceProvider
 
         $appUrl = strtolower((string) config('app.url', ''));
 
+        if ($request !== null && ! $request->isSecure()) {
+            $forwarded = $request->header('X-Forwarded-Proto');
+            $hasHttpsForwarded = is_string($forwarded) && strtolower($forwarded) === 'https';
+            $appHost = parse_url($appUrl, PHP_URL_HOST);
+
+            if (! $hasHttpsForwarded
+                && is_string($appHost)
+                && strcasecmp($request->getHost(), $appHost) === 0) {
+                URL::forceScheme('http');
+                URL::forceRootUrl($request->getSchemeAndHttpHost());
+
+                return;
+            }
+        }
+
         if (str_starts_with($appUrl, 'https://')) {
             URL::forceScheme('https');
         } elseif ($request !== null) {

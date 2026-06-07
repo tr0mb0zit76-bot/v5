@@ -18,6 +18,8 @@ class ContractorContact extends Model
         'email',
         'is_primary',
         'is_decision_maker',
+        'role_in_deal',
+        'communication_notes',
         'notes',
     ];
 

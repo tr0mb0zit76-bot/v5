@@ -45,5 +45,23 @@ export function fileFromOptimizedPdfBase64(base64, originalName) {
  * @param {number} bytes
  */
 export function formatFileSizeMb(bytes) {
-    return `${(Number(bytes) / 1024 / 1024).toFixed(2)} МиБ`;
+    return formatFileSizeHuman(bytes);
+}
+
+/**
+ * @param {number} bytes
+ */
+export function formatFileSizeHuman(bytes) {
+    const n = Number(bytes);
+    if (!Number.isFinite(n) || n < 0) {
+        return '—';
+    }
+    if (n >= 1024 * 1024) {
+        return `${(n / 1024 / 1024).toFixed(n >= 10 * 1024 * 1024 ? 1 : 2)} МиБ`;
+    }
+    if (n >= 1024) {
+        return `${Math.round(n / 1024)} КиБ`;
+    }
+
+    return `${Math.round(n)} байт`;
 }

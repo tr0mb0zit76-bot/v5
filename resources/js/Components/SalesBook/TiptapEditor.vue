@@ -106,7 +106,6 @@ import { crmSegmentedBtn, crmSegmentedBtnActive } from '@/support/crmUi.js';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
-import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
@@ -118,6 +117,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { SalesBookOrderedList } from '@/Components/SalesBook/SalesBookOrderedList.js';
+import { SalesBookLink } from '@/Components/SalesBook/salesBookLinkExtension.js';
 import { prepareSalesBookMarkdown } from '@/Components/SalesBook/salesBookMarkdownTables.js';
 
 const props = defineProps({
@@ -221,11 +221,7 @@ const editor = useEditor({
             underline: false,
         }),
         SalesBookOrderedList,
-        Link.configure({
-            openOnClick: false,
-            autolink: true,
-            protocols: ['http', 'https', 'mailto'],
-        }),
+        SalesBookLink,
         Placeholder.configure({
             placeholder: props.placeholder,
         }),

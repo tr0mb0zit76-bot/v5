@@ -36,11 +36,12 @@ export function normalizeDocumentsPath(url) {
 }
 
 /**
- * На HTTPS-странице поднимает http:// того же хоста до https://.
+ * Выравнивает схему абсолютного URL того же хоста под протокол текущей страницы.
+ * На проде за прокси поднимает http→https; локально (http без TLS) опускает https→http.
  * Относительные пути не превращаем в абсолютный URL.
  */
 export function coerceHttpsUrl(url) {
-    if (typeof window === 'undefined' || window.location.protocol !== 'https:') {
+    if (typeof window === 'undefined') {
         return typeof url === 'string' ? normalizeDocumentsPath(url) : url;
     }
 
@@ -52,12 +53,21 @@ export function coerceHttpsUrl(url) {
 
     let next = raw;
 
-    if (next.startsWith('http://')) {
+    if (next.startsWith('http://') || next.startsWith('https://')) {
         try {
             const parsed = new URL(next);
 
             if (parsed.hostname === window.location.hostname) {
-                next = parsed.href.replace(/^http:/, 'https:');
+                const pageIsHttps = window.location.protocol === 'https:';
+                const urlIsHttps = parsed.protocol === 'https:';
+
+                if (pageIsHttps && !urlIsHttps) {
+                    next = parsed.href.replace(/^http:/, 'https:');
+                } else if (!pageIsHttps && urlIsHttps) {
+                    next = parsed.href.replace(/^https:/, 'http:');
+                } else {
+                    next = parsed.href;
+                }
             }
         } catch {
             return url;
@@ -66,7 +76,7 @@ export function coerceHttpsUrl(url) {
 
     next = normalizeDocumentsPath(next);
 
-    if (next.startsWith('https://')) {
+    if (next.startsWith('https://') || next.startsWith('http://')) {
         return url instanceof URL ? new URL(next) : next;
     }
 
@@ -90,20 +100,17 @@ export function visitInertiaPath(path) {
     router.visit(coerceHttpsUrl(path));
 }
 
-/** Ziggy в HTML может содержать http:// из закэшированного config — выравниваем под страницу. */
+/** Ziggy в HTML может содержать схему из APP_URL — выравниваем под протокол страницы. */
 export function ensureZiggyUsesPageProtocol() {
     if (typeof window === 'undefined' || !globalThis.Ziggy?.url) {
-        return;
-    }
-
-    if (window.location.protocol !== 'https:') {
         return;
     }
 
     try {
         const ziggyBase = new URL(globalThis.Ziggy.url, window.location.origin);
 
-        if (ziggyBase.protocol === 'http:') {
+        if (ziggyBase.hostname === window.location.hostname
+            && ziggyBase.protocol !== window.location.protocol) {
             globalThis.Ziggy.url = window.location.origin;
         }
     } catch {

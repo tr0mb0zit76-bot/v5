@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, toRaw, watch } from 'vue';
+import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Building2,
@@ -11,12 +11,15 @@ import {
     Search,
     ShieldCheck,
     Trash2,
+    UserCircle,
     Users,
     X,
 } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import ContractorsGrid from '@/Components/Contractors/ContractorsGrid.vue';
 import ContractorDocumentsSection from '@/Components/Contractors/ContractorDocumentsSection.vue';
+import ContractorPortraitTab from '@/Components/Contractors/ContractorPortraitTab.vue';
+import ContractorInteractionOutcomeModal from '@/Components/Contractors/ContractorInteractionOutcomeModal.vue';
 import ContractorDefaultNormsPenaltiesFields from '@/Components/Contractors/ContractorDefaultNormsPenaltiesFields.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { transliteratedFieldValue } from '@/support/cyrillicTransliteration.js';
@@ -108,6 +111,14 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    portraitOptions: {
+        type: Object,
+        default: () => ({}),
+    },
+    initialTab: {
+        type: String,
+        default: null,
+    },
 });
 
 const page = usePage();
@@ -115,10 +126,11 @@ const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const availableColumns = computed(() => page.props.contractorColumns ?? []);
 const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_config ?? {});
 const search = ref(props.filters.search || '');
-const activeTab = ref('general');
+const activeTab = ref(props.initialTab || 'general');
 const isCreateModalOpen = ref(false);
 const isCreateRouteDismissed = ref(false);
 const isDetailsModalDismissed = ref(false);
+const showInteractionOutcomeModal = ref(false);
 const isInnLookupPending = ref(false);
 const submitError = ref('');
 const duplicateWarning = ref({
@@ -155,6 +167,7 @@ const tabs = [
     { key: 'requisites', label: 'Реквизиты', icon: ShieldCheck },
     { key: 'cooperation', label: 'Условия сотрудничества', icon: FileText },
     { key: 'contacts', label: 'Контакты', icon: Users },
+    { key: 'portrait', label: 'Портрет', icon: UserCircle },
     { key: 'communications', label: 'Коммуникации', icon: History },
     { key: 'orders', label: 'Заказы', icon: FileText },
     { key: 'documents', label: 'Документы', icon: FileText },
@@ -609,6 +622,8 @@ function contractorToForm(contractor) {
                 email: contact.email ?? '',
                 is_primary: Boolean(contact.is_primary),
                 is_decision_maker: Boolean(contact.is_decision_maker),
+                role_in_deal: contact.role_in_deal ?? (contact.is_decision_maker ? 'decision_maker' : 'unknown'),
+                communication_notes: contact.communication_notes ?? '',
                 notes: contact.notes ?? '',
             }))
             : [],
@@ -847,6 +862,21 @@ function currentPagePath(url) {
 const isCreateRoute = computed(() => currentPagePath(page.url) === '/contractors/create');
 const isCreating = computed(() => isCreateModalOpen.value || (isCreateRoute.value && !isCreateRouteDismissed.value));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
+
+const visibleTabs = computed(() => tabs.filter((tab) => tab.key !== 'portrait' || selectedContractorId.value));
+
+const portraitForTab = computed(() => props.selectedContractor?.portrait ?? {
+    communication_style: 'unknown',
+    price_sensitivity: 'unknown',
+    preferred_channel: 'unknown',
+    decision_cadence: 'unknown',
+    relationship_trust: 'unknown',
+    success_criteria: '',
+    typical_objections: [],
+    internal_notes: '',
+    coverage_pct: 0,
+    missing_slots: [],
+});
 const canDownloadPartnerCard = computed(
     () =>
         selectedContractorId.value !== null
@@ -1484,6 +1514,8 @@ function addContact() {
         email: '',
         is_primary: form.contacts.length === 0,
         is_decision_maker: false,
+        role_in_deal: 'unknown',
+        communication_notes: '',
         notes: '',
     });
 }
@@ -2166,7 +2198,7 @@ function goToPage(pageNumber) {
                 <div class="flex flex-wrap gap-2 border-b border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
                     <div class="flex flex-wrap gap-2">
                         <button
-                            v-for="tab in tabs"
+                            v-for="tab in visibleTabs"
                             :key="tab.key"
                             type="button"
                             class="inline-flex items-center gap-2 text-sm transition-colors"
@@ -3495,9 +3527,26 @@ function goToPage(pageNumber) {
                                             Основной контакт (для заявок и печати)
                                         </label>
                                         <label class="flex items-center gap-2 text-sm text-zinc-900 dark:text-zinc-100">
-                                            <input v-model="contact.is_decision_maker" type="checkbox" :class="crmCheckbox" />
+                                            <input
+                                                v-model="contact.is_decision_maker"
+                                                type="checkbox"
+                                                :class="crmCheckbox"
+                                                @change="contact.role_in_deal = contact.is_decision_maker ? 'decision_maker' : (contact.role_in_deal === 'decision_maker' ? 'unknown' : contact.role_in_deal)"
+                                            />
                                             ЛПР
                                         </label>
+                                    </div>
+                                    <div class="space-y-2 xl:col-start-1 xl:row-start-3 md:col-span-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Роль в сделке</label>
+                                        <select v-model="contact.role_in_deal" :class="crmFieldFluid">
+                                            <option v-for="option in portraitOptions.role_in_deal ?? []" :key="option.value" :value="option.value">
+                                                {{ option.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2 xl:col-start-2 xl:row-start-3 md:col-span-2">
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Заметки по общению</label>
+                                        <input v-model="contact.communication_notes" type="text" :class="crmFieldFluid" placeholder="Когда звонить, стиль, табу-темы" />
                                     </div>
                                     <div class="space-y-2 xl:col-start-1 xl:row-start-2">
                                         <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Телефон</label>
@@ -3520,15 +3569,35 @@ function goToPage(pageNumber) {
                         </div>
                     </div>
 
+                    <ContractorPortraitTab
+                        v-else-if="activeTab === 'portrait' && selectedContractorId"
+                        :contractor-id="selectedContractorId"
+                        :portrait="portraitForTab"
+                        :contacts="props.selectedContractor?.contacts ?? []"
+                        :portrait-options="portraitOptions"
+                        @open-communications="activeTab = 'communications'"
+                    />
+
                     <div v-else-if="activeTab === 'communications'" class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
                             <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                Звонки, письма, встречи и заметки. Сверху — сводная таблица, ниже — редактирование записей.
+                                Журнал общения: источник контекста для ассистента. Ниже — редактирование записей перед сохранением карточки.
                             </div>
-                            <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addInteraction">
-                                <Plus class="h-4 w-4" />
-                                Добавить запись
-                            </button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button
+                                    v-if="selectedContractorId"
+                                    type="button"
+                                    class="inline-flex items-center gap-2 border border-sky-200 px-3 py-2 text-sm text-sky-800 hover:bg-sky-50 dark:border-sky-900 dark:text-sky-200 dark:hover:bg-sky-950/40"
+                                    @click="showInteractionOutcomeModal = true"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                    Зафиксировать итог
+                                </button>
+                                <button type="button" class="inline-flex items-center gap-2 border border-zinc-200 px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800" @click="addInteraction">
+                                    <Plus class="h-4 w-4" />
+                                    Добавить запись
+                                </button>
+                            </div>
                         </div>
 
                         <div v-if="form.interactions.length > 0" class="overflow-auto border border-zinc-200 dark:border-zinc-800">
@@ -3650,5 +3719,15 @@ function goToPage(pageNumber) {
                 </div>
             </section>
         </Modal>
+
+        <ContractorInteractionOutcomeModal
+            v-if="selectedContractorId"
+            :show="showInteractionOutcomeModal"
+            :contractor-id="selectedContractorId"
+            :contacts="props.selectedContractor?.contacts ?? []"
+            :portrait-options="portraitOptions"
+            :interaction-channels="interactionChannels"
+            @close="showInteractionOutcomeModal = false"
+        />
     </div>
 </template>

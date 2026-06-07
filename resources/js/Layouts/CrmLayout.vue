@@ -497,10 +497,10 @@
         <CrmAppearanceModal :show="appearanceModalOpen" @close="appearanceModalOpen = false" />
 
         <DocumentUploadOptimizeModal
-            :show="uploadGate.modalOpen"
-            :state="uploadGate.modalState"
-            @accept="uploadGate.complete($event)"
-            @cancel="uploadGate.complete(null)"
+            :show="documentUploadModalOpen"
+            :state="documentUploadModalState"
+            @accept="completeDocumentUpload($event)"
+            @cancel="completeDocumentUpload(null)"
         />
     </div>
 </template>
@@ -581,7 +581,11 @@ const props = defineProps({
 });
 
 const page = usePage();
-const uploadGate = provideDocumentUploadGate();
+const {
+    modalOpen: documentUploadModalOpen,
+    modalState: documentUploadModalState,
+    complete: completeDocumentUpload,
+} = provideDocumentUploadGate();
 
 const flashBanner = computed(() => {
     const flash = page.props.flash;
@@ -1296,6 +1300,8 @@ watch(
 
 onBeforeMount(() => {
     applyRouteToExpandedGroups();
+    completeDocumentUpload(null);
+    document.body.style.overflow = '';
 });
 
 watch(

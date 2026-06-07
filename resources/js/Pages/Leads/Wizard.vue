@@ -60,6 +60,18 @@
                     @update:business-process-id="form.business_process_id = $event"
                     @advance="submitProcessStage"
                 />
+                <div
+                    v-if="counterpartyPortraitIncomplete"
+                    class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+                >
+                    Портрет клиента неполный ({{ props.selectedLead?.counterparty_portrait_coverage_pct }}%).
+                    <Link
+                        :href="route('contractors.show', { contractor: form.counterparty_id, tab: 'portrait' })"
+                        class="ml-1 font-medium underline underline-offset-2"
+                    >
+                        Заполнить портрет контрагента
+                    </Link>
+                </div>
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div class="space-y-2">
                         <label :class="crmLabel">Статус</label>
@@ -356,7 +368,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -567,6 +579,11 @@ const selectedLeadId = computed(() => props.selectedLead?.id ?? null);
 const processProgress = computed(() => form.process_progress ?? props.selectedLead?.process_progress ?? null);
 const businessProcessesEnabled = computed(() => Boolean(props.businessProcessesEnabled));
 const selectedCounterparty = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.counterparty_id)) ?? null);
+const counterpartyPortraitIncomplete = computed(() => {
+    const coverage = props.selectedLead?.counterparty_portrait_coverage_pct;
+
+    return form.counterparty_id && coverage !== null && coverage !== undefined && Number(coverage) < 50;
+});
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
 const openTasks = computed(() => (form.tasks ?? []).filter((task) => task.status !== 'done'));

@@ -4,6 +4,7 @@ namespace App\Services\Mcp;
 
 use App\Models\Contractor;
 use App\Models\User;
+use App\Services\Contractor\ContractorContextBuilder;
 use App\Services\DaDataService;
 use App\Support\ContractorIdentity;
 use App\Support\MailSync\MailContractorAllowlist;
@@ -18,6 +19,7 @@ class ContractorMcpService
     public function __construct(
         private readonly McpAccessGate $access,
         private readonly DaDataService $daData,
+        private readonly ContractorContextBuilder $contextBuilder,
     ) {}
 
     /**
@@ -179,7 +181,13 @@ class ContractorMcpService
         /** @var Contractor $contractor */
         $contractor = $builder->whereKey($contractorId)->firstOrFail();
 
-        return $this->detail($contractor);
+        $detail = $this->detail($contractor);
+
+        if (Schema::hasTable('contractor_portraits')) {
+            $detail['portrait_context'] = $this->contextBuilder->build($contractor);
+        }
+
+        return $detail;
     }
 
     /**

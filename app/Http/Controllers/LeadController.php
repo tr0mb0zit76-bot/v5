@@ -21,6 +21,7 @@ use App\Models\Task;
 use App\Services\ActivityLedgerService;
 use App\Services\Commercial\LeadCloseOutcomeService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
+use App\Services\Contractor\ContractorPortraitService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadPrintFormDraftService;
@@ -831,6 +832,24 @@ class LeadController extends Controller
     /**
      * @return array<string, mixed>
      */
+    private function counterpartyPortraitCoverage(Lead $lead): ?int
+    {
+        if ($lead->counterparty_id === null || ! Schema::hasTable('contractor_portraits')) {
+            return null;
+        }
+
+        $contractor = Contractor::query()
+            ->with(['portrait', 'contacts', 'interactions'])
+            ->find($lead->counterparty_id);
+
+        if ($contractor === null) {
+            return null;
+        }
+
+        return (int) app(ContractorPortraitService::class)
+            ->serializePortrait($contractor->portrait, $contractor)['coverage_pct'];
+    }
+
     private function serializeLead(Lead $lead): array
     {
         return [
@@ -856,6 +875,7 @@ class LeadController extends Controller
             'lost_reason' => $lead->lost_reason,
             'close_outcome_primary_flag' => $lead->close_outcome_primary_flag,
             'close_outcome_primary_label' => LeadCloseOutcomeFlagCatalog::label($lead->close_outcome_primary_flag),
+            'counterparty_portrait_coverage_pct' => $this->counterpartyPortraitCoverage($lead),
             'qualification' => $lead->lead_qualification ?? [],
             'route_points' => $lead->routePoints
                 ->map(fn ($point): array => LeadRoutePointPayloadNormalizer::toFrontend($point))
