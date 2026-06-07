@@ -14,6 +14,7 @@ use App\Services\Mcp\DispositionMcpService;
 use App\Services\Mcp\FleetMcpService;
 use App\Services\Mcp\MailMcpService;
 use App\Services\Mcp\McpAccessGate;
+use App\Services\Mcp\McpCrossDomainGuard;
 use App\Services\Mcp\OrderDocumentMcpService;
 use App\Services\Mcp\OrderIntakeMcpService;
 use App\Services\Mcp\OrderMcpService;
@@ -32,6 +33,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Throwable;
 
 class AgentToolRegistry
@@ -59,6 +61,7 @@ class AgentToolRegistry
         private readonly MailMcpService $mail,
         private readonly PrintFormTemplatesMcpService $printFormTemplates,
         private readonly ContractorPrintFormChangeRequestService $printFormChanges,
+        private readonly McpCrossDomainGuard $crossDomainGuard,
     ) {}
 
     /**
@@ -93,6 +96,7 @@ class AgentToolRegistry
             }
 
             try {
+                $this->crossDomainGuard->enforce($name);
                 $result = ($definition->invoke)($user, $arguments);
                 $this->audit->log($user, $name, $arguments, true, null, AiInteractionFeature::CommandBar);
 
@@ -104,6 +108,10 @@ class AgentToolRegistry
 
                 return ['error' => $error];
             } catch (AuthenticationException|ModelNotFoundException $exception) {
+                $this->audit->log($user, $name, $arguments, false, $exception->getMessage(), AiInteractionFeature::CommandBar);
+
+                return ['error' => $exception->getMessage()];
+            } catch (RuntimeException $exception) {
                 $this->audit->log($user, $name, $arguments, false, $exception->getMessage(), AiInteractionFeature::CommandBar);
 
                 return ['error' => $exception->getMessage()];

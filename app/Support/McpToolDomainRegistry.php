@@ -69,4 +69,41 @@ final class McpToolDomainRegistry
     {
         return self::toolConfig($toolName)['domain'] ?? null;
     }
+
+    public static function normalizedPairKey(string $domainA, string $domainB): string
+    {
+        return $domainA < $domainB ? "{$domainA}|{$domainB}" : "{$domainB}|{$domainA}";
+    }
+
+    /**
+     * @return list<array{source_key: string, target_key: string}>
+     */
+    public static function crossDomainPairsForTool(string $toolName): array
+    {
+        $config = self::toolConfig($toolName);
+
+        if ($config === null) {
+            return [];
+        }
+
+        $primary = $config['domain'];
+        $pairs = [];
+
+        foreach ($config['cross'] as $cross) {
+            if ($primary === $cross) {
+                continue;
+            }
+
+            [$sourceKey, $targetKey] = $primary < $cross
+                ? [$primary, $cross]
+                : [$cross, $primary];
+
+            $pairs[] = [
+                'source_key' => $sourceKey,
+                'target_key' => $targetKey,
+            ];
+        }
+
+        return $pairs;
+    }
 }

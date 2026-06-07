@@ -24,6 +24,7 @@ final class McpIntegrationCatalog
             ['key' => 'fleet', 'label' => 'Собственный транспорт', 'description' => 'Авто, водители, рейсы', 'group' => 'Транспорт'],
             ['key' => 'finance', 'label' => 'Финансы', 'description' => 'График оплат и зарплата', 'group' => 'Финансы'],
             ['key' => 'analytics', 'label' => 'Аналитика AI', 'description' => 'Обращения к AI и пробелы', 'group' => 'Отчёты'],
+            ['key' => 'settings', 'label' => 'Шаблоны и система', 'description' => 'Печатные формы, базовые условия, конфигурация', 'group' => 'Конфигурация'],
         ];
     }
 
