@@ -741,12 +741,14 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'search_mail_threads',
-                description: 'Поиск переписки (IMAP sync): тема, текст, email контрагента.',
+                description: 'Поиск переписки (IMAP sync): тема, текст, email. «Письма у Садыкова» → mailbox_owner или фамилия в query (admin). В ответе mailbox_total_threads.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
                         'query' => ['type' => 'string'],
-                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 25],
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                        'mailbox_user_id' => ['type' => 'integer', 'minimum' => 1],
+                        'mailbox_owner' => ['type' => 'string', 'maxLength' => 120],
                     ],
                     'additionalProperties' => false,
                 ],
@@ -755,6 +757,8 @@ class AgentToolRegistry
                     $user,
                     (string) ($args['query'] ?? ''),
                     (int) ($args['limit'] ?? 15),
+                    isset($args['mailbox_user_id']) ? (int) $args['mailbox_user_id'] : null,
+                    isset($args['mailbox_owner']) ? (string) $args['mailbox_owner'] : null,
                 ),
             ),
             new AgentToolDefinition(
@@ -778,7 +782,7 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'get_mail_sync_status',
-                description: 'Статус синхронизации почты: mail_last_sync_at, mail_last_sync_error, IMAP host.',
+                description: 'Статус синхронизации почты: mail_last_sync_at, mail_last_sync_error, IMAP host, thread_count по сотрудникам.',
                 parameters: $emptyObject,
                 canUse: fn (User $user): bool => $this->canMail($user),
                 invoke: fn (User $user): array => $this->mail->syncStatus($user),

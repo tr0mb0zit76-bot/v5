@@ -7,6 +7,7 @@ use App\Models\MailMessage;
 use App\Models\MailThread;
 use App\Models\User;
 use App\Services\Commercial\MailMailboxAuthorization;
+use App\Services\Commercial\MailMailboxUserResolver;
 use App\Services\CommercialMailService;
 use App\Support\MailSync\MailMessageBodyPresenter;
 use App\Support\RoleAccess;
@@ -21,31 +22,78 @@ class MailMcpService
     public function __construct(
         private readonly McpAccessGate $access,
         private readonly MailMailboxAuthorization $mailboxAuth,
+        private readonly MailMailboxUserResolver $mailboxUserResolver,
         private readonly CommercialMailService $commercialMail,
     ) {}
 
     /**
-     * @return array{threads: list<array<string, mixed>>, total: int}
+     * @return array{
+     *     threads: list<array<string, mixed>>,
+     *     total: int,
+     *     mailbox_user_id: int|null,
+     *     mailbox_total_threads: int|null,
+     *     mailbox_candidates?: list<array{user_id: int, name: string, email: string|null}>,
+     *     hint?: string
+     * }
      */
-    public function searchThreads(User $user, string $query, int $limit = 15): array
-    {
+    public function searchThreads(
+        User $user,
+        string $query,
+        int $limit = 15,
+        ?int $mailboxUserId = null,
+        ?string $mailboxOwnerQuery = null,
+    ): array {
         $this->access->requireMailArea($user);
 
         if (! Schema::hasTable('mail_threads') || ! Schema::hasTable('mail_messages')) {
-            return ['threads' => [], 'total' => 0];
+            return [
+                'threads' => [],
+                'total' => 0,
+                'mailbox_user_id' => null,
+                'mailbox_total_threads' => null,
+            ];
         }
 
         $needle = trim($query);
-        $limit = max(1, min($limit, 25));
+        $limit = max(1, min($limit, 50));
+        $mailboxUserId = $this->resolveMailboxUserId($user, $mailboxUserId, $mailboxOwnerQuery);
+
+        if ($mailboxUserId === null && $needle !== '' && $this->canViewTeamMailSyncStatus($user)) {
+            $candidates = $this->mailboxUserResolver->findCandidates($needle);
+
+            if (count($candidates) === 1) {
+                $mailboxUserId = $candidates[0]['user_id'];
+                $needle = '';
+            } elseif (count($candidates) > 1) {
+                return [
+                    'threads' => [],
+                    'total' => 0,
+                    'mailbox_user_id' => null,
+                    'mailbox_total_threads' => null,
+                    'mailbox_candidates' => $candidates,
+                    'hint' => 'Найдено несколько сотрудников с таким фрагментом имени. Уточните mailbox_user_id или полное имя, либо передайте mailbox_owner.',
+                ];
+            }
+        }
 
         $builder = MailThread::query()
-            ->with(['messages' => fn ($q) => $q->orderByDesc('sent_at')->limit(1)])
+            ->with([
+                'messages' => fn ($q) => $q->orderByDesc('sent_at')->limit(1),
+                'mailboxUser:id,name,email',
+            ])
             ->orderByDesc('last_message_at');
 
         $this->applyMailboxScope($builder, $user);
 
+        if ($mailboxUserId !== null) {
+            $this->assertCanAccessMailboxUser($user, $mailboxUserId);
+            $builder->where('mailbox_user_id', $mailboxUserId);
+        }
+
         if ($needle !== '') {
-            $builder->where(function (Builder $scoped) use ($needle): void {
+            $canSearchMailboxOwner = $this->canViewTeamMailSyncStatus($user);
+
+            $builder->where(function (Builder $scoped) use ($needle, $canSearchMailboxOwner): void {
                 $scoped->where('subject', 'like', '%'.$needle.'%');
 
                 if (preg_match('/^\d+$/', $needle) === 1) {
@@ -57,15 +105,34 @@ class MailMcpService
                         ->orWhere('from_email', 'like', '%'.$needle.'%')
                         ->orWhere('subject', 'like', '%'.$needle.'%');
                 });
+
+                if ($canSearchMailboxOwner) {
+                    $scoped->orWhereHas('mailboxUser', function (Builder $owners) use ($needle): void {
+                        $owners->where('name', 'like', '%'.$needle.'%')
+                            ->orWhere('email', 'like', '%'.$needle.'%');
+                    });
+                }
             });
         }
 
+        $mailboxTotalThreads = $mailboxUserId !== null
+            ? (int) (clone $builder)->count()
+            : null;
+
         $threads = $builder->limit($limit)->get();
 
-        return [
-            'threads' => $threads->map(fn (MailThread $thread): array => $this->summarizeThread($thread))->all(),
+        $payload = [
+            'threads' => $threads->map(fn (MailThread $thread): array => $this->summarizeThread($thread, viewer: $user))->all(),
             'total' => $threads->count(),
+            'mailbox_user_id' => $mailboxUserId,
+            'mailbox_total_threads' => $mailboxTotalThreads,
         ];
+
+        if ($mailboxUserId !== null && $mailboxTotalThreads !== null && $mailboxTotalThreads > $threads->count()) {
+            $payload['hint'] = 'Показаны последние '.$threads->count().' из '.$mailboxTotalThreads.' цепочек ящика. Увеличьте limit или уточните query.';
+        }
+
+        return $payload;
     }
 
     /**
@@ -100,7 +167,7 @@ class MailMcpService
             ->all();
 
         return [
-            'thread' => $this->summarizeThread($thread, includeRelations: true),
+            'thread' => $this->summarizeThread($thread, includeRelations: true, viewer: $user),
             'messages' => $messages,
         ];
     }
@@ -125,7 +192,13 @@ class MailMcpService
 
         $team = [];
 
-        if ($this->canViewTeamMailSyncStatus($user) && Schema::hasTable('users')) {
+        if ($this->canViewTeamMailSyncStatus($user) && Schema::hasTable('mail_threads')) {
+            $threadCounts = MailThread::query()
+                ->selectRaw('mailbox_user_id, COUNT(*) as thread_count')
+                ->whereNotNull('mailbox_user_id')
+                ->groupBy('mailbox_user_id')
+                ->pluck('thread_count', 'mailbox_user_id');
+
             $team = User::query()
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -137,6 +210,7 @@ class MailMcpService
                     'mail_sync_enabled' => (bool) ($member->mail_sync_enabled ?? true),
                     'mail_last_sync_at' => optional($member->mail_last_sync_at)?->toIso8601String(),
                     'mail_last_sync_error' => $member->mail_last_sync_error,
+                    'thread_count' => (int) ($threadCounts[$member->id] ?? 0),
                 ])
                 ->all();
         }
@@ -262,7 +336,7 @@ class MailMcpService
     /**
      * @return array<string, mixed>
      */
-    private function summarizeThread(MailThread $thread, bool $includeRelations = false): array
+    private function summarizeThread(MailThread $thread, bool $includeRelations = false, ?User $viewer = null): array
     {
         $latest = $thread->relationLoaded('messages') ? $thread->messages->first() : null;
 
@@ -279,12 +353,50 @@ class MailMcpService
                 : null,
         ];
 
+        if ($viewer !== null && $this->canViewTeamMailSyncStatus($viewer)) {
+            $thread->loadMissing('mailboxUser:id,name,email');
+            $summary['mailbox_owner_name'] = $thread->mailboxUser?->name;
+            $summary['mailbox_owner_email'] = $thread->mailboxUser?->email;
+        }
+
         if ($includeRelations) {
             $summary['last_inbound_at'] = optional($thread->last_inbound_at)?->toIso8601String();
             $summary['last_outbound_at'] = optional($thread->last_outbound_at)?->toIso8601String();
         }
 
         return $summary;
+    }
+
+    private function resolveMailboxUserId(User $user, ?int $mailboxUserId, ?string $mailboxOwnerQuery): ?int
+    {
+        if ($mailboxUserId !== null && $mailboxUserId > 0) {
+            return $mailboxUserId;
+        }
+
+        $ownerQuery = trim((string) $mailboxOwnerQuery);
+
+        if ($ownerQuery === '' || ! $this->canViewTeamMailSyncStatus($user)) {
+            return null;
+        }
+
+        $candidates = $this->mailboxUserResolver->findCandidates($ownerQuery, 2);
+
+        if (count($candidates) === 1) {
+            return $candidates[0]['user_id'];
+        }
+
+        return null;
+    }
+
+    private function assertCanAccessMailboxUser(User $user, int $mailboxUserId): void
+    {
+        if ((int) $user->id === $mailboxUserId) {
+            return;
+        }
+
+        if (! $this->mailboxAuth->canViewAllMailboxes($user)) {
+            throw new AuthenticationException('Нет доступа к почтовому ящику другого сотрудника.');
+        }
     }
 
     /**

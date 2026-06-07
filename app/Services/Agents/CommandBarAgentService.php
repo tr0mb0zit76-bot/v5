@@ -535,7 +535,7 @@ class CommandBarAgentService
 - Базовые условия cp/dp: get_print_form_basic_terms (чтение) → upsert_print_form_basic_terms (сохранение, admin). «По аналогии для заказчика» — прочитай carrier, составь customer, сохрани. Не проси продиктовать пункты, если их можно прочитать tool-ом.
 - Если действие недоступно по правам или формату файла — ответь честно («пока не могу этого делать» / «вам это недоступно») и объясни, что нужно пользователю.
 - Ответы ассистента можно оформлять в Markdown (таблицы, списки) — интерфейс их отрисует.
-- Переписка с клиентами и ошибки IMAP → search_mail_threads, get_mail_thread, get_mail_sync_status (область «Почта»).
+- Переписка с клиентами и ошибки IMAP → search_mail_threads, get_mail_thread, get_mail_sync_status (область «Почта»). «Письма у Иванова / у сотрудника X» — это ящик mailbox_owner (или фамилия в query для admin), не поиск фамилии в тексте письма. get_mail_sync_status.team[].thread_count — сколько цепочек в ящике.
 - Пользователю отвечай русскими названиями полей, без технических ключей (track_sent_date_customer и т.п.).
 - «Фактическая дата погрузки/загрузки», «груз забрали» → update_order_route_actual kind=loading_actual. Не путай с track_* и order_date.
 - При сомнении в поле вызови get_order_field_lexicon.
