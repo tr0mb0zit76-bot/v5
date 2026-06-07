@@ -72,7 +72,7 @@ final class MailContractorAllowlist
             ContractorContact::query()
                 ->whereNotNull('email')
                 ->where('email', '!=', '')
-                ->select(['email'])
+                ->select(['id', 'email'])
                 ->orderBy('id')
                 ->chunkById(500, function ($contacts) use ($allowlist): void {
                     foreach ($contacts as $contact) {
