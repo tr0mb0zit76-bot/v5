@@ -2,6 +2,8 @@
 
 Контейнеры на **том же хосте**, что Laravel. Наружу — только через reverse proxy там, где нужно (Nextcloud). Gotenberg и OCR — **loopback**.
 
+Часовой пояс sidecar и диспозиции по умолчанию: **`Europe/Samara`** (`TZ` в `deploy/*/.env`, `APP_TIMEZONE` / `DISPOSITION_TIMEZONE` в CRM `.env`).
+
 | Каталог | Сервис | Порт (local/prod) | CRM env |
 |---------|--------|-------------------|---------|
 | [gotenberg/](./gotenberg/) | DOCX → PDF | 3000 | `GOTENBERG_URL` |

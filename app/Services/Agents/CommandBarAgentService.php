@@ -8,6 +8,7 @@ use App\Services\Ai\AiInteractionRecorder;
 use App\Services\Inference\ExternalLlmPayloadSanitizer;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\SalesBook\SalesBookArticleFeedbackRecorder;
+use App\Support\AiAgentCatalog;
 use App\Support\AiChannel;
 use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
@@ -43,9 +44,10 @@ class CommandBarAgentService
      *     navigate_to: string|null
      * }
      */
-    public function chat(User $user, string $message, array $history = []): array
+    public function chat(User $user, string $message, array $history = [], ?string $agentSlug = null): array
     {
         $startedAt = hrtime(true);
+        $persona = AiAgentCatalog::resolveForUser($user, $agentSlug);
         $channel = $this->gate->channelFor('command_bar', $user);
         $trimmedMessage = trim($message);
         $toolsUsed = [];
@@ -68,6 +70,10 @@ class CommandBarAgentService
                 true,
                 [],
                 false,
+                false,
+                null,
+                null,
+                $persona,
             );
         }
 
@@ -85,6 +91,10 @@ class CommandBarAgentService
                 false,
                 [],
                 false,
+                false,
+                null,
+                null,
+                $persona,
             );
         }
 
@@ -94,7 +104,7 @@ class CommandBarAgentService
         $messages = [
             [
                 'role' => 'system',
-                'content' => $this->systemPrompt($user, $knowledgeQuestion),
+                'content' => $this->systemPrompt($user, $knowledgeQuestion, $persona),
             ],
         ];
 
@@ -162,6 +172,7 @@ class CommandBarAgentService
                         $hadException,
                         null,
                         $navigateTo,
+                        $persona,
                     );
                 }
 
@@ -211,6 +222,7 @@ class CommandBarAgentService
                 $hadException,
                 null,
                 $navigateTo,
+                $persona,
             );
         } catch (Throwable $throwable) {
             $hadException = true;
@@ -244,6 +256,8 @@ class CommandBarAgentService
                 $knowledgeQuestion ?? false,
                 $hadException,
                 $throwable->getMessage(),
+                null,
+                $persona,
             );
         }
     }
@@ -251,7 +265,7 @@ class CommandBarAgentService
     /**
      * @param  list<string>  $toolsUsed
      * @param  list<array<string, mixed>>  $conversationMessages
-     * @return array{reply: string, channel: string, tool_rounds: int, turn_id: string|null, navigate_to: string|null}
+     * @return array{reply: string, channel: string, tool_rounds: int, turn_id: string|null, navigate_to: string|null, agent_slug: string|null, agent_display_name: string|null}
      */
     private function finishTurn(
         User $user,
@@ -269,6 +283,7 @@ class CommandBarAgentService
         bool $hadException = false,
         ?string $errorMessage = null,
         ?string $navigateTo = null,
+        ?array $persona = null,
     ): array {
         $salesBookMeta = $this->salesBookTurnAnalyzer->analyze($conversationMessages, $knowledgeQuestion);
         $turnId = (string) Str::uuid();
@@ -303,6 +318,8 @@ class CommandBarAgentService
             [
                 'turn_id' => $turnId,
                 'sales_book' => $salesBookMeta,
+                'agent_slug' => is_array($persona) ? ($persona['slug'] ?? AiAgentCatalog::defaultSlug()) : AiAgentCatalog::defaultSlug(),
+                'agent_display_name' => is_array($persona) ? ($persona['display_name'] ?? null) : null,
             ],
         );
 
@@ -312,6 +329,8 @@ class CommandBarAgentService
             'tool_rounds' => $toolRounds,
             'turn_id' => $turnId,
             'navigate_to' => $navigateTo,
+            'agent_slug' => is_array($persona) ? ($persona['slug'] ?? null) : null,
+            'agent_display_name' => is_array($persona) ? ($persona['display_name'] ?? null) : null,
         ];
     }
 
@@ -375,8 +394,14 @@ class CommandBarAgentService
         ];
     }
 
-    private function systemPrompt(User $user, bool $knowledgeQuestionActive = false): string
+    /**
+     * @param  array{slug?: string, display_name?: string, prompt_lead?: string}|null  $persona
+     */
+    private function systemPrompt(User $user, bool $knowledgeQuestionActive = false, ?array $persona = null): string
     {
+        $personaLead = is_array($persona) && ($persona['prompt_lead'] ?? '') !== ''
+            ? trim((string) $persona['prompt_lead'])."\n\n"
+            : '';
         $fieldHint = OrderAgentLexicon::promptHint();
         $salesBookHint = RoleAccess::canReadSalesBook($user)
             ? "\n- Вопросы о процессах CRM, регламентах и инструкциях: сначала search_sales_book_articles (по заголовку и тексту), затем get_sales_book_article по id. Отвечай на основе прочитанного текста; в конце укажи источник — название страницы Книги продаж. Не выдумывай шаги, которых нет в статье."
@@ -402,7 +427,7 @@ class CommandBarAgentService
             : '';
 
         return <<<TEXT
-Ты ассистент CRM «Автоальянс». Отвечай по-русски, кратко и по делу.
+{$personaLead}Ты ассистент CRM «Автоальянс». Отвечай по-русски, кратко и по делу.
 
 Правила:
 - Используй инструменты для фактов (заказы, задачи, контрагенты, диспозиция, документы). Не выдумывай id и номера.

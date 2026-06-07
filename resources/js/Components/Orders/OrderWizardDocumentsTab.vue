@@ -5,7 +5,8 @@ import { Paperclip } from 'lucide-vue-next';
 import Modal from '@/Components/Modal.vue';
 import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsTable.vue';
 import PrintWorkflowDocList from '@/Components/Orders/PrintWorkflowDocList.vue';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { mergeDocumentUploadLimits } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import {
     destroyDocumentRegistry,
     formatDocumentRegistryError,
@@ -56,7 +57,12 @@ const props = defineProps({
 });
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
 const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
+const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
+    page.props.document_upload_limits ?? {},
+    page.props.document_optimize ?? {},
+));
 
 const customerSlots = computed(() => customerPrintSlots(props.performers, props.clientRequestMode));
 const carrierSlots = computed(() => carrierPrintSlots(props.performers));
@@ -469,10 +475,17 @@ async function finalizeWorkflowPdf(doc, event) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        if (event.target) {
+            event.target.value = '';
+        }
+
+        return;
+    }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', accepted);
 
     router.post(route('orders.documents.finalize', [props.order.id, doc.id]), formData, {
         preserveScroll: true,
@@ -547,8 +560,14 @@ async function assignAttachFile(file) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    attachForm.file = file;
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        attachForm.file = null;
+
+        return;
+    }
+
+    attachForm.file = accepted;
     attachError.value = '';
 }
 

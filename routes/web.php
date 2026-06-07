@@ -7,6 +7,7 @@ use App\Http\Controllers\CommandBarAgentController;
 use App\Http\Controllers\ContractorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DispositionController;
+use App\Http\Controllers\DocumentOptimizeController;
 use App\Http\Controllers\DocumentRegistryController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
@@ -539,6 +540,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/budgeting/opex-articles/{opexArticle}', [BudgetingController::class, 'destroyOpexArticle'])->name('budgeting.opex-articles.destroy');
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area.any:documents|orders')->name('documents.index');
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
+    Route::post('/documents/optimize-pdf', DocumentOptimizeController::class)->middleware('visibility.area.any:documents|orders')->name('documents.optimize-pdf');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');
     Route::delete('/documents/{document}', [DocumentRegistryController::class, 'destroy'])->middleware('visibility.area.any:documents|orders')->name('documents.destroy');
     Route::post('/finance/documents', [FinanceDocumentController::class, 'store'])->middleware('visibility.area:documents')->name('finance.documents.store');

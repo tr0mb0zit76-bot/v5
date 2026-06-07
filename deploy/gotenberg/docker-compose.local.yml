@@ -6,7 +6,7 @@ services:
     ports:
       - "127.0.0.1:${GOTENBERG_PORT:-3000}:3000"
     environment:
-      TZ: ${TZ:-Europe/Moscow}
+      TZ: ${TZ:-Europe/Samara}
     command:
       - gotenberg
       - --api-timeout=120s

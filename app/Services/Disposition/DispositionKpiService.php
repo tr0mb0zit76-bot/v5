@@ -40,7 +40,7 @@ class DispositionKpiService
             return $this->emptyMetrics($date);
         }
 
-        $timezone = (string) config('disposition.timezone', 'Europe/Moscow');
+        $timezone = (string) config('disposition.timezone', 'Europe/Samara');
         $dateString = $date ?? Carbon::now($timezone)->toDateString();
 
         $orderIds = $onlyOwnManagerOrders
@@ -201,7 +201,7 @@ class DispositionKpiService
      */
     private function emptyMetrics(?string $date): array
     {
-        $timezone = (string) config('disposition.timezone', 'Europe/Moscow');
+        $timezone = (string) config('disposition.timezone', 'Europe/Samara');
         $dateString = $date ?? Carbon::now($timezone)->toDateString();
 
         return [

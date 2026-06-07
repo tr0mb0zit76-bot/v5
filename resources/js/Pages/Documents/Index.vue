@@ -161,7 +161,8 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
 import { useForm, usePage } from '@inertiajs/vue3';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { mergeDocumentUploadLimits } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import DocumentsGrid from '@/Components/Documents/DocumentsGrid.vue';
@@ -189,8 +190,13 @@ const props = defineProps({
 });
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
 const userId = computed(() => page.props.auth?.user?.id ?? 'guest');
 const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
+const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
+    page.props.document_upload_limits ?? {},
+    page.props.document_optimize ?? {},
+));
 const showDocumentModal = ref(false);
 const modalMode = ref('create');
 const editingDocumentId = ref(null);
@@ -242,9 +248,11 @@ function orderLabel(order) {
 async function onFilePicked(event) {
     const [file] = event.target.files || [];
     if (file) {
-        await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+        const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+        documentForm.file = accepted;
+    } else {
+        documentForm.file = null;
     }
-    documentForm.file = file ?? null;
     const input = event.target;
     if (input && 'value' in input) {
         input.value = '';
@@ -278,8 +286,9 @@ async function onDocumentModalDrop(event) {
     if (!file) {
         return;
     }
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    documentForm.file = file;
+
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    documentForm.file = accepted;
 }
 
 function openCreateModal(orderId = null) {

@@ -11,7 +11,7 @@ return [
     |
     */
 
-    'timezone' => env('DISPOSITION_TIMEZONE', 'Europe/Moscow'),
+    'timezone' => env('DISPOSITION_TIMEZONE', 'Europe/Samara'),
 
     'reminder_schedule' => [
         'morning' => '10:00',

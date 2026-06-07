@@ -35,7 +35,7 @@ OCR — **локальный Docker-сервис** на loopback; файлы з�
 ```bash
 cd /path/to/v5.local/deploy/ocr
 cp .env.example .env
-# при необходимости: OCR_PORT=3001, TZ=Europe/Moscow
+# при необходимости: OCR_PORT=3001, TZ=Europe/Samara
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 

@@ -19,4 +19,14 @@ return [
     'url' => rtrim((string) env('OCR_SERVICE_URL', ''), '/'),
 
     'timeout' => max(10, (int) env('OCR_SERVICE_TIMEOUT', 120)),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Оптимизация PDF перед загрузкой документов (POST /optimize на sidecar)
+    |--------------------------------------------------------------------------
+    |
+    | Требует OCR_SERVICE_URL. Не зависит от ORDER_INTAKE_OCR.
+    |
+    */
+    'optimize_enabled' => filter_var(env('DOCUMENT_OPTIMIZE_ENABLED', true), FILTER_VALIDATE_BOOL),
 ];

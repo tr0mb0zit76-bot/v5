@@ -19,6 +19,7 @@ class CommandBarAgentChatRequest extends FormRequest
     {
         return [
             'message' => ['required', 'string', 'max:4000'],
+            'agent_slug' => ['nullable', 'string', 'max:32', 'regex:/^[a-z][a-z0-9_-]{0,31}$/'],
             'history' => ['nullable', 'array', 'max:20'],
             'history.*.role' => ['required_with:history', 'string', 'in:user,assistant'],
             'history.*.content' => ['required_with:history', 'string', 'max:8000'],

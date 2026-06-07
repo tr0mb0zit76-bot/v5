@@ -33,37 +33,68 @@ export async function computeDocumentUploadBudget(file, limits) {
 }
 
 /**
- * Показывает предупреждение, если файл заведомо не пройдёт проверку на сервере.
- *
  * @param {File} file
  * @param {Record<string, number|string>} limits
- * @returns {Promise<void>}
+ * @returns {Promise<{ pages: number, maxBytes: number, exceeds: boolean, overAbsolute: boolean, canOptimize: boolean }>}
+ */
+export async function assessDocumentUploadBudget(file, limits) {
+    const abs = Number(limits.absolute_max_bytes) || 0;
+    const { pages, maxBytes } = await computeDocumentUploadBudget(file, limits);
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const overAbsolute = abs > 0 && file.size > abs;
+    const overPageBudget = file.size > maxBytes;
+    const exceeds = overAbsolute || overPageBudget;
+    const optimizeEnabled = Boolean(limits.optimize_enabled);
+    const canOptimize = exceeds && ext === 'pdf' && optimizeEnabled;
+
+    return {
+        pages,
+        maxBytes,
+        exceeds,
+        overAbsolute,
+        canOptimize,
+    };
+}
+
+/**
+ * @param {File} file
+ * @param {Record<string, number|string>} limits
+ * @returns {Promise<File|null>}
  */
 export async function warnIfDocumentExceedsBudget(file, limits) {
     if (!file || !limits?.absolute_max_bytes) {
-        return;
+        return file;
+    }
+
+    const budget = await assessDocumentUploadBudget(file, limits);
+
+    if (!budget.exceeds) {
+        return file;
+    }
+
+    if (budget.canOptimize) {
+        return file;
     }
 
     const abs = Number(limits.absolute_max_bytes);
-    if (file.size > abs) {
+    if (budget.overAbsolute) {
         const maxMb = (abs / 1024 / 1024).toFixed(1);
         const curMb = (file.size / 1024 / 1024).toFixed(2);
         window.alert(
             `Файл слишком большой для загрузки на сервер (${curMb} МиБ). Абсолютный предел сейчас около ${maxMb} МиБ. Уменьшите размер или разбейте документ.`,
         );
 
-        return;
+        return null;
     }
 
-    const { pages, maxBytes } = await computeDocumentUploadBudget(file, limits);
-    if (file.size > maxBytes) {
-        const kb = Math.round(Number(limits.bytes_per_page) / 1024) || 600;
-        const curMb = (file.size / 1024 / 1024).toFixed(2);
-        const limMb = (maxBytes / 1024 / 1024).toFixed(2);
-        window.alert(
-            `Размер файла (${curMb} МиБ), скорее всего, превысит лимит для загрузки (расчётно до ${limMb} МиБ: ~${kb} КиБ × ${pages} стр.). Сожмите PDF или уменьшите число страниц.`,
-        );
-    }
+    const kb = Math.round(Number(limits.bytes_per_page) / 1024) || 600;
+    const curMb = (file.size / 1024 / 1024).toFixed(2);
+    const limMb = (budget.maxBytes / 1024 / 1024).toFixed(2);
+    window.alert(
+        `Размер файла (${curMb} МиБ), скорее всего, превысит лимит для загрузки (расчётно до ${limMb} МиБ: ~${kb} КиБ × ${budget.pages} стр.). Сожмите PDF или уменьшите число страниц.`,
+    );
+
+    return null;
 }
 
 function uint8ToBinaryString(u8) {
@@ -107,4 +138,15 @@ function estimatePdfPagesFromBinaryString(content) {
     }
 
     return Math.max(1, fromPageObjects, fromCount);
+}
+
+/**
+ * @param {Record<string, number|string>} limits
+ * @param {{ enabled?: boolean }} documentOptimize
+ */
+export function mergeDocumentUploadLimits(limits, documentOptimize = {}) {
+    return {
+        ...limits,
+        optimize_enabled: Boolean(documentOptimize?.enabled),
+    };
 }

@@ -373,8 +373,30 @@
                 </div>
                 <div
                     v-else
-                    class="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800"
+                    class="flex flex-col gap-1.5"
                 >
+                    <div
+                        v-if="agentOptions.length > 1"
+                        class="flex items-center gap-2 px-1"
+                    >
+                        <label class="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            Ассистент
+                        </label>
+                        <select
+                            :value="selectedAgentSlug"
+                            class="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                            @change="onAgentSlugChange"
+                        >
+                            <option
+                                v-for="agent in agentOptions"
+                                :key="`agent-${agent.slug}`"
+                                :value="agent.slug"
+                            >
+                                {{ agent.display_name }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
                     <textarea
                         ref="textareaRef"
                         v-model="message"
@@ -439,6 +461,7 @@
                     >
                         <SendHorizontal class="h-4 w-4" />
                     </button>
+                    </div>
                 </div>
 
                 <p v-if="messengerSendError && !isChatInputMode" class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ messengerSendError }}</p>
@@ -485,11 +508,17 @@ import {
 const props = defineProps({
     agentMessageCount: { type: Number, default: 0 },
     agentHasSavedThread: { type: Boolean, default: false },
+    selectedAgentSlug: { type: String, default: 'jarvis' },
 });
 
-const emit = defineEmits(['submit', 'badges', 'agent-history-open', 'agent-history-clear']);
+const emit = defineEmits(['submit', 'badges', 'agent-history-open', 'agent-history-clear', 'update:selectedAgentSlug']);
 
 const page = usePage();
+const agentOptions = computed(() => {
+    const list = page.props.ai_agents;
+
+    return Array.isArray(list) ? list : [];
+});
 const message = ref('');
 const attachedFiles = ref([]);
 const showActions = ref(false);
@@ -946,6 +975,10 @@ function removeFile(fileToRemove) {
     );
 }
 
+function onAgentSlugChange(event) {
+    emit('update:selectedAgentSlug', String(event.target.value));
+}
+
 function toggleAgentHistoryMenu() {
     agentHistoryMenuOpen.value = !agentHistoryMenuOpen.value;
 }
@@ -982,6 +1015,7 @@ async function submit() {
     emit('submit', {
         message: message.value,
         files: attachedFiles.value,
+        agent_slug: props.selectedAgentSlug,
     });
 
     message.value = '';

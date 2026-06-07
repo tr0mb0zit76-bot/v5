@@ -17,7 +17,16 @@ final class DocumentPageEstimator
             return self::fallbackUnknown();
         }
 
-        $ext = strtolower($file->getClientOriginalExtension());
+        return self::estimatePath($path, $file->getClientOriginalExtension());
+    }
+
+    public static function estimatePath(string $path, string $extension): int
+    {
+        if (! is_readable($path)) {
+            return self::fallbackUnknown();
+        }
+
+        $ext = strtolower($extension);
 
         return match (true) {
             $ext === 'pdf' => self::estimatePdf($path),

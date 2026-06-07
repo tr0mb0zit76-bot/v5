@@ -14,7 +14,7 @@ Schedule::command('mail:purge-non-important-bodies')->monthlyOn(1, '03:00');
 Schedule::command('mail:sync')->everyTenMinutes();
 Schedule::command('contractors:sync-operational-status')->dailyAt('02:30');
 
-$dispositionTimezone = config('disposition.timezone', 'Europe/Moscow');
+$dispositionTimezone = config('disposition.timezone', 'Europe/Samara');
 
 Schedule::command('disposition:remind-unfilled-slots morning')
     ->dailyAt(config('disposition.reminder_schedule.morning', '10:00'))

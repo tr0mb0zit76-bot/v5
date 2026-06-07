@@ -26,6 +26,7 @@ class CommandBarAgentController extends Controller
             $user,
             (string) $validated['message'],
             $history,
+            isset($validated['agent_slug']) ? (string) $validated['agent_slug'] : null,
         );
 
         return response()->json($result);

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import shutil
 import subprocess
 import tempfile
@@ -10,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 
-app = FastAPI(title="crm-ocr-service", version="0.1.0")
+app = FastAPI(title="crm-ocr-service", version="0.2.0")
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 PDF_EXTENSION = ".pdf"
@@ -77,6 +78,60 @@ def tesseract_image(path: Path) -> tuple[str, list[str]]:
     return (result.stdout or "").strip(), warnings
 
 
+def optimize_pdf_bytes(content: bytes) -> tuple[bytes | None, str, list[str]]:
+    """Сжатие PDF без OCR (ocrmypdf --skip-text, fallback ghostscript)."""
+    warnings: list[str] = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "input.pdf"
+        source.write_bytes(content)
+        optimized = Path(tmp) / "optimized.pdf"
+
+        result = run_command(
+            [
+                "ocrmypdf",
+                "--skip-text",
+                "--optimize",
+                "3",
+                str(source),
+                str(optimized),
+            ]
+        )
+
+        if result.returncode == 0 and optimized.exists() and optimized.stat().st_size > 0:
+            return optimized.read_bytes(), "ocrmypdf", warnings
+
+        if result.stderr:
+            warnings.append((result.stderr or "").strip()[:500])
+
+        gs_out = Path(tmp) / "gs.pdf"
+        gs = run_command(
+            [
+                "gs",
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.4",
+                "-dPDFSETTINGS=/ebook",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                f"-sOutputFile={gs_out}",
+                str(source),
+            ]
+        )
+
+        if gs.returncode == 0 and gs_out.exists() and gs_out.stat().st_size > 0:
+            if gs.stderr:
+                warnings.append((gs.stderr or "").strip()[:300])
+            return gs_out.read_bytes(), "ghostscript", warnings
+
+        if gs.stderr:
+            warnings.append((gs.stderr or "").strip()[:500])
+
+        warnings.append("Не удалось оптимизировать PDF")
+
+        return None, "failed", warnings
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -119,6 +174,50 @@ async def extract(file: UploadFile = File(...)) -> JSONResponse:
     return JSONResponse(
         content={
             "text": text,
+            "method": method,
+            "warnings": warnings,
+        }
+    )
+
+
+@app.post("/optimize")
+async def optimize(file: UploadFile = File(...)) -> JSONResponse:
+    suffix = Path(file.filename or "upload").suffix.lower()
+
+    if suffix != PDF_EXTENSION:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "unsupported_format",
+                "message": "Оптимизация доступна только для PDF.",
+            },
+        )
+
+    content = await file.read()
+    if not content:
+        return JSONResponse(
+            status_code=422,
+            content={"error": "empty_file", "message": "Пустой файл."},
+        )
+
+    optimized, method, warnings = optimize_pdf_bytes(content)
+
+    if optimized is None:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "optimize_failed",
+                "method": method,
+                "warnings": warnings,
+                "message": "Не удалось уменьшить PDF. Подготовьте файл вручную.",
+            },
+        )
+
+    return JSONResponse(
+        content={
+            "pdf_base64": base64.b64encode(optimized).decode("ascii"),
+            "original_bytes": len(content),
+            "optimized_bytes": len(optimized),
             "method": method,
             "warnings": warnings,
         }

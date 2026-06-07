@@ -11,7 +11,10 @@ cp .env.example .env
 docker compose -f docker-compose.local.yml up -d --build
 curl -s http://127.0.0.1:3001/health
 curl -s -F "file=@scan.pdf" http://127.0.0.1:3001/extract
+curl -s -F "file=@heavy.pdf" http://127.0.0.1:3001/optimize
 ```
+
+`POST /optimize` — сжатие PDF без OCR (для цепочки загрузки документов в CRM).
 
 ## Prod
 

@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\Role;
+use App\Services\Documents\OcrServiceClient;
+use App\Support\AiAgentCatalog;
 use App\Support\CabinetNotificationBadges;
 use App\Support\ContractorTableColumns;
 use App\Support\CrmAppearance;
@@ -79,9 +81,14 @@ class HandleInertiaRequests extends Middleware
                 ? ['total' => 0, 'orders' => 0, 'tasks' => 0]
                 : CabinetNotificationBadges::unreadFor($request->user())),
             'document_upload_limits' => static fn (): array => DocumentUploadLimits::forSharedInertia(),
+            'document_optimize' => Inertia::always(static fn (): array => [
+                'enabled' => app(OcrServiceClient::class)->isOptimizeEnabled(),
+            ]),
             'auth' => Inertia::always(fn () => $this->sharedAuth($request)),
             'showcase_home_url' => Inertia::always(fn () => ShowcaseUrl::home($request)),
             'mobile_nav_presets' => Inertia::always(fn (): array => MobileNavPresets::optionsForUi()),
+            'ai_agents' => Inertia::always(fn () => AiAgentCatalog::optionsForUser($request->user())),
+            'ai_agent_default_slug' => Inertia::always(fn (): string => AiAgentCatalog::defaultSlug()),
         ];
     }
 

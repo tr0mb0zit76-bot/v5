@@ -3,7 +3,9 @@
 namespace App\Services\Documents;
 
 use App\Support\ApplicationTempDirectory;
+use App\Support\DocumentUploadBudget;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -107,7 +109,7 @@ final class OcrServiceClient
 
     public function probeHealth(): bool
     {
-        if (! $this->isEnabled()) {
+        if (! $this->isEnabled() && ! $this->isOptimizeEnabled()) {
             return false;
         }
 
@@ -119,6 +121,88 @@ final class OcrServiceClient
             return $response->successful();
         } catch (\Throwable) {
             return false;
+        }
+    }
+
+    public function isOptimizeEnabled(): bool
+    {
+        return (bool) config('document_ocr.optimize_enabled', true)
+            && trim((string) config('document_ocr.url', '')) !== '';
+    }
+
+    /**
+     * @return array{
+     *     pdf_base64: string,
+     *     original_bytes: int,
+     *     optimized_bytes: int,
+     *     method: string,
+     *     warnings: list<string>,
+     *     max_bytes: int,
+     *     within_budget: bool,
+     * }|null
+     */
+    public function optimizePdfUpload(UploadedFile $file): ?array
+    {
+        if (! $this->isOptimizeEnabled()) {
+            return null;
+        }
+
+        $url = (string) config('document_ocr.url', '');
+        if ($url === '') {
+            return null;
+        }
+
+        $path = $file->getRealPath();
+        if ($path === false || ! is_readable($path)) {
+            return null;
+        }
+
+        try {
+            $response = Http::timeout((int) config('document_ocr.timeout', 120))
+                ->attach('file', file_get_contents($path) ?: '', $file->getClientOriginalName() ?: 'upload.pdf')
+                ->post($url.'/optimize');
+
+            if (! $response->successful()) {
+                throw new RequestException($response);
+            }
+
+            /** @var array<string, mixed> $payload */
+            $payload = $response->json();
+
+            $pdfBase64 = (string) ($payload['pdf_base64'] ?? '');
+            if ($pdfBase64 === '') {
+                return null;
+            }
+
+            $optimizedBytes = (int) ($payload['optimized_bytes'] ?? 0);
+            $tmpPath = ApplicationTempDirectory::tempFile('pdf-opt-');
+            file_put_contents($tmpPath, base64_decode($pdfBase64, true) ?: '');
+
+            try {
+                $maxBytes = DocumentUploadBudget::maxBytesForPath($tmpPath, $file->getClientOriginalName());
+            } finally {
+                @unlink($tmpPath);
+            }
+
+            $warnings = is_array($payload['warnings'] ?? null)
+                ? array_values(array_map(static fn (mixed $row): string => (string) $row, $payload['warnings']))
+                : [];
+
+            return [
+                'pdf_base64' => $pdfBase64,
+                'original_bytes' => (int) ($payload['original_bytes'] ?? $file->getSize()),
+                'optimized_bytes' => $optimizedBytes,
+                'method' => (string) ($payload['method'] ?? 'optimize'),
+                'warnings' => $warnings,
+                'max_bytes' => $maxBytes,
+                'within_budget' => $optimizedBytes > 0 && $optimizedBytes <= $maxBytes,
+            ];
+        } catch (\Throwable $throwable) {
+            Log::warning('OCR service optimize failed', [
+                'message' => $throwable->getMessage(),
+            ]);
+
+            return null;
         }
     }
 }

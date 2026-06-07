@@ -472,6 +472,8 @@
                     <CrmCommandBar
                         :agent-message-count="agentMessages.length"
                         :agent-has-saved-thread="agentHasSavedThread"
+                        :selected-agent-slug="selectedAgentSlug"
+                        @update:selected-agent-slug="onAgentSlugChange"
                         @submit="handleAiSubmit"
                         @badges="dynamicCabinetBadges = $event"
                         @agent-history-open="openAgentPanelFromHistory"
@@ -493,6 +495,13 @@
         </div>
 
         <CrmAppearanceModal :show="appearanceModalOpen" @close="appearanceModalOpen = false" />
+
+        <DocumentUploadOptimizeModal
+            :show="uploadGate.modalOpen"
+            :state="uploadGate.modalState"
+            @accept="uploadGate.complete($event)"
+            @cancel="uploadGate.complete(null)"
+        />
     </div>
 </template>
 
@@ -533,6 +542,8 @@ import CrmAgentPanel from '@/Components/Layout/CrmAgentPanel.vue';
 import CrmCommandBar from '@/Components/Layout/CrmCommandBar.vue';
 import ThemeToggle from '@/Components/Layout/ThemeToggle.vue';
 import CrmAppearanceModal from '@/Components/Crm/CrmAppearanceModal.vue';
+import DocumentUploadOptimizeModal from '@/Components/Documents/DocumentUploadOptimizeModal.vue';
+import { provideDocumentUploadGate } from '@/support/documentUploadGate.js';
 import { crmBtnCreate } from '@/support/crmUi.js';
 import {
     applyCrmAppearanceToDocument,
@@ -544,6 +555,7 @@ import {
     loadAgentThread,
     saveAgentThread,
 } from '@/support/commandBarAgentHistory.js';
+import { loadAgentSlug, saveAgentSlug } from '@/support/commandBarAgentPersona.js';
 
 const props = defineProps({
     activeKey: {
@@ -569,6 +581,7 @@ const props = defineProps({
 });
 
 const page = usePage();
+const uploadGate = provideDocumentUploadGate();
 
 const flashBanner = computed(() => {
     const flash = page.props.flash;
@@ -1438,11 +1451,17 @@ function handleMenuSelect(key, event) {
 const agentPanelOpen = ref(false);
 const agentMessages = ref(loadAgentThread());
 const agentHasSavedThread = ref(agentMessages.value.length > 0);
+const selectedAgentSlug = ref(loadAgentSlug(String(page.props.ai_agent_default_slug ?? 'jarvis')));
 const agentLoading = ref(false);
 const agentError = ref('');
 const agentChannel = ref('');
 const agentToolRounds = ref(0);
 const agentFeedbackBusyTurnId = ref('');
+
+function onAgentSlugChange(slug) {
+    selectedAgentSlug.value = String(slug);
+    saveAgentSlug(selectedAgentSlug.value);
+}
 
 async function handleAiSubmit(payload) {
     const text = String(payload?.message ?? '').trim();
@@ -1466,6 +1485,7 @@ async function handleAiSubmit(payload) {
         const { data } = await axios.post(route('agent.command-bar.chat'), {
             message: text,
             history,
+            agent_slug: payload?.agent_slug ?? selectedAgentSlug.value,
         });
 
         agentMessages.value.push({

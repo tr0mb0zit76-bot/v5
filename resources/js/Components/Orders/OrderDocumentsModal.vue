@@ -5,7 +5,8 @@ import { ExternalLink, Paperclip, Trash2, Upload } from 'lucide-vue-next';
 import OrderSignedDocumentsTable from '@/Components/Orders/OrderSignedDocumentsTable.vue';
 import CrmModalHeader from '@/Components/Crm/CrmModalHeader.vue';
 import Modal from '@/Components/Modal.vue';
-import { warnIfDocumentExceedsBudget } from '@/support/documentUploadClientCheck.js';
+import { mergeDocumentUploadLimits } from '@/support/documentUploadClientCheck.js';
+import { useDocumentUploadGate } from '@/support/documentUploadGate.js';
 import axios from 'axios';
 import {
     destroyDocumentRegistry,
@@ -33,7 +34,12 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const page = usePage();
+const uploadGate = useDocumentUploadGate();
 const documentUploadHint = computed(() => page.props.document_upload_limits?.hint_ru ?? '');
+const documentUploadLimits = computed(() => mergeDocumentUploadLimits(
+    page.props.document_upload_limits ?? {},
+    page.props.document_optimize ?? {},
+));
 
 const loading = ref(false);
 const loadError = ref('');
@@ -136,8 +142,14 @@ async function assignAddFile(file) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
-    addForm.file = file;
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        addForm.file = null;
+
+        return;
+    }
+
+    addForm.file = accepted;
     addError.value = '';
 }
 
@@ -237,7 +249,10 @@ async function onReplaceFilePicked(event) {
         return;
     }
 
-    await warnIfDocumentExceedsBudget(file, page.props.document_upload_limits ?? {});
+    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
+    if (!accepted) {
+        return;
+    }
 
     const body = new FormData();
     body.append('_method', 'PATCH');
@@ -251,7 +266,7 @@ async function onReplaceFilePicked(event) {
     if (doc.document_date) {
         body.append('document_date', doc.document_date);
     }
-    body.append('file', file);
+    body.append('file', accepted);
 
     try {
         await updateDocumentRegistry(docId, body);
