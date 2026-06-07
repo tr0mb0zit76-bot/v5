@@ -6,7 +6,7 @@ import { Bell } from 'lucide-vue-next';
 const emit = defineEmits(['badges']);
 
 const props = defineProps({
-    /** Размер как у кнопок в CrmCommandBar (h-11, rounded-2xl). */
+    /** Размер как у кнопок в CrmCommandBar (h-9, rounded-xl). */
     large: {
         type: Boolean,
         default: false,
@@ -222,13 +222,13 @@ watch(authUser, (u) => {
             type="button"
             :class="[
                 'relative flex items-center justify-center border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
-                props.large ? 'h-11 w-11 shrink-0 rounded-2xl' : 'h-9 w-9 rounded-xl',
+                props.large ? 'h-9 w-9 shrink-0 rounded-xl' : 'h-9 w-9 rounded-xl',
             ]"
             :aria-expanded="open"
             aria-label="Уведомления"
             @click="toggle"
         >
-            <Bell :class="props.large ? 'h-5 w-5' : 'h-4 w-4'" />
+            <Bell :class="props.large ? 'h-4 w-4' : 'h-4 w-4'" />
             <span
                 v-if="(localBadges.total ?? 0) > 0"
                 class="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white"

@@ -3,7 +3,7 @@
         <div
             v-if="open"
             class="fixed inset-x-0 top-0 z-[120] flex flex-col bg-zinc-950/40 dark:bg-zinc-950/60"
-            :style="{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }"
+            :style="{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }"
             @click.self="$emit('close')"
         >
             <div

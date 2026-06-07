@@ -1,10 +1,10 @@
 <template>
-    <div class="w-full rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div class="w-full rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <Teleport to="body">
             <div
                 v-if="chatPanelOpen"
                 class="fixed inset-x-0 top-0 z-[90] flex flex-col bg-zinc-950/50 dark:bg-zinc-950/70"
-                :style="{ bottom: 'calc(7.5rem + env(safe-area-inset-bottom, 0px))' }"
+                :style="{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }"
                 @click.self="closeChatPanel"
             >
                 <div
@@ -314,125 +314,128 @@
 
         <div
             v-if="showActions"
-            class="border-b border-zinc-200 px-3 py-3 dark:border-zinc-800"
+            class="border-b border-zinc-200 px-2 py-1.5 dark:border-zinc-800"
         >
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-1.5">
                 <button
                     v-for="tile in quickTiles"
                     :key="tile.key"
                     type="button"
-                    class="group flex h-14 w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl border border-zinc-200 bg-zinc-50 text-zinc-700 transition hover:border-zinc-400 hover:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
+                    class="group flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-0 rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-700 transition hover:border-zinc-400 hover:bg-white dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-zinc-500 dark:hover:bg-zinc-900"
                     :title="tile.label"
                     @click="goQuick(tile)"
                 >
-                    <component :is="tile.icon" class="h-5 w-5 shrink-0 text-zinc-600 dark:text-zinc-300" />
-                    <span class="max-w-[3.25rem] truncate px-0.5 text-center text-[9px] font-medium leading-tight text-zinc-500 dark:text-zinc-400">{{ tile.short }}</span>
+                    <component :is="tile.icon" class="h-4 w-4 shrink-0 text-zinc-600 dark:text-zinc-300" />
+                    <span class="max-w-[2.75rem] truncate px-0.5 text-center text-[8px] font-medium leading-none text-zinc-500 dark:text-zinc-400">{{ tile.short }}</span>
                 </button>
             </div>
         </div>
 
-        <div class="flex items-end gap-2 p-2">
-            <button
-                type="button"
-                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                :class="showActions ? 'border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-400 dark:bg-zinc-800 dark:text-zinc-100' : ''"
-                :title="showActions ? 'Скрыть быстрые действия' : 'Быстрые действия'"
-                @click="showActions = !showActions"
-            >
-                <Sparkles class="h-5 w-5" />
-            </button>
-
-            <CrmNotificationBell
-                v-if="page.props.auth?.user"
-                large
-                @badges="$emit('badges', $event)"
-            />
-
-            <button
-                type="button"
-                class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                :class="chatPanelOpen ? 'border-sky-600 bg-sky-50 text-sky-900 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-100' : ''"
-                title="Чаты"
-                @click="toggleChatPanel"
-            >
-                <MessageCircle class="h-5 w-5" />
-                <span
-                    v-if="messengerUnread > 0"
-                    class="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-none text-white"
+        <div class="flex items-center gap-1.5 p-1.5">
+            <div class="flex shrink-0 items-center gap-1">
+                <button
+                    type="button"
+                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    :class="showActions ? 'border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-400 dark:bg-zinc-800 dark:text-zinc-100' : ''"
+                    :title="showActions ? 'Скрыть быстрые действия' : 'Быстрые действия'"
+                    @click="showActions = !showActions"
                 >
-                    {{ messengerUnread > 99 ? '99+' : messengerUnread }}
-                </span>
-            </button>
+                    <Sparkles class="h-4 w-4" />
+                </button>
 
-            <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+                <CrmNotificationBell
+                    v-if="page.props.auth?.user"
+                    large
+                    @badges="$emit('badges', $event)"
+                />
+
+                <button
+                    type="button"
+                    class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    :class="chatPanelOpen ? 'border-sky-600 bg-sky-50 text-sky-900 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-100' : ''"
+                    title="Чаты"
+                    @click="toggleChatPanel"
+                >
+                    <MessageCircle class="h-4 w-4" />
+                    <span
+                        v-if="messengerUnread > 0"
+                        class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-0.5 text-[9px] font-bold leading-none text-white"
+                    >
+                        {{ messengerUnread > 99 ? '99+' : messengerUnread }}
+                    </span>
+                </button>
+            </div>
+
+            <div class="flex min-w-0 flex-1 flex-col gap-1">
                 <div
                     v-if="isChatInputMode"
-                    class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-3 py-2 text-center text-[11px] text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
+                    class="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 px-2 py-1 text-center text-[10px] leading-snug text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
                 >
-                    Ввод сообщения, вложения и «Документ» — в нижней части окна чата выше.
+                    Сообщение — в окне чата выше.
                 </div>
                 <div
                     v-else
-                    class="flex flex-col gap-1.5"
+                    class="flex min-w-0 items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 px-1.5 py-1 dark:border-zinc-700 dark:bg-zinc-800"
                 >
-                    <div
+                    <select
                         v-if="agentOptions.length > 1"
-                        class="flex items-center gap-2 px-1"
+                        :value="selectedAgentSlug"
+                        class="max-w-[6.5rem] shrink-0 truncate rounded-lg border-0 bg-transparent py-1 pl-1 pr-0 text-xs font-medium text-zinc-700 outline-none dark:text-zinc-200"
+                        :title="'Ассистент'"
+                        @change="onAgentSlugChange"
                     >
-                        <label class="text-[11px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                            Ассистент
-                        </label>
-                        <select
-                            :value="selectedAgentSlug"
-                            class="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
-                            @change="onAgentSlugChange"
+                        <option
+                            v-for="agent in agentOptions"
+                            :key="`agent-${agent.slug}`"
+                            :value="agent.slug"
                         >
-                            <option
-                                v-for="agent in agentOptions"
-                                :key="`agent-${agent.slug}`"
-                                :value="agent.slug"
-                            >
-                                {{ agent.display_name }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="flex items-end gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800">
+                            {{ agent.display_name }}
+                        </option>
+                    </select>
+                    <span
+                        v-else-if="agentOptions.length === 1"
+                        class="hidden shrink-0 truncate px-1 text-xs font-medium text-zinc-500 sm:inline dark:text-zinc-400"
+                    >
+                        {{ agentOptions[0].display_name }}
+                    </span>
+
                     <textarea
                         ref="textareaRef"
                         v-model="message"
                         rows="1"
-                        class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                        class="min-h-[2rem] w-full min-w-0 flex-1 resize-none bg-transparent py-1 text-sm leading-snug outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
                         :placeholder="inputPlaceholder"
                         @keydown="handleKeydown"
                         @input="autosize"
                     />
 
                     <label
-                        class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
+                        class="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
+                        title="Вложение"
                     >
-                        <Paperclip class="h-4 w-4" />
+                        <Paperclip class="h-3.5 w-3.5" />
                         <input type="file" class="hidden" multiple @change="handleFiles">
                     </label>
 
                     <div class="relative shrink-0">
                         <button
                             type="button"
-                            class="relative flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700/70"
+                            class="relative flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-200/70 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700/70"
                             :class="agentHistoryMenuOpen ? 'border-sky-500 bg-sky-50 text-sky-900 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-100' : ''"
                             title="История диалога с ассистентом"
                             @click="toggleAgentHistoryMenu"
                         >
-                            <History class="h-4 w-4" />
+                            <History class="h-3.5 w-3.5" />
                             <span
                                 v-if="agentMessageCount > 0"
-                                class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-0.5 text-[9px] font-bold text-white"
+                                class="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-600 px-0.5 text-[8px] font-bold text-white"
                             >
                                 {{ agentMessageCount > 9 ? '9+' : agentMessageCount }}
                             </span>
                         </button>
                         <div
                             v-if="agentHistoryMenuOpen"
-                            class="absolute bottom-full right-0 z-20 mb-2 w-52 rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                            class="absolute bottom-full right-0 z-20 mb-1 w-52 rounded-xl border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
                         >
                             <button
                                 type="button"
@@ -455,25 +458,25 @@
 
                     <button
                         type="button"
-                        :class="`${crmBtnPrimary} flex h-9 w-9 shrink-0 items-center justify-center !gap-0 !px-0`"
+                        :class="`${crmBtnPrimary} flex h-8 w-8 shrink-0 items-center justify-center !gap-0 !px-0`"
                         :disabled="isDisabled"
+                        title="Отправить"
                         @click="submit"
                     >
-                        <SendHorizontal class="h-4 w-4" />
+                        <SendHorizontal class="h-3.5 w-3.5" />
                     </button>
-                    </div>
                 </div>
 
-                <p v-if="messengerSendError && !isChatInputMode" class="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{{ messengerSendError }}</p>
-                <div v-if="attachedFiles.length && !isChatInputMode" class="mt-2 flex flex-wrap gap-2">
+                <p v-if="messengerSendError && !isChatInputMode" class="px-1 text-[11px] leading-snug text-rose-600 dark:text-rose-400">{{ messengerSendError }}</p>
+                <div v-if="attachedFiles.length && !isChatInputMode" class="flex flex-wrap gap-1 px-0.5">
                     <div
                         v-for="file in attachedFiles"
                         :key="file.name + file.size"
-                        class="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-xs dark:bg-zinc-800"
+                        class="inline-flex max-w-full items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] dark:bg-zinc-800"
                     >
-                        <Paperclip class="h-3.5 w-3.5" />
-                        <span class="max-w-[180px] truncate">{{ file.name }}</span>
-                        <button type="button" @click="removeFile(file)">×</button>
+                        <Paperclip class="h-3 w-3 shrink-0" />
+                        <span class="truncate">{{ file.name }}</span>
+                        <button type="button" class="shrink-0 text-zinc-500 hover:text-zinc-800" @click="removeFile(file)">×</button>
                     </div>
                 </div>
             </div>
@@ -956,7 +959,7 @@ function autosize() {
     }
 
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
 }
 
 async function handleFiles(event) {

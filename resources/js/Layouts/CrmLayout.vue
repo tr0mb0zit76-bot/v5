@@ -445,8 +445,8 @@
             <main
                 class="crm-layout-main min-h-0 min-w-0 flex-1 bg-zinc-50 px-3 pt-0.5 dark:bg-zinc-950 md:px-4 md:pt-1.5"
                 :class="mainFill
-                    ? 'flex h-0 flex-col overflow-hidden pb-[110px] md:pb-[130px]'
-                    : 'overflow-y-auto pb-[110px] lg:flex lg:h-0 lg:flex-col lg:overflow-hidden md:pb-[130px]'"
+                    ? 'flex h-0 flex-col overflow-hidden pb-[88px] md:pb-[96px]'
+                    : 'overflow-y-auto pb-[88px] lg:flex lg:h-0 lg:flex-col lg:overflow-hidden md:pb-[96px]'"
             >
                 <div
                     v-if="flashBanner"
@@ -468,7 +468,7 @@
                 class="crm-layout-footer fixed bottom-0 left-0 right-0 z-50 shrink-0 border-t border-zinc-200 bg-zinc-50/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95 transition-[left]"
                 :class="collapsed ? 'lg:left-20' : 'lg:left-64'"
             >
-                <div class="px-3 py-3 md:px-4">
+                <div class="px-2 py-1.5 md:px-3">
                     <CrmCommandBar
                         :agent-message-count="agentMessages.length"
                         :agent-has-saved-thread="agentHasSavedThread"
