@@ -1126,6 +1126,18 @@ class OrderWizardService
         return array_intersect_key($attributes, $this->ordersColumnLookup);
     }
 
+    private function hasOrdersColumn(string $column): bool
+    {
+        if ($this->ordersColumnLookup === null) {
+            $this->ordersColumnLookup = array_fill_keys(
+                Schema::getColumnListing((new Order)->getTable()),
+                true
+            );
+        }
+
+        return isset($this->ordersColumnLookup[$column]);
+    }
+
     /**
      * @param  array<string, mixed>  $validated
      */

@@ -95,7 +95,7 @@
 
             <template v-if="selectedArticle">
                 <form v-if="canWrite && !readerPreview" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
-                    <div class="relative min-h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 py-3 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:min-h-24">
+                    <div class="relative min-h-24 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 py-3 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:min-h-28">
                         <img
                             v-if="selectedArticle.cover_image_url"
                             :src="selectedArticle.cover_image_url"
@@ -117,7 +117,7 @@
                                 placeholder="Заголовок страницы"
                                 :class="articleBannerTitleInputClass"
                             />
-                            <div class="flex shrink-0 items-center gap-2">
+                            <div class="flex shrink-0 flex-col items-end gap-1">
                                 <button
                                     type="button"
                                     :class="`${crmBtnNeutral} px-3 py-1.5 text-xs`"
@@ -133,23 +133,25 @@
                                     class="hidden"
                                     @change="uploadCover"
                                 />
-                                <button
-                                    type="button"
-                                    class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200 dark:hover:bg-zinc-900"
-                                    :disabled="coverUploading"
-                                    @click="coverInputRef?.click()"
-                                >
-                                    {{ selectedArticle.cover_image_url ? 'Заменить' : 'Обложка' }}
-                                </button>
-                                <button
-                                    v-if="selectedArticle.cover_image_url"
-                                    type="button"
-                                    class="rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-rose-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-rose-200 dark:hover:bg-zinc-900"
-                                    :disabled="coverUploading"
-                                    @click="destroyCover"
-                                >
-                                    Убрать
-                                </button>
+                                <div class="flex flex-col items-stretch gap-0.5">
+                                    <button
+                                        type="button"
+                                        :class="articleBannerCoverButtonClass"
+                                        :disabled="coverUploading"
+                                        @click="coverInputRef?.click()"
+                                    >
+                                        {{ selectedArticle.cover_image_url ? 'Заменить' : 'Обложка' }}
+                                    </button>
+                                    <button
+                                        v-if="selectedArticle.cover_image_url"
+                                        type="button"
+                                        :class="`${articleBannerCoverButtonClass} text-rose-700 dark:text-rose-200`"
+                                        :disabled="coverUploading"
+                                        @click="destroyCover"
+                                    >
+                                        Убрать
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -263,7 +265,7 @@
                         </button>
                     </div>
 
-                    <div class="relative min-h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 py-3 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:min-h-24">
+                    <div class="relative min-h-24 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 py-3 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:min-h-28">
                         <img
                             v-if="selectedArticle.cover_image_url"
                             :src="selectedArticle.cover_image_url"
@@ -373,9 +375,11 @@ import SalesBookQuiz from '@/Components/SalesBook/SalesBookQuiz.vue';
 import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
 
-const articleBannerTitleInputClass = 'min-w-0 flex-1 border-0 bg-transparent py-0.5 text-base font-semibold leading-snug text-zinc-900 placeholder:text-zinc-600 [text-shadow:0_1px_0_rgba(255,255,255,0.9)] focus:outline-none focus:ring-0 dark:text-zinc-50 dark:placeholder:text-zinc-400 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)] md:text-lg md:leading-tight';
+const articleBannerTitleInputClass = 'min-w-0 flex-1 border-0 bg-transparent py-0.5 text-xl font-semibold leading-tight text-zinc-900 placeholder:text-zinc-600 [text-shadow:0_1px_0_rgba(255,255,255,0.9)] focus:outline-none focus:ring-0 dark:text-zinc-50 dark:placeholder:text-zinc-400 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)] md:text-2xl';
 
-const articleBannerHeadingClass = 'min-w-0 flex-1 break-words text-base font-semibold leading-snug text-zinc-900 [text-shadow:0_1px_0_rgba(255,255,255,0.9)] dark:text-zinc-50 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)] md:text-lg md:leading-tight';
+const articleBannerHeadingClass = 'min-w-0 flex-1 break-words text-xl font-semibold leading-tight text-zinc-900 [text-shadow:0_1px_0_rgba(255,255,255,0.9)] dark:text-zinc-50 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)] md:text-2xl';
+
+const articleBannerCoverButtonClass = 'rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-medium leading-tight text-zinc-700 shadow-sm backdrop-blur hover:bg-white dark:bg-zinc-900/90 dark:text-zinc-200 dark:hover:bg-zinc-900';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book', mainFill: true, showFlashBanner: false }, () => page),
