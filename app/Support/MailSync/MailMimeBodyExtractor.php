@@ -47,7 +47,13 @@ final class MailMimeBodyExtractor
         $plain = $this->findPartText($connection, $uid, $structure->parts, '', 'text/plain', stripTags: true);
 
         if ($plain !== '') {
-            return MailHtmlSanitizer::toPlainText($plain);
+            $htmlPlain = $this->findPartText($connection, $uid, $structure->parts, '', 'text/html', stripTags: true);
+
+            if ($htmlPlain !== '' && MailHtmlSanitizer::noiseScore($plain) > MailHtmlSanitizer::noiseScore($htmlPlain)) {
+                return $htmlPlain;
+            }
+
+            return $plain;
         }
 
         $html = $this->findPartText($connection, $uid, $structure->parts, '', 'text/html', stripTags: true);

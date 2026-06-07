@@ -273,7 +273,7 @@ final class MailImapClient
             toEmails: $this->extractEmailAddresses($toRaw),
             ccEmails: $this->extractEmailAddresses($ccRaw),
             subject: MailUtf8Sanitizer::sanitize(trim($subject)),
-            bodyText: $bodyText !== '' ? MailUtf8Sanitizer::sanitize($bodyText) : null,
+            bodyText: $bodyText !== '' ? MailHtmlSanitizer::cleanPlainText(MailUtf8Sanitizer::sanitize($bodyText)) : null,
             bodyHtml: $bodyHtml,
             inReplyTo: $this->normalizeMessageId($this->headerValue($header, 'In-Reply-To') ?? ''),
             sentAt: $sentAt,

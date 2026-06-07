@@ -19,7 +19,7 @@ final class MailMessageBodyPresenter
             return $fromHtml;
         }
 
-        $fromText = MailHtmlSanitizer::toPlainText($message->body_text);
+        $fromText = MailHtmlSanitizer::cleanPlainText(trim((string) ($message->body_text ?? '')));
 
         if ($fromText !== '') {
             return $fromText;
