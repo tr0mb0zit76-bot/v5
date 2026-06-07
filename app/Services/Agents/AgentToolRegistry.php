@@ -875,8 +875,25 @@ class AgentToolRegistry
                 ),
             ),
             new AgentToolDefinition(
+                name: 'get_print_form_basic_terms',
+                description: 'Прочитать общие базовые условия cp/dp (Настройки → Базовые условия для договоров-заявок). party=carrier|customer; без party — обе стороны. Перед зеркалированием норм перевозчика в заказчика — сначала этот tool.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'party' => ['type' => 'string', 'enum' => ['customer', 'carrier']],
+                        'contractor_id' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->printFormChanges->canDirectManagePrintForm($user),
+                invoke: fn (User $user, array $args): array => $this->printFormTemplates->readBasicTerms(
+                    isset($args['party']) ? (string) $args['party'] : null,
+                    isset($args['contractor_id']) ? (int) $args['contractor_id'] : null,
+                ),
+            ),
+            new AgentToolDefinition(
                 name: 'get_print_form_templates_insights',
-                description: 'Шаблоны DOCX и базовые условия: переменные, диагностика печати. Для Юрика / settings_system.',
+                description: 'Шаблоны DOCX, диагностика печати и снимок basic_terms. Без code/query — список шаблонов и общие условия обеих сторон. Для только пунктов условий удобнее get_print_form_basic_terms.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
@@ -886,7 +903,7 @@ class AgentToolRegistry
                     ],
                     'additionalProperties' => false,
                 ],
-                canUse: fn (User $user): bool => RoleAccess::canAccessSettingsSystem($user),
+                canUse: fn (User $user): bool => $this->printFormChanges->canDirectManagePrintForm($user),
                 invoke: fn (User $user, array $args): array => $this->printFormTemplates->insights(
                     isset($args['code']) ? (string) $args['code'] : null,
                     isset($args['query']) ? (string) $args['query'] : null,
@@ -895,7 +912,7 @@ class AgentToolRegistry
             ),
             new AgentToolDefinition(
                 name: 'upsert_print_form_basic_terms',
-                description: 'Сохранить базовые условия cp/dp (глобальные или для контрагента). Прямая запись — только admin/settings_system.',
+                description: 'Сохранить базовые условия cp/dp (глобальные или для контрагента). party customer|carrier, items — массив строк пунктов. Точка в начале пункта («. Текст») — часть текста, если нужна в печати. Прямая запись — admin/settings_system.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [

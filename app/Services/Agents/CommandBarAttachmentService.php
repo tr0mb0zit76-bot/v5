@@ -132,12 +132,10 @@ final class CommandBarAttachmentService
                 ];
             }
         } elseif ($intent === 'basic_terms') {
-            $suggestedTools = ['get_print_form_templates_insights', 'upsert_print_form_basic_terms', 'submit_contractor_print_form_change'];
-            $canRead = RoleAccess::canAccessSettingsSystem($user);
-            $canSubmit = RoleAccess::canAccessVisibilityArea($user, 'contractors');
+            $suggestedTools = ['get_print_form_basic_terms', 'get_print_form_templates_insights', 'upsert_print_form_basic_terms', 'submit_contractor_print_form_change'];
             $canDirect = $this->printFormChanges->canDirectManagePrintForm($user);
 
-            if (! $canRead && ! $canSubmit && ! $canDirect) {
+            if (! $canDirect) {
                 $blockers[] = [
                     'code' => 'visibility_print_forms',
                     'kind' => 'access',
@@ -394,7 +392,7 @@ final class CommandBarAttachmentService
 
         if ($this->matchesAny($haystack, [
             'базов', 'услови', 'cp_', 'dp_', 'шаблон', 'договор-заяв', 'печатн', 'docx шаблон',
-            'норм заявк', 'юрик', 'сторон', 'заказчик', 'перевозчик',
+            'норм заявк', 'норм', 'юрик', 'сторон', 'заказчик', 'перевозчик', 'по аналогии',
         ])) {
             return 'basic_terms';
         }
@@ -444,7 +442,7 @@ final class CommandBarAttachmentService
         if ($intent === 'order_intake') {
             $lines[] = 'Если данных достаточно — create_order_intake_draft_from_text с instruction = запрос пользователя + извлечённый текст. Если не хватает своя компания / оплата / маршрут — задай 1–2 уточняющих вопроса.';
         } elseif ($intent === 'basic_terms') {
-            $lines[] = 'Для базовых условий: get_print_form_templates_insights при необходимости; upsert_print_form_basic_terms (admin) или submit_contractor_print_form_change (менеджер). Укажи party (customer/carrier) и контрагента, если пользователь назвал.';
+            $lines[] = 'get_print_form_basic_terms — прочитать пункты (party carrier/customer). Для «по аналогии» — прочитай источник, сохрани upsert_print_form_basic_terms для другой party. Точка с пробелом в начале пункта — часть текста items.';
         } else {
             $lines[] = 'Если намерение неясно — спроси, что сделать с файлом. Не выполняй опасные изменения без явного запроса.';
         }

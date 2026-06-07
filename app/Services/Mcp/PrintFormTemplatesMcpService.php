@@ -409,4 +409,61 @@ final class PrintFormTemplatesMcpService
             'saved_count' => count($normalized),
         ];
     }
+
+    /**
+     * @return array{
+     *     tables_ready: bool,
+     *     scope: string,
+     *     contractor_id: int|null,
+     *     hint: string,
+     *     parties: array<string, array{party: string, party_label: string, count: int, items: list<array{sort_order: int, body: string}>}>
+     * }
+     */
+    public function readBasicTerms(?string $party = null, ?int $contractorId = null): array
+    {
+        if (! $this->basicTermsService->tablesReady()) {
+            return [
+                'tables_ready' => false,
+                'scope' => $contractorId !== null ? 'contractor' : 'global',
+                'contractor_id' => $contractorId,
+                'hint' => 'Таблица базовых условий недоступна — выполните миграции.',
+                'parties' => [],
+            ];
+        }
+
+        $parties = $party !== null
+            ? [$party]
+            : [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER];
+
+        $payload = [];
+
+        foreach ($parties as $partyKey) {
+            if (! in_array($partyKey, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)) {
+                continue;
+            }
+
+            $side = $partyKey === PrintFormBasicTerm::PARTY_CARRIER ? 'carrier' : 'customer';
+            $rows = $this->basicTermsService->listRows($partyKey, $contractorId);
+            $payload[$side] = [
+                'party' => $partyKey,
+                'party_label' => $partyKey === PrintFormBasicTerm::PARTY_CARRIER ? 'Перевозчик' : 'Заказчик',
+                'count' => count($rows),
+                'items' => collect($rows)
+                    ->map(fn (array $row): array => [
+                        'sort_order' => (int) ($row['sort_order'] ?? 0),
+                        'body' => (string) ($row['body'] ?? ''),
+                    ])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
+        return [
+            'tables_ready' => true,
+            'scope' => $contractorId !== null ? 'contractor' : 'global',
+            'contractor_id' => $contractorId,
+            'hint' => 'Для зеркалирования норм: прочитайте carrier, составьте аналоги для customer, сохраните upsert_print_form_basic_terms. Каждый пункт — отдельная строка; если в печати нужна точка в начале — включите «. » в текст пункта.',
+            'parties' => $payload,
+        ];
+    }
 }

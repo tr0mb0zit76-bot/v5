@@ -5,7 +5,7 @@ namespace App\Mcp\Tools;
 use App\Mcp\Concerns\LogsMcpToolCalls;
 use App\Models\User;
 use App\Services\Mcp\PrintFormTemplatesMcpService;
-use App\Support\RoleAccess;
+use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -22,18 +22,19 @@ class GetPrintFormTemplatesInsightsTool extends Tool
 
     public function __construct(
         private readonly PrintFormTemplatesMcpService $insights,
+        private readonly ContractorPrintFormChangeRequestService $changes,
     ) {}
 
     public function handle(Request $request): Response
     {
         return $this->withMcpAccess($request, function (User $user) use ($request): Response {
-            if (! RoleAccess::canAccessSettingsSystem($user)) {
-                throw new AuthenticationException('Нет доступа к шаблонам печатных форм.');
+            if (! $this->changes->canDirectManagePrintForm($user)) {
+                throw new AuthenticationException('Нет доступа к шаблонам печатных форм и базовым условиям.');
             }
 
             $validated = $request->validate([
-                'code' => ['nullable', 'string', 'max:120', 'required_without:query'],
-                'query' => ['nullable', 'string', 'max:200', 'required_without:code'],
+                'code' => ['nullable', 'string', 'max:120'],
+                'query' => ['nullable', 'string', 'max:200'],
                 'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
             ]);
 

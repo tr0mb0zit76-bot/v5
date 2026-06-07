@@ -3301,7 +3301,7 @@ function goToPage(pageNumber) {
                                             />
                                         </div>
                                         <div class="space-y-2">
-                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основание права подписи</label>
+                                            <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Право подписи на основании</label>
                                             <input
                                                 v-model="form.signer_authority_basis"
                                                 type="text"
@@ -3528,7 +3528,7 @@ function goToPage(pageNumber) {
                                         <input v-model="form.signer_position_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                     <div class="space-y-2 lg:col-span-2">
-                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Основание права подписи (EN)</label>
+                                        <label class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Право подписи на основании (EN)</label>
                                         <input v-model="form.signer_authority_basis_en" type="text" :class="crmFieldFluid" />
                                     </div>
                                 </div>

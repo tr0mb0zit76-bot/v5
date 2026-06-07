@@ -17,6 +17,7 @@ use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderIntakeDraftTool;
 use App\Mcp\Tools\GetOrderTimelineTool;
 use App\Mcp\Tools\GetOrderTool;
+use App\Mcp\Tools\GetPrintFormBasicTermsTool;
 use App\Mcp\Tools\GetPrintFormTemplatesInsightsTool;
 use App\Mcp\Tools\GetSalesBookArticleTool;
 use App\Mcp\Tools\GetSalesBookQualityInsightsTool;
@@ -69,6 +70,7 @@ use Laravel\Mcp\Server\Tool;
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / remember_order_intake_phrase — черновики заявок и обучение фразам из диалога
         - После create_order_intake_draft_from_text в ответе есть draft_id и wizard_path (/orders/create?intake_draft=…). MCP не открывает UI — пользователь переходит по wizard_path (command bar в CRM делает это сам через navigate_to).
+        - get_print_form_basic_terms — общие пункты базовых условий cp/dp (заказчик/перевозчик) из настроек CRM
         - get_print_form_templates_insights — шаблоны DOCX, базовые условия и диагностика печати (settings_system / Юрик)
         - upsert_print_form_basic_terms — прямое сохранение базовых условий (admin / settings_system)
         - submit_contractor_print_form_change — заявка на согласование условий контрагента (менеджер / Юрик)
@@ -109,6 +111,7 @@ class CrmServer extends Server
         GetAiUsageInsightsTool::class,
         GetTrainerCoachingInsightsTool::class,
         GetManagerSalesCoachingInsightsTool::class,
+        GetPrintFormBasicTermsTool::class,
         GetPrintFormTemplatesInsightsTool::class,
         UpsertPrintFormBasicTermsTool::class,
         SubmitContractorPrintFormChangeTool::class,
