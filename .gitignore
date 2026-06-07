@@ -26,7 +26,13 @@ Homestead.yaml
 Thumbs.db
 .zip
 .osp
-*test*
+
+# Корневые отладочные скрипты (не путать с каталогом tests/)
+/test_*.php
+/test_*.html
+/test_*.vue
+/u_tromb.env.example
+/.tmp_*
 
 # Локальные скрипты Obsidian / Hive Mind — не для прода (vault синхронизируется через Yandex Disk)
 /tools/hivemind-*
