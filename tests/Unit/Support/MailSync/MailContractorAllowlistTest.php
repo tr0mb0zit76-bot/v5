@@ -8,6 +8,7 @@ use App\Support\MailSync\ImportedMailMessage;
 use App\Support\MailSync\MailContractorAllowlist;
 use App\Support\MailSync\MailImportAllowance;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -122,5 +123,21 @@ class MailContractorAllowlistTest extends TestCase
         $allowlist = MailContractorAllowlist::buildFresh();
 
         $this->assertTrue($allowlist->allowsEmail('contact@exwill.ru'));
+    }
+
+    public function test_cached_rehydrates_array_payload_instead_of_serialized_object(): void
+    {
+        Cache::flush();
+        config(['mail_sync.require_contractor_match' => true]);
+
+        Cache::put(MailContractorAllowlist::CACHE_KEY, [
+            'exact_emails' => ['client@exwill.ru'],
+            'domains' => ['exwill.ru'],
+        ], 300);
+
+        $allowlist = MailContractorAllowlist::cached();
+
+        $this->assertTrue($allowlist->allowsEmail('client@exwill.ru'));
+        $this->assertTrue($allowlist->allowsEmail('other@exwill.ru'));
     }
 }

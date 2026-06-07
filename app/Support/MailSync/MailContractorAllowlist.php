@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Schema;
 
 final class MailContractorAllowlist
 {
-    private const string CACHE_KEY = 'mail_sync:contractor_allowlist';
+    public const string CACHE_KEY = 'mail_sync:contractor_allowlist:v2';
+
+    private const string LEGACY_CACHE_KEY = 'mail_sync:contractor_allowlist';
 
     /** @var array<string, true> */
     private array $exactEmails = [];
@@ -25,14 +27,20 @@ final class MailContractorAllowlist
 
         $ttl = max(60, (int) config('mail_sync.allowlist_cache_seconds', 300));
 
-        /** @var self $allowlist */
-        $allowlist = Cache::remember(self::CACHE_KEY, $ttl, fn (): self => self::buildFresh());
+        $payload = Cache::remember(self::CACHE_KEY, $ttl, fn (): array => self::buildFresh()->toCachePayload());
 
-        return $allowlist;
+        if (! is_array($payload)) {
+            self::forgetCache();
+
+            return self::buildFresh();
+        }
+
+        return self::fromCachePayload($payload);
     }
 
     public static function forgetCache(): void
     {
+        Cache::forget(self::LEGACY_CACHE_KEY);
         Cache::forget(self::CACHE_KEY);
     }
 
@@ -79,6 +87,43 @@ final class MailContractorAllowlist
                         $allowlist->registerEmail($contact->email);
                     }
                 });
+        }
+
+        return $allowlist;
+    }
+
+    /**
+     * @return array{exact_emails: list<string>, domains: list<string>}
+     */
+    private function toCachePayload(): array
+    {
+        return [
+            'exact_emails' => array_keys($this->exactEmails),
+            'domains' => array_keys($this->domains),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private static function fromCachePayload(array $payload): self
+    {
+        $allowlist = new self;
+
+        foreach ($payload['exact_emails'] ?? [] as $email) {
+            if (! is_string($email) || $email === '') {
+                continue;
+            }
+
+            $allowlist->exactEmails[strtolower(trim($email))] = true;
+        }
+
+        foreach ($payload['domains'] ?? [] as $domain) {
+            if (! is_string($domain) || $domain === '') {
+                continue;
+            }
+
+            $allowlist->domains[strtolower(trim($domain))] = true;
         }
 
         return $allowlist;
