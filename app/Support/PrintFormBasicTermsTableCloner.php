@@ -87,12 +87,15 @@ final class PrintFormBasicTermsTableCloner
             $rows,
         );
 
-        $processor->cloneRowAndSetValues($this->cloneRowAnchor(), $prepared);
+        $anchor = PrintFormTemplateProcessorPreparer::resolveProcessorMacro($processor, $this->cloneRowAnchor())
+            ?? $this->cloneRowAnchor();
+
+        $processor->cloneRowAndSetValues($anchor, $prepared);
     }
 
     public function templateHasTermsTable(TemplateProcessor $processor): bool
     {
-        return in_array($this->cloneRowAnchor(), $processor->getVariables(), true);
+        return PrintFormTemplateProcessorPreparer::processorHasMacro($processor, $this->cloneRowAnchor());
     }
 
     public static function isBasicTermsPlaceholder(string $placeholder): bool
@@ -113,7 +116,9 @@ final class PrintFormBasicTermsTableCloner
     private function removeTemplateRow(TemplateProcessor $processor): void
     {
         try {
-            $processor->deleteRow($this->cloneRowAnchor());
+            $anchor = PrintFormTemplateProcessorPreparer::resolveProcessorMacro($processor, $this->cloneRowAnchor())
+                ?? $this->cloneRowAnchor();
+            $processor->deleteRow($anchor);
         } catch (PhpWordException) {
             // Строка уже удалена или разметка Word не позволяет.
         }

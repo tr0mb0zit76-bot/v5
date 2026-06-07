@@ -52,12 +52,15 @@ final class PrintFormRouteTableCloner
             $rows,
         );
 
-        $processor->cloneRowAndSetValues(self::CLONE_ROW_ANCHOR, $prepared);
+        $processor->cloneRowAndSetValues(
+            PrintFormTemplateProcessorPreparer::resolveProcessorMacro($processor, self::CLONE_ROW_ANCHOR) ?? self::CLONE_ROW_ANCHOR,
+            $prepared,
+        );
     }
 
     public function templateHasRouteTable(TemplateProcessor $processor): bool
     {
-        return in_array(self::CLONE_ROW_ANCHOR, $processor->getVariables(), true);
+        return PrintFormTemplateProcessorPreparer::processorHasMacro($processor, self::CLONE_ROW_ANCHOR);
     }
 
     public static function isRouteTablePlaceholder(string $placeholder): bool
@@ -78,7 +81,9 @@ final class PrintFormRouteTableCloner
     private function removeTemplateRow(TemplateProcessor $processor): void
     {
         try {
-            $processor->deleteRow(self::CLONE_ROW_ANCHOR);
+            $anchor = PrintFormTemplateProcessorPreparer::resolveProcessorMacro($processor, self::CLONE_ROW_ANCHOR)
+                ?? self::CLONE_ROW_ANCHOR;
+            $processor->deleteRow($anchor);
         } catch (PhpWordException) {
             // Строка уже удалена или разметка Word не позволяет.
         }

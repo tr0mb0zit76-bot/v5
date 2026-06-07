@@ -7,7 +7,10 @@ use App\Models\PrintFormTemplate;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\PrintFormBasicTermsTableCloner;
+use App\Support\PrintFormTemplateDiskSource;
+use App\Support\PrintFormTemplateProcessorPreparer;
 use Illuminate\Support\Facades\Schema;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 final class PrintFormTemplatesMcpService
 {
@@ -104,6 +107,8 @@ final class PrintFormTemplatesMcpService
             ->values()
             ->all();
 
+        $phpWord = $this->phpWordMacroSnapshot($template);
+
         return [
             'id' => $template->id,
             'code' => $template->code,
@@ -122,8 +127,73 @@ final class PrintFormTemplatesMcpService
             'has_customer_basic_terms_table' => $this->eligibility->templateHasBasicTermsForParty($template, PrintFormBasicTerm::PARTY_CUSTOMER),
             'has_carrier_basic_terms_table' => $this->eligibility->templateHasBasicTermsForParty($template, PrintFormBasicTerm::PARTY_CARRIER),
             'expected_basic_terms_prefix' => $this->expectedBasicTermsPrefix((string) ($template->party ?? '')),
+            'phpword_variables' => $phpWord['variables'],
+            'phpword_has_carrier_basic_terms_anchor' => $phpWord['has_carrier_anchor'],
+            'phpword_has_customer_basic_terms_anchor' => $phpWord['has_customer_anchor'],
             'updated_at' => $template->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * @return array{variables: list<string>, has_carrier_anchor: bool, has_customer_anchor: bool}
+     */
+    private function phpWordMacroSnapshot(PrintFormTemplate $template): array
+    {
+        if (! filled($template->file_path) || ! filled($template->file_disk)) {
+            return [
+                'variables' => [],
+                'has_carrier_anchor' => false,
+                'has_customer_anchor' => false,
+            ];
+        }
+
+        try {
+            $prep = PrintFormTemplateDiskSource::prepareLocalPathForPhpWord(
+                (string) $template->file_disk,
+                (string) $template->file_path,
+            );
+            $processor = new TemplateProcessor($prep['path']);
+            $processor->setMacroChars('${', '}');
+
+            $settingsVariables = is_array($template->settings['variables'] ?? null)
+                ? $template->settings['variables']
+                : [];
+            PrintFormTemplateProcessorPreparer::repairCloneRowMacros(
+                $processor,
+                PrintFormTemplateProcessorPreparer::collectCloneRowMacrosFromPlaceholders($settingsVariables),
+            );
+
+            $variables = collect($processor->getVariables())
+                ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
+                ->map(fn (string $value): string => trim($value))
+                ->unique()
+                ->values()
+                ->all();
+
+            foreach ($prep['tempFiles'] as $tmpPath) {
+                if (is_string($tmpPath) && $tmpPath !== '' && is_file($tmpPath)) {
+                    @unlink($tmpPath);
+                }
+            }
+
+            return [
+                'variables' => $variables,
+                'has_carrier_anchor' => PrintFormTemplateProcessorPreparer::processorHasMacro(
+                    $processor,
+                    'dp_basic_terms_row_text',
+                ),
+                'has_customer_anchor' => PrintFormTemplateProcessorPreparer::processorHasMacro(
+                    $processor,
+                    'cp_basic_terms_row_text',
+                ),
+            ];
+        } catch (\Throwable) {
+            return [
+                'variables' => [],
+                'has_carrier_anchor' => false,
+                'has_customer_anchor' => false,
+            ];
+        }
     }
 
     /**
@@ -217,6 +287,24 @@ final class PrintFormTemplatesMcpService
             );
         }
 
+        $phpWordHasAnchor = $party === PrintFormBasicTerm::PARTY_CARRIER
+            ? (bool) ($template['phpword_has_carrier_basic_terms_anchor'] ?? false)
+            : (bool) ($template['phpword_has_customer_basic_terms_anchor'] ?? false);
+
+        if ($hasTable && ! $phpWordHasAnchor) {
+            $diagnostics[] = $this->diagnostic(
+                'error',
+                'phpword_missing_basic_terms_anchor',
+                "CRM видит «{$anchor}» в списке переменных, но PhpWord не находит цельный макрос для cloneRow. После деплоя с авто-склейкой должно заработать; иначе пересохраните макрос одной строкой без форматирования внутри.",
+            );
+        } elseif ($phpWordHasAnchor) {
+            $diagnostics[] = $this->diagnostic(
+                'ok',
+                'phpword_basic_terms_anchor_ready',
+                "PhpWord готов к cloneRow по «{$anchor}».",
+            );
+        }
+
         if ($globalCount === 0) {
             $diagnostics[] = $this->diagnostic(
                 'warning',
@@ -248,7 +336,7 @@ final class PrintFormTemplatesMcpService
             );
         }
 
-        if ($hasTable && $globalCount > 0 && ($template['has_source_file'] ?? false)) {
+        if ($phpWordHasAnchor && $globalCount > 0 && ($template['has_source_file'] ?? false)) {
             $diagnostics[] = $this->diagnostic(
                 'ok',
                 'should_render',

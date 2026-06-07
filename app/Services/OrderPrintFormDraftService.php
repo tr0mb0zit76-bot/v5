@@ -26,6 +26,7 @@ use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormRouteTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
+use App\Support\PrintFormTemplateProcessorPreparer;
 use App\Support\RussianGivenName;
 use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
@@ -78,6 +79,11 @@ class OrderPrintFormDraftService
         $cargoItems = $orderForSnapshot->relationLoaded('cargoItems') ? $orderForSnapshot->cargoItems : collect();
 
         $processor->setMacroChars('${', '}');
+
+        PrintFormTemplateProcessorPreparer::repairCloneRowMacros(
+            $processor,
+            PrintFormTemplateProcessorPreparer::collectCloneRowMacrosFromPlaceholders($placeholders->all()),
+        );
 
         (new PrintFormCargoTableCloner)->apply(
             $processor,

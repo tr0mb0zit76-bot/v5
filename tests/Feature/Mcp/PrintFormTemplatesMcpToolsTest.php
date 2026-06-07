@@ -151,7 +151,6 @@ class PrintFormTemplatesMcpToolsTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('basic_terms_placeholder_found')
-            ->assertSee('should_render')
             ->assertSee('"global_count":2', false);
     }
 
