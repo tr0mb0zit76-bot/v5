@@ -10,6 +10,28 @@ use PhpOffice\PhpWord\TemplateProcessor;
 final class PrintFormTemplateProcessorPreparer
 {
     /**
+     * @param  list<string>  $placeholders
+     */
+    public static function repairTextMacros(TemplateProcessor $processor, array $placeholders): void
+    {
+        $innerNames = collect($placeholders)
+            ->filter(static fn (mixed $placeholder): bool => is_string($placeholder) && trim($placeholder) !== '')
+            ->map(static fn (string $placeholder): string => trim(explode('#', trim($placeholder))[0]))
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($innerNames as $inner) {
+            if ($inner === '') {
+                continue;
+            }
+
+            DocxTextRunPlaceholderMerger::applyToTemplateProcessor($processor, '${', '}', $inner);
+            DocxTextRunPlaceholderMerger::applyToTemplateProcessor($processor, '{{', '}}', $inner);
+        }
+    }
+
+    /**
      * @param  list<string>  $innerMacroNames
      */
     public static function repairCloneRowMacros(TemplateProcessor $processor, array $innerMacroNames): void

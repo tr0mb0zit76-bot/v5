@@ -14,6 +14,7 @@ use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\ContractorPrimaryContactResolver;
+use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
@@ -55,7 +56,19 @@ class OrderPrintFormDraftService
         bool $includeTemplateOverlays = true,
         ?OrderPrintFormContext $context = null,
     ): array {
-        $templatePrep = PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path);
+        $templatePrep = PrintFormTemplateDiskSource::ensureMutableTempCopy(
+            PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path),
+        );
+
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $placeholders = collect($settings['variables'] ?? [])
+            ->merge($this->placeholderExtractor->extractFromDisk($template->file_disk, $template->file_path))
+            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
+            ->unique()
+            ->values();
+
+        DocxPrintFormPlaceholderPreprocessor::preprocess($templatePrep['path'], $placeholders->all());
+
         try {
             $processor = new TemplateProcessor($templatePrep['path']);
         } finally {
@@ -66,12 +79,6 @@ class OrderPrintFormDraftService
             }
         }
 
-        $settings = is_array($template->settings) ? $template->settings : [];
-        $placeholders = collect($settings['variables'] ?? [])
-            ->merge($this->placeholderExtractor->extractFromDisk($template->file_disk, $template->file_path))
-            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
-            ->unique()
-            ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
         $orderForSnapshot = $this->loadOrderContext($order);
         $context = $this->normalizePrintContext($orderForSnapshot, $context);
@@ -81,9 +88,9 @@ class OrderPrintFormDraftService
 
         $processor->setMacroChars('${', '}');
 
-        PrintFormTemplateProcessorPreparer::repairCloneRowMacros(
+        PrintFormTemplateProcessorPreparer::repairTextMacros(
             $processor,
-            PrintFormTemplateProcessorPreparer::collectCloneRowMacrosFromPlaceholders($placeholders->all()),
+            $placeholders->all(),
         );
 
         (new PrintFormCargoTableCloner)->apply(

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
+use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\PhpWordTemplateOverlayImageInjector;
 use App\Support\PrintFormCargoTableCloner;
@@ -12,6 +13,7 @@ use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
 use App\Support\PrintFormTemplateDiskSource;
+use App\Support\PrintFormTemplateProcessorPreparer;
 use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -31,7 +33,19 @@ class LeadPrintFormDraftService
      */
     public function generate(PrintFormTemplate $template, Lead $lead, bool $includeTemplateOverlays = true): array
     {
-        $templatePrep = PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path);
+        $templatePrep = PrintFormTemplateDiskSource::ensureMutableTempCopy(
+            PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path),
+        );
+
+        $settings = is_array($template->settings) ? $template->settings : [];
+        $placeholders = collect($settings['variables'] ?? [])
+            ->merge($this->placeholderExtractor->extractFromDisk($template->file_disk, $template->file_path))
+            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
+            ->unique()
+            ->values();
+
+        DocxPrintFormPlaceholderPreprocessor::preprocess($templatePrep['path'], $placeholders->all());
+
         try {
             $processor = new TemplateProcessor($templatePrep['path']);
         } finally {
@@ -42,12 +56,6 @@ class LeadPrintFormDraftService
             }
         }
 
-        $settings = is_array($template->settings) ? $template->settings : [];
-        $placeholders = collect($settings['variables'] ?? [])
-            ->merge($this->placeholderExtractor->extractFromDisk($template->file_disk, $template->file_path))
-            ->filter(fn (mixed $value): bool => is_string($value) && $value !== '')
-            ->unique()
-            ->values();
         $mapping = collect($settings['variable_mapping'] ?? []);
         $leadForSnapshot = $this->loadLeadContext($lead);
         $snapshot = $this->buildSnapshot($leadForSnapshot);
@@ -55,6 +63,11 @@ class LeadPrintFormDraftService
         $cargoItems = $leadForSnapshot->relationLoaded('cargoItems') ? $leadForSnapshot->cargoItems : collect();
 
         $processor->setMacroChars('${', '}');
+
+        PrintFormTemplateProcessorPreparer::repairTextMacros(
+            $processor,
+            $placeholders->all(),
+        );
 
         (new PrintFormCargoTableCloner)->apply(
             $processor,

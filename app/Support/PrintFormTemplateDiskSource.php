@@ -67,4 +67,40 @@ final class PrintFormTemplateDiskSource
 
         return ['path' => $absolute, 'tempFiles' => [$absolute]];
     }
+
+    /**
+     * Предобработка и PhpWord перезаписывают DOCX — не мутируем файл шаблона на диске.
+     *
+     * @param  array{path: string, tempFiles: list<string>}  $prep
+     * @return array{path: string, tempFiles: list<string>}
+     */
+    public static function ensureMutableTempCopy(array $prep): array
+    {
+        if ($prep['tempFiles'] !== []) {
+            return $prep;
+        }
+
+        $source = $prep['path'];
+        if (! is_file($source)) {
+            return $prep;
+        }
+
+        $tmpBase = tempnam(sys_get_temp_dir(), 'crm-print-tpl-mut-');
+        if ($tmpBase === false) {
+            throw new \RuntimeException('Не удалось создать временную копию шаблона.');
+        }
+
+        @unlink($tmpBase);
+        $ext = strtolower((string) pathinfo($source, PATHINFO_EXTENSION));
+        if ($ext === '') {
+            $ext = 'docx';
+        }
+
+        $absolute = $tmpBase.'.'.$ext;
+        if (! @copy($source, $absolute)) {
+            throw new \RuntimeException('Не удалось скопировать шаблон во временный файл.');
+        }
+
+        return ['path' => $absolute, 'tempFiles' => [$absolute]];
+    }
 }

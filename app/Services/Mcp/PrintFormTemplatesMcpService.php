@@ -4,8 +4,10 @@ namespace App\Services\Mcp;
 
 use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
+use App\Services\DocxPlaceholderExtractor;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormTemplateOrderEligibility;
+use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
 use App\Support\PrintFormTemplateProcessorPreparer;
@@ -148,20 +150,35 @@ final class PrintFormTemplatesMcpService
         }
 
         try {
-            $prep = PrintFormTemplateDiskSource::prepareLocalPathForPhpWord(
-                (string) $template->file_disk,
-                (string) $template->file_path,
+            $prep = PrintFormTemplateDiskSource::ensureMutableTempCopy(
+                PrintFormTemplateDiskSource::prepareLocalPathForPhpWord(
+                    (string) $template->file_disk,
+                    (string) $template->file_path,
+                ),
             );
-            $processor = new TemplateProcessor($prep['path']);
-            $processor->setMacroChars('${', '}');
 
             $settingsVariables = is_array($template->settings['variables'] ?? null)
                 ? $template->settings['variables']
                 : [];
-            PrintFormTemplateProcessorPreparer::repairCloneRowMacros(
-                $processor,
-                PrintFormTemplateProcessorPreparer::collectCloneRowMacrosFromPlaceholders($settingsVariables),
+
+            $extracted = app(DocxPlaceholderExtractor::class)->extractFromDisk(
+                (string) $template->file_disk,
+                (string) $template->file_path,
             );
+
+            $placeholderNames = collect($settingsVariables)
+                ->merge($extracted)
+                ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')
+                ->unique()
+                ->values()
+                ->all();
+
+            DocxPrintFormPlaceholderPreprocessor::preprocess($prep['path'], $placeholderNames);
+
+            $processor = new TemplateProcessor($prep['path']);
+            $processor->setMacroChars('${', '}');
+
+            PrintFormTemplateProcessorPreparer::repairTextMacros($processor, $placeholderNames);
 
             $variables = collect($processor->getVariables())
                 ->filter(fn (mixed $value): bool => is_string($value) && trim($value) !== '')

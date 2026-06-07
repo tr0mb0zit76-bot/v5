@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Services\Documents\OcrServiceClient;
 use App\Support\AiAgentCatalog;
 use App\Support\CabinetNotificationBadges;
+use App\Support\CommandBarHistoryLimits;
 use App\Support\ContractorTableColumns;
 use App\Support\CrmAppearance;
 use App\Support\DocumentUploadLimits;
@@ -89,6 +90,7 @@ class HandleInertiaRequests extends Middleware
             'mobile_nav_presets' => Inertia::always(fn (): array => MobileNavPresets::optionsForUi()),
             'ai_agents' => Inertia::always(fn () => AiAgentCatalog::optionsForUser($request->user())),
             'ai_agent_default_slug' => Inertia::always(fn (): string => AiAgentCatalog::defaultSlug()),
+            'ai_command_bar_history' => Inertia::always(fn (): array => CommandBarHistoryLimits::profileForUser($request->user())),
         ];
     }
 

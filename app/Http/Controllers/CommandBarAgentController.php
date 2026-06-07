@@ -42,6 +42,7 @@ class CommandBarAgentController extends Controller
             $history,
             isset($validated['agent_slug']) ? (string) $validated['agent_slug'] : null,
             $attachments,
+            $request->boolean('history_extended'),
         );
 
         return response()->json($result);

@@ -472,12 +472,15 @@
                     <CrmCommandBar
                         :agent-message-count="agentMessages.length"
                         :agent-has-saved-thread="agentHasSavedThread"
+                        :agent-history-limits="agentHistoryLimits"
+                        :agent-extended-memory="agentExtendedMemory"
                         :selected-agent-slug="selectedAgentSlug"
                         @update:selected-agent-slug="onAgentSlugChange"
                         @submit="handleAiSubmit"
                         @badges="dynamicCabinetBadges = $event"
                         @agent-history-open="openAgentPanelFromHistory"
                         @agent-history-clear="clearAgentThread"
+                        @agent-extended-memory-change="onAgentExtendedMemoryChange"
                     />
                     <CrmAgentPanel
                         :open="agentPanelOpen"
@@ -552,8 +555,12 @@ import {
 import { visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
 import {
     clearAgentThread as clearPersistedAgentThread,
+    historyForAgentRequest,
+    isAgentExtendedMemoryEnabled,
     loadAgentThread,
+    resolveAgentHistoryLimits,
     saveAgentThread,
+    setAgentExtendedMemoryEnabled,
 } from '@/support/commandBarAgentHistory.js';
 import { loadAgentSlug, saveAgentSlug } from '@/support/commandBarAgentPersona.js';
 
@@ -1455,7 +1462,9 @@ function handleMenuSelect(key, event) {
 }
 
 const agentPanelOpen = ref(false);
-const agentMessages = ref(loadAgentThread());
+const agentHistoryLimits = computed(() => resolveAgentHistoryLimits(page.props));
+const agentExtendedMemory = ref(isAgentExtendedMemoryEnabled());
+const agentMessages = ref(loadAgentThread(agentHistoryLimits.value, agentExtendedMemory.value));
 const agentHasSavedThread = ref(agentMessages.value.length > 0);
 const selectedAgentSlug = ref(loadAgentSlug(String(page.props.ai_agent_default_slug ?? 'jarvis')));
 const agentLoading = ref(false);
@@ -1469,6 +1478,12 @@ function onAgentSlugChange(slug) {
     saveAgentSlug(selectedAgentSlug.value);
 }
 
+function onAgentExtendedMemoryChange(enabled) {
+    agentExtendedMemory.value = enabled;
+    setAgentExtendedMemoryEnabled(enabled);
+    agentMessages.value = loadAgentThread(agentHistoryLimits.value, enabled);
+}
+
 async function handleAiSubmit(payload) {
     const text = String(payload?.message ?? '').trim();
     const files = Array.isArray(payload?.files) ? payload.files : [];
@@ -1480,10 +1495,11 @@ async function handleAiSubmit(payload) {
     agentPanelOpen.value = true;
     agentError.value = '';
 
-    const history = agentMessages.value.map((item) => ({
-        role: item.role,
-        content: item.content,
-    }));
+    const history = historyForAgentRequest(
+        agentMessages.value,
+        agentHistoryLimits.value,
+        agentExtendedMemory.value,
+    );
 
     const displayContent = files.length > 0
         ? `[Файлы: ${files.map((file) => file.name).join(', ')}]${text !== '' ? `\n${text}` : ''}`
@@ -1501,6 +1517,7 @@ async function handleAiSubmit(payload) {
             formData.append('message', text || 'Обработай приложенные файлы согласно моему запросу.');
             formData.append('agent_slug', agentSlug);
             formData.append('history', JSON.stringify(history));
+            formData.append('history_extended', agentExtendedMemory.value ? '1' : '0');
             files.forEach((file, index) => {
                 formData.append(`attachments[${index}]`, file);
             });
@@ -1513,6 +1530,7 @@ async function handleAiSubmit(payload) {
                 message: text,
                 history,
                 agent_slug: agentSlug,
+                history_extended: agentExtendedMemory.value,
             }));
         }
 
@@ -1571,7 +1589,7 @@ async function submitAgentFeedback({ turnId, rating }) {
 watch(
     agentMessages,
     (messages) => {
-        saveAgentThread(messages);
+        saveAgentThread(messages, agentHistoryLimits.value, agentExtendedMemory.value);
         agentHasSavedThread.value = messages.length > 0;
     },
     { deep: true },

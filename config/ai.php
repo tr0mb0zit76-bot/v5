@@ -144,6 +144,42 @@ return [
         'temperature' => (float) env('AI_COMMAND_BAR_TEMPERATURE', 0.35),
         'max_attachment_files' => max(1, min(5, (int) env('AI_COMMAND_BAR_MAX_ATTACHMENT_FILES', 3))),
         'max_attachment_chars' => max(2000, min(50000, (int) env('AI_COMMAND_BAR_MAX_ATTACHMENT_CHARS', 12000))),
+
+        /*
+        | История диалога: storage — localStorage, request — валидация API,
+        | llm — сколько последних реплик уходит в модель. *_extended — режим «Расширить память».
+        */
+        'history' => [
+            'tiers' => [
+                'default' => [
+                    'storage' => 40,
+                    'request' => 20,
+                    'llm' => 10,
+                    'storage_extended' => 80,
+                    'request_extended' => 40,
+                    'llm_extended' => 20,
+                    'can_extend' => true,
+                ],
+                'supervisor' => [
+                    'storage' => 80,
+                    'request' => 40,
+                    'llm' => 20,
+                    'storage_extended' => 160,
+                    'request_extended' => 80,
+                    'llm_extended' => 40,
+                    'can_extend' => true,
+                ],
+                'admin' => [
+                    'storage' => 200,
+                    'request' => 100,
+                    'llm' => 50,
+                    'storage_extended' => 200,
+                    'request_extended' => 100,
+                    'llm_extended' => 50,
+                    'can_extend' => false,
+                ],
+            ],
+        ],
     ],
 
     'sales_book' => [

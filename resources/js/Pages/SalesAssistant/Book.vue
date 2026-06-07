@@ -95,7 +95,7 @@
 
             <template v-if="selectedArticle">
                 <form v-if="canWrite && !readerPreview" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden" @submit.prevent="saveArticle">
-                    <div class="relative h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
+                    <div class="relative min-h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 py-3 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:min-h-24">
                         <img
                             v-if="selectedArticle.cover_image_url"
                             :src="selectedArticle.cover_image_url"
@@ -103,14 +103,19 @@
                             class="absolute inset-0 h-full w-full object-cover"
                         />
                         <div v-else class="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
+                        <div
+                            v-if="selectedArticle.cover_image_url"
+                            class="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/75 via-white/40 to-transparent dark:from-zinc-950/80 dark:via-zinc-950/45 dark:to-transparent"
+                            aria-hidden="true"
+                        />
 
-                        <div class="absolute inset-0 flex items-center justify-between gap-2 px-3 md:gap-3 md:px-4">
+                        <div class="relative flex items-center justify-between gap-2 px-3 md:gap-3 md:px-4">
                             <input
                                 v-model="editForm.title"
                                 type="text"
                                 required
                                 placeholder="Заголовок страницы"
-                                class="min-w-0 max-w-[min(100%,28rem)] rounded-md border-0 bg-white/90 px-3 py-1.5 text-base font-semibold text-zinc-900 shadow-sm backdrop-blur placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:ring-sky-300 dark:bg-zinc-900/90 dark:text-zinc-100 dark:focus:bg-zinc-900 dark:focus:ring-sky-800 md:text-lg"
+                                :class="articleBannerTitleInputClass"
                             />
                             <div class="flex shrink-0 items-center gap-2">
                                 <button
@@ -258,7 +263,7 @@
                         </button>
                     </div>
 
-                    <div class="relative h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:h-24">
+                    <div class="relative min-h-20 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-gradient-to-r from-sky-100 via-indigo-100 to-amber-100 py-3 dark:border-zinc-800 dark:from-sky-950 dark:via-indigo-950 dark:to-amber-950 md:min-h-24">
                         <img
                             v-if="selectedArticle.cover_image_url"
                             :src="selectedArticle.cover_image_url"
@@ -266,10 +271,15 @@
                             class="absolute inset-0 h-full w-full object-cover"
                         />
                         <div v-else class="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.32),transparent_30%),linear-gradient(120deg,rgba(59,130,246,0.18),rgba(245,158,11,0.22))]" />
+                        <div
+                            v-if="selectedArticle.cover_image_url"
+                            class="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/75 via-white/40 to-transparent dark:from-zinc-950/80 dark:via-zinc-950/45 dark:to-transparent"
+                            aria-hidden="true"
+                        />
 
-                        <div class="absolute inset-0 flex items-center justify-between gap-2 px-3 md:gap-3 md:px-4">
-                            <div class="flex min-w-0 flex-1 items-center gap-2">
-                                <h2 class="min-w-0 truncate rounded-md bg-white/90 px-3 py-1.5 text-base font-semibold text-zinc-900 shadow-sm backdrop-blur dark:bg-zinc-900/90 dark:text-zinc-100 md:text-lg">
+                        <div class="relative flex items-center justify-between gap-2 px-3 md:gap-3 md:px-4">
+                            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                                <h2 :class="articleBannerHeadingClass">
                                     {{ selectedArticle.title }}
                                 </h2>
                                 <span
@@ -362,6 +372,10 @@ import SalesBookArticleFeedbackBar from '@/Components/SalesBook/SalesBookArticle
 import SalesBookQuiz from '@/Components/SalesBook/SalesBookQuiz.vue';
 import SalesBookTreeNav from '@/Components/SalesBook/SalesBookTreeNav.vue';
 import { crmBtnCreate, crmBtnNeutral, crmBtnPrimary, crmPanel } from '@/support/crmUi.js';
+
+const articleBannerTitleInputClass = 'min-w-0 flex-1 border-0 bg-transparent py-0.5 text-base font-semibold leading-snug text-zinc-900 placeholder:text-zinc-600 [text-shadow:0_1px_0_rgba(255,255,255,0.9)] focus:outline-none focus:ring-0 dark:text-zinc-50 dark:placeholder:text-zinc-400 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)] md:text-lg md:leading-tight';
+
+const articleBannerHeadingClass = 'min-w-0 flex-1 break-words text-base font-semibold leading-snug text-zinc-900 [text-shadow:0_1px_0_rgba(255,255,255,0.9)] dark:text-zinc-50 dark:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)] md:text-lg md:leading-tight';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-book', mainFill: true, showFlashBanner: false }, () => page),

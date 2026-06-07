@@ -12,6 +12,7 @@ use App\Support\AiAgentCatalog;
 use App\Support\AiChannel;
 use App\Support\AiInteractionFeature;
 use App\Support\AiInteractionOutcome;
+use App\Support\CommandBarHistoryLimits;
 use App\Support\OrderAgentLexicon;
 use App\Support\OrderIntakeDraftNavigation;
 use App\Support\RoleAccess;
@@ -53,6 +54,7 @@ class CommandBarAgentService
         array $history = [],
         ?string $agentSlug = null,
         array $attachmentFiles = [],
+        bool $historyExtended = false,
     ): array {
         $startedAt = hrtime(true);
         $persona = AiAgentCatalog::resolveForUser($user, $agentSlug);
@@ -166,7 +168,7 @@ class CommandBarAgentService
             ],
         ];
 
-        foreach (array_slice($history, -10) as $item) {
+        foreach (array_slice($history, -CommandBarHistoryLimits::llmMax($user, $historyExtended)) as $item) {
             $role = (string) ($item['role'] ?? '');
             $content = trim((string) ($item['content'] ?? ''));
 

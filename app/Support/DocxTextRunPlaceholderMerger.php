@@ -54,6 +54,17 @@ final class DocxTextRunPlaceholderMerger
                     -1,
                     $count
                 );
+                if ($count > 0) {
+                    continue;
+                }
+
+                $xml = (string) preg_replace(
+                    '#(<w:t(?:\s[^>]*)?>)\s*\$\{\s*</w:t></w:r>'.$betweenRuns.'<w:r[^>]*>(?:<w:rPr>.*?</w:rPr>)?'.$betweenRuns.'<w:t(?:\s[^>]*)?>\s*'.$q.'\s*</w:t></w:r>'.$betweenRuns.'<w:r[^>]*>(?:<w:rPr>.*?</w:rPr>)?'.$betweenRuns.'<w:t(?:\s[^>]*)?>\s*\}\s*</w:t></w:r>#sU',
+                    '\\1${'.$inner.'}</w:t></w:r>',
+                    $xml,
+                    -1,
+                    $count
+                );
             } elseif ($open === '{{' && $close === '}}') {
                 $xml = (string) preg_replace(
                     '#(<w:t(?:\s[^>]*)?>)\s*\{\s*</w:t></w:r>'.$betweenRuns.'<w:r[^>]*>(?:<w:rPr>.*?</w:rPr>)?'.$betweenRuns.'<w:t(?:\s[^>]*)?>\s*\{\s*'.$q.'\s*\}\s*\}\s*</w:t></w:r>#sU',

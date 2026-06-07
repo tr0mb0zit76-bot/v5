@@ -446,6 +446,20 @@
                                 <span v-if="agentMessageCount > 0" class="text-zinc-500"> ({{ agentMessageCount }})</span>
                             </button>
                             <button
+                                v-if="props.agentHistoryLimits.can_extend !== false"
+                                type="button"
+                                class="block w-full px-3 py-2 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                :class="props.agentExtendedMemory
+                                    ? 'font-medium text-sky-800 dark:text-sky-200'
+                                    : 'text-zinc-800 dark:text-zinc-100'"
+                                @click="toggleAgentExtendedMemory"
+                            >
+                                {{ props.agentExtendedMemory ? '✓ ' : '' }}Расширить память
+                                <span class="block text-[10px] font-normal text-zinc-500 dark:text-zinc-400">
+                                    до {{ extendedMemoryCaption }} реплик в контексте
+                                </span>
+                            </button>
+                            <button
                                 type="button"
                                 class="block w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
                                 :disabled="agentMessageCount === 0 && !agentHasSavedThread"
@@ -511,10 +525,30 @@ import {
 const props = defineProps({
     agentMessageCount: { type: Number, default: 0 },
     agentHasSavedThread: { type: Boolean, default: false },
+    agentHistoryLimits: {
+        type: Object,
+        default: () => ({
+            storage: 40,
+            request: 20,
+            llm: 10,
+            storage_extended: 80,
+            request_extended: 40,
+            llm_extended: 20,
+            can_extend: true,
+        }),
+    },
+    agentExtendedMemory: { type: Boolean, default: false },
     selectedAgentSlug: { type: String, default: 'jarvis' },
 });
 
-const emit = defineEmits(['submit', 'badges', 'agent-history-open', 'agent-history-clear', 'update:selectedAgentSlug']);
+const emit = defineEmits([
+    'submit',
+    'badges',
+    'agent-history-open',
+    'agent-history-clear',
+    'agent-extended-memory-change',
+    'update:selectedAgentSlug',
+]);
 
 const page = usePage();
 const agentOptions = computed(() => {
@@ -522,6 +556,7 @@ const agentOptions = computed(() => {
 
     return Array.isArray(list) ? list : [];
 });
+const extendedMemoryCaption = computed(() => Number(props.agentHistoryLimits.llm_extended) || 20);
 const message = ref('');
 const attachedFiles = ref([]);
 const showActions = ref(false);
@@ -984,6 +1019,11 @@ function onAgentSlugChange(event) {
 
 function toggleAgentHistoryMenu() {
     agentHistoryMenuOpen.value = !agentHistoryMenuOpen.value;
+}
+
+function toggleAgentExtendedMemory() {
+    agentHistoryMenuOpen.value = false;
+    emit('agent-extended-memory-change', !props.agentExtendedMemory);
 }
 
 function emitAgentHistoryOpen() {
