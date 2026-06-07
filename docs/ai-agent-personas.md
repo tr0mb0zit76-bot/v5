@@ -28,4 +28,6 @@ POST /agent/command-bar/chat
 
 `config/ai_agents.php` — добавление persona: slug, display_name, prompt_lead, visibility_areas.
 
+Лимиты истории command bar (localStorage / request / LLM, режим «Расширить память»): `config/ai.php` → `command_bar.history.tiers`, логика — `App\Support\CommandBarHistoryLimits`. Пользовательская инструкция — [ai-assistants-user-guide.md](./ai-assistants-user-guide.md).
+
 Obsidian: `Exchange/CRM/Roadmap/Design/AI Agent Personas.md`

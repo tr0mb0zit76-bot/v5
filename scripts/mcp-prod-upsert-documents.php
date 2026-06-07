@@ -103,6 +103,7 @@ function prepareBookMarkdown(string $path): string
     $replacements = [
         '[Мастер заказов](order-wizard-user-guide.md)' => '«Мастер заказов» (отдельная статья Книги продаж)',
         '[Регламент работы с документами](documents-regulation.md)' => '«Регламент работы с документами» (раздел «Регламенты работы»)',
+        '[Ассистенты CRM](ai-assistants-user-guide.md)' => '«Ассистенты CRM — инструкция для пользователя» (раздел «Руководство по CRM»)',
         '[Инструкция пользователя](documents-user-guide.md)' => '«Документы — инструкция для пользователя» (раздел «Руководство по CRM»)',
         '[Nextcloud / хранилище](nextcloud-install.md)' => 'Nextcloud / хранилище (для админов)',
         '[OCR заявки](order-intake-ocr-service.md)' => 'OCR заявки (техническая документация)',
