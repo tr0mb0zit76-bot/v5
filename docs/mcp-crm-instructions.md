@@ -20,6 +20,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
 - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
 - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
+- get_print_form_templates_insights — шаблоны DOCX, базовые условия, диагностика печати (settings_system)
 - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text — черновики заявок (файл или текст)
 - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
 
@@ -39,3 +40,4 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 | `get_mail_sync_status` | Ошибки IMAP (`mail_last_sync_error`), время последнего sync |
 | `send_mail` | Отправить новое письмо (`subject`, `body`, `to`, опционально `cc`, `lead_id`, `order_id`) → `thread_id`, `message_id` |
 | `reply_mail_thread` | Ответ в цепочку (`thread_id`, `body`, опционально `to`, `cc`) → `thread_id`, `message_id` |
+| `get_print_form_templates_insights` | Шаблоны DOCX и базовые условия: `code` или `query`, диагностика, почему пункты не попали в черновик (settings_system / Юрик) |

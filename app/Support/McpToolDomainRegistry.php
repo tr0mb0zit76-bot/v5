@@ -36,6 +36,7 @@ final class McpToolDomainRegistry
         'get_trainer_coaching_insights' => ['domain' => 'trainer', 'cross' => ['sales_book', 'analytics']],
         'get_manager_sales_coaching_insights' => ['domain' => 'analytics', 'cross' => ['leads']],
         'get_ai_usage_insights' => ['domain' => 'analytics', 'cross' => ['sales_book', 'trainer']],
+        'get_print_form_templates_insights' => ['domain' => 'settings', 'cross' => ['orders']],
         'upsert_disposition_entry' => ['domain' => 'disposition', 'cross' => ['orders']],
         'search_mail_threads' => ['domain' => 'mail', 'cross' => ['orders', 'contractors']],
         'get_mail_thread' => ['domain' => 'mail', 'cross' => ['orders', 'contractors']],

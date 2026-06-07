@@ -216,8 +216,8 @@
                 </div>
 
                 <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
-                    <div class="flex min-h-0 flex-col gap-4">
-                        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)] sm:items-end">
+                    <div class="flex min-h-0 flex-col gap-3">
+                        <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)] sm:items-end">
                             <label class="block text-sm">
                                 <span class="mb-1 block text-zinc-600 dark:text-zinc-300">Область редактирования</span>
                                 <select
@@ -237,7 +237,7 @@
                             </label>
                         </div>
 
-                        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                        <p class="text-xs leading-snug text-zinc-500 dark:text-zinc-400">
                             <template v-if="basicTermsContractorId">
                                 Условия для выбранного контрагента перекрывают общие при печати договора-заявки с его участием.
                                 Пустой список — контрагент использует общие условия.
@@ -247,57 +247,63 @@
                             </template>
                         </p>
 
-                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                        <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                             <div
                                 v-for="(row, index) in basicTermsForm.items"
                                 :key="row.key"
-                                class="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900/40"
+                                class="flex items-start gap-2 rounded-lg border border-zinc-200 bg-white px-2 py-1.5 dark:border-zinc-700 dark:bg-zinc-900/40"
                             >
-                                <div class="mb-2 flex items-center justify-between gap-2">
-                                    <span class="text-xs font-medium uppercase tracking-wide text-zinc-500">Пункт {{ index + 1 }}</span>
-                                    <div class="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            class="rounded-lg border border-zinc-200 p-1.5 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                            :disabled="index === 0"
-                                            @click="moveBasicTermRow(index, -1)"
-                                        >
-                                            <ChevronUp class="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="rounded-lg border border-zinc-200 p-1.5 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                                            :disabled="index === basicTermsForm.items.length - 1"
-                                            @click="moveBasicTermRow(index, 1)"
-                                        >
-                                            <ChevronDown class="h-4 w-4" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                                            @click="removeBasicTermRow(index)"
-                                        >
-                                            <Trash2 class="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </div>
+                                <span
+                                    class="mt-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                                    aria-hidden="true"
+                                >
+                                    {{ index + 1 }}
+                                </span>
                                 <textarea
                                     v-model="row.body"
-                                    rows="4"
-                                    :class="`${crmFieldFluid} min-h-[96px] resize-y`"
+                                    rows="2"
+                                    :class="`${crmFieldFluid} min-h-[2.5rem] flex-1 resize-y py-1.5 text-sm leading-snug`"
                                     placeholder="Текст пункта базовых условий"
                                 />
+                                <div class="flex shrink-0 items-center gap-0.5 pt-0.5">
+                                    <button
+                                        type="button"
+                                        class="rounded-md border border-zinc-200 p-1 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="index === 0"
+                                        :title="'Выше'"
+                                        @click="moveBasicTermRow(index, -1)"
+                                    >
+                                        <ChevronUp class="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md border border-zinc-200 p-1 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                        :disabled="index === basicTermsForm.items.length - 1"
+                                        :title="'Ниже'"
+                                        @click="moveBasicTermRow(index, 1)"
+                                    >
+                                        <ChevronDown class="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md border border-rose-200 p-1 text-rose-600 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                        title="Удалить"
+                                        @click="removeBasicTermRow(index)"
+                                    >
+                                        <Trash2 class="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
                             </div>
 
                             <div
                                 v-if="basicTermsForm.items.length === 0"
-                                class="rounded-xl border border-dashed border-zinc-300 px-4 py-10 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                                class="rounded-lg border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
                             >
                                 Пункты не заданы. Добавьте первый пункт или сохраните пустой список, чтобы использовать только общие условия.
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+                        <div class="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
                             <button
                                 type="button"
                                 :class="crmBtnCreate"
