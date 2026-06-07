@@ -20,7 +20,7 @@ final class McpCrossDomainGuard
 
         $config = McpToolDomainRegistry::toolConfig($toolName);
 
-        if ($config === null) {
+        if ($config === null || $config['cross'] === []) {
             return;
         }
 

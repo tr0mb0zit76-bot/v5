@@ -14,7 +14,6 @@ use App\Services\Mcp\DispositionMcpService;
 use App\Services\Mcp\FleetMcpService;
 use App\Services\Mcp\MailMcpService;
 use App\Services\Mcp\McpAccessGate;
-use App\Services\Mcp\McpCrossDomainGuard;
 use App\Services\Mcp\OrderDocumentMcpService;
 use App\Services\Mcp\OrderIntakeMcpService;
 use App\Services\Mcp\OrderMcpService;
@@ -61,7 +60,6 @@ class AgentToolRegistry
         private readonly MailMcpService $mail,
         private readonly PrintFormTemplatesMcpService $printFormTemplates,
         private readonly ContractorPrintFormChangeRequestService $printFormChanges,
-        private readonly McpCrossDomainGuard $crossDomainGuard,
     ) {}
 
     /**
@@ -96,7 +94,6 @@ class AgentToolRegistry
             }
 
             try {
-                $this->crossDomainGuard->enforce($name);
                 $result = ($definition->invoke)($user, $arguments);
                 $this->audit->log($user, $name, $arguments, true, null, AiInteractionFeature::CommandBar);
 
