@@ -47,6 +47,21 @@ class PrintFormBasicTermsTableClonerTest extends TestCase
         $this->assertNull(PrintFormBasicTermsTableCloner::forParty('internal'));
     }
 
+    public function test_parties_from_placeholders_detects_customer_and_carrier(): void
+    {
+        $parties = PrintFormBasicTermsTableCloner::partiesFromPlaceholders([
+            'order.number',
+            'dp_basic_terms_row_text',
+            'cp_basic_terms_row_index',
+            'cargo_row_name',
+        ]);
+
+        $this->assertSame([
+            PrintFormBasicTerm::PARTY_CARRIER,
+            PrintFormBasicTerm::PARTY_CUSTOMER,
+        ], $parties);
+    }
+
     #[Test]
     public function it_clones_carrier_basic_terms_rows(): void
     {

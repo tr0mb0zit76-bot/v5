@@ -113,6 +113,31 @@ final class PrintFormBasicTermsTableCloner
         return (bool) preg_match('/^(cp|dp)_basic_terms_row_[a-z0-9_]+#\d+$/i', $trimmed);
     }
 
+    /**
+     * @param  iterable<mixed>  $placeholders
+     * @return list<string>
+     */
+    public static function partiesFromPlaceholders(iterable $placeholders): array
+    {
+        $parties = [];
+
+        foreach ($placeholders as $placeholder) {
+            if (! is_string($placeholder)) {
+                continue;
+            }
+
+            if (preg_match('/^cp_basic_terms_row_/i', $placeholder)) {
+                $parties[] = PrintFormBasicTerm::PARTY_CUSTOMER;
+            }
+
+            if (preg_match('/^dp_basic_terms_row_/i', $placeholder)) {
+                $parties[] = PrintFormBasicTerm::PARTY_CARRIER;
+            }
+        }
+
+        return array_values(array_unique($parties));
+    }
+
     private function removeTemplateRow(TemplateProcessor $processor): void
     {
         try {

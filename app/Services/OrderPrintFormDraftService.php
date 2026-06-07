@@ -7,6 +7,7 @@ use App\Models\FleetDriver;
 use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\OrderLeg;
+use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
 use App\Services\PrintForm\PrintFormBasicTermsService;
@@ -95,14 +96,7 @@ class OrderPrintFormDraftService
             $this->buildRouteTableRowsForTemplate($orderForSnapshot, $context),
         );
 
-        $basicTermsCloner = PrintFormBasicTermsTableCloner::forParty((string) ($template->party ?? ''));
-
-        if ($basicTermsCloner !== null) {
-            $basicTermsCloner->apply(
-                $processor,
-                $this->basicTermsService->resolveTableRowsForPrint($orderForSnapshot, $template, $context),
-            );
-        }
+        $this->applyBasicTermsTables($processor, $orderForSnapshot, $template, $context, $placeholders);
 
         foreach ($placeholders as $placeholder) {
             if (in_array($placeholder, $overlayPlaceholders, true)) {
@@ -2473,5 +2467,71 @@ class OrderPrintFormDraftService
     private function formatVolumeNumber(float $value): string
     {
         return number_format($value, 3, ',', ' ');
+    }
+
+    /**
+     * @param  Collection<int, string>  $placeholders
+     */
+    private function applyBasicTermsTables(
+        TemplateProcessor $processor,
+        Order $order,
+        PrintFormTemplate $template,
+        ?OrderPrintFormContext $context,
+        Collection $placeholders,
+    ): void {
+        foreach ($this->resolveBasicTermsPartiesForTemplate($processor, $template, $placeholders) as $party) {
+            $cloner = PrintFormBasicTermsTableCloner::forParty($party);
+
+            if ($cloner === null) {
+                continue;
+            }
+
+            $cloner->apply(
+                $processor,
+                $this->basicTermsService->resolveTableRowsForPrintParty($order, $party, $context),
+            );
+        }
+    }
+
+    /**
+     * @param  Collection<int, string>  $placeholders
+     * @return list<string>
+     */
+    private function resolveBasicTermsPartiesForTemplate(
+        TemplateProcessor $processor,
+        PrintFormTemplate $template,
+        Collection $placeholders,
+    ): array {
+        $parties = [];
+
+        foreach ([PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER] as $party) {
+            $cloner = PrintFormBasicTermsTableCloner::forParty($party);
+
+            if ($cloner !== null && $cloner->templateHasTermsTable($processor)) {
+                $parties[] = $party;
+            }
+        }
+
+        if ($parties !== []) {
+            return $parties;
+        }
+
+        foreach (PrintFormBasicTermsTableCloner::partiesFromPlaceholders($placeholders) as $party) {
+            if (! in_array($party, $parties, true)) {
+                $parties[] = $party;
+            }
+        }
+
+        if ($parties !== []) {
+            return $parties;
+        }
+
+        $templateParty = (string) ($template->party ?? '');
+
+        if (in_array($templateParty, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)) {
+            return [$templateParty];
+        }
+
+        return [];
     }
 }

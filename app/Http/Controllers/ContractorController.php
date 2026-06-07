@@ -20,6 +20,7 @@ use App\Services\ContractorOperationalStatusService;
 use App\Services\ContractorPartnerCardService;
 use App\Services\DaDataService;
 use App\Services\DocumentStorageService;
+use App\Services\PrintForm\ContractorPrintFormProfileResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorPortraitDictionary;
 use App\Support\ContractorTableColumns;
@@ -652,6 +653,7 @@ class ContractorController extends Controller
 
             $contractorDetails = [
                 ...$selectedContractor->toArray(),
+                'print_form_profile' => app(ContractorPrintFormProfileResolver::class)->resolve($selectedContractor),
                 'current_debt' => $currentDebt,
                 'debt_limit_reached' => $creditService->isBlockedByDebtLimit($selectedContractor, $currentDebt),
                 'limit_approval' => app(ContractorLimitApprovalService::class)->pendingPayloadFor($selectedContractor),

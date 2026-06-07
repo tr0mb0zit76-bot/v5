@@ -863,6 +863,20 @@ const isCreateRoute = computed(() => currentPagePath(page.url) === '/contractors
 const isCreating = computed(() => isCreateModalOpen.value || (isCreateRoute.value && !isCreateRouteDismissed.value));
 const selectedContractorId = computed(() => props.selectedContractor?.id ?? null);
 
+const printFormProfileBadgeClass = computed(() => {
+    const mode = props.selectedContractor?.print_form_profile?.mode;
+
+    if (mode === 'contractor_external') {
+        return 'border-violet-200 bg-violet-50 text-violet-900 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-100';
+    }
+
+    if (mode === 'internal_customized') {
+        return 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-100';
+    }
+
+    return 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200';
+});
+
 const visibleTabs = computed(() => tabs.filter((tab) => tab.key !== 'portrait' || selectedContractorId.value));
 
 const portraitForTab = computed(() => props.selectedContractor?.portrait ?? {
@@ -2464,10 +2478,20 @@ function goToPage(pageNumber) {
                                 </div>
 
                                 <div class="border border-zinc-200 p-4 dark:border-zinc-800">
-                                    <div class="mb-4">
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Карточка компании</div>
-                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                            Основные данные контрагента для повседневной работы менеджера.
+                                    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">Карточка компании</div>
+                                            <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                Основные данные контрагента для повседневной работы менеджера.
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="selectedContractor?.print_form_profile?.label"
+                                            class="rounded-full border px-3 py-1 text-xs font-medium"
+                                            :class="printFormProfileBadgeClass"
+                                            :title="selectedContractor.print_form_profile.summary"
+                                        >
+                                            {{ selectedContractor.print_form_profile.label }}
                                         </div>
                                     </div>
 

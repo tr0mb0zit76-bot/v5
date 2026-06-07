@@ -98,7 +98,7 @@
                                 <div v-if="template.own_company_name" class="font-medium">{{ template.own_company_name }}</div>
                                 <div v-else class="text-zinc-500">Любая своя компания</div>
                                 <div class="text-xs text-zinc-500">{{ transportScopeLabel(template.transport_scope) }}</div>
-                                <div v-if="template.contractor_name" class="text-xs text-zinc-500">{{ template.contractor_name }}</div>
+                                <div v-if="template.source_type === 'external_docx' && template.contractor_name" class="text-xs text-zinc-500">{{ template.contractor_name }}</div>
                                 <div v-if="template.is_default" class="text-xs text-emerald-600 dark:text-emerald-300">По умолчанию</div>
                             </td>
                             <td class="px-3 py-3">
@@ -450,14 +450,17 @@
                                             </option>
                                         </select>
                                     </div>
-                                    <div class="space-y-2">
+                                    <div v-if="form.source_type === 'external_docx'" class="space-y-2">
                                         <label class="text-sm font-medium">Контрагент</label>
                                         <select v-model="form.contractor_id" :class="crmFieldFluid">
-                                            <option :value="null">Без привязки</option>
+                                            <option :value="null">Выберите контрагента</option>
                                             <option v-for="option in contractorOptions" :key="option.id" :value="option.id">
                                                 {{ option.name }}
                                             </option>
                                         </select>
+                                        <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            Обязательно для DOCX контрагента — шаблон применяется только к этому контрагенту.
+                                        </div>
                                         <div v-if="form.errors.contractor_id" class="text-sm text-rose-600">{{ form.errors.contractor_id }}</div>
                                     </div>
                                 </div>
@@ -1054,6 +1057,12 @@ const form = useForm({
 const externalTemplateCount = computed(() => props.templates.filter((template) => template.source_type === 'external_docx').length);
 const defaultTemplateCount = computed(() => props.templates.filter((template) => template.is_default).length);
 const activeVariableOptions = computed(() => (form.entity_type === 'lead' ? props.leadVariableOptions : props.orderVariableOptions));
+
+watch(() => form.source_type, (sourceType) => {
+    if (sourceType !== 'external_docx') {
+        form.contractor_id = null;
+    }
+});
 
 function resetForm() {
     form.reset();

@@ -37,7 +37,11 @@ class StorePrintFormTemplateRequest extends FormRequest
             'document_group' => ['required', 'string', Rule::in(array_column(PrintFormTemplate::documentGroupOptions(), 'value'))],
             'party' => ['required', 'string', Rule::in(array_column(PrintFormTemplate::partyOptions(), 'value'))],
             'source_type' => ['required', 'string', Rule::in(array_column(PrintFormTemplate::sourceTypeOptions(), 'value'))],
-            'contractor_id' => $contractorRules,
+            'contractor_id' => [
+                ...$contractorRules,
+                Rule::requiredIf($this->input('source_type') === 'external_docx'),
+                Rule::prohibitedIf($this->input('source_type') === 'system'),
+            ],
             'own_company_id' => $this->ownCompanyIdRules(),
             'transport_scope' => ['nullable', 'string', Rule::in(PrintFormTemplateTransportScope::values())],
             'is_default' => ['nullable', 'boolean'],
@@ -89,6 +93,10 @@ class StorePrintFormTemplateRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->input('source_type') !== 'external_docx') {
+            $this->merge(['contractor_id' => null]);
+        }
+
         if ($this->has('own_company_id') && $this->input('own_company_id') === '') {
             $this->merge(['own_company_id' => null]);
         }

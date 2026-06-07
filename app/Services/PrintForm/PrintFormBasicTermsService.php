@@ -94,6 +94,21 @@ final class PrintFormBasicTermsService
             return [];
         }
 
+        return $this->resolveTableRowsForPrintParty($order, $party, $context);
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    public function resolveTableRowsForPrintParty(
+        Order $order,
+        string $party,
+        ?OrderPrintFormContext $context = null,
+    ): array {
+        if (! in_array($party, [PrintFormBasicTerm::PARTY_CUSTOMER, PrintFormBasicTerm::PARTY_CARRIER], true)) {
+            return [];
+        }
+
         $cloner = PrintFormBasicTermsTableCloner::forParty($party);
 
         if ($cloner === null) {
