@@ -19,6 +19,7 @@ use App\Support\PaymentFormCodeLabel;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PhpWordTemplateOverlayImageInjector;
 use App\Support\PrintFormBasicTermsTableCloner;
+use App\Support\PrintFormCargoScopeResolver;
 use App\Support\PrintFormCargoTableCloner;
 use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderMacroVariants;
