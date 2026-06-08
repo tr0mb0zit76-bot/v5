@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ContractorActivityType;
 use App\Models\Currency;
+use App\Models\Department;
 use App\Models\VatRate;
 use App\Support\RoleAccess;
 use App\Support\VatRateCode;
@@ -66,6 +67,26 @@ class SettingsDictionariesController extends Controller
                                 'code' => $item->code,
                                 'label' => $item->label,
                                 'rate_percent' => (float) $item->rate_percent,
+                            ])
+                            ->all()
+                        : [],
+                ],
+                [
+                    'key' => 'departments',
+                    'title' => 'Подразделения',
+                    'description' => 'Организационные подразделения для карточек пользователей и маршрутизации согласований.',
+                    'items' => Schema::hasTable('departments')
+                        ? Department::query()
+                            ->withCount('users')
+                            ->orderBy('sort_order')
+                            ->orderBy('name')
+                            ->get(['id', 'name', 'sort_order', 'is_active'])
+                            ->map(fn (Department $item): array => [
+                                'id' => $item->id,
+                                'name' => $item->name,
+                                'sort_order' => (int) $item->sort_order,
+                                'is_active' => (bool) $item->is_active,
+                                'users_count' => (int) $item->users_count,
                             ])
                             ->all()
                         : [],
@@ -174,6 +195,68 @@ class SettingsDictionariesController extends Controller
         abort_unless(Schema::hasTable('vat_rates'), 404, 'Справочник ставок НДС недоступен.');
 
         $vatRate->delete();
+
+        return to_route('settings.dictionaries.index');
+    }
+
+    public function storeDepartment(Request $request): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+        abort_unless(Schema::hasTable('departments'), 404, 'Справочник подразделений недоступен.');
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('departments', 'name')],
+        ]);
+
+        $nextOrder = (int) (Department::query()->max('sort_order') ?? 0) + 10;
+
+        Department::query()->create([
+            'name' => trim($validated['name']),
+            'sort_order' => $nextOrder,
+            'is_active' => true,
+        ]);
+
+        return to_route('settings.dictionaries.index');
+    }
+
+    public function updateDepartment(Request $request, Department $department): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+        abort_unless(Schema::hasTable('departments'), 404, 'Справочник подразделений недоступен.');
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('departments', 'name')->ignore($department->id),
+            ],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $department->update([
+            'name' => trim($validated['name']),
+            'is_active' => array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : $department->is_active,
+        ]);
+
+        return to_route('settings.dictionaries.index');
+    }
+
+    public function destroyDepartment(Request $request, Department $department): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
+        abort_unless(Schema::hasTable('departments'), 404, 'Справочник подразделений недоступен.');
+
+        if ($department->users()->exists()) {
+            return to_route('settings.dictionaries.index')
+                ->withErrors([
+                    'department' => 'Нельзя удалить подразделение: к нему привязаны пользователи. Отключите его или переназначьте сотрудников.',
+                ]);
+        }
+
+        $department->delete();
 
         return to_route('settings.dictionaries.index');
     }

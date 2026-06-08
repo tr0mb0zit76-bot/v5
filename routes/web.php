@@ -447,6 +447,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/settings/dictionaries/currencies/{currency}', 'destroyCurrency')->name('settings.dictionaries.currencies.destroy');
         Route::post('/settings/dictionaries/vat-rates', 'storeVatRate')->name('settings.dictionaries.vat-rates.store');
         Route::delete('/settings/dictionaries/vat-rates/{vatRate}', 'destroyVatRate')->name('settings.dictionaries.vat-rates.destroy');
+        Route::post('/settings/dictionaries/departments', 'storeDepartment')->name('settings.dictionaries.departments.store');
+        Route::patch('/settings/dictionaries/departments/{department}', 'updateDepartment')->name('settings.dictionaries.departments.update');
+        Route::delete('/settings/dictionaries/departments/{department}', 'destroyDepartment')->name('settings.dictionaries.departments.destroy');
     });
 
     Route::controller(SettingsKpiController::class)->middleware('visibility.area:settings')->group(function () {

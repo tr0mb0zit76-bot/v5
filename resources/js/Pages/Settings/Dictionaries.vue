@@ -91,6 +91,26 @@
                         </form>
 
                         <form
+                            v-else-if="activeDictionary.key === 'departments'"
+                            class="flex w-full gap-2 md:max-w-md"
+                            @submit.prevent="submitDepartment"
+                        >
+                            <input
+                                v-model="departmentForm.name"
+                                type="text"
+                                placeholder="Название подразделения"
+                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                            >
+                            <button
+                                type="submit"
+                                class="inline-flex shrink-0 items-center justify-center border border-zinc-200 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                :disabled="departmentForm.processing"
+                            >
+                                {{ departmentForm.processing ? 'Сохранение...' : 'Добавить' }}
+                            </button>
+                        </form>
+
+                        <form
                             v-else-if="activeDictionary.key === 'currencies'"
                             class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end md:max-w-xl"
                             @submit.prevent="submitCurrency"
@@ -136,6 +156,9 @@
                         <div v-if="vatRateForm.errors.rate_percent" class="text-sm text-rose-600">{{ vatRateForm.errors.rate_percent }}</div>
                         <div v-if="vatRateForm.errors.label" class="text-sm text-rose-600">{{ vatRateForm.errors.label }}</div>
                     </div>
+                    <div v-if="activeDictionary.key === 'departments' && departmentForm.errors.name" class="text-sm text-rose-600">
+                        {{ departmentForm.errors.name }}
+                    </div>
 
                     <div class="mt-4 min-h-0 flex-1 overflow-auto border border-zinc-200 dark:border-zinc-800">
                         <div v-if="activeDictionary.items.length === 0" class="px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400">
@@ -146,29 +169,76 @@
                             <div
                                 v-for="item in activeDictionary.items"
                                 :key="item.id"
-                                class="flex items-center justify-between gap-3 px-4 py-3"
+                                class="px-4 py-3"
                             >
-                                <div class="text-sm text-zinc-900 dark:text-zinc-100">
-                                    <template v-if="activeDictionary.key === 'currencies'">
-                                        <span class="font-mono font-medium">{{ item.code }}</span>
-                                        <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.name }}</span>
-                                    </template>
-                                    <template v-else-if="activeDictionary.key === 'vat-rates'">
-                                        <span class="font-medium">{{ item.label }}</span>
-                                        <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.rate_percent }}%</span>
-                                        <span class="ml-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">{{ item.code }}</span>
-                                    </template>
-                                    <template v-else>
-                                        {{ item.name }}
-                                    </template>
-                                </div>
-                                <button
-                                    type="button"
-                                    class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
-                                    @click="removeDictionaryItem(item)"
+                                <template v-if="activeDictionary.key === 'departments'">
+                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div class="min-w-0 flex-1 space-y-2">
+                                            <input
+                                                v-model="departmentDraft(item).name"
+                                                type="text"
+                                                class="w-full border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-50"
+                                            >
+                                            <div class="flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                                                <label class="inline-flex items-center gap-2">
+                                                    <input
+                                                        v-model="departmentDraft(item).is_active"
+                                                        type="checkbox"
+                                                        class="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-zinc-400"
+                                                    >
+                                                    <span>Активно</span>
+                                                </label>
+                                                <span v-if="item.users_count > 0">
+                                                    Пользователей: {{ item.users_count }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="flex shrink-0 gap-2">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center justify-center border border-zinc-200 px-3 py-1.5 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                                                @click="saveDepartment(item)"
+                                            >
+                                                Сохранить
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="text-sm text-rose-600 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-rose-400 dark:hover:text-rose-300"
+                                                :disabled="item.users_count > 0"
+                                                :title="item.users_count > 0 ? 'Сначала переназначьте пользователей' : 'Удалить подразделение'"
+                                                @click="removeDepartment(item)"
+                                            >
+                                                Удалить
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div
+                                    v-else
+                                    class="flex items-center justify-between gap-3"
                                 >
-                                    Удалить
-                                </button>
+                                    <div class="text-sm text-zinc-900 dark:text-zinc-100">
+                                        <template v-if="activeDictionary.key === 'currencies'">
+                                            <span class="font-mono font-medium">{{ item.code }}</span>
+                                            <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.name }}</span>
+                                        </template>
+                                        <template v-else-if="activeDictionary.key === 'vat-rates'">
+                                            <span class="font-medium">{{ item.label }}</span>
+                                            <span class="text-zinc-500 dark:text-zinc-400"> — {{ item.rate_percent }}%</span>
+                                            <span class="ml-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">{{ item.code }}</span>
+                                        </template>
+                                        <template v-else>
+                                            {{ item.name }}
+                                        </template>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+                                        @click="removeDictionaryItem(item)"
+                                    >
+                                        Удалить
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -179,8 +249,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
+import { computed, reactive, ref, watch } from 'vue';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmListItemActive, crmListItemIdle, crmPanel } from '@/support/crmUi.js';
@@ -216,6 +286,33 @@ const vatRateForm = useForm({
     label: '',
 });
 
+const departmentForm = useForm({
+    name: '',
+});
+
+const departmentDrafts = reactive({});
+
+const page = usePage();
+
+watch(
+    () => props.dictionaries.find((dictionary) => dictionary.key === 'departments')?.items ?? [],
+    (items) => {
+        for (const key of Object.keys(departmentDrafts)) {
+            if (!items.some((item) => String(item.id) === String(key))) {
+                delete departmentDrafts[key];
+            }
+        }
+
+        for (const item of items) {
+            departmentDrafts[item.id] = {
+                name: item.name,
+                is_active: Boolean(item.is_active),
+            };
+        }
+    },
+    { immediate: true, deep: true },
+);
+
 function submitActivityType() {
     activityTypeForm.post(route('settings.dictionaries.activity-types.store'), {
         preserveScroll: true,
@@ -240,6 +337,37 @@ function submitVatRate() {
         onSuccess: () => {
             vatRateForm.reset();
         },
+    });
+}
+
+function submitDepartment() {
+    departmentForm.post(route('settings.dictionaries.departments.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            departmentForm.reset();
+        },
+    });
+}
+
+function departmentDraft(item) {
+    if (!departmentDrafts[item.id]) {
+        departmentDrafts[item.id] = {
+            name: item.name,
+            is_active: Boolean(item.is_active),
+        };
+    }
+
+    return departmentDrafts[item.id];
+}
+
+function saveDepartment(item) {
+    const draft = departmentDraft(item);
+
+    router.patch(route('settings.dictionaries.departments.update', item.id), {
+        name: draft.name,
+        is_active: draft.is_active,
+    }, {
+        preserveScroll: true,
     });
 }
 
@@ -273,6 +401,20 @@ function removeVatRate(item) {
     });
 }
 
+function removeDepartment(item) {
+    if (item.users_count > 0) {
+        return;
+    }
+
+    if (!window.confirm(`Удалить подразделение «${item.name}»?`)) {
+        return;
+    }
+
+    router.delete(route('settings.dictionaries.departments.destroy', item.id), {
+        preserveScroll: true,
+    });
+}
+
 function removeDictionaryItem(item) {
     const key = activeDictionary.value?.key;
     if (key === 'currencies') {
@@ -283,6 +425,19 @@ function removeDictionaryItem(item) {
         removeVatRate(item);
         return;
     }
+    if (key === 'departments') {
+        removeDepartment(item);
+        return;
+    }
     removeActivityType(item);
 }
+
+watch(
+    () => page.props.errors?.department,
+    (message) => {
+        if (message) {
+            window.alert(String(message));
+        }
+    },
+);
 </script>
