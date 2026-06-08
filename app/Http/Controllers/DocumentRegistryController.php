@@ -9,6 +9,7 @@ use App\Models\OrderDocument;
 use App\Services\DocumentStorageService;
 use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
+use App\Support\DocumentRegistryDocumentLabel;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -267,35 +268,37 @@ class DocumentRegistryController extends Controller
     {
         $documents = $order->documents ?? collect();
         $etrn = $this->serializeEtrnSummary($documents);
+        $contractorNamesById = DocumentRegistryDocumentLabel::contractorNamesByIdFromDocuments($documents);
 
         return [
             'order_id' => $order->id,
             'order_number' => $order->order_number ?: '#'.$order->id,
             'order_edit_url' => route('orders.edit', $order).'?tab=documents',
-            'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer'),
-            'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer'),
-            'customer_act' => $this->serializeColumnDocs($order, $documents, 'act', 'customer'),
-            'customer_invoice_factura' => $this->serializeColumnDocs($order, $documents, 'invoice_factura', 'customer'),
-            'customer_request' => $this->serializeColumnDocs($order, $documents, 'request', 'customer'),
-            'customer_contract_request' => $this->serializeColumnDocs($order, $documents, 'contract_request', 'customer'),
-            'carrier_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'carrier'),
-            'carrier_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'carrier'),
-            'carrier_act' => $this->serializeColumnDocs($order, $documents, 'act', 'carrier'),
-            'carrier_invoice_factura' => $this->serializeColumnDocs($order, $documents, 'invoice_factura', 'carrier'),
-            'carrier_request' => $this->serializeColumnDocs($order, $documents, 'request', 'carrier'),
-            'carrier_contract_request' => $this->serializeColumnDocs($order, $documents, 'contract_request', 'carrier'),
-            'transport_docs' => $this->serializeTransportDocs($order, $documents),
+            'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer', $contractorNamesById),
+            'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer', $contractorNamesById),
+            'customer_act' => $this->serializeColumnDocs($order, $documents, 'act', 'customer', $contractorNamesById),
+            'customer_invoice_factura' => $this->serializeColumnDocs($order, $documents, 'invoice_factura', 'customer', $contractorNamesById),
+            'customer_request' => $this->serializeColumnDocs($order, $documents, 'request', 'customer', $contractorNamesById),
+            'customer_contract_request' => $this->serializeColumnDocs($order, $documents, 'contract_request', 'customer', $contractorNamesById),
+            'carrier_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'carrier', $contractorNamesById),
+            'carrier_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'carrier', $contractorNamesById),
+            'carrier_act' => $this->serializeColumnDocs($order, $documents, 'act', 'carrier', $contractorNamesById),
+            'carrier_invoice_factura' => $this->serializeColumnDocs($order, $documents, 'invoice_factura', 'carrier', $contractorNamesById),
+            'carrier_request' => $this->serializeColumnDocs($order, $documents, 'request', 'carrier', $contractorNamesById),
+            'carrier_contract_request' => $this->serializeColumnDocs($order, $documents, 'contract_request', 'carrier', $contractorNamesById),
+            'transport_docs' => $this->serializeTransportDocs($order, $documents, $contractorNamesById),
             'etrn_status' => $etrn['status'],
             'etrn_external_id' => $etrn['external_id'],
-            'other_docs' => $this->serializeOtherDocs($order, $documents),
+            'other_docs' => $this->serializeOtherDocs($order, $documents, $contractorNamesById),
         ];
     }
 
     /**
      * @param  Collection<int, OrderDocument>  $documents
+     * @param  array<int, string>  $contractorNamesById
      * @return list<array{id: int, label: string, preview_url: string, order_url: string}>
      */
-    private function serializeColumnDocs(Order $order, $documents, string $type, string $party): array
+    private function serializeColumnDocs(Order $order, $documents, string $type, string $party, array $contractorNamesById = []): array
     {
         return $documents
             ->filter(function (OrderDocument $doc) use ($type, $party): bool {
@@ -303,12 +306,21 @@ class DocumentRegistryController extends Controller
 
                 return $doc->type === $type && ($meta['party'] ?? 'internal') === $party;
             })
-            ->map(function (OrderDocument $doc) use ($order): array {
+            ->sortBy(static function (OrderDocument $doc): array {
+                $meta = (array) ($doc->metadata ?? []);
+
+                return [
+                    (int) ($meta['carrier_slot'] ?? 999),
+                    $doc->id,
+                ];
+            })
+            ->map(function (OrderDocument $doc) use ($order, $contractorNamesById): array {
                 $preview = $this->resolveOrderDocumentPreviewUrl($order, $doc);
+                $meta = (array) ($doc->metadata ?? []);
 
                 return [
                     'id' => $doc->id,
-                    'label' => $doc->number ?: ($doc->original_name ?: 'Без номера'),
+                    'label' => DocumentRegistryDocumentLabel::build($doc, $meta, $contractorNamesById),
                     'preview_url' => $preview,
                     'order_url' => $preview,
                 ];
@@ -321,19 +333,24 @@ class DocumentRegistryController extends Controller
      * @param  Collection<int, OrderDocument>  $documents
      * @return list<array{id: int, type: string, label: string, preview_url: string, order_url: string}>
      */
-    private function serializeTransportDocs(Order $order, $documents): array
+    /**
+     * @param  array<int, string>  $contractorNamesById
+     */
+    private function serializeTransportDocs(Order $order, $documents, array $contractorNamesById = []): array
     {
         $transportTypes = ['waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration'];
 
         return $documents
             ->filter(fn (OrderDocument $doc): bool => in_array($doc->type, $transportTypes, true))
-            ->map(function (OrderDocument $doc) use ($order): array {
+            ->map(function (OrderDocument $doc) use ($order, $contractorNamesById): array {
                 $preview = $this->resolveOrderDocumentPreviewUrl($order, $doc);
+                $meta = (array) ($doc->metadata ?? []);
 
                 return [
                     'id' => $doc->id,
                     'type' => (string) $doc->type,
-                    'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
+                    'label' => DocumentRegistryDocumentLabel::build($doc, $meta, $contractorNamesById)
+                        ?: ($doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type))),
                     'preview_url' => $preview,
                     'order_url' => $preview,
                 ];
@@ -346,7 +363,10 @@ class DocumentRegistryController extends Controller
      * @param  Collection<int, OrderDocument>  $documents
      * @return list<array{id: int, label: string, preview_url: string, order_url: string}>
      */
-    private function serializeOtherDocs(Order $order, $documents): array
+    /**
+     * @param  array<int, string>  $contractorNamesById
+     */
+    private function serializeOtherDocs(Order $order, $documents, array $contractorNamesById = []): array
     {
         $structuredTypes = ['invoice', 'upd', 'act', 'invoice_factura', 'waybill', 'etrn', 'cmr', 'packing_list', 'customs_declaration'];
         $partySplitTypes = ['request', 'contract_request'];
@@ -362,12 +382,14 @@ class DocumentRegistryController extends Controller
 
                 return ! in_array($type, $structuredTypes, true);
             })
-            ->map(function (OrderDocument $doc) use ($order): array {
+            ->map(function (OrderDocument $doc) use ($order, $contractorNamesById): array {
                 $preview = $this->resolveOrderDocumentPreviewUrl($order, $doc);
+                $meta = (array) ($doc->metadata ?? []);
 
                 return [
                     'id' => $doc->id,
-                    'label' => $doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type)),
+                    'label' => DocumentRegistryDocumentLabel::build($doc, $meta, $contractorNamesById)
+                        ?: ($doc->number ?: ($doc->original_name ?: strtoupper((string) $doc->type))),
                     'preview_url' => $preview,
                     'order_url' => $preview,
                 ];

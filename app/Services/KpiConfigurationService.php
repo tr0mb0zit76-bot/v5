@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\KpiDeductionRule;
 use App\Models\KpiSetting;
 use App\Support\KpiCustomerDeduction;
+use App\Support\KpiDeductionRuleAmount;
+use App\Support\VatZeroCustomerStandardVatCarrierMarginSupplement;
 use Illuminate\Support\Facades\Schema;
 
 class KpiConfigurationService
@@ -159,12 +162,129 @@ class KpiConfigurationService
         return KpiCustomerDeduction::amount($customerRate, $paymentCategory, $this->deductionRates());
     }
 
+    /**
+     * @param  array{
+     *     deal_type: string,
+     *     rule: KpiDeductionRule|null,
+     *     uses_custom_rules: bool,
+     * }  $dealResolution
+     */
+    public function kpiDeductionAmountForResolution(float $customerRate, array $dealResolution): float
+    {
+        $rule = $dealResolution['rule'] ?? null;
+
+        if ($rule instanceof KpiDeductionRule) {
+            return KpiDeductionRuleAmount::deductionAmount($rule, $customerRate);
+        }
+
+        if (($dealResolution['uses_custom_rules'] ?? false) && ($dealResolution['deal_type'] ?? '') === 'unknown') {
+            return 0.0;
+        }
+
+        return $this->kpiDeductionAmount($customerRate, (string) ($dealResolution['deal_type'] ?? 'unknown'));
+    }
+
     public function effectiveKpiPercent(float $customerRate, string $paymentCategory): float
     {
         return KpiCustomerDeduction::effectivePercent(
             $customerRate,
             $this->kpiDeductionAmount($customerRate, $paymentCategory),
         );
+    }
+
+    /**
+     * @param  array{
+     *     deal_type: string,
+     *     rule: KpiDeductionRule|null,
+     *     uses_custom_rules: bool,
+     * }  $dealResolution
+     */
+    public function effectiveKpiPercentForResolution(float $customerRate, array $dealResolution): float
+    {
+        return KpiDeductionRuleAmount::effectivePercent(
+            $customerRate,
+            $this->kpiDeductionAmountForResolution($customerRate, $dealResolution),
+        );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $contractorsCosts
+     * @param  array{
+     *     deal_type: string,
+     *     rule: KpiDeductionRule|null,
+     *     uses_custom_rules: bool,
+     * }  $dealResolution
+     */
+    public function marginSupplementForResolution(
+        array $dealResolution,
+        ?string $customerPaymentForm,
+        array $contractorsCosts,
+    ): float {
+        $rule = $dealResolution['rule'] ?? null;
+
+        if ($rule instanceof KpiDeductionRule) {
+            return KpiDeductionRuleAmount::marginSupplementAmount($rule, $customerPaymentForm, $contractorsCosts);
+        }
+
+        if (($dealResolution['deal_type'] ?? '') !== 'vat_zero_22') {
+            return 0.0;
+        }
+
+        return VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
+            $customerPaymentForm,
+            $contractorsCosts,
+            $this->vatZero22MarginSupplementPercent(),
+        );
+    }
+
+    /**
+     * @param  array{
+     *     deal_type: string,
+     *     rule: KpiDeductionRule|null,
+     *     uses_custom_rules: bool,
+     * }  $dealResolution
+     */
+    public function deductionRatesLabelForResolution(array $dealResolution): string
+    {
+        $rule = $dealResolution['rule'] ?? null;
+
+        if ($rule instanceof KpiDeductionRule) {
+            return KpiDeductionRuleAmount::ratesLabel($rule);
+        }
+
+        return $this->deductionRatesLabel((string) ($dealResolution['deal_type'] ?? 'unknown'));
+    }
+
+    public function deductionRatesLabel(string $paymentCategory): string
+    {
+        $rates = $this->deductionRates();
+
+        if ($paymentCategory === 'cash') {
+            return sprintf(
+                '%s%% + %s%%',
+                $this->formatPercent((float) $rates['cash_primary_percent']),
+                $this->formatPercent((float) $rates['cash_secondary_percent']),
+            );
+        }
+
+        if ($paymentCategory === 'vat_zero_22') {
+            return sprintf('%s%%', $this->formatPercent((float) $rates['vat_zero_22_percent']));
+        }
+
+        if ($paymentCategory === 'vat_all') {
+            return sprintf('%s%%', $this->formatPercent((float) $rates['vat_all_percent']));
+        }
+
+        if (in_array($paymentCategory, ['vat', 'cashless'], true)) {
+            return sprintf('%s%%', $this->formatPercent((float) $rates['vat_percent']));
+        }
+
+        return '—';
+    }
+
+    private function formatPercent(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
 
     private function readVatPercentSetting(): float

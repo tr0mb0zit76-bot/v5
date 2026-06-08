@@ -15,7 +15,6 @@ use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementPreserver;
 use App\Support\PaymentScheduleSummaryFormatter;
-use App\Support\VatZeroCustomerStandardVatCarrierMarginSupplement;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -122,7 +121,8 @@ class OrderCompensationService
      */
     public function calculateOrder(Order $order): array
     {
-        $dealType = $this->dealTypeClassifier->classify($order);
+        $dealResolution = $this->dealTypeClassifier->resolve($order);
+        $dealType = $dealResolution['deal_type'];
 
         if ($dealType === 'unknown' || $order->order_date === null) {
             return [
@@ -142,10 +142,10 @@ class OrderCompensationService
         $bonus = (float) ($order->bonus ?? 0);
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
         $contractorsCosts = $this->extractContractorsCosts($order);
-        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmount($customerRate, $dealType);
-        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercent($customerRate, $dealType);
-        $vatMarginSupplement = $this->vatZero22MarginSupplementForDeal(
-            $dealType,
+        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmountForResolution($customerRate, $dealResolution);
+        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercentForResolution($customerRate, $dealResolution);
+        $vatMarginSupplement = $this->kpiConfigurationService->marginSupplementForResolution(
+            $dealResolution,
             (string) ($order->customer_payment_form ?? ''),
             $contractorsCosts,
         );
@@ -180,11 +180,13 @@ class OrderCompensationService
         $orderDate = $data['order_date'] ?? null;
         $contractorsCosts = is_array($data['contractors_costs'] ?? null) ? $data['contractors_costs'] : [];
 
-        $dealType = $this->dealTypeClassifier->classify([
+        $dealResolution = $this->dealTypeClassifier->resolve([
             'customer_payment_form' => $data['customer_payment_form'] ?? null,
             'carrier_payment_form' => $this->resolveCarrierPaymentFormForRealtime($data),
             'contractors_costs' => $contractorsCosts,
+            'order_date' => $orderDate,
         ]);
+        $dealType = $dealResolution['deal_type'];
 
         if ($dealType === 'unknown' || $orderDate === null || $managerId === 0) {
             return [
@@ -196,11 +198,11 @@ class OrderCompensationService
         }
 
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
-        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmount($customerRate, $dealType);
-        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercent($customerRate, $dealType);
+        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmountForResolution($customerRate, $dealResolution);
+        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercentForResolution($customerRate, $dealResolution);
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
-        $vatMarginSupplement = $this->vatZero22MarginSupplementForDeal(
-            $dealType,
+        $vatMarginSupplement = $this->kpiConfigurationService->marginSupplementForResolution(
+            $dealResolution,
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
         );
@@ -263,12 +265,28 @@ class OrderCompensationService
             ];
         }
 
-        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmount($customerRate, $scenarioPaymentCategory);
-        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercent($customerRate, $scenarioPaymentCategory);
+        $dealResolution = $this->dealTypeClassifier->resolve([
+            'customer_payment_form' => $data['customer_payment_form'] ?? null,
+            'carrier_payment_form' => $data['carrier_payment_form'] ?? null,
+            'contractors_costs' => $contractorsCosts,
+            'order_date' => $orderDate,
+        ]);
+
+        if (! ($dealResolution['uses_custom_rules'] ?? false)) {
+            $dealResolution = [
+                'deal_type' => $scenarioPaymentCategory,
+                'deal_type_label' => $scenarioPaymentCategory,
+                'rule' => null,
+                'uses_custom_rules' => false,
+            ];
+        }
+
+        $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmountForResolution($customerRate, $dealResolution);
+        $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercentForResolution($customerRate, $dealResolution);
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
-        $vatMarginSupplement = $this->vatZero22MarginSupplementForDeal(
-            $scenarioPaymentCategory,
+        $vatMarginSupplement = $this->kpiConfigurationService->marginSupplementForResolution(
+            $dealResolution,
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
             $contractorsCosts,
         );
@@ -281,27 +299,8 @@ class OrderCompensationService
             'kpi_percent' => round($kpiPercent, 2),
             'delta' => round($delta, 2),
             'salary_accrued' => round($salaryAccrued, 2),
-            'deal_type' => $scenarioPaymentCategory,
+            'deal_type' => (string) $dealResolution['deal_type'],
         ];
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $contractorsCosts
-     */
-    private function vatZero22MarginSupplementForDeal(
-        string $dealType,
-        ?string $customerPaymentForm,
-        array $contractorsCosts,
-    ): float {
-        if ($dealType !== 'vat_zero_22') {
-            return 0.0;
-        }
-
-        return VatZeroCustomerStandardVatCarrierMarginSupplement::amount(
-            $customerPaymentForm,
-            $contractorsCosts,
-            $this->kpiConfigurationService->vatZero22MarginSupplementPercent(),
-        );
     }
 
     /**

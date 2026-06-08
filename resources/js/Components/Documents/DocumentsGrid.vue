@@ -319,12 +319,39 @@ function onCellContextMenu(params) {
     contextMenu.open = true;
 }
 
+const documentColumnFields = fallbackColumns
+    .filter((column) => column.field !== 'order_number' && !column.kind)
+    .map((column) => column.field);
+
+function maxDocumentItemsInRow(row) {
+    if (!row) {
+        return 1;
+    }
+
+    return Math.max(
+        1,
+        ...documentColumnFields.map((field) => normalizeItems(row[field]).length),
+    );
+}
+
+function resolveDocumentRowHeight(row) {
+    const itemCount = maxDocumentItemsInRow(row);
+    const base = Number(resolveGridDensity(currentDensity.value).rowHeight) || 40;
+
+    if (itemCount <= 1) {
+        return base;
+    }
+
+    return Math.max(base, 14 + itemCount * 22);
+}
+
 const gridOptions = {
     theme: 'legacy',
     localeText: agGridLocaleRu,
     animateRows: false,
     preventDefaultOnContextMenu: true,
     onCellContextMenu,
+    getRowHeight: (params) => resolveDocumentRowHeight(params.data),
 };
 
 const storageKey = computed(() => `documents_grid_state_v2_${props.userId}`);
@@ -459,7 +486,7 @@ function etrnStatusCellRenderer(row, field) {
 
 function documentsCellRenderer(row, field) {
     const container = document.createElement('div');
-    container.className = 'flex h-full min-h-[46px] flex-col justify-center gap-0.5 py-1';
+    container.className = 'flex h-full min-h-0 flex-col items-start justify-center gap-0.5 py-1';
 
     const items = normalizeItems(row?.[field]);
     if (items.length === 0) {
@@ -470,12 +497,40 @@ function documentsCellRenderer(row, field) {
         return container;
     }
 
+    if (items.length >= 3) {
+        const summary = document.createElement('button');
+        summary.type = 'button';
+        summary.className = 'text-left text-xs font-medium text-sky-700 underline dark:text-sky-300';
+        summary.textContent = `${items.length} док.`;
+        summary.title = items.map((item) => item.label).join('\n');
+        summary.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (row?.order_id) {
+                emit('open-order-documents', row);
+            }
+        });
+        container.appendChild(summary);
+
+        items.slice(0, 2).forEach((item) => {
+            const link = document.createElement('a');
+            link.href = item.preview_url ?? item.order_url ?? '#';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'block max-w-full whitespace-normal break-words text-[11px] leading-4 text-sky-700 underline dark:text-sky-300';
+            link.textContent = item.label;
+            container.appendChild(link);
+        });
+
+        return container;
+    }
+
     items.forEach((item) => {
         const link = document.createElement('a');
         link.href = item.preview_url ?? item.order_url ?? '#';
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
-        link.className = 'truncate text-xs text-sky-700 underline dark:text-sky-300';
+        link.className = 'block max-w-full whitespace-normal break-words text-xs leading-5 text-sky-700 underline dark:text-sky-300';
         link.textContent = item.label;
         container.appendChild(link);
     });
@@ -793,6 +848,7 @@ watch(quickSearch, (value) => {
 
 watch(() => props.rows, async () => {
     await nextTick();
+    gridApi.value?.resetRowHeights();
     updateGridViewportHeight();
     attachCenterViewportListener();
     syncBottomScrollbar();

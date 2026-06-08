@@ -3,29 +3,50 @@
 namespace App\Services;
 
 use App\Models\FinancialTerm;
+use App\Models\KpiDeductionRule;
 use App\Models\Order;
 use App\Support\CarrierPaymentFormResolver;
-use App\Support\KpiPaymentCategoryResolver;
 use Illuminate\Support\Facades\Schema;
 
 class DealTypeClassifier
 {
+    public function __construct(
+        private readonly KpiDeductionRuleResolver $kpiDeductionRuleResolver,
+    ) {}
+
     /**
-     * Категория KPI: {@see KpiPaymentCategoryResolver}.
+     * Категория KPI / правило вычета.
      *
      * @param  array<string, mixed>|Order  $order
      */
     public function classify(array|Order $order): string
     {
+        return $this->resolve($order)['deal_type'];
+    }
+
+    /**
+     * @param  array<string, mixed>|Order  $order
+     * @return array{
+     *     deal_type: string,
+     *     deal_type_label: string,
+     *     rule: KpiDeductionRule|null,
+     *     uses_custom_rules: bool,
+     * }
+     */
+    public function resolve(array|Order $order): array
+    {
         $customerPaymentForm = $order instanceof Order
             ? $order->customer_payment_form
             : ($order['customer_payment_form'] ?? null);
 
-        $carrierPaymentForms = $this->carrierPaymentForms($order);
+        $orderDate = $order instanceof Order
+            ? optional($order->order_date)?->toDateString()
+            : ($order['order_date'] ?? null);
 
-        return KpiPaymentCategoryResolver::resolve(
+        return $this->kpiDeductionRuleResolver->resolve(
+            is_string($orderDate) ? $orderDate : null,
             is_string($customerPaymentForm) ? $customerPaymentForm : null,
-            $carrierPaymentForms,
+            $this->carrierPaymentForms($order),
         );
     }
 

@@ -452,6 +452,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(SettingsKpiController::class)->middleware('visibility.area:settings')->group(function () {
         Route::get('/settings/motivation/kpi', 'index')->name('settings.motivation.kpi');
         Route::patch('/settings/motivation/kpi', 'update')->name('settings.motivation.kpi.update');
+        Route::post('/settings/motivation/kpi/rules', 'storeDeductionRule')->name('settings.motivation.kpi.rules.store');
+        Route::patch('/settings/motivation/kpi/rules/{kpiDeductionRule}', 'updateDeductionRule')->name('settings.motivation.kpi.rules.update');
+        Route::delete('/settings/motivation/kpi/rules/{kpiDeductionRule}', 'destroyDeductionRule')->name('settings.motivation.kpi.rules.destroy');
         Route::get('/settings/motivation/salary', 'salaryIndex')->name('settings.motivation.salary');
         Route::post('/settings/motivation/salary/coefficients', 'storeSalaryCoefficient')->name('settings.motivation.salary.store');
         Route::patch('/settings/motivation/salary/coefficients/{salaryCoefficient}', 'updateSalaryCoefficient')->name('settings.motivation.salary.update');

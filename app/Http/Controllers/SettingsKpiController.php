@@ -2,20 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreKpiDeductionRuleRequest;
 use App\Http\Requests\StoreSalaryCoefficientRequest;
 use App\Http\Requests\StoreSalaryPayoutRequest;
 use App\Http\Requests\StoreSalaryPeriodRequest;
 use App\Http\Requests\StoreSalaryUnscopedAdvanceRequest;
+use App\Http\Requests\UpdateKpiDeductionRuleRequest;
 use App\Http\Requests\UpdateKpiSettingsRequest;
 use App\Http\Requests\UpdateSalaryCoefficientRequest;
+use App\Models\KpiDeductionRule;
 use App\Models\SalaryCoefficient;
 use App\Models\SalaryPeriod;
 use App\Models\User;
 use App\Services\KpiConfigurationService;
 use App\Services\SalaryPayrollService;
+use App\Support\KpiDeductionCarrierRule;
+use App\Support\KpiDeductionRuleAmount;
+use App\Support\KpiDeductionRuleDescription;
+use App\Support\PaymentFormDictionary;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,7 +40,16 @@ class SettingsKpiController extends Controller
 
         return Inertia::render('Settings/Kpi', [
             'bonusMultiplier' => $this->kpiConfigurationService->getBonusMultiplier(),
-            'deductionRates' => $this->kpiConfigurationService->deductionRates(),
+            'customRulesCutoffDate' => KpiDeductionRule::CUSTOM_RULES_CUTOFF_DATE,
+            'paymentFormOptions' => PaymentFormDictionary::options(),
+            'carrierRuleOptions' => collect(KpiDeductionCarrierRule::values())
+                ->map(fn (string $value): array => [
+                    'value' => $value,
+                    'label' => KpiDeductionCarrierRule::label($value),
+                ])
+                ->values()
+                ->all(),
+            'deductionRules' => $this->deductionRulesPayload(),
         ]);
     }
 
@@ -93,9 +110,117 @@ class SettingsKpiController extends Controller
         $validated = $request->validated();
 
         $this->kpiConfigurationService->saveBonusMultiplier((float) $validated['bonus_multiplier']);
-        $this->kpiConfigurationService->saveDeductionRates($validated['deduction_rates']);
 
         return to_route('settings.motivation.kpi');
+    }
+
+    public function storeDeductionRule(StoreKpiDeductionRuleRequest $request): RedirectResponse
+    {
+        KpiDeductionRule::query()->create($this->normalizeDeductionRuleInput($request->validated()));
+
+        return to_route('settings.motivation.kpi');
+    }
+
+    public function updateDeductionRule(
+        UpdateKpiDeductionRuleRequest $request,
+        KpiDeductionRule $kpiDeductionRule,
+    ): RedirectResponse {
+        $kpiDeductionRule->update($this->normalizeDeductionRuleInput($request->validated()));
+
+        return to_route('settings.motivation.kpi');
+    }
+
+    public function destroyDeductionRule(KpiDeductionRule $kpiDeductionRule): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessSettingsMotivation(request()->user()), 403);
+
+        $kpiDeductionRule->delete();
+
+        return to_route('settings.motivation.kpi');
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function normalizeDeductionRuleInput(array $input): array
+    {
+        $input['customer_payment_form'] = filled($input['customer_payment_form'] ?? null)
+            ? (string) $input['customer_payment_form']
+            : null;
+        $input['customer_positive_vat_required'] = (bool) ($input['customer_positive_vat_required'] ?? false);
+        $input['is_active'] = (bool) ($input['is_active'] ?? true);
+        $input['carrier_payment_forms'] = collect($input['carrier_payment_forms'] ?? [])
+            ->filter(fn (mixed $value): bool => filled($value))
+            ->values()
+            ->all();
+
+        if ($input['carrier_payment_forms'] === []) {
+            $input['carrier_payment_forms'] = null;
+        }
+
+        foreach ([
+            'customer_vat_rate_percent',
+            'carrier_vat_rate_percent',
+            'deduction_secondary_percent',
+            'margin_supplement_percent',
+            'margin_supplement_carrier_vat_percent',
+            'effective_to',
+        ] as $nullableField) {
+            if (! filled($input[$nullableField] ?? null)) {
+                $input[$nullableField] = null;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function deductionRulesPayload(): array
+    {
+        if (! Schema::hasTable('kpi_deduction_rules')) {
+            return [];
+        }
+
+        return KpiDeductionRule::query()
+            ->orderByDesc('priority')
+            ->orderByDesc('effective_from')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (KpiDeductionRule $rule): array => [
+                'id' => $rule->id,
+                'name' => $rule->name,
+                'priority' => $rule->priority,
+                'customer_payment_form' => $rule->customer_payment_form,
+                'customer_positive_vat_required' => $rule->customer_positive_vat_required,
+                'customer_vat_rate_percent' => $rule->customer_vat_rate_percent !== null
+                    ? (float) $rule->customer_vat_rate_percent
+                    : null,
+                'carrier_rule' => $rule->carrier_rule,
+                'carrier_payment_forms' => $rule->carrier_payment_forms ?? [],
+                'carrier_vat_rate_percent' => $rule->carrier_vat_rate_percent !== null
+                    ? (float) $rule->carrier_vat_rate_percent
+                    : null,
+                'deduction_primary_percent' => (float) $rule->deduction_primary_percent,
+                'deduction_secondary_percent' => $rule->deduction_secondary_percent !== null
+                    ? (float) $rule->deduction_secondary_percent
+                    : null,
+                'margin_supplement_percent' => $rule->margin_supplement_percent !== null
+                    ? (float) $rule->margin_supplement_percent
+                    : null,
+                'margin_supplement_carrier_vat_percent' => $rule->margin_supplement_carrier_vat_percent !== null
+                    ? (float) $rule->margin_supplement_carrier_vat_percent
+                    : null,
+                'effective_from' => optional($rule->effective_from)?->toDateString(),
+                'effective_to' => optional($rule->effective_to)?->toDateString(),
+                'is_active' => $rule->is_active,
+                'description' => KpiDeductionRuleDescription::build($rule),
+                'deduction_label' => KpiDeductionRuleAmount::ratesLabel($rule),
+            ])
+            ->values()
+            ->all();
     }
 
     public function storeSalaryCoefficient(StoreSalaryCoefficientRequest $request): RedirectResponse
