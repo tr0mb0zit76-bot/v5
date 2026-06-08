@@ -289,12 +289,21 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 **Идея:** сквозной pipeline «Лид → Заказ → Документы → Бухгалтерия → Сдан в отчёт».
 
+**Spike-документ:** [`workflow-end-to-end-spike.md`](./workflow-end-to-end-spike.md)
+
 ### Spike (1 нед., без prod-кода)
 
-- [ ] Карта статусов: lead / order / document / finance
-- [ ] 2–3 реальных сценария до «налоговой»
-- [ ] Решение: расширить `business_processes` **или** новая `ProcessInstance`
-- [ ] Wireframe «сквозного канбана» для руководителя
+- [x] Карта статусов: lead / order / document / finance
+- [x] 2–3 реальных сценария до «налоговой» / готовности к учёту
+- [x] Решение: **read-model `EndToEndPipelineSnapshot`**, не новая `ProcessInstance`; `business_processes` — только лиды
+- [x] Wireframe «сквозного канбана» для руководителя (7 колонок, blockers)
+
+### Реализация (после согласования §6 spike)
+
+- [ ] `EndToEndPipelineSnapshot` + API board
+- [ ] `Pipeline/Index.vue` — канбан для руководителя
+- [ ] KPI полоска (лид→заказ→closed)
+- [ ] Опционально: `accounting_handoff_at` или интеграция 1С как шаг «сдан в учёт»
 
 *Не блокирует фазы 1–3.*
 
@@ -377,6 +386,7 @@ grid_views:
 | v0.2.6 | 2026-05-31 | Скролл диспозиции: `DispositionUnclosedTrip`, якорь по незакрытым рейсам |
 | v0.2.7 | 2026-06-08 | Intake: command bar — вложения в чате ✅; MCP `extract_order_draft_from_document` — открыт |
 | v0.2.8 | 2026-06-08 | Единая модель условий оплаты: транши с якорями и событиями; `installment_sequence`; грид оплат — даты дд.мм.гггг; см. `payment-schedule-architecture.md` |
+| v0.2.9 | 2026-06-03 | Фаза 5 spike: `workflow-end-to-end-spike.md` — карта статусов, сценарии, read-model вместо ProcessInstance, wireframe pipeline |
 
 ---
 
