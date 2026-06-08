@@ -570,7 +570,7 @@ function buildBaseColumnDefs() {
         headerName: 'План',
         minWidth: 120,
         sortable: true,
-        valueFormatter: (p) => (p.value ? String(p.value).slice(0, 10) : '—'),
+        valueFormatter: (p) => formatGridDate(p.value),
     },
     {
         colId: 'actual_date',
@@ -578,7 +578,7 @@ function buildBaseColumnDefs() {
         headerName: 'Факт',
         minWidth: 120,
         sortable: true,
-        valueFormatter: (p) => (p.value ? String(p.value).slice(0, 10) : '—'),
+        valueFormatter: (p) => formatGridDate(p.value),
     },
     {
         colId: 'amount',
