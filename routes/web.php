@@ -33,6 +33,7 @@ use App\Http\Controllers\Orders\OrderIntakeController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
 use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\PaymentScheduleController;
+use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\Portal\OrderCarrierPortalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicSiteController;
@@ -312,6 +313,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
     Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
     Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
+    Route::get('/pipeline', [PipelineController::class, 'index'])->middleware('visibility.area:orders')->name('pipeline.index');
+    Route::post('/pipeline/orders/{order}/accounting-handoff', [PipelineController::class, 'markAccountingHandoff'])
+        ->middleware('visibility.area:orders')
+        ->name('pipeline.orders.accounting-handoff');
     Route::post('/orders/intake/extract', [OrderIntakeController::class, 'extract'])
         ->middleware(['visibility.area:orders', 'throttle:order-intake'])
         ->name('orders.intake.extract');

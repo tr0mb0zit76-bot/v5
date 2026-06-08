@@ -300,10 +300,10 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 ### Реализация (после согласования §6 spike)
 
-- [ ] `EndToEndPipelineSnapshot` + API board
-- [ ] `Pipeline/Index.vue` — канбан для руководителя
-- [ ] KPI полоска (лид→заказ→closed)
-- [ ] Опционально: `accounting_handoff_at` или интеграция 1С как шаг «сдан в учёт»
+- [x] `EndToEndPipelineSnapshot` + API board (MVP: `PipelineController`, `PipelineBoardService`)
+- [x] `Pipeline/Index.vue` — канбан для руководителя (заказы + лиды по БП, drag этапов)
+- [x] KPI полоска (лид→заказ, лид→closed, % просрочки оплат; blockers по overdue на карточке)
+- [x] Опционально: `accounting_handoff_at` — ручная галочка «принято бухгалтерией» (без 1С)
 
 *Не блокирует фазы 1–3.*
 

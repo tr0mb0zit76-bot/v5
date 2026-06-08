@@ -97,6 +97,8 @@ class Order extends Model
         'cargo_declared_sum',
         'is_international_transport',
         'performers',
+        'accounting_handoff_at',
+        'accounting_handoff_by',
     ];
 
     protected static function booted(): void
@@ -147,6 +149,10 @@ class Order extends Model
 
         if ($this->hasDeletedAtColumn()) {
             $casts['deleted_at'] = 'datetime';
+        }
+
+        if (Schema::hasColumn($this->getTable(), 'accounting_handoff_at')) {
+            $casts['accounting_handoff_at'] = 'datetime';
         }
 
         if (Schema::hasColumn($this->getTable(), 'performers')) {
