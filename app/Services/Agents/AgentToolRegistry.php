@@ -740,6 +740,48 @@ class AgentToolRegistry
                 ],
             ),
             new AgentToolDefinition(
+                name: 'extract_order_draft_from_document',
+                description: 'Черновик заявки из файла (PDF/DOCX/скан): file_name + content_base64.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_name' => ['type' => 'string'],
+                        'content_base64' => ['type' => 'string'],
+                        'mime_type' => ['type' => 'string'],
+                    ],
+                    'required' => ['file_name', 'content_base64'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orderIntake->extractDraftFromDocument(
+                    $user,
+                    (string) ($args['file_name'] ?? ''),
+                    (string) ($args['content_base64'] ?? ''),
+                    (string) ($args['mime_type'] ?? 'application/octet-stream'),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'apply_order_wizard_draft',
+                description: 'Создать заказ из draft_id. dry_run=true → preview + confirm_token; затем confirm_token без dry_run.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'draft_id' => ['type' => 'integer', 'minimum' => 1],
+                        'dry_run' => ['type' => 'boolean'],
+                        'confirm_token' => ['type' => 'string'],
+                    ],
+                    'required' => ['draft_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canOrders($user),
+                invoke: fn (User $user, array $args): array => $this->orderIntake->applyWizardDraft(
+                    $user,
+                    (int) ($args['draft_id'] ?? 0),
+                    (bool) ($args['dry_run'] ?? false),
+                    isset($args['confirm_token']) ? (string) $args['confirm_token'] : null,
+                ),
+            ),
+            new AgentToolDefinition(
                 name: 'search_mail_threads',
                 description: 'Поиск переписки (IMAP sync): тема, текст, email. «Письма у Садыкова» → mailbox_owner или фамилия в query (admin). В ответе mailbox_total_threads.',
                 parameters: [

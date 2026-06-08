@@ -3,11 +3,13 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Tools\AddOrderNoteTool;
+use App\Mcp\Tools\ApplyOrderWizardDraftTool;
 use App\Mcp\Tools\CreateContractorTool;
 use App\Mcp\Tools\CreateFleetDriverTool;
 use App\Mcp\Tools\CreateFleetVehicleTool;
 use App\Mcp\Tools\CreateOrderIntakeDraftFromTextTool;
 use App\Mcp\Tools\CreateTaskTool;
+use App\Mcp\Tools\ExtractOrderDraftFromDocumentTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetMailSyncStatusTool;
@@ -68,8 +70,9 @@ use Laravel\Mcp\Server\Tool;
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
-        - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / remember_order_intake_phrase — черновики заявок и обучение фразам из диалога
-        - После create_order_intake_draft_from_text в ответе есть draft_id и wizard_path (/orders/create?intake_draft=…). MCP не открывает UI — пользователь переходит по wizard_path (command bar в CRM делает это сам через navigate_to).
+        - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft / remember_order_intake_phrase — черновики заявок
+        - apply_order_wizard_draft: dry_run=true → confirm_token, затем вызов с confirm_token (создание заказа из draft_id)
+        - После create/extract в ответе draft_id и wizard_path. Альтернатива UI: apply_order_wizard_draft после dry_run.
         - get_print_form_basic_terms — общие пункты базовых условий cp/dp (заказчик/перевозчик) из настроек CRM
         - get_print_form_templates_insights — шаблоны DOCX, базовые условия и диагностика печати (settings_system / Юрик)
         - upsert_print_form_basic_terms — прямое сохранение базовых условий (admin / settings_system)
@@ -119,6 +122,8 @@ class CrmServer extends Server
         GetOrderIntakeDraftTool::class,
         ListOrderIntakeDraftsTool::class,
         CreateOrderIntakeDraftFromTextTool::class,
+        ExtractOrderDraftFromDocumentTool::class,
+        ApplyOrderWizardDraftTool::class,
         RememberOrderIntakePhraseTool::class,
         SearchMailThreadsTool::class,
         GetMailThreadTool::class,

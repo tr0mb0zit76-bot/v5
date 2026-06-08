@@ -135,7 +135,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 - [x] `CreateTaskTool`, `UpsertDispositionEntryTool`
 - [x] `AddOrderNoteTool`, `UpdateOrderFieldTool` (whitelist полей inline-грида)
-- [ ] Dry-run / confirm token для опасных операций
+- [x] Dry-run / confirm token для `apply_order_wizard_draft` (остальные write — по мере необходимости)
 
 ### 1.4 DeepSeek + command bar
 
@@ -147,7 +147,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 ### 1.5 Cursor prod checklist
 
 - [x] MCP endpoint на prod за HTTPS
-- [ ] Документ «Как выпустить MCP-токен» (1 страница)
+- [x] Документ «Как выпустить MCP-токен» — `docs/mcp-issue-token.md`
 - [x] Проверка: Cursor → заказ с прода; Книга продаж — upsert/artisan
 
 ### 1.6 Заполнение заказа из заявки заказчика 🔴 P1
@@ -180,14 +180,14 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `get_order_intake_draft` / `list_order_intake_drafts` / `create_order_intake_draft_from_text` — MCP и command bar
 - [x] `search_mail_threads` / `get_mail_thread` / `get_mail_sync_status` — MCP (IMAP sync, область «Почта»)
 - [x] `send_mail` / `reply_mail_thread` — отправка из CRM (SMTP, From = email сотрудника)
-- [ ] `extract_order_draft_from_document` — прямая загрузка файла в MCP (позже; в CRM — через command bar, см. ниже)
-- [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
+- [x] `extract_order_draft_from_document` — base64 в MCP; в CRM — command bar / POST intake
+- [x] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
 - [x] Command bar: загрузка файла в чате (`CrmCommandBar` → `CommandBarAttachmentService`, PDF/DOCX → intake)
 
 #### 1.6.5 Аудит
 
 - [x] Таблица `order_intake_drafts`: исходный файл, text hash, JSON draft, user_id, model
-- [ ] Запись в ленту заказа при apply
+- [x] Запись в ленту заказа при apply (`order_intake_applied`)
 
 **Критерий готовности MVP:** менеджер загружает типовую PDF-заявку → за 1–2 мин получает заполненные клиент, маршрут и груз в новом заказе, правит и сохраняет.
 
@@ -257,9 +257,10 @@ Cursor **никогда не подключается к MySQL напрямую*
 
 ### 2.5 Критерии готовности
 
-- [ ] Менеджер заполняет строку заказа < 2 мин
-- [ ] Руководитель видит все «в пути» на одном экране
-- [ ] Задачи 2×/день работают
+- [x] Критерий «в пути»: фактическая погрузка без фактической выгрузки (`DispositionInTransitResolver`)
+- [ ] Менеджер заполняет строку заказа < 2 мин (UX-полировка)
+- [x] Руководитель видит все «в пути» на одном экране
+- [x] Задачи 2×/день работают
 
 ---
 
@@ -383,5 +384,5 @@ grid_views:
 ## Открытые вопросы
 
 - [ ] Точное время слотов «утро/вечер» (до 12:00 / после 12:00 или иное)
-- [ ] Статус «в пути» — один enum или комбинация полей заказа
+- [x] «В пути» для диспозиции — между фактической погрузкой и выгрузкой (не только enum статуса)
 - [ ] Prod-домен для MCP: `crm.*` — финальный URL зафиксировать в `.env.example`

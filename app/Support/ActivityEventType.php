@@ -13,6 +13,7 @@ enum ActivityEventType: string
     case NoteAdded = 'note_added';
     case LeadStatusChanged = 'lead_status_changed';
     case DispositionComment = 'disposition_comment';
+    case OrderIntakeApplied = 'order_intake_applied';
     case CloseOutcomeRecorded = 'close_outcome_recorded';
 
     public function label(): string
@@ -27,6 +28,7 @@ enum ActivityEventType: string
             self::NoteAdded => 'Заметка',
             self::LeadStatusChanged => 'Статус лида',
             self::DispositionComment => 'Диспозиция',
+            self::OrderIntakeApplied => 'Заявка → заказ',
             self::CloseOutcomeRecorded => 'Причина закрытия',
         };
     }

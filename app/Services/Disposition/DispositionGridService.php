@@ -36,10 +36,10 @@ class DispositionGridService
     public function buildGridPayload(User $user): array
     {
         $orders = $this->inProgressOrdersQuery($user)->get();
-        $orders->loadMissing([
-            'legs' => fn ($query) => $query->orderBy('sequence'),
-            'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
-        ]);
+        $inTransitIds = $this->orderScope->filterInTransit($orders);
+        $orders = $orders
+            ->filter(fn (Order $order): bool => in_array($order->id, $inTransitIds, true))
+            ->values();
 
         $today = Carbon::today()->toDateString();
         $dates = $this->resolveDateRange($orders, $today);
@@ -138,10 +138,14 @@ class DispositionGridService
 
     private function ensureCanAccessOrder(User $user, int $orderId): void
     {
-        $exists = $this->inProgressOrdersQuery($user)->whereKey($orderId)->exists();
+        $order = $this->inProgressOrdersQuery($user)->whereKey($orderId)->first();
 
-        if (! $exists) {
-            abort(403, 'Заказ недоступен или не в статусе «Выполняется».');
+        if ($order === null) {
+            abort(403, 'Заказ недоступен или не «в пути» (между фактической погрузкой и выгрузкой).');
+        }
+
+        if (! in_array($orderId, $this->orderScope->filterInTransit(collect([$order])), true)) {
+            abort(403, 'Заказ недоступен или не «в пути» (между фактической погрузкой и выгрузкой).');
         }
     }
 

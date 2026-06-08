@@ -21,6 +21,8 @@ final class McpToolDomainRegistry
         'get_order_intake_draft' => ['domain' => 'orders', 'cross' => ['leads']],
         'list_order_intake_drafts' => ['domain' => 'orders', 'cross' => []],
         'create_order_intake_draft_from_text' => ['domain' => 'orders', 'cross' => ['leads']],
+        'extract_order_draft_from_document' => ['domain' => 'orders', 'cross' => ['leads']],
+        'apply_order_wizard_draft' => ['domain' => 'orders', 'cross' => ['leads']],
         'search_leads' => ['domain' => 'leads', 'cross' => []],
         'search_contractors' => ['domain' => 'contractors', 'cross' => []],
         'get_contractor' => ['domain' => 'contractors', 'cross' => []],

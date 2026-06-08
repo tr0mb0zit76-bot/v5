@@ -14,11 +14,10 @@ use Illuminate\Support\Facades\Schema;
 
 class DispositionReminderService
 {
-    private const string IN_PROGRESS_STATUS = 'in_progress';
-
     public function __construct(
         private readonly TaskNumberGenerator $taskNumbers,
         private readonly CabinetNotifier $cabinetNotifier,
+        private readonly DispositionInProgressOrderScope $orderScope,
     ) {}
 
     public function slotKey(int $orderId, string $date, string $slot): string
@@ -47,11 +46,18 @@ class DispositionReminderService
         $date = ($date ?? Carbon::today())->toDateString();
         $created = 0;
 
+        $columns = ['id', 'order_number', 'manager_id', 'loading_date', 'unloading_date'];
+        if (Schema::hasColumn('orders', 'performers')) {
+            $columns[] = 'performers';
+        }
+
         $orders = Order::query()
-            ->whereRaw('COALESCE(manual_status, status) = ?', [self::IN_PROGRESS_STATUS])
             ->whereNotNull('manager_id')
             ->when(Schema::hasColumn('orders', 'deleted_at'), fn ($q) => $q->whereNull('deleted_at'))
-            ->get(['id', 'order_number', 'manager_id']);
+            ->get($columns);
+
+        $inTransitIds = $this->orderScope->filterInTransit($orders);
+        $orders = $orders->filter(fn (Order $order): bool => in_array($order->id, $inTransitIds, true))->values();
 
         $orderIds = $orders->pluck('id')->all();
 

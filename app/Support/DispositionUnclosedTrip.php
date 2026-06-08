@@ -12,9 +12,7 @@ final class DispositionUnclosedTrip
 {
     public static function isUnclosed(Order $order, ?string $today = null): bool
     {
-        $milestones = RoutePointActualMilestones::forOrder($order);
-
-        if ($milestones['actual_unloading'] !== null) {
+        if (! DispositionInTransitResolver::isInTransit($order)) {
             return false;
         }
 
