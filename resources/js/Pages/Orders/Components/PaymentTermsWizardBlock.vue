@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import * as ps from '../../../support/orderPaymentScheduleUi.js';
 import {
     crmBtnSecondary,
@@ -23,10 +23,10 @@ const props = defineProps({
 
 const summaryText = defineModel('summaryText', { type: String, default: '' });
 
-const lastAutoSummaryPushed = ref(null);
 const summaryEditedManually = ref(false);
 /** 'single' | 'multiple' */
 const installmentLayoutMode = ref('single');
+const isSyncing = ref(false);
 
 const autoSummary = computed(() =>
     ps.paymentScheduleSummaryHuman(props.schedule, Number(props.totalAmount || 0), props.currency, props.routePoints, props.orderDate),
@@ -41,8 +41,9 @@ function pushAutoSummary(force = false) {
 
     const val = autoSummary.value;
     if (force || !summaryEditedManually.value) {
-        summaryText.value = val;
-        lastAutoSummaryPushed.value = val;
+        if (summaryText.value !== val) {
+            summaryText.value = val;
+        }
     }
 }
 
@@ -50,28 +51,51 @@ function onSummaryTextInput() {
     summaryEditedManually.value = true;
 }
 
-function ensureScheduleShape() {
-    ps.ensureInstallmentSchedule(props.schedule);
+function applyScheduleShape() {
+    ps.applyInstallmentScheduleInPlace(props.schedule);
     installmentLayoutMode.value = (props.schedule.installments?.length ?? 0) > 1 ? 'multiple' : 'single';
 }
+
+function syncAmountsAndSummary() {
+    if (isSyncing.value) {
+        return;
+    }
+
+    isSyncing.value = true;
+    try {
+        ps.syncInstallmentAmountsFromPercents(props.schedule, Number(props.totalAmount || 0));
+        pushAutoSummary(false);
+    } finally {
+        isSyncing.value = false;
+    }
+}
+
+onMounted(() => {
+    applyScheduleShape();
+    syncAmountsAndSummary();
+});
+
+watch(
+    () => props.schedule,
+    (schedule, previousSchedule) => {
+        if (schedule !== previousSchedule) {
+            applyScheduleShape();
+            syncAmountsAndSummary();
+        }
+    },
+);
 
 watch(autoSummary, () => {
     pushAutoSummary(false);
 });
 
-watch(
-    () => props.schedule,
-    () => {
-        ensureScheduleShape();
-        pushAutoSummary(false);
-    },
-    { deep: true, immediate: true },
-);
+watch(() => Number(props.totalAmount || 0), () => {
+    syncAmountsAndSummary();
+});
 
 watch(
-    () => [Number(props.totalAmount || 0), props.schedule, props.routePoints, props.orderDate],
+    () => [props.orderDate, props.routePoints],
     () => {
-        ps.syncInstallmentAmountsFromPercents(props.schedule, Number(props.totalAmount || 0));
         pushAutoSummary(false);
     },
     { deep: true },

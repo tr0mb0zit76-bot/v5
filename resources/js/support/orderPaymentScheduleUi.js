@@ -98,6 +98,47 @@ export function usesInstallments(schedule) {
     return Array.isArray(schedule?.installments) && schedule.installments.length > 0;
 }
 
+const LEGACY_SCHEDULE_KEYS = [
+    'has_prepayment',
+    'prepayment_ratio',
+    'prepayment_days',
+    'prepayment_mode',
+    'postpayment_days',
+    'postpayment_mode',
+];
+
+function stripLegacyKeysInPlace(schedule) {
+    LEGACY_SCHEDULE_KEYS.forEach((key) => {
+        delete schedule[key];
+    });
+}
+
+function assignRoundedNumber(target, key, value) {
+    const next = Math.round(value * 100) / 100;
+
+    if (Number(target[key]) !== next) {
+        target[key] = next;
+    }
+}
+
+/** Нормализует график на месте, без подмены ссылки на installments. */
+export function applyInstallmentScheduleInPlace(schedule = {}) {
+    if (!schedule || typeof schedule !== 'object') {
+        return;
+    }
+
+    if (!usesInstallments(schedule)) {
+        const converted = legacyToInstallments(schedule);
+        stripLegacyKeysInPlace(schedule);
+        schedule.installments = converted.installments.map((row) => normalizeInstallmentRow(row));
+
+        return;
+    }
+
+    stripLegacyKeysInPlace(schedule);
+    schedule.installments = schedule.installments.map((row) => normalizeInstallmentRow(row));
+}
+
 export function legacyToInstallments(schedule = {}) {
     const raw = schedule?.has_prepayment;
     const hasPrepayment = raw === true || raw === 1 || raw === '1';
@@ -146,8 +187,8 @@ export function ensureInstallmentSchedule(schedule = {}) {
 
 function stripLegacyKeys(schedule) {
     const next = { ...schedule, installments: [...(schedule.installments || [])].map((r) => normalizeInstallmentRow(r)) };
-    ['has_prepayment', 'prepayment_ratio', 'prepayment_days', 'prepayment_mode', 'postpayment_days', 'postpayment_mode'].forEach((k) => {
-        delete next[k];
+    LEGACY_SCHEDULE_KEYS.forEach((key) => {
+        delete next[key];
     });
 
     return next;
@@ -354,22 +395,25 @@ export function paymentScheduleSummaryHuman(schedule, totalAmount, currency, rou
 }
 
 export function syncInstallmentAmountsFromPercents(schedule, totalAmount) {
-    const normalized = ensureInstallmentSchedule(schedule);
-    if (!usesInstallments(normalized)) {
+    if (!usesInstallments(schedule)) {
+        applyInstallmentScheduleInPlace(schedule);
+    }
+
+    if (!usesInstallments(schedule)) {
         return;
     }
 
     const total = Number(totalAmount || 0);
-    const rows = normalized.installments;
-    schedule.installments = rows;
+    const rows = schedule.installments;
 
     if (!total || total <= 0) {
         return;
     }
 
     if (rows.length === 1) {
-        rows[0].percent = 100;
-        rows[0].amount = Math.round(total * 100) / 100;
+        assignRoundedNumber(rows[0], 'percent', 100);
+        assignRoundedNumber(rows[0], 'amount', total);
+
         return;
     }
 
@@ -379,16 +423,16 @@ export function syncInstallmentAmountsFromPercents(schedule, totalAmount) {
     for (let i = 0; i < rows.length; i++) {
         const isLast = i === rows.length - 1;
         if (isLast) {
-            rows[i].amount = Math.round((total - allocated) * 100) / 100;
-            rows[i].percent = Math.round((100 - percentSum) * 100) / 100;
+            assignRoundedNumber(rows[i], 'amount', total - allocated);
+            assignRoundedNumber(rows[i], 'percent', 100 - percentSum);
             break;
         }
 
         const pct = Math.min(100, Math.max(0, Number(rows[i].percent || 0)));
-        const amt = Math.round((total * pct) / 100 * 100) / 100;
-        rows[i].percent = Math.round(pct * 100) / 100;
-        rows[i].amount = amt;
-        allocated += amt;
+        const amt = (total * pct) / 100;
+        assignRoundedNumber(rows[i], 'percent', pct);
+        assignRoundedNumber(rows[i], 'amount', amt);
+        allocated += rows[i].amount;
         percentSum += rows[i].percent;
     }
 }
@@ -455,16 +499,18 @@ export function rebalanceInstallmentAmounts(schedule, changedIndex, totalAmount)
 }
 
 export function addInstallmentRow(schedule) {
-    const normalized = ensureInstallmentSchedule(schedule);
-    if (normalized.installments.length >= MAX_INSTALLMENTS) {
+    applyInstallmentScheduleInPlace(schedule);
+
+    if (schedule.installments.length >= MAX_INSTALLMENTS) {
         return false;
     }
 
-    const rows = normalized.installments;
+    const rows = schedule.installments;
     const defaultPercent = rows.length === 0 ? 100 : Math.round((100 / (rows.length + 1)) * 100) / 100;
     rows.push(blankInstallmentRow({ percent: defaultPercent }));
-    rebalanceInstallmentPercents({ installments: rows }, rows.length - 1);
-    Object.assign(schedule, stripLegacyKeys({ installments: rows }));
+    rebalanceInstallmentPercents(schedule, rows.length - 1);
+    stripLegacyKeysInPlace(schedule);
+
     return true;
 }
 
