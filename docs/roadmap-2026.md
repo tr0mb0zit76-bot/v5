@@ -2,7 +2,7 @@
 
 Живой документ для согласования приоритетов. Связан с [`ai-platform-architecture.md`](./ai-platform-architecture.md) (уровни AI, DeepSeek, локальная модель).
 
-**Последнее обновление:** 2026-06-02
+**Последнее обновление:** 2026-06-08
 
 ---
 
@@ -180,9 +180,9 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `get_order_intake_draft` / `list_order_intake_drafts` / `create_order_intake_draft_from_text` — MCP и command bar
 - [x] `search_mail_threads` / `get_mail_thread` / `get_mail_sync_status` — MCP (IMAP sync, область «Почта»)
 - [x] `send_mail` / `reply_mail_thread` — отправка из CRM (SMTP, From = email сотрудника)
-- [ ] `extract_order_draft_from_document` — прямая загрузка файла в MCP (позже)
+- [ ] `extract_order_draft_from_document` — прямая загрузка файла в MCP (позже; в CRM — через command bar, см. ниже)
 - [ ] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
-- [ ] Command bar: загрузка файла в чате
+- [x] Command bar: загрузка файла в чате (`CrmCommandBar` → `CommandBarAttachmentService`, PDF/DOCX → intake)
 
 #### 1.6.5 Аудит
 
@@ -375,6 +375,8 @@ grid_views:
 | v0.2.4 | 2026-05-31 | Диспозиция UI: парк, поиск, плотность; `OrderActivityTimelineService`, MCP `get_order_timeline` |
 | v0.2.5 | 2026-05-31 | KPI диспозиции: `DispositionKpiService`, дашборд руководителя, панель на гриде |
 | v0.2.6 | 2026-05-31 | Скролл диспозиции: `DispositionUnclosedTrip`, якорь по незакрытым рейсам |
+| v0.2.7 | 2026-06-08 | Intake: command bar — вложения в чате ✅; MCP `extract_order_draft_from_document` — открыт |
+| v0.2.8 | 2026-06-08 | Единая модель условий оплаты: транши с якорями и событиями; `installment_sequence`; грид оплат — даты дд.мм.гггг; см. `payment-schedule-architecture.md` |
 
 ---
 

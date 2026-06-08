@@ -34,6 +34,12 @@
 | [commercial-intelligence-roadmap.md](./commercial-intelligence-roadmap.md) | Коммерческая аналитика, Книга, gap |
 | [roadmap-2026.md](./roadmap-2026.md) | Общий roadmap 2026 |
 
+## Финансы и график оплат
+
+| Файл | Назначение |
+| --- | --- |
+| [payment-schedule-architecture.md](./payment-schedule-architecture.md) | Единая модель траншей, расчёт `planned_date`, `payment_schedules`, UI и тесты |
+
 ## Документы, печать, OCR
 
 | Файл | Назначение |
@@ -66,6 +72,6 @@ php scripts/mcp-prod-upsert-assistants.php
 MCP_UPSERT_ONLY=Ассистенты php scripts/mcp-prod-upsert-assistants.php
 ```
 
-Требуется `v5-crm-prod` в `~/.cursor/mcp.json` с Bearer-токеном. Новые статьи создаются **черновиком** — опубликовать в UI Книги.
+Требуется `v5-crm-prod` в `~/.cursor/mcp.json` с Bearer-токеном (шаблон: `.cursor/mcp.json.example`). Obsidian vault / Hive Mind: `pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1`. Новые статьи создаются **черновиком** — опубликовать в UI Книги.
 
-*Обновлено: 2026-06-07.*
+*Обновлено: 2026-06-08.*

@@ -84,6 +84,16 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `app/Support/RussianPositionInflector.php` — эвристики + fallback на исходную строку.
 - В снимок контрагента добавлено `*.signer_position_genitive_auto` в сервисах печати заказа/лида; в legacy добавлены алиасы `dolzhn_podpisant_rod`, `podpisant_perevoz_rod`.
 
+### Условия оплаты и график (`payment_schedules`)
+
+- Документация: `docs/payment-schedule-architecture.md`.
+- Единый формат JSON: `installments[]` (до 10 траншей): `percent`, `amount`, `offset_days`, `offset_unit`, `anchor`, `basis`. Легаси `has_prepayment` / `postpayment_*` → `PaymentScheduleLegacyConverter`.
+- Пересборка строк БД: `OrderCompensationService::syncPaymentSchedules()`; сохранение фактических оплат при пересборке — `PaymentScheduleSettlementPreserver` (ключ `installment_sequence` + fallback на `type`).
+- Расчёт `planned_date`: событие (`basis`) + сдвиг, либо якорь через `PaymentInstallmentPlanner`; даты погрузки/выгрузки — `OrderRouteMilestoneDateResolver` (факт точки → план → performers → колонка заказа); синхронизация при сохранении мастера и факта на точке.
+- FTTN по сканам — авто (`OrderDocumentRequirementService::paymentPackageAttachedAt`); квиток/OTTN — вручную в гриде документов (`track_received_date_*`), стороны раздельно.
+- UI: `PaymentTermsWizardBlock.vue`, `orderPaymentScheduleUi.js` (`applyInstallmentScheduleInPlace` — без deep-watch циклов); грид — `CashFlowGrid.vue`, даты **дд.мм.гггг**.
+- Миграция: `2026_06_08_155321_add_installment_sequence_to_payment_schedules_table.php`.
+
 ### Прочее
 
 - Мобильная нижняя панель: `app/Support/MobileNavCatalog.php` — кандидаты кнопок с учётом `visibility_areas` (дашборд не навязывается, если области нет); итоговый проп для фронта собирает `app/Support/MobileNavResolver.php` (`HandleInertiaRequests` → `auth.user.mobile_nav`). Сохранение выбора пользователя: `ProfileController::updateMobileBottomNav`, маршрут `profile.mobile-bottom-nav` (`routes/web.php`).
