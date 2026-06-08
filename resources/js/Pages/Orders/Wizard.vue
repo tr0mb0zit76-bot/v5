@@ -2318,7 +2318,7 @@ const clientRequestModeOptions = [
     { value: 'single_request', label: 'Одна заявка', description: 'Все плечи включаются в одну клиентскую заявку.' },
     { value: 'split_by_leg', label: 'Разбить по плечам', description: 'Для каждого плеча оформляется отдельная клиентская заявка.' },
 ];
-const blankPaymentSchedule = orderPs.blankPaymentSchedule;
+const blankPaymentSchedule = orderPs.blankSingleInstallmentSchedule;
 const normalizePaymentSchedule = orderPs.normalizePaymentSchedule;
 const counterpartyForm = useForm({
     name: '',

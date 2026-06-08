@@ -67,13 +67,10 @@ final class PaymentScheduleSummaryFormatter
         ?Order $order = null,
         array $dateContext = [],
     ): string {
-        if (PaymentInstallmentScheduleNormalizer::isInstallmentModel($schedule)) {
-            $normalized = PaymentInstallmentScheduleNormalizer::normalize($schedule, $totalAmount);
+        $schedule = PaymentInstallmentScheduleNormalizer::ensureInstallmentModel($schedule);
+        $normalized = PaymentInstallmentScheduleNormalizer::normalize($schedule, $totalAmount);
 
-            return self::formatInstallments($normalized, $totalAmount, $currency, $order, $dateContext);
-        }
-
-        return self::formatLegacyHuman($schedule);
+        return self::formatInstallments($normalized, $totalAmount, $currency, $order, $dateContext);
     }
 
     /**

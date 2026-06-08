@@ -1,4 +1,4 @@
-import { blankPaymentSchedule, normalizePaymentSchedule } from '@/support/orderPaymentScheduleUi.js';
+import { blankSingleInstallmentSchedule, normalizePaymentSchedule } from '@/support/orderPaymentScheduleUi.js';
 
 function normalizePaymentFormCode(value, fallback = 'no_vat') {
     const raw = String(value ?? '').trim();
@@ -15,7 +15,7 @@ export function blankAdditionalCostRow(orderDate = null) {
         amount: null,
         currency: 'RUB',
         payment_form: 'no_vat',
-        payment_schedule: blankPaymentSchedule(),
+        payment_schedule: blankSingleInstallmentSchedule(),
         payment_terms: '',
     };
 }

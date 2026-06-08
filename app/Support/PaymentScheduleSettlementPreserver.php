@@ -40,7 +40,7 @@ final class PaymentScheduleSettlementPreserver
         }
 
         $columns = ['id', 'party', 'type', 'planned_date', 'amount', 'status'];
-        foreach (['counterparty_id', 'paid_amount', 'remaining_amount', 'actual_date', 'payment_method', 'transaction_reference', 'notes', 'parent_payment_id', 'is_partial'] as $column) {
+        foreach (['counterparty_id', 'installment_sequence', 'paid_amount', 'remaining_amount', 'actual_date', 'payment_method', 'transaction_reference', 'notes', 'parent_payment_id', 'is_partial'] as $column) {
             if (Schema::hasColumn('payment_schedules', $column)) {
                 $columns[] = $column;
             }
@@ -64,6 +64,7 @@ final class PaymentScheduleSettlementPreserver
                 (string) $row->type,
                 $row->planned_date !== null ? (string) $row->planned_date : null,
                 isset($row->counterparty_id) ? (int) $row->counterparty_id : null,
+                isset($row->installment_sequence) ? (int) $row->installment_sequence : null,
             );
 
             if (! $this->rowHasSettlement((object) $row)) {
@@ -90,6 +91,7 @@ final class PaymentScheduleSettlementPreserver
                 (string) $parent->type,
                 $parent->planned_date !== null ? (string) $parent->planned_date : null,
                 isset($parent->counterparty_id) ? (int) $parent->counterparty_id : null,
+                isset($parent->installment_sequence) ? (int) $parent->installment_sequence : null,
             );
 
             if (! isset($snapshot['roots'][$key])) {
@@ -139,17 +141,30 @@ final class PaymentScheduleSettlementPreserver
             });
         }
 
-        $roots = $query->get(['id', 'party', 'type', 'planned_date', 'amount', 'counterparty_id']);
+        $rootColumns = ['id', 'party', 'type', 'planned_date', 'amount', 'counterparty_id'];
+        if (Schema::hasColumn('payment_schedules', 'installment_sequence')) {
+            $rootColumns[] = 'installment_sequence';
+        }
+
+        $roots = $query->get($rootColumns);
 
         foreach ($roots as $root) {
+            $sequence = isset($root->installment_sequence) ? (int) $root->installment_sequence : null;
             $key = $this->matchKey(
                 (string) $root->party,
                 (string) $root->type,
                 $root->planned_date !== null ? (string) $root->planned_date : null,
                 isset($root->counterparty_id) ? (int) $root->counterparty_id : null,
+                $sequence,
             );
 
-            $saved = $snapshot['roots'][$key] ?? null;
+            $saved = $snapshot['roots'][$key]
+                ?? $snapshot['roots'][$this->legacyMatchKey(
+                    (string) $root->party,
+                    (string) $root->type,
+                    $root->planned_date !== null ? (string) $root->planned_date : null,
+                    isset($root->counterparty_id) ? (int) $root->counterparty_id : null,
+                )] ?? null;
             if ($saved === null) {
                 continue;
             }
@@ -200,7 +215,12 @@ final class PaymentScheduleSettlementPreserver
         }
     }
 
-    public function matchKey(string $party, string $type, ?string $plannedDate, ?int $counterpartyId): string
+    public function matchKey(string $party, string $type, ?string $plannedDate, ?int $counterpartyId, ?int $installmentSequence = null): string
+    {
+        return strtolower($party).'|'.$type.'|'.($plannedDate ?? '').'|'.($counterpartyId ?? 0).'|'.($installmentSequence ?? 0);
+    }
+
+    public function legacyMatchKey(string $party, string $type, ?string $plannedDate, ?int $counterpartyId): string
     {
         return strtolower($party).'|'.$type.'|'.($plannedDate ?? '').'|'.($counterpartyId ?? 0);
     }

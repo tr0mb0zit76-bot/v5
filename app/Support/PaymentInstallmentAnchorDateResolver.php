@@ -83,16 +83,13 @@ final class PaymentInstallmentAnchorDateResolver
                 continue;
             }
 
-            $d = $point->planned_date ?? null;
-            if ($d !== null) {
-                $parsed = self::parseDateString(is_string($d) ? $d : (string) $d);
-                if ($parsed !== null) {
-                    return $parsed;
-                }
+            $parsed = self::parseRoutePointDate($point);
+            if ($parsed !== null) {
+                return $parsed;
             }
         }
 
-        return self::parseDateString(optional($order->loading_date)?->toDateString());
+        return self::parseDateString(OrderRouteMilestoneDateResolver::resolveLoadingDate($order));
     }
 
     private static function lastRoutePointDate(Order $order, string $type): ?Carbon
@@ -107,12 +104,9 @@ final class PaymentInstallmentAnchorDateResolver
                     continue;
                 }
 
-                $d = $point->planned_date ?? null;
-                if ($d !== null) {
-                    $parsed = self::parseDateString(is_string($d) ? $d : (string) $d);
-                    if ($parsed !== null) {
-                        $last = $parsed;
-                    }
+                $parsed = self::parseRoutePointDate($point);
+                if ($parsed !== null) {
+                    $last = $parsed;
                 }
             }
         }
@@ -121,6 +115,29 @@ final class PaymentInstallmentAnchorDateResolver
             return $last;
         }
 
-        return self::parseDateString(optional($order->unloading_date)?->toDateString());
+        return self::parseDateString(OrderRouteMilestoneDateResolver::resolveUnloadingDate($order));
+    }
+
+    private static function parseRoutePointDate(mixed $point): ?Carbon
+    {
+        if (! is_object($point)) {
+            return null;
+        }
+
+        $actual = $point->actual_date ?? null;
+        if ($actual !== null) {
+            $parsed = self::parseDateString(is_string($actual) ? $actual : (string) $actual);
+
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        $planned = $point->planned_date ?? null;
+        if ($planned === null) {
+            return null;
+        }
+
+        return self::parseDateString(is_string($planned) ? $planned : (string) $planned);
     }
 }

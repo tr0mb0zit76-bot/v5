@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Нормализация JSON графика с массивом {@see max 2} траншей: проценты, суммы, округление второй транши.
+ * Нормализация JSON графика с массивом траншей: проценты, суммы, округление последней транши.
  */
 final class PaymentInstallmentScheduleNormalizer
 {
-    public const MAX_INSTALLMENTS = 2;
+    public const MAX_INSTALLMENTS = 10;
 
     /**
      * @param  array<string, mixed>  $schedule
@@ -25,8 +25,23 @@ final class PaymentInstallmentScheduleNormalizer
      * @param  array<string, mixed>  $schedule
      * @return array<string, mixed>
      */
+    public static function ensureInstallmentModel(array $schedule): array
+    {
+        if (self::isInstallmentModel($schedule)) {
+            return $schedule;
+        }
+
+        return PaymentScheduleLegacyConverter::toInstallments($schedule);
+    }
+
+    /**
+     * @param  array<string, mixed>  $schedule
+     * @return array<string, mixed>
+     */
     public static function normalize(array $schedule, float $totalAmount): array
     {
+        $schedule = self::ensureInstallmentModel($schedule);
+
         if (! self::isInstallmentModel($schedule)) {
             return $schedule;
         }
@@ -50,7 +65,7 @@ final class PaymentInstallmentScheduleNormalizer
         if ($total <= 0) {
             $schedule['installments'] = $normalizedRows;
 
-            return $schedule;
+            return self::stripLegacyKeys($schedule);
         }
 
         $count = count($normalizedRows);
@@ -61,16 +76,26 @@ final class PaymentInstallmentScheduleNormalizer
             return self::stripLegacyKeys(array_merge($schedule, ['installments' => $normalizedRows]));
         }
 
-        $p1 = self::clampPercent((float) ($normalizedRows[0]['percent'] ?? 0));
-        $p2 = max(0.0, min(100.0, round(100.0 - $p1, 2)));
+        $allocated = 0.0;
+        $percentSum = 0.0;
 
-        $a1 = round($total * ($p1 / 100.0), 2);
-        $a2 = round($total - $a1, 2);
+        for ($i = 0; $i < $count; $i++) {
+            $isLast = $i === $count - 1;
 
-        $normalizedRows[0]['percent'] = $p1;
-        $normalizedRows[0]['amount'] = $a1;
-        $normalizedRows[1]['percent'] = $p2;
-        $normalizedRows[1]['amount'] = $a2;
+            if ($isLast) {
+                $normalizedRows[$i]['amount'] = round($total - $allocated, 2);
+                $normalizedRows[$i]['percent'] = round(max(0, 100.0 - $percentSum), 2);
+
+                break;
+            }
+
+            $percent = self::clampPercent((float) ($normalizedRows[$i]['percent'] ?? 0));
+            $amount = round($total * ($percent / 100.0), 2);
+            $normalizedRows[$i]['percent'] = $percent;
+            $normalizedRows[$i]['amount'] = $amount;
+            $allocated += $amount;
+            $percentSum += $percent;
+        }
 
         return self::stripLegacyKeys(array_merge($schedule, ['installments' => $normalizedRows]));
     }

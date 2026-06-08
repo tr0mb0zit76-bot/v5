@@ -21,6 +21,7 @@ use App\Support\CashToCashMarginCalculator;
 use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPersistedId;
+use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\OwnFleetCatalog;
 use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
@@ -70,8 +71,9 @@ class OrderWizardService
             $order = Order::query()->create($this->extractOrderAttributes($validated, $user, $generatedNumber, true, null, null));
 
             $this->syncNestedData($order, $validated, $user);
-            $this->orderCompensationService->recalculateImpactedPeriods($order->fresh());
-            $this->syncDerivedStatus($order, $validated, $user, null);
+            $freshOrder = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
+            $this->orderCompensationService->recalculateImpactedPeriods($freshOrder);
+            $this->syncDerivedStatus($freshOrder, $validated, $user, null);
 
             $this->orderWizardStateService->persistFromValidated($order->fresh(), $validated);
 
@@ -102,7 +104,7 @@ class OrderWizardService
 
             $this->syncNestedData($order, $validated, $user);
 
-            $updatedOrder = $order->fresh();
+            $updatedOrder = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
 
             $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate);
             $this->syncDerivedStatus($updatedOrder, $validated, $user, $previousStatus);

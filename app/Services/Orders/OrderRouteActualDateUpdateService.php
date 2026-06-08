@@ -6,8 +6,10 @@ use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
 use App\Models\User;
+use App\Services\OrderCompensationService;
 use App\Services\OrderStatusService;
 use App\Support\OrderAgentLexicon;
+use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\PerformerRouteActualDates;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -16,6 +18,7 @@ class OrderRouteActualDateUpdateService
 {
     public function __construct(
         private readonly OrderStatusService $orderStatusService,
+        private readonly OrderCompensationService $orderCompensationService,
     ) {}
 
     /**
@@ -83,6 +86,9 @@ class OrderRouteActualDateUpdateService
                 'created_by' => $user->id,
             ]);
         }
+
+        $orderForSchedule = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
+        $this->orderCompensationService->resyncPaymentSchedulesForOrder($orderForSchedule);
 
         $kindLabel = OrderAgentLexicon::labelFor($kind) ?? $kind;
 

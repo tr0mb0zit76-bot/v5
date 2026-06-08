@@ -6,10 +6,12 @@ use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
 use App\Models\SalaryCoefficient;
+use App\Support\CalendarBankDayShifter;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
+use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
@@ -559,63 +561,20 @@ class OrderCompensationService
             return [];
         }
 
-        if (PaymentInstallmentScheduleNormalizer::isInstallmentModel($schedule)) {
-            $schedule = PaymentInstallmentScheduleNormalizer::normalize($schedule, $amount);
+        $schedule = PaymentInstallmentScheduleNormalizer::normalize(
+            PaymentInstallmentScheduleNormalizer::ensureInstallmentModel($schedule),
+            $amount,
+        );
 
-            return $this->buildInstallmentPaymentScheduleRows(
-                $order,
-                $party,
-                $amount,
-                $schedule,
-                $carrierContractorId,
-                $invoiceByKey,
-                $scheduleOrderDate,
-            );
-        }
-
-        $rows = [];
-        $hasPrepayment = (bool) ($schedule['has_prepayment'] ?? false);
-        $prepaymentRatio = max(0, min(100, (float) ($schedule['prepayment_ratio'] ?? 0)));
-        $prepaymentAmount = $hasPrepayment ? round($amount * ($prepaymentRatio / 100), 2) : 0.0;
-        $finalAmount = round($amount - $prepaymentAmount, 2);
-
-        if ($hasPrepayment && $prepaymentAmount > 0) {
-            $rows[] = $this->paymentScheduleRowAttributes(
-                $order,
-                $party,
-                'prepayment',
-                $prepaymentAmount,
-                $this->resolveScheduleDate(
-                    $order,
-                    $party,
-                    (string) ($schedule['prepayment_mode'] ?? 'fttn'),
-                    (int) ($schedule['prepayment_days'] ?? 0),
-                    true,
-                ),
-                $carrierContractorId,
-                $invoiceByKey,
-            );
-        }
-
-        if ($finalAmount > 0) {
-            $rows[] = $this->paymentScheduleRowAttributes(
-                $order,
-                $party,
-                'final',
-                $finalAmount,
-                $this->resolveScheduleDate(
-                    $order,
-                    $party,
-                    (string) ($schedule['postpayment_mode'] ?? 'ottn'),
-                    (int) ($schedule['postpayment_days'] ?? 0),
-                    false,
-                ),
-                $carrierContractorId,
-                $invoiceByKey,
-            );
-        }
-
-        return $rows;
+        return $this->buildInstallmentPaymentScheduleRows(
+            $order,
+            $party,
+            $amount,
+            $schedule,
+            $carrierContractorId,
+            $invoiceByKey,
+            $scheduleOrderDate,
+        );
     }
 
     /**
@@ -646,7 +605,7 @@ class OrderCompensationService
 
         foreach ($installments as $index => $row) {
             $slot = $index + 1;
-            $planned = PaymentInstallmentPlanner::plannedDateForInstallment($row, $order, $ctx);
+            $planned = $this->plannedDateForInstallmentRow($order, $party, $row, $ctx);
             $partAmount = round((float) ($row['amount'] ?? 0), 2);
             if ($partAmount <= 0) {
                 continue;
@@ -660,6 +619,7 @@ class OrderCompensationService
                 $planned,
                 $carrierContractorId,
                 $invoiceByKey,
+                $slot,
             );
         }
 
@@ -667,7 +627,7 @@ class OrderCompensationService
     }
 
     /**
-     * Колонка payment_schedules.type — enum('prepayment', 'final').
+     * Колонка payment_schedules.type: для двух траншей — prepayment/final, иначе installment.
      */
     private function paymentScheduleTypeForInstallmentSlot(int $slot, int $totalSlots): string
     {
@@ -675,7 +635,37 @@ class OrderCompensationService
             return 'final';
         }
 
-        return $slot === 1 ? 'prepayment' : 'final';
+        if ($totalSlots === 2) {
+            return $slot === 1 ? 'prepayment' : 'final';
+        }
+
+        return 'installment';
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  array<string, ?string>  $contextDates
+     */
+    private function plannedDateForInstallmentRow(Order $order, string $party, array $row, array $contextDates): ?string
+    {
+        $basis = strtolower((string) ($row['basis'] ?? 'fttn'));
+        $offsetDays = (int) ($row['offset_days'] ?? 0);
+        $offsetUnit = (string) ($row['offset_unit'] ?? CalendarBankDayShifter::UNIT_CALENDAR);
+
+        if (in_array($basis, ['fttn', 'fttn_receipt', 'ottn', 'loading', 'unloading'], true)) {
+            $eventDate = $this->resolveScheduleDate($order, $party, $basis, 0, false);
+            if ($eventDate === null) {
+                return null;
+            }
+
+            return CalendarBankDayShifter::shift(
+                Carbon::parse($eventDate),
+                $offsetDays,
+                $offsetUnit,
+            )->toDateString();
+        }
+
+        return PaymentInstallmentPlanner::plannedDateForInstallment($row, $order, $contextDates);
     }
 
     /**
@@ -690,6 +680,7 @@ class OrderCompensationService
         ?string $plannedDate,
         ?int $carrierContractorId,
         array $invoiceByKey = [],
+        ?int $installmentSequence = null,
     ): array {
         $orderId = OrderPersistedId::resolveOrFail($order);
 
@@ -710,12 +701,21 @@ class OrderCompensationService
             $row['counterparty_id'] = in_array($party, ['carrier', 'contractor'], true) ? $carrierContractorId : null;
         }
 
+        if (Schema::hasColumn('payment_schedules', 'installment_sequence')) {
+            $row['installment_sequence'] = $installmentSequence;
+        }
+
         if (Schema::hasColumn('payment_schedules', 'invoice_number')) {
-            $key = $party.'|'.$type.'|'.($plannedDate ?? '');
+            $key = $this->paymentScheduleInvoiceKey($party, $type, $plannedDate, $installmentSequence);
             $row['invoice_number'] = $invoiceByKey[$key] ?? null;
         }
 
         return $row;
+    }
+
+    private function paymentScheduleInvoiceKey(string $party, string $type, ?string $plannedDate, ?int $installmentSequence): string
+    {
+        return $party.'|'.$type.'|'.($plannedDate ?? '').'|'.($installmentSequence ?? 0);
     }
 
     /**
@@ -729,9 +729,14 @@ class OrderCompensationService
             return [];
         }
 
+        $columns = ['party', 'type', 'planned_date', 'invoice_number'];
+        if (Schema::hasColumn('payment_schedules', 'installment_sequence')) {
+            $columns[] = 'installment_sequence';
+        }
+
         $rows = DB::table('payment_schedules')
             ->where('order_id', $orderId)
-            ->get(['party', 'type', 'planned_date', 'invoice_number']);
+            ->get($columns);
 
         $map = [];
         foreach ($rows as $r) {
@@ -740,7 +745,15 @@ class OrderCompensationService
                 continue;
             }
 
-            $key = $r->party.'|'.$r->type.'|'.($r->planned_date ?? '');
+            $sequence = Schema::hasColumn('payment_schedules', 'installment_sequence')
+                ? (isset($r->installment_sequence) ? (int) $r->installment_sequence : null)
+                : null;
+            $key = $this->paymentScheduleInvoiceKey(
+                (string) $r->party,
+                (string) $r->type,
+                $r->planned_date !== null ? (string) $r->planned_date : null,
+                $sequence,
+            );
             $map[$key] = $r->invoice_number;
         }
 
@@ -761,14 +774,16 @@ class OrderCompensationService
                 ? $order->track_received_date_customer
                 : $order->track_received_date_carrier,
             'fttn_receipt' => $isPrepayment
-                ? $order->loading_date
+                ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
                 : $this->resolveFttnWithReceiptDate($order, $party),
             'fttn' => $isPrepayment
-                ? $order->loading_date
+                ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
                 : $this->resolveFttnDate($order, $party),
-            'loading' => $order->loading_date,
-            'unloading' => $order->unloading_date,
-            default => $isPrepayment ? $order->loading_date : $order->unloading_date,
+            'loading' => OrderRouteMilestoneDateResolver::resolveLoadingDate($order),
+            'unloading' => OrderRouteMilestoneDateResolver::resolveUnloadingDate($order),
+            default => $isPrepayment
+                ? OrderRouteMilestoneDateResolver::resolveLoadingDate($order)
+                : OrderRouteMilestoneDateResolver::resolveUnloadingDate($order),
         };
 
         if ($baseDate === null) {

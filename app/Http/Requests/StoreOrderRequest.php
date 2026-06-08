@@ -331,10 +331,11 @@ class StoreOrderRequest extends FormRequest
                 }
 
                 $sched = $ft['client_payment_schedule'] ?? null;
-                if (! is_array($sched) || ! PaymentInstallmentScheduleNormalizer::isInstallmentModel($sched)) {
+                if (! is_array($sched)) {
                     return;
                 }
 
+                $sched = PaymentInstallmentScheduleNormalizer::ensureInstallmentModel($sched);
                 /** @var list<array<string, mixed>> $rows */
                 $rows = array_values(array_filter($sched['installments'] ?? [], static fn ($r): bool => is_array($r)));
                 if ($rows === []) {
@@ -344,14 +345,17 @@ class StoreOrderRequest extends FormRequest
                 }
 
                 if (count($rows) > PaymentInstallmentScheduleNormalizer::MAX_INSTALLMENTS) {
-                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Не более двух траншей.');
+                    $validator->errors()->add(
+                        'financial_term.client_payment_schedule.installments',
+                        'Не более '.PaymentInstallmentScheduleNormalizer::MAX_INSTALLMENTS.' траншей.',
+                    );
 
                     return;
                 }
 
                 $sum = array_sum(array_map(static fn (array $r): float => (float) ($r['percent'] ?? 0), $rows));
                 if (count($rows) >= 2 && abs($sum - 100.0) > 0.05) {
-                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Сумма процентов по двум траншам должна быть 100%.');
+                    $validator->errors()->add('financial_term.client_payment_schedule.installments', 'Сумма процентов по траншам должна быть 100%.');
                 }
 
                 if (count($rows) === 1 && abs($sum - 100.0) > 0.05) {
@@ -375,10 +379,11 @@ class StoreOrderRequest extends FormRequest
                     }
 
                     $sched = $cost['payment_schedule'] ?? null;
-                    if (! is_array($sched) || ! PaymentInstallmentScheduleNormalizer::isInstallmentModel($sched)) {
+                    if (! is_array($sched)) {
                         continue;
                     }
 
+                    $sched = PaymentInstallmentScheduleNormalizer::ensureInstallmentModel($sched);
                     /** @var list<array<string, mixed>> $rows */
                     $rows = array_values(array_filter($sched['installments'] ?? [], static fn ($r): bool => is_array($r)));
                     $baseKey = "financial_term.contractors_costs.$i.payment_schedule.installments";
@@ -390,14 +395,17 @@ class StoreOrderRequest extends FormRequest
                     }
 
                     if (count($rows) > PaymentInstallmentScheduleNormalizer::MAX_INSTALLMENTS) {
-                        $validator->errors()->add($baseKey, 'Не более двух траншей.');
+                        $validator->errors()->add(
+                            $baseKey,
+                            'Не более '.PaymentInstallmentScheduleNormalizer::MAX_INSTALLMENTS.' траншей.',
+                        );
 
                         continue;
                     }
 
                     $sum = array_sum(array_map(static fn (array $r): float => (float) ($r['percent'] ?? 0), $rows));
                     if (count($rows) >= 2 && abs($sum - 100.0) > 0.05) {
-                        $validator->errors()->add($baseKey, 'Сумма процентов по двум траншам должна быть 100%.');
+                        $validator->errors()->add($baseKey, 'Сумма процентов по траншам должна быть 100%.');
                     }
 
                     if (count($rows) === 1 && abs($sum - 100.0) > 0.05) {

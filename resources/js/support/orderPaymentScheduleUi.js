@@ -7,6 +7,8 @@ export const BASIS_SUMMARY_PHRASE = {
     unloading: 'при выгрузке',
 };
 
+export const MAX_INSTALLMENTS = 10;
+
 export const PAYMENT_BASIS_OPTIONS = [
     { value: 'fttn', label: 'По сканам' },
     { value: 'fttn_receipt', label: 'По сканам + квиток' },
@@ -38,37 +40,45 @@ const INSTALLMENT_ANCHOR_END = {
     unloading_date: 'даты выгрузки (заказ)',
 };
 
+function anchorForBasis(basis) {
+    const k = String(basis || 'fttn').toLowerCase();
+    if (k === 'loading') {
+        return 'first_loading';
+    }
+    if (k === 'unloading') {
+        return 'last_unloading';
+    }
+    return 'last_unloading';
+}
+
+export function blankInstallmentRow(overrides = {}) {
+    return normalizeInstallmentRow({
+        percent: 100,
+        amount: null,
+        offset_days: 0,
+        offset_unit: 'calendar_days',
+        anchor: 'last_unloading',
+        basis: 'ottn',
+        ...overrides,
+    });
+}
+
+/** @deprecated Используйте blankSingleInstallmentSchedule */
 export function blankPaymentSchedule() {
-    return {
-        has_prepayment: false,
-        prepayment_ratio: 50,
-        prepayment_days: 0,
-        prepayment_mode: 'fttn',
-        postpayment_days: 0,
-        postpayment_mode: 'ottn',
-    };
+    return blankSingleInstallmentSchedule();
 }
 
 export function blankSingleInstallmentSchedule() {
     return {
-        installments: [
-            {
-                percent: 100,
-                amount: null,
-                offset_days: -3,
-                offset_unit: 'calendar_days',
-                anchor: 'first_loading',
-                basis: 'fttn',
-            },
-        ],
+        installments: [blankInstallmentRow({ percent: 100 })],
     };
 }
 
 export function blankTwoInstallmentSchedule() {
     return {
         installments: [
-            { percent: 50, amount: null, offset_days: -14, offset_unit: 'bank_days', anchor: 'first_loading', basis: 'fttn' },
-            { percent: 50, amount: null, offset_days: -1, offset_unit: 'calendar_days', anchor: 'first_loading', basis: 'ottn' },
+            blankInstallmentRow({ percent: 50, offset_days: -14, offset_unit: 'bank_days', anchor: 'first_loading', basis: 'fttn' }),
+            blankInstallmentRow({ percent: 50, offset_days: 0, offset_unit: 'calendar_days', anchor: 'last_unloading', basis: 'ottn' }),
         ],
     };
 }
@@ -79,8 +89,8 @@ export function normalizeInstallmentRow(row = {}) {
         amount: row.amount !== null && row.amount !== undefined && row.amount !== '' ? Number(row.amount) : null,
         offset_days: Number(row.offset_days ?? 0),
         offset_unit: row.offset_unit === 'bank_days' ? 'bank_days' : 'calendar_days',
-        anchor: row.anchor || 'first_loading',
-        basis: row.basis || 'fttn',
+        anchor: row.anchor || 'last_unloading',
+        basis: row.basis || 'ottn',
     };
 }
 
@@ -88,21 +98,63 @@ export function usesInstallments(schedule) {
     return Array.isArray(schedule?.installments) && schedule.installments.length > 0;
 }
 
-export function normalizePaymentSchedule(schedule = {}) {
-    if (usesInstallments(schedule)) {
-        return {
-            installments: schedule.installments.map((r) => normalizeInstallmentRow(r)),
-        };
-    }
-
+export function legacyToInstallments(schedule = {}) {
     const raw = schedule?.has_prepayment;
     const hasPrepayment = raw === true || raw === 1 || raw === '1';
+    const installments = [];
 
-    return {
-        ...blankPaymentSchedule(),
-        ...schedule,
-        has_prepayment: hasPrepayment,
-    };
+    if (hasPrepayment) {
+        const preRatio = Math.min(100, Math.max(0, Number(schedule.prepayment_ratio || 0)));
+        if (preRatio > 0) {
+            installments.push(
+                blankInstallmentRow({
+                    percent: preRatio,
+                    offset_days: Number(schedule.prepayment_days || 0),
+                    basis: schedule.prepayment_mode || 'fttn',
+                    anchor: anchorForBasis(schedule.prepayment_mode || 'fttn'),
+                }),
+            );
+        }
+    }
+
+    const postPct = hasPrepayment ? Math.max(0, 100 - Number(schedule.prepayment_ratio || 0)) : 100;
+    if (postPct > 0) {
+        installments.push(
+            blankInstallmentRow({
+                percent: postPct,
+                offset_days: Number(schedule.postpayment_days || 0),
+                basis: schedule.postpayment_mode || 'ottn',
+                anchor: anchorForBasis(schedule.postpayment_mode || 'ottn'),
+            }),
+        );
+    }
+
+    if (installments.length === 0) {
+        installments.push(blankInstallmentRow());
+    }
+
+    return { installments };
+}
+
+export function ensureInstallmentSchedule(schedule = {}) {
+    if (usesInstallments(schedule)) {
+        return stripLegacyKeys(schedule);
+    }
+
+    return legacyToInstallments(schedule);
+}
+
+function stripLegacyKeys(schedule) {
+    const next = { ...schedule, installments: [...(schedule.installments || [])].map((r) => normalizeInstallmentRow(r)) };
+    ['has_prepayment', 'prepayment_ratio', 'prepayment_days', 'prepayment_mode', 'postpayment_days', 'postpayment_mode'].forEach((k) => {
+        delete next[k];
+    });
+
+    return next;
+}
+
+export function normalizePaymentSchedule(schedule = {}) {
+    return ensureInstallmentSchedule(schedule);
 }
 
 export function parseLocalDate(iso) {
@@ -149,22 +201,23 @@ function shiftInstallmentDate(anchorDate, offsetDays, unit) {
 
 export function installmentContextDatesFromRoute(routePoints, orderDate) {
     const pts = Array.isArray(routePoints) ? routePoints : [];
-    const firstLoad = pts.find((p) => p.type === 'loading' && p.planned_date);
-    const lastUnl = [...pts].reverse().find((p) => p.type === 'unloading' && p.planned_date);
-    const firstBorder = pts.find((p) => p.type === 'border_crossing' && p.planned_date);
-    const fl = firstLoad?.planned_date || null;
+    const firstLoad = pts.find((p) => p.type === 'loading' && (p.actual_date || p.planned_date));
+    const lastUnl = [...pts].reverse().find((p) => p.type === 'unloading' && (p.actual_date || p.planned_date));
+    const firstBorder = pts.find((p) => p.type === 'border_crossing' && (p.actual_date || p.planned_date));
+    const fl = firstLoad?.actual_date || firstLoad?.planned_date || null;
+    const ul = lastUnl?.actual_date || lastUnl?.planned_date || null;
     return {
         first_loading: fl,
-        last_unloading: lastUnl?.planned_date || null,
-        border_crossing: firstBorder?.planned_date || null,
+        last_unloading: ul,
+        border_crossing: firstBorder?.actual_date || firstBorder?.planned_date || null,
         order_date: orderDate || null,
         loading_date: fl,
-        unloading_date: lastUnl?.planned_date || null,
+        unloading_date: ul,
     };
 }
 
 export function resolveInstallmentAnchorDate(anchor, ctx) {
-    const a = anchor || 'first_loading';
+    const a = anchor || 'last_unloading';
     if (a === 'first_loading') {
         return parseLocalDate(ctx.first_loading) || parseLocalDate(ctx.order_date);
     }
@@ -268,26 +321,6 @@ function basisPhrase(mode) {
     return BASIS_SUMMARY_PHRASE[k] ?? k;
 }
 
-/** Классический график: «50% в течение 3 кал. дн. по сканам; 50% …». */
-export function classicScheduleSummaryHuman(schedule) {
-    const normalized = normalizePaymentSchedule(schedule);
-    const postPct = normalized.has_prepayment ? Math.max(0, 100 - Number(normalized.prepayment_ratio || 0)) : 100;
-    const postDays = Number(normalized.postpayment_days || 0);
-    const postBasis = basisPhrase(normalized.postpayment_mode);
-    const postPart = `${formatPercentTrimZeros(postPct)}% в течение ${postDays} кал. дн. ${postBasis}`;
-
-    if (!normalized.has_prepayment) {
-        return postPart;
-    }
-
-    const prePct = Number(normalized.prepayment_ratio || 0);
-    const preDays = Number(normalized.prepayment_days || 0);
-    const preBasis = basisPhrase(normalized.prepayment_mode);
-
-    return `${formatPercentTrimZeros(prePct)}% в течение ${preDays} кал. дн. ${preBasis}; ${postPart}`;
-}
-
-/** Транши: без «Транш 1:», без план-дат; базис скрывается до наступления услуги. */
 export function installmentScheduleSummaryHuman(schedule, totalAmount, currency, routePoints, orderDate) {
     const rows = Array.isArray(schedule?.installments) ? schedule.installments : [];
     if (rows.length === 0) {
@@ -316,52 +349,146 @@ export function installmentScheduleSummaryHuman(schedule, totalAmount, currency,
 }
 
 export function paymentScheduleSummaryHuman(schedule, totalAmount, currency, routePoints, orderDate) {
-    if (usesInstallments(schedule)) {
-        return installmentScheduleSummaryHuman(schedule, totalAmount, currency, routePoints, orderDate);
-    }
-    return classicScheduleSummaryHuman(schedule);
+    const normalized = ensureInstallmentSchedule(schedule);
+    return installmentScheduleSummaryHuman(normalized, totalAmount, currency, routePoints, orderDate);
 }
 
 export function syncInstallmentAmountsFromPercents(schedule, totalAmount) {
-    if (!usesInstallments(schedule)) {
+    const normalized = ensureInstallmentSchedule(schedule);
+    if (!usesInstallments(normalized)) {
         return;
     }
+
     const total = Number(totalAmount || 0);
-    const rows = schedule.installments;
+    const rows = normalized.installments;
+    schedule.installments = rows;
+
     if (!total || total <= 0) {
         return;
     }
+
     if (rows.length === 1) {
         rows[0].percent = 100;
         rows[0].amount = Math.round(total * 100) / 100;
         return;
     }
-    if (rows.length < 2) {
-        return;
+
+    let allocated = 0;
+    let percentSum = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+        const isLast = i === rows.length - 1;
+        if (isLast) {
+            rows[i].amount = Math.round((total - allocated) * 100) / 100;
+            rows[i].percent = Math.round((100 - percentSum) * 100) / 100;
+            break;
+        }
+
+        const pct = Math.min(100, Math.max(0, Number(rows[i].percent || 0)));
+        const amt = Math.round((total * pct) / 100 * 100) / 100;
+        rows[i].percent = Math.round(pct * 100) / 100;
+        rows[i].amount = amt;
+        allocated += amt;
+        percentSum += rows[i].percent;
     }
-    const p1 = Math.min(100, Math.max(0, Number(rows[0].percent || 0)));
-    rows[0].percent = Math.round(p1 * 100) / 100;
-    rows[1].percent = Math.round((100 - p1) * 100) / 100;
-    const a1 = Math.round((total * p1) / 100 * 100) / 100;
-    rows[0].amount = a1;
-    rows[1].amount = Math.round((total - a1) * 100) / 100;
 }
 
-export function applyStandardScheduleShape(schedule) {
-    if (!schedule || typeof schedule !== 'object') {
+export function rebalanceInstallmentPercents(schedule, changedIndex) {
+    if (!usesInstallments(schedule) || schedule.installments.length < 2) {
         return;
     }
-    delete schedule.installments;
-    Object.assign(schedule, blankPaymentSchedule());
-}
 
-export function applyDetailedScheduleShape(schedule, twoRows) {
-    if (!schedule || typeof schedule !== 'object') {
-        return;
-    }
-    ['has_prepayment', 'prepayment_ratio', 'prepayment_days', 'prepayment_mode', 'postpayment_days', 'postpayment_mode'].forEach((k) => {
-        delete schedule[k];
+    const rows = schedule.installments;
+    const changed = Math.min(rows.length - 1, Math.max(0, changedIndex));
+    const pct = Math.min(100, Math.max(0, Number(rows[changed].percent || 0)));
+    rows[changed].percent = Math.round(pct * 100) / 100;
+
+    const others = rows.length - 1;
+    const remainder = Math.max(0, 100 - rows[changed].percent);
+    const each = Math.round((remainder / others) * 100) / 100;
+    let distributed = 0;
+
+    rows.forEach((row, index) => {
+        if (index === changed) {
+            return;
+        }
+        const isLastOther = index === rows.length - 1 || (changed === rows.length - 1 && index === rows.length - 2);
+        if (isLastOther && index !== changed) {
+            row.percent = Math.round((100 - rows[changed].percent - distributed) * 100) / 100;
+        } else {
+            row.percent = each;
+            distributed += each;
+        }
     });
-    const next = twoRows ? blankTwoInstallmentSchedule() : blankSingleInstallmentSchedule();
-    schedule.installments = next.installments.map((r) => ({ ...r }));
+}
+
+export function rebalanceInstallmentAmounts(schedule, changedIndex, totalAmount) {
+    const total = Number(totalAmount || 0);
+    if (!usesInstallments(schedule) || schedule.installments.length < 2 || !total) {
+        syncInstallmentAmountsFromPercents(schedule, totalAmount);
+        return;
+    }
+
+    const rows = schedule.installments;
+    const changed = Math.min(rows.length - 1, Math.max(0, changedIndex));
+    const amt = Math.min(total, Math.max(0, Number(rows[changed].amount || 0)));
+    rows[changed].amount = Math.round(amt * 100) / 100;
+    rows[changed].percent = Math.round((100 * rows[changed].amount) / total * 100) / 100;
+
+    let allocated = rows[changed].amount;
+    const others = rows.filter((_, i) => i !== changed);
+    const each = Math.round(((total - allocated) / others.length) * 100) / 100;
+
+    rows.forEach((row, index) => {
+        if (index === changed) {
+            return;
+        }
+        const isLast = index === rows.length - 1;
+        if (isLast) {
+            row.amount = Math.round((total - allocated) * 100) / 100;
+        } else {
+            row.amount = each;
+            allocated += each;
+        }
+        row.percent = Math.round((100 * row.amount) / total * 100) / 100;
+    });
+}
+
+export function addInstallmentRow(schedule) {
+    const normalized = ensureInstallmentSchedule(schedule);
+    if (normalized.installments.length >= MAX_INSTALLMENTS) {
+        return false;
+    }
+
+    const rows = normalized.installments;
+    const defaultPercent = rows.length === 0 ? 100 : Math.round((100 / (rows.length + 1)) * 100) / 100;
+    rows.push(blankInstallmentRow({ percent: defaultPercent }));
+    rebalanceInstallmentPercents({ installments: rows }, rows.length - 1);
+    Object.assign(schedule, stripLegacyKeys({ installments: rows }));
+    return true;
+}
+
+export function removeInstallmentRow(schedule, index) {
+    if (!usesInstallments(schedule) || schedule.installments.length <= 1) {
+        return false;
+    }
+
+    schedule.installments.splice(index, 1);
+    if (schedule.installments.length === 1) {
+        schedule.installments[0].percent = 100;
+    } else {
+        rebalanceInstallmentPercents(schedule, 0);
+    }
+    return true;
+}
+
+/** @deprecated Все графики хранятся как installments */
+export function applyStandardScheduleShape(schedule) {
+    Object.assign(schedule, blankSingleInstallmentSchedule());
+}
+
+export function applyDetailedScheduleShape(schedule) {
+    if (!usesInstallments(schedule)) {
+        Object.assign(schedule, blankSingleInstallmentSchedule());
+    }
 }

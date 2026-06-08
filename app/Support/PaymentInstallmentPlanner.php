@@ -70,8 +70,8 @@ final class PaymentInstallmentPlanner
             'last_unloading' => $lastUnloading?->toDateString(),
             'border_crossing' => $borderCrossing?->toDateString(),
             'order_date' => optional($order->order_date)?->toDateString(),
-            'loading_date' => optional($order->loading_date)?->toDateString(),
-            'unloading_date' => optional($order->unloading_date)?->toDateString(),
+            'loading_date' => OrderRouteMilestoneDateResolver::resolveLoadingDate($order),
+            'unloading_date' => OrderRouteMilestoneDateResolver::resolveUnloadingDate($order),
         ];
     }
 
