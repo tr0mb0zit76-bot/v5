@@ -46,6 +46,36 @@ class DocxPrintFormPlaceholderPreprocessorTest extends TestCase
         @unlink($outputPath);
     }
 
+    #[Test]
+    public function it_merges_deeply_split_document_placeholder_before_substitution(): void
+    {
+        $sourcePath = $this->makeDocx([
+            'word/document.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p>
+<w:r><w:t xml:space="preserve">${</w:t></w:r><w:r><w:t>cp</w:t></w:r><w:r><w:t>_</w:t></w:r><w:r><w:t>inn</w:t></w:r><w:r><w:t>}</w:t></w:r>
+</w:p></w:body></w:document>',
+        ]);
+
+        $workingPath = $this->copyDocx($sourcePath);
+        DocxPrintFormPlaceholderPreprocessor::preprocess($workingPath, ['cp_inn']);
+
+        $processor = new TemplateProcessor($workingPath);
+        $processor->setMacroChars('${', '}');
+        $this->assertContains('cp_inn', $processor->getVariables());
+
+        $processor->setValue('cp_inn', '7701234567');
+        $outputPath = $workingPath.'.out.docx';
+        $processor->saveAs($outputPath);
+
+        $documentAfterReplace = $this->readZipPart($outputPath, 'word/document.xml');
+        $this->assertStringContainsString('7701234567', $documentAfterReplace);
+        $this->assertStringNotContainsString('${cp_inn}', $documentAfterReplace);
+
+        @unlink($sourcePath);
+        @unlink($workingPath);
+        @unlink($outputPath);
+    }
+
     /**
      * @param  array<string, string>  $entries
      */

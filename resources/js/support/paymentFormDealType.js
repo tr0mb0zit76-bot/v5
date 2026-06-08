@@ -53,7 +53,17 @@ function resolveMeta(paymentFormMeta, code) {
         return { isVat: false, isNoVat: false, ratePercent: null };
     }
 
+    if (key === 'vat') {
+        return { isVat: true, isNoVat: false, ratePercent: null };
+    }
+
     return null;
+}
+
+function hasPositiveVatRate(paymentFormMeta, code) {
+    const meta = resolveMeta(paymentFormMeta, code);
+
+    return Boolean(meta?.isVat) && Number(meta?.ratePercent) > 0;
 }
 
 function ratePercentForCode(paymentFormMeta, code) {
@@ -63,7 +73,7 @@ function ratePercentForCode(paymentFormMeta, code) {
 }
 
 /**
- * Категория KPI: vat | cash | vat_zero_22 | unknown.
+ * Категория KPI: vat_all | vat | cash | vat_zero_22 | unknown.
  *
  * @param {string} customerPaymentForm
  * @param {string[]} carrierPaymentForms
@@ -90,5 +100,9 @@ export function classifyDealType(customerPaymentForm, carrierPaymentForms = [], 
         return { key: 'vat_zero_22', label: 'НДС 0% / 22%' };
     }
 
-    return { key: 'vat', label: 'НДС' };
+    if (hasPositiveVatRate(paymentFormMeta, customer) && carriers.every((form) => hasPositiveVatRate(paymentFormMeta, form))) {
+        return { key: 'vat_all', label: 'НДС у всех' };
+    }
+
+    return { key: 'vat', label: 'Прочие НДС' };
 }

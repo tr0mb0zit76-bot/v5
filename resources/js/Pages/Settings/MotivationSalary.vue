@@ -17,7 +17,7 @@
                     :href="route('settings.motivation.salary')"
                     class="text-zinc-600 underline decoration-zinc-300 underline-offset-2 transition hover:text-zinc-900 dark:text-zinc-400 dark:decoration-zinc-600 dark:hover:text-zinc-100"
                 >
-                    Условия и коэффициенты
+                    Персональные условия и коэффициенты
                 </Link>
         </nav>
         <nav v-else class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -696,7 +696,7 @@ const salaryDrafts = reactive(props.salaryCoefficients.map((row) => ({
     ...row,
 })));
 const isFinanceModule = props.salary_module === 'finance';
-const pageTitle = isFinanceModule ? 'Зарплата' : 'Условия';
+const pageTitle = isFinanceModule ? 'Зарплата' : 'Персональные условия';
 const pageDescription = isFinanceModule
     ? 'Периоды начислений по гриду, суммы к выплате по оплатам заказов и учёт фактических выплат.'
     : 'Оклад, бонус и срок действия персональных коэффициентов. Периоды и выплаты ведутся в разделе «Финансы → Зарплата».';

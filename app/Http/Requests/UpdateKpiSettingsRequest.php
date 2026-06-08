@@ -21,6 +21,7 @@ class UpdateKpiSettingsRequest extends FormRequest
             'bonus_multiplier' => ['required', 'numeric', 'min:0', 'max:100'],
             'deduction_rates' => ['required', 'array'],
             'deduction_rates.vat_percent' => ['required', 'numeric', 'min:0', 'max:100'],
+            'deduction_rates.vat_all_percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'deduction_rates.vat_zero_22_percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'deduction_rates.vat_zero_22_supplement_percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'deduction_rates.cash_primary_percent' => ['required', 'numeric', 'min:0', 'max:100'],

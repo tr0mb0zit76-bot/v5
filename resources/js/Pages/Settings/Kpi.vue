@@ -1,15 +1,15 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto lg:min-h-0">
         <CrmPageHeader
-            lead="Вычеты с суммы заказчика: НДС, наличка (при наличных у всех перевозчиков), НДС 0% / 22%."
-            title="Настройки KPI"
+            lead="Вычеты с суммы заказчика: НДС у всех, прочие НДС, наличка, НДС 0% / 22%."
+            title="Настройки вычетов"
         />
 
         <section :class="`${crmPanel} flex min-h-0 flex-col p-5`">
             <div class="mb-4 space-y-1">
                 <h2 class="text-lg font-semibold">Вычеты KPI и delta</h2>
                 <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                    Наличка учитывается только при наличных у заказчика и перевозчика. Сочетание «НДС 0% у заказчика, 22% у перевозчика» — отдельная категория.
+                    «НДС у всех» — заказчик и все перевозчики с НДС. «Прочие НДС» — остальные сочетания (0% / 0%, без НДС у одной стороны и т.д.).
                 </p>
             </div>
 
@@ -31,11 +31,32 @@
                 </div>
             </div>
 
-            <div class="grid gap-4 lg:grid-cols-3">
+            <div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
                 <div class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-                    <h3 class="font-semibold text-zinc-900 dark:text-zinc-50">НДС</h3>
+                    <h3 class="font-semibold text-zinc-900 dark:text-zinc-50">НДС у всех</h3>
                     <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                        Безнал, ставки НДС (в т.ч. 0% / 0%), наличные у заказчика без наличных у перевозчика.
+                        Заказчик платит с НДС, всем перевозчикам (все плечи) — тоже с НДС. Типичная прямая сделка 22% / 22%.
+                    </p>
+                    <label class="block space-y-1">
+                        <span class="text-sm text-zinc-600 dark:text-zinc-400">Вычет с суммы заказчика, %</span>
+                        <div class="flex items-center gap-2">
+                            <input
+                                v-model.number="settingsForm.deduction_rates.vat_all_percent"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                :class="`${crmField} w-28`"
+                            >
+                            <span class="text-zinc-500 dark:text-zinc-400">%</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+                    <h3 class="font-semibold text-zinc-900 dark:text-zinc-50">Прочие НДС</h3>
+                    <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                        Остальные сочетания: 0% / 0%, без НДС у одной стороны, разные ставки НДС, наличные у заказчика.
                     </p>
                     <label class="block space-y-1">
                         <span class="text-sm text-zinc-600 dark:text-zinc-400">Вычет с суммы заказчика, %</span>
@@ -172,6 +193,7 @@ const props = defineProps({
         type: Object,
         default: () => ({
             vat_percent: 3,
+            vat_all_percent: 4,
             vat_zero_22_percent: 3,
             vat_zero_22_supplement_percent: 15,
             cash_primary_percent: 3,
@@ -184,6 +206,7 @@ const settingsForm = useForm({
     bonus_multiplier: props.bonusMultiplier,
     deduction_rates: {
         vat_percent: Number(props.deductionRates.vat_percent ?? props.deductionRates.cashless_percent ?? 3),
+        vat_all_percent: Number(props.deductionRates.vat_all_percent ?? 4),
         vat_zero_22_percent: Number(props.deductionRates.vat_zero_22_percent ?? 3),
         vat_zero_22_supplement_percent: Number(props.deductionRates.vat_zero_22_supplement_percent ?? 15),
         cash_primary_percent: Number(props.deductionRates.cash_primary_percent ?? 3),

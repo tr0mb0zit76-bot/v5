@@ -12,6 +12,8 @@ class KpiConfigurationService
 
     public const VAT_PERCENT_KEY = 'vat_kpi_percent';
 
+    public const VAT_ALL_PERCENT_KEY = 'vat_all_kpi_percent';
+
     public const CASHLESS_PERCENT_KEY = 'cashless_kpi_percent';
 
     public const VAT_ZERO_22_PERCENT_KEY = 'vat_zero_22_kpi_percent';
@@ -25,6 +27,8 @@ class KpiConfigurationService
     public const DEFAULT_BONUS_MULTIPLIER = 1.3;
 
     public const DEFAULT_VAT_PERCENT = 3.0;
+
+    public const DEFAULT_VAT_ALL_PERCENT = 4.0;
 
     public const DEFAULT_VAT_ZERO_22_PERCENT = 3.0;
 
@@ -59,6 +63,7 @@ class KpiConfigurationService
     /**
      * @return array{
      *     vat_percent: float,
+     *     vat_all_percent: float,
      *     vat_zero_22_percent: float,
      *     vat_zero_22_supplement_percent: float,
      *     cash_primary_percent: float,
@@ -73,6 +78,7 @@ class KpiConfigurationService
 
         return [
             'vat_percent' => $this->readVatPercentSetting(),
+            'vat_all_percent' => $this->readPercentSetting(self::VAT_ALL_PERCENT_KEY, self::DEFAULT_VAT_ALL_PERCENT),
             'vat_zero_22_percent' => $this->readPercentSetting(self::VAT_ZERO_22_PERCENT_KEY, self::DEFAULT_VAT_ZERO_22_PERCENT),
             'vat_zero_22_supplement_percent' => $this->vatZero22MarginSupplementPercent(),
             'cash_primary_percent' => $this->readPercentSetting(self::CASH_PRIMARY_PERCENT_KEY, self::DEFAULT_CASH_PRIMARY_PERCENT),
@@ -95,6 +101,7 @@ class KpiConfigurationService
     /**
      * @param  array{
      *     vat_percent: float|int,
+     *     vat_all_percent: float|int,
      *     vat_zero_22_percent: float|int,
      *     vat_zero_22_supplement_percent: float|int,
      *     cash_primary_percent: float|int,
@@ -108,7 +115,14 @@ class KpiConfigurationService
             number_format((float) $rates['vat_percent'], 2, '.', ''),
             'float',
             'kpi',
-            'Вычет KPI для сделок с НДС, % от суммы заказчика',
+            'Вычет KPI для прочих сочетаний НДС, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::VAT_ALL_PERCENT_KEY,
+            number_format((float) $rates['vat_all_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Вычет KPI при НДС у заказчика и у всех перевозчиков, % от суммы заказчика',
         );
         KpiSetting::setValue(
             self::VAT_ZERO_22_PERCENT_KEY,
@@ -174,6 +188,7 @@ class KpiConfigurationService
     /**
      * @return array{
      *     vat_percent: float,
+     *     vat_all_percent: float,
      *     vat_zero_22_percent: float,
      *     vat_zero_22_supplement_percent: float,
      *     cash_primary_percent: float,
@@ -184,6 +199,7 @@ class KpiConfigurationService
     {
         return [
             'vat_percent' => self::DEFAULT_VAT_PERCENT,
+            'vat_all_percent' => self::DEFAULT_VAT_ALL_PERCENT,
             'vat_zero_22_percent' => self::DEFAULT_VAT_ZERO_22_PERCENT,
             'vat_zero_22_supplement_percent' => self::DEFAULT_VAT_ZERO_22_SUPPLEMENT_PERCENT,
             'cash_primary_percent' => self::DEFAULT_CASH_PRIMARY_PERCENT,

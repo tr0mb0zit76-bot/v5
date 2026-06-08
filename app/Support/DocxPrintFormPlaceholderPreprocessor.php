@@ -48,7 +48,7 @@ final class DocxPrintFormPlaceholderPreprocessor
                 continue;
             }
 
-            $updated = $xml;
+            $updated = DocxTextRunPlaceholderMerger::mergeAllSplitDollarMacrosInXml($xml);
             foreach ($innerNames as $inner) {
                 for ($pass = 0; $pass < 32; $pass++) {
                     $before = $updated;

@@ -78,7 +78,25 @@
             <div
                 class="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             >
-                <div ref="overlayCanvas" class="relative mx-auto w-full min-w-0 max-w-none" :style="canvasStyle">
+                <div
+                    v-if="!canEmbedPdfPreview"
+                    class="flex min-h-[480px] flex-col items-center justify-center gap-4 p-8 text-center"
+                >
+                    <p class="max-w-lg text-sm text-zinc-600 dark:text-zinc-300">
+                        Встроенный предпросмотр в браузере доступен только для PDF (нужен Gotenberg).
+                        DOCX во фрейме Chrome не открывает — откройте файл отдельно или скачайте.
+                    </p>
+                    <a
+                        :href="embedUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:hover:bg-zinc-800"
+                    >
+                        Открыть черновик в новой вкладке
+                    </a>
+                </div>
+
+                <div v-else ref="overlayCanvas" class="relative mx-auto w-full min-w-0 max-w-none" :style="canvasStyle">
                     <iframe
                         :src="embedUrl"
                         :class="iframePointerEventsClass"
@@ -293,6 +311,8 @@ watch(
 );
 
 const hasAnyOverlayImage = computed(() => Boolean(props.signatureOverlayImageUrl || props.stampOverlayImageUrl));
+
+const canEmbedPdfPreview = computed(() => Boolean(props.documentPreview?.pdf_preview_available));
 
 const iframePointerEventsClass = computed(() =>
     positionModeEnabled.value && !props.readonlyOverlayDecorations ? 'pointer-events-none' : 'pointer-events-auto',

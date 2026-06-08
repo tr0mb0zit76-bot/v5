@@ -13,6 +13,7 @@ final class KpiCustomerDeduction
     /**
      * @param  array{
      *     vat_percent: float,
+     *     vat_all_percent: float,
      *     vat_zero_22_percent: float,
      *     cash_primary_percent: float,
      *     cash_secondary_percent: float,
@@ -31,6 +32,7 @@ final class KpiCustomerDeduction
                 (float) $rates['cash_secondary_percent'],
             ),
             'vat_zero_22' => self::percentOf($customerRate, (float) $rates['vat_zero_22_percent']),
+            'vat_all' => self::percentOf($customerRate, (float) $rates['vat_all_percent']),
             'vat', 'cashless' => self::percentOf($customerRate, (float) $rates['vat_percent']),
             default => 0.0,
         };

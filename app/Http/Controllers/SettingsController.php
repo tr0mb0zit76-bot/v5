@@ -107,7 +107,7 @@ class SettingsController extends Controller
             'sections' => [
                 [
                     'key' => 'kpi-settings',
-                    'title' => 'Настройки KPI',
+                    'title' => 'Настройки вычетов',
                     'description' => 'Пороги KPI по типу сделки и множитель bonus в формуле delta.',
                     'href' => route('settings.motivation.kpi'),
                     'icon' => 'gauge',
@@ -115,7 +115,7 @@ class SettingsController extends Controller
                 ],
                 [
                     'key' => 'salary-settings',
-                    'title' => 'Условия',
+                    'title' => 'Персональные условия',
                     'description' => 'Оклад, бонус и срок действия персональных коэффициентов. Периоды и выплаты — в «Финансы → Зарплата».',
                     'href' => route('settings.motivation.salary'),
                     'icon' => 'wallet',

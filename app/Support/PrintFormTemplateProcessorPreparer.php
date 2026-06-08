@@ -14,6 +14,8 @@ final class PrintFormTemplateProcessorPreparer
      */
     public static function repairTextMacros(TemplateProcessor $processor, array $placeholders): void
     {
+        self::mergeAllSplitDollarMacrosInProcessor($processor);
+
         $innerNames = collect($placeholders)
             ->filter(static fn (mixed $placeholder): bool => is_string($placeholder) && trim($placeholder) !== '')
             ->map(static fn (string $placeholder): string => trim(explode('#', trim($placeholder))[0]))
@@ -71,6 +73,31 @@ final class PrintFormTemplateProcessorPreparer
     public static function processorHasMacro(TemplateProcessor $processor, string $anchor): bool
     {
         return self::resolveProcessorMacro($processor, $anchor) !== null;
+    }
+
+    public static function mergeAllSplitDollarMacrosInProcessor(TemplateProcessor $processor): void
+    {
+        $ref = new \ReflectionClass($processor);
+
+        $main = $ref->getProperty('tempDocumentMainPart');
+        $main->setAccessible(true);
+        $main->setValue(
+            $processor,
+            DocxTextRunPlaceholderMerger::mergeAllSplitDollarMacrosInXml((string) $main->getValue($processor))
+        );
+
+        foreach (['tempDocumentHeaders', 'tempDocumentFooters'] as $propName) {
+            $prop = $ref->getProperty($propName);
+            $prop->setAccessible(true);
+            $parts = $prop->getValue($processor);
+            if (! is_array($parts)) {
+                continue;
+            }
+            foreach ($parts as $idx => $partXml) {
+                $parts[$idx] = DocxTextRunPlaceholderMerger::mergeAllSplitDollarMacrosInXml((string) $partXml);
+            }
+            $prop->setValue($processor, $parts);
+        }
     }
 
     public static function resolveProcessorMacro(TemplateProcessor $processor, string $anchor): ?string

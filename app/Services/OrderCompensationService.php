@@ -241,8 +241,8 @@ class OrderCompensationService
      */
     public function calculateMarginScenario(array $data, string $scenarioPaymentCategory): array
     {
-        if (! in_array($scenarioPaymentCategory, ['vat', 'cash', 'vat_zero_22'], true)) {
-            throw new \InvalidArgumentException('scenarioPaymentCategory must be vat, cash or vat_zero_22.');
+        if (! in_array($scenarioPaymentCategory, ['vat', 'vat_all', 'cash', 'vat_zero_22'], true)) {
+            throw new \InvalidArgumentException('scenarioPaymentCategory must be vat, vat_all, cash or vat_zero_22.');
         }
 
         $customerRate = (float) ($data['customer_rate'] ?? 0);

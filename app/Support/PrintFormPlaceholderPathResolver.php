@@ -70,6 +70,10 @@ class PrintFormPlaceholderPathResolver
                 }
             }
 
+            if ($entityType === 'order' && $orderParty === 'customer' && $normalized === 'dp_kpp') {
+                return 'own_company.kpp';
+            }
+
             return $fromLegacy;
         }
 

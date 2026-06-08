@@ -1191,8 +1191,8 @@ const menuItems = computed(() => {
                         key: 'motivation',
                         label: 'Мотивация',
                         children: [
-                            { key: 'kpi-settings', label: 'Настройки KPI' },
-                            { key: 'salary-settings', label: 'Условия' },
+                            { key: 'kpi-settings', label: 'Настройки вычетов' },
+                            { key: 'salary-settings', label: 'Персональные условия' },
                         ],
                     });
                 }

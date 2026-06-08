@@ -10,7 +10,7 @@ class SalesMarginCounterService
 {
     public const SCENARIO_CASH = 'cash';
 
-    public const SCENARIO_VAT = 'vat';
+    public const SCENARIO_VAT = 'vat_all';
 
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
@@ -64,8 +64,8 @@ class SalesMarginCounterService
                 ),
                 $this->buildScenario(
                     self::SCENARIO_VAT,
-                    'vat',
-                    'Сделка с НДС',
+                    'vat_all',
+                    'Сделка с НДС у всех',
                     $customerRate,
                     $carrierCashless,
                     $defaultVatForm,
@@ -227,16 +227,16 @@ class SalesMarginCounterService
         array $deductionRates,
     ): array {
         $cashLabel = $this->deductionRatesLabel('cash', $deductionRates);
-        $vatLabel = $this->deductionRatesLabel('vat', $deductionRates);
+        $vatAllLabel = $this->deductionRatesLabel('vat_all', $deductionRates);
 
         return [
             'Заказчик — одна ставка (оплата только безналом). Перевозчик — отдельно наличные и безнал.',
             sprintf(
-                'Вычеты KPI из настроек мотивации: «Сделка с наличкой» — %s с суммы заказчика; «Сделка с НДС» — %s.',
+                'Вычеты KPI из настроек мотивации: «Сделка с наличкой» — %s с суммы заказчика; «Сделка с НДС у всех» — %s.',
                 $cashLabel,
-                $vatLabel,
+                $vatAllLabel,
             ),
-            'Сначала заполните ставку заказчика и перевозчика (нал.) — появится обзор «Сделка с наличкой». Затем ставку перевозчика (безнал) — обзор «Сделка с НДС».',
+            'Сначала заполните ставку заказчика и перевозчика (нал.) — появится обзор «Сделка с наличкой». Затем ставку перевозчика (безнал) — обзор «Сделка с НДС у всех».',
             $this->filledFieldsHint($customerRate, $carrierCash, $carrierCashless),
         ];
     }
@@ -263,6 +263,13 @@ class SalesMarginCounterService
             return sprintf(
                 '%s%%',
                 $this->formatPercent((float) $deductionRates['vat_zero_22_percent']),
+            );
+        }
+
+        if ($paymentCategory === 'vat_all') {
+            return sprintf(
+                '%s%%',
+                $this->formatPercent((float) $deductionRates['vat_all_percent']),
             );
         }
 

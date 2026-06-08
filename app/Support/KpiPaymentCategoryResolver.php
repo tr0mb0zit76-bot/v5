@@ -9,7 +9,8 @@ namespace App\Support;
  *
  * — cash: наличка при наличных у всех перевозчиков на рейсе (форма заказчика любая);
  * — vat_zero_22: заказчик с НДС 0%, у перевозчика (рейс или плечо) — НДС 22%;
- * — vat: прочие сочетания (в т.ч. НДС 0% / НДС 0%, безнал, смешанные ставки НДС).
+ * — vat_all: заказчик с НДС и у всех перевозчиков — с НДС;
+ * — vat: прочие сочетания (в т.ч. НДС 0% / НДС 0%, без НДС у одной стороны, смешанные ставки).
  */
 final class KpiPaymentCategoryResolver
 {
@@ -40,6 +41,10 @@ final class KpiPaymentCategoryResolver
 
         if (self::isVatZeroCustomerStandardVatCarrierDeal($customer, $carriers)) {
             return 'vat_zero_22';
+        }
+
+        if (self::isAllPartiesVatDeal($customer, $carriers)) {
+            return 'vat_all';
         }
 
         return 'vat';
@@ -91,5 +96,34 @@ final class KpiPaymentCategoryResolver
         }
 
         return false;
+    }
+
+    /**
+     * @param  list<string>  $carrierPaymentForms
+     */
+    private static function isAllPartiesVatDeal(string $customerPaymentForm, array $carrierPaymentForms): bool
+    {
+        if (! self::hasPositiveVatRate($customerPaymentForm)) {
+            return false;
+        }
+
+        foreach ($carrierPaymentForms as $carrierForm) {
+            if (! self::hasPositiveVatRate($carrierForm)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function hasPositiveVatRate(string $paymentForm): bool
+    {
+        if (! PaymentFormVat::isVatCode($paymentForm)) {
+            return false;
+        }
+
+        $rate = PaymentFormVat::ratePercentForCode($paymentForm);
+
+        return $rate !== null && $rate > 0;
     }
 }
