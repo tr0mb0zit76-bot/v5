@@ -2,7 +2,7 @@
 
 Документ описывает, как создать и вести заказ в CRM: от минимально заполненной карточки до документов, печатных форм и автоматических статусов.
 
-**См. также:** [Документы](documents-user-guide.md) · [Ассистенты CRM](ai-assistants-user-guide.md) · [Регламент оформления заявки и базовых условий](order-application-basic-terms-regulation.md)
+**См. также:** [Финансовые условия в мастере заказов](order-wizard-financial-terms-user-guide.md) · [Документы](documents-user-guide.md) · [Ассистенты CRM](ai-assistants-user-guide.md) · [Регламент оформления заявки и базовых условий](order-application-basic-terms-regulation.md)
 
 ---
 
@@ -185,6 +185,8 @@
 ---
 
 ## 7. Вкладка «Финансы»
+
+> **Подробная инструкция:** [order-wizard-financial-terms-user-guide.md](order-wizard-financial-terms-user-guide.md) — транши, якоря, события, перевозчики, график оплат.
 
 ![](C:\Users\Руслан\AppData\Roaming\marktext\images\2026-05-30-10-52-07-image.png)
 

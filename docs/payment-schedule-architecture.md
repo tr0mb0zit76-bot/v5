@@ -1,6 +1,8 @@
 # Условия оплаты и график оплат (архитектура)
 
-Техническая карта единой модели траншей (2026-06). Пользовательская часть — раздел 7 в [`order-wizard-user-guide.md`](./order-wizard-user-guide.md).
+Техническая карта единой модели траншей (2026-06).
+
+**Пользовательская инструкция:** [`order-wizard-financial-terms-user-guide.md`](./order-wizard-financial-terms-user-guide.md) (Книга продаж → Руководство по CRM). Кратко — раздел 7 в [`order-wizard-user-guide.md`](./order-wizard-user-guide.md).
 
 **Последнее обновление:** 2026-06-08
 

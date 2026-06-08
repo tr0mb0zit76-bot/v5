@@ -3,8 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Publish documents guide + regulation to prod Sales Book via MCP.
- * Usage: php scripts/mcp-prod-upsert-documents.php
+ * Publish order wizard guides to prod Sales Book via MCP.
+ * Usage: php scripts/mcp-prod-upsert-order-wizard.php
+ * Filter: MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.php
  */
 $userProfile = getenv('USERPROFILE') ?: getenv('HOME') ?: '';
 $mcpConfigPath = rtrim(str_replace('\\', '/', $userProfile), '/').'/.cursor/mcp.json';
@@ -102,31 +103,33 @@ function prepareBookMarkdown(string $path): string
 
     $replacements = [
         '[Мастер заказов](order-wizard-user-guide.md)' => '«Мастер заказов» (раздел «Руководство по CRM»)',
-        '[Финансовые условия в мастере заказов](order-wizard-financial-terms-user-guide.md)' => '«Финансовые условия в мастере заказов» (раздел «Руководство по CRM»)',
-        '[Регламент работы с документами](documents-regulation.md)' => '«Регламент работы с документами» (раздел «Регламенты работы»)',
+        '[Финансовые условия в мастере заказов](order-wizard-financial-terms-user-guide.md)' => '«Финансовые условия в мастере заказов» (эта статья)',
+        '[Документы](documents-user-guide.md)' => '«Документы — инструкция для пользователя» (раздел «Руководство по CRM»)',
         '[Ассистенты CRM](ai-assistants-user-guide.md)' => '«Ассистенты CRM — инструкция для пользователя» (раздел «Руководство по CRM»)',
-        '[Инструкция пользователя](documents-user-guide.md)' => '«Документы — инструкция для пользователя» (раздел «Руководство по CRM»)',
-        '[Nextcloud / хранилище](nextcloud-install.md)' => 'Nextcloud / хранилище (для админов)',
-        '[OCR заявки](order-intake-ocr-service.md)' => 'OCR заявки (техническая документация)',
+        '[График оплат (техн.)](payment-schedule-architecture.md)' => 'техническая документация по графику оплат (для разработчиков)',
+        '[Регламент оформления заявки и изменения базовых условий](order-application-basic-terms-regulation.md)' => '«Регламент оформления заявки и изменения базовых условий» (раздел «Регламенты работы»)',
         '[order-wizard-user-guide.md](order-wizard-user-guide.md)' => '«Мастер заказов»',
-        '[order-wizard-user-guide.md#9-вкладка-документы](order-wizard-user-guide.md#9-вкладка-документы)' => '«Мастер заказов», раздел про вкладку «Документы»',
+        '[order-wizard-financial-terms-user-guide.md](order-wizard-financial-terms-user-guide.md)' => '«Финансовые условия в мастере заказов»',
+        '[documents-user-guide.md](documents-user-guide.md)' => '«Документы — инструкция для пользователя»',
     ];
 
     return str_replace(array_keys($replacements), array_values($replacements), $markdown);
 }
 
-$articles = [
+$articles = array_values(array_filter([
     [
         'parent_title' => 'Руководство по CRM',
-        'title' => 'Документы',
-        'path' => dirname(__DIR__).'/docs/documents-user-guide.md',
+        'title' => 'Финансовые условия в мастере заказов',
+        'path' => dirname(__DIR__).'/docs/order-wizard-financial-terms-user-guide.md',
     ],
-    [
-        'parent_title' => 'Регламенты работы',
-        'title' => 'Регламент работы с документами',
-        'path' => dirname(__DIR__).'/docs/documents-regulation.md',
-    ],
-];
+], static function (array $spec): bool {
+    $only = getenv('MCP_UPSERT_ONLY');
+    if (! is_string($only) || trim($only) === '') {
+        return true;
+    }
+
+    return str_contains(mb_strtolower($spec['title']), mb_strtolower(trim($only)));
+}));
 
 $init = mcpPost($url, $auth, [
     'jsonrpc' => '2.0',
@@ -137,7 +140,7 @@ $init = mcpPost($url, $auth, [
         'capabilities' => (object) [],
         'clientInfo' => [
             'name' => 'crm-publish-script',
-            'version' => '1.1.0',
+            'version' => '1.0.0',
         ],
     ],
 ]);
@@ -179,4 +182,4 @@ foreach ($articles as $spec) {
     }
 }
 
-echo "\nOK — все статьи отправлены (новые создаются как черновик).\n";
+echo "\nOK — статьи отправлены (новые создаются как черновик; опубликуйте в UI Книги продаж).\n";
