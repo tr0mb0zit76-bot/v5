@@ -300,6 +300,27 @@
   background-image: linear-gradient(to bottom, rgb(153 27 27 / 0.45), rgb(153 27 27 / 0.45));
 }
 
+/* Сегодня: пустое местоположение — мягкая подсказка заполнить */
+.disposition-grid-theme .disposition-slot-empty-today {
+  background-color: rgb(254 249 195);
+}
+
+.disposition-grid-theme .disposition-slot-empty-today:hover {
+  background-color: rgb(253 230 138);
+}
+
+.dark .disposition-grid-theme .disposition-slot-empty-today {
+  background-color: rgb(113 63 18 / 0.28);
+}
+
+.dark .disposition-grid-theme .disposition-slot-empty-today:hover {
+  background-color: rgb(133 77 14 / 0.38);
+}
+
+.disposition-grid-theme .disposition-cell-saving {
+  opacity: 0.65;
+}
+
 .orders-grid-theme .ag-set-list-floating-trigger--active {
   border-color: rgb(2 132 199);
   background: rgb(224 242 254);

@@ -1,5 +1,11 @@
 <template>
-    <div class="w-full rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div
+        ref="rootRef"
+        class="w-full rounded-2xl border bg-white shadow-sm transition-shadow duration-300 dark:bg-zinc-900"
+        :class="invoked
+            ? 'border-sky-500 ring-2 ring-sky-500/70 shadow-lg shadow-sky-500/15 dark:border-sky-500'
+            : 'border-zinc-200 dark:border-zinc-800'"
+    >
         <Teleport to="body">
             <div
                 v-if="chatPanelOpen"
@@ -560,6 +566,8 @@ const extendedMemoryCaption = computed(() => Number(props.agentHistoryLimits.llm
 const message = ref('');
 const attachedFiles = ref([]);
 const showActions = ref(false);
+const invoked = ref(false);
+const rootRef = ref(null);
 const textareaRef = ref(null);
 const threadRef = ref(null);
 
@@ -590,6 +598,7 @@ const agentHistoryMenuOpen = ref(false);
 
 let pollUnreadTimer = null;
 let documentChipSearchTimer = null;
+let invokeHighlightTimer = null;
 
 function conversationRouteParams(id) {
     return { conversation: id };
@@ -616,6 +625,14 @@ const mentionFiltered = computed(() => {
     return list.filter((m) => m.name.toLowerCase().includes(q));
 });
 
+const agentHotkeyHint = computed(() => {
+    if (typeof navigator === 'undefined') {
+        return 'Ctrl+K';
+    }
+
+    return /Mac|iPhone|iPad/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K';
+});
+
 const inputPlaceholder = computed(() => {
     if (chatPanelOpen.value && activeConversationId.value === null) {
         return 'Сначала выберите диалог слева или «Новый чат»…';
@@ -633,7 +650,7 @@ const inputPlaceholder = computed(() => {
     if (isChatInputMode.value) {
         return 'Сообщение…';
     }
-    return 'Напишите команду, вопрос или задачу для ИИ…';
+    return `Напишите команду, вопрос или задачу для ИИ… (${agentHotkeyHint.value})`;
 });
 
 const isDisabled = computed(() => {
@@ -978,6 +995,32 @@ function toggleChatPanel() {
     }
 }
 
+function invokeCommandBar() {
+    if (chatPanelOpen.value) {
+        closeChatPanel();
+    }
+
+    showActions.value = false;
+    agentHistoryMenuOpen.value = false;
+    invoked.value = true;
+
+    if (invokeHighlightTimer !== null) {
+        window.clearTimeout(invokeHighlightTimer);
+    }
+
+    invokeHighlightTimer = window.setTimeout(() => {
+        invoked.value = false;
+        invokeHighlightTimer = null;
+    }, 2200);
+
+    rootRef.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    nextTick(() => {
+        textareaRef.value?.focus({ preventScroll: true });
+        autosize();
+    });
+}
+
 function closeChatPanel() {
     messengerSendError.value = '';
     chatPanelOpen.value = false;
@@ -1301,5 +1344,13 @@ onUnmounted(() => {
     if (documentChipSearchTimer !== null) {
         window.clearTimeout(documentChipSearchTimer);
     }
+    if (invokeHighlightTimer !== null) {
+        window.clearTimeout(invokeHighlightTimer);
+    }
+});
+
+defineExpose({
+    focusAgentInput: invokeCommandBar,
+    invokeCommandBar,
 });
 </script>

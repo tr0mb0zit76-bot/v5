@@ -42,10 +42,20 @@
                 </div>
             </div>
 
-            <span class="text-xs text-zinc-500 dark:text-zinc-400">
-                Показано: {{ displayedRowCount }} из {{ rows.length }}. Статус «В пути».
-            </span>
+            <div class="flex flex-col items-end gap-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <span>Показано: {{ displayedRowCount }} из {{ rows.length }} · «В пути»</span>
+                <span class="hidden text-[11px] sm:inline">
+                    Клик — правка · Tab — следующая ячейка · Enter — сохранить
+                </span>
+            </div>
         </div>
+
+        <p
+            v-if="lastSaveError"
+            class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+        >
+            {{ lastSaveError }}
+        </p>
 
         <div ref="gridPanel" :class="crmGridInnerPanel">
             <div
@@ -65,6 +75,7 @@
                     :suppress-cell-focus="false"
                     :suppress-horizontal-scroll="false"
                     :always-show-vertical-scroll="true"
+                    :stop-editing-when-cells-lose-focus="true"
                     style="height: 100%; width: 100%;"
                     @grid-ready="onGridReady"
                     @first-data-rendered="onFirstDataRendered"
@@ -125,6 +136,7 @@ const gridViewportHeight = ref(400);
 const bottomScrollbarWidth = ref(0);
 const displayedRowCount = ref(0);
 const savingCells = ref(new Set());
+const lastSaveError = ref('');
 const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
 const quickSearch = ref('');
@@ -159,10 +171,16 @@ const defaultColDef = {
     suppressSizeToFit: true,
 };
 
+const dispositionCellClassRules = {
+    'disposition-slot-empty-today': (params) => isEmptyTodayLocationCell(params),
+    'disposition-cell-saving': (params) => isSavingCell(params),
+};
+
 const gridOptions = {
     theme: 'legacy',
     localeText: agGridLocaleRu,
     animateRows: false,
+    enterNavigatesHorizontallyAfterEdit: true,
     getRowClass: (params) => (isPlannedArrivalPast(params.data) ? 'ag-row-disposition-planned-overdue' : ''),
 };
 
@@ -257,8 +275,60 @@ function formatDateHeader(date) {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
-function editableCellClass() {
-    return ['orders-grid-editable-cell'];
+function isEmptyTodayLocationCell(params) {
+    const parsed = parseCellField(params.colDef?.field);
+
+    if (!parsed || parsed.part !== 'location' || parsed.date !== todayIso()) {
+        return false;
+    }
+
+    const value = params.value;
+
+    return value == null || String(value).trim() === '';
+}
+
+function isSavingCell(params) {
+    const parsed = parseCellField(params.colDef?.field);
+    const orderId = params.data?.order_id;
+
+    if (!parsed || !orderId) {
+        return false;
+    }
+
+    return savingCells.value.has(`${orderId}|${parsed.date}|${parsed.slot}|${parsed.part}`);
+}
+
+function dispositionEditableCol(definition) {
+    return {
+        ...definition,
+        editable: true,
+        singleClickEdit: true,
+        cellClass: () => ['orders-grid-editable-cell'],
+        cellClassRules: dispositionCellClassRules,
+    };
+}
+
+function refreshDispositionEditableCells(rowNode = null) {
+    if (!gridApi.value) {
+        return;
+    }
+
+    const refreshParams = { force: true, columns: editableDispositionColumnIds() };
+
+    if (rowNode) {
+        gridApi.value.refreshCells({ ...refreshParams, rowNodes: [rowNode] });
+    } else {
+        gridApi.value.refreshCells(refreshParams);
+    }
+}
+
+function editableDispositionColumnIds() {
+    return (props.dates ?? []).flatMap((date) => [
+        `${fieldPrefix(date, 'morning')}_location`,
+        `${fieldPrefix(date, 'morning')}_comment`,
+        `${fieldPrefix(date, 'evening')}_location`,
+        `${fieldPrefix(date, 'evening')}_comment`,
+    ]);
 }
 
 const columnDefs = computed(() => {
@@ -315,39 +385,32 @@ const columnDefs = computed(() => {
         headerName: formatDateHeader(date),
         headerClass: 'disposition-date-group-header',
         children: [
-            {
+            dispositionEditableCol({
                 field: `${fieldPrefix(date, 'morning')}_location`,
                 headerName: 'Утро — место',
                 width: 140,
                 minWidth: 110,
-                editable: true,
-                cellClass: editableCellClass,
-            },
-            {
+            }),
+            dispositionEditableCol({
                 field: `${fieldPrefix(date, 'morning')}_comment`,
                 headerName: 'Утро — комм.',
                 width: 140,
                 minWidth: 110,
-                editable: true,
-                cellClass: editableCellClass,
-            },
-            {
+            }),
+            dispositionEditableCol({
                 field: `${fieldPrefix(date, 'evening')}_location`,
                 headerName: 'Вечер — место',
                 width: 140,
                 minWidth: 110,
-                editable: true,
-                cellClass: editableCellClass,
-            },
-            {
+            }),
+            dispositionEditableCol({
                 field: `${fieldPrefix(date, 'evening')}_comment`,
                 headerName: 'Вечер — комм.',
                 width: 140,
                 minWidth: 110,
-                editable: true,
                 headerClass: 'disposition-day-boundary-header',
                 cellClass: () => ['orders-grid-editable-cell', 'disposition-day-boundary-cell'],
-            },
+            }),
         ],
     }));
 
@@ -391,13 +454,14 @@ function parseCellField(field) {
     };
 }
 
-async function saveCell(row, parsed, newValue) {
+async function saveCell(row, parsed, newValue, rowNode = null) {
     const key = `${row.order_id}|${parsed.date}|${parsed.slot}|${parsed.part}`;
     if (savingCells.value.has(key)) {
         return;
     }
 
     savingCells.value.add(key);
+    refreshDispositionEditableCells(rowNode);
 
     const prefix = fieldPrefix(parsed.date, parsed.slot);
     const payload = {
@@ -410,12 +474,21 @@ async function saveCell(row, parsed, newValue) {
 
     try {
         await window.axios.post(route('disposition.entries.upsert'), payload);
+        row[`${prefix}_${parsed.part}`] = newValue;
+        lastSaveError.value = '';
+    } catch (error) {
+        const message = error?.response?.data?.message
+            ?? error?.response?.data?.errors?.location?.[0]
+            ?? 'Не удалось сохранить ячейку диспозиции.';
+
+        lastSaveError.value = typeof message === 'string' ? message : 'Не удалось сохранить ячейку диспозиции.';
     } finally {
         savingCells.value.delete(key);
+        refreshDispositionEditableCells(rowNode);
     }
 }
 
-function onCellValueChanged(event) {
+async function onCellValueChanged(event) {
     const parsed = parseCellField(event.colDef?.field);
     const row = event.data;
 
@@ -423,7 +496,11 @@ function onCellValueChanged(event) {
         return;
     }
 
-    saveCell(row, parsed, event.newValue ?? '');
+    await saveCell(row, parsed, event.newValue ?? '', event.node ?? null);
+
+    if (!lastSaveError.value && gridApi.value) {
+        gridApi.value.tabToNextCell();
+    }
 }
 
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;

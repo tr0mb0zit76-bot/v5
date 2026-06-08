@@ -470,6 +470,7 @@
             >
                 <div class="px-2 py-1.5 md:px-3">
                     <CrmCommandBar
+                        ref="commandBarRef"
                         :agent-message-count="agentMessages.length"
                         :agent-has-saved-thread="agentHasSavedThread"
                         :agent-history-limits="agentHistoryLimits"
@@ -1319,6 +1320,17 @@ watch(
     { deep: true },
 );
 
+function onCommandBarHotkey(event) {
+    const modifier = event.metaKey || event.ctrlKey;
+
+    if (!modifier || event.key.toLowerCase() !== 'k' || event.altKey || event.shiftKey) {
+        return;
+    }
+
+    event.preventDefault();
+    commandBarRef.value?.invokeCommandBar?.();
+}
+
 onMounted(() => {
     applyCrmAppearanceToDocument(resolveCrmAppearance(authUser.value));
     allowMobileBrowserCabinet.value = readMobileBrowserBypassFromStorage();
@@ -1328,6 +1340,7 @@ onMounted(() => {
     window.addEventListener('resize', updateMobileEnvironment);
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener('keydown', onCommandBarHotkey);
 });
 
 onUnmounted(() => {
@@ -1336,6 +1349,7 @@ onUnmounted(() => {
     window.removeEventListener('resize', updateMobileEnvironment);
     window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.removeEventListener('appinstalled', handleAppInstalled);
+    window.removeEventListener('keydown', onCommandBarHotkey);
 });
 
 function updateMobileEnvironment() {
@@ -1461,6 +1475,7 @@ function handleMenuSelect(key, event) {
     }
 }
 
+const commandBarRef = ref(null);
 const agentPanelOpen = ref(false);
 const agentHistoryLimits = computed(() => resolveAgentHistoryLimits(page.props));
 const agentExtendedMemory = ref(isAgentExtendedMemoryEnabled());

@@ -26,6 +26,8 @@ php artisan mcp:issue-token --user-id=<id из ensure-cursor-user>
 
 ## Prod
 
+**Что значит «зафиксировать prod URL»:** в репозитории и в `.env.example` записан канонический адрес endpoint (`https://crm.avtoaliyans.ru/mcp/crm`). Вам нужно один раз прописать этот URL и Bearer-токен в `~/.cursor/mcp.json` на ПК — **секрет только токен**, не URL. После смены домена обновите URL в Cursor и в комментарии `.env.example`.
+
 ```bash
 cd /var/www/www-root/data/www/avtoaliyans.ru
 php artisan mcp:issue-token --user-id=<ваш user id>
