@@ -36,8 +36,8 @@
             </div>
         </section>
 
-        <div class="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-            <section :class="`${crmPanel} flex min-h-0 flex-col gap-4 p-5`">
+        <div class="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row xl:items-start">
+            <section :class="`${crmPanel} flex w-full shrink-0 flex-col gap-4 p-5 xl:w-[380px]`">
                 <div>
                     <h2 class="text-lg font-semibold">Добавить условие</h2>
                     <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
@@ -191,94 +191,118 @@
                 </div>
             </section>
 
-            <section :class="`${crmPanel} min-h-0 overflow-auto`">
-                <table class="min-w-full divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
-                    <thead class="bg-zinc-50 dark:bg-zinc-950/60">
-                        <tr>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">Название</th>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">Условие</th>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">Вычет</th>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">Приор.</th>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">С</th>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">По</th>
-                            <th class="px-3 py-3 text-left font-medium text-zinc-600 dark:text-zinc-300">Статус</th>
-                            <th class="px-3 py-3 text-right font-medium text-zinc-600 dark:text-zinc-300">Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
-                        <tr v-for="rule in ruleDrafts" :key="rule.id">
-                            <td class="px-3 py-2 align-top">
-                                <input
-                                    v-model="rule.name"
-                                    type="text"
-                                    class="w-full min-w-[120px] border border-zinc-300 px-2 py-1.5 outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400"
-                                >
-                            </td>
-                            <td class="px-3 py-2 align-top text-xs leading-5 text-zinc-600 dark:text-zinc-400">
-                                <div class="mb-2 max-w-xs whitespace-normal">{{ rule.description }}</div>
-                                <select
-                                    v-model="rule.customer_payment_form"
-                                    class="mb-1 w-full border border-zinc-300 px-2 py-1 outline-none dark:border-zinc-700 dark:bg-zinc-950"
-                                >
-                                    <option value="">Заказчик: любая</option>
-                                    <option v-for="option in paymentFormOptions" :key="`edit-customer-${rule.id}-${option.value}`" :value="option.value">
-                                        {{ option.label }}
-                                    </option>
-                                </select>
-                                <select
-                                    v-model="rule.carrier_rule"
-                                    class="w-full border border-zinc-300 px-2 py-1 outline-none dark:border-zinc-700 dark:bg-zinc-950"
-                                >
-                                    <option v-for="option in carrierRuleOptions" :key="`edit-carrier-${rule.id}-${option.value}`" :value="option.value">
-                                        {{ option.label }}
-                                    </option>
-                                </select>
-                            </td>
-                            <td class="px-3 py-2 align-top">
-                                <div class="flex flex-col gap-1">
+            <section :class="`${crmPanel} min-h-0 min-w-0 flex-1 overflow-auto p-5`">
+                <div class="mb-4">
+                    <h2 class="text-lg font-semibold">Условия вычета</h2>
+                    <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        Список правил, применяемых к заказам с {{ formattedCutoffDate }}.
+                    </p>
+                </div>
+
+                <div v-if="ruleDrafts.length === 0" class="rounded-xl border border-dashed border-zinc-300 px-4 py-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    Условия вычета ещё не заданы — добавьте первое условие слева.
+                </div>
+
+                <div v-else class="flex flex-col gap-3">
+                    <article
+                        v-for="rule in ruleDrafts"
+                        :key="rule.id"
+                        class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950/40"
+                    >
+                        <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+                            <div class="space-y-3 xl:col-span-3">
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Название</span>
                                     <input
-                                        v-model.number="rule.deduction_primary_percent"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        max="100"
-                                        class="w-20 border border-zinc-300 px-2 py-1.5 outline-none dark:border-zinc-700 dark:bg-zinc-950"
+                                        v-model="rule.name"
+                                        type="text"
+                                        :class="ruleFieldClass"
                                     >
-                                    <input
-                                        v-if="rule.deduction_secondary_percent !== null && rule.deduction_secondary_percent !== ''"
-                                        v-model.number="rule.deduction_secondary_percent"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        max="100"
-                                        placeholder="2-й %"
-                                        class="w-20 border border-zinc-300 px-2 py-1.5 outline-none dark:border-zinc-700 dark:bg-zinc-950"
-                                    >
-                                </div>
-                            </td>
-                            <td class="px-3 py-2 align-top">
-                                <input
-                                    v-model.number="rule.priority"
-                                    type="number"
-                                    min="1"
-                                    max="9999"
-                                    class="w-16 border border-zinc-300 px-2 py-1.5 outline-none dark:border-zinc-700 dark:bg-zinc-950"
-                                >
-                            </td>
-                            <td class="px-3 py-2 align-top">
-                                <input v-model="rule.effective_from" type="date" class="border border-zinc-300 px-2 py-1.5 outline-none dark:border-zinc-700 dark:bg-zinc-950">
-                            </td>
-                            <td class="px-3 py-2 align-top">
-                                <input v-model="rule.effective_to" type="date" class="border border-zinc-300 px-2 py-1.5 outline-none dark:border-zinc-700 dark:bg-zinc-950">
-                            </td>
-                            <td class="px-3 py-2 align-top">
-                                <label class="inline-flex items-center gap-2 text-xs">
-                                    <input v-model="rule.is_active" type="checkbox" class="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-zinc-400">
-                                    <span>{{ rule.is_active ? 'Активно' : 'Выкл.' }}</span>
                                 </label>
-                            </td>
-                            <td class="px-3 py-2 align-top">
-                                <div class="flex justify-end gap-2">
+
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Приоритет</span>
+                                    <input
+                                        v-model.number="rule.priority"
+                                        type="number"
+                                        min="1"
+                                        max="9999"
+                                        :class="ruleFieldClass"
+                                    >
+                                </label>
+
+                                <label class="inline-flex items-center gap-2 text-sm">
+                                    <input v-model="rule.is_active" type="checkbox" class="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:ring-zinc-400">
+                                    <span>{{ rule.is_active ? 'Активно' : 'Выключено' }}</span>
+                                </label>
+                            </div>
+
+                            <div class="space-y-3 xl:col-span-5">
+                                <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                                    {{ rule.description }}
+                                </p>
+
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Заказчик</span>
+                                    <select v-model="rule.customer_payment_form" :class="ruleFieldClass">
+                                        <option value="">Любая форма</option>
+                                        <option v-for="option in paymentFormOptions" :key="`edit-customer-${rule.id}-${option.value}`" :value="option.value">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                </label>
+
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Перевозчики</span>
+                                    <select v-model="rule.carrier_rule" :class="ruleFieldClass">
+                                        <option v-for="option in carrierRuleOptions" :key="`edit-carrier-${rule.id}-${option.value}`" :value="option.value">
+                                            {{ option.label }}
+                                        </option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <div class="space-y-3 xl:col-span-4">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <label class="block space-y-1">
+                                        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Вычет, %</span>
+                                        <input
+                                            v-model.number="rule.deduction_primary_percent"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="100"
+                                            :class="ruleFieldClass"
+                                        >
+                                    </label>
+
+                                    <label class="block space-y-1">
+                                        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">2-й вычет, %</span>
+                                        <input
+                                            v-model.number="rule.deduction_secondary_percent"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="100"
+                                            placeholder="—"
+                                            :class="ruleFieldClass"
+                                        >
+                                    </label>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <label class="block space-y-1">
+                                        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">С</span>
+                                        <input v-model="rule.effective_from" type="date" :class="ruleFieldClass">
+                                    </label>
+
+                                    <label class="block space-y-1">
+                                        <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">По</span>
+                                        <input v-model="rule.effective_to" type="date" :class="ruleFieldClass">
+                                    </label>
+                                </div>
+
+                                <div class="flex flex-wrap justify-end gap-2 pt-1">
                                     <button type="button" :class="crmBtnCreate" class="px-3 py-1.5 text-xs" @click="saveRule(rule)">
                                         Сохранить
                                     </button>
@@ -290,15 +314,10 @@
                                         Удалить
                                     </button>
                                 </div>
-                            </td>
-                        </tr>
-                        <tr v-if="ruleDrafts.length === 0">
-                            <td colspan="8" class="px-3 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                                Условия вычета ещё не заданы — добавьте первое условие слева.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                            </div>
+                        </div>
+                    </article>
+                </div>
             </section>
         </div>
     </div>
@@ -367,6 +386,8 @@ watch(() => props.deductionRules, (rules) => {
 }, { deep: true });
 
 const formattedBonusMultiplier = computed(() => Number(settingsForm.bonus_multiplier || 0).toFixed(2));
+
+const ruleFieldClass = 'block w-full min-w-0 border border-zinc-300 px-2.5 py-1.5 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400';
 
 const formattedCutoffDate = computed(() => {
     const parts = String(props.customRulesCutoffDate || '').split('-');
