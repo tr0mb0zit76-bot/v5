@@ -39,7 +39,7 @@ class OrderClosingDocumentsNotificationService
         }
 
         $body = $this->buildNotificationBody($order);
-        $actionUrl = route('orders.edit', [$order], absolute: false);
+        $actionUrl = route('orders.edit', [$order], absolute: false).'?tab=documents';
 
         $notification = new CabinetInAppNotification(
             'order_closing_documents_required',

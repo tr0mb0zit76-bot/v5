@@ -105,8 +105,33 @@ class CabinetNotificationController extends Controller
             'created_at' => $notification->created_at?->toIso8601String(),
             'title' => (string) ($data['title'] ?? ''),
             'body' => (string) ($data['body'] ?? ''),
-            'action_url' => (string) ($data['action_url'] ?? '#'),
+            'action_url' => $this->normalizeActionUrl((string) ($data['action_url'] ?? '#')),
             'kind' => (string) ($data['kind'] ?? ''),
         ];
+    }
+
+    private function normalizeActionUrl(string $url): string
+    {
+        $trimmed = trim($url);
+
+        if ($trimmed === '' || $trimmed === '#') {
+            return '#';
+        }
+
+        if (str_starts_with($trimmed, '/')) {
+            return $trimmed;
+        }
+
+        $parts = parse_url($trimmed);
+
+        if (! is_array($parts)) {
+            return $trimmed;
+        }
+
+        $path = $parts['path'] ?? '/';
+        $query = isset($parts['query']) && $parts['query'] !== '' ? '?'.$parts['query'] : '';
+        $fragment = isset($parts['fragment']) && $parts['fragment'] !== '' ? '#'.$parts['fragment'] : '';
+
+        return $path.$query.$fragment;
     }
 }

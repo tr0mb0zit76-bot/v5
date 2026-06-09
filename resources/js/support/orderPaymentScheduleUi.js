@@ -9,6 +9,9 @@ export const BASIS_SUMMARY_PHRASE = {
 
 export const MAX_INSTALLMENTS = 10;
 
+/** Макс. длина текста «Сводка для договора и печати» (клиент и исполнители). */
+export const PAYMENT_TERMS_SUMMARY_MAX_LENGTH = 400;
+
 export const PAYMENT_BASIS_OPTIONS = [
     { value: 'fttn', label: 'По сканам' },
     { value: 'fttn_receipt', label: 'По сканам + квиток' },

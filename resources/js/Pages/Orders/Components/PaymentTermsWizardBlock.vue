@@ -34,6 +34,13 @@ const autoSummary = computed(() =>
 
 const canAddInstallment = computed(() => (props.schedule.installments?.length ?? 0) < ps.MAX_INSTALLMENTS);
 
+function syncManualSummaryFlagFromText() {
+    const current = String(summaryText.value ?? '').trim();
+    const auto = String(autoSummary.value ?? '').trim();
+
+    summaryEditedManually.value = current !== '' && current !== auto;
+}
+
 function pushAutoSummary(force = false) {
     if (!props.editableSummary) {
         return;
@@ -72,7 +79,23 @@ function syncAmountsAndSummary() {
 
 onMounted(() => {
     applyScheduleShape();
-    syncAmountsAndSummary();
+    syncManualSummaryFlagFromText();
+
+    if (isSyncing.value) {
+        return;
+    }
+
+    isSyncing.value = true;
+    try {
+        ps.syncInstallmentAmountsFromPercents(props.schedule, Number(props.totalAmount || 0));
+        pushAutoSummary(false);
+    } finally {
+        isSyncing.value = false;
+    }
+});
+
+watch(summaryText, () => {
+    syncManualSummaryFlagFromText();
 });
 
 watch(
@@ -261,7 +284,7 @@ function onInstallmentAmountInput(index) {
                 v-if="editableSummary"
                 v-model="summaryText"
                 rows="2"
-                maxlength="255"
+                :maxlength="ps.PAYMENT_TERMS_SUMMARY_MAX_LENGTH"
                 class="mt-1 w-full resize-y rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs leading-snug text-zinc-800 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                 @input="onSummaryTextInput"
             />

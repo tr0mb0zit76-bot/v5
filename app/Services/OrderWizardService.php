@@ -28,6 +28,7 @@ use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\PaymentTermsSummaryLimits;
 use App\Support\PerformerRouteActualDates;
 use App\Support\RoutePointNormalizedData;
 use Illuminate\Http\UploadedFile;
@@ -163,7 +164,7 @@ class OrderWizardService
             $dateContext,
         );
         $clientPaymentSummary = $manualClientTerms !== ''
-            ? Str::limit($manualClientTerms, 255, '')
+            ? Str::limit($manualClientTerms, PaymentTermsSummaryLimits::MAX_LENGTH, '')
             : Str::limit($formattedClientSummary, 2000, '');
         $carrierPaymentForm = CarrierPaymentFormResolver::fromContractorsCostsArray($contractorCosts);
         $carrierPaymentRaw = $this->resolveCarrierPaymentTerm($contractorCosts);
@@ -841,7 +842,7 @@ class OrderWizardService
 
             $manualClientTerms = trim((string) Arr::get($financialTerm, 'client_payment_terms', ''));
             $financialTermAttributes['client_payment_terms'] = $manualClientTerms !== ''
-                ? Str::limit($manualClientTerms, 255, '')
+                ? Str::limit($manualClientTerms, PaymentTermsSummaryLimits::MAX_LENGTH, '')
                 : PaymentScheduleSummaryFormatter::format(
                     $clientSchedule,
                     (float) Arr::get($financialTerm, 'client_price', 0),

@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "laravel-boost": {
+      "command": "php",
+      "args": ["artisan", "boost:mcp"]
+    },
+    "ag-grid": {
+      "command": "npx",
+      "args": ["-y", "ag-mcp"]
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": ["serve", "--mcp", "--path", "${workspaceFolder}"]
+    },
+    "v5-crm-prod": {
+      "url": "https://crm.avtoaliyans.ru/mcp/crm",
+      "headers": {
+        "Authorization": "Bearer PASTE_SANCTUM_TOKEN_HERE"
+      }
+    },
+    "v5-crm-local": {
+      "url": "https://crm.avtoaliyans.local/mcp/crm",
+      "headers": {
+        "Authorization": "Bearer PASTE_LOCAL_TOKEN_HERE"
+      }
+    },
+    "exchange-obsidian": {
+      "url": "http://127.0.0.1:27200/mcp",
+      "headers": {
+        "Authorization": "Bearer PASTE_OBSIDIAN_MCP_TOKEN_HERE"
+      }
+    }
+  }
+}

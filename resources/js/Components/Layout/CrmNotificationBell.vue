@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
+import { coerceHttpsUrl, visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
 
 const emit = defineEmits(['badges']);
 
@@ -39,17 +40,30 @@ function normalizeActionUrl(url) {
         return '/';
     }
 
-    try {
-        const parsed = new URL(url, window.location.origin);
+    const coerced = coerceHttpsUrl(url);
+    const raw = typeof coerced === 'string' ? coerced : url;
 
-        if (parsed.host === window.location.host) {
+    try {
+        const parsed = new URL(raw, window.location.origin);
+
+        if (parsed.hostname === window.location.hostname) {
             return `${parsed.pathname}${parsed.search}${parsed.hash}`;
         }
 
         return parsed.toString();
     } catch {
-        return url;
+        return raw.startsWith('/') ? raw : '/';
     }
+}
+
+function actionUrlForItem(item) {
+    let url = normalizeActionUrl(item?.action_url);
+
+    if (item?.kind === 'order_closing_documents_required' && !url.includes('tab=documents')) {
+        url += url.includes('?') ? '&tab=documents' : '?tab=documents';
+    }
+
+    return url;
 }
 
 function initialBadges() {
@@ -165,7 +179,7 @@ async function markAllRead() {
 async function visit(item) {
     open.value = false;
     await markRead(item.id);
-    router.visit(normalizeActionUrl(item.action_url));
+    visitInertiaPath(actionUrlForItem(item));
 }
 
 function formatTime(iso) {

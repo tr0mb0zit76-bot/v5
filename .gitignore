@@ -36,6 +36,10 @@ Thumbs.db
 /u_tromb.env.example
 /.tmp_*
 
+# Локальные MCP / Hive Mind (токены и пути машины — не в git)
+/.cursor/mcp.local.json
+/.cursor/hivemind.config.json
+
 # Локальные скрипты Obsidian / Hive Mind — не для прода (vault синхронизируется через Yandex Disk)
 /tools/hivemind-*
 /tools/install-obsidian-mcp-plugin.py

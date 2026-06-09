@@ -2559,14 +2559,14 @@ class OrderWizardController extends Controller
         ?FinancialTerm $financialTerm,
         Order $order,
     ): string {
-        $fromWizard = trim((string) ($wizardFt['client_payment_terms'] ?? ''));
-        if ($fromWizard !== '') {
-            return $fromWizard;
-        }
-
         $fromFt = trim((string) ($financialTerm?->client_payment_terms ?? ''));
         if ($fromFt !== '') {
             return $fromFt;
+        }
+
+        $fromWizard = trim((string) ($wizardFt['client_payment_terms'] ?? ''));
+        if ($fromWizard !== '') {
+            return $fromWizard;
         }
 
         return trim((string) ($order->customer_payment_term ?? ''));

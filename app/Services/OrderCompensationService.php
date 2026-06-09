@@ -17,6 +17,7 @@ use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementPreserver;
 use App\Support\PaymentScheduleSummaryFormatter;
+use App\Support\PaymentTermsSummaryLimits;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -379,15 +380,15 @@ class OrderCompensationService
         if (Schema::hasColumn('financial_terms', 'client_payment_terms')) {
             $override = trim((string) data_get($paymentTerms, 'client.payment_terms_text', ''));
             if ($override !== '') {
-                $financialTerm->client_payment_terms = Str::limit($override, 255, '');
+                $financialTerm->client_payment_terms = Str::limit($override, PaymentTermsSummaryLimits::MAX_LENGTH, '');
             } else {
                 $fromOrderColumn = trim((string) ($order->customer_payment_term ?? ''));
                 if ($fromOrderColumn !== '') {
-                    $financialTerm->client_payment_terms = Str::limit($fromOrderColumn, 255, '');
+                    $financialTerm->client_payment_terms = Str::limit($fromOrderColumn, PaymentTermsSummaryLimits::MAX_LENGTH, '');
                 } else {
                     $existingFt = trim((string) ($financialTerm->client_payment_terms ?? ''));
                     if ($existingFt !== '') {
-                        $financialTerm->client_payment_terms = Str::limit($existingFt, 255, '');
+                        $financialTerm->client_payment_terms = Str::limit($existingFt, PaymentTermsSummaryLimits::MAX_LENGTH, '');
                     } else {
                         $order->loadMissing(['legs.routePoints']);
                         $financialTerm->client_payment_terms = PaymentScheduleSummaryFormatter::format(

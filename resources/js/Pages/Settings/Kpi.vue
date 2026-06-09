@@ -238,10 +238,6 @@
                             </div>
 
                             <div class="space-y-3 xl:col-span-5">
-                                <p class="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-                                    {{ rule.description }}
-                                </p>
-
                                 <label class="block space-y-1">
                                     <span class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Заказчик</span>
                                     <select v-model="rule.customer_payment_form" :class="ruleFieldClass">

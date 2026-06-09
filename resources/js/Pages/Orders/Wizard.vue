@@ -1406,21 +1406,21 @@
                         <div class="relative min-w-0 space-y-1 md:col-span-4">
                             <label class="text-xs font-medium text-zinc-500">Подрядчик</label>
                             <input
-                                :value="additionalCostSearchValue(index)"
+                                :value="additionalCostSearchValue(row.id)"
                                 type="text"
                                 autocomplete="off"
                                 placeholder="Название или ИНН"
                                 :class="crmFieldFluid"
-                                @input="setAdditionalCostSearchValue(index, $event.target.value)"
-                                @focus="setAdditionalCostResultsVisible(index, true)"
-                                @blur="hideAdditionalCostResults(index)"
+                                @input="setAdditionalCostSearchValue(row.id, $event.target.value)"
+                                @focus="setAdditionalCostResultsVisible(row.id, true)"
+                                @blur="hideAdditionalCostResults(row.id)"
                             />
                             <div
-                                v-if="isAdditionalCostResultsVisible(index) && additionalCostCombinedResults(index).length > 0"
+                                v-if="isAdditionalCostResultsVisible(row.id) && additionalCostCombinedResults(row.id).length > 0"
                                 class="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-950"
                             >
                                 <button
-                                    v-for="contractor in additionalCostCombinedResults(index)"
+                                    v-for="contractor in additionalCostCombinedResults(row.id)"
                                     :key="`additional-cost-search-${row.id}-${contractor.id}`"
                                     type="button"
                                     class="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
@@ -2101,13 +2101,13 @@ onMounted(() => {
 
     remapCargoAllocationsToCanonicalStages(form.cargo_items);
 
-    (form.financial_term.additional_costs ?? []).forEach((row, index) => {
+    (form.financial_term.additional_costs ?? []).forEach((row) => {
         const contractor = getContractorById(row?.contractor_id);
         const label = contractor?.name ?? row?.contractor_name ?? '';
-        if (label) {
+        if (label && row?.id != null) {
             additionalCostSearch.value = {
                 ...additionalCostSearch.value,
-                [index]: label,
+                [additionalCostSearchKey(row.id)]: label,
             };
         }
     });
@@ -3707,6 +3707,11 @@ const isMobileStandalone = computed(() => {
 });
 const selectedClient = computed(() => contractors.value.find((contractor) => Number(contractor.id) === Number(form.client_id)) ?? null);
 const carrierOptions = computed(() => contractors.value.filter((contractor) => contractor.type === 'carrier' || contractor.type === 'both'));
+const additionalCostContractorOptions = computed(() => contractors.value.filter((contractor) => {
+    const type = String(contractor.type ?? '');
+
+    return type === 'contractor' || type === 'carrier' || type === 'both';
+}));
 const legContractorCosts = computed(() => (
     Array.isArray(form.financial_term.contractors_costs)
         ? form.financial_term.contractors_costs.filter((row) => !isAdditionalContractorCost(row))
@@ -5668,38 +5673,68 @@ function removeAdditionalCostRow(index) {
         return;
     }
 
+    const row = form.financial_term.additional_costs[index];
+    const key = row?.id != null ? additionalCostSearchKey(row.id) : null;
+
+    if (key) {
+        const { [key]: _search, ...restSearch } = additionalCostSearch.value;
+        additionalCostSearch.value = restSearch;
+
+        const { [key]: _visible, ...restVisible } = showAdditionalCostResults.value;
+        showAdditionalCostResults.value = restVisible;
+
+        const { [key]: _server, ...restServer } = serverAdditionalCostSearchResults.value;
+        serverAdditionalCostSearchResults.value = restServer;
+    }
+
     form.financial_term.additional_costs.splice(index, 1);
 }
 
-function additionalCostSearchValue(index) {
-    return additionalCostSearch.value[index] ?? '';
+function additionalCostSearchKey(rowId) {
+    return String(rowId ?? '');
 }
 
-function setAdditionalCostSearchValue(index, value) {
+function isAdditionalCostContractorType(type) {
+    const normalized = String(type ?? '');
+
+    return normalized === 'contractor' || normalized === 'carrier' || normalized === 'both';
+}
+
+function filterAdditionalCostSearchResults(list) {
+    return (Array.isArray(list) ? list : []).filter((contractor) => isAdditionalCostContractorType(contractor?.type));
+}
+
+function additionalCostSearchValue(rowId) {
+    return additionalCostSearch.value[additionalCostSearchKey(rowId)] ?? '';
+}
+
+function setAdditionalCostSearchValue(rowId, value) {
+    const key = additionalCostSearchKey(rowId);
     additionalCostSearch.value = {
         ...additionalCostSearch.value,
-        [index]: value,
+        [key]: value,
     };
-    queueAdditionalCostSearch(index, value);
+    queueAdditionalCostSearch(rowId, value);
 }
 
-function setAdditionalCostResultsVisible(index, visible) {
+function setAdditionalCostResultsVisible(rowId, visible) {
+    const key = additionalCostSearchKey(rowId);
     showAdditionalCostResults.value = {
         ...showAdditionalCostResults.value,
-        [index]: visible,
+        [key]: visible,
     };
 }
 
-function isAdditionalCostResultsVisible(index) {
-    return Boolean(showAdditionalCostResults.value[index]);
+function isAdditionalCostResultsVisible(rowId) {
+    return Boolean(showAdditionalCostResults.value[additionalCostSearchKey(rowId)]);
 }
 
-function hideAdditionalCostResults(index) {
-    window.setTimeout(() => setAdditionalCostResultsVisible(index, false), 150);
+function hideAdditionalCostResults(rowId) {
+    window.setTimeout(() => setAdditionalCostResultsVisible(rowId, false), 150);
 }
 
-function queueAdditionalCostSearch(index, query) {
-    const key = String(index);
+function queueAdditionalCostSearch(rowId, query) {
+    const key = additionalCostSearchKey(rowId);
 
     if (additionalCostSearchTimers.value[key]) {
         clearTimeout(additionalCostSearchTimers.value[key]);
@@ -5715,12 +5750,12 @@ function queueAdditionalCostSearch(index, query) {
     }
 
     additionalCostSearchTimers.value[key] = window.setTimeout(async () => {
-        await searchAdditionalCostContractors(index, String(query).trim());
+        await searchAdditionalCostContractors(rowId, String(query).trim());
     }, 550);
 }
 
-async function searchAdditionalCostContractors(index, query) {
-    const key = String(index);
+async function searchAdditionalCostContractors(rowId, query) {
+    const key = additionalCostSearchKey(rowId);
 
     additionalCostSearchAbortControllers.value[key]?.abort();
     const ac = new AbortController();
@@ -5739,7 +5774,7 @@ async function searchAdditionalCostContractors(index, query) {
     };
 
     try {
-        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&type=contractor&limit=100`, {
+        const response = await fetch(`${route('contractors.search')}?q=${encodeURIComponent(query)}&limit=100`, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -5759,7 +5794,7 @@ async function searchAdditionalCostContractors(index, query) {
 
         serverAdditionalCostSearchResults.value = {
             ...serverAdditionalCostSearchResults.value,
-            [key]: data.contractors || [],
+            [key]: filterAdditionalCostSearchResults(data.contractors || []),
         };
     } catch (error) {
         if (error?.name !== 'AbortError') {
@@ -5779,26 +5814,55 @@ async function searchAdditionalCostContractors(index, query) {
     }
 }
 
-function additionalCostCombinedResults(index) {
-    const query = additionalCostSearchValue(index).trim().toLowerCase();
-    const key = String(index);
+function additionalCostCombinedResults(rowId) {
+    const query = additionalCostSearchValue(rowId).trim().toLowerCase();
+    const key = additionalCostSearchKey(rowId);
     const serverResults = serverAdditionalCostSearchResults.value[key] ?? [];
+    const selectedRow = (form.financial_term.additional_costs ?? []).find(
+        (row) => additionalCostSearchKey(row.id) === key,
+    );
+    const selectedContractor = getContractorById(selectedRow?.contractor_id);
 
     if (query.length < MIN_CONTRACTOR_QUERY_LENGTH) {
-        return contractors.value
-            .filter((contractor) => String(contractor.type ?? '') === 'contractor')
+        const visibleContractors = additionalCostContractorOptions.value
             .filter((contractor) => {
                 const name = String(contractor.name ?? '').toLowerCase();
+                const fullName = String(contractor.full_name ?? '').toLowerCase();
                 const inn = String(contractor.inn ?? '').toLowerCase();
 
-                return name.includes(query) || inn.includes(query);
+                if (!query) {
+                    return true;
+                }
+
+                return name.includes(query) || fullName.includes(query) || inn.includes(query);
             })
             .slice(0, 50);
+
+        if (!selectedContractor || visibleContractors.some((contractor) => contractor.id === selectedContractor.id)) {
+            return visibleContractors;
+        }
+
+        return [selectedContractor, ...visibleContractors.slice(0, 49)];
     }
 
     const serverIds = new Set(serverResults.map((contractor) => contractor.id));
+    const localResults = additionalCostContractorOptions.value
+        .filter((contractor) => {
+            const name = String(contractor.name ?? '').toLowerCase();
+            const fullName = String(contractor.full_name ?? '').toLowerCase();
+            const inn = String(contractor.inn ?? '').toLowerCase();
 
-    return serverResults;
+            return name.includes(query) || fullName.includes(query) || inn.includes(query);
+        })
+        .filter((contractor) => !serverIds.has(contractor.id));
+
+    const merged = [...serverResults, ...localResults].slice(0, 50);
+
+    if (selectedContractor && !merged.some((contractor) => contractor.id === selectedContractor.id)) {
+        return [selectedContractor, ...merged.slice(0, 49)];
+    }
+
+    return merged;
 }
 
 function selectAdditionalCostContractor(index, contractor) {
@@ -5817,8 +5881,8 @@ function selectAdditionalCostContractor(index, contractor) {
     }
 
     row.payment_schedule = contractorPaymentSchedule(contractor, 'default_carrier_payment_schedule', 'default_carrier_payment_term');
-    setAdditionalCostSearchValue(index, contractor.name ?? '');
-    setAdditionalCostResultsVisible(index, false);
+    setAdditionalCostSearchValue(row.id, contractor.name ?? '');
+    setAdditionalCostResultsVisible(row.id, false);
 }
 
 function syncCarrierNormsByLegFromPerformers() {

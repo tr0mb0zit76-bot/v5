@@ -1,0 +1,14 @@
+{
+  "vault": {
+    "path": "C:/Users/tr0mb/Yandex.Disk/Exchange",
+    "watchForChanges": true,
+    "debounceMs": 100
+  },
+  "template": {
+    "activeTemplate": "software-architecture"
+  },
+  "indexing": {
+    "strategy": "incremental",
+    "enableFullTextSearch": true
+  }
+}
