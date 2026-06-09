@@ -162,6 +162,8 @@ class PrintFormVariableCatalog
             ['value' => 'route.loading_time_range', 'label' => 'Маршрут: Время загрузки (период)'],
             ['value' => 'route.loading_method', 'label' => 'Маршрут: Способ погрузки'],
             ['value' => 'route.loading_types', 'label' => 'Маршрут: Вид погрузки'],
+            ['value' => 'route.loading_special_conditions', 'label' => 'Маршрут: Особые условия на загрузке'],
+            ['value' => 'route.unloading_special_conditions', 'label' => 'Маршрут: Особые условия на выгрузке'],
             ['value' => 'route.unloading_addresses', 'label' => 'Маршрут: Адреса выгрузки'],
             ['value' => 'route.unloading_cities', 'label' => 'Маршрут: Города выгрузки'],
             ['value' => 'route.unloading_first_address', 'label' => 'Маршрут: Первая выгрузка, адрес'],

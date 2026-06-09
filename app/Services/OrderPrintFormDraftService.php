@@ -345,6 +345,8 @@ class OrderPrintFormDraftService
                 'unloading_last_city' => $this->resolvePointCity($unloadingPoints->last()),
                 'unloading_last_address' => $this->resolvePointAddress($unloadingPoints->last()),
                 'unloading_time_range' => $this->resolvePointTimeRange($unloadingPoints->first()),
+                'loading_special_conditions' => $this->resolvePerformerSpecialConditions($order, $context, 'loading_special_conditions'),
+                'unloading_special_conditions' => $this->resolvePerformerSpecialConditions($order, $context, 'unloading_special_conditions'),
             ],
             'cargo' => array_merge([
                 'summary' => $cargoItems
@@ -767,6 +769,85 @@ class OrderPrintFormDraftService
         }
 
         return $order->carrier;
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $routePoints
+     * @return Collection<int, mixed>
+     */
+    private function resolvePerformerSpecialConditions(Order $order, ?OrderPrintFormContext $context, string $field): ?string
+    {
+        $performers = is_array($order->performers) ? $order->performers : [];
+        $values = [];
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer) || ! $this->performerMatchesPrintContext($order, $performer, $context)) {
+                continue;
+            }
+
+            $value = trim((string) ($performer[$field] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $values === [] ? null : implode("\n\n", $values);
+    }
+
+    /**
+     * @param  array<string, mixed>  $performer
+     */
+    private function performerMatchesPrintContext(Order $order, array $performer, ?OrderPrintFormContext $context): bool
+    {
+        if ($context === null) {
+            return true;
+        }
+
+        $stage = $this->normalizeStageIdentifier((string) ($performer['stage'] ?? ''));
+
+        if (
+            $context->legStage !== null
+            && $context->legStage !== ''
+            && ! $context->routeLegsAsTableRows
+        ) {
+            return $stage === $this->normalizeStageIdentifier($context->legStage);
+        }
+
+        if ($context->carrierContractorId !== null) {
+            $legId = $this->resolveLegIdForStage($order, $stage);
+            if ($legId !== null && $order->relationLoaded('legs')) {
+                $leg = $order->legs->firstWhere('id', $legId);
+                if ($leg instanceof OrderLeg) {
+                    return $this->legBelongsToCarrier($leg, $context->carrierContractorId);
+                }
+            }
+
+            return $this->performerBelongsToCarrier($performer, $context->carrierContractorId);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $performer
+     */
+    private function performerBelongsToCarrier(array $performer, int $carrierContractorId): bool
+    {
+        if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+            foreach ($performer['split_carriers'] as $slot) {
+                if (! is_array($slot)) {
+                    continue;
+                }
+
+                if ((int) ($slot['contractor_id'] ?? 0) === $carrierContractorId) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return (int) ($performer['contractor_id'] ?? 0) === $carrierContractorId;
     }
 
     /**

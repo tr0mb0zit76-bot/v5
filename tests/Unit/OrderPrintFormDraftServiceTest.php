@@ -6,15 +6,18 @@ use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\RoutePoint;
-use App\Services\DocxPlaceholderExtractor;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\PrintFormVariableCatalog;
-use App\Support\PrintFormPlaceholderPathResolver;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 class OrderPrintFormDraftServiceTest extends TestCase
 {
+    private function makeService(): OrderPrintFormDraftService
+    {
+        return app(OrderPrintFormDraftService::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -31,7 +34,7 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
     public function test_sender_contact_phone_is_combined_and_addresses_aggregated(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $service = $this->makeService();
         $order = new Order;
 
         $order->setRelation('routePoints', new Collection([
@@ -74,7 +77,7 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
     public function test_sender_primary_value_uses_first_point_when_multiple_senders_present(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $service = $this->makeService();
         $order = new Order;
 
         $order->setRelation('routePoints', new Collection([
@@ -107,7 +110,7 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
     public function test_route_city_falls_back_to_address_and_time_range_is_exposed(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $service = $this->makeService();
         $order = new Order;
 
         $order->setRelation('routePoints', new Collection([
@@ -140,7 +143,7 @@ class OrderPrintFormDraftServiceTest extends TestCase
 
     public function test_cargo_transport_requirement_values_are_exposed_for_print_forms(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $service = $this->makeService();
         $order = new Order;
 
         $order->setRelation('routePoints', new Collection);
@@ -185,9 +188,47 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $this->assertContains('cargo.pack_types', $catalogValues);
     }
 
+    public function test_route_special_conditions_are_exposed_from_performers(): void
+    {
+        $service = $this->makeService();
+        $order = new Order([
+            'performers' => [
+                [
+                    'stage' => 'leg_1',
+                    'loading_special_conditions' => 'Пропуск на территорию за сутки',
+                    'unloading_special_conditions' => 'Выгрузка только до 18:00',
+                ],
+                [
+                    'stage' => 'leg_2',
+                    'loading_special_conditions' => 'Кран на погрузке',
+                    'unloading_special_conditions' => 'Контакт на воротах: Иванов',
+                ],
+            ],
+        ]);
+
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+        $catalogValues = collect((new PrintFormVariableCatalog)->orderOptions())
+            ->pluck('value')
+            ->all();
+
+        $this->assertSame(
+            "Пропуск на территорию за сутки\n\nКран на погрузке",
+            data_get($snapshot, 'route.loading_special_conditions'),
+        );
+        $this->assertSame(
+            "Выгрузка только до 18:00\n\nКонтакт на воротах: Иванов",
+            data_get($snapshot, 'route.unloading_special_conditions'),
+        );
+        $this->assertContains('route.loading_special_conditions', $catalogValues);
+        $this->assertContains('route.unloading_special_conditions', $catalogValues);
+    }
+
     public function test_contractor_postal_address_and_signer_position_are_exposed_for_print_forms(): void
     {
-        $service = new OrderPrintFormDraftService(new DocxPlaceholderExtractor, new PrintFormPlaceholderPathResolver);
+        $service = $this->makeService();
         $order = new Order;
         $customer = new Contractor([
             'name' => 'ООО Клиент',

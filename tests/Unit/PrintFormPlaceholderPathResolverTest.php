@@ -17,4 +17,19 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
 
         $this->assertSame('own_company.kpp', $path);
     }
+
+    #[Test]
+    public function it_maps_legacy_special_conditions_placeholders_to_route_fields(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame(
+            'route.loading_special_conditions',
+            $resolver->resolve('osobye_uslovia_pogruzki', [], 'order', 'customer'),
+        );
+        $this->assertSame(
+            'route.unloading_special_conditions',
+            $resolver->resolve('osobye_uslovia_vygruzki', [], 'order', 'carrier'),
+        );
+    }
 }
