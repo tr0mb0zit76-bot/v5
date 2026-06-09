@@ -76,6 +76,16 @@ final class PrintFormTemplateOrderEligibility
             return false;
         }
 
+        $templateArray = $this->templateToArray($template);
+
+        if ($party === 'customer' && $this->isCarrierOrientedTemplate($templateArray)) {
+            return false;
+        }
+
+        if ($party === 'carrier' && $this->isCustomerOrientedTemplate($templateArray)) {
+            return false;
+        }
+
         if (! $this->matchesOwnCompany($template->own_company_id, $ownCompanyId)) {
             return false;
         }
@@ -178,6 +188,14 @@ final class PrintFormTemplateOrderEligibility
         }
 
         if (! $this->matchesParty($template['party'] ?? null, $party)) {
+            return false;
+        }
+
+        if ($party === 'customer' && $this->isCarrierOrientedTemplate($template)) {
+            return false;
+        }
+
+        if ($party === 'carrier' && $this->isCustomerOrientedTemplate($template)) {
             return false;
         }
 
@@ -294,6 +312,48 @@ final class PrintFormTemplateOrderEligibility
         $party = trim((string) ($templateParty ?? 'internal'));
 
         return $party === $slotParty || $party === 'internal';
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     */
+    public function isCarrierOrientedTemplate(array $template): bool
+    {
+        $party = trim((string) ($template['party'] ?? 'internal'));
+
+        if ($party === 'carrier') {
+            return true;
+        }
+
+        if ($party === 'customer') {
+            return false;
+        }
+
+        $hasCarrier = (bool) ($template['has_carrier_basic_terms'] ?? false);
+        $hasCustomer = (bool) ($template['has_customer_basic_terms'] ?? false);
+
+        return $hasCarrier && ! $hasCustomer;
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     */
+    public function isCustomerOrientedTemplate(array $template): bool
+    {
+        $party = trim((string) ($template['party'] ?? 'internal'));
+
+        if ($party === 'customer') {
+            return true;
+        }
+
+        if ($party === 'carrier') {
+            return false;
+        }
+
+        $hasCarrier = (bool) ($template['has_carrier_basic_terms'] ?? false);
+        $hasCustomer = (bool) ($template['has_customer_basic_terms'] ?? false);
+
+        return $hasCustomer && ! $hasCarrier;
     }
 
     private function matchesOwnCompany(?int $templateOwnCompanyId, ?int $orderOwnCompanyId): bool

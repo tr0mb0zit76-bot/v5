@@ -402,6 +402,9 @@ class OrderWizardService
             $normalized['unloading_actual'] = PerformerRouteActualDates::normalizeDate($normalized['unloading_actual'] ?? null);
         }
 
+        $normalized['loading_special_conditions'] = $this->nullIfTrimmedEmpty($normalized['loading_special_conditions'] ?? null);
+        $normalized['unloading_special_conditions'] = $this->nullIfTrimmedEmpty($normalized['unloading_special_conditions'] ?? null);
+
         return $normalized;
     }
 

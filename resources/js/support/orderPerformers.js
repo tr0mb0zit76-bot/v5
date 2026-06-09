@@ -32,6 +32,8 @@ export function blankPerformer(stage, carrierMode = CARRIER_MODE_SINGLE) {
         fleet_trip_id: null,
         loading_actual: '',
         unloading_actual: '',
+        loading_special_conditions: '',
+        unloading_special_conditions: '',
         split_carriers: [],
     };
 
@@ -55,6 +57,8 @@ export function normalizePerformer(performer = {}) {
         fleet_trip_id: performer?.fleet_trip_id ?? null,
         loading_actual: performer?.loading_actual ?? '',
         unloading_actual: performer?.unloading_actual ?? '',
+        loading_special_conditions: String(performer?.loading_special_conditions ?? '').trim(),
+        unloading_special_conditions: String(performer?.unloading_special_conditions ?? '').trim(),
         split_carriers: [],
     };
 

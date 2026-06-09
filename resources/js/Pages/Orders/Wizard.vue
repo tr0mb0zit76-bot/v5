@@ -776,6 +776,27 @@
                                     Добавить исполнителя
                                 </button>
                             </template>
+
+                            <div class="grid gap-3 border-t border-zinc-100 pt-3 md:grid-cols-2 dark:border-zinc-800">
+                                <div class="space-y-1">
+                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Особые условия на загрузке</label>
+                                    <textarea
+                                        v-model="performer.loading_special_conditions"
+                                        rows="2"
+                                        class="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Ограничения по времени, пропуска, техника на погрузке…"
+                                    />
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-xs font-medium text-zinc-500 dark:text-zinc-400">Особые условия на выгрузке</label>
+                                    <textarea
+                                        v-model="performer.unloading_special_conditions"
+                                        rows="2"
+                                        class="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                                        placeholder="Окна выгрузки, документы на месте, контакт на воротах…"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <div
@@ -6467,6 +6488,8 @@ function buildSubmitPayload() {
                         loading_actual: slot.loading_actual || null,
                         unloading_actual: slot.unloading_actual || null,
                     })),
+                    loading_special_conditions: String(performer.loading_special_conditions ?? '').trim() || null,
+                    unloading_special_conditions: String(performer.unloading_special_conditions ?? '').trim() || null,
                 };
             }
 
@@ -6481,6 +6504,8 @@ function buildSubmitPayload() {
                 fleet_trip_id: normalizeNullableNumber(performer?.fleet_trip_id),
                 loading_actual: performer.loading_actual || null,
                 unloading_actual: performer.unloading_actual || null,
+                loading_special_conditions: String(performer.loading_special_conditions ?? '').trim() || null,
+                unloading_special_conditions: String(performer.unloading_special_conditions ?? '').trim() || null,
                 split_carriers: [],
             };
         }),

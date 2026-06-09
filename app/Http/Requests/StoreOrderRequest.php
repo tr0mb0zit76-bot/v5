@@ -511,6 +511,8 @@ class StoreOrderRequest extends FormRequest
             'performers.*.fleet_trip_id' => ['nullable', 'integer'],
             'performers.*.loading_actual' => ['nullable', 'date'],
             'performers.*.unloading_actual' => ['nullable', 'date'],
+            'performers.*.loading_special_conditions' => ['nullable', 'string', 'max:2000'],
+            'performers.*.unloading_special_conditions' => ['nullable', 'string', 'max:2000'],
             'performers.*.split_carriers' => ['nullable', 'array', 'max:4'],
             'performers.*.split_carriers.*.slot' => ['nullable', 'integer', 'min:1', 'max:9'],
             'performers.*.split_carriers.*.contractor_id' => ['nullable', 'integer', 'exists:contractors,id'],

@@ -182,4 +182,56 @@ class PrintFormTemplateOrderEligibilityTest extends TestCase
         $this->assertFalse($plainArray['has_customer_basic_terms']);
         $this->assertFalse($plainArray['has_carrier_basic_terms']);
     }
+
+    public function test_carrier_party_template_is_not_available_for_customer_print_slot(): void
+    {
+        $order = Order::factory()->create();
+
+        $template = PrintFormTemplate::query()->create([
+            'name' => 'Заявка перевозчику',
+            'code' => 'carrier-only-request',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'carrier',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'is_active' => true,
+            'file_path' => 'print-forms/carrier-only.docx',
+            'file_disk' => 'local',
+        ]);
+
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
+
+        $this->assertFalse($eligibility->isTemplateAvailableForOrder($template, $order, 'customer'));
+        $this->assertTrue($eligibility->isTemplateAvailableForOrder($template, $order, 'carrier'));
+    }
+
+    public function test_internal_carrier_basic_terms_template_is_not_available_for_customer_print_slot(): void
+    {
+        $order = Order::factory()->create();
+
+        $template = PrintFormTemplate::query()->create([
+            'name' => 'ВЭД перевозчик (внутренняя)',
+            'code' => 'internal-carrier-ved',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'internal',
+            'source_type' => 'system',
+            'vue_component' => 'SystemPrintFormTemplate',
+            'transport_scope' => PrintFormTemplateTransportScope::INTERNATIONAL,
+            'is_active' => true,
+            'file_path' => 'print-forms/internal-carrier-ved.docx',
+            'file_disk' => 'local',
+            'settings' => [
+                'variables' => ['dp_basic_terms_row_text', 'route_row_stage'],
+            ],
+        ]);
+
+        $eligibility = app(PrintFormTemplateOrderEligibility::class);
+
+        $this->assertFalse($eligibility->isTemplateAvailableForOrder($template, $order, 'customer'));
+        $this->assertTrue($eligibility->isTemplateAvailableForOrder($template, $order, 'carrier'));
+    }
 }

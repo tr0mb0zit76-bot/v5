@@ -198,21 +198,6 @@ class PrintFormVariableCatalog
             ['value' => 'cargo.first_hs_code', 'label' => 'Груз: Первый код ТН ВЭД'],
             ['value' => 'cargo.truck_body_types', 'label' => 'Груз: Типы кузова'],
             ['value' => 'cargo.trailer_types', 'label' => 'Груз: Типы прицепа'],
-            ['value' => 'cargo.line_1_text', 'label' => 'Груз: Позиция 1 (блок: название + вес/объём/места, с переносами строк)'],
-            ['value' => 'cargo.line_2_text', 'label' => 'Груз: Позиция 2 (блок с переносами строк)'],
-            ['value' => 'cargo.line_3_text', 'label' => 'Груз: Позиция 3 (блок с переносами строк)'],
-            ['value' => 'cargo.line_4_text', 'label' => 'Груз: Позиция 4 (блок с переносами строк)'],
-            ['value' => 'cargo.line_5_text', 'label' => 'Груз: Позиция 5 (блок с переносами строк)'],
-            ['value' => 'cargo.line_1_summary', 'label' => 'Груз: Позиция 1 (сводка в одну строку)'],
-            ['value' => 'cargo.line_2_summary', 'label' => 'Груз: Позиция 2 (сводка в одну строку)'],
-            ['value' => 'cargo.line_3_summary', 'label' => 'Груз: Позиция 3 (сводка в одну строку)'],
-            ['value' => 'cargo.line_4_summary', 'label' => 'Груз: Позиция 4 (сводка в одну строку)'],
-            ['value' => 'cargo.line_5_summary', 'label' => 'Груз: Позиция 5 (сводка в одну строку)'],
-            ['value' => 'cargo.line_1_name', 'label' => 'Груз: Позиция 1 — только наименование'],
-            ['value' => 'cargo.line_2_name', 'label' => 'Груз: Позиция 2 — только наименование'],
-            ['value' => 'cargo.line_3_name', 'label' => 'Груз: Позиция 3 — только наименование'],
-            ['value' => 'cargo.line_4_name', 'label' => 'Груз: Позиция 4 — только наименование'],
-            ['value' => 'cargo.line_5_name', 'label' => 'Груз: Позиция 5 — только наименование'],
         ], $this->orderFinancialNormsPlaceholderOptions());
     }
 

@@ -800,6 +800,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import { FileText, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
+import { shouldHideFromVariableMapping } from '@/support/printFormClonePlaceholders.js';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -1286,7 +1287,7 @@ function buildVariableMappings(template) {
     const skipImages = imageOverlayPlaceholderSet(template);
 
     return (template.variables || [])
-        .filter((placeholder) => !skipImages.has(placeholder))
+        .filter((placeholder) => !skipImages.has(placeholder) && !shouldHideFromVariableMapping(placeholder))
         .map((placeholder) => ({
             placeholder,
             source_path: currentMapping[placeholder] || '',

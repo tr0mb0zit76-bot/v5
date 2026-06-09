@@ -48,6 +48,40 @@ function matchesParty(templateParty, slotParty) {
     return party === slotParty || party === 'internal';
 }
 
+function isCarrierOrientedTemplate(template) {
+    const party = String(template?.party ?? 'internal');
+
+    if (party === 'carrier') {
+        return true;
+    }
+
+    if (party === 'customer') {
+        return false;
+    }
+
+    const hasCarrier = Boolean(template?.has_carrier_basic_terms);
+    const hasCustomer = Boolean(template?.has_customer_basic_terms);
+
+    return hasCarrier && !hasCustomer;
+}
+
+function isCustomerOrientedTemplate(template) {
+    const party = String(template?.party ?? 'internal');
+
+    if (party === 'customer') {
+        return true;
+    }
+
+    if (party === 'carrier') {
+        return false;
+    }
+
+    const hasCarrier = Boolean(template?.has_carrier_basic_terms);
+    const hasCustomer = Boolean(template?.has_customer_basic_terms);
+
+    return hasCustomer && !hasCarrier;
+}
+
 function matchesContractor(templateContractorId, contractorIds) {
     if (templateContractorId == null || templateContractorId === '') {
         return true;
@@ -99,6 +133,14 @@ export function templateMatchesOrderContext(template, context) {
     const contractorIds = context?.contractorIds ?? [];
 
     if (!matchesParty(template.party, party)) {
+        return false;
+    }
+
+    if (party === 'customer' && isCarrierOrientedTemplate(template)) {
+        return false;
+    }
+
+    if (party === 'carrier' && isCustomerOrientedTemplate(template)) {
         return false;
     }
 
