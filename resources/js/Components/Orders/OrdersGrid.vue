@@ -418,6 +418,16 @@ let removeCenterViewportListener = null;
 
 const TERMINAL_ORDER_STATUSES = ['closed', 'cancelled', 'disruption'];
 
+const GRID_FINANCIAL_FIELDS = new Set([
+  'customer_rate',
+  'carrier_rate',
+  'additional_expenses',
+  'insurance',
+  'bonus',
+  'customer_payment_form',
+  'carrier_payment_form',
+]);
+
 function orderGridTodayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -793,6 +803,18 @@ const getDefaultVisibleFields = () => {
 
 const getDefaultEditableFields = () => roleDefaults[getRoleKey()]?.editable ?? [];
 
+function isGridCellEditable(columnField, row) {
+  if (!getDefaultEditableFields().includes(columnField) || !props.editable) {
+    return false;
+  }
+
+  if (GRID_FINANCIAL_FIELDS.has(columnField) && row?.can_edit_financial_fields === false) {
+    return false;
+  }
+
+  return true;
+}
+
 const buildRoleDefaultState = () => {
   const roleColumnPreset = getRoleColumnPreset();
 
@@ -971,7 +993,7 @@ const dynamicColumnDefs = computed(() => {
   const saved = readPersistedAgGridColumnState(storageKey.value);
 
   const columns = getAllowedColumns().map((column) => {
-    const isEditable = editableFields.includes(column.field) && props.editable;
+    const roleAllowsEdit = editableFields.includes(column.field) && props.editable;
     const columnDefinition = {
       field: column.field,
       headerName: column.headerName,
@@ -982,9 +1004,10 @@ const dynamicColumnDefs = computed(() => {
       resizable: true,
       suppressSizeToFit: true,
       floatingFilter: FLOATING_FILTER_FIELDS.has(column.field),
-      editable: isEditable,
+      editable: (params) => isGridCellEditable(column.field, params.data),
       cellClass: (params) => {
         const classes = [];
+        const isEditable = isGridCellEditable(column.field, params.data);
 
         if (isEditable) {
           classes.push('orders-grid-editable-cell');
@@ -1057,7 +1080,7 @@ const dynamicColumnDefs = computed(() => {
       columnDefinition.filter = 'agNumberColumnFilter';
     } else if (column.type === 'date') {
       columnDefinition.valueFormatter = dateFormatter;
-      if (columnDefinition.editable) {
+      if (roleAllowsEdit) {
         columnDefinition.cellEditor = DateInputEditor;
       }
     } else if (column.type === 'datetime') {

@@ -81,6 +81,12 @@ final class OrderInlineFieldCatalog
             ]);
         }
 
+        if (self::isFinancialField($field) && ! OrderFinancialEditAuthorization::userMayEditFinancialFields($user, $order)) {
+            throw ValidationException::withMessages([
+                'field' => 'Изменение стоимости и финансовых условий недоступно для заказа в статусе «Выполняется».',
+            ]);
+        }
+
         if ($field === 'manual_status') {
             if (! $user->isAdmin() && ! $user->isSupervisor()) {
                 throw ValidationException::withMessages([

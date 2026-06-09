@@ -20,6 +20,7 @@ use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
 use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
+use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderPersistedId;
 use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\OwnFleetCatalog;
@@ -88,6 +89,10 @@ class OrderWizardService
     {
         return DB::transaction(function () use ($order, $validated, $user): Order {
             $validated = $this->normalizeValidatedPaymentForms($validated);
+
+            if (! OrderFinancialEditAuthorization::userMayEditFinancialFields($user, $order)) {
+                $validated = $this->preservePersistedFinancialPayload($order, $validated);
+            }
             $previousStatus = $order->status;
             $previousOrderDate = optional($order->order_date)?->toDateString();
             $previousManagerId = $order->manager_id;
@@ -1933,6 +1938,43 @@ class OrderWizardService
                 $order,
                 PrintFormBasicTerm::PARTY_CARRIER,
             );
+        }
+
+        return $validated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function preservePersistedFinancialPayload(Order $order, array $validated): array
+    {
+        $order->loadMissing('financialTerms');
+
+        $wizardState = is_array($order->wizard_state) ? $order->wizard_state : [];
+        $wizardFinancial = is_array($wizardState['financial_term'] ?? null) ? $wizardState['financial_term'] : null;
+
+        if ($wizardFinancial !== null && $wizardFinancial !== []) {
+            $validated['financial_term'] = $wizardFinancial;
+        } elseif ($order->financialTerms->isNotEmpty()) {
+            $financialTerm = $order->financialTerms->first();
+            $validated['financial_term'] = [
+                'client_price' => $financialTerm->client_price,
+                'client_currency' => $financialTerm->client_currency ?? 'RUB',
+                'client_payment_form' => $order->customer_payment_form,
+                'client_payment_terms' => $financialTerm->client_payment_terms,
+                'contractors_costs' => is_array($financialTerm->contractors_costs) ? $financialTerm->contractors_costs : [],
+                'additional_costs' => is_array($financialTerm->additional_costs) ? $financialTerm->additional_costs : [],
+                'kpi_percent' => $order->kpi_percent,
+            ];
+        }
+
+        if (array_key_exists('insurance', $validated)) {
+            $validated['insurance'] = $order->insurance;
+        }
+
+        if (array_key_exists('bonus', $validated)) {
+            $validated['bonus'] = $order->bonus;
         }
 
         return $validated;

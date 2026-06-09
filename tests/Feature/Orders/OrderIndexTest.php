@@ -1393,6 +1393,75 @@ class OrderIndexTest extends TestCase
             );
     }
 
+    public function test_manager_cannot_inline_update_carrier_rate_when_order_is_in_progress(): void
+    {
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('IN-PROG-MGR', $manager->id, null, 'in_progress');
+
+        $response = $this->actingAs($manager)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'carrier_rate',
+            'value' => 5000,
+        ]);
+
+        $response->assertSessionHasErrors('field');
+    }
+
+    public function test_supervisor_can_inline_update_carrier_rate_when_order_is_in_progress(): void
+    {
+        $supervisorRoleId = $this->createRole('supervisor');
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+
+        $supervisor = User::factory()->create();
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $supervisor->id)->update(['role_id' => $supervisorRoleId]);
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $supervisor->role_id = $supervisorRoleId;
+
+        $orderId = $this->createOrder('IN-PROG-SUP', $manager->id, null, 'in_progress');
+
+        $response = $this->actingAs($supervisor)->patch(route('orders.inline-update', $orderId), [
+            'field' => 'carrier_rate',
+            'value' => 7777.5,
+        ]);
+
+        $response->assertRedirect(route('orders.index'));
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'carrier_rate' => 7777.5,
+        ]);
+    }
+
+    public function test_orders_index_marks_financial_fields_editable_for_supervisor_on_in_progress_order(): void
+    {
+        $supervisorRoleId = $this->createRole('supervisor');
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+
+        $supervisor = User::factory()->create();
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $supervisor->id)->update(['role_id' => $supervisorRoleId]);
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $supervisor->role_id = $supervisorRoleId;
+
+        $this->createOrder('IN-PROG-GRID', $manager->id, null, 'in_progress');
+
+        $this->actingAs($supervisor)->get(route('orders.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('rows', 1, fn (Assert $row) => $row
+                    ->where('order_number', 'IN-PROG-GRID')
+                    ->where('can_edit_financial_fields', true)
+                    ->etc()
+                )
+            );
+    }
+
     public function test_orders_index_can_delete_admin_always_true_for_advanced_status(): void
     {
         $admRoleId = $this->createRole('admin');

@@ -625,14 +625,6 @@ const mentionFiltered = computed(() => {
     return list.filter((m) => m.name.toLowerCase().includes(q));
 });
 
-const agentHotkeyHint = computed(() => {
-    if (typeof navigator === 'undefined') {
-        return 'Ctrl+K';
-    }
-
-    return /Mac|iPhone|iPad/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K';
-});
-
 const inputPlaceholder = computed(() => {
     if (chatPanelOpen.value && activeConversationId.value === null) {
         return 'Сначала выберите диалог слева или «Новый чат»…';
@@ -650,7 +642,7 @@ const inputPlaceholder = computed(() => {
     if (isChatInputMode.value) {
         return 'Сообщение…';
     }
-    return `Напишите команду, вопрос или задачу для ИИ… (${agentHotkeyHint.value})`;
+    return 'Напишите команду, вопрос или задачу для ИИ…';
 });
 
 const isDisabled = computed(() => {

@@ -7,6 +7,7 @@ use App\Support\CarrierPaymentFormResolver;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\OrderDeleteAuthorization;
+use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderGridOneCSummaryResolver;
 use App\Support\OrderTableColumns;
 use App\Support\PaymentFormDictionary;
@@ -211,6 +212,14 @@ class OrderIndexController extends Controller
                 'can_delete' => OrderDeleteAuthorization::userMayDelete(
                     $roleName,
                     $user?->id,
+                    (int) ($row['manager_id'] ?? 0),
+                    $row['manual_status'] ?? null,
+                    $row['status'] ?? null,
+                ),
+                'can_edit_financial_fields' => OrderFinancialEditAuthorization::userMayEditFinancialFieldsForRow(
+                    $user,
+                    $roleName,
+                    (int) ($user?->id ?? 0),
                     (int) ($row['manager_id'] ?? 0),
                     $row['manual_status'] ?? null,
                     $row['status'] ?? null,

@@ -208,6 +208,13 @@
             >
                 Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Данные можно просматривать; изменения не сохраняются.
             </p>
+            <p
+                v-else-if="isEditing && isOrderFormEditable && !canEditFinancialFields"
+                class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                role="status"
+            >
+                Стоимость перевозки и финансовые условия недоступны для изменения, пока рейс в статусе «Выполняется». Остальные поля заказа можно редактировать.
+            </p>
             <p v-if="saveAttempted && coreValidationIssues.length > 0" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
                 Не удалось сохранить: заполните {{ coreValidationIssues.join(', ') }}.
             </p>
@@ -1287,19 +1294,20 @@
                                     type="number"
                                     min="0"
                                     step="0.01"
+                                    :disabled="!canEditFinancialFields"
                                     :class="['w-full rounded-xl border bg-white px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_price', form.financial_term.client_price)]"
                                 />
                                 <p v-if="form.errors['financial_term.client_price']" class="text-xs text-rose-500">{{ form.errors['financial_term.client_price'] }}</p>
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Валюта</label>
-                                <select v-model="form.financial_term.client_currency" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_currency', form.financial_term.client_currency, form.financial_term.client_price)]">
+                                <select v-model="form.financial_term.client_currency" :disabled="!canEditFinancialFields" :class="['w-full rounded-xl border px-3 py-2 text-sm dark:bg-zinc-950', highlightRequiredField('client_currency', form.financial_term.client_currency, form.financial_term.client_price)]">
                                     <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
                             <div class="space-y-2">
                                 <label class="text-sm font-medium">Форма оплаты</label>
-                                <select v-model="form.financial_term.client_payment_form" :class="crmFieldFluid">
+                                <select v-model="form.financial_term.client_payment_form" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
                                     <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                 </select>
                             </div>
@@ -1312,7 +1320,7 @@
                             :currency="form.financial_term.client_currency"
                             :route-points="form.route_points"
                             :order-date="form.order_date"
-                            editable-summary
+                            :editable-summary="canEditFinancialFields"
                         />
                     </div>
 
@@ -1340,17 +1348,17 @@
                                     <label class="text-sm font-medium">
                                         {{ contractorCostAmountLabel(cost) }}
                                     </label>
-                                    <input v-model="cost.amount" type="number" min="0" step="0.01" :class="crmFieldFluid" placeholder="0" />
+                                    <input v-model="cost.amount" type="number" min="0" step="0.01" :disabled="!canEditFinancialFields" :class="crmFieldFluid" placeholder="0" />
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-2">
                                     <label class="text-sm font-medium">Валюта</label>
-                                    <select v-model="cost.currency" :class="crmFieldFluid">
+                                    <select v-model="cost.currency" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
                                         <option v-for="option in currencyOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                     </select>
                                 </div>
                                 <div class="min-w-0 space-y-2 md:col-span-3">
                                     <label class="text-sm font-medium">Форма оплаты</label>
-                                    <select v-model="cost.payment_form" :class="crmFieldFluid">
+                                    <select v-model="cost.payment_form" :disabled="!canEditFinancialFields" :class="crmFieldFluid">
                                         <option v-for="option in paymentFormOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                                     </select>
                                 </div>
@@ -1363,7 +1371,7 @@
                                 :currency="cost.currency"
                                 :route-points="form.route_points"
                                 :order-date="contractorCostOrderDate(cost)"
-                                editable-summary
+                                :editable-summary="canEditFinancialFields"
                             />
                         </div>
                     </div>
@@ -3629,6 +3637,14 @@ const isOrderFormEditable = computed(() => {
     }
 
     return props.order?.can_edit_order !== false;
+});
+
+const canEditFinancialFields = computed(() => {
+    if (!isEditing.value) {
+        return true;
+    }
+
+    return props.order?.can_edit_financial_fields !== false;
 });
 
 function performerHasLoadingActual(performer) {

@@ -45,6 +45,7 @@ use App\Support\OrderAgentLexicon;
 use App\Support\OrderCargoItemsPayloadNormalizer;
 use App\Support\OrderDeleteAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPrintWorkflowLock;
 use App\Support\OwnFleetCatalog;
@@ -724,6 +725,7 @@ class OrderWizardController extends Controller
 
         return [
             'can_edit_order' => $this->canEditInlineField($request, $order),
+            'can_edit_financial_fields' => OrderFinancialEditAuthorization::userMayEditFinancialFields($request->user(), $order),
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,
