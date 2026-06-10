@@ -7,7 +7,7 @@
                     <input
                         v-model="quickSearch"
                         type="text"
-                        :class="`${crmGridSearchField} w-80`"
+                        :class="crmGridSearchFieldWide"
                         placeholder="Фильтр по реестру"
                     >
                 </div>
@@ -174,7 +174,7 @@ import {
     crmBtnNeutral,
     crmGridDropdown,
     crmGridInnerPanel,
-    crmGridSearchField,
+    crmGridSearchFieldWide,
     crmGridToolbarBtn,
     crmModalPanel,
 } from '@/support/crmUi.js';

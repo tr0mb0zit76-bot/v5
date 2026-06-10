@@ -370,6 +370,17 @@ html.dark[data-crm-workspace-skin='sky'] {
         outline: none;
     }
 
+    /* Поиск в тулбаре гридов: иконка слева (left-3 + 16px), текст не должен наезжать на лупу */
+    .crm-field.crm-grid-search-field {
+        width: 18rem;
+        max-width: none;
+        padding: 0.375rem 0.55rem 0.375rem 2.875rem;
+    }
+
+    .crm-field.crm-grid-search-field--wide {
+        width: 20rem;
+    }
+
     .crm-field:focus {
         border-color: rgb(161 161 170);
     }

@@ -104,7 +104,10 @@ export const crmGridPanel = 'crm-grid-panel min-h-0 flex-1 overflow-hidden p-1';
 export const crmGridInnerPanel = 'flex min-h-0 flex-1 flex-col overflow-hidden';
 
 /** Поиск в тулбаре грида */
-export const crmGridSearchField = 'crm-field w-72 py-1.5 pl-11';
+export const crmGridSearchField = 'crm-field crm-grid-search-field';
+
+/** Поиск в тулбаре грида (шире — документы) */
+export const crmGridSearchFieldWide = 'crm-field crm-grid-search-field crm-grid-search-field--wide';
 
 /** Кнопка тулбара грида (колонки, сброс, плотность) */
 export const crmGridToolbarBtn = 'crm-btn-neutral inline-flex items-center gap-2 px-2.5 py-1.5 text-sm';
