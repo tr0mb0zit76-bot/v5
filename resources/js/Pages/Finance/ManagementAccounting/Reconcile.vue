@@ -2,7 +2,7 @@
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <div class="space-y-1">
             <Link
-                href="/finance/management-accounting"
+                href="/finance/management-accounting?tab=payments"
                 class="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
                 <ArrowLeft class="h-4 w-4" />
@@ -89,7 +89,7 @@
                     >
                     <button
                         type="submit"
-                        class="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+                        :class="crmBtnPrimary"
                     >
                         Подтвердить
                     </button>
@@ -104,7 +104,7 @@ import { Link, router } from '@inertiajs/vue3';
 import { reactive } from 'vue';
 import { ArrowLeft } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
+import { crmBtnPrimary, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>

@@ -104,6 +104,7 @@ class ManagementAccountingAccessTest extends TestCase
             $table->text('description');
             $table->string('status', 16)->default('pending');
             $table->string('source', 16)->default('import');
+            $table->unsignedBigInteger('allocation_category_id')->nullable();
             $table->timestamps();
         });
 
@@ -176,6 +177,9 @@ class ManagementAccountingAccessTest extends TestCase
         $this->actingAs($user)
             ->get('/finance/management-accounting')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Finance/ManagementAccounting/Index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Finance/ManagementAccounting/Index')
+                ->has('analytics')
+                ->has('filters'));
     }
 }

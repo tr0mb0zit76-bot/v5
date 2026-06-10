@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ManagementBankAccount;
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementImport;
+use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
+use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
 use App\Services\ManagementAccounting\ManagementPayrollHalfService;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -14,6 +16,8 @@ use Inertia\Response;
 class ManagementAccountingController extends Controller
 {
     public function __construct(
+        private readonly ManagementAccountingAnalyticsService $analyticsService,
+        private readonly ManagementBankAccountSyncService $bankAccountSyncService,
         private readonly ManagementPayrollHalfService $payrollHalfService,
     ) {}
 
@@ -46,11 +50,30 @@ class ManagementAccountingController extends Controller
                 'created_at' => $import->created_at?->toIso8601String(),
             ]);
 
+        $this->bankAccountSyncService->syncFromOwnCompanies();
+
+        $bankAccounts = ManagementBankAccount::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'bank_name', 'account_mask', 'currency']);
+
+        $tab = (string) $request->string('tab');
+        if (! in_array($tab, ['payments', 'ledger'], true)) {
+            $tab = 'payments';
+        }
+
+        $periodType = $this->analyticsService->normalizePeriodType((string) $request->string('period_type'));
+        $periodAnchor = $request->input('period_anchor');
+        $periodAnchor = is_string($periodAnchor) && $periodAnchor !== '' ? $periodAnchor : null;
+
         return Inertia::render('Finance/ManagementAccounting/Index', [
-            'bank_accounts' => ManagementBankAccount::query()
-                ->where('is_active', true)
-                ->orderBy('sort_order')
-                ->get(['id', 'bank_name', 'account_mask', 'currency']),
+            'filters' => [
+                'tab' => $tab,
+                'period_type' => $periodType,
+                'period_anchor' => $periodAnchor ?? now()->startOfMonth()->toDateString(),
+            ],
+            'bank_accounts' => $bankAccounts,
+            'default_bank_account_id' => $bankAccounts->first()?->id,
             'categories' => ManagementExpenseCategory::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')
@@ -58,6 +81,7 @@ class ManagementAccountingController extends Controller
             'imports' => $imports,
             'payroll_halves' => $this->payrollHalfService->recentHalves(),
             'current_payroll_half' => $this->payrollHalfService->ensureCurrentHalf(),
+            'analytics' => $this->analyticsService->build($periodType, $periodAnchor),
         ]);
     }
 }
