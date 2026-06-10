@@ -246,6 +246,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    can_access_management_accounting: {
+        type: Boolean,
+        default: false,
+    },
     can_access_payment_schedules: {
         type: Boolean,
         default: false,
@@ -374,6 +378,18 @@ const submoduleTiles = computed(() => {
         });
     }
 
+    if (props.can_access_management_accounting) {
+        tiles.push({
+            key: 'management-accounting',
+            title: 'Управленческий учёт',
+            description: 'Банковские выписки, операционные платежи, ФОТ и прочие статьи',
+            icon: 'Wallet',
+            accent: 'violet',
+            group: 'Учёт',
+            href: '/finance/management-accounting',
+        });
+    }
+
     return tiles;
 });
 
@@ -391,6 +407,7 @@ function iconTone(accent) {
         sky: 'border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-400',
         emerald: 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400',
         amber: 'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400',
+        violet: 'border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-400',
     };
     return tones[accent] || tones.sky;
 }

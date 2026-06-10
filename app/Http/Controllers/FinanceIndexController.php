@@ -47,6 +47,7 @@ class FinanceIndexController extends Controller
             'todays_cash_flow' => $cashFlowStats['periods']['today'],
             'cash_flow_stats' => $cashFlowStats,
             'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
+            'can_access_management_accounting' => RoleAccess::canAccessManagementAccounting($user),
             'can_access_payment_schedules' => RoleAccess::canViewPaymentSchedules($user),
             'can_manage_payment_schedule' => RoleAccess::canManagePaymentSchedules($user),
             'can_show_payment_schedule_actions' => RoleAccess::canShowPaymentScheduleActionsColumn($user),

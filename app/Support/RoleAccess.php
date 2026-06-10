@@ -917,6 +917,22 @@ class RoleAccess
     }
 
     /**
+     * Модуль «Управленческий учёт» в разделе «Финансы».
+     */
+    public static function canAccessManagementAccounting(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $user->canManagementAccounting();
+    }
+
+    /**
      * Просмотр раздела «График оплат» (страница финансов / API чтения).
      */
     public static function canViewPaymentSchedules(?User $user): bool

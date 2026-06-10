@@ -291,6 +291,20 @@
                         </div>
                     </label>
 
+                    <label class="flex items-start gap-3 rounded-xl border border-zinc-200 px-3 py-3 text-sm dark:border-zinc-800">
+                        <input
+                            v-model="form.can_management_accounting"
+                            type="checkbox"
+                            class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-950"
+                        />
+                        <div>
+                            <div class="font-medium text-zinc-900 dark:text-zinc-50">Управленческий учёт</div>
+                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                Доступ к модулю «Управленческий учёт» в разделе «Финансы»: выписки, разнесение, ФОТ.
+                            </div>
+                        </div>
+                    </label>
+
                     <div
                         v-if="form.has_signing_authority && ownCompanies.length > 0"
                         class="rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/20"
@@ -579,6 +593,7 @@ const form = useForm({
     is_active: true,
     has_signing_authority: false,
     belongs_to_management: false,
+    can_management_accounting: false,
     signing_own_company_ids: [],
     primary_department_id: null,
     approval_department_ids: [],
@@ -613,6 +628,7 @@ function resetForm() {
     form.is_active = true;
     form.has_signing_authority = false;
     form.belongs_to_management = false;
+    form.can_management_accounting = false;
     form.signing_own_company_ids = [];
     form.primary_department_id = null;
     form.approval_department_ids = [];
@@ -643,6 +659,7 @@ function openEditModal(user) {
     form.is_active = user.is_active;
     form.has_signing_authority = Boolean(user.has_signing_authority);
     form.belongs_to_management = Boolean(user.belongs_to_management);
+    form.can_management_accounting = Boolean(user.can_management_accounting);
     form.signing_own_company_ids = Array.isArray(user.signing_own_company_ids)
         ? user.signing_own_company_ids.map((id) => Number(id))
         : [];

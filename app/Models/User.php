@@ -34,6 +34,7 @@ class User extends Authenticatable
         'is_active',
         'has_signing_authority',
         'belongs_to_management',
+        'can_management_accounting',
         'ntfy_topic',
         'ai_preferences',
         'ai_learning_enabled',
@@ -62,6 +63,7 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'has_signing_authority' => 'boolean',
             'belongs_to_management' => 'boolean',
+            'can_management_accounting' => 'boolean',
             'ai_learning_enabled' => 'boolean',
             'mail_imap_secret' => 'encrypted',
             'mail_sync_enabled' => 'boolean',
@@ -126,6 +128,11 @@ class User extends Authenticatable
     public function belongsToManagement(): bool
     {
         return (bool) $this->belongs_to_management;
+    }
+
+    public function canManagementAccounting(): bool
+    {
+        return (bool) $this->can_management_accounting;
     }
 
     /**

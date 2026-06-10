@@ -32,6 +32,7 @@ class StoreUserRequest extends FormRequest
             'is_active' => ['required', 'boolean'],
             'has_signing_authority' => ['nullable', 'boolean'],
             'belongs_to_management' => ['nullable', 'boolean'],
+            'can_management_accounting' => ['nullable', 'boolean'],
             'signing_own_company_ids' => ['nullable', 'array'],
             'signing_own_company_ids.*' => [
                 'integer',

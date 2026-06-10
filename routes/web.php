@@ -24,6 +24,8 @@ use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LeadOfferMailController;
 use App\Http\Controllers\LoadingPlannerController;
 use App\Http\Controllers\MailMailboxController;
+use App\Http\Controllers\ManagementAccountingController;
+use App\Http\Controllers\ManagementAccountingImportController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\Orders\OrderBasicTermsController;
 use App\Http\Controllers\Orders\OrderDocumentsModalController;
@@ -560,6 +562,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/finance/reconciliation', [FinanceReconciliationController::class, 'store'])
         ->middleware('visibility.area:payment_schedules')
         ->name('finance.reconciliation.store');
+    Route::get('/finance/management-accounting', [ManagementAccountingController::class, 'index'])
+        ->name('finance.management-accounting.index');
+    Route::post('/finance/management-accounting/imports', [ManagementAccountingImportController::class, 'store'])
+        ->name('finance.management-accounting.imports.store');
+    Route::get('/finance/management-accounting/imports/{import}', [ManagementAccountingImportController::class, 'show'])
+        ->name('finance.management-accounting.imports.show');
+    Route::post('/finance/management-accounting/lines/{line}/allocate', [ManagementAccountingImportController::class, 'allocate'])
+        ->name('finance.management-accounting.lines.allocate');
+    Route::post('/finance/management-accounting/manual-entries', [ManagementAccountingImportController::class, 'storeManual'])
+        ->name('finance.management-accounting.manual-entries.store');
+    Route::patch('/finance/management-accounting/categories/{category}', [ManagementAccountingImportController::class, 'updateCategory'])
+        ->name('finance.management-accounting.categories.update');
     Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');
     Route::patch('/budgeting/scenario', [BudgetingController::class, 'updateScenario'])->name('budgeting.scenario.update');
     Route::post('/budgeting/opex-articles', [BudgetingController::class, 'storeOpexArticle'])->name('budgeting.opex-articles.store');

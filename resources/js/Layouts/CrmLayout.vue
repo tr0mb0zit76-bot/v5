@@ -728,6 +728,7 @@ const hasSettingsMotivationAccess = computed(() => {
 });
 const hasFinanceSalaryAccess = computed(() => isAdminUser.value || visibleAreas.value.includes('finance_salary'));
 const hasManagementAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.belongs_to_management));
+const hasManagementAccountingAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.can_management_accounting));
 
 const MENU_ROUTES = {
     dashboard: '/dashboard',
@@ -751,6 +752,7 @@ const MENU_ROUTES = {
     'finance-reconciliation': '/finance/reconciliation',
     'finance-salary': '/finance/salary',
     'finance-budgeting': '/budgeting',
+    'finance-management-accounting': '/finance/management-accounting',
     reports: '/reports',
     'reports-overview': '/reports',
     trainer: '/sales-assistant/trainer',
@@ -1090,6 +1092,10 @@ const menuItems = computed(() => {
                     children.push({ key: 'finance-budgeting', label: 'Бюджетирование' });
                 }
 
+                if (hasManagementAccountingAccess.value) {
+                    children.push({ key: 'finance-management-accounting', label: 'Управленческий учёт' });
+                }
+
                 return children;
             })(),
         },
@@ -1240,6 +1246,10 @@ const menuItems = computed(() => {
         }
 
         if (item.key === 'modules') {
+            return (item.children?.length ?? 0) > 0;
+        }
+
+        if (item.key === 'finance') {
             return (item.children?.length ?? 0) > 0;
         }
 
