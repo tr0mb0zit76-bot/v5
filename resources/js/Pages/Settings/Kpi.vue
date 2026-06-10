@@ -6,7 +6,7 @@
         />
 
         <section :class="`${crmPanel} flex min-h-0 flex-col p-5`">
-            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,220px)_1fr]">
+            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <label class="space-y-1">
                     <span class="text-sm font-medium">Множитель бонуса в delta</span>
                     <input
@@ -16,12 +16,20 @@
                         min="0"
                         :class="crmFieldFluid"
                     >
+                    <span class="text-xs text-zinc-500 dark:text-zinc-400">bonus × {{ formattedBonusMultiplier }}</span>
                 </label>
 
-                <div class="border border-zinc-200 px-3 py-2 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                    Сейчас множитель применяется так:
-                    <span class="font-medium text-zinc-900 dark:text-zinc-100">bonus * {{ formattedBonusMultiplier }}</span>
-                </div>
+                <label class="space-y-1">
+                    <span class="text-sm font-medium">Множитель страховки в delta</span>
+                    <input
+                        v-model.number="settingsForm.insurance_multiplier"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        :class="crmFieldFluid"
+                    >
+                    <span class="text-xs text-zinc-500 dark:text-zinc-400">страховка × {{ formattedInsuranceMultiplier }}</span>
+                </label>
             </div>
 
             <div class="mb-4 flex justify-end">
@@ -335,6 +343,10 @@ const props = defineProps({
         type: Number,
         default: 1.3,
     },
+    insuranceMultiplier: {
+        type: Number,
+        default: 1.2,
+    },
     customRulesCutoffDate: {
         type: String,
         default: '2026-06-01',
@@ -355,6 +367,7 @@ const props = defineProps({
 
 const settingsForm = useForm({
     bonus_multiplier: props.bonusMultiplier,
+    insurance_multiplier: props.insuranceMultiplier,
 });
 
 const createRuleForm = useForm({
@@ -382,6 +395,7 @@ watch(() => props.deductionRules, (rules) => {
 }, { deep: true });
 
 const formattedBonusMultiplier = computed(() => Number(settingsForm.bonus_multiplier || 0).toFixed(2));
+const formattedInsuranceMultiplier = computed(() => Number(settingsForm.insurance_multiplier || 0).toFixed(2));
 
 const ruleFieldClass = 'block w-full min-w-0 border border-zinc-300 px-2.5 py-1.5 text-sm outline-none transition focus:border-zinc-900 dark:border-zinc-700 dark:bg-zinc-950 dark:focus:border-zinc-400';
 

@@ -31,11 +31,7 @@ final class VatZeroCustomerStandardVatCarrierMarginSupplement
 
         $eligibleCarrierCost = 0.0;
 
-        foreach ($contractorsCosts as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-
+        foreach (ContractorCostRowClassification::carrierLegCostsOnly($contractorsCosts) as $row) {
             $paymentForm = (string) ($row['payment_form'] ?? '');
 
             if (PaymentFormVat::ratePercentForCode($paymentForm) !== self::CARRIER_VAT_PERCENT) {

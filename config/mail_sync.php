@@ -34,11 +34,23 @@ return [
     'max_messages_per_user' => max(10, min(1000, (int) env('MAIL_SYNC_MAX_MESSAGES', 200))),
 
     /*
-    | Импортировать только письма, где участник совпадает с email/доменами контрагентов.
+    | Синхронизировать только ящики на этих доменах (reg.ru / корпоративная почта).
+    | Пользователи с @mail.ru, @log-sol.ru и т.п. в очередь sync не попадают.
     */
-    'require_contractor_match' => filter_var(env('MAIL_SYNC_REQUIRE_CONTRACTOR_MATCH', true), FILTER_VALIDATE_BOOL),
+    'mailbox_domains' => array_values(array_filter(array_map(
+        static fn (string $value): string => strtolower(ltrim(trim($value), '@')),
+        explode(',', (string) env('MAIL_SYNC_MAILBOX_DOMAINS', 'avtoaliyans.ru')),
+    ))),
+
+    /*
+    | Устаревший режим: импорт только если участник в allowlist контрагентов.
+    | По умолчанию false — импортируем все входящие, кроме отправителей из mail_blocked_senders.
+    */
+    'require_contractor_match' => filter_var(env('MAIL_SYNC_REQUIRE_CONTRACTOR_MATCH', false), FILTER_VALIDATE_BOOL),
 
     'allowlist_cache_seconds' => max(60, min(3600, (int) env('MAIL_SYNC_ALLOWLIST_CACHE_SECONDS', 300))),
+
+    'spam_blocklist_cache_seconds' => max(60, min(3600, (int) env('MAIL_SYNC_SPAM_BLOCKLIST_CACHE_SECONDS', 300))),
 
     /*
     | Для этих доменов в allowlist попадает только полный адрес, не весь домен.

@@ -21,7 +21,7 @@ final class MailContractorAllowlist
 
     public static function cached(): self
     {
-        if (! config('mail_sync.require_contractor_match', true)) {
+        if (! config('mail_sync.require_contractor_match', false)) {
             return new self;
         }
 

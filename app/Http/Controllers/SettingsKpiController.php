@@ -40,6 +40,7 @@ class SettingsKpiController extends Controller
 
         return Inertia::render('Settings/Kpi', [
             'bonusMultiplier' => $this->kpiConfigurationService->getBonusMultiplier(),
+            'insuranceMultiplier' => $this->kpiConfigurationService->getInsuranceMultiplier(),
             'customRulesCutoffDate' => KpiDeductionRule::CUSTOM_RULES_CUTOFF_DATE,
             'paymentFormOptions' => PaymentFormDictionary::options(),
             'carrierRuleOptions' => collect(KpiDeductionCarrierRule::values())
@@ -110,6 +111,7 @@ class SettingsKpiController extends Controller
         $validated = $request->validated();
 
         $this->kpiConfigurationService->saveBonusMultiplier((float) $validated['bonus_multiplier']);
+        $this->kpiConfigurationService->saveInsuranceMultiplier((float) $validated['insurance_multiplier']);
 
         return to_route('settings.motivation.kpi');
     }

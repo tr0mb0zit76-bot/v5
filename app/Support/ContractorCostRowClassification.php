@@ -31,6 +31,20 @@ final class ContractorCostRowClassification
     }
 
     /**
+     * Строки оплаты перевозчикам по плечам (без доп. исполнителей из contractors_costs).
+     *
+     * @param  list<array<string, mixed>>  $costs
+     * @return list<array<string, mixed>>
+     */
+    public static function carrierLegCostsOnly(array $costs): array
+    {
+        return array_values(array_filter(
+            $costs,
+            fn (array $cost): bool => ! self::isAdditional($cost),
+        ));
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $costs
      */
     public static function nextAdditionalStage(array $costs): string

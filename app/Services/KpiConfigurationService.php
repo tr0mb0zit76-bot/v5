@@ -13,6 +13,8 @@ class KpiConfigurationService
 {
     public const BONUS_MULTIPLIER_KEY = 'delta_bonus_multiplier';
 
+    public const INSURANCE_MULTIPLIER_KEY = 'delta_insurance_multiplier';
+
     public const VAT_PERCENT_KEY = 'vat_kpi_percent';
 
     public const VAT_ALL_PERCENT_KEY = 'vat_all_kpi_percent';
@@ -28,6 +30,8 @@ class KpiConfigurationService
     public const CASH_SECONDARY_PERCENT_KEY = 'cash_secondary_kpi_percent';
 
     public const DEFAULT_BONUS_MULTIPLIER = 1.3;
+
+    public const DEFAULT_INSURANCE_MULTIPLIER = 1.2;
 
     public const DEFAULT_VAT_PERCENT = 3.0;
 
@@ -60,6 +64,28 @@ class KpiConfigurationService
             'float',
             'delta',
             'Множитель бонуса в формуле delta',
+        );
+    }
+
+    public function getInsuranceMultiplier(): float
+    {
+        if (! Schema::hasTable('kpi_settings')) {
+            return self::DEFAULT_INSURANCE_MULTIPLIER;
+        }
+
+        $value = KpiSetting::getValue(self::INSURANCE_MULTIPLIER_KEY, self::DEFAULT_INSURANCE_MULTIPLIER);
+
+        return is_numeric($value) ? (float) $value : self::DEFAULT_INSURANCE_MULTIPLIER;
+    }
+
+    public function saveInsuranceMultiplier(float $value): void
+    {
+        KpiSetting::setValue(
+            self::INSURANCE_MULTIPLIER_KEY,
+            number_format($value, 2, '.', ''),
+            'float',
+            'delta',
+            'Множитель страховки в формуле delta',
         );
     }
 

@@ -29,7 +29,8 @@ class SalesMarginCounterService
         $insurance = max(0.0, (float) ($input['insurance'] ?? 0));
         $bonus = max(0.0, (float) ($input['bonus'] ?? 0));
         $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
-        $fixedExpense = $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $insuranceMultiplier = $this->kpiConfigurationService->getInsuranceMultiplier();
+        $fixedExpense = $additionalExpenses + ($insurance * $insuranceMultiplier) + ($bonus * $bonusMultiplier);
 
         $customerRate = $this->resolveCustomerRate($input);
         $carrierCash = $this->nullableAmount($input['carrier_cash_rate'] ?? null);
@@ -43,6 +44,7 @@ class SalesMarginCounterService
             'kpi_settings' => [
                 'deduction_rates' => $deductionRates,
                 'bonus_multiplier' => $bonusMultiplier,
+                'insurance_multiplier' => $insuranceMultiplier,
             ],
             'scenarios' => [
                 $this->buildScenario(

@@ -6,6 +6,7 @@ use App\Models\FinancialTerm;
 use App\Models\KpiDeductionRule;
 use App\Models\Order;
 use App\Support\CarrierPaymentFormResolver;
+use App\Support\ContractorCostRowClassification;
 use Illuminate\Support\Facades\Schema;
 
 class DealTypeClassifier
@@ -123,7 +124,7 @@ class DealTypeClassifier
      */
     private function uniquePaymentFormsFromCosts(array $costs): array
     {
-        return collect($costs)
+        return collect(ContractorCostRowClassification::carrierLegCostsOnly($costs))
             ->pluck('payment_form')
             ->filter(fn (mixed $value): bool => filled($value))
             ->map(fn (mixed $value): string => (string) $value)

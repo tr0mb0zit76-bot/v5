@@ -187,7 +187,7 @@ class MailMcpService
             'mail_last_sync_at' => optional($user->mail_last_sync_at)?->toIso8601String(),
             'mail_last_sync_error' => $user->mail_last_sync_error,
             'imap_host' => (string) config('mail_sync.imap.host'),
-            'require_contractor_match' => (bool) config('mail_sync.require_contractor_match', true),
+            'require_contractor_match' => (bool) config('mail_sync.require_contractor_match', false),
         ];
 
         $team = [];

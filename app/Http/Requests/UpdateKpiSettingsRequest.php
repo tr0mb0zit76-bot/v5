@@ -19,6 +19,7 @@ class UpdateKpiSettingsRequest extends FormRequest
     {
         return [
             'bonus_multiplier' => ['required', 'numeric', 'min:0', 'max:100'],
+            'insurance_multiplier' => ['required', 'numeric', 'min:0', 'max:100'],
         ];
     }
 }

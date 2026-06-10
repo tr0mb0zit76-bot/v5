@@ -9,11 +9,17 @@ final class MailImportAllowance
     public function shouldImport(
         ImportedMailMessage $message,
         string $mailboxEmail,
-        MailContractorAllowlist $allowlist,
+        ?MailContractorAllowlist $allowlist = null,
     ): bool {
-        if (! config('mail_sync.require_contractor_match', true)) {
+        if ($this->isBlockedSender($message)) {
+            return false;
+        }
+
+        if (! config('mail_sync.require_contractor_match', false)) {
             return true;
         }
+
+        $allowlist ??= MailContractorAllowlist::cached();
 
         if ($allowlist->isEmpty()) {
             return false;
@@ -30,6 +36,15 @@ final class MailImportAllowance
         ])));
 
         return $allowlist->allowsAnyParticipant($participantEmails, $mailboxEmail);
+    }
+
+    private function isBlockedSender(ImportedMailMessage $message): bool
+    {
+        if ($message->direction !== MailMessage::DIRECTION_INBOUND) {
+            return false;
+        }
+
+        return MailSyncSpamBlocklist::isBlocked($message->fromEmail);
     }
 
     private function isReplyToKnownMessage(ImportedMailMessage $message): bool

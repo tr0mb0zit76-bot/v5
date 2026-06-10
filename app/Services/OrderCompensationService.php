@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\SalaryCoefficient;
 use App\Support\CalendarBankDayShifter;
 use App\Support\CarrierRateFromFinancialTerms;
+use App\Support\ContractorCostRowClassification;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderPaymentTermsConfigResolver;
 use App\Support\OrderPersistedId;
@@ -137,14 +138,15 @@ class OrderCompensationService
             ];
         }
 
-        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
         $customerRate = (float) ($order->customer_rate ?? 0);
         $carrierRate = CarrierRateFromFinancialTerms::resolveForOrder($order);
         $additionalExpenses = (float) ($order->additional_expenses ?? 0);
         $insurance = (float) ($order->insurance ?? 0);
         $bonus = (float) ($order->bonus ?? 0);
-        $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
-        $contractorsCosts = $this->extractContractorsCosts($order);
+        $expense = $this->buildMarginExpense($carrierRate, $additionalExpenses, $insurance, $bonus);
+        $contractorsCosts = ContractorCostRowClassification::carrierLegCostsOnly(
+            $this->extractContractorsCosts($order),
+        );
         $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmountForResolution($customerRate, $dealResolution);
         $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercentForResolution($customerRate, $dealResolution);
         $vatMarginSupplement = $this->kpiConfigurationService->marginSupplementForResolution(
@@ -200,14 +202,14 @@ class OrderCompensationService
             ];
         }
 
-        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
+        $carrierLegCosts = ContractorCostRowClassification::carrierLegCostsOnly($contractorsCosts);
         $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmountForResolution($customerRate, $dealResolution);
         $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercentForResolution($customerRate, $dealResolution);
-        $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $expense = $this->buildMarginExpense($carrierRate, $additionalExpenses, $insurance, $bonus);
         $vatMarginSupplement = $this->kpiConfigurationService->marginSupplementForResolution(
             $dealResolution,
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
-            $contractorsCosts,
+            $carrierLegCosts,
         );
         $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
@@ -284,14 +286,14 @@ class OrderCompensationService
             ];
         }
 
+        $carrierLegCosts = ContractorCostRowClassification::carrierLegCostsOnly($contractorsCosts);
         $kpiDeduction = $this->kpiConfigurationService->kpiDeductionAmountForResolution($customerRate, $dealResolution);
         $kpiPercent = $this->kpiConfigurationService->effectiveKpiPercentForResolution($customerRate, $dealResolution);
-        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
-        $expense = $carrierRate + $additionalExpenses + $insurance + ($bonus * $bonusMultiplier);
+        $expense = $this->buildMarginExpense($carrierRate, $additionalExpenses, $insurance, $bonus);
         $vatMarginSupplement = $this->kpiConfigurationService->marginSupplementForResolution(
             $dealResolution,
             isset($data['customer_payment_form']) ? (string) $data['customer_payment_form'] : null,
-            $contractorsCosts,
+            $carrierLegCosts,
         );
         $delta = $customerRate - $kpiDeduction - $expense + $vatMarginSupplement;
 
@@ -304,6 +306,21 @@ class OrderCompensationService
             'salary_accrued' => round($salaryAccrued, 2),
             'deal_type' => (string) $dealResolution['deal_type'],
         ];
+    }
+
+    private function buildMarginExpense(
+        float $carrierRate,
+        float $additionalExpenses,
+        float $insurance,
+        float $bonus,
+    ): float {
+        $insuranceMultiplier = $this->kpiConfigurationService->getInsuranceMultiplier();
+        $bonusMultiplier = $this->kpiConfigurationService->getBonusMultiplier();
+
+        return $carrierRate
+            + $additionalExpenses
+            + ($insurance * $insuranceMultiplier)
+            + ($bonus * $bonusMultiplier);
     }
 
     /**
@@ -320,7 +337,7 @@ class OrderCompensationService
             return null;
         }
 
-        $forms = collect($costs)
+        $forms = collect(ContractorCostRowClassification::carrierLegCostsOnly($costs))
             ->pluck('payment_form')
             ->filter(fn ($v) => filled($v))
             ->map(fn ($v) => is_string($v) ? trim($v) : (string) $v)

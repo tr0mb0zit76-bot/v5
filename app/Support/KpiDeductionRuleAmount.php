@@ -74,11 +74,7 @@ final class KpiDeductionRuleAmount
         $eligibleCarrierCost = 0.0;
         $expectedCarrierRate = round($carrierVatPercent, 2);
 
-        foreach ($contractorsCosts as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-
+        foreach (ContractorCostRowClassification::carrierLegCostsOnly($contractorsCosts) as $row) {
             $paymentForm = (string) ($row['payment_form'] ?? '');
             $actualRate = PaymentFormVat::ratePercentForCode($paymentForm);
 

@@ -47,7 +47,11 @@ class SyncMailInboxesCommand extends Command
 
         $processed = $result['users_processed'] ?? 0;
         $filtered = $result['skipped_contractor_filter'] ?? 0;
-        $this->info("Импортировано: {$result['imported']}, пропущено (дубли/фильтр): {$result['skipped']}, вне контрагентов: {$filtered}, ящиков обработано: {$processed}.");
+        $filterLabel = config('mail_sync.require_contractor_match', false)
+            ? 'вне контрагентов'
+            : 'в спаме';
+
+        $this->info("Импортировано: {$result['imported']}, пропущено (дубли/фильтр): {$result['skipped']}, {$filterLabel}: {$filtered}, ящиков обработано: {$processed}.");
 
         if ($processed === 0 && ($parsedUserId === null || $parsedUserId <= 0)) {
             $this->warn('Нет активных пользователей с паролем почты (mail_imap_secret).');

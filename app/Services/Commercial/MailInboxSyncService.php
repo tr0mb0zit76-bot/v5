@@ -12,6 +12,7 @@ use App\Support\MailSync\ImportedMailMessage;
 use App\Support\MailSync\MailContractorAllowlist;
 use App\Support\MailSync\MailImapClient;
 use App\Support\MailSync\MailImportAllowance;
+use App\Support\MailSync\MailSyncMailboxEligibility;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -60,18 +61,18 @@ final class MailInboxSyncService
     }
 
     /**
-     * @return array{imported: int, skipped: int, skipped_contractor_filter: int, errors: list<string>, users_processed: int}
+     * @return array{imported: int, skipped: int, skipped_contractor_filter: int, errors: list<string>, notices: list<string>, users_processed: int}
      */
     public function syncAllMailboxes(?int $userId = null, ?int $days = null, bool $verbose = false): array
     {
         if (! config('mail_sync.enabled', true)) {
-            return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).'], 'users_processed' => 0];
+            return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['Синхронизация почты отключена (MAIL_SYNC_ENABLED=false).'], 'notices' => [], 'users_processed' => 0];
         }
 
         abort_unless($this->tablesReady(), 503, 'Таблицы почты не готовы. Выполните migrate.');
 
         if (! $this->imapClient->extensionLoaded()) {
-            return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['PHP extension imap не установлена.'], 'users_processed' => 0];
+            return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['PHP extension imap не установлена.'], 'notices' => [], 'users_processed' => 0];
         }
 
         $days = $days ?? (int) config('mail_sync.initial_sync_days', 30);
@@ -83,12 +84,14 @@ final class MailInboxSyncService
             ->where('mail_sync_enabled', true)
             ->whereNotNull('mail_imap_secret');
 
+        MailSyncMailboxEligibility::applyToUserQuery($query);
+
         if ($userId !== null && $userId > 0) {
             $query->whereKey($userId);
         }
 
         $users = $query->get();
-        $totals = ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => [], 'users_processed' => 0];
+        $totals = ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => [], 'notices' => [], 'users_processed' => 0];
 
         if ($users->isEmpty() && $userId !== null && $userId > 0) {
             $eligibility = $this->syncEligibilityForUserId($userId);
@@ -117,6 +120,28 @@ final class MailInboxSyncService
                     }
                 }
 
+                $imapSeen = (int) ($result['imap_messages_seen'] ?? 0);
+
+                if ($result['imported'] === 0 && $imapSeen > 0) {
+                    $filterLabel = config('mail_sync.require_contractor_match', false)
+                        ? 'фильтр контрагентов'
+                        : 'фильтр импорта (спам)';
+
+                    $totals['notices'][] = sprintf(
+                        '%s: с IMAP прочитано %d, в CRM импортировано 0 (%s: %d, пропущено: %d).',
+                        $user->email,
+                        $imapSeen,
+                        $filterLabel,
+                        (int) ($result['skipped_contractor_filter'] ?? 0),
+                        (int) ($result['skipped'] ?? 0),
+                    );
+                } elseif ($result['imported'] === 0 && $imapSeen === 0) {
+                    $totals['notices'][] = sprintf(
+                        '%s: IMAP подключение ок, писем за период sync не найдено (увеличьте --days или проверьте папки).',
+                        $user->email,
+                    );
+                }
+
                 $user->forceFill([
                     'mail_last_sync_at' => now(),
                     'mail_last_sync_error' => null,
@@ -137,7 +162,7 @@ final class MailInboxSyncService
     }
 
     /**
-     * @return array{imported: int, skipped: int, skipped_contractor_filter: int, debug?: list<string>}
+     * @return array{imported: int, skipped: int, skipped_contractor_filter: int, imap_messages_seen: int, debug?: list<string>}
      */
     public function syncUserMailbox(User $user, CarbonImmutable $since, int $limit, bool $verbose = false): array
     {
@@ -160,6 +185,7 @@ final class MailInboxSyncService
         $mailboxEmail = strtolower(trim((string) $user->email));
         $folderErrors = [];
         $debug = [];
+        $imapMessagesSeen = 0;
 
         foreach ($this->folderPlan() as $plan) {
             if ($remaining <= 0) {
@@ -189,6 +215,7 @@ final class MailInboxSyncService
                         $diagnostics,
                     );
                     $folderUsed = true;
+                    $imapMessagesSeen += count($messages);
 
                     if ($verbose) {
                         $debug[] = sprintf(
@@ -298,6 +325,12 @@ final class MailInboxSyncService
 
         if (! $user->hasMailImapCredential()) {
             $reasons[] = 'не задан пароль почты (mail_imap_secret) — укажите в карточке пользователя или перелогиньтесь в CRM;';
+        }
+
+        $domainReason = MailSyncMailboxEligibility::ineligibilityReason($user);
+
+        if ($domainReason !== null) {
+            $reasons[] = $domainReason;
         }
 
         return $reasons;

@@ -77,7 +77,8 @@ final class CarrierRateFromFinancialTerms
             return null;
         }
 
-        $sum = collect($costs)->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
+        $sum = collect(ContractorCostRowClassification::carrierLegCostsOnly($costs))
+            ->sum(fn (array $c): float => (float) ($c['amount'] ?? 0));
 
         return round($sum, 2);
     }

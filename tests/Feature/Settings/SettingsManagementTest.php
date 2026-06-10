@@ -452,6 +452,7 @@ class SettingsManagementTest extends TestCase
 
         $response = $this->actingAs($admin)->patch(route('settings.motivation.kpi.update'), [
             'bonus_multiplier' => 1.45,
+            'insurance_multiplier' => 1.25,
             'thresholds' => [
                 [
                     'threshold_from' => 0.00,
@@ -473,6 +474,11 @@ class SettingsManagementTest extends TestCase
         $this->assertDatabaseHas('kpi_settings', [
             'key' => 'delta_bonus_multiplier',
             'value' => '1.45',
+        ]);
+
+        $this->assertDatabaseHas('kpi_settings', [
+            'key' => 'delta_insurance_multiplier',
+            'value' => '1.25',
         ]);
 
         $this->assertDatabaseHas('kpi_thresholds', [
