@@ -3,6 +3,8 @@
 namespace App\Services\Mcp;
 
 use App\Models\Contractor;
+use App\Models\ManagementStatementImport;
+use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
@@ -71,6 +73,68 @@ class McpAccessGate
         return $user->isAdmin()
             || RoleAccess::canAccessVisibilityArea($user, 'finance_salary')
             || RoleAccess::canAccessVisibilityArea($user, 'payment_schedules');
+    }
+
+    public function canAccessManagementAccounting(User $user): bool
+    {
+        return RoleAccess::canAccessManagementAccounting($user);
+    }
+
+    public function requireManagementAccounting(User $user): void
+    {
+        if (! $this->canAccessManagementAccounting($user)) {
+            throw new AuthenticationException('Нет доступа к модулю «Управленческий учёт».');
+        }
+    }
+
+    public function findAccessibleImport(User $user, int $importId): ManagementStatementImport
+    {
+        $this->requireManagementAccounting($user);
+
+        $import = ManagementStatementImport::query()->whereKey($importId)->first();
+
+        if ($import === null) {
+            throw new AuthenticationException('Импорт выписки не найден.');
+        }
+
+        if (! $user->isAdmin() && (int) $import->imported_by !== (int) $user->id) {
+            throw new AuthenticationException('Импорт доступен только загрузившему или администратору.');
+        }
+
+        return $import;
+    }
+
+    public function findAccessibleLine(User $user, int $lineId): ManagementStatementLine
+    {
+        $this->requireManagementAccounting($user);
+
+        $line = ManagementStatementLine::query()
+            ->with([
+                'suggestedOrder:id,order_number',
+                'suggestedPaymentSchedule:id,party,amount',
+                'suggestedCategory:id,name,code',
+                'suggestedUser:id,name',
+            ])
+            ->whereKey($lineId)
+            ->first();
+
+        if ($line === null) {
+            throw new AuthenticationException('Строка выписки не найдена.');
+        }
+
+        if ($line->import_id !== null) {
+            $import = ManagementStatementImport::query()->whereKey((int) $line->import_id)->first();
+
+            if ($import === null) {
+                throw new AuthenticationException('Импорт выписки не найден.');
+            }
+
+            if (! $user->isAdmin() && (int) $import->imported_by !== (int) $user->id) {
+                throw new AuthenticationException('Импорт доступен только загрузившему или администратору.');
+            }
+        }
+
+        return $line;
     }
 
     public function requireContractorsArea(User $user): void

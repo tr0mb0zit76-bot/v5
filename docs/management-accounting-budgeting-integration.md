@@ -7,7 +7,7 @@
 - [`management-accounting-architecture.md`](./management-accounting-architecture.md) — факт, статьи, выписки
 - Модуль бюджетирования: `BudgetPlannerService`, `BudgetScenario`, `BudgetOpexArticle`, UI `Budgeting/Index.vue`
 
-**Статус:** проектирование (фаза M5). **Последнее обновление:** 2026-06-11
+**Статус:** частичная реализация (M5.1 ✅, черновик план/факт на Index). **Последнее обновление:** 2026-06-11
 
 ---
 
@@ -46,7 +46,7 @@ BudgetScenario (родитель, «Бюджет компании»)
 | --- | --- |
 | `budget_opex_articles` (фикс ₽/мес или % маржи) | `management_statement_lines` со статусом `allocated` |
 
-**Связь:** поле `management_expense_category_id` на `budget_opex_articles` (nullable → «прочее / не разнесено»).
+**Связь:** поле `management_expense_category_id` на `budget_opex_articles` (nullable). Заполняется `ManagementExpenseCategorySyncService` при sync (`code = budget_opex_{id}`).
 
 Примеры маппинга при сиде/настройке:
 

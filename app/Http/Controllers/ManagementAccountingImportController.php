@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\AllocateManagementStatementLineRequest;
 use App\Http\Requests\StoreManagementAccountingImportRequest;
+use App\Http\Requests\StoreManagementExpenseCategoryRequest;
 use App\Http\Requests\StoreManagementManualEntryRequest;
 use App\Http\Requests\UpdateManagementExpenseCategoryRequest;
 use App\Models\ManagementBankAccount;
@@ -12,9 +13,11 @@ use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
 use App\Services\ManagementAccounting\ManagementAccountingAllocationService;
 use App\Services\ManagementAccounting\ManagementAccountingImportService;
+use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,6 +26,7 @@ class ManagementAccountingImportController extends Controller
     public function __construct(
         private readonly ManagementAccountingImportService $importService,
         private readonly ManagementAccountingAllocationService $allocationService,
+        private readonly ManagementExpenseCategorySyncService $expenseCategorySyncService,
     ) {}
 
     public function store(StoreManagementAccountingImportRequest $request): RedirectResponse
@@ -148,10 +152,49 @@ class ManagementAccountingImportController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Ручная операция добавлена.']);
     }
 
+    public function storeCategory(StoreManagementExpenseCategoryRequest $request): RedirectResponse
+    {
+        $name = trim((string) $request->validated('name'));
+        $baseCode = 'custom_'.Str::slug($name, '_');
+        $code = $baseCode !== '' && $baseCode !== 'custom_' ? $baseCode : 'custom_article';
+        $suffix = 1;
+
+        while (ManagementExpenseCategory::query()->where('code', $code)->exists()) {
+            $code = $baseCode.'_'.$suffix;
+            $suffix++;
+        }
+
+        $sortOrder = ((int) ManagementExpenseCategory::query()->max('sort_order')) + 10;
+
+        ManagementExpenseCategory::query()->create([
+            'code' => $code,
+            'name' => $name,
+            'kind' => 'overhead',
+            'is_system' => false,
+            'is_active' => true,
+            'sort_order' => $sortOrder,
+        ]);
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Статья добавлена.']);
+    }
+
+    public function syncCategories(Request $request): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessManagementAccounting($request->user()), 403);
+
+        $this->expenseCategorySyncService->syncAll();
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Справочник синхронизирован с бюджетированием.']);
+    }
+
     public function updateCategory(
         UpdateManagementExpenseCategoryRequest $request,
         ManagementExpenseCategory $category,
     ): RedirectResponse {
+        if ($category->is_system) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'Системную статью нельзя переименовать.']);
+        }
+
         $category->update($request->validated());
 
         return back()->with('flash', ['type' => 'success', 'message' => 'Статья обновлена.']);

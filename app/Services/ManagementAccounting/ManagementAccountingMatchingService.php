@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\Schema;
 
 class ManagementAccountingMatchingService
 {
+    public function __construct(
+        private readonly ManagementReconcileRuleService $reconcileRules,
+    ) {}
+
     /**
      * @return array{
      *     match_type: ?string,
@@ -28,6 +32,13 @@ class ManagementAccountingMatchingService
         $direction = $line->direction;
         $amount = (float) $line->amount;
         $operationDate = $line->operation_date?->toDateString();
+
+        $ruleMatch = $this->reconcileRules->matchDescription($description, $direction);
+        if ($ruleMatch !== null) {
+            unset($ruleMatch['rule_id']);
+
+            return $ruleMatch;
+        }
 
         $operational = $this->matchOperational($description, $direction, $amount, $operationDate);
         if ($operational !== null) {

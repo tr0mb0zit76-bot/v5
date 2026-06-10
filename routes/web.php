@@ -572,6 +572,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('finance.management-accounting.lines.allocate');
     Route::post('/finance/management-accounting/manual-entries', [ManagementAccountingImportController::class, 'storeManual'])
         ->name('finance.management-accounting.manual-entries.store');
+    Route::post('/finance/management-accounting/categories', [ManagementAccountingImportController::class, 'storeCategory'])
+        ->name('finance.management-accounting.categories.store');
+    Route::post('/finance/management-accounting/categories/sync', [ManagementAccountingImportController::class, 'syncCategories'])
+        ->name('finance.management-accounting.categories.sync');
     Route::patch('/finance/management-accounting/categories/{category}', [ManagementAccountingImportController::class, 'updateCategory'])
         ->name('finance.management-accounting.categories.update');
     Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');

@@ -3,6 +3,7 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Tools\AddOrderNoteTool;
+use App\Mcp\Tools\AllocateManagementStatementLineTool;
 use App\Mcp\Tools\ApplyOrderWizardDraftTool;
 use App\Mcp\Tools\CreateContractorTool;
 use App\Mcp\Tools\CreateFleetDriverTool;
@@ -14,6 +15,7 @@ use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetMailSyncStatusTool;
 use App\Mcp\Tools\GetMailThreadTool;
+use App\Mcp\Tools\GetManagementAccountingAnalyticsTool;
 use App\Mcp\Tools\GetManagerSalesCoachingInsightsTool;
 use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderIntakeDraftTool;
@@ -28,8 +30,13 @@ use App\Mcp\Tools\GetSalesScriptCoachingInsightsTool;
 use App\Mcp\Tools\GetTaskTool;
 use App\Mcp\Tools\GetTrainerCoachingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
+use App\Mcp\Tools\ListManagementExpenseCategoriesTool;
+use App\Mcp\Tools\ListManagementReconcileRulesTool;
+use App\Mcp\Tools\ListManagementStatementImportsTool;
+use App\Mcp\Tools\ListManagementStatementLinesTool;
 use App\Mcp\Tools\ListOrderDocumentsTool;
 use App\Mcp\Tools\ListOrderIntakeDraftsTool;
+use App\Mcp\Tools\RememberManagementReconcileRuleTool;
 use App\Mcp\Tools\RememberOrderIntakePhraseTool;
 use App\Mcp\Tools\ReplyMailThreadTool;
 use App\Mcp\Tools\ResolveContractorPrintFormChangeTool;
@@ -40,6 +47,7 @@ use App\Mcp\Tools\SearchSalesBookArticlesTool;
 use App\Mcp\Tools\SearchTasksTool;
 use App\Mcp\Tools\SendMailTool;
 use App\Mcp\Tools\SubmitContractorPrintFormChangeTool;
+use App\Mcp\Tools\SuggestManagementStatementLineTool;
 use App\Mcp\Tools\UpdateOrderFieldTool;
 use App\Mcp\Tools\UpdateOrderRouteActualTool;
 use App\Mcp\Tools\UpsertDispositionEntryTool;
@@ -81,6 +89,10 @@ use Laravel\Mcp\Server\Tool;
         - submit_contractor_print_form_change — заявка на согласование условий контрагента (менеджер / Юрик)
         - resolve_contractor_print_form_change — утверждение/отклонение заявки (руководитель)
         - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM
+        - Управленческий учёт (can_management_accounting / admin):
+          list_management_statement_imports, list_management_statement_lines, suggest_management_statement_line,
+          allocate_management_statement_line (remember_keyword — обучение правила), get_management_accounting_analytics,
+          list_management_expense_categories, remember_management_reconcile_rule, list_management_reconcile_rules
 
         Аутентификация: Bearer Sanctum token.
         MARKDOWN)]
@@ -133,6 +145,14 @@ class CrmServer extends Server
         GetMailSyncStatusTool::class,
         SendMailTool::class,
         ReplyMailThreadTool::class,
+        ListManagementStatementImportsTool::class,
+        ListManagementStatementLinesTool::class,
+        SuggestManagementStatementLineTool::class,
+        AllocateManagementStatementLineTool::class,
+        GetManagementAccountingAnalyticsTool::class,
+        ListManagementExpenseCategoriesTool::class,
+        RememberManagementReconcileRuleTool::class,
+        ListManagementReconcileRulesTool::class,
     ];
 
     /**

@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Support;
+
+final class ManagementExpenseCategoryCatalog
+{
+    /**
+     * @return list<array{code: string, name: string, kind: string, sort_order: int}>
+     */
+    public static function systemCategories(): array
+    {
+        return [
+            ['code' => 'operational_customer_in', 'name' => 'Оплата от заказчика', 'kind' => 'operational_in', 'sort_order' => 10],
+            ['code' => 'operational_carrier_out', 'name' => 'Оплата перевозчику', 'kind' => 'operational_out', 'sort_order' => 20],
+            ['code' => 'bank_fees', 'name' => 'Банковские комиссии и сборы', 'kind' => 'overhead', 'sort_order' => 30],
+            ['code' => 'services_other', 'name' => 'Услуги и лицензии (прочее)', 'kind' => 'overhead', 'sort_order' => 40],
+            ['code' => 'payroll_accrued_sales', 'name' => 'ФОТ продавцы (начислено)', 'kind' => 'payroll_accrued', 'sort_order' => 50],
+            ['code' => 'payroll_paid_sales', 'name' => 'ФОТ продавцы (выплачено)', 'kind' => 'payroll_paid', 'sort_order' => 60],
+            ['code' => 'payroll_other', 'name' => 'ФОТ прочие', 'kind' => 'payroll_other', 'sort_order' => 70],
+            ['code' => 'cash_other_in', 'name' => 'Наличные / прочие поступления', 'kind' => 'cash', 'sort_order' => 80],
+            ['code' => 'cash_other_out', 'name' => 'Наличные / прочие расходы', 'kind' => 'cash', 'sort_order' => 90],
+            ['code' => 'unclassified', 'name' => 'Неразнесённое', 'kind' => 'unclassified', 'sort_order' => 100],
+        ];
+    }
+}

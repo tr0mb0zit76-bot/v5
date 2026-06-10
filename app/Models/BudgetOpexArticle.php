@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BudgetOpexArticle extends Model
 {
@@ -20,6 +21,7 @@ class BudgetOpexArticle extends Model
         'percent_of_margin',
         'ramp_months',
         'sort_order',
+        'management_expense_category_id',
     ];
 
     /**
@@ -38,5 +40,13 @@ class BudgetOpexArticle extends Model
     public function isPercentOfMargin(): bool
     {
         return $this->cost_type === self::COST_PERCENT_OF_MARGIN;
+    }
+
+    /**
+     * @return BelongsTo<ManagementExpenseCategory, $this>
+     */
+    public function managementExpenseCategory(): BelongsTo
+    {
+        return $this->belongsTo(ManagementExpenseCategory::class, 'management_expense_category_id');
     }
 }

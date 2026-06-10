@@ -19,6 +19,7 @@ class ManagementAccountingAllocationService
     public function __construct(
         private readonly PaymentSchedulePaymentLedgerService $paymentLedger,
         private readonly ManagementPayrollHalfService $payrollHalfService,
+        private readonly ManagementAccountingMatchingService $matching,
     ) {}
 
     /**
@@ -97,7 +98,7 @@ class ManagementAccountingAllocationService
             'created_by' => $creator->id,
         ]);
 
-        $suggestion = app(ManagementAccountingMatchingService::class)->suggestForLine($line);
+        $suggestion = $this->matching->suggestForLine($line);
         $line->fill($suggestion)->save();
 
         return $line->fresh();

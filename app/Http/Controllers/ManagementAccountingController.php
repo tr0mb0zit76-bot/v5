@@ -7,6 +7,7 @@ use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementImport;
 use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
 use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
+use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Services\ManagementAccounting\ManagementPayrollHalfService;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class ManagementAccountingController extends Controller
     public function __construct(
         private readonly ManagementAccountingAnalyticsService $analyticsService,
         private readonly ManagementBankAccountSyncService $bankAccountSyncService,
+        private readonly ManagementExpenseCategorySyncService $expenseCategorySyncService,
         private readonly ManagementPayrollHalfService $payrollHalfService,
     ) {}
 
@@ -51,6 +53,7 @@ class ManagementAccountingController extends Controller
             ]);
 
         $this->bankAccountSyncService->syncFromOwnCompanies();
+        $this->expenseCategorySyncService->syncAll();
 
         $bankAccounts = ManagementBankAccount::query()
             ->where('is_active', true)
@@ -77,11 +80,32 @@ class ManagementAccountingController extends Controller
             'categories' => ManagementExpenseCategory::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')
-                ->get(['id', 'code', 'name', 'kind', 'is_system']),
+                ->get(['id', 'code', 'name', 'kind', 'is_system'])
+                ->map(static fn (ManagementExpenseCategory $category): array => [
+                    'id' => $category->id,
+                    'code' => $category->code,
+                    'name' => $category->name,
+                    'kind' => $category->kind,
+                    'is_system' => $category->is_system,
+                    'source' => self::categorySource($category),
+                ]),
             'imports' => $imports,
             'payroll_halves' => $this->payrollHalfService->recentHalves(),
             'current_payroll_half' => $this->payrollHalfService->ensureCurrentHalf(),
             'analytics' => $this->analyticsService->build($periodType, $periodAnchor),
         ]);
+    }
+
+    private static function categorySource(ManagementExpenseCategory $category): string
+    {
+        if ($category->is_system) {
+            return 'system';
+        }
+
+        if (str_starts_with($category->code, 'budget_opex_')) {
+            return 'budget';
+        }
+
+        return 'custom';
     }
 }

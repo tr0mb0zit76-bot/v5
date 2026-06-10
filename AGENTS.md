@@ -100,8 +100,11 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Матчинг / разнесение: `ManagementAccountingMatchingService`, `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`.
 - ФОТ полупериоды (5 / 20): `ManagementPayrollHalfCalendar`, `ManagementPayrollHalfService`.
 - UI: `Finance/ManagementAccounting/Index.vue`, `Reconcile.vue`; меню `finance-management-accounting`.
-- Маршруты: `finance.management-accounting.*` (`routes/web.php`).
-- Связь с бюджетом (план vs факт, фаза M5): `docs/management-accounting-budgeting-integration.md` — снапшот `BudgetScenario`, дочерний план «Продавцы», `BudgetVarianceService` (ещё не в коде).
+- Маршруты: `finance.management-accounting.*` (`routes/web.php`); статьи: `POST categories`, `POST categories/sync`.
+- Справочник статей: `ManagementExpenseCategoryCatalog`, `ManagementExpenseCategorySyncService` (системные + `budget_opex_*`).
+- Правила разнесения: `management_reconcile_rules`, `ManagementReconcileRuleService` — приоритет в матчинге до эвристик.
+- MCP (`/mcp/crm`, домен `finance`): `ManagementAccountingMcpService`, tools `list_management_statement_*`, `suggest_*`, `allocate_*`, `get_management_accounting_analytics`, `*_management_reconcile_rule*`, `list_management_expense_categories`; gate `McpAccessGate::requireManagementAccounting()`.
+- Связь с бюджетом (план vs факт): `ManagementAccountingAnalyticsService`, `docs/management-accounting-budgeting-integration.md`.
 
 ### Считалка (маржа в переговорах)
 

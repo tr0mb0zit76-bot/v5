@@ -52,7 +52,11 @@
 
 ### `management_expense_categories`
 
-Плоский редактируемый справочник (~10 системных статей, сиды).
+Плоский редактируемый справочник: **системные** (~10), **из бюджета** (`budget_opex_{id}`) и **пользовательские**.
+
+Синхронизация: `ManagementExpenseCategorySyncService::syncAll()` — системные из `ManagementExpenseCategoryCatalog`, статьи opex из `budget_opex_articles` (обратная связь `management_expense_category_id`).
+
+UI: форма «Добавить статью», кнопка «Синхронизировать с бюджетом» (`POST finance.management-accounting.categories.sync`).
 
 | `code` | Название | `kind` |
 | --- | --- | --- |
@@ -129,10 +133,27 @@
 
 ---
 
+### `management_reconcile_rules`
+
+Обучаемые правила разнесения по подстроке в назначении платежа.
+
+| Поле | Смысл |
+| --- | --- |
+| `keyword` | Фрагмент описания (регистр не важен) |
+| `direction` | `in` / `out` или любое |
+| `allocation_type` | `operational` / `payroll` / `category` |
+| `priority` | Выше — раньше в матчинге |
+| `times_applied` | Зарезервировано под учёт применений (без инкремента на каждый preview) |
+
+Сервис: `ManagementReconcileRuleService`. Создание: MCP `remember_management_reconcile_rule`, `allocate_management_statement_line` с `remember_keyword`, или вручную.
+
+---
+
 ## Матчинг (`ManagementAccountingMatchingService`)
 
 Приоритеты:
 
+0. **Правила** — `management_reconcile_rules` (приоритет + keyword), confidence 95.
 1. **Операционный** — номер заявки в тексте: `АС-2606-0001` (regex `АС[-\s]?\d{2}\d{2}[-\s]?\d{4}`), затем строка `payment_schedules` по сумме и дате.
 2. **ФОТ** — ФИО сотрудника в назначении платежа → `payroll_paid_sales`.
 3. **Статьи по ключевым словам** — `комисс`/`сбор` → `bank_fees`; `ати`/`лиценз`/`подписк` → `services_other`.
@@ -168,12 +189,36 @@
 
 ---
 
+## MCP (агенты Cursor / command bar)
+
+Инструменты на общем сервере `/mcp/crm` (`CrmServer`). Права — как у модуля.
+
+| Tool | Назначение |
+| --- | --- |
+| `list_management_statement_imports` | Импорты выписок |
+| `list_management_statement_lines` | Строки выписки |
+| `suggest_management_statement_line` | Подсказка матчинга |
+| `allocate_management_statement_line` | Разнесение + опционально `remember_keyword` |
+| `get_management_accounting_analytics` | План/факт по периоду |
+| `list_management_expense_categories` | Справочник статей |
+| `remember_management_reconcile_rule` / `list_management_reconcile_rules` | Обучение правил |
+
+Сервис: `ManagementAccountingMcpService`, gate: `McpAccessGate::requireManagementAccounting()`.
+
+Документация MCP: [`mcp-crm-instructions.md`](./mcp-crm-instructions.md).
+
+---
+
 ## Тесты
 
 | Файл | Что проверяет |
 | --- | --- |
 | `tests/Unit/SberRegistryXlsxParserTest.php` | Парсинг XLSX |
 | `tests/Unit/ManagementPayrollHalfCalendarTest.php` | Даты полупериодов 5/20 |
+| `tests/Unit/ManagementReconcileRuleServiceTest.php` | Правила разнесения |
+| `tests/Unit/ManagementExpenseCategorySyncServiceTest.php` | Sync статей с бюджетом |
+| `tests/Unit/ManagementAccountingMcpServiceTest.php` | MCP-сервис, scope импортёра |
+| `tests/Feature/Mcp/ManagementAccountingMcpToolsTest.php` | MCP tools |
 | `tests/Feature/ManagementAccountingAccessTest.php` | Права доступа |
 
 ---
@@ -182,10 +227,12 @@
 
 ```bash
 git pull origin master
-php artisan migrate --path=database/migrations/2026_06_10_211015_create_management_accounting_tables.php
+php artisan migrate
 php artisan db:seed --class=ManagementAccountingSeeder
 npm run build
 ```
+
+Миграции после M0: `management_expense_category_id` на `budget_opex_articles`, таблица `management_reconcile_rules`.
 
 На Windows, если `php artisan migrate` падает на загрузке `database/schema/mysql-schema.sql` (`mysql` не в PATH), выполнить миграцию по `--path` на сервере/CI или через прямой вызов `up()` миграции.
 

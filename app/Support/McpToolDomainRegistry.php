@@ -51,6 +51,14 @@ final class McpToolDomainRegistry
         'reply_mail_thread' => ['domain' => 'mail', 'cross' => ['orders', 'contractors']],
         'create_fleet_driver' => ['domain' => 'fleet', 'cross' => ['orders']],
         'create_fleet_vehicle' => ['domain' => 'fleet', 'cross' => ['orders']],
+        'list_management_statement_imports' => ['domain' => 'finance', 'cross' => []],
+        'list_management_statement_lines' => ['domain' => 'finance', 'cross' => ['orders']],
+        'suggest_management_statement_line' => ['domain' => 'finance', 'cross' => ['orders']],
+        'allocate_management_statement_line' => ['domain' => 'finance', 'cross' => ['orders']],
+        'get_management_accounting_analytics' => ['domain' => 'finance', 'cross' => ['analytics']],
+        'list_management_expense_categories' => ['domain' => 'finance', 'cross' => []],
+        'remember_management_reconcile_rule' => ['domain' => 'finance', 'cross' => ['orders']],
+        'list_management_reconcile_rules' => ['domain' => 'finance', 'cross' => []],
     ];
 
     /**

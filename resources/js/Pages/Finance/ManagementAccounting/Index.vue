@@ -109,25 +109,70 @@
             </section>
 
             <section :class="`${crmPanel} p-5`">
-                <h2 :class="crmSectionTitle">Справочник статей</h2>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 :class="crmSectionTitle">Справочник статей</h2>
+                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                            10 системных статей + статьи из «Бюджетирования» (синхронизация при открытии страницы).
+                            Свои статьи можно добавить вручную.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        :class="crmBtnSecondary"
+                        :disabled="categorySyncForm.processing"
+                        @click="syncCategories"
+                    >
+                        Синхронизировать с бюджетом
+                    </button>
+                </div>
+
+                <form class="mt-4 flex flex-wrap items-end gap-2" @submit.prevent="submitNewCategory">
+                    <label class="min-w-[16rem] flex-1 space-y-1 text-sm">
+                        <span :class="crmLabel">Новая статья</span>
+                        <input
+                            v-model="categoryForm.name"
+                            type="text"
+                            :class="crmFieldFluid"
+                            placeholder="Например: Аренда склада"
+                            required
+                        >
+                    </label>
+                    <button type="submit" :class="crmBtnPrimary" :disabled="categoryForm.processing">
+                        Добавить
+                    </button>
+                </form>
+                <p v-if="categoryForm.errors.name" class="mt-1 text-sm text-rose-600">{{ categoryForm.errors.name }}</p>
+
                 <div class="mt-3 space-y-2">
                     <div
                         v-for="category in categories"
                         :key="category.id"
                         class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
                     >
-                        <div>
-                            <div class="font-medium">{{ category.name }}</div>
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="font-medium">{{ category.name }}</div>
+                                <span
+                                    class="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+                                    :class="categorySourceClass(category.source)"
+                                >
+                                    {{ categorySourceLabel(category.source) }}
+                                </span>
+                            </div>
                             <div class="text-xs text-zinc-500">{{ category.code }}</div>
                         </div>
                         <input
-                            v-if="!category.is_system"
+                            v-if="category.source !== 'system'"
                             :value="category.name"
                             type="text"
                             :class="crmField"
                             @change="updateCategory(category, $event.target.value)"
                         >
                     </div>
+                    <p v-if="categories.length === 0" class="py-4 text-center text-sm text-zinc-500">
+                        Статей пока нет. Запустите сидер или добавьте статьи в бюджетировании.
+                    </p>
                 </div>
             </section>
         </div>
@@ -357,6 +402,7 @@ import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
     crmBtnNeutral,
     crmBtnPrimary,
+    crmBtnSecondary,
     crmField,
     crmFieldFluid,
     crmLabel,
@@ -419,6 +465,12 @@ const importForm = useForm({
     bank_account_id: resolveDefaultBankAccountId(),
     statement_file: null,
 });
+
+const categoryForm = useForm({
+    name: '',
+});
+
+const categorySyncForm = useForm({});
 
 function reloadWithFilters(overrides = {}) {
     router.get('/finance/management-accounting', {
@@ -494,8 +546,43 @@ function submitImport() {
     });
 }
 
+function submitNewCategory() {
+    categoryForm.post('/finance/management-accounting/categories', {
+        preserveScroll: true,
+        onSuccess: () => {
+            categoryForm.reset('name');
+        },
+    });
+}
+
+function syncCategories() {
+    categorySyncForm.post('/finance/management-accounting/categories/sync', {
+        preserveScroll: true,
+    });
+}
+
 function updateCategory(category, name) {
     router.patch(`/finance/management-accounting/categories/${category.id}`, { name }, { preserveScroll: true });
+}
+
+function categorySourceLabel(source) {
+    const labels = {
+        system: 'системная',
+        budget: 'бюджет',
+        custom: 'своя',
+    };
+
+    return labels[source] ?? source;
+}
+
+function categorySourceClass(source) {
+    const classes = {
+        system: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+        budget: 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200',
+        custom: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
+    };
+
+    return classes[source] ?? classes.system;
 }
 
 function formatMoney(value) {

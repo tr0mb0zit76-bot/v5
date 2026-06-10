@@ -35,6 +35,7 @@ class GetUserContextTool extends Tool
                 'visibility_areas' => $areas,
                 'orders_scope' => RoleAccess::resolveVisibilityScopeForUser($user, 'orders'),
                 'can_view_finance' => app(McpAccessGate::class)->canViewFinance($user),
+                'can_management_accounting' => app(McpAccessGate::class)->canAccessManagementAccounting($user),
             ]);
         });
     }

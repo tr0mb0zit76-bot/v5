@@ -27,6 +27,10 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - resolve_contractor_print_form_change — утвердить / отклонить / вернуть на согласование с контрагентом (руководитель)
 - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft — черновики заявок (текст, файл base64, создание заказа с confirm_token)
 - search_mail_threads / get_mail_thread / get_mail_sync_status / send_mail / reply_mail_thread — переписка, IMAP sync и отправка из CRM (search: query, mailbox_owner, mailbox_user_id; team[].thread_count в sync status)
+- Управленческий учёт (`can_management_accounting` / admin):
+  list_management_statement_imports, list_management_statement_lines, suggest_management_statement_line,
+  allocate_management_statement_line (`remember_keyword` — обучение правила), get_management_accounting_analytics,
+  list_management_expense_categories, remember_management_reconcile_rule, list_management_reconcile_rules
 
 Аутентификация: Bearer Sanctum token.
 ```
@@ -48,3 +52,22 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 | `upsert_print_form_basic_terms` | Прямое сохранение базовых условий `party` + `items`, опционально `contractor_id` (admin / settings_system) |
 | `submit_contractor_print_form_change` | Заявка на согласование условий контрагента: `contractor_id`, `party`, `items`, опционально `manager_notes` / `yurik_summary` |
 | `resolve_contractor_print_form_change` | Решение по заявке: `change_request_id`, `action` (`approve` / `reject` / `needs_counterparty`), `reason` при reject |
+
+## Управленческий учёт (2026-06)
+
+Доступ: `users.can_management_accounting` или admin. В `get_user_context` — поле `can_management_accounting`.
+
+Импорт выписки на чтение строк: загрузивший или admin (как экран разнесения).
+
+| Tool | Когда вызывать |
+|------|----------------|
+| `list_management_statement_imports` | Список загрузок выписок (`limit`) |
+| `list_management_statement_lines` | Строки по `import_id`, опционально `status` (`pending` / `allocated`) |
+| `suggest_management_statement_line` | Подсказка разнесения: эвристики + `management_reconcile_rules` |
+| `allocate_management_statement_line` | Подтвердить разнесение; `remember_keyword` — сохранить правило по фрагменту назначения |
+| `get_management_accounting_analytics` | План/факт за `period_type` (`month` / `quarter` / `year`) |
+| `list_management_expense_categories` | Справочник статей (системные, из бюджета, пользовательские) |
+| `remember_management_reconcile_rule` | Явно добавить правило (`keyword`, `allocation_type`, …) |
+| `list_management_reconcile_rules` | Активные правила обучения |
+
+Сервис: `App\Services\Mcp\ManagementAccountingMcpService`. Домен MCP: `finance` (`McpToolDomainRegistry`).

@@ -65,7 +65,8 @@ class ManagementAccountingAnalyticsService
         $actualOut = (float) ($aggregates['totals']['out'] ?? 0);
         $net = $actualIn - $actualOut;
 
-        $rows = $this->buildRows($categories, $aggregates['by_category']);
+        $planByCategory = $this->resolvePlannedByCategory($bounds['start'], $bounds['end']);
+        $rows = $this->buildRows($categories, $aggregates['by_category'], $planByCategory);
         $planAvailable = Schema::hasTable('budget_opex_articles');
 
         return [
@@ -227,7 +228,10 @@ class ManagementAccountingAnalyticsService
      *     variance_amount: float|null
      * }>
      */
-    private function buildRows(Collection $categories, array $byCategory): array
+    /**
+     * @param  array<int, float>  $planByCategory
+     */
+    private function buildRows(Collection $categories, array $byCategory, array $planByCategory): array
     {
         $rows = [];
 
@@ -235,8 +239,11 @@ class ManagementAccountingAnalyticsService
             $bucket = $byCategory[$category->id] ?? ['in' => 0.0, 'out' => 0.0];
             $actualIn = (float) $bucket['in'];
             $actualOut = (float) $bucket['out'];
+            $planAmount = array_key_exists($category->id, $planByCategory)
+                ? (float) $planByCategory[$category->id]
+                : null;
 
-            if ($actualIn === 0.0 && $actualOut === 0.0) {
+            if ($actualIn === 0.0 && $actualOut === 0.0 && ($planAmount === null || $planAmount <= 0.0)) {
                 continue;
             }
 
@@ -247,8 +254,8 @@ class ManagementAccountingAnalyticsService
                 'kind' => $category->kind,
                 'actual_in' => $actualIn,
                 'actual_out' => $actualOut,
-                'plan_amount' => null,
-                'variance_amount' => null,
+                'plan_amount' => $planAmount,
+                'variance_amount' => $planAmount !== null ? $actualOut - $planAmount : null,
             ];
         }
 
@@ -301,5 +308,35 @@ class ManagementAccountingAnalyticsService
         }
 
         return round($plan, 2);
+    }
+
+    /**
+     * @return array<int, float>
+     */
+    private function resolvePlannedByCategory(CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        if (! Schema::hasTable('budget_opex_articles')
+            || ! Schema::hasColumn('budget_opex_articles', 'management_expense_category_id')) {
+            return [];
+        }
+
+        $months = max(1, $start->startOfMonth()->diffInMonths($end->startOfMonth()) + 1);
+        $planByCategory = [];
+
+        $articles = BudgetOpexArticle::query()
+            ->whereNotNull('management_expense_category_id')
+            ->get(['cost_type', 'amount_monthly', 'management_expense_category_id']);
+
+        foreach ($articles as $article) {
+            if ($article->cost_type !== BudgetOpexArticle::COST_FIXED_MONTHLY) {
+                continue;
+            }
+
+            $categoryId = (int) $article->management_expense_category_id;
+            $planByCategory[$categoryId] = ($planByCategory[$categoryId] ?? 0.0)
+                + ((float) $article->amount_monthly * $months);
+        }
+
+        return $planByCategory;
     }
 }

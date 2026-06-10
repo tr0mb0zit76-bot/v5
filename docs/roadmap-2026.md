@@ -183,6 +183,7 @@ Cursor **никогда не подключается к MySQL напрямую*
 - [x] `extract_order_draft_from_document` — base64 в MCP; в CRM — command bar / POST intake
 - [x] `apply_order_wizard_draft` — запись через `OrderWizardService` после confirm token
 - [x] Command bar: загрузка файла в чате (`CrmCommandBar` → `CommandBarAttachmentService`, PDF/DOCX → intake)
+- [x] Управленческий учёт: MCP tools (`list_management_statement_*`, `allocate_*`, аналитика, правила `management_reconcile_rules`)
 
 #### 1.6.5 Аудит
 

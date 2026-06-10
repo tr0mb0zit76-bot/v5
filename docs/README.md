@@ -31,7 +31,7 @@
 | [ai-assistants-user-guide.md](./ai-assistants-user-guide.md) | Command bar, персоны, вложения, память диалога |
 | [ai-agent-personas.md](./ai-agent-personas.md) | Slug персон, API (для разработчиков) |
 | [ai-platform-architecture.md](./ai-platform-architecture.md) | Уровни AI, аудит, gate |
-| [mcp-crm-instructions.md](./mcp-crm-instructions.md) | Список MCP tools (синхрон с `CrmServer`) |
+| [mcp-crm-instructions.md](./mcp-crm-instructions.md) | Список MCP tools (синхрон с `CrmServer`), в т.ч. управленческий учёт |
 | [commercial-intelligence-roadmap.md](./commercial-intelligence-roadmap.md) | Коммерческая аналитика, Книга, gap |
 | [roadmap-2026.md](./roadmap-2026.md) | Общий roadmap 2026 |
 
