@@ -982,9 +982,8 @@ class OrderWizardController extends Controller
             'rejection_reason' => Schema::hasColumn('order_documents', 'rejection_reason')
                 ? $document->rejection_reason
                 : null,
-            'draft_download_url' => $isFinalized ? null : $draftUrl,
-            'draft_download_label' => $isWorkflowSigned ? 'Скачать подписанный DOCX' : 'Скачать черновик DOCX',
-            'draft_preview_url' => $isFinalized ? null : $draftPreviewUrl,
+            'draft_download_url' => $isWorkflowSigned ? null : $draftUrl,
+            'draft_preview_url' => $isWorkflowSigned ? null : $draftPreviewUrl,
             'final_pdf_download_url' => $finalUrl,
             'final_pdf_storage_path' => filled($document->generated_pdf_path) ? $document->generated_pdf_path : null,
             'draft_storage_path' => filled($document->file_path) ? $document->file_path : null,

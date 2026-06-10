@@ -51,6 +51,49 @@ class OrderPrintDocumentWorkflowPdfTest extends TestCase
         $service->persistGeneratedApprovedPdf($document, '%PDF-1.4', 'request-order-3-draft.docx');
     }
 
+    public function test_ensure_approved_workflow_pdf_promotes_cached_preview_pdf(): void
+    {
+        $document = $this->getMockBuilder(OrderDocument::class)
+            ->onlyMethods(['update', 'refresh'])
+            ->getMock();
+        $document->workflow_status = OrderDocumentWorkflowStatus::APPROVED;
+        $document->order_id = 3;
+        $document->original_name = 'request-order-3-draft.docx';
+        $document->metadata = [
+            'preview_pdf_path' => 'order_documents/3/request-order-3-preview.pdf',
+            'preview_pdf_storage_driver' => 'local',
+        ];
+
+        $storage = $this->createMock(DocumentStorageService::class);
+        $storage->method('exists')->willReturn(true);
+        $storage->method('get')->willReturn('%PDF-preview');
+        $storage->method('configuredDriver')->willReturn(DocumentStorageService::DRIVER_LOCAL);
+        $storage->expects($this->once())
+            ->method('resolveOrderDocumentPath')
+            ->with(3, 'request-order-3-approved.pdf')
+            ->willReturn('order_documents/3/request-order-3-approved.pdf');
+        $storage->expects($this->once())
+            ->method('put')
+            ->with(
+                'order_documents/3/request-order-3-approved.pdf',
+                '%PDF-preview',
+                DocumentStorageService::DRIVER_LOCAL,
+            );
+
+        $document->expects($this->once())->method('update')->willReturn(true);
+
+        $preview = $this->createMock(DocxPdfPreviewService::class);
+        $preview->expects($this->never())->method('convertToPdf');
+
+        $service = new OrderPrintDocumentWorkflowService(
+            $this->createMock(OrderPrintFormDraftService::class),
+            $storage,
+            $preview,
+        );
+
+        $service->ensureApprovedWorkflowPdf($document);
+    }
+
     public function test_ensure_approved_workflow_pdf_skips_when_pdf_already_exists(): void
     {
         $preview = $this->createMock(DocxPdfPreviewService::class);

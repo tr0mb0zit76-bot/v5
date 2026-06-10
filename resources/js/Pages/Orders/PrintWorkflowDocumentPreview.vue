@@ -152,22 +152,13 @@
                     >
                         {{ canWorkflowApprove ? '← К заказу' : 'Вернуться и исправить данные' }}
                     </Link>
-                    <div v-if="finalPdfDownloadUrl || signedDocxDownloadUrl" class="flex flex-wrap items-center gap-2">
-                        <a
-                            v-if="finalPdfDownloadUrl"
-                            :href="finalPdfDownloadUrl"
-                            class="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
-                        >
-                            Скачать PDF
-                        </a>
-                        <a
-                            v-if="signedDocxDownloadUrl"
-                            :href="signedDocxDownloadUrl"
-                            class="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-5 py-2.5 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-                        >
-                            Скачать подписанный DOCX
-                        </a>
-                    </div>
+                    <a
+                        v-if="finalPdfDownloadUrl"
+                        :href="finalPdfDownloadUrl"
+                        class="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
+                    >
+                        Скачать PDF
+                    </a>
                     <div v-else-if="canWorkflowApprove || canWorkflowReject" class="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
@@ -281,7 +272,6 @@ const props = defineProps({
     },
     readonlyOverlayDecorations: { type: Boolean, default: false },
     finalPdfDownloadUrl: { type: String, default: null },
-    signedDocxDownloadUrl: { type: String, default: null },
 });
 
 const submitting = ref(false);

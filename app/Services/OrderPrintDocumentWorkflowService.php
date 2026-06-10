@@ -321,7 +321,25 @@ class OrderPrintDocumentWorkflowService
             return;
         }
 
-        if (filled($document->generated_pdf_path) || blank($document->file_path)) {
+        if (filled($document->generated_pdf_path)) {
+            return;
+        }
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $previewPath = (string) ($metadata['preview_pdf_path'] ?? '');
+        $previewDriver = (string) ($metadata['preview_pdf_storage_driver'] ?? DocumentStorageService::DRIVER_LOCAL);
+
+        if ($previewPath !== '' && $this->documentStorage->exists($previewPath, $previewDriver)) {
+            $this->persistGeneratedApprovedPdf(
+                $document,
+                $this->documentStorage->get($previewPath, $previewDriver),
+                $document->original_name ?: 'draft.docx',
+            );
+
+            return;
+        }
+
+        if (blank($document->file_path)) {
             return;
         }
 

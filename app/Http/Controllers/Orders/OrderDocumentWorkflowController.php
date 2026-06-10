@@ -305,11 +305,6 @@ class OrderDocumentWorkflowController extends Controller
         $canWorkflowApprove = $canSign && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL;
         $canWorkflowReject = $canWorkflowApprove;
 
-        $workflowSigned = in_array($workflowStatus, [
-            OrderDocumentWorkflowStatus::APPROVED,
-            OrderDocumentWorkflowStatus::FINALIZED,
-        ], true);
-
         return Inertia::render('Orders/PrintWorkflowDocumentPreview', [
             'orderId' => $order->id,
             'orderNumber' => $order->order_number,
@@ -338,9 +333,6 @@ class OrderDocumentWorkflowController extends Controller
             'stampHeightMm' => (float) data_get($settings, 'image_overlays.internal_stamp.height_mm', 30),
             'finalPdfDownloadUrl' => filled($orderDocument->generated_pdf_path)
                 ? route('orders.documents.download-final', [$order, $orderDocument])
-                : null,
-            'signedDocxDownloadUrl' => $workflowSigned
-                ? route('orders.documents.download-draft', [$order, $orderDocument])
                 : null,
         ]);
     }
@@ -422,6 +414,8 @@ class OrderDocumentWorkflowController extends Controller
 
         $orderDocument->refresh();
 
+        $this->ensureMayDownloadPrintWorkflowDocx($request, $orderDocument);
+
         $cachedPreviewResponse = $this->resolveCachedPdfPreviewResponse($request, $order, $orderDocument);
         if ($cachedPreviewResponse !== null) {
             return $cachedPreviewResponse;
@@ -450,6 +444,9 @@ class OrderDocumentWorkflowController extends Controller
     {
         $this->ensureCanViewOrderDocuments($request, $order);
         $this->ensureDocumentBelongsToOrder($order, $orderDocument);
+
+        $this->workflowService->ensureApprovedWorkflowPdf($orderDocument);
+        $orderDocument->refresh();
 
         abort_if(blank($orderDocument->generated_pdf_path), 404);
 
@@ -482,6 +479,26 @@ class OrderDocumentWorkflowController extends Controller
         }
 
         return data_get($document->metadata, 'flow') === 'print_template_workflow';
+    }
+
+    private function ensureMayDownloadPrintWorkflowDocx(Request $request, OrderDocument $orderDocument): void
+    {
+        if (! $this->documentIsPrintWorkflow($orderDocument)) {
+            return;
+        }
+
+        if (! in_array($orderDocument->workflow_status, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true)) {
+            return;
+        }
+
+        if ($this->isBrowserPreviewRequested($request)) {
+            return;
+        }
+
+        abort(403, 'Подписанный DOCX недоступен для скачивания. Используйте «Скачать PDF».');
     }
 
     private function inlineDispositionForMime(string $mime, string $filename): string
