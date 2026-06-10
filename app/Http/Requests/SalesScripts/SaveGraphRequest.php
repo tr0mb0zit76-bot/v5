@@ -19,6 +19,7 @@ class SaveGraphRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'autosave' => ['sometimes', 'boolean'],
             'entry_node_key' => ['nullable', 'string', 'max:255'],
             'nodes' => ['required', 'array', 'min:1'],
             'nodes.*.client_key' => ['required', 'string', 'max:255'],

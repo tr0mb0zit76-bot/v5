@@ -1461,7 +1461,7 @@ class OrderPrintFormDraftService
      *
      * @param  array<string, string|null>  $driver
      * @param  Collection<int, mixed>  $cargoItems
-     * @return array{brand: ?string, number: ?string, cargo_body_type: ?string, trailer_type: ?string}
+     * @return array{brand: ?string, number: ?string, trailer_brand: ?string, trailer_plate: ?string, cargo_body_type: ?string, trailer_type: ?string}
      */
     private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId, Collection $cargoItems): array
     {
@@ -1477,6 +1477,8 @@ class OrderPrintFormDraftService
                         $fleetVehicle->tractor_plate,
                         $fleetVehicle->trailer_plate,
                     ]),
+                    'trailer_brand' => $fleetVehicle->trailer_brand,
+                    'trailer_plate' => $fleetVehicle->trailer_plate,
                     'cargo_body_type' => $cargoTruckBody,
                     'trailer_type' => $cargoTruckBody,
                 ];
@@ -1503,6 +1505,19 @@ class OrderPrintFormDraftService
                 data_get($orderMetadata, 'vehicle.number'),
                 data_get($orderMetadata, 'vehicle_number'),
                 data_get($orderMetadata, 'gosnomer'),
+            ]),
+            'trailer_brand' => $this->firstFilledValue([
+                data_get($orderWizardState, 'vehicle.trailer_brand'),
+                data_get($orderWizardState, 'transport.trailer_brand'),
+                data_get($orderMetadata, 'vehicle.trailer_brand'),
+                data_get($orderMetadata, 'trailer_brand'),
+            ]),
+            'trailer_plate' => $this->firstFilledValue([
+                data_get($orderWizardState, 'vehicle.trailer_plate'),
+                data_get($orderWizardState, 'transport.trailer_plate'),
+                data_get($orderMetadata, 'vehicle.trailer_plate'),
+                data_get($orderMetadata, 'trailer_plate'),
+                data_get($orderMetadata, 'gosnomer_priz'),
             ]),
             'cargo_body_type' => $cargoTruckBody,
             'trailer_type' => $cargoTruckBody,

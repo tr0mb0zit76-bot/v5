@@ -508,7 +508,7 @@ class CommandBarAgentService
             ? "\n- Для анализа обращений к ассистенту (частые вопросы, слабые ответы) используй get_ai_usage_insights; для закрытия пробелов в знаниях — search_sales_book_articles и upsert_sales_book_article (если есть право)."
             : '';
         $trainerCoachingHint = (RoleAccess::canViewTrainerAnalytics($user) || RoleAccess::canViewAiAnalytics($user))
-            ? "\n- Для аналитики зацикливания в тренажёре продаж (тупики, hotspots, рекомендации) используй get_trainer_coaching_insights."
+            ? "\n- Для коучинга подопечных по продажам: get_trainer_coaching_insights (тренажёр, зацикливание) и get_sales_script_coaching_insights (живые скрипты, исходы и возражения). При вопросах руководителя о качестве команды — вызывай оба инструмента, сформируй конкретные рекомендации (кого разобрать, какие сценарии/ветки поправить, что добавить в Книгу продаж через search_sales_book_articles / upsert_sales_book_article)."
             : '';
         $salesCoachingHint = RoleAccess::canViewSalesCoachingInsights($user)
             ? "\n- На вопросы «почему не закрываю сделки» используй get_manager_sales_coaching_insights: паттерны по закрытым лидам, гигиена квалификации, простой vs активность на этапах (не путай долгое молчание с подготовкой)."

@@ -64,6 +64,9 @@ export const crmPageTitleSm = 'crm-page-title crm-page-title--sm';
 
 export const crmBtnPrimary = 'crm-btn-primary';
 
+/** Кнопки выбора реакции в прохождении скрипта (мягче, чем sky-700) */
+export const crmBtnScriptChoice = 'crm-btn-script-choice';
+
 export const crmBtnSecondary = 'crm-btn-secondary';
 
 export const crmPill = 'crm-pill';

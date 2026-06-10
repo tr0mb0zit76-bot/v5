@@ -24,6 +24,7 @@ use App\Services\OrderActivityTimelineService;
 use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\SalesBook\SalesBookQualityInsightsService;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
+use App\Services\SalesScripts\SalesScriptCoachingInsightsService;
 use App\Services\SalesScripts\TrainerCoachingInsightsService;
 use App\Support\AiInteractionFeature;
 use App\Support\DispositionSlot;
@@ -55,6 +56,7 @@ class AgentToolRegistry
         private readonly OrderActivityTimelineService $orderTimeline,
         private readonly AiUsageAnalyticsService $aiUsageAnalytics,
         private readonly TrainerCoachingInsightsService $trainerCoachingInsights,
+        private readonly SalesScriptCoachingInsightsService $salesScriptCoachingInsights,
         private readonly ManagerSalesCoachingInsightsService $managerSalesCoachingInsights,
         private readonly OrderIntakeMcpService $orderIntake,
         private readonly MailMcpService $mail,
@@ -660,6 +662,27 @@ class AgentToolRegistry
                 canUse: fn (User $user): bool => RoleAccess::canViewTrainerAnalytics($user)
                     || RoleAccess::canViewAiAnalytics($user),
                 invoke: fn (User $user, array $args): array => $this->trainerCoachingInsights->insights(
+                    $user,
+                    (int) ($args['days'] ?? 30),
+                    isset($args['user_id']) ? (int) $args['user_id'] : null,
+                    (int) ($args['sample_limit'] ?? 15),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_sales_script_coaching_insights',
+                description: 'Аналитика живых прохождений скриптов: исходы, возражения, слабые менеджеры, проблемные сценарии и рекомендации руководителю.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 365],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
+                        'sample_limit' => ['type' => 'integer', 'minimum' => 5, 'maximum' => 50],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canViewTrainerAnalytics($user)
+                    || RoleAccess::canViewAiAnalytics($user),
+                invoke: fn (User $user, array $args): array => $this->salesScriptCoachingInsights->insights(
                     $user,
                     (int) ($args['days'] ?? 30),
                     isset($args['user_id']) ? (int) $args['user_id'] : null,

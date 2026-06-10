@@ -38,10 +38,13 @@
                     >
                         Снять с публикации
                     </button>
-                    <button type="button" :class="crmBtnCreate" :disabled="saving" @click="saveGraph">
+                    <button type="button" :class="crmBtnCreate" :disabled="saving || autosaving" @click="saveGraph">
                         {{ saving ? 'Сохранение…' : 'Сохранить' }}
                     </button>
                 </div>
+                <p v-if="autosaveHint" class="text-xs text-zinc-500 dark:text-zinc-400">
+                    {{ autosaveHint }}
+                </p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <Link
@@ -352,7 +355,8 @@
 
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, reactive, ref } from 'vue';
+import axios from 'axios';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import ScriptGraphCanvas from '@/Components/SalesScripts/ScriptGraphCanvas.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
@@ -383,6 +387,10 @@ const props = defineProps({
 
 const page = usePage();
 const saving = ref(false);
+const autosaving = ref(false);
+const autosaveHint = ref('');
+const autosaveTimer = ref(null);
+const autosaveQueued = ref(false);
 const edgeSeq = ref(1);
 const selectedNodeKey = ref(props.payload.nodes[0]?.client_key ?? null);
 const selectedTransitionId = ref(null);
@@ -775,9 +783,7 @@ function unpublish() {
     router.post(route('scripts.editor.versions.unpublish', props.payload.version.id));
 }
 
-function saveGraph() {
-    saving.value = true;
-
+function buildGraphPayload() {
     const nodes = graphNodes.map((node, index) => ({
         client_key: node.client_key.trim(),
         kind: node.kind,
@@ -798,13 +804,88 @@ function saveGraph() {
         sort_order: index,
     }));
 
+    return {
+        entry_node_key: entryNodeKey.value.trim() === '' ? null : entryNodeKey.value.trim(),
+        nodes,
+        transitions,
+    };
+}
+
+function scheduleAutosave() {
+    if (autosaveTimer.value) {
+        clearTimeout(autosaveTimer.value);
+    }
+
+    autosaveHint.value = 'Есть несохранённые изменения…';
+
+    autosaveTimer.value = setTimeout(() => {
+        autosaveTimer.value = null;
+        void runAutosave();
+    }, 2000);
+}
+
+async function runAutosave() {
+    if (saving.value || autosaving.value) {
+        autosaveQueued.value = true;
+
+        return;
+    }
+
+    autosaving.value = true;
+    autosaveHint.value = 'Автосохранение…';
+
+    try {
+        await axios.put(
+            route('scripts.editor.versions.graph.update', props.payload.version.id),
+            {
+                ...buildGraphPayload(),
+                autosave: true,
+            },
+        );
+        autosaveHint.value = 'Черновик сохранён автоматически';
+    } catch {
+        autosaveHint.value = 'Не удалось автосохранить — нажмите «Сохранить»';
+    } finally {
+        autosaving.value = false;
+
+        if (autosaveQueued.value) {
+            autosaveQueued.value = false;
+            scheduleAutosave();
+        }
+    }
+}
+
+watch(
+    [graphNodes, graphTransitions, entryNodeKey],
+    () => {
+        scheduleAutosave();
+    },
+    { deep: true },
+);
+
+onBeforeUnmount(() => {
+    if (autosaveTimer.value) {
+        clearTimeout(autosaveTimer.value);
+        autosaveTimer.value = null;
+    }
+
+    if (!saving.value && !autosaving.value) {
+        void runAutosave();
+    }
+});
+
+function saveGraph() {
+    if (autosaveTimer.value) {
+        clearTimeout(autosaveTimer.value);
+        autosaveTimer.value = null;
+    }
+
+    saving.value = true;
+    autosaveHint.value = '';
+
     router.put(
         route('scripts.editor.versions.graph.update', props.payload.version.id),
-        {
-            entry_node_key: entryNodeKey.value.trim() === '' ? null : entryNodeKey.value.trim(),
-            nodes,
-            transitions,
-        },
+        buildGraphPayload(),
         {
             preserveScroll: true,
             onFinish: () => {

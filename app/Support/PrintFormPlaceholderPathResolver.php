@@ -190,6 +190,8 @@ class PrintFormPlaceholderPathResolver
             'passport_voditel' => 'driver.passport_data',
             'marka_avto' => 'vehicle.brand',
             'gosnomer' => 'vehicle.number',
+            'marka_priz' => 'vehicle.trailer_brand',
+            'gosnomer_priz' => 'vehicle.trailer_plate',
             'tip_pritsepa' => 'vehicle.cargo_body_type',
             'tip_prizepa' => 'vehicle.cargo_body_type',
             'poln_nazv_zak' => 'customer.full_name',

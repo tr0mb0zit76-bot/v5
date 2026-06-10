@@ -19,6 +19,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 - search_sales_book_articles / get_sales_book_article / upsert_sales_book_article / get_sales_book_quality_insights / get_sales_book_quiz_insights
 - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
 - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
+- get_sales_script_coaching_insights — живые прохождения скриптов: исходы, возражения, слабые менеджеры, рекомендации (аналитика тренажёра / settings_system)
 - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
 - get_print_form_templates_insights — шаблоны DOCX, базовые условия, диагностика печати (settings_system)
 - upsert_print_form_basic_terms — прямое сохранение базовых условий cp/dp (admin / settings_system)

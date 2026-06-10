@@ -24,6 +24,7 @@ use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
 use App\Services\SalesScripts\SalesScriptBodyPlaceholderService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -158,7 +159,7 @@ class SalesScriptEditorController extends Controller
         return to_route('scripts.editor.versions.show', $sales_script_version);
     }
 
-    public function updateGraph(SaveGraphRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse
+    public function updateGraph(SaveGraphRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse|JsonResponse
     {
         $version = $sales_script_version;
         $this->authorize('update', $version);
@@ -244,6 +245,13 @@ class SalesScriptEditorController extends Controller
                 'entry_node_key' => $entryNodeKey === '' ? null : $entryNodeKey,
             ]);
         });
+
+        if ($request->boolean('autosave')) {
+            return response()->json([
+                'ok' => true,
+                'saved_at' => now()->toIso8601String(),
+            ]);
+        }
 
         return to_route('scripts.editor.versions.show', $version)->with('flash', [
             'type' => 'success',

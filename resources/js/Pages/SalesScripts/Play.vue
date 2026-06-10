@@ -457,7 +457,7 @@
                     v-for="(choice, idx) in playPresentation.choices"
                     :key="`${choice.transition_id}-${idx}`"
                     type="button"
-                    class="rounded-xl border border-sky-700 bg-sky-700 px-5 py-3.5 text-left text-sm font-medium text-white shadow-sm transition hover:bg-sky-800 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
+                    :class="crmBtnScriptChoice"
                     @click="advanceChoice(choice)"
                 >
                     <span v-if="choice.has_customer_phrase">{{ choice.label }}</span>
@@ -468,7 +468,7 @@
             <button
                 v-else-if="!mustComplete && playPresentation.choices.length === 1 && !playPresentation.choices[0].sales_script_reaction_class_id"
                 type="button"
-                class="rounded-xl border border-sky-700 bg-sky-700 px-5 py-3.5 text-sm font-medium text-white transition hover:bg-sky-800 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
+                :class="crmBtnScriptChoice"
                 @click="advanceChoice(playPresentation.choices[0])"
             >
                 {{ playPresentation.choices[0].label }}
@@ -535,7 +535,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnCreate, crmBtnPrimary } from '@/support/crmUi.js';
+import { crmBtnCreate, crmBtnPrimary, crmBtnScriptChoice } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>

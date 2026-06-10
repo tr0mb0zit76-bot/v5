@@ -24,6 +24,7 @@ use App\Mcp\Tools\GetPrintFormTemplatesInsightsTool;
 use App\Mcp\Tools\GetSalesBookArticleTool;
 use App\Mcp\Tools\GetSalesBookQualityInsightsTool;
 use App\Mcp\Tools\GetSalesBookQuizInsightsTool;
+use App\Mcp\Tools\GetSalesScriptCoachingInsightsTool;
 use App\Mcp\Tools\GetTaskTool;
 use App\Mcp\Tools\GetTrainerCoachingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
@@ -69,6 +70,7 @@ use Laravel\Mcp\Server\Tool;
         - search_sales_book_articles / get_sales_book_article / upsert_sales_book_article / get_sales_book_quality_insights / get_sales_book_quiz_insights
         - get_ai_usage_insights — аналитика обращений к AI (admin / settings_system)
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
+        - get_sales_script_coaching_insights — живые прохождения скриптов: исходы, возражения, слабые менеджеры, рекомендации (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft / remember_order_intake_phrase — черновики заявок
         - apply_order_wizard_draft: dry_run=true → confirm_token, затем вызов с confirm_token (создание заказа из draft_id)
@@ -113,6 +115,7 @@ class CrmServer extends Server
         GetSalesBookQuizInsightsTool::class,
         GetAiUsageInsightsTool::class,
         GetTrainerCoachingInsightsTool::class,
+        GetSalesScriptCoachingInsightsTool::class,
         GetManagerSalesCoachingInsightsTool::class,
         GetPrintFormBasicTermsTool::class,
         GetPrintFormTemplatesInsightsTool::class,

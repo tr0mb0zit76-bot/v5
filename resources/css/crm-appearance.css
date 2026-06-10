@@ -74,6 +74,35 @@ html.dark[data-crm-accent='sky'] .crm-btn-create:hover {
     @apply border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }
 
+.crm-btn-script-choice {
+    display: block;
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(56 189 248 / 0.55);
+    background-color: rgb(14 165 233 / 0.82);
+    padding: 0.875rem 1.25rem;
+    text-align: left;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgb(255 255 255);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.crm-btn-script-choice:hover {
+    border-color: rgb(56 189 248 / 0.75);
+    background-color: rgb(14 165 233 / 0.92);
+}
+
+.dark .crm-btn-script-choice {
+    border-color: rgb(56 189 248 / 0.45);
+    background-color: rgb(2 132 199 / 0.78);
+}
+
+.dark .crm-btn-script-choice:hover {
+    background-color: rgb(2 132 199 / 0.9);
+}
+
 .crm-btn-secondary-outline {
     @apply justify-center border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800;
 }

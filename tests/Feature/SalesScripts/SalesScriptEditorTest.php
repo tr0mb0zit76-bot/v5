@@ -162,6 +162,62 @@ class SalesScriptEditorTest extends TestCase
         $this->assertSame(['квалификация', 'знакомство'], $node->tags);
     }
 
+    public function test_graph_autosave_returns_json_without_redirect(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'editor_autosave',
+            'display_name' => 'Editor autosave',
+            'visibility_areas' => json_encode(['dashboard', 'settings_system'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $script = SalesScript::query()->create([
+            'title' => 'Автосохранение',
+            'description' => null,
+            'channel' => 'phone',
+            'tags' => [],
+        ]);
+
+        $version = SalesScriptVersion::query()->create([
+            'sales_script_id' => $script->id,
+            'version_number' => 1,
+            'published_at' => null,
+            'is_active' => false,
+            'entry_node_key' => 'start',
+        ]);
+
+        $this->actingAs($user)
+            ->putJson(route('scripts.editor.versions.graph.update', $version), [
+                'autosave' => true,
+                'entry_node_key' => 'start',
+                'nodes' => [
+                    [
+                        'client_key' => 'start',
+                        'kind' => 'say',
+                        'body' => 'Текст',
+                        'hint' => null,
+                        'tags' => [],
+                        'sort_order' => 0,
+                        'canvas_x' => 10,
+                        'canvas_y' => 20,
+                    ],
+                ],
+                'transitions' => [],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $node = SalesScriptNode::query()->where('sales_script_version_id', $version->id)->first();
+        $this->assertSame(10, $node?->canvas_x);
+        $this->assertSame(20, $node?->canvas_y);
+    }
+
     public function test_admin_can_open_editor_index(): void
     {
         $roleId = DB::table('roles')->insertGetId([

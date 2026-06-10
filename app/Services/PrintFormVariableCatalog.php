@@ -9,7 +9,7 @@ class PrintFormVariableCatalog
      */
     public function orderOptions(): array
     {
-        return array_merge([
+        return $this->sortedOptions(array_merge([
             ['value' => 'order.id', 'label' => 'Заказ: ID'],
             ['value' => 'order.order_number', 'label' => 'Заказ: Номер'],
             ['value' => 'order.order_date', 'label' => 'Заказ: Дата'],
@@ -144,6 +144,8 @@ class PrintFormVariableCatalog
             ['value' => 'driver.passport_data', 'label' => 'Водитель: Паспортные данные'],
             ['value' => 'vehicle.brand', 'label' => 'Транспорт: Марка'],
             ['value' => 'vehicle.number', 'label' => 'Транспорт: Номер'],
+            ['value' => 'vehicle.trailer_brand', 'label' => 'Транспорт: Марка прицепа'],
+            ['value' => 'vehicle.trailer_plate', 'label' => 'Транспорт: Госномер прицепа'],
             ['value' => 'vehicle.transport_type', 'label' => 'Транспорт: тип (алиас кузова / совместимость)'],
             ['value' => 'vehicle.cargo_body_type', 'label' => 'Транспорт: Кузов (из заказа — груз, поле «Кузов»)'],
             ['value' => 'vehicle.trailer_type', 'label' => 'Транспорт: Кузов — то же, что cargo_body_type (совместимость)'],
@@ -200,7 +202,7 @@ class PrintFormVariableCatalog
             ['value' => 'cargo.first_hs_code', 'label' => 'Груз: Первый код ТН ВЭД'],
             ['value' => 'cargo.truck_body_types', 'label' => 'Груз: Типы кузова'],
             ['value' => 'cargo.trailer_types', 'label' => 'Груз: Типы прицепа'],
-        ], $this->orderFinancialNormsPlaceholderOptions());
+        ], $this->orderFinancialNormsPlaceholderOptions()));
     }
 
     /**
@@ -248,7 +250,7 @@ class PrintFormVariableCatalog
      */
     public function leadOptions(): array
     {
-        return [
+        return $this->sortedOptions([
             ['value' => 'lead.id', 'label' => 'Лид: ID'],
             ['value' => 'lead.number', 'label' => 'Лид: Номер'],
             ['value' => 'lead.status', 'label' => 'Лид: Статус'],
@@ -329,7 +331,20 @@ class PrintFormVariableCatalog
             ['value' => 'offer.offer_date', 'label' => 'КП: Дата'],
             ['value' => 'offer.price', 'label' => 'КП: Цена'],
             ['value' => 'offer.currency', 'label' => 'КП: Валюта'],
-        ];
+        ]);
+    }
+
+    /**
+     * @param  list<array{value: string, label: string}>  $options
+     * @return list<array{value: string, label: string}>
+     */
+    private function sortedOptions(array $options): array
+    {
+        usort($options, static function (array $left, array $right): int {
+            return strcasecmp($left['label'], $right['label']);
+        });
+
+        return $options;
     }
 
     /**

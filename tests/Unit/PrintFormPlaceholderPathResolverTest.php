@@ -19,6 +19,21 @@ class PrintFormPlaceholderPathResolverTest extends TestCase
     }
 
     #[Test]
+    public function it_maps_trailer_legacy_placeholders_to_vehicle_trailer_fields(): void
+    {
+        $resolver = new PrintFormPlaceholderPathResolver;
+
+        $this->assertSame(
+            'vehicle.trailer_brand',
+            $resolver->resolve('marka_priz', [], 'order', 'customer'),
+        );
+        $this->assertSame(
+            'vehicle.trailer_plate',
+            $resolver->resolve('gosnomer_priz', [], 'order', 'customer'),
+        );
+    }
+
+    #[Test]
     public function it_maps_legacy_special_conditions_placeholders_to_route_fields(): void
     {
         $resolver = new PrintFormPlaceholderPathResolver;
