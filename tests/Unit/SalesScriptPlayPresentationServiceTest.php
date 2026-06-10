@@ -101,5 +101,38 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
         $this->assertNull($presentation['operator_line']);
         $this->assertTrue($presentation['is_branch_only']);
         $this->assertSame('Напишите на почту', $presentation['choices'][0]['label']);
+        $this->assertTrue($presentation['choices'][0]['has_customer_phrase']);
+    }
+
+    public function test_reaction_without_customer_phrase_does_not_use_taxonomy_as_quote(): void
+    {
+        $say = new SalesScriptNode([
+            'client_key' => 'intro',
+            'kind' => SalesScriptNodeKind::Say,
+            'body' => 'Добрый день!',
+            'hint' => null,
+        ]);
+
+        $reaction = new SalesScriptReactionClass([
+            'id' => 7,
+            'label' => 'Сравнивает с другим перевозчиком',
+        ]);
+
+        $transition = new SalesScriptTransition([
+            'id' => 30,
+            'sales_script_reaction_class_id' => 7,
+            'customer_label' => null,
+        ]);
+        $transition->setRelation('reactionClass', $reaction);
+
+        $playSession = $this->createMock(SalesScriptPlaySessionService::class);
+        $playSession->method('outgoingTransitions')->willReturn([$transition]);
+
+        $service = new SalesScriptPlayPresentationService($playSession);
+        $presentation = $service->build($say);
+
+        $this->assertFalse($presentation['choices'][0]['has_customer_phrase']);
+        $this->assertSame('Фраза клиента не задана в редакторе', $presentation['choices'][0]['label']);
+        $this->assertStringContainsString('Сравнивает с другим перевозчиком', (string) $presentation['choices'][0]['subtitle']);
     }
 }

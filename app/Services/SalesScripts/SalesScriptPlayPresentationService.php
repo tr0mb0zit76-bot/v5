@@ -26,6 +26,8 @@ final class SalesScriptPlayPresentationService
      *         sales_script_reaction_class_id: int|null,
      *         label: string,
      *         subtitle: string|null,
+     *         reaction_type_label: string|null,
+     *         has_customer_phrase: bool,
      *         compound: bool
      *     }>,
      *     step_key: string|null,
@@ -135,11 +137,15 @@ final class SalesScriptPlayPresentationService
     private function mapChoices(array $transitions, bool $compound): array
     {
         return array_map(function (SalesScriptTransition $transition) use ($compound): array {
+            $hasCustomerPhrase = filled($transition->customer_label);
+
             return [
                 'transition_id' => (int) $transition->id,
                 'sales_script_reaction_class_id' => $transition->sales_script_reaction_class_id,
                 'label' => $this->choiceLabel($transition),
                 'subtitle' => $this->choiceSubtitle($transition),
+                'reaction_type_label' => $transition->reactionClass?->label,
+                'has_customer_phrase' => $hasCustomerPhrase,
                 'compound' => $compound,
             ];
         }, $transitions);
@@ -158,6 +164,8 @@ final class SalesScriptPlayPresentationService
             'sales_script_reaction_class_id' => null,
             'label' => $preview ?? 'Продолжить',
             'subtitle' => $preview !== null ? 'Следующий шаг сценария' : null,
+            'reaction_type_label' => null,
+            'has_customer_phrase' => false,
             'compound' => false,
         ];
     }
@@ -168,16 +176,24 @@ final class SalesScriptPlayPresentationService
             return (string) $transition->customer_label;
         }
 
-        return $transition->reactionClass?->label ?? 'Вариант ответа';
+        if ($transition->sales_script_reaction_class_id !== null) {
+            return 'Фраза клиента не задана в редакторе';
+        }
+
+        return 'Продолжить';
     }
 
     private function choiceSubtitle(SalesScriptTransition $transition): ?string
     {
-        if (filled($transition->customer_label) && $transition->reactionClass !== null) {
+        if ($transition->reactionClass === null) {
+            return null;
+        }
+
+        if (filled($transition->customer_label)) {
             return $transition->reactionClass->label;
         }
 
-        return null;
+        return 'Тип реакции для разметки: '.$transition->reactionClass->label;
     }
 
     private function previewNextStep(SalesScriptNode $next): ?string

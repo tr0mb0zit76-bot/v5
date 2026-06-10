@@ -1,14 +1,16 @@
 <template>
     <div :class="pageRootClass">
-        <div class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Скрипт</div>
+        <div
+            v-if="isTrainerActive"
+            class="border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        >
+            <div class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">Тренажёр</div>
             <h1 class="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-50">{{ session.script_title }}</h1>
-            <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Версия {{ session.version_number }} · сессия #{{ session.id }}</p>
             <div
-                v-if="playContext?.return === 'trainer' && playContext?.trainer_profile?.title"
+                v-if="playContext?.trainer_profile?.title"
                 class="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-100"
             >
-                Тренажер: {{ trainingRoleLabel }} · профиль «{{ playContext.trainer_profile.title }}»
+                {{ trainingRoleLabel }} · профиль «{{ playContext.trainer_profile.title }}»
             </div>
         </div>
 
@@ -323,12 +325,6 @@
                     </button>
                 </div>
 
-                <div v-if="trainerEventTrail.length > 0" class="border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-                    <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Ход сценария</h3>
-                    <ol class="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
-                        <li v-for="ev in trainerEventTrail" :key="ev.id">{{ ev.label }}</li>
-                    </ol>
-                </div>
             </div>
 
             <aside
@@ -408,83 +404,46 @@
         </div>
 
         <!-- Прохождение скрипта (не тренажёр) -->
-        <div v-else-if="currentNode && playPresentation" class="space-y-4">
-            <article class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                <div class="border-b border-zinc-100 bg-gradient-to-r from-emerald-50/90 via-white to-white px-6 py-4 dark:border-zinc-800 dark:from-emerald-950/30 dark:via-zinc-950 dark:to-zinc-950">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <span class="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-700 dark:text-emerald-300">
-                            {{ operatorKindLabel(playPresentation.operator_kind) }}
-                        </span>
-                        <span v-if="playPresentation.step_key" class="font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
-                            {{ playPresentation.step_key }}
-                        </span>
-                    </div>
-                </div>
+        <div v-else-if="currentNode && playPresentation" class="space-y-6">
+            <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ session.script_title }}</h1>
 
-                <div v-if="playPresentation.operator_line" class="px-6 py-8">
-                    <p class="whitespace-pre-wrap text-xl font-medium leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-50 md:text-2xl">
-                        {{ playPresentation.operator_line }}
-                    </p>
-                </div>
-
-                <div
-                    v-else-if="playPresentation.is_branch_only"
-                    class="px-6 py-6"
-                >
-                    <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                        Слушайте ответ собеседника и выберите, что он сказал:
-                    </p>
-                    <p
-                        v-if="playPresentation.branch_instruction"
-                        class="mt-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
-                    >
-                        {{ playPresentation.branch_instruction }}
-                    </p>
-                </div>
-
-                <details
-                    v-if="playPresentation.coaching_hint"
-                    class="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800"
-                >
-                    <summary class="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
-                        Методология (СПИН, тон, рамка)
-                    </summary>
-                    <p class="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
-                        {{ playPresentation.coaching_hint }}
-                    </p>
-                </details>
+            <article v-if="playPresentation.operator_line" class="space-y-4">
+                <p class="whitespace-pre-wrap text-xl font-medium leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-50 md:text-2xl">
+                    {{ playPresentation.operator_line }}
+                </p>
             </article>
+
+            <p
+                v-else-if="playPresentation.is_branch_only && playPresentation.choices.length > 0"
+                class="text-sm text-zinc-600 dark:text-zinc-300"
+            >
+                Выберите, что ответил собеседник:
+            </p>
 
             <section
                 v-if="!mustComplete && playPresentation.choices.length > 0"
-                class="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-5 dark:border-zinc-800 dark:bg-zinc-900/40"
+                class="flex flex-col gap-2.5"
             >
-                <h2 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">
-                    Клиент может ответить
-                </h2>
-                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                    Выберите фразу, которую вы услышали от собеседника
-                </p>
-                <div class="mt-4 flex flex-col gap-2.5">
-                    <button
-                        v-for="(choice, idx) in playPresentation.choices"
-                        :key="`${choice.transition_id}-${idx}`"
-                        type="button"
-                        class="group rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-left shadow-sm transition hover:border-sky-300 hover:bg-sky-50/50 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:hover:border-sky-700 dark:hover:bg-sky-950/20"
-                        @click="advanceChoice(choice)"
-                    >
-                        <span class="block text-base font-medium leading-snug text-zinc-900 dark:text-zinc-50">
-                            «{{ choice.label }}»
-                        </span>
-                        <span
-                            v-if="choice.subtitle"
-                            class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400"
-                        >
-                            {{ choice.subtitle }}
-                        </span>
-                    </button>
-                </div>
+                <button
+                    v-for="(choice, idx) in playPresentation.choices"
+                    :key="`${choice.transition_id}-${idx}`"
+                    type="button"
+                    class="rounded-xl border border-sky-700 bg-sky-700 px-5 py-3.5 text-left text-sm font-medium text-white shadow-sm transition hover:bg-sky-800 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
+                    @click="advanceChoice(choice)"
+                >
+                    <span v-if="choice.has_customer_phrase">{{ choice.label }}</span>
+                    <span v-else class="italic opacity-90">{{ choice.label }}</span>
+                </button>
             </section>
+
+            <button
+                v-else-if="!mustComplete && playPresentation.choices.length === 1 && !playPresentation.choices[0].sales_script_reaction_class_id"
+                type="button"
+                class="rounded-xl border border-sky-700 bg-sky-700 px-5 py-3.5 text-sm font-medium text-white transition hover:bg-sky-800 dark:border-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500"
+                @click="advanceChoice(playPresentation.choices[0])"
+            >
+                {{ playPresentation.choices[0].label }}
+            </button>
         </div>
 
         <div
@@ -531,12 +490,6 @@
             </button>
         </div>
 
-        <div v-if="!isTrainerActive && eventTrail.length > 0" class="border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-            <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Ход сессии</h3>
-            <ol class="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
-                <li v-for="ev in eventTrail" :key="ev.id">{{ ev.label }}</li>
-            </ol>
-        </div>
 
         <div class="flex flex-wrap gap-3">
             <Link
