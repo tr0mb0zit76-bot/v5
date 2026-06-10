@@ -59,7 +59,7 @@
                     :href="route('scripts.editor.versions.graph', payload.version.id)"
                     class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
                 >
-                    Визуальный редактор
+                    Конструктор на канвасе
                 </Link>
             </div>
         </section>

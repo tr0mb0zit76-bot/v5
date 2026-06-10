@@ -18,6 +18,7 @@ use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
+use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
 use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
 use App\Services\SalesScripts\TrainerCoachingHintService;
@@ -36,6 +37,7 @@ class SalesScriptController extends Controller
 {
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
+        private readonly SalesScriptPlayPresentationService $playPresentationService,
         private readonly TrainerDialogHintService $trainerDialogHintService,
         private readonly TrainerAssistantAutoReactionService $trainerAssistantAutoReactionService,
         private readonly TrainerSalesBookBriefService $trainerSalesBookBriefService,
@@ -136,10 +138,15 @@ class SalesScriptController extends Controller
                 $outgoing[] = [
                     'transition_id' => $t->id,
                     'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
-                    'label' => $rc ? $rc->label : 'Дальше',
+                    'customer_label' => $t->customer_label,
+                    'label' => filled($t->customer_label)
+                        ? (string) $t->customer_label
+                        : ($rc ? $rc->label : 'Дальше'),
                 ];
             }
         }
+
+        $playPresentation = $this->playPresentationService->build($current);
 
         $eventTrail = $session->events->map(fn ($e): array => [
             'id' => $e->id,
@@ -212,6 +219,7 @@ class SalesScriptController extends Controller
                 'client_key' => $current->client_key,
             ] : null,
             'outgoingTransitions' => $outgoing,
+            'playPresentation' => $playPresentation,
             'mustComplete' => $current !== null && count($outgoing) === 0 && ! $session->isComplete(),
             'eventTrail' => $eventTrail,
             'outcomeOptions' => collect(SalesPlaySessionOutcome::cases())->map(fn (SalesPlaySessionOutcome $o): array => [
@@ -664,10 +672,14 @@ class SalesScriptController extends Controller
         $validated = $request->validated();
 
         try {
-            $this->playSessionService->advance(
-                $session,
-                $validated['sales_script_reaction_class_id'] ?? null,
-            );
+            $reactionId = $validated['sales_script_reaction_class_id'] ?? null;
+            $compound = (bool) ($validated['compound'] ?? false);
+
+            if ($compound && $reactionId !== null) {
+                $this->playSessionService->advanceCompound($session, $reactionId);
+            } else {
+                $this->playSessionService->advance($session, $reactionId);
+            }
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['advance' => $e->getMessage()]);
         }

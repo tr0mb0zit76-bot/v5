@@ -66,9 +66,9 @@ class SalesScriptsDemoSeeder extends Seeder
             ],
             transitions: [
                 ['from' => 'intro', 'to' => 'gatekeeper_branch', 'reaction' => null],
-                ['from' => 'gatekeeper_branch', 'to' => 'lpr_open', 'reaction' => 'positive_signal'],
-                ['from' => 'gatekeeper_branch', 'to' => 'clarify_contact', 'reaction' => 'need_info'],
-                ['from' => 'gatekeeper_branch', 'to' => 'clarify_contact', 'reaction' => 'stall'],
+                ['from' => 'gatekeeper_branch', 'to' => 'lpr_open', 'reaction' => 'positive_signal', 'customer_label' => 'Да, это я / соединяю с ЛПР'],
+                ['from' => 'gatekeeper_branch', 'to' => 'clarify_contact', 'reaction' => 'need_info', 'customer_label' => 'Скажите, что вы хотели?'],
+                ['from' => 'gatekeeper_branch', 'to' => 'clarify_contact', 'reaction' => 'stall', 'customer_label' => 'Не сейчас, напишите на почту'],
                 ['from' => 'clarify_contact', 'to' => 'next_step', 'reaction' => null],
                 ['from' => 'lpr_open', 'to' => 'spin_probe', 'reaction' => null],
                 ['from' => 'spin_probe', 'to' => 'value_pitch', 'reaction' => 'positive_signal'],
@@ -102,11 +102,11 @@ class SalesScriptsDemoSeeder extends Seeder
             ],
             transitions: [
                 ['from' => 'intro', 'to' => 'spin_discovery', 'reaction' => null],
-                ['from' => 'spin_discovery', 'to' => 'criteria_probe', 'reaction' => 'positive_signal'],
-                ['from' => 'spin_discovery', 'to' => 'procedure_probe', 'reaction' => 'need_info'],
-                ['from' => 'spin_discovery', 'to' => 'objection_handle', 'reaction' => 'stall'],
-                ['from' => 'spin_discovery', 'to' => 'objection_handle', 'reaction' => 'competitor'],
-                ['from' => 'spin_discovery', 'to' => 'objection_handle', 'reaction' => 'price_objection'],
+                ['from' => 'spin_discovery', 'to' => 'criteria_probe', 'reaction' => 'positive_signal', 'customer_label' => 'Да, задавайте вопросы'],
+                ['from' => 'spin_discovery', 'to' => 'procedure_probe', 'reaction' => 'need_info', 'customer_label' => 'Нужно уточнить у коллег'],
+                ['from' => 'spin_discovery', 'to' => 'objection_handle', 'reaction' => 'stall', 'customer_label' => 'Сейчас не готов общаться, пишите на почту'],
+                ['from' => 'spin_discovery', 'to' => 'objection_handle', 'reaction' => 'competitor', 'customer_label' => 'У нас уже есть перевозчик'],
+                ['from' => 'spin_discovery', 'to' => 'objection_handle', 'reaction' => 'price_objection', 'customer_label' => 'Сначала скажите цену'],
                 ['from' => 'criteria_probe', 'to' => 'procedure_probe', 'reaction' => null],
                 ['from' => 'procedure_probe', 'to' => 'anti_criteria', 'reaction' => null],
                 ['from' => 'anti_criteria', 'to' => 'proposal_frame', 'reaction' => null],
@@ -208,8 +208,8 @@ class SalesScriptsDemoSeeder extends Seeder
     }
 
     /**
-     * @param  list<array{client_key:string,kind:SalesScriptNodeKind,body:string,hint:?string,sort_order:int}>  $nodes
-     * @param  list<array{from:string,to:string,reaction:?string}>  $transitions
+     * @param  list<array{client_key:string,kind:SalesScriptNodeKind,body:string,hint:?string,sort_order:int,canvas_x?:int,canvas_y?:int}>  $nodes
+     * @param  list<array{from:string,to:string,reaction:?string,customer_label?:?string}>  $transitions
      * @param  array<string, int>  $reactionIds
      */
     private function seedScript(
@@ -268,6 +268,8 @@ class SalesScriptsDemoSeeder extends Seeder
                     'body' => $nodePayload['body'],
                     'hint' => $nodePayload['hint'],
                     'sort_order' => $nodePayload['sort_order'],
+                    'canvas_x' => $nodePayload['canvas_x'] ?? null,
+                    'canvas_y' => $nodePayload['canvas_y'] ?? null,
                 ],
             );
 
@@ -286,6 +288,7 @@ class SalesScriptsDemoSeeder extends Seeder
                 'sales_script_reaction_class_id' => $transitionPayload['reaction'] !== null
                     ? $reactionIds[$transitionPayload['reaction']]
                     : null,
+                'customer_label' => $transitionPayload['customer_label'] ?? null,
                 'sort_order' => 0,
             ]);
         }

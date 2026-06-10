@@ -61,11 +61,35 @@ class SalesScriptPlaySessionService
     public function outgoingTransitions(SalesScriptNode $node): array
     {
         return $node->outgoingTransitions()
-            ->with('reactionClass')
+            ->with(['reactionClass', 'toNode'])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
             ->all();
+    }
+
+    public function advanceCompound(
+        SalesScriptPlaySession $session,
+        int $reactionClassId,
+    ): SalesScriptPlaySession {
+        if ($session->isComplete()) {
+            throw new InvalidArgumentException('Сессия уже завершена.');
+        }
+
+        $current = $session->currentNode;
+        if ($current === null) {
+            throw new InvalidArgumentException('Нет текущего узла.');
+        }
+
+        $linear = $this->resolveTransition($current, null);
+        $next = $linear->toNode;
+        if ($next === null) {
+            throw new InvalidArgumentException('Нет следующего узла для составного перехода.');
+        }
+
+        $session = $this->advance($session, null);
+
+        return $this->advance($session->fresh(['currentNode']), $reactionClassId);
     }
 
     public function advance(

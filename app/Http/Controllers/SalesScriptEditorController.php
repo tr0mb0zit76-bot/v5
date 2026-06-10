@@ -105,6 +105,8 @@ class SalesScriptEditorController extends Controller
                         'body' => $node->body,
                         'hint' => $node->hint,
                         'sort_order' => $node->sort_order,
+                        'canvas_x' => $node->canvas_x,
+                        'canvas_y' => $node->canvas_y,
                     ]);
                     $idMap[$node->id] = $copy->id;
                 }
@@ -116,6 +118,7 @@ class SalesScriptEditorController extends Controller
                         'from_node_id' => $idMap[$transition->from_node_id],
                         'to_node_id' => $idMap[$transition->to_node_id],
                         'sales_script_reaction_class_id' => $transition->sales_script_reaction_class_id,
+                        'customer_label' => $transition->customer_label,
                         'sort_order' => $transition->sort_order,
                     ]);
                 }
@@ -239,6 +242,7 @@ class SalesScriptEditorController extends Controller
                     'from_node_id' => $nodesByKey[$transitionData['from_client_key']]->id,
                     'to_node_id' => $nodesByKey[$transitionData['to_client_key']]->id,
                     'sales_script_reaction_class_id' => $transitionData['sales_script_reaction_class_id'] ?? null,
+                    'customer_label' => $transitionData['customer_label'] ?? null,
                     'sort_order' => $transitionData['sort_order'] ?? $index,
                 ]);
             }
@@ -464,6 +468,7 @@ class SalesScriptEditorController extends Controller
                 'from_node_id' => $t->from_node_id,
                 'to_node_id' => $t->to_node_id,
                 'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
+                'customer_label' => $t->customer_label,
                 'sort_order' => $t->sort_order,
             ]),
         ];

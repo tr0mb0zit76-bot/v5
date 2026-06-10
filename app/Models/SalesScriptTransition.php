@@ -14,6 +14,7 @@ class SalesScriptTransition extends Model
         'from_node_id',
         'to_node_id',
         'sales_script_reaction_class_id',
+        'customer_label',
         'sort_order',
     ];
 

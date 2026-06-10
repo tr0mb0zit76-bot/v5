@@ -4,15 +4,15 @@
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <div :class="crmPageEyebrow">Версия {{ payload.version.version_number }}</div>
-                    <h1 :class="crmPageTitle">Визуальный редактор</h1>
+                    <h1 :class="crmPageTitle">Конструктор сценария</h1>
                     <p :class="`${crmPageLead} mt-2`">{{ payload.script.title }}</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <button type="button" :class="crmBtnSecondary" @click="addNode">
-                        Добавить шаг
+                        + Шаг
                     </button>
-                    <button type="button" :class="crmBtnCreate" @click="saveGraph">
-                        Сохранить граф
+                    <button type="button" :class="crmBtnCreate" :disabled="saving" @click="saveGraph">
+                        {{ saving ? 'Сохранение…' : 'Сохранить' }}
                     </button>
                 </div>
             </div>
@@ -21,7 +21,7 @@
                     :href="route('scripts.editor.versions.show', payload.version.id)"
                     class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
                 >
-                    ← К форме редактора
+                    ← Табличный редактор
                 </Link>
                 <Link
                     :href="route('scripts.editor.index')"
@@ -36,85 +36,37 @@
             >
                 {{ page.props.flash.message }}
             </p>
-            <div
-                v-if="page.props.errors && Object.keys(page.props.errors).length"
-                class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200"
-            >
-                <ul class="list-inside list-disc space-y-1">
-                    <li v-for="(msg, key) in page.props.errors" :key="key">
-                        {{ key }}: {{ Array.isArray(msg) ? msg[0] : msg }}
-                    </li>
-                </ul>
-            </div>
         </section>
 
-        <section class="grid gap-6 xl:grid-cols-[1fr_340px]">
-            <div :class="`${crmPanel} p-3`">
-                <div :class="`${crmPanel} mb-3 p-3 text-xs`">
-                    <p :class="crmPageLead">
-                        Перетаскивайте карточки за верхнюю панель. Выберите шаг и редактируйте поля справа. Переходы рисуются из ключей шагов.
-                    </p>
-                </div>
-
-                <div
-                    ref="canvasRef"
-                    class="crm-graph-canvas relative h-[720px] overflow-auto rounded-xl border p-0"
-                >
-                    <svg class="pointer-events-none absolute inset-0 h-full w-full">
-                        <g v-for="edge in edgeLines" :key="edge.id">
-                            <line
-                                :x1="edge.x1"
-                                :y1="edge.y1"
-                                :x2="edge.x2"
-                                :y2="edge.y2"
-                                class="stroke-zinc-400 dark:stroke-zinc-600"
-                                stroke-width="2"
-                            />
-                            <text
-                                :x="edge.labelX"
-                                :y="edge.labelY"
-                                class="fill-zinc-600 text-[11px] dark:fill-zinc-300"
-                            >
-                                {{ edge.label }}
-                            </text>
-                        </g>
-                    </svg>
-
-                    <article
-                        v-for="node in graphNodes"
-                        :key="node.client_key"
-                        class="crm-graph-node absolute w-[280px] p-3 shadow-sm transition"
-                        :class="selectedNodeKey === node.client_key ? 'crm-graph-node--selected' : ''"
-                        :style="{ left: `${node.canvas_x}px`, top: `${node.canvas_y}px` }"
-                        @click="selectNode(node.client_key)"
-                    >
-                        <header
-                            class="crm-graph-node__handle cursor-grab rounded-lg border px-2 py-1.5 text-xs font-medium"
-                            @mousedown="startDrag($event, node.client_key)"
-                        >
-                            {{ node.client_key }} · {{ kindLabel(node.kind) }}
-                        </header>
-                        <p class="mt-2 line-clamp-5 whitespace-pre-wrap text-sm">{{ node.body }}</p>
-                    </article>
-                </div>
-            </div>
+        <section class="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <ScriptGraphCanvas
+                :nodes="graphNodes"
+                :transitions="graphTransitions"
+                :entry-node-key="entryNodeKey"
+                :node-kinds="nodeKinds"
+                :reaction-classes="reactionClasses"
+                :selected-node-key="selectedNodeKey"
+                :selected-transition-id="selectedTransitionId"
+                @update:selected-node-key="selectedNodeKey = $event"
+                @update:selected-transition-id="selectedTransitionId = $event"
+                @update:node-position="onNodePosition"
+                @create-transition="onCreateTransition"
+            />
 
             <div class="space-y-4">
-                <section :class="`${crmPanel} space-y-2 p-4`">
+                <section :class="`${crmPanel} space-y-3 p-4`">
                     <h2 :class="crmSectionTitle">Стартовый шаг</h2>
-                    <input
-                        v-model="entryNodeKey"
-                        type="text"
-                        :class="crmFieldFluid"
-                        placeholder="client_key"
-                    />
+                    <select v-model="entryNodeKey" :class="crmFieldFluid">
+                        <option v-for="node in graphNodes" :key="`entry-${node.client_key}`" :value="node.client_key">
+                            {{ node.client_key }}
+                        </option>
+                    </select>
                 </section>
 
-                <section :class="`${crmPanel} space-y-3 p-4`">
+                <section v-if="selectedNode" :class="`${crmPanel} space-y-3 p-4`">
                     <div class="flex items-center justify-between gap-2">
                         <h2 :class="crmSectionTitle">Шаг</h2>
                         <button
-                            v-if="selectedNode"
                             type="button"
                             class="text-xs font-medium text-rose-700 hover:underline dark:text-rose-300"
                             @click="removeNode(selectedNode.client_key)"
@@ -122,65 +74,81 @@
                             Удалить
                         </button>
                     </div>
-
-                    <div v-if="selectedNode" class="space-y-3">
-                        <div>
-                            <label :class="crmLabelCompact">Ключ</label>
-                            <input v-model="selectedNode.client_key" type="text" :class="`${crmFieldFluid} mt-1`" />
-                        </div>
-                        <div>
-                            <label :class="crmLabelCompact">Тип</label>
-                            <select v-model="selectedNode.kind" :class="`${crmFieldFluid} mt-1`">
-                                <option v-for="kind in nodeKinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label :class="crmLabelCompact">Текст</label>
-                            <textarea v-model="selectedNode.body" rows="4" :class="`${crmFieldFluid} mt-1`" />
-                        </div>
-                        <div>
-                            <label :class="crmLabelCompact">Подсказка</label>
-                            <input v-model="selectedNode.hint" type="text" :class="`${crmFieldFluid} mt-1`" />
-                        </div>
+                    <div>
+                        <label :class="crmLabelCompact">Ключ</label>
+                        <input v-model="selectedNode.client_key" type="text" :class="`${crmFieldFluid} mt-1`" />
                     </div>
-                    <p v-else :class="crmPageLead">Выберите шаг на схеме.</p>
+                    <div>
+                        <label :class="crmLabelCompact">Тип</label>
+                        <select v-model="selectedNode.kind" :class="`${crmFieldFluid} mt-1`">
+                            <option v-for="kind in nodeKinds" :key="kind.value" :value="kind.value">{{ kind.label }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label :class="crmLabelCompact">Реплика / текст оператора</label>
+                        <textarea v-model="selectedNode.body" rows="5" :class="`${crmFieldFluid} mt-1`" />
+                    </div>
+                    <div>
+                        <label :class="crmLabelCompact">Методология (свернуто у оператора)</label>
+                        <input v-model="selectedNode.hint" type="text" :class="`${crmFieldFluid} mt-1`" placeholder="СПИН, тон, рамка времени…" />
+                    </div>
                 </section>
 
                 <section :class="`${crmPanel} space-y-3 p-4`">
-                    <h2 :class="crmSectionTitle">Переходы</h2>
-                    <form class="grid gap-2" @submit.prevent="addTransition">
-                        <select v-model="newTransition.from_client_key" :class="crmFieldFluid">
-                            <option disabled value="">Из шага</option>
-                            <option v-for="node in graphNodes" :key="`from-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
-                        </select>
-                        <select v-model="newTransition.to_client_key" :class="crmFieldFluid">
-                            <option disabled value="">В шаг</option>
-                            <option v-for="node in graphNodes" :key="`to-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
-                        </select>
-                        <select v-model="newTransition.sales_script_reaction_class_id" :class="crmFieldFluid">
-                            <option :value="null">Дальше</option>
-                            <option v-for="reaction in reactionClasses" :key="reaction.id" :value="reaction.id">{{ reaction.label }}</option>
-                        </select>
-                        <button type="submit" :class="crmBtnSecondary">
-                            Добавить переход
-                        </button>
-                    </form>
+                    <h2 :class="crmSectionTitle">Связи</h2>
+                    <p :class="crmPageLead">
+                        Подпись на стрелке — фраза клиента в прохождении. Класс реакции — для аналитики.
+                    </p>
 
-                    <ul class="space-y-2 text-xs">
+                    <div v-if="selectedTransition" class="space-y-3 rounded-xl border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-900/50 dark:bg-sky-950/20">
+                        <div class="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200">Выбранная связь</div>
+                        <div class="grid gap-2">
+                            <select v-model="selectedTransition.from_client_key" :class="crmFieldFluid">
+                                <option v-for="node in graphNodes" :key="`sel-from-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
+                            </select>
+                            <select v-model="selectedTransition.to_client_key" :class="crmFieldFluid">
+                                <option v-for="node in graphNodes" :key="`sel-to-${node.client_key}`" :value="node.client_key">{{ node.client_key }}</option>
+                            </select>
+                            <input
+                                v-model="selectedTransition.customer_label"
+                                type="text"
+                                :class="crmFieldFluid"
+                                placeholder="Фраза клиента: «Да, задавайте вопросы»"
+                            />
+                            <select v-model="selectedTransition.sales_script_reaction_class_id" :class="crmFieldFluid">
+                                <option :value="null">Линейный переход (без реакции)</option>
+                                <option v-for="reaction in reactionClasses" :key="reaction.id" :value="reaction.id">{{ reaction.label }}</option>
+                            </select>
+                            <div class="flex gap-2">
+                                <button type="button" :class="`${crmBtnSecondary} flex-1 text-xs`" @click="moveTransition(-1)">↑</button>
+                                <button type="button" :class="`${crmBtnSecondary} flex-1 text-xs`" @click="moveTransition(1)">↓</button>
+                                <button
+                                    type="button"
+                                    class="flex-1 rounded-xl border border-rose-200 px-2 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                    @click="removeTransition(selectedTransition.local_id)"
+                                >
+                                    Удалить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <ul class="max-h-64 space-y-2 overflow-y-auto text-xs">
                         <li
                             v-for="transition in graphTransitions"
                             :key="transition.local_id"
-                            class="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700"
+                            class="cursor-pointer rounded-lg border p-2 transition"
+                            :class="selectedTransitionId === transition.local_id
+                                ? 'border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/30'
+                                : 'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900/50'"
+                            @click="selectedTransitionId = transition.local_id"
                         >
-                            <div class="font-medium">{{ transition.from_client_key }} → {{ transition.to_client_key }}</div>
-                            <div :class="`${crmPageLead} mt-1`">{{ transitionLabel(transition.sales_script_reaction_class_id) }}</div>
-                            <button
-                                type="button"
-                                class="mt-1 text-rose-700 hover:underline dark:text-rose-300"
-                                @click="removeTransition(transition.local_id)"
-                            >
-                                Удалить
-                            </button>
+                            <div class="font-medium text-zinc-800 dark:text-zinc-100">
+                                {{ transition.from_client_key }} → {{ transition.to_client_key }}
+                            </div>
+                            <div :class="`${crmPageLead} mt-1`">
+                                {{ transition.customer_label || transitionLabel(transition.sales_script_reaction_class_id) }}
+                            </div>
                         </li>
                     </ul>
                 </section>
@@ -191,7 +159,8 @@
 
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
+import ScriptGraphCanvas from '@/Components/SalesScripts/ScriptGraphCanvas.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
     crmBtnCreate,
@@ -209,9 +178,6 @@ defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),
 });
 
-const NODE_WIDTH = 280;
-const NODE_HEIGHT = 152;
-
 const props = defineProps({
     payload: { type: Object, required: true },
     reactionClasses: { type: Array, default: () => [] },
@@ -219,10 +185,11 @@ const props = defineProps({
 });
 
 const page = usePage();
-const canvasRef = ref(null);
-const selectedNodeKey = ref(props.payload.nodes[0]?.client_key ?? null);
-const entryNodeKey = ref(props.payload.version.entry_node_key ?? props.payload.nodes[0]?.client_key ?? '');
+const saving = ref(false);
 const edgeSeq = ref(1);
+const selectedNodeKey = ref(props.payload.nodes[0]?.client_key ?? null);
+const selectedTransitionId = ref(null);
+const entryNodeKey = ref(props.payload.version.entry_node_key ?? props.payload.nodes[0]?.client_key ?? '');
 
 const graphNodes = reactive(
     props.payload.nodes.map((node, index) => ({
@@ -231,8 +198,8 @@ const graphNodes = reactive(
         body: node.body ?? '',
         hint: node.hint ?? '',
         sort_order: node.sort_order ?? index,
-        canvas_x: Number.isInteger(node.canvas_x) ? node.canvas_x : 32 + (index % 3) * 320,
-        canvas_y: Number.isInteger(node.canvas_y) ? node.canvas_y : 24 + Math.floor(index / 3) * 220,
+        canvas_x: Number.isInteger(node.canvas_x) ? node.canvas_x : 40 + (index % 3) * 340,
+        canvas_y: Number.isInteger(node.canvas_y) ? node.canvas_y : 40 + Math.floor(index / 3) * 240,
     })),
 );
 
@@ -242,70 +209,16 @@ const graphTransitions = reactive(
         from_client_key: resolveClientKeyByNodeId(transition.from_node_id),
         to_client_key: resolveClientKeyByNodeId(transition.to_node_id),
         sales_script_reaction_class_id: transition.sales_script_reaction_class_id ?? null,
+        customer_label: transition.customer_label ?? '',
         sort_order: transition.sort_order ?? index,
     })),
 );
 
-const newTransition = reactive({
-    from_client_key: graphNodes[0]?.client_key ?? '',
-    to_client_key: graphNodes[1]?.client_key ?? graphNodes[0]?.client_key ?? '',
-    sales_script_reaction_class_id: null,
-});
-
-const dragState = reactive({
-    active: false,
-    nodeKey: null,
-    startX: 0,
-    startY: 0,
-    originX: 0,
-    originY: 0,
-});
-
 const selectedNode = computed(() => graphNodes.find((node) => node.client_key === selectedNodeKey.value) ?? null);
-const nodeByKey = computed(() => {
-    const map = new Map();
-    for (const node of graphNodes) {
-        map.set(node.client_key, node);
-    }
-
-    return map;
-});
-
-const edgeLines = computed(() => {
-    return graphTransitions
-        .map((transition, index) => {
-            const from = nodeByKey.value.get(transition.from_client_key);
-            const to = nodeByKey.value.get(transition.to_client_key);
-
-            if (!from || !to) {
-                return null;
-            }
-
-            const x1 = from.canvas_x + NODE_WIDTH / 2;
-            const y1 = from.canvas_y + NODE_HEIGHT;
-            const x2 = to.canvas_x + NODE_WIDTH / 2;
-            const y2 = to.canvas_y;
-
-            return {
-                id: transition.local_id ?? `edge-${index}`,
-                x1,
-                y1,
-                x2,
-                y2,
-                labelX: (x1 + x2) / 2 + 8,
-                labelY: (y1 + y2) / 2 - 6,
-                label: transitionLabel(transition.sales_script_reaction_class_id),
-            };
-        })
-        .filter(Boolean);
-});
+const selectedTransition = computed(() => graphTransitions.find((t) => t.local_id === selectedTransitionId.value) ?? null);
 
 function resolveClientKeyByNodeId(nodeId) {
     return props.payload.nodes.find((node) => node.id === nodeId)?.client_key ?? '';
-}
-
-function kindLabel(kind) {
-    return props.nodeKinds.find((item) => item.value === kind)?.label ?? kind;
 }
 
 function transitionLabel(reactionId) {
@@ -328,8 +241,38 @@ function uniqueClientKey(base) {
     return candidate;
 }
 
-function selectNode(clientKey) {
-    selectedNodeKey.value = clientKey;
+function onNodePosition({ client_key, canvas_x, canvas_y }) {
+    const node = graphNodes.find((item) => item.client_key === client_key);
+    if (node) {
+        node.canvas_x = canvas_x;
+        node.canvas_y = canvas_y;
+    }
+}
+
+function onCreateTransition({ from_client_key, to_client_key }) {
+    const exists = graphTransitions.some(
+        (t) => t.from_client_key === from_client_key
+            && t.to_client_key === to_client_key
+            && t.sales_script_reaction_class_id === null
+            && !t.customer_label,
+    );
+
+    if (exists) {
+        return;
+    }
+
+    const localId = `new-${edgeSeq.value}`;
+    edgeSeq.value += 1;
+
+    graphTransitions.push({
+        local_id: localId,
+        from_client_key,
+        to_client_key,
+        sales_script_reaction_class_id: null,
+        customer_label: '',
+        sort_order: graphTransitions.length,
+    });
+    selectedTransitionId.value = localId;
 }
 
 function addNode() {
@@ -337,11 +280,11 @@ function addNode() {
     graphNodes.push({
         client_key: key,
         kind: props.nodeKinds[0]?.value ?? 'say',
-        body: 'Новый шаг',
+        body: 'Новая реплика оператора',
         hint: '',
         sort_order: graphNodes.length,
-        canvas_x: 48 + (graphNodes.length % 3) * 320,
-        canvas_y: 48 + Math.floor(graphNodes.length / 3) * 220,
+        canvas_x: 60 + (graphNodes.length % 3) * 340,
+        canvas_y: 60 + Math.floor(graphNodes.length / 3) * 240,
     });
     selectedNodeKey.value = key;
 
@@ -374,70 +317,36 @@ function removeNode(clientKey) {
     }
 }
 
-function addTransition() {
-    if (!newTransition.from_client_key || !newTransition.to_client_key) {
-        return;
-    }
-
-    graphTransitions.push({
-        local_id: `new-${edgeSeq.value}`,
-        from_client_key: newTransition.from_client_key,
-        to_client_key: newTransition.to_client_key,
-        sales_script_reaction_class_id: newTransition.sales_script_reaction_class_id,
-        sort_order: graphTransitions.length,
-    });
-    edgeSeq.value += 1;
-}
-
 function removeTransition(localId) {
     const index = graphTransitions.findIndex((transition) => transition.local_id === localId);
     if (index !== -1) {
         graphTransitions.splice(index, 1);
     }
+
+    if (selectedTransitionId.value === localId) {
+        selectedTransitionId.value = null;
+    }
 }
 
-function startDrag(event, clientKey) {
-    const node = graphNodes.find((item) => item.client_key === clientKey);
-    if (!node) {
+function moveTransition(direction) {
+    if (!selectedTransition.value) {
         return;
     }
 
-    dragState.active = true;
-    dragState.nodeKey = clientKey;
-    dragState.startX = event.clientX;
-    dragState.startY = event.clientY;
-    dragState.originX = node.canvas_x;
-    dragState.originY = node.canvas_y;
-    selectedNodeKey.value = clientKey;
+    const index = graphTransitions.findIndex((t) => t.local_id === selectedTransition.value.local_id);
+    const target = index + direction;
 
-    window.addEventListener('mousemove', onDragMove);
-    window.addEventListener('mouseup', stopDrag, { once: true });
-}
-
-function onDragMove(event) {
-    if (!dragState.active || !dragState.nodeKey) {
+    if (index < 0 || target < 0 || target >= graphTransitions.length) {
         return;
     }
 
-    const node = graphNodes.find((item) => item.client_key === dragState.nodeKey);
-    if (!node) {
-        return;
-    }
-
-    const dx = event.clientX - dragState.startX;
-    const dy = event.clientY - dragState.startY;
-
-    node.canvas_x = Math.round(dragState.originX + dx);
-    node.canvas_y = Math.round(dragState.originY + dy);
-}
-
-function stopDrag() {
-    dragState.active = false;
-    dragState.nodeKey = null;
-    window.removeEventListener('mousemove', onDragMove);
+    const [item] = graphTransitions.splice(index, 1);
+    graphTransitions.splice(target, 0, item);
 }
 
 function saveGraph() {
+    saving.value = true;
+
     const nodes = graphNodes.map((node, index) => ({
         client_key: node.client_key.trim(),
         kind: node.kind,
@@ -452,6 +361,7 @@ function saveGraph() {
         from_client_key: transition.from_client_key,
         to_client_key: transition.to_client_key,
         sales_script_reaction_class_id: transition.sales_script_reaction_class_id,
+        customer_label: transition.customer_label?.trim() || null,
         sort_order: index,
     }));
 
@@ -464,75 +374,10 @@ function saveGraph() {
         },
         {
             preserveScroll: true,
+            onFinish: () => {
+                saving.value = false;
+            },
         },
     );
 }
-
-onBeforeUnmount(() => {
-    window.removeEventListener('mousemove', onDragMove);
-});
 </script>
-
-<style scoped>
-.crm-graph-canvas {
-    border-color: rgb(228 228 231);
-    background: rgb(250 250 250);
-}
-
-.dark .crm-graph-canvas {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27 / 0.65);
-}
-
-html[data-crm-workspace-skin='sky'] .crm-graph-canvas {
-    border-color: rgb(var(--crm-border));
-    background: rgb(var(--crm-surface-muted) / 0.85);
-}
-
-.crm-graph-node {
-    border: 1px solid rgb(228 228 231);
-    border-radius: 0.75rem;
-    background: rgb(255 255 255);
-    color: rgb(24 24 27);
-}
-
-.dark .crm-graph-node {
-    border-color: rgb(63 63 70);
-    background: rgb(9 9 11);
-    color: rgb(244 244 245);
-}
-
-html[data-crm-workspace-skin='sky'] .crm-graph-node {
-    border-color: rgb(var(--crm-border));
-    background: rgb(var(--crm-surface));
-    color: rgb(var(--crm-text));
-}
-
-.crm-graph-node--selected {
-    border-color: rgb(14 165 233);
-    box-shadow: 0 0 0 2px rgb(14 165 233 / 0.25);
-}
-
-html[data-crm-workspace-skin='sky'] .crm-graph-node--selected {
-    border-color: rgb(var(--crm-accent));
-    box-shadow: 0 0 0 2px rgb(var(--crm-accent) / 0.28);
-}
-
-.crm-graph-node__handle {
-    border-color: rgb(228 228 231);
-    background: rgb(250 250 250);
-    color: rgb(63 63 70);
-}
-
-.dark .crm-graph-node__handle {
-    border-color: rgb(63 63 70);
-    background: rgb(24 24 27);
-    color: rgb(212 212 216);
-}
-
-html[data-crm-workspace-skin='sky'] .crm-graph-node__handle {
-    border-color: rgb(var(--crm-border));
-    background: rgb(var(--crm-surface-muted));
-    color: rgb(var(--crm-text-muted));
-}
-</style>

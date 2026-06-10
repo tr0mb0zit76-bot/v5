@@ -32,6 +32,7 @@ class SaveGraphRequest extends FormRequest
             'transitions.*.from_client_key' => ['required', 'string', 'max:255'],
             'transitions.*.to_client_key' => ['required', 'string', 'max:255'],
             'transitions.*.sales_script_reaction_class_id' => ['nullable', 'integer', 'exists:sales_script_reaction_classes,id'],
+            'transitions.*.customer_label' => ['nullable', 'string', 'max:500'],
             'transitions.*.sort_order' => ['nullable', 'integer', 'min:0', 'max:65535'],
         ];
     }

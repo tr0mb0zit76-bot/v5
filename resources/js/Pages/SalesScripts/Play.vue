@@ -336,25 +336,84 @@
             </aside>
         </div>
 
-        <!-- Обычная игра по скрипту (не тренажёр) -->
-        <div v-else-if="currentNode" class="space-y-4 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-            <div class="text-xs font-medium text-zinc-500 dark:text-zinc-400">{{ kindLabel(currentNode.kind) }}</div>
-            <div class="whitespace-pre-wrap text-base text-zinc-900 dark:text-zinc-50">{{ currentNode.body }}</div>
-            <p v-if="currentNode.hint" class="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                <span class="font-medium">Подсказка:</span> {{ currentNode.hint }}
-            </p>
+        <!-- Прохождение скрипта (не тренажёр) -->
+        <div v-else-if="currentNode && playPresentation" class="space-y-4">
+            <article class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <div class="border-b border-zinc-100 bg-gradient-to-r from-emerald-50/90 via-white to-white px-6 py-4 dark:border-zinc-800 dark:from-emerald-950/30 dark:via-zinc-950 dark:to-zinc-950">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-700 dark:text-emerald-300">
+                            {{ operatorKindLabel(playPresentation.operator_kind) }}
+                        </span>
+                        <span v-if="playPresentation.step_key" class="font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+                            {{ playPresentation.step_key }}
+                        </span>
+                    </div>
+                </div>
 
-            <div v-if="!mustComplete && outgoingTransitions.length > 0" class="flex flex-col gap-2 pt-2">
-                <button
-                    v-for="(t, idx) in outgoingTransitions"
-                    :key="`${t.transition_id}-${idx}`"
-                    type="button"
-                    class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
-                    @click="advance(t.sales_script_reaction_class_id)"
+                <div v-if="playPresentation.operator_line" class="px-6 py-8">
+                    <p class="whitespace-pre-wrap text-xl font-medium leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-50 md:text-2xl">
+                        {{ playPresentation.operator_line }}
+                    </p>
+                </div>
+
+                <div
+                    v-else-if="playPresentation.is_branch_only"
+                    class="px-6 py-6"
                 >
-                    {{ t.label }}
-                </button>
-            </div>
+                    <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                        Слушайте ответ собеседника и выберите, что он сказал:
+                    </p>
+                    <p
+                        v-if="playPresentation.branch_instruction"
+                        class="mt-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/80 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400"
+                    >
+                        {{ playPresentation.branch_instruction }}
+                    </p>
+                </div>
+
+                <details
+                    v-if="playPresentation.coaching_hint"
+                    class="border-t border-zinc-100 px-6 py-3 dark:border-zinc-800"
+                >
+                    <summary class="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                        Методология (СПИН, тон, рамка)
+                    </summary>
+                    <p class="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+                        {{ playPresentation.coaching_hint }}
+                    </p>
+                </details>
+            </article>
+
+            <section
+                v-if="!mustComplete && playPresentation.choices.length > 0"
+                class="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-5 dark:border-zinc-800 dark:bg-zinc-900/40"
+            >
+                <h2 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">
+                    Клиент может ответить
+                </h2>
+                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                    Выберите фразу, которую вы услышали от собеседника
+                </p>
+                <div class="mt-4 flex flex-col gap-2.5">
+                    <button
+                        v-for="(choice, idx) in playPresentation.choices"
+                        :key="`${choice.transition_id}-${idx}`"
+                        type="button"
+                        class="group rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-left shadow-sm transition hover:border-sky-300 hover:bg-sky-50/50 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-950 dark:hover:border-sky-700 dark:hover:bg-sky-950/20"
+                        @click="advanceChoice(choice)"
+                    >
+                        <span class="block text-base font-medium leading-snug text-zinc-900 dark:text-zinc-50">
+                            «{{ choice.label }}»
+                        </span>
+                        <span
+                            v-if="choice.subtitle"
+                            class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400"
+                        >
+                            {{ choice.subtitle }}
+                        </span>
+                    </button>
+                </div>
+            </section>
         </div>
 
         <div
@@ -446,6 +505,18 @@ const props = defineProps({
     session: { type: Object, required: true },
     currentNode: { type: Object, default: null },
     outgoingTransitions: { type: Array, default: () => [] },
+    playPresentation: {
+        type: Object,
+        default: () => ({
+            operator_kind: 'say',
+            operator_line: null,
+            coaching_hint: null,
+            branch_instruction: null,
+            choices: [],
+            step_key: null,
+            is_branch_only: false,
+        }),
+    },
     mustComplete: { type: Boolean, default: false },
     eventTrail: { type: Array, default: () => [] },
     outcomeOptions: { type: Array, default: () => [] },
@@ -624,6 +695,16 @@ function kindLabel(kind) {
     return map[kind] || kind;
 }
 
+function operatorKindLabel(kind) {
+    const map = {
+        say: 'Скажите клиенту',
+        ask: 'Спросите клиента',
+        branch: 'Реакция клиента',
+    };
+
+    return map[kind] || kindLabel(kind);
+}
+
 function trainerMessageRoleLabel(role) {
     if (isManagerBuyerMode.value) {
         return role === 'assistant' ? 'Продавец' : 'Покупатель';
@@ -632,10 +713,15 @@ function trainerMessageRoleLabel(role) {
     return role === 'assistant' ? 'Клиент' : 'Менеджер';
 }
 
-function advance(reactionClassId) {
+function advance(reactionClassId, compound = false) {
     router.post(route('scripts.sessions.advance', props.session.id), {
         sales_script_reaction_class_id: reactionClassId,
+        compound,
     });
+}
+
+function advanceChoice(choice) {
+    advance(choice.sales_script_reaction_class_id, Boolean(choice.compound));
 }
 
 function submitComplete() {
