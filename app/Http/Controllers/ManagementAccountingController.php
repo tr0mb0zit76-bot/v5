@@ -7,7 +7,6 @@ use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementImport;
 use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
 use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
-use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Services\ManagementAccounting\ManagementPayrollHalfService;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -19,7 +18,6 @@ class ManagementAccountingController extends Controller
     public function __construct(
         private readonly ManagementAccountingAnalyticsService $analyticsService,
         private readonly ManagementBankAccountSyncService $bankAccountSyncService,
-        private readonly ManagementExpenseCategorySyncService $expenseCategorySyncService,
         private readonly ManagementPayrollHalfService $payrollHalfService,
     ) {}
 
@@ -53,7 +51,6 @@ class ManagementAccountingController extends Controller
             ]);
 
         $this->bankAccountSyncService->syncFromOwnCompanies();
-        $this->expenseCategorySyncService->syncAll();
 
         $bankAccounts = ManagementBankAccount::query()
             ->where('is_active', true)

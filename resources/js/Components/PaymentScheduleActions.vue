@@ -350,9 +350,7 @@ async function cancelPayment() {
     try {
         await router.post(`/payment-schedules/${props.payment.id}/cancel`, {}, {
             preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'] });
-            },
+            only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'],
         });
     } catch (error) {
         console.error('Ошибка при отмене платежа:', error);
@@ -364,9 +362,7 @@ async function restorePayment() {
     try {
         await router.post(`/payment-schedules/${props.payment.id}/restore`, {}, {
             preserveScroll: true,
-            onSuccess: () => {
-                router.reload({ only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'] });
-            },
+            only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'],
         });
     } catch (error) {
         console.error('Ошибка при восстановлении платежа:', error);

@@ -54,9 +54,9 @@
 
 Плоский редактируемый справочник: **системные** (~10), **из бюджета** (`budget_opex_{id}`) и **пользовательские**.
 
-Синхронизация: `ManagementExpenseCategorySyncService::syncAll()` — системные из `ManagementExpenseCategoryCatalog`, статьи opex из `budget_opex_articles` (обратная связь `management_expense_category_id`).
+Синхронизация: `ManagementExpenseCategorySyncService::syncAll()` — по кнопке «Синхронизировать с бюджетом» (`POST finance.management-accounting.categories.sync`) и в сидере; **не** при каждом открытии Index.
 
-UI: форма «Добавить статью», кнопка «Синхронизировать с бюджетом» (`POST finance.management-accounting.categories.sync`).
+UI: форма «Добавить статью», кнопка синхронизации с бюджетом.
 
 | `code` | Название | `kind` |
 | --- | --- | --- |
