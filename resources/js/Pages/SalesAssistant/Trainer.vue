@@ -1,5 +1,5 @@
 <template>
-    <div class="min-h-0 flex-1 space-y-6 overflow-y-auto lg:min-h-0">
+    <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pb-28 md:pb-8 lg:min-h-0">
         <CrmPageHeader
             lead="Три шага: ваша роль → профиль покупателя → сценарий. Справа на каждом шаге — контекст и подсказки."
             title="Тренажер переговоров"

@@ -17,18 +17,22 @@ use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
-use App\Models\User;
+use App\Services\Ai\AiInteractionRecorder;
 use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
 use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
+use App\Services\SalesScripts\TrainerChatCompletionService;
 use App\Services\SalesScripts\TrainerCoachingHintService;
 use App\Services\SalesScripts\TrainerDialogHintService;
-use App\Services\SalesScripts\TrainerSalesBookBriefService;
+use App\Services\SalesScripts\TrainerGraphCoordinatorService;
+use App\Services\SalesScripts\TrainerScenarioGuidanceService;
+use App\Services\SalesScripts\TrainerScoreCalculator;
+use App\Support\AiChannel;
+use App\Support\AiInteractionFeature;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
@@ -40,8 +44,12 @@ class SalesScriptController extends Controller
         private readonly SalesScriptPlayPresentationService $playPresentationService,
         private readonly TrainerDialogHintService $trainerDialogHintService,
         private readonly TrainerAssistantAutoReactionService $trainerAssistantAutoReactionService,
-        private readonly TrainerSalesBookBriefService $trainerSalesBookBriefService,
         private readonly TrainerCoachingHintService $trainerCoachingHintService,
+        private readonly TrainerGraphCoordinatorService $trainerGraphCoordinatorService,
+        private readonly TrainerScenarioGuidanceService $trainerScenarioGuidanceService,
+        private readonly TrainerChatCompletionService $trainerChatCompletionService,
+        private readonly TrainerScoreCalculator $trainerScoreCalculator,
+        private readonly AiInteractionRecorder $aiInteractionRecorder,
     ) {}
 
     public function index(): Response
@@ -179,6 +187,7 @@ class SalesScriptController extends Controller
 
         $trainerContextualHints = [];
         $trainerEntryPreview = null;
+        $trainerStepHints = [];
         if ($session->is_trainer && $this->includeTrainerScenarioLexicalHints($session)) {
             $trainerContextualHints = $this->trainerDialogHintService->contextualNodeHints(
                 (int) $session->sales_script_version_id,
@@ -190,6 +199,7 @@ class SalesScriptController extends Controller
                 (int) $session->sales_script_version_id,
                 $session->version?->entry_node_key,
             );
+            $trainerStepHints = $this->trainerScenarioGuidanceService->build($current, $playPresentation);
         }
 
         return Inertia::render('SalesScripts/Play', [
@@ -200,6 +210,7 @@ class SalesScriptController extends Controller
                 'training_role_mode' => $session->training_role_mode ?: 'manager_seller',
                 'trainer_contextual_hints' => $trainerContextualHints,
                 'trainer_entry_preview' => $trainerEntryPreview,
+                'trainer_step_hints' => $trainerStepHints,
             ],
             'session' => [
                 'id' => $session->id,
@@ -282,13 +293,42 @@ class SalesScriptController extends Controller
             'content' => $userMessage,
         ]);
 
-        $reply = $this->deepSeekTrainerReply(
-            $profile,
+        $this->trainerGraphCoordinatorService->afterManagerMessage($session);
+
+        $session->refresh();
+        $session->loadMissing(['currentNode', 'version.script', 'events.reactionClass', 'events.node']);
+        $graphBeforeReply = $this->buildTrainerGraphPayload($session);
+        $playPresentation = $graphBeforeReply['play_presentation'];
+
+        $startedAt = microtime(true);
+        $completion = $this->trainerChatCompletionService->replyForTrainerSession(
             $session,
+            $profile,
             $history,
-            $request->user(),
             $userMessage,
+            $request->user(),
+            $playPresentation,
         );
+        $reply = $completion['reply'];
+
+        if ($request->user() !== null) {
+            $this->aiInteractionRecorder->recordConversationTurn(
+                $request->user(),
+                AiInteractionFeature::Trainer,
+                AiChannel::ExternalLarge,
+                $completion['outcome'],
+                $userMessage,
+                $reply,
+                0,
+                [],
+                (int) round((microtime(true) - $startedAt) * 1000),
+                metadata: [
+                    'session_id' => $session->id,
+                    'training_role_mode' => $session->training_role_mode ?: 'manager_seller',
+                    'step_key' => $playPresentation['step_key'] ?? null,
+                ],
+            );
+        }
 
         $assistantMessage = $session->trainerMessages()->create([
             'user_id' => null,
@@ -299,9 +339,12 @@ class SalesScriptController extends Controller
         $autoReaction = $this->trainerAssistantAutoReactionService->classify($session, $reply, $userMessage);
         $assistantMessage->update(['auto_peer_reaction' => $autoReaction]);
 
+        $this->trainerGraphCoordinatorService->afterClientReply($session, $reply);
+
         $session->refresh();
         $session->load('trainerMessages');
         $lines = $this->trainerChatPayload($session->trainerMessages()->orderBy('id')->get());
+        $graphPayload = $this->buildTrainerGraphPayload($session);
         $resolvedCurrent = $this->resolveCurrentNode($session);
         $contextualHints = $this->includeTrainerScenarioLexicalHints($session)
             ? $this->trainerDialogHintService->contextualNodeHints(
@@ -322,7 +365,13 @@ class SalesScriptController extends Controller
             'reply' => $reply,
             'history' => array_slice($lines, -40),
             'contextual_hints' => $contextualHints,
+            'trainer_step_hints' => $graphPayload['trainer_step_hints'],
             'coaching' => $coaching,
+            'current_node' => $graphPayload['current_node'],
+            'play_presentation' => $graphPayload['play_presentation'],
+            'outgoing_transitions' => $graphPayload['outgoing_transitions'],
+            'event_trail' => $graphPayload['event_trail'],
+            'must_complete' => $graphPayload['must_complete'],
         ]);
     }
 
@@ -447,131 +496,61 @@ class SalesScriptController extends Controller
     }
 
     /**
-     * @param  array<string, mixed>  $profile
-     * @param  list<array{role:string,content:string,at?:string}>  $history
+     * @return array{
+     *     current_node: array<string, mixed>|null,
+     *     play_presentation: array<string, mixed>,
+     *     outgoing_transitions: list<array<string, mixed>>,
+     *     event_trail: list<array<string, mixed>>,
+     *     trainer_step_hints: list<array<string, mixed>>,
+     *     must_complete: bool
+     * }
      */
-    private function deepSeekTrainerReply(
-        array $profile,
-        SalesScriptPlaySession $session,
-        array $history,
-        ?User $user,
-        string $lastUserMessage,
-    ): string {
-        $apiKey = (string) config('ai.providers.deepseek.key');
-        if ($apiKey === '') {
-            return 'Не настроен DEEPSEEK_API_KEY. Пока тренировка недоступна.';
-        }
+    private function buildTrainerGraphPayload(SalesScriptPlaySession $session): array
+    {
+        $session->loadMissing(['currentNode', 'events.reactionClass', 'events.node']);
+        $current = $this->resolveCurrentNode($session);
+        $playPresentation = $this->playPresentationService->build($current);
 
-        $session->loadMissing('version.script');
-
-        $title = (string) ($profile['title'] ?? 'Покупатель');
-        $context = (string) ($profile['context'] ?? 'Веди реалистичный диалог как клиент.');
-        $scriptTitle = (string) ($session->version?->script?->title ?? 'Скрипт продаж');
-        $managerAsBuyer = $session->training_role_mode === 'manager_buyer';
-
-        $sharedTrainerSceneRules = "Общие правила тренировочной сцены:\n".
-            "- Это одна непрерывная сцена переговоров; не сбрасывай контекст и не веди себя как при новом первом контакте, если диалог уже развёрнут.\n".
-            "- Не повторяй дословно одно и то же возражение или вопрос, если на него уже ответили — двигай диалог вперёд.\n".
-            "- Если собеседник повторяет вопрос — кратко уточни или дай новый угол, а не копируй предыдущую реплику.\n".
-            "- Если в последних репликах уже зафиксированы конкретные договорённости (следующий шаг, срок, сумма, время созвона, явное согласие) — не разворачивай переговоры заново: дай короткий итог или заверши реплику без новых продажных циклов по уже закрытым вопросам.\n".
-            "- Если собеседник явно завершает диалог (благодарность и стоп, «на этом достаточно», финальный тон согласия) — поддержи завершение, не уводи в новую воронку.\n";
-
-        $sellerTrainerRules = "Как звучать в диалоге:\n".
-            "- Ситуация — живой контакт менеджера с собеседником (часто первый или ранний); ты не знаешь заранее его полномочия и настрой — выясняй естественно.\n".
-            "- Ориентир по продукту и отрасли — из названия сценария «{$scriptTitle}»; не выдумывай юридическое название своей компании, если его не назвали в переписке — можно «мы», «наша сторона», «наша компания».\n".
-            "- Ни в коем случае не произноси вслух слова «профиль», «тренажёр», «сценарий обучения», не обращайся к собеседнику как к «игроку покупателя».\n".
-            "- Ниже дано описание типичного поведения собеседника (для твоего понимания возражений) — это не то, что ты должен ему процитировать или озвучивать.\n";
-
-        $buyerTrainerRules = "Как звучать в диалоге:\n".
-            "- Ты обычный собеседник на стороне клиента; ниже — описание твоей роли для отработки (не озвучивай метки «профиль», «тренажёр»).\n";
-
-        $systemPrompt = $managerAsBuyer
-            ? "Ты — менеджер по продажам / представитель поставщика в учебном диалоге (письменная имитация звонка или переписки).\n".
-                "Собеседник отвечает как представитель заказчика. Ориентир по теме разговора: «{$scriptTitle}».\n\n".
-                $sellerTrainerRules.
-                "\nТиповый портрет собеседника (внутренняя подсказка, не для цитирования): {$title}.\n".
-                "Доп. контекст его роли (внутренняя подсказка): {$context}\n\n".
-                "Правила реплик:\n".
-                "- Только от лица продавца; реалистично и коротко (1–4 предложения).\n".
-                "- Профессионально: уточняй потребность, работай с возражениями, предлагай следующий шаг без токсичности.\n".
-                "- Не дави на мгновенное закрытие в первых репликах; если покупатель уже согласился на конкретный шаг — зафиксируй и не откатывай уже решённое.\n".
-                "- Не раскрывай, что ты AI.\n\n".
-                $sharedTrainerSceneRules
-            : "Ты — клиент / заказчик в учебном диалоге.\n".
-                "Менеджер (пользователь) тренируется с тобой. Тема сценария: «{$scriptTitle}».\n\n".
-                $buyerTrainerRules.
-                "\nТвоя роль: {$title}\n".
-                "Контекст поведения: {$context}\n\n".
-                "Правила реплик:\n".
-                "- Только от лица клиента; реалистично и коротко (1–4 предложения).\n".
-                "- Иногда задавай встречные вопросы.\n".
-                "- Не раскрывай, что ты AI.\n".
-                "- Оценивай предложения менеджера как в живом разговоре.\n\n".
-                $sharedTrainerSceneRules;
-
-        $extra = trim((string) ($session->trainer_assistant_instructions ?? ''));
-        if ($extra !== '') {
-            $systemPrompt .= "\n\nДополнительные указания к репликам:\n".$extra;
-        }
-
-        if ($user !== null) {
-            $salesBookBrief = $this->trainerSalesBookBriefService->buildContextBlock(
-                $user,
-                $scriptTitle,
-                $lastUserMessage,
-                $history,
-            );
-
-            if (is_string($salesBookBrief) && $salesBookBrief !== '') {
-                $systemPrompt .= "\n\n".$salesBookBrief;
+        $outgoing = [];
+        if ($current !== null && ! $session->isComplete()) {
+            foreach ($this->playSessionService->outgoingTransitions($current) as $t) {
+                $rc = $t->reactionClass;
+                $outgoing[] = [
+                    'transition_id' => $t->id,
+                    'sales_script_reaction_class_id' => $t->sales_script_reaction_class_id,
+                    'customer_label' => $t->customer_label,
+                    'label' => filled($t->customer_label)
+                        ? (string) $t->customer_label
+                        : ($rc ? $rc->label : 'Дальше'),
+                ];
             }
         }
 
-        $messages = [
-            [
-                'role' => 'system',
-                'content' => $systemPrompt,
-            ],
+        $eventTrail = $session->events->map(fn ($e): array => [
+            'id' => $e->id,
+            'type' => $e->type->value,
+            'label' => match ($e->type) {
+                SalesPlayEventType::EnteredNode => 'Шаг: '.($e->node?->client_key ?? '#'.$e->sales_script_node_id),
+                SalesPlayEventType::RecordedReaction => 'Реакция: '.($e->reactionClass?->label ?? '—'),
+                SalesPlayEventType::Completed => 'Завершено',
+                default => $e->type->value,
+            },
+        ])->values()->all();
+
+        return [
+            'current_node' => $current ? [
+                'id' => $current->id,
+                'kind' => $current->kind->value,
+                'body' => $current->body,
+                'hint' => $current->hint,
+                'client_key' => $current->client_key,
+            ] : null,
+            'play_presentation' => $playPresentation,
+            'outgoing_transitions' => $outgoing,
+            'event_trail' => $eventTrail,
+            'trainer_step_hints' => $this->trainerScenarioGuidanceService->build($current, $playPresentation),
+            'must_complete' => $current !== null && count($outgoing) === 0 && ! $session->isComplete(),
         ];
-
-        foreach (array_slice($history, -20) as $item) {
-            $messages[] = [
-                'role' => $item['role'] === 'assistant' ? 'assistant' : 'user',
-                'content' => (string) ($item['content'] ?? ''),
-            ];
-        }
-
-        try {
-            $response = Http::timeout(45)
-                ->withToken($apiKey)
-                ->post('https://api.deepseek.com/chat/completions', [
-                    'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
-                    'temperature' => (float) env('DEEPSEEK_TRAINER_TEMPERATURE', 0.7),
-                    'max_tokens' => 350,
-                    'messages' => $messages,
-                ])
-                ->throw()
-                ->json();
-
-            $content = (string) data_get($response, 'choices.0.message.content', '');
-            $content = trim($content);
-
-            if ($content !== '') {
-                return $content;
-            }
-
-            $scriptTitleTrim = trim($scriptTitle);
-
-            return $managerAsBuyer
-                ? ($scriptTitleTrim !== ''
-                    ? 'Добрый день! Повторю короче: звоню впервые по теме «'.$scriptTitleTrim.'» — подскажите, удобно ли сейчас пару минут?'
-                    : 'Добрый день! Повторю короче: звоню впервые — подскажите, удобно ли сейчас пару минут?')
-                : 'Клиент задумался и просит уточнить детали.';
-        } catch (\Throwable) {
-            return $managerAsBuyer
-                ? 'Сейчас не удалось получить ответ. Повторите сообщение или попробуйте ещё раз позже.'
-                : 'Сейчас не удалось получить ответ клиента. Повторите сообщение еще раз.';
-        }
     }
 
     /**
@@ -706,8 +685,9 @@ class SalesScriptController extends Controller
                 $validated['notes'] ?? null,
             );
             if ($session->is_trainer) {
+                $session->load('trainerMessages');
                 $session->update([
-                    'trainer_score' => $this->trainerScoreByOutcome($outcome),
+                    'trainer_score' => $this->trainerScoreCalculator->calculate($session, $outcome),
                 ]);
             }
         } catch (InvalidArgumentException $e) {
@@ -725,17 +705,5 @@ class SalesScriptController extends Controller
         }
 
         return to_route('scripts.index')->with('flash', $flash);
-    }
-
-    private function trainerScoreByOutcome(SalesPlaySessionOutcome $outcome): int
-    {
-        return match ($outcome) {
-            SalesPlaySessionOutcome::Won => 100,
-            SalesPlaySessionOutcome::QuoteSent => 85,
-            SalesPlaySessionOutcome::Progress => 70,
-            SalesPlaySessionOutcome::Postponed => 55,
-            SalesPlaySessionOutcome::NoContact => 40,
-            SalesPlaySessionOutcome::Lost => 20,
-        };
     }
 }

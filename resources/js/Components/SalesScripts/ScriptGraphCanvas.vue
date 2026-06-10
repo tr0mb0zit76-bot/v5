@@ -13,7 +13,7 @@
                 </span>
             </div>
             <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                Тяните блоки за шапку · связь: от <span class="font-medium text-zinc-700 dark:text-zinc-200">●</span> снизу к ● сверху целевого блока
+                Тяните связь от <span class="font-medium text-sky-600 dark:text-sky-400">●</span> на грани блока к ● целевого блока — сторона выбирается по расположению
             </p>
         </div>
 
@@ -77,7 +77,7 @@
                 <article
                     v-for="node in nodes"
                     :key="node.client_key"
-                    class="script-graph__node absolute w-[220px] overflow-hidden rounded-2xl border bg-white shadow-md transition dark:bg-zinc-950"
+                    class="script-graph__node absolute w-[220px] overflow-visible rounded-2xl border bg-white shadow-md transition dark:bg-zinc-950"
                     :class="[
                         kindBorderClass(node.kind),
                         selectedNodeKey === node.client_key ? 'ring-2 ring-sky-500/40' : '',
@@ -89,7 +89,7 @@
                 >
                     <div
                         v-if="entryNodeKey === node.client_key"
-                        class="bg-emerald-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
+                        class="overflow-hidden rounded-t-2xl bg-emerald-600 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
                     >
                         Старт
                     </div>
@@ -105,20 +105,17 @@
                             {{ kindShort(node.kind) }}
                         </span>
                     </header>
-                    <div class="relative flex items-center justify-center px-3 py-3">
-                        <button
-                            type="button"
-                            class="script-graph__port script-graph__port--in"
-                            title="Вход"
-                            @mouseup.stop="finishLink(node.client_key)"
-                        />
-                        <button
-                            type="button"
-                            class="script-graph__port script-graph__port--out"
-                            title="Потянуть связь"
-                            @mousedown.stop="startLink($event, node.client_key)"
-                        />
-                    </div>
+                    <div class="h-2" />
+                    <button
+                        v-for="side in portSides"
+                        :key="`${node.client_key}-${side}`"
+                        type="button"
+                        class="script-graph__port"
+                        :class="`script-graph__port--${side}`"
+                        :title="portTitle(side)"
+                        @mousedown.stop="startLink($event, node.client_key, side)"
+                        @mouseup.stop="finishLink(node.client_key, side)"
+                    />
                 </article>
             </div>
         </div>
@@ -126,11 +123,19 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import {
+    bezierPathBetween,
+    edgeGeometryBetweenNodes,
+    portPoint,
+    sideTowardPoint,
+    boundsCenter,
+} from '@/support/graphEdgeGeometry.js';
 
 const NODE_WIDTH = 220;
-const NODE_HEIGHT = 102;
+const NODE_BODY_HEIGHT = 88;
 const GRID_PAD = 48;
+const portSides = ['top', 'right', 'bottom', 'left'];
 
 const props = defineProps({
     nodes: { type: Array, required: true },
@@ -154,6 +159,7 @@ const viewportRef = ref(null);
 const linkDraft = reactive({
     active: false,
     fromKey: null,
+    fromSide: 'bottom',
     x: 0,
     y: 0,
 });
@@ -172,8 +178,9 @@ const surfaceStyle = computed(() => {
     let maxY = 600;
 
     for (const node of props.nodes) {
-        maxX = Math.max(maxX, Number(node.canvas_x) + NODE_WIDTH + GRID_PAD);
-        maxY = Math.max(maxY, Number(node.canvas_y) + NODE_HEIGHT + GRID_PAD);
+        const bounds = nodeBounds(node);
+        maxX = Math.max(maxX, bounds.x + bounds.width + GRID_PAD);
+        maxY = Math.max(maxY, bounds.y + bounds.height + GRID_PAD);
     }
 
     return {
@@ -193,16 +200,24 @@ const nodeByKey = computed(() => {
     return map;
 });
 
-function portPosition(node, port) {
-    const x = Number(node.canvas_x);
-    const y = Number(node.canvas_y);
-    const height = NODE_HEIGHT + (props.entryNodeKey === node.client_key ? 24 : 0);
+function nodeBounds(node) {
+    const entryExtra = props.entryNodeKey === node.client_key ? 24 : 0;
 
-    if (port === 'out') {
-        return { x: x + NODE_WIDTH / 2, y: y + height - 8 };
-    }
+    return {
+        x: Number(node.canvas_x),
+        y: Number(node.canvas_y),
+        width: NODE_WIDTH,
+        height: NODE_BODY_HEIGHT + entryExtra,
+    };
+}
 
-    return { x: x + NODE_WIDTH / 2, y: y + 6 };
+function portTitle(side) {
+    return ({
+        top: 'Связь сверху',
+        right: 'Связь справа',
+        bottom: 'Связь снизу',
+        left: 'Связь слева',
+    })[side] ?? side;
 }
 
 const edgePaths = computed(() => {
@@ -215,15 +230,13 @@ const edgePaths = computed(() => {
                 return null;
             }
 
-            const start = portPosition(from, 'out');
-            const end = portPosition(to, 'in');
-            const midY = (start.y + end.y) / 2;
+            const geometry = edgeGeometryBetweenNodes(nodeBounds(from), nodeBounds(to));
 
             return {
                 id: transition.local_id,
-                d: `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`,
-                labelX: (start.x + end.x) / 2,
-                labelY: (start.y + end.y) / 2,
+                d: geometry.path,
+                labelX: geometry.labelX,
+                labelY: geometry.labelY,
                 label: transitionLabel(transition),
             };
         })
@@ -240,9 +253,22 @@ const linkDraftPath = computed(() => {
         return '';
     }
 
-    const start = portPosition(from, 'out');
+    const start = portPoint(nodeBounds(from), linkDraft.fromSide);
+    const pointer = { x: linkDraft.x, y: linkDraft.y };
+    const draftSide = sideTowardPoint(boundsCenter(nodeBounds(from)), pointer);
+    const end = portPoint(
+        {
+            x: pointer.x,
+            y: pointer.y,
+            width: 0,
+            height: 0,
+            centerX: pointer.x,
+            centerY: pointer.y,
+        },
+        draftSide,
+    );
 
-    return `M ${start.x} ${start.y} L ${linkDraft.x} ${linkDraft.y}`;
+    return bezierPathBetween(start, linkDraft.fromSide, end, draftSide, 32);
 });
 
 function kindLabel(kind) {
@@ -349,9 +375,10 @@ function pointerOnSurface(event) {
     };
 }
 
-function startLink(event, fromKey) {
+function startLink(event, fromKey, side) {
     linkDraft.active = true;
     linkDraft.fromKey = fromKey;
+    linkDraft.fromSide = side;
     const point = pointerOnSurface(event);
     linkDraft.x = point.x;
     linkDraft.y = point.y;
@@ -370,7 +397,7 @@ function onLinkMove(event) {
     linkDraft.y = point.y;
 }
 
-function finishLink(toKey) {
+function finishLink(toKey, side) {
     if (!linkDraft.active || !linkDraft.fromKey || linkDraft.fromKey === toKey) {
         cancelLink();
 
@@ -382,6 +409,7 @@ function finishLink(toKey) {
         to_client_key: toKey,
     });
     cancelLink();
+    void side;
 }
 
 function cancelLink() {
@@ -394,13 +422,6 @@ onBeforeUnmount(() => {
     window.removeEventListener('mousemove', onNodeDragMove);
     window.removeEventListener('mousemove', onLinkMove);
 });
-
-watch(
-    () => props.nodes.length,
-    () => {
-        // surface recalculates via computed
-    },
-);
 </script>
 
 <style scoped>
@@ -421,8 +442,9 @@ watch(
 
 .script-graph__port {
     position: absolute;
-    height: 14px;
-    width: 14px;
+    z-index: 2;
+    height: 12px;
+    width: 12px;
     border-radius: 9999px;
     border: 2px solid white;
     background: rgb(14 165 233);
@@ -431,18 +453,30 @@ watch(
 }
 
 .script-graph__port:hover {
-    transform: scale(1.15);
+    transform: scale(1.2);
 }
 
-.script-graph__port--in {
+.script-graph__port--top {
+    top: -6px;
     left: 50%;
-    top: -7px;
-    margin-left: -7px;
+    margin-left: -6px;
 }
 
-.script-graph__port--out {
-    right: 50%;
-    bottom: -2px;
-    margin-right: -7px;
+.script-graph__port--bottom {
+    bottom: -6px;
+    left: 50%;
+    margin-left: -6px;
+}
+
+.script-graph__port--left {
+    left: -6px;
+    top: 50%;
+    margin-top: -6px;
+}
+
+.script-graph__port--right {
+    right: -6px;
+    top: 50%;
+    margin-top: -6px;
 }
 </style>

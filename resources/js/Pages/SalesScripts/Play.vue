@@ -24,6 +24,66 @@
         <!-- Тренажёр: диалог слева, сценарий справа -->
         <div v-else-if="isTrainerActive" class="flex flex-col gap-6 xl:flex-row xl:items-start">
             <div class="min-w-0 flex-1 space-y-6">
+                <article
+                    v-if="!isManagerBuyerMode && trainerPlayPresentation && (trainerPlayPresentation.operator_line || trainerPlayPresentation.branch_instruction)"
+                    class="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm dark:border-emerald-900/50 dark:bg-zinc-950"
+                >
+                    <div class="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-white px-6 py-4 dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-zinc-950 dark:to-zinc-950">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-700 dark:text-emerald-300">
+                                {{ operatorKindLabel(trainerPlayPresentation.operator_kind) }}
+                            </span>
+                            <span v-if="trainerPlayPresentation.step_key" class="font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+                                {{ trainerPlayPresentation.step_key }}
+                            </span>
+                        </div>
+                    </div>
+                    <div v-if="trainerPlayPresentation.operator_line" class="px-6 py-6">
+                        <p class="whitespace-pre-wrap text-base leading-relaxed text-zinc-900 dark:text-zinc-50">
+                            {{ trainerPlayPresentation.operator_line }}
+                        </p>
+                    </div>
+                    <div
+                        v-else-if="trainerPlayPresentation.is_branch_only"
+                        class="px-6 py-6"
+                    >
+                        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            Слушайте реакцию клиента
+                        </p>
+                        <p
+                            v-if="trainerPlayPresentation.branch_instruction"
+                            class="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 dark:text-zinc-200"
+                        >
+                            {{ trainerPlayPresentation.branch_instruction }}
+                        </p>
+                    </div>
+                    <div
+                        v-if="trainerPlayPresentation.coaching_hint"
+                        class="border-t border-emerald-100 bg-emerald-50/60 px-6 py-4 text-sm text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100"
+                    >
+                        <span class="text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">Подсказка</span>
+                        <p class="mt-1 whitespace-pre-wrap leading-relaxed">{{ trainerPlayPresentation.coaching_hint }}</p>
+                    </div>
+                    <div
+                        v-if="trainerPlayPresentation.choices?.length"
+                        class="border-t border-zinc-100 px-6 py-4 dark:border-zinc-800"
+                    >
+                        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                            Возможные реплики клиента на этом шаге
+                        </p>
+                        <ul class="mt-2 space-y-2">
+                            <li
+                                v-for="(choice, idx) in trainerPlayPresentation.choices"
+                                :key="choice.transition_id ?? idx"
+                                class="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-200"
+                            >
+                                {{ choice.label }}
+                                <span v-if="choice.subtitle" class="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">{{ choice.subtitle }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </article>
+
                 <div class="space-y-4 border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -263,10 +323,10 @@
                     </button>
                 </div>
 
-                <div v-if="eventTrail.length > 0" class="border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-                    <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Ход сессии</h3>
+                <div v-if="trainerEventTrail.length > 0" class="border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+                    <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Ход сценария</h3>
                     <ol class="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
-                        <li v-for="ev in eventTrail" :key="ev.id">{{ ev.label }}</li>
+                        <li v-for="ev in trainerEventTrail" :key="ev.id">{{ ev.label }}</li>
                     </ol>
                 </div>
             </div>
@@ -282,11 +342,30 @@
                 </div>
 
                 <template v-else>
-                    <div>
-                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Подсказки из сценария</h3>
-                        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            Не шаг графа и не прогресс по сценарию: по совпадению слов из чата с текстом узлов (лексический поиск). Игра по узлам — только в режиме скрипта.
+                    <div v-if="trainerCurrentStepHint" class="space-y-2 rounded-xl border border-emerald-300 bg-emerald-50/95 p-4 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/35 dark:text-emerald-100">
+                        <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                            Текущий шаг сценария
+                        </div>
+                        <p v-if="trainerCurrentStepHint.client_key" class="font-mono text-[10px] text-emerald-700 dark:text-emerald-300">
+                            {{ trainerCurrentStepHint.client_key }}
                         </p>
+                        <p class="whitespace-pre-wrap leading-relaxed">{{ trainerCurrentStepHint.excerpt }}</p>
+                        <p v-if="trainerCurrentStepHint.hint" class="border-t border-emerald-200/80 pt-2 text-[11px] dark:border-emerald-800/60">
+                            {{ trainerCurrentStepHint.hint }}
+                        </p>
+                    </div>
+
+                    <div v-if="trainerClientOptionHints.length > 0" class="space-y-2">
+                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Реакции клиента на шаге</h3>
+                        <ul class="space-y-2">
+                            <li
+                                v-for="(h, idx) in trainerClientOptionHints"
+                                :key="`${h.client_key}-${idx}`"
+                                class="rounded-xl border border-zinc-200 bg-zinc-50/90 p-3 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900/50 dark:text-zinc-200"
+                            >
+                                {{ h.excerpt }}
+                            </li>
+                        </ul>
                     </div>
 
                     <div v-if="trainerCoaching?.coaching_hint" class="space-y-2 rounded-xl border border-amber-300 bg-amber-50/95 p-4 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
@@ -296,18 +375,10 @@
                         <p class="whitespace-pre-wrap leading-relaxed">{{ trainerCoaching.coaching_hint }}</p>
                     </div>
 
-                    <div v-if="trainerSuggestedFocus" class="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-xs text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
-                        <div class="font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Ближайший узел по теме</div>
-                        <p class="whitespace-pre-wrap leading-relaxed">{{ trainerSuggestedFocus.excerpt }}</p>
-                        <p v-if="trainerSuggestedFocus.hint" class="border-t border-emerald-200/80 pt-2 text-[11px] dark:border-emerald-800/60">
-                            {{ trainerSuggestedFocus.hint }}
-                        </p>
-                    </div>
-
                     <div v-if="trainerContextualHints.length > 0" class="space-y-3">
-                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">По теме диалога</h3>
+                        <h3 class="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500 dark:text-zinc-400">Дополнительно по теме диалога</h3>
                         <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Подбор по словам из последних реплик (MySQL, без векторов). Фрагменты узлов из редактора / сидов.
+                            Лексический поиск по словам из чата — вспомогательно, не заменяет текущий шаг графа.
                         </p>
                         <ul class="space-y-3">
                             <li
@@ -326,11 +397,11 @@
                             </li>
                         </ul>
                     </div>
-                    <div v-else-if="trainerChatHistory.length > 0" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-                        Нет узлов с заметным пересечением по словам. Попробуйте термины из сценария (цена, срок, документы…).
+                    <div v-else-if="!trainerCurrentStepHint && trainerChatHistory.length > 0" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                        Нет дополнительных лексических совпадений. Ориентируйтесь на телесуфлёр слева.
                     </div>
-                    <div v-else class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
-                        Напишите сообщение в чат — здесь появятся подсказки по словам из узлов сценария.
+                    <div v-else-if="!trainerCurrentStepHint" class="rounded-xl border border-dashed border-zinc-200 p-3 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+                        Начните диалог — текущий шаг сценария появится в телесуфлёре.
                     </div>
                 </template>
             </aside>
@@ -500,6 +571,7 @@ const props = defineProps({
             trainer_profile: null,
             training_role_mode: 'manager_seller',
             trainer_contextual_hints: [],
+            trainer_step_hints: [],
         }),
     },
     session: { type: Object, required: true },
@@ -546,6 +618,11 @@ const trainerContextualHints = ref(
     Array.isArray(props.playContext?.trainer_contextual_hints) ? [...props.playContext.trainer_contextual_hints] : [],
 );
 const trainerCoaching = ref(props.playContext?.trainer_coaching ?? null);
+const trainerStepHints = ref(
+    Array.isArray(props.playContext?.trainer_step_hints) ? [...props.playContext.trainer_step_hints] : [],
+);
+const trainerPlayPresentation = ref({ ...props.playPresentation });
+const trainerEventTrail = ref(Array.isArray(props.eventTrail) ? [...props.eventTrail] : []);
 const trainerEndIntent = ref(false);
 const peerReactionBusyId = ref(null);
 
@@ -576,10 +653,20 @@ function peerReactionLabel(value) {
     return opt ? opt.label : value;
 }
 
-const trainerSuggestedFocus = computed(() => {
-    const h = trainerContextualHints.value;
+const trainerCurrentStepHint = computed(() => {
+    const hints = trainerStepHints.value;
 
-    return Array.isArray(h) && h.length > 0 ? h[0] : null;
+    return Array.isArray(hints)
+        ? hints.find((h) => h?.source === 'graph_current_step' && h?.is_current) ?? null
+        : null;
+});
+
+const trainerClientOptionHints = computed(() => {
+    const hints = trainerStepHints.value;
+
+    return Array.isArray(hints)
+        ? hints.filter((h) => h?.source === 'graph_client_option')
+        : [];
 });
 
 const trainingRoleLabel = computed(() =>
@@ -633,6 +720,34 @@ watch(
 );
 
 watch(
+    () => props.playContext?.trainer_step_hints,
+    (v) => {
+        trainerStepHints.value = Array.isArray(v) ? [...v] : [];
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.playPresentation,
+    (v) => {
+        if (v && isTrainerActive.value) {
+            trainerPlayPresentation.value = { ...v };
+        }
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.eventTrail,
+    (v) => {
+        if (Array.isArray(v) && isTrainerActive.value) {
+            trainerEventTrail.value = [...v];
+        }
+    },
+    { deep: true },
+);
+
+watch(
     () => props.playContext?.trainer_chat,
     (v) => {
         if (Array.isArray(v)) {
@@ -658,6 +773,24 @@ function trainerJsonHeaders() {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         'X-Requested-With': 'XMLHttpRequest',
     };
+}
+
+function applyTrainerGraphPayload(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return;
+    }
+
+    if (payload.play_presentation && typeof payload.play_presentation === 'object') {
+        trainerPlayPresentation.value = { ...payload.play_presentation };
+    }
+
+    if (Array.isArray(payload.event_trail)) {
+        trainerEventTrail.value = [...payload.event_trail];
+    }
+
+    if (Array.isArray(payload.trainer_step_hints)) {
+        trainerStepHints.value = [...payload.trainer_step_hints];
+    }
 }
 
 function scrollTrainerChatToEnd() {
@@ -861,6 +994,7 @@ async function sendTrainerMessage() {
         if (payload?.coaching) {
             trainerCoaching.value = payload.coaching;
         }
+        applyTrainerGraphPayload(payload);
     } catch (error) {
         trainerChatHistory.value = [
             ...optimisticHistory,

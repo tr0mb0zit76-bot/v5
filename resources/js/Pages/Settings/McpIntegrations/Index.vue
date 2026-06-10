@@ -27,10 +27,13 @@
                 <VueFlow
                     v-model:nodes="flowNodes"
                     v-model:edges="flowEdges"
+                    :node-types="nodeTypes"
                     :fit-view-on-init="true"
+                    connection-mode="loose"
                     class="mcp-flow-canvas min-h-[480px] flex-1 rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950/40"
                     @connect="onConnect"
                     @edge-double-click="onEdgeDoubleClick"
+                    @nodes-initialized="syncEdgeHandles"
                 />
             </section>
 
@@ -38,7 +41,7 @@
                 <div>
                     <div class="text-sm font-medium">Как пользоваться</div>
                     <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-                        Соедините узлы линией: двойной клик по ребру удалит связь. Сохранение записывает пары в базу.
+                        Соедините узлы от ● на грани блока — линия выходит с ближайшей стороны. Двойной клик по ребру удалит связь.
                     </p>
                     <p class="mt-2 text-xs text-zinc-500">
                         Вызовов tools за {{ selectedDays }} дн.: <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ linkStats.total_calls }}</span>
@@ -107,9 +110,14 @@ import { router, useForm } from '@inertiajs/vue3';
 import { VueFlow } from '@vue-flow/core';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
+import McpFlowNode from '@/Components/Mcp/McpFlowNode.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import { crmBtnCreate, crmPanel } from '@/support/crmUi.js';
+import { vueFlowHandleIds } from '@/support/graphEdgeGeometry.js';
+
+const nodeTypes = { domain: McpFlowNode };
+const MCP_NODE_SIZE = { width: 200, height: 56 };
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, {
@@ -163,7 +171,7 @@ const configuredPairKeys = computed(() => new Set(
 ));
 
 const flowNodes = ref(buildFlowNodes(props.nodes, linkStats.value));
-const flowEdges = ref(buildFlowEdges(props.links, linkStats.value));
+const flowEdges = ref(buildFlowEdges(props.links, linkStats.value, flowNodes.value));
 
 const form = useForm({
     links: props.links,
@@ -174,7 +182,7 @@ watch(
     ([nodes, links, stats, days]) => {
         selectedDays.value = days ?? selectedDays.value;
         flowNodes.value = buildFlowNodes(nodes, stats);
-        flowEdges.value = buildFlowEdges(links, stats);
+        flowEdges.value = buildFlowEdges(links, stats, flowNodes.value);
         form.links = links;
     },
     { deep: true },
@@ -247,19 +255,19 @@ function buildFlowNodes(nodes, stats) {
 
         return {
             id: node.key,
-            label: `${node.label}${labelSuffix}`,
+            type: 'domain',
             position: {
                 x: 40 + (index % columns) * 240,
                 y: 40 + Math.floor(index / columns) * 120,
             },
-            data: { description: node.description, group: node.group, stats: nodeStats },
+            data: {
+                label: `${node.label}${labelSuffix}`,
+                description: node.description,
+                group: node.group,
+                stats: nodeStats,
+            },
             style: {
-                borderRadius: '12px',
                 border: nodeBorderStyle(nodeStats, maxNodeCalls),
-                padding: '10px 12px',
-                fontSize: '13px',
-                minWidth: '180px',
-                background: 'white',
                 boxShadow: nodeStats.calls > 0 ? '0 0 0 1px rgb(59 130 246 / 0.15)' : undefined,
             },
         };
@@ -277,19 +285,28 @@ function nodeBorderStyle(nodeStats, maxNodeCalls) {
     return `${width}px solid ${nodeStats.errors > 0 ? 'rgb(220 38 38)' : 'rgb(37 99 235)'}`;
 }
 
-function buildFlowEdges(links, stats) {
+function buildFlowEdges(links, stats, nodes = flowNodes.value) {
     const maxCalls = stats?.max_edge_calls ?? 0;
+    const nodesById = Object.fromEntries((nodes ?? []).map((node) => [node.id, node]));
 
     return (links ?? []).map((link) => {
         const traffic = edgeStats(link.source_key, link.target_key);
         const calls = traffic?.calls ?? 0;
         const errors = traffic?.errors ?? 0;
         const ratio = maxCalls > 0 ? calls / maxCalls : 0;
+        const sourceNode = nodesById[link.source_key];
+        const targetNode = nodesById[link.target_key];
+        const handles = sourceNode && targetNode
+            ? vueFlowHandleIds(sourceNode, targetNode, MCP_NODE_SIZE)
+            : { sourceHandle: 'source-bottom', targetHandle: 'target-top' };
 
         return {
             id: pairKey(link.source_key, link.target_key),
             source: link.source_key,
             target: link.target_key,
+            sourceHandle: handles.sourceHandle,
+            targetHandle: handles.targetHandle,
+            type: 'smoothstep',
             animated: calls > 0,
             label: calls > 0 ? `${calls}${errors > 0 ? ` · ${errors}⚠` : ''}` : (link.label ?? 'обмен'),
             style: {
@@ -305,6 +322,31 @@ function buildFlowEdges(links, stats) {
     });
 }
 
+function currentLinksFromEdges() {
+    return flowEdges.value.map((edge) => ({
+        source_key: edge.source,
+        target_key: edge.target,
+        label: edge.label,
+    }));
+}
+
+function syncEdgeHandles() {
+    if (flowEdges.value.length === 0) {
+        return;
+    }
+
+    flowEdges.value = buildFlowEdges(
+        currentLinksFromEdges(),
+        linkStats.value,
+        flowNodes.value,
+    );
+}
+
+watch(
+    () => flowNodes.value.map((node) => `${node.id}:${Math.round(node.position.x)}:${Math.round(node.position.y)}`).join('|'),
+    () => syncEdgeHandles(),
+);
+
 function onConnect(connection) {
     if (! connection.source || ! connection.target || connection.source === connection.target) {
         return;
@@ -316,14 +358,30 @@ function onConnect(connection) {
         return;
     }
 
-    flowEdges.value = [
-        ...flowEdges.value,
-        ...buildFlowEdges([{
+    const nextLinks = [
+        ...flowEdges.value.map((edge) => ({
+            source_key: edge.source,
+            target_key: edge.target,
+            label: edge.label,
+        })),
+        {
             source_key: connection.source,
             target_key: connection.target,
             label: 'обмен',
-        }], linkStats.value),
+        },
     ];
+
+    flowEdges.value = buildFlowEdges(nextLinks, linkStats.value, flowNodes.value).map((edge, index) => {
+        if (index === nextLinks.length - 1 && connection.sourceHandle && connection.targetHandle) {
+            return {
+                ...edge,
+                sourceHandle: connection.sourceHandle,
+                targetHandle: connection.targetHandle,
+            };
+        }
+
+        return edge;
+    });
 }
 
 function onEdgeDoubleClick(_event, edge) {
