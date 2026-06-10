@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\SalesScriptNodeKind;
 use App\Models\SalesScript;
+use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
@@ -16,6 +17,7 @@ class SalesScriptsDemoSeeder extends Seeder
     public function run(): void
     {
         $reactionIds = $this->seedReactionClasses();
+        $this->seedCaptureFields();
 
         $this->seedScript(
             title: 'Первичный запрос ставки (экспедиция)',
@@ -25,10 +27,10 @@ class SalesScriptsDemoSeeder extends Seeder
             entryNodeKey: 'intro',
             nodes: [
                 ['client_key' => 'intro', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Добрый день! Компания [название], меня зовут [имя]. Вы запрашивали расчёт по перевозке — удобно пару минут уточнить параметры?', 'hint' => 'Говорите спокойно и зафиксируйте контактное лицо.', 'sort_order' => 10],
-                ['client_key' => 'qualify', 'kind' => SalesScriptNodeKind::Branch, 'body' => 'Уточните маршрут, срок готовности груза и что именно везём (вес, объём, особые условия). После ответа клиента выберите тип реакции ниже.', 'hint' => 'Не озвучивайте ставку до минимальной квалификации.', 'sort_order' => 20],
+                ['client_key' => 'qualify', 'kind' => SalesScriptNodeKind::Branch, 'body' => '{client_name}, подскажите, по каким направлениям вы возите грузы? Запишу: {routes}. Также уточню срок готовности и особые условия.', 'hint' => 'Не озвучивайте ставку до минимальной квалификации.', 'sort_order' => 20, 'tags' => ['квалификация'], 'capture_field_codes' => ['client_name', 'routes']],
                 ['client_key' => 'price_objection', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Понимаю, бюджет важен. Наша ставка учитывает маршрут, срок и ответственность за сопровождение. Давайте сверим, что входит в расчёт — так проще сравнить с альтернативами.', 'hint' => 'Переводите разговор в ценность: срок, страхование, мониторинг.', 'sort_order' => 30],
                 ['client_key' => 'need_info', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Зафиксирую недостающие данные и вернусь с уточняющими вопросами или черновой ставкой в течение [X] часов.', 'hint' => 'Назовите реалистичный SLA.', 'sort_order' => 40],
-                ['client_key' => 'positive', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Отлично, данных достаточно для просчёта. Отправлю КП на почту или в мессенджер до [время]. Удобно?', 'hint' => 'Подтвердите канал и ФИО получателя.', 'sort_order' => 50],
+                ['client_key' => 'positive', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Отлично, {client_name}, по направлению {routes} данных достаточно для просчёта. Отправлю КП на почту или в мессенджер. Удобно?', 'hint' => 'Подтвердите канал и ФИО получателя.', 'sort_order' => 50],
                 ['client_key' => 'wrapup', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Кратко подытожу: маршрут [..], срок [..], я готовлю ставку. Если появятся изменения по грузу — сразу напишите, скорректируем.', 'hint' => 'Попросите подтверждение от клиента.', 'sort_order' => 60],
                 ['client_key' => 'end', 'kind' => SalesScriptNodeKind::Say, 'body' => 'Сценарий завершён. Зафиксируйте итог разговора и главное возражение.', 'hint' => null, 'sort_order' => 70],
             ],
@@ -211,8 +213,28 @@ class SalesScriptsDemoSeeder extends Seeder
         return $reactionIds;
     }
 
+    private function seedCaptureFields(): void
+    {
+        $fields = [
+            ['code' => 'client_name', 'label' => 'Имя собеседника', 'sort_order' => 10],
+            ['code' => 'routes', 'label' => 'Маршруты', 'sort_order' => 20],
+            ['code' => 'cargo_type', 'label' => 'Тип груза', 'sort_order' => 30],
+        ];
+
+        foreach ($fields as $field) {
+            SalesScriptCaptureField::query()->updateOrCreate(
+                ['code' => $field['code']],
+                [
+                    'label' => $field['label'],
+                    'value_type' => 'text',
+                    'sort_order' => $field['sort_order'],
+                ],
+            );
+        }
+    }
+
     /**
-     * @param  list<array{client_key:string,kind:SalesScriptNodeKind,body:string,hint:?string,sort_order:int,canvas_x?:int,canvas_y?:int}>  $nodes
+     * @param  list<array{client_key:string,kind:SalesScriptNodeKind,body:string,hint:?string,sort_order:int,canvas_x?:int,canvas_y?:int,tags?:list<string>,capture_field_codes?:list<string>}>  $nodes
      * @param  list<array{from:string,to:string,reaction:?string,customer_label?:?string}>  $transitions
      * @param  array<string, int>  $reactionIds
      */
@@ -274,6 +296,8 @@ class SalesScriptsDemoSeeder extends Seeder
                     'sort_order' => $nodePayload['sort_order'],
                     'canvas_x' => $nodePayload['canvas_x'] ?? null,
                     'canvas_y' => $nodePayload['canvas_y'] ?? null,
+                    'tags' => $nodePayload['tags'] ?? [],
+                    'capture_field_codes' => $nodePayload['capture_field_codes'] ?? [],
                 ],
             );
 

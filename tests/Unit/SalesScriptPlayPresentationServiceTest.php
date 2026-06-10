@@ -6,6 +6,7 @@ use App\Enums\SalesScriptNodeKind;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
+use App\Services\SalesScripts\SalesScriptBodyPlaceholderService;
 use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
 use Tests\TestCase;
@@ -62,7 +63,7 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
                 return [];
             });
 
-        $service = new SalesScriptPlayPresentationService($playSession);
+        $service = new SalesScriptPlayPresentationService($playSession, new SalesScriptBodyPlaceholderService);
         $presentation = $service->build($say);
 
         $this->assertSame('Спасибо, что нашли время.', $presentation['operator_line']);
@@ -95,7 +96,7 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
         $playSession = $this->createMock(SalesScriptPlaySessionService::class);
         $playSession->method('outgoingTransitions')->willReturn([$transition]);
 
-        $service = new SalesScriptPlayPresentationService($playSession);
+        $service = new SalesScriptPlayPresentationService($playSession, new SalesScriptBodyPlaceholderService);
         $presentation = $service->build($branch);
 
         $this->assertNull($presentation['operator_line']);
@@ -128,7 +129,7 @@ class SalesScriptPlayPresentationServiceTest extends TestCase
         $playSession = $this->createMock(SalesScriptPlaySessionService::class);
         $playSession->method('outgoingTransitions')->willReturn([$transition]);
 
-        $service = new SalesScriptPlayPresentationService($playSession);
+        $service = new SalesScriptPlayPresentationService($playSession, new SalesScriptBodyPlaceholderService);
         $presentation = $service->build($say);
 
         $this->assertFalse($presentation['choices'][0]['has_customer_phrase']);

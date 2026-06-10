@@ -21,6 +21,14 @@
             Сессия завершена
             <span v-if="session.outcome">· исход воронки: {{ session.outcome }}</span>
             <span v-if="session.trainer_dialog_quality">· оценка тренировки: {{ trainerDialogQualityLabel(session.trainer_dialog_quality) }}</span>
+            <div v-if="capturedFields.length" class="mt-4 border-t border-emerald-200/80 pt-3 dark:border-emerald-800/60">
+                <div class="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Записанные поля</div>
+                <ul class="mt-2 space-y-1.5">
+                    <li v-for="field in capturedFields" :key="field.code" class="text-sm">
+                        <span class="font-medium">{{ field.label }}:</span> {{ field.value }}
+                    </li>
+                </ul>
+            </div>
         </div>
 
         <!-- Тренажёр: диалог слева, сценарий справа -->
@@ -407,8 +415,29 @@
         <div v-else-if="currentNode && playPresentation" class="space-y-6">
             <h1 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{{ session.script_title }}</h1>
 
-            <article v-if="playPresentation.operator_line" class="space-y-4">
-                <p class="whitespace-pre-wrap text-xl font-medium leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-50 md:text-2xl">
+            <article v-if="playPresentation.operator_line || playPresentation.operator_segments?.length" class="space-y-4">
+                <p
+                    v-if="playPresentation.operator_segments?.length"
+                    class="text-xl font-medium leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-50 md:text-2xl"
+                >
+                    <template v-for="(segment, index) in playPresentation.operator_segments" :key="`seg-${index}`">
+                        <span v-if="segment.type === 'text'" class="whitespace-pre-wrap">{{ segment.content }}</span>
+                        <input
+                            v-else-if="segment.type === 'capture'"
+                            v-model="captureDraft[segment.code]"
+                            type="text"
+                            class="mx-1 inline-block min-w-[8rem] rounded-lg border border-sky-300 bg-white px-2 py-1 text-lg font-semibold text-sky-900 shadow-sm dark:border-sky-600 dark:bg-zinc-950 dark:text-sky-100"
+                            :placeholder="segment.label"
+                        />
+                        <span
+                            v-else-if="segment.type === 'reference'"
+                            class="font-semibold text-sky-700 dark:text-sky-300"
+                        >
+                            {{ segment.value || segment.empty_label }}
+                        </span>
+                    </template>
+                </p>
+                <p v-else class="whitespace-pre-wrap text-xl font-medium leading-relaxed tracking-tight text-zinc-900 dark:text-zinc-50 md:text-2xl">
                     {{ playPresentation.operator_line }}
                 </p>
             </article>
@@ -546,6 +575,7 @@ const props = defineProps({
     eventTrail: { type: Array, default: () => [] },
     outcomeOptions: { type: Array, default: () => [] },
     reactionClasses: { type: Array, default: () => [] },
+    capturedFields: { type: Array, default: () => [] },
 });
 
 const isTrainer = computed(() => props.playContext?.return === 'trainer');
@@ -578,6 +608,7 @@ const trainerPlayPresentation = ref({ ...props.playPresentation });
 const trainerEventTrail = ref(Array.isArray(props.eventTrail) ? [...props.eventTrail] : []);
 const trainerEndIntent = ref(false);
 const peerReactionBusyId = ref(null);
+const captureDraft = reactive({});
 
 const peerReactionOptions = [
     {
@@ -799,10 +830,46 @@ function trainerMessageRoleLabel(role) {
     return role === 'assistant' ? 'Клиент' : 'Менеджер';
 }
 
+function syncCaptureDraftFromPresentation(presentation) {
+    const segments = presentation?.operator_segments;
+    if (!Array.isArray(segments)) {
+        return;
+    }
+
+    for (const segment of segments) {
+        if (segment.type === 'capture' && segment.code) {
+            captureDraft[segment.code] = segment.value ?? '';
+        }
+    }
+}
+
+watch(
+    () => props.playPresentation,
+    (presentation) => syncCaptureDraftFromPresentation(presentation),
+    { immediate: true, deep: true },
+);
+
+function collectFieldValues() {
+    const segments = props.playPresentation?.operator_segments;
+    if (!Array.isArray(segments)) {
+        return {};
+    }
+
+    const values = {};
+    for (const segment of segments) {
+        if (segment.type === 'capture' && segment.code) {
+            values[segment.code] = captureDraft[segment.code] ?? '';
+        }
+    }
+
+    return values;
+}
+
 function advance(reactionClassId, compound = false) {
     router.post(route('scripts.sessions.advance', props.session.id), {
         sales_script_reaction_class_id: reactionClassId,
         compound,
+        field_values: collectFieldValues(),
     });
 }
 

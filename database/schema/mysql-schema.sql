@@ -1537,6 +1537,8 @@ CREATE TABLE `sales_script_nodes` (
   `kind` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `body` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `hint` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `tags` json DEFAULT NULL,
+  `capture_field_codes` json DEFAULT NULL,
   `sort_order` smallint unsigned NOT NULL DEFAULT '0',
   `canvas_x` int DEFAULT NULL,
   `canvas_y` int DEFAULT NULL,
@@ -1545,6 +1547,42 @@ CREATE TABLE `sales_script_nodes` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `sales_script_nodes_sales_script_version_id_client_key_unique` (`sales_script_version_id`,`client_key`),
   CONSTRAINT `sales_script_nodes_sales_script_version_id_foreign` FOREIGN KEY (`sales_script_version_id`) REFERENCES `sales_script_versions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `sales_script_capture_fields`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sales_script_capture_fields` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `code` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `label` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `value_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `sort_order` smallint unsigned NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `sales_script_capture_fields_code_unique` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `sales_script_node_templates`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sales_script_node_templates` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `kind` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `body` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hint` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `tags` json DEFAULT NULL,
+  `capture_field_codes` json DEFAULT NULL,
+  `default_transitions` json DEFAULT NULL,
+  `created_by` bigint unsigned DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `sales_script_node_templates_created_by_foreign` (`created_by`),
+  CONSTRAINT `sales_script_node_templates_created_by_foreign` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `sales_script_play_events`;
@@ -1566,6 +1604,26 @@ CREATE TABLE `sales_script_play_events` (
   CONSTRAINT `sales_script_play_events_sales_script_node_id_foreign` FOREIGN KEY (`sales_script_node_id`) REFERENCES `sales_script_nodes` (`id`) ON DELETE SET NULL,
   CONSTRAINT `sales_script_play_events_sales_script_play_session_id_foreign` FOREIGN KEY (`sales_script_play_session_id`) REFERENCES `sales_script_play_sessions` (`id`) ON DELETE CASCADE,
   CONSTRAINT `sales_script_play_events_sales_script_reaction_class_id_foreign` FOREIGN KEY (`sales_script_reaction_class_id`) REFERENCES `sales_script_reaction_classes` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `sales_script_play_session_field_values`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `sales_script_play_session_field_values` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `sales_script_play_session_id` bigint unsigned NOT NULL,
+  `sales_script_capture_field_id` bigint unsigned NOT NULL,
+  `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `captured_at_node_id` bigint unsigned DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `sspsfv_session_field_unique` (`sales_script_play_session_id`,`sales_script_capture_field_id`),
+  KEY `sales_script_play_session_field_values_sales_script_capture_field_id_foreign` (`sales_script_capture_field_id`),
+  KEY `sales_script_play_session_field_values_captured_at_node_id_foreign` (`captured_at_node_id`),
+  CONSTRAINT `sales_script_play_session_field_values_captured_at_node_id_foreign` FOREIGN KEY (`captured_at_node_id`) REFERENCES `sales_script_nodes` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `sales_script_play_session_field_values_sales_script_capture_field_id_foreign` FOREIGN KEY (`sales_script_capture_field_id`) REFERENCES `sales_script_capture_fields` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `sales_script_play_session_field_values_sales_script_play_session_id_foreign` FOREIGN KEY (`sales_script_play_session_id`) REFERENCES `sales_script_play_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `sales_script_play_sessions`;
@@ -1976,3 +2034,5 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (108,'2026_05_10_12
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (109,'2026_05_15_100000_add_peer_reaction_to_sales_script_trainer_messages_table',32);
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (110,'2026_05_16_120000_add_auto_peer_reaction_to_sales_script_trainer_messages_table',32);
 INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (111,'2026_06_12_100000_drop_legacy_sites_widgets_and_address_junction_tables',32);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (112,'2026_06_10_195759_add_tags_to_sales_script_nodes_table',33);
+INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (113,'2026_06_10_200147_create_sales_script_editor_extensions_tables',33);

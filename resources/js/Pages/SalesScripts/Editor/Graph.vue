@@ -78,10 +78,13 @@
                 :reaction-classes="reactionClasses"
                 :selected-node-key="selectedNodeKey"
                 :selected-transition-id="selectedTransitionId"
+                :active-tag-filter="activeTagFilter"
                 @update:selected-node-key="onSelectNode"
                 @update:selected-transition-id="selectedTransitionId = $event"
+                @update:active-tag-filter="activeTagFilter = $event"
                 @update:node-position="onNodePosition"
                 @create-transition="onCreateTransition"
+                @add-answer="onAddAnswer"
             />
 
             <div class="space-y-4">
@@ -95,8 +98,67 @@
                 </section>
 
                 <section :class="`${crmPanel} space-y-3 p-4`">
+                    <h2 :class="crmSectionTitle">Шаблоны блоков</h2>
+                    <p :class="crmPageLead">Сохранённые «образы» шагов — вставка копией в этот сценарий.</p>
+                    <ul v-if="nodeTemplates.length" class="max-h-40 space-y-2 overflow-y-auto text-xs">
+                        <li
+                            v-for="template in nodeTemplates"
+                            :key="template.id"
+                            class="rounded-xl border border-zinc-200 p-2 dark:border-zinc-700"
+                        >
+                            <div class="font-medium text-zinc-800 dark:text-zinc-100">{{ template.title }}</div>
+                            <p class="mt-1 line-clamp-2 text-zinc-500 dark:text-zinc-400">{{ nodeExcerpt(template.body) }}</p>
+                            <div class="mt-2 flex gap-2">
+                                <button type="button" :class="`${crmBtnSecondary} text-[11px]`" @click="insertFromTemplate(template)">
+                                    Вставить
+                                </button>
+                                <button
+                                    type="button"
+                                    class="text-[11px] text-rose-700 hover:underline dark:text-rose-300"
+                                    @click="deleteTemplate(template.id)"
+                                >
+                                    Удалить
+                                </button>
+                            </div>
+                        </li>
+                    </ul>
+                    <p v-else class="text-xs text-zinc-500 dark:text-zinc-400">Пока нет шаблонов.</p>
+                </section>
+
+                <section :class="`${crmPanel} space-y-3 p-4`">
+                    <h2 :class="crmSectionTitle">Поля разговора</h2>
+                    <p :class="crmPageLead">Справочник для плейсхолдеров в тексте: <code class="text-[10px]">{client_name}</code></p>
+                    <ul v-if="captureFields.length" class="max-h-36 space-y-1.5 overflow-y-auto text-xs">
+                        <li
+                            v-for="field in captureFields"
+                            :key="field.id"
+                            class="flex items-start justify-between gap-2 rounded-lg border border-zinc-200 px-2 py-1.5 dark:border-zinc-700"
+                        >
+                            <div>
+                                <div class="font-medium text-zinc-800 dark:text-zinc-100">{{ field.label }}</div>
+                                <div class="font-mono text-[10px] text-zinc-500">{ {{ field.code }} }</div>
+                            </div>
+                            <button
+                                type="button"
+                                class="shrink-0 text-rose-700 hover:underline dark:text-rose-300"
+                                @click="deleteCaptureField(field.id)"
+                            >
+                                ×
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="grid gap-2">
+                        <input v-model="newFieldCode" type="text" :class="crmFieldFluid" placeholder="Код: client_name" />
+                        <input v-model="newFieldLabel" type="text" :class="crmFieldFluid" placeholder="Подпись: Имя собеседника" />
+                        <button type="button" :class="`${crmBtnSecondary} text-xs`" @click="createCaptureField">
+                            + Поле
+                        </button>
+                    </div>
+                </section>
+
+                <section :class="`${crmPanel} space-y-3 p-4`">
                     <h2 :class="crmSectionTitle">Шаги сценария</h2>
-                    <p :class="crmPageLead">Текст редактируется здесь; на схеме — только ключ и тип.</p>
+                    <p :class="crmPageLead">На схеме — превью текста и ответы; полное редактирование — справа.</p>
                     <ul class="max-h-48 space-y-1.5 overflow-y-auto">
                         <li
                             v-for="node in graphNodes"
@@ -142,10 +204,80 @@
                     <div>
                         <label :class="crmLabelCompact">Реплика / текст оператора</label>
                         <textarea v-model="selectedNode.body" rows="5" :class="`${crmFieldFluid} mt-1`" />
+                        <div v-if="captureFields.length" class="mt-2 flex flex-wrap gap-1.5">
+                            <button
+                                v-for="field in captureFields"
+                                :key="`ins-${field.code}`"
+                                type="button"
+                                class="rounded-full border border-zinc-200 px-2 py-0.5 text-[10px] font-medium text-zinc-600 hover:border-sky-300 hover:bg-sky-50 dark:border-zinc-600 dark:text-zinc-300"
+                                @click="insertFieldPlaceholder(field.code)"
+                            >
+                                + { {{ field.code }} }
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="bodyFieldCodes.length">
+                        <label :class="crmLabelCompact">Захват на этом шаге</label>
+                        <p class="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                            Отмеченные поля — ввод оператора; остальные в тексте — подстановка ранее записанного.
+                        </p>
+                        <div class="mt-2 space-y-1.5">
+                            <label
+                                v-for="code in bodyFieldCodes"
+                                :key="`cap-${code}`"
+                                class="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-200"
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="selectedNode.capture_field_codes.includes(code)"
+                                    @change="toggleCaptureField(code)"
+                                />
+                                <span class="font-mono">{ {{ code }} }</span>
+                                <span class="text-zinc-500">{{ captureFieldLabel(code) }}</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" :class="`${crmBtnSecondary} text-xs`" @click="saveNodeAsTemplate">
+                            Сохранить как шаблон
+                        </button>
                     </div>
                     <div>
                         <label :class="crmLabelCompact">Методология (свернуто у оператора)</label>
                         <input v-model="selectedNode.hint" type="text" :class="`${crmFieldFluid} mt-1`" placeholder="СПИН, тон, рамка времени…" />
+                    </div>
+                    <div>
+                        <label :class="crmLabelCompact">Теги группы</label>
+                        <p class="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                            Для фильтра на схеме: «квалификация», «возражения»… Введите и нажмите Enter.
+                        </p>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            <span
+                                v-for="tag in selectedNode.tags"
+                                :key="tag"
+                                class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                            >
+                                {{ tag }}
+                                <button
+                                    type="button"
+                                    class="text-amber-700 hover:text-rose-600 dark:text-amber-300"
+                                    @click="removeNodeTag(tag)"
+                                >
+                                    ×
+                                </button>
+                            </span>
+                        </div>
+                        <input
+                            v-model="tagDraft"
+                            type="text"
+                            :class="`${crmFieldFluid} mt-2`"
+                            placeholder="Новый тег"
+                            list="script-node-tag-suggestions"
+                            @keydown.enter.prevent="addNodeTag"
+                        />
+                        <datalist id="script-node-tag-suggestions">
+                            <option v-for="tag in tagSuggestions" :key="`sug-${tag}`" :value="tag" />
+                        </datalist>
                     </div>
                 </section>
 
@@ -238,6 +370,8 @@ const props = defineProps({
     payload: { type: Object, required: true },
     reactionClasses: { type: Array, default: () => [] },
     nodeKinds: { type: Array, default: () => [] },
+    captureFields: { type: Array, default: () => [] },
+    nodeTemplates: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -245,6 +379,10 @@ const saving = ref(false);
 const edgeSeq = ref(1);
 const selectedNodeKey = ref(props.payload.nodes[0]?.client_key ?? null);
 const selectedTransitionId = ref(null);
+const activeTagFilter = ref(null);
+const tagDraft = ref('');
+const newFieldCode = ref('');
+const newFieldLabel = ref('');
 const entryNodeKey = ref(props.payload.version.entry_node_key ?? props.payload.nodes[0]?.client_key ?? '');
 
 const graphNodes = reactive(
@@ -253,6 +391,8 @@ const graphNodes = reactive(
         kind: node.kind,
         body: node.body ?? '',
         hint: node.hint ?? '',
+        tags: Array.isArray(node.tags) ? [...node.tags] : [],
+        capture_field_codes: Array.isArray(node.capture_field_codes) ? [...node.capture_field_codes] : [],
         sort_order: node.sort_order ?? index,
         canvas_x: Number.isInteger(node.canvas_x) ? node.canvas_x : 40 + (index % 4) * 260,
         canvas_y: Number.isInteger(node.canvas_y) ? node.canvas_y : 40 + Math.floor(index / 4) * 180,
@@ -272,6 +412,28 @@ const graphTransitions = reactive(
 
 const selectedNode = computed(() => graphNodes.find((node) => node.client_key === selectedNodeKey.value) ?? null);
 const selectedTransition = computed(() => graphTransitions.find((t) => t.local_id === selectedTransitionId.value) ?? null);
+
+const bodyFieldCodes = computed(() => {
+    if (!selectedNode.value?.body) {
+        return [];
+    }
+
+    const matches = [...String(selectedNode.value.body).matchAll(/\{([a-z][a-z0-9_]*)\}/g)];
+
+    return [...new Set(matches.map((match) => match[1]))];
+});
+
+const tagSuggestions = computed(() => {
+    const tags = new Set();
+
+    for (const node of graphNodes) {
+        for (const tag of node.tags ?? []) {
+            tags.add(tag);
+        }
+    }
+
+    return [...tags].sort((a, b) => a.localeCompare(b, 'ru'));
+});
 
 function resolveClientKeyByNodeId(nodeId) {
     return props.payload.nodes.find((node) => node.id === nodeId)?.client_key ?? '';
@@ -324,6 +486,183 @@ function onNodePosition({ client_key, canvas_x, canvas_y }) {
     }
 }
 
+function captureFieldLabel(code) {
+    return props.captureFields.find((field) => field.code === code)?.label ?? code;
+}
+
+function insertFieldPlaceholder(code) {
+    if (!selectedNode.value) {
+        return;
+    }
+
+    const token = `{${code}}`;
+    if (!selectedNode.value.body.includes(token)) {
+        const spacer = selectedNode.value.body.endsWith(' ') || selectedNode.value.body === '' ? '' : ' ';
+        selectedNode.value.body = `${selectedNode.value.body}${spacer}${token}`;
+    }
+
+    if (!selectedNode.value.capture_field_codes.includes(code)) {
+        selectedNode.value.capture_field_codes.push(code);
+    }
+}
+
+function toggleCaptureField(code) {
+    if (!selectedNode.value) {
+        return;
+    }
+
+    const index = selectedNode.value.capture_field_codes.indexOf(code);
+    if (index === -1) {
+        selectedNode.value.capture_field_codes.push(code);
+    } else {
+        selectedNode.value.capture_field_codes.splice(index, 1);
+    }
+}
+
+function createCaptureField() {
+    const code = newFieldCode.value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+    const label = newFieldLabel.value.trim();
+
+    if (!code || !label) {
+        return;
+    }
+
+    router.post(route('scripts.editor.capture-fields.store'), {
+        code,
+        label,
+        value_type: 'text',
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            newFieldCode.value = '';
+            newFieldLabel.value = '';
+        },
+    });
+}
+
+function deleteCaptureField(fieldId) {
+    if (!window.confirm('Удалить поле из справочника?')) {
+        return;
+    }
+
+    router.delete(route('scripts.editor.capture-fields.destroy', fieldId), {
+        preserveScroll: true,
+    });
+}
+
+function saveNodeAsTemplate() {
+    if (!selectedNode.value) {
+        return;
+    }
+
+    const title = window.prompt('Название шаблона', selectedNode.value.client_key);
+    if (!title?.trim()) {
+        return;
+    }
+
+    router.post(route('scripts.editor.node-templates.store'), {
+        title: title.trim(),
+        kind: selectedNode.value.kind,
+        body: selectedNode.value.body,
+        hint: selectedNode.value.hint || null,
+        tags: selectedNode.value.tags,
+        capture_field_codes: selectedNode.value.capture_field_codes,
+        default_transitions: outgoingForSelectedNode().map((transition) => ({
+            customer_label: transition.customer_label || null,
+            sales_script_reaction_class_id: transition.sales_script_reaction_class_id,
+        })),
+    }, { preserveScroll: true });
+}
+
+function outgoingForSelectedNode() {
+    if (!selectedNode.value) {
+        return [];
+    }
+
+    return graphTransitions.filter((transition) => transition.from_client_key === selectedNode.value.client_key);
+}
+
+function insertFromTemplate(template) {
+    const key = uniqueClientKey(String(template.title).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'block');
+    const baseNode = selectedNode.value ?? graphNodes[graphNodes.length - 1];
+    const canvasX = baseNode ? baseNode.canvas_x + 40 : 60;
+    const canvasY = baseNode ? baseNode.canvas_y + 40 : 60;
+
+    graphNodes.push({
+        client_key: key,
+        kind: template.kind,
+        body: template.body,
+        hint: template.hint ?? '',
+        tags: Array.isArray(template.tags) ? [...template.tags] : [],
+        capture_field_codes: Array.isArray(template.capture_field_codes) ? [...template.capture_field_codes] : [],
+        sort_order: graphNodes.length,
+        canvas_x: canvasX,
+        canvas_y: canvasY,
+    });
+    onSelectNode(key);
+}
+
+function deleteTemplate(templateId) {
+    if (!window.confirm('Удалить шаблон?')) {
+        return;
+    }
+
+    router.delete(route('scripts.editor.node-templates.destroy', templateId), {
+        preserveScroll: true,
+    });
+}
+
+function normalizeTag(value) {
+    return String(value ?? '').trim().toLowerCase();
+}
+
+function addNodeTag() {
+    if (!selectedNode.value) {
+        return;
+    }
+
+    const tag = normalizeTag(tagDraft.value);
+    if (tag === '') {
+        return;
+    }
+
+    if (!selectedNode.value.tags.includes(tag)) {
+        selectedNode.value.tags.push(tag);
+    }
+
+    tagDraft.value = '';
+}
+
+function removeNodeTag(tag) {
+    if (!selectedNode.value) {
+        return;
+    }
+
+    selectedNode.value.tags = selectedNode.value.tags.filter((item) => item !== tag);
+
+    if (activeTagFilter.value === tag) {
+        activeTagFilter.value = null;
+    }
+}
+
+function onAddAnswer(fromClientKey) {
+    onSelectNode(fromClientKey);
+
+    const targetKey = graphNodes.find((node) => node.client_key !== fromClientKey)?.client_key ?? fromClientKey;
+    const localId = `new-${edgeSeq.value}`;
+    edgeSeq.value += 1;
+
+    graphTransitions.push({
+        local_id: localId,
+        from_client_key: fromClientKey,
+        to_client_key: targetKey,
+        sales_script_reaction_class_id: props.reactionClasses[0]?.id ?? null,
+        customer_label: '',
+        sort_order: graphTransitions.length,
+    });
+    selectedTransitionId.value = localId;
+}
+
 function onCreateTransition({ from_client_key, to_client_key }) {
     const exists = graphTransitions.some(
         (t) => t.from_client_key === from_client_key
@@ -357,6 +696,8 @@ function addNode() {
         kind: props.nodeKinds[0]?.value ?? 'say',
         body: 'Новая реплика оператора',
         hint: '',
+        tags: [],
+        capture_field_codes: [],
         sort_order: graphNodes.length,
         canvas_x: 60 + (graphNodes.length % 4) * 260,
         canvas_y: 60 + Math.floor(graphNodes.length / 4) * 180,
@@ -435,6 +776,8 @@ function saveGraph() {
         kind: node.kind,
         body: node.body,
         hint: node.hint || null,
+        tags: node.tags ?? [],
+        capture_field_codes: node.capture_field_codes ?? [],
         sort_order: index,
         canvas_x: node.canvas_x,
         canvas_y: node.canvas_y,

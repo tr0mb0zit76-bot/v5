@@ -17,6 +17,8 @@ class SalesScriptNode extends Model
         'kind',
         'body',
         'hint',
+        'tags',
+        'capture_field_codes',
         'sort_order',
         'canvas_x',
         'canvas_y',
@@ -50,6 +52,8 @@ class SalesScriptNode extends Model
     {
         return [
             'kind' => SalesScriptNodeKind::class,
+            'tags' => 'array',
+            'capture_field_codes' => 'array',
             'sort_order' => 'integer',
             'canvas_x' => 'integer',
             'canvas_y' => 'integer',

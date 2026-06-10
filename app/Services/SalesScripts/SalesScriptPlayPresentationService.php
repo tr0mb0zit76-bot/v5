@@ -13,12 +13,16 @@ final class SalesScriptPlayPresentationService
 {
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
+        private readonly SalesScriptBodyPlaceholderService $placeholderService,
     ) {}
 
     /**
+     * @param  array<string, string>  $sessionFieldValuesByCode
+     * @param  array<string, string>  $fieldLabelsByCode
      * @return array{
      *     operator_kind: string,
      *     operator_line: string|null,
+     *     operator_segments: list<array<string, mixed>>|null,
      *     coaching_hint: string|null,
      *     branch_instruction: string|null,
      *     choices: list<array{
@@ -34,8 +38,11 @@ final class SalesScriptPlayPresentationService
      *     is_branch_only: bool
      * }
      */
-    public function build(?SalesScriptNode $current): array
-    {
+    public function build(
+        ?SalesScriptNode $current,
+        array $sessionFieldValuesByCode = [],
+        array $fieldLabelsByCode = [],
+    ): array {
         if ($current === null) {
             return $this->emptyPresentation();
         }
@@ -51,11 +58,13 @@ final class SalesScriptPlayPresentationService
         ));
 
         $peek = $this->resolvePeekedChoices($linearTransitions, $reactionTransitions);
+        $operatorPresentation = $this->resolveOperatorPresentation($current, $sessionFieldValuesByCode, $fieldLabelsByCode);
 
         if ($peek !== null) {
             return [
                 'operator_kind' => $current->kind->value,
-                'operator_line' => $this->operatorLine($current),
+                'operator_line' => $operatorPresentation['line'],
+                'operator_segments' => $operatorPresentation['segments'],
                 'coaching_hint' => filled($current->hint) ? (string) $current->hint : null,
                 'branch_instruction' => null,
                 'choices' => $peek['choices'],
@@ -68,6 +77,7 @@ final class SalesScriptPlayPresentationService
             return [
                 'operator_kind' => $current->kind->value,
                 'operator_line' => null,
+                'operator_segments' => null,
                 'coaching_hint' => filled($current->hint) ? (string) $current->hint : null,
                 'branch_instruction' => trim((string) $current->body) !== '' ? trim((string) $current->body) : null,
                 'choices' => $this->mapChoices($reactionTransitions, false),
@@ -85,12 +95,50 @@ final class SalesScriptPlayPresentationService
 
         return [
             'operator_kind' => $current->kind->value,
-            'operator_line' => $this->operatorLine($current),
+            'operator_line' => $operatorPresentation['line'],
+            'operator_segments' => $operatorPresentation['segments'],
             'coaching_hint' => filled($current->hint) ? (string) $current->hint : null,
             'branch_instruction' => null,
             'choices' => $choices,
             'step_key' => $current->client_key,
             'is_branch_only' => false,
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $sessionFieldValuesByCode
+     * @param  array<string, string>  $fieldLabelsByCode
+     * @return array{line: string|null, segments: list<array<string, mixed>>|null}
+     */
+    private function resolveOperatorPresentation(
+        SalesScriptNode $node,
+        array $sessionFieldValuesByCode,
+        array $fieldLabelsByCode,
+    ): array {
+        if ($node->kind === SalesScriptNodeKind::Branch) {
+            return ['line' => null, 'segments' => null];
+        }
+
+        $body = trim((string) $node->body);
+        if ($body === '') {
+            return ['line' => null, 'segments' => null];
+        }
+
+        $codes = $this->placeholderService->extractFieldCodes($body);
+        if ($codes === []) {
+            return ['line' => $body, 'segments' => null];
+        }
+
+        $segments = $this->placeholderService->buildSegments(
+            $body,
+            $node->capture_field_codes ?? [],
+            $sessionFieldValuesByCode,
+            $fieldLabelsByCode,
+        );
+
+        return [
+            'line' => $this->placeholderService->segmentsToPlainText($segments),
+            'segments' => $segments,
         ];
     }
 
@@ -212,8 +260,8 @@ final class SalesScriptPlayPresentationService
             return 'Развилка: реакция клиента';
         }
 
-        $line = $this->operatorLine($next);
-        if ($line === null) {
+        $line = trim((string) $next->body);
+        if ($line === '') {
             return null;
         }
 
@@ -224,17 +272,6 @@ final class SalesScriptPlayPresentationService
         return 'Далее: '.$excerpt;
     }
 
-    private function operatorLine(SalesScriptNode $node): ?string
-    {
-        if ($node->kind === SalesScriptNodeKind::Branch) {
-            return null;
-        }
-
-        $body = trim((string) $node->body);
-
-        return $body !== '' ? $body : null;
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -243,6 +280,7 @@ final class SalesScriptPlayPresentationService
         return [
             'operator_kind' => 'say',
             'operator_line' => null,
+            'operator_segments' => null,
             'coaching_hint' => null,
             'branch_instruction' => null,
             'choices' => [],

@@ -108,6 +108,60 @@ class SalesScriptEditorTest extends TestCase
         $this->assertSame(1, SalesScriptNode::query()->where('sales_script_version_id', $version->id)->count());
     }
 
+    public function test_graph_save_persists_node_tags(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'editor_tags',
+            'display_name' => 'Editor tags',
+            'visibility_areas' => json_encode(['dashboard', 'settings_system'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $script = SalesScript::query()->create([
+            'title' => 'С тегами',
+            'description' => null,
+            'channel' => 'phone',
+            'tags' => [],
+        ]);
+
+        $version = SalesScriptVersion::query()->create([
+            'sales_script_id' => $script->id,
+            'version_number' => 1,
+            'published_at' => null,
+            'is_active' => false,
+            'entry_node_key' => 'start',
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('scripts.editor.versions.graph.update', $version), [
+                'entry_node_key' => 'start',
+                'nodes' => [
+                    [
+                        'client_key' => 'start',
+                        'kind' => 'say',
+                        'body' => 'Приветствие',
+                        'hint' => null,
+                        'tags' => ['Квалификация', 'знакомство'],
+                        'sort_order' => 0,
+                        'canvas_x' => 40,
+                        'canvas_y' => 40,
+                    ],
+                ],
+                'transitions' => [],
+            ])
+            ->assertRedirect(route('scripts.editor.versions.show', $version));
+
+        $node = SalesScriptNode::query()->where('sales_script_version_id', $version->id)->first();
+        $this->assertNotNull($node);
+        $this->assertSame(['квалификация', 'знакомство'], $node->tags);
+    }
+
     public function test_admin_can_open_editor_index(): void
     {
         $roleId = DB::table('roles')->insertGetId([

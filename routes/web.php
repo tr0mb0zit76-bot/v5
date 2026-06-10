@@ -308,6 +308,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/nodes/{sales_script_node}', [SalesScriptEditorController::class, 'destroyNode'])->name('nodes.destroy');
             Route::patch('/transitions/{sales_script_transition}', [SalesScriptEditorController::class, 'updateTransition'])->name('transitions.update');
             Route::delete('/transitions/{sales_script_transition}', [SalesScriptEditorController::class, 'destroyTransition'])->name('transitions.destroy');
+            Route::post('/capture-fields', [SalesScriptEditorController::class, 'storeCaptureField'])->name('capture-fields.store');
+            Route::patch('/capture-fields/{sales_script_capture_field}', [SalesScriptEditorController::class, 'updateCaptureField'])->name('capture-fields.update');
+            Route::delete('/capture-fields/{sales_script_capture_field}', [SalesScriptEditorController::class, 'destroyCaptureField'])->name('capture-fields.destroy');
+            Route::post('/node-templates', [SalesScriptEditorController::class, 'storeNodeTemplate'])->name('node-templates.store');
+            Route::patch('/node-templates/{sales_script_node_template}', [SalesScriptEditorController::class, 'updateNodeTemplate'])->name('node-templates.update');
+            Route::delete('/node-templates/{sales_script_node_template}', [SalesScriptEditorController::class, 'destroyNodeTemplate'])->name('node-templates.destroy');
         });
 
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');

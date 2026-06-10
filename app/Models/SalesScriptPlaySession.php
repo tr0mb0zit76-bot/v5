@@ -97,6 +97,14 @@ class SalesScriptPlaySession extends Model
         return $this->hasMany(SalesScriptTrainerMessage::class, 'sales_script_play_session_id')->orderBy('id');
     }
 
+    /**
+     * @return HasMany<SalesScriptPlaySessionFieldValue, $this>
+     */
+    public function fieldValues(): HasMany
+    {
+        return $this->hasMany(SalesScriptPlaySessionFieldValue::class, 'sales_script_play_session_id');
+    }
+
     public function isComplete(): bool
     {
         return $this->completed_at !== null;

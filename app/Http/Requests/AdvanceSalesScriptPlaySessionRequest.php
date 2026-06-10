@@ -19,6 +19,8 @@ class AdvanceSalesScriptPlaySessionRequest extends FormRequest
         return [
             'sales_script_reaction_class_id' => ['nullable', 'integer', 'exists:sales_script_reaction_classes,id'],
             'compound' => ['sometimes', 'boolean'],
+            'field_values' => ['nullable', 'array'],
+            'field_values.*' => ['nullable', 'string', 'max:2000'],
         ];
     }
 }

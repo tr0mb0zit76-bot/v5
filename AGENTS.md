@@ -84,6 +84,14 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `app/Support/RussianPositionInflector.php` — эвристики + fallback на исходную строку.
 - В снимок контрагента добавлено `*.signer_position_genitive_auto` в сервисах печати заказа/лида; в legacy добавлены алиасы `dolzhn_podpisant_rod`, `podpisant_perevoz_rod`.
 
+### Скрипты продаж (граф, Play, поля)
+
+- Документация: `docs/sales-scripts-editor-guide.md`, план фаз: `docs/scripts-module-implementation-plan.md`.
+- Редактор: `SalesScriptEditorController`, `resources/js/Pages/SalesScripts/Editor/Graph.vue`, канвас `ScriptGraphCanvas.vue` — теги узлов (`tags`), шаблоны (`sales_script_node_templates`), поля `{code}` (`sales_script_capture_fields`, `capture_field_codes` на узле).
+- Play: `SalesScriptController`, `Play.vue`, `SalesScriptPlaySessionService::saveFieldValues()`, `SalesScriptPlayPresentationService` + `SalesScriptBodyPlaceholderService` (сегменты capture/reference).
+- Маршруты редактора: `scripts.editor.*` — `capture-fields.*`, `node-templates.*`, сохранение графа с тегами (`SaveGraphRequest`).
+- Область видимости: `sales_assistant_scripts` (легаси `scripts` в `RoleAccess`).
+
 ### Условия оплаты и график (`payment_schedules`)
 
 - Документация: `docs/payment-schedule-architecture.md`.

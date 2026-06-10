@@ -4,9 +4,11 @@ namespace App\Services\SalesScripts;
 
 use App\Enums\SalesPlayEventType;
 use App\Enums\SalesPlaySessionOutcome;
+use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlayEvent;
 use App\Models\SalesScriptPlaySession;
+use App\Models\SalesScriptPlaySessionFieldValue;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
 use App\Models\User;
@@ -129,6 +131,50 @@ class SalesScriptPlaySessionService
             }
 
             return $session->fresh(['currentNode', 'version.script']);
+        });
+    }
+
+    /**
+     * @param  array<string, string|null>  $fieldValuesByCode
+     */
+    public function saveFieldValues(
+        SalesScriptPlaySession $session,
+        SalesScriptNode $node,
+        array $fieldValuesByCode,
+    ): void {
+        if ($fieldValuesByCode === []) {
+            return;
+        }
+
+        $codes = array_keys($fieldValuesByCode);
+        $fields = SalesScriptCaptureField::query()
+            ->whereIn('code', $codes)
+            ->get()
+            ->keyBy('code');
+
+        DB::transaction(function () use ($session, $node, $fieldValuesByCode, $fields): void {
+            foreach ($fieldValuesByCode as $code => $value) {
+                $field = $fields->get($code);
+                if ($field === null) {
+                    continue;
+                }
+
+                $trimmed = trim((string) $value);
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                SalesScriptPlaySessionFieldValue::query()->updateOrCreate(
+                    [
+                        'sales_script_play_session_id' => $session->id,
+                        'sales_script_capture_field_id' => $field->id,
+                    ],
+                    [
+                        'value' => $trimmed,
+                        'captured_at_node_id' => $node->id,
+                    ],
+                );
+            }
         });
     }
 

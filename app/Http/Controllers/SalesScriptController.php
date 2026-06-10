@@ -12,6 +12,7 @@ use App\Http\Requests\StoreTrainerChatMessageRequest;
 use App\Http\Requests\UpdateTrainerMessagePeerReactionRequest;
 use App\Http\Requests\UpdateTrainerSessionMetaRequest;
 use App\Models\SalesScript;
+use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptReactionClass;
@@ -136,9 +137,9 @@ class SalesScriptController extends Controller
         $session = $sales_script_play_session;
         $this->authorize('interact', $session);
 
-        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages']);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages', 'fieldValues.captureField']);
         $current = $this->resolveCurrentNode($session);
-        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages']);
+        $session->load(['currentNode', 'version.script', 'events.reactionClass', 'events.node', 'trainerMessages', 'fieldValues.captureField']);
         $outgoing = [];
         if ($current !== null && ! $session->isComplete()) {
             foreach ($this->playSessionService->outgoingTransitions($current) as $t) {
@@ -154,7 +155,11 @@ class SalesScriptController extends Controller
             }
         }
 
-        $playPresentation = $this->playPresentationService->build($current);
+        $playPresentation = $this->playPresentationService->build(
+            $current,
+            $this->sessionFieldValuesByCode($session),
+            $this->captureFieldLabelsByCode(),
+        );
 
         $eventTrail = $session->events->map(fn ($e): array => [
             'id' => $e->id,
@@ -245,6 +250,7 @@ class SalesScriptController extends Controller
                 },
             ]),
             'reactionClasses' => $reactionClasses,
+            'capturedFields' => $this->serializeCapturedFieldsSummary($session),
         ]);
     }
 
@@ -509,7 +515,11 @@ class SalesScriptController extends Controller
     {
         $session->loadMissing(['currentNode', 'events.reactionClass', 'events.node']);
         $current = $this->resolveCurrentNode($session);
-        $playPresentation = $this->playPresentationService->build($current);
+        $playPresentation = $this->playPresentationService->build(
+            $current,
+            $this->sessionFieldValuesByCode($session),
+            $this->captureFieldLabelsByCode(),
+        );
 
         $outgoing = [];
         if ($current !== null && ! $session->isComplete()) {
@@ -651,6 +661,16 @@ class SalesScriptController extends Controller
         $validated = $request->validated();
 
         try {
+            $session->loadMissing('currentNode');
+            $current = $session->currentNode;
+            if ($current !== null) {
+                $this->playSessionService->saveFieldValues(
+                    $session,
+                    $current,
+                    $validated['field_values'] ?? [],
+                );
+            }
+
             $reactionId = $validated['sales_script_reaction_class_id'] ?? null;
             $compound = (bool) ($validated['compound'] ?? false);
 
@@ -705,5 +725,55 @@ class SalesScriptController extends Controller
         }
 
         return to_route('scripts.index')->with('flash', $flash);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function sessionFieldValuesByCode(SalesScriptPlaySession $session): array
+    {
+        $session->loadMissing('fieldValues.captureField');
+
+        $values = [];
+        foreach ($session->fieldValues as $fieldValue) {
+            $code = $fieldValue->captureField?->code;
+            if ($code === null || $code === '') {
+                continue;
+            }
+
+            $values[$code] = (string) $fieldValue->value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function captureFieldLabelsByCode(): array
+    {
+        return SalesScriptCaptureField::query()
+            ->orderBy('sort_order')
+            ->orderBy('label')
+            ->pluck('label', 'code')
+            ->all();
+    }
+
+    /**
+     * @return list<array{code: string, label: string, value: string}>
+     */
+    private function serializeCapturedFieldsSummary(SalesScriptPlaySession $session): array
+    {
+        $session->loadMissing('fieldValues.captureField');
+
+        return $session->fieldValues
+            ->map(fn ($fieldValue): array => [
+                'code' => (string) ($fieldValue->captureField?->code ?? ''),
+                'label' => (string) ($fieldValue->captureField?->label ?? $fieldValue->captureField?->code ?? ''),
+                'value' => (string) $fieldValue->value,
+            ])
+            ->filter(fn (array $row): bool => $row['code'] !== '')
+            ->values()
+            ->all();
     }
 }

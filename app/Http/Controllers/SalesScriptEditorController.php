@@ -4,19 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Enums\SalesScriptNodeKind;
 use App\Http\Requests\SalesScripts\SaveGraphRequest;
+use App\Http\Requests\SalesScripts\StoreCaptureFieldRequest;
 use App\Http\Requests\SalesScripts\StoreNodeRequest;
+use App\Http\Requests\SalesScripts\StoreNodeTemplateRequest;
 use App\Http\Requests\SalesScripts\StoreScriptRequest;
 use App\Http\Requests\SalesScripts\StoreTransitionRequest;
 use App\Http\Requests\SalesScripts\StoreVersionRequest;
+use App\Http\Requests\SalesScripts\UpdateCaptureFieldRequest;
 use App\Http\Requests\SalesScripts\UpdateNodeRequest;
+use App\Http\Requests\SalesScripts\UpdateNodeTemplateRequest;
 use App\Http\Requests\SalesScripts\UpdateScriptRequest;
 use App\Http\Requests\SalesScripts\UpdateTransitionRequest;
 use App\Http\Requests\SalesScripts\UpdateVersionRequest;
 use App\Models\SalesScript;
+use App\Models\SalesScriptCaptureField;
 use App\Models\SalesScriptNode;
+use App\Models\SalesScriptNodeTemplate;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
+use App\Services\SalesScripts\SalesScriptBodyPlaceholderService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +32,10 @@ use Inertia\Response;
 
 class SalesScriptEditorController extends Controller
 {
+    public function __construct(
+        private readonly SalesScriptBodyPlaceholderService $placeholderService,
+    ) {}
+
     public function index(): Response
     {
         $this->authorize('viewAny', SalesScript::class);
@@ -104,6 +115,8 @@ class SalesScriptEditorController extends Controller
                         'kind' => $node->kind,
                         'body' => $node->body,
                         'hint' => $node->hint,
+                        'tags' => $node->tags ?? [],
+                        'capture_field_codes' => $node->capture_field_codes ?? [],
                         'sort_order' => $node->sort_order,
                         'canvas_x' => $node->canvas_x,
                         'canvas_y' => $node->canvas_y,
@@ -192,6 +205,8 @@ class SalesScriptEditorController extends Controller
                     'kind' => $nodeData['kind'],
                     'body' => $nodeData['body'],
                     'hint' => $nodeData['hint'] ?? null,
+                    'tags' => $this->normalizeNodeTags($nodeData['tags'] ?? null),
+                    'capture_field_codes' => $this->normalizeCaptureFieldCodes($nodeData['capture_field_codes'] ?? null),
                     'sort_order' => $nodeData['sort_order'] ?? $index,
                     'canvas_x' => $nodeData['canvas_x'] ?? null,
                     'canvas_y' => $nodeData['canvas_y'] ?? null,
@@ -387,6 +402,112 @@ class SalesScriptEditorController extends Controller
         ]);
     }
 
+    public function storeCaptureField(StoreCaptureFieldRequest $request): RedirectResponse
+    {
+        $this->authorize('viewAny', SalesScript::class);
+
+        $validated = $request->validated();
+        $maxSort = (int) SalesScriptCaptureField::query()->max('sort_order');
+
+        SalesScriptCaptureField::query()->create([
+            'code' => $this->placeholderService->normalizeCode((string) $validated['code']),
+            'label' => trim((string) $validated['label']),
+            'value_type' => $validated['value_type'] ?? 'text',
+            'description' => $validated['description'] ?? null,
+            'sort_order' => $maxSort + 1,
+        ]);
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Поле добавлено в справочник.',
+        ]);
+    }
+
+    public function updateCaptureField(
+        UpdateCaptureFieldRequest $request,
+        SalesScriptCaptureField $sales_script_capture_field,
+    ): RedirectResponse {
+        $this->authorize('viewAny', SalesScript::class);
+
+        $sales_script_capture_field->update($request->validated());
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Поле обновлено.',
+        ]);
+    }
+
+    public function destroyCaptureField(SalesScriptCaptureField $sales_script_capture_field): RedirectResponse
+    {
+        $this->authorize('viewAny', SalesScript::class);
+
+        $sales_script_capture_field->delete();
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Поле удалено из справочника.',
+        ]);
+    }
+
+    public function storeNodeTemplate(StoreNodeTemplateRequest $request): RedirectResponse
+    {
+        $this->authorize('viewAny', SalesScript::class);
+
+        $validated = $request->validated();
+
+        SalesScriptNodeTemplate::query()->create([
+            'title' => trim((string) $validated['title']),
+            'kind' => $validated['kind'],
+            'body' => $validated['body'],
+            'hint' => $validated['hint'] ?? null,
+            'tags' => $this->normalizeNodeTags($validated['tags'] ?? null),
+            'capture_field_codes' => $this->normalizeCaptureFieldCodes($validated['capture_field_codes'] ?? null),
+            'default_transitions' => $validated['default_transitions'] ?? null,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Шаблон блока сохранён.',
+        ]);
+    }
+
+    public function updateNodeTemplate(
+        UpdateNodeTemplateRequest $request,
+        SalesScriptNodeTemplate $sales_script_node_template,
+    ): RedirectResponse {
+        $this->authorize('viewAny', SalesScript::class);
+
+        $validated = $request->validated();
+
+        $sales_script_node_template->update([
+            'title' => trim((string) $validated['title']),
+            'kind' => $validated['kind'],
+            'body' => $validated['body'],
+            'hint' => $validated['hint'] ?? null,
+            'tags' => $this->normalizeNodeTags($validated['tags'] ?? null),
+            'capture_field_codes' => $this->normalizeCaptureFieldCodes($validated['capture_field_codes'] ?? null),
+            'default_transitions' => $validated['default_transitions'] ?? null,
+        ]);
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Шаблон обновлён.',
+        ]);
+    }
+
+    public function destroyNodeTemplate(SalesScriptNodeTemplate $sales_script_node_template): RedirectResponse
+    {
+        $this->authorize('viewAny', SalesScript::class);
+
+        $sales_script_node_template->delete();
+
+        return back()->with('flash', [
+            'type' => 'success',
+            'message' => 'Шаблон удалён.',
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -437,6 +558,8 @@ class SalesScriptEditorController extends Controller
                 'kind' => $n->kind->value,
                 'body' => $n->body,
                 'hint' => $n->hint,
+                'tags' => $n->tags ?? [],
+                'capture_field_codes' => $n->capture_field_codes ?? [],
                 'sort_order' => $n->sort_order,
                 'canvas_x' => $n->canvas_x,
                 'canvas_y' => $n->canvas_y,
@@ -466,6 +589,13 @@ class SalesScriptEditorController extends Controller
                 ->orderBy('label')
                 ->get(['id', 'key', 'label']),
             'nodeKinds' => $this->nodeKindOptions(),
+            'captureFields' => SalesScriptCaptureField::query()
+                ->orderBy('sort_order')
+                ->orderBy('label')
+                ->get(['id', 'code', 'label', 'value_type', 'description']),
+            'nodeTemplates' => SalesScriptNodeTemplate::query()
+                ->orderByDesc('id')
+                ->get(['id', 'title', 'kind', 'body', 'hint', 'tags', 'capture_field_codes', 'default_transitions']),
         ]);
     }
 
@@ -479,6 +609,58 @@ class SalesScriptEditorController extends Controller
             ['value' => SalesScriptNodeKind::Ask->value, 'label' => 'Спросить (вопрос)'],
             ['value' => SalesScriptNodeKind::Branch->value, 'label' => 'Ветвление'],
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeNodeTags(mixed $tags): array
+    {
+        if (! is_array($tags)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($tags as $tag) {
+            if (! is_string($tag)) {
+                continue;
+            }
+
+            $trimmed = trim($tag);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $normalized[] = mb_strtolower($trimmed, 'UTF-8');
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeCaptureFieldCodes(mixed $codes): array
+    {
+        if (! is_array($codes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($codes as $code) {
+            if (! is_string($code)) {
+                continue;
+            }
+
+            $value = $this->placeholderService->normalizeCode($code);
+            if ($value === '') {
+                continue;
+            }
+
+            $normalized[] = $value;
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     private function assertTransitionNodesBelongToVersion(SalesScriptVersion $version, int $fromNodeId, int $toNodeId): void

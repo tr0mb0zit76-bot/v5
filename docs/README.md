@@ -58,7 +58,8 @@
 | [contractor-portrait-mvp.md](./contractor-portrait-mvp.md) | Портрет контрагента |
 | [commercial-intelligence-phase-0-1.md](./commercial-intelligence-phase-0-1.md) | Фазы CI |
 | [own-fleet-sprint.md](./own-fleet-sprint.md) | Свой транспорт |
-| [scripts-module-implementation-plan.md](./scripts-module-implementation-plan.md) | Модуль скриптов |
+| [scripts-module-implementation-plan.md](./scripts-module-implementation-plan.md) | Модуль скриптов (план фаз) |
+| [sales-scripts-editor-guide.md](./sales-scripts-editor-guide.md) | Редактор графа: теги, шаблоны, поля `{code}`, Play |
 | [mysql_prepared_statement_error_1615.md](./mysql_prepared_statement_error_1615.md) | MySQL 1615 |
 
 ## Публикация в Книгу продаж
@@ -80,4 +81,4 @@ MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.ph
 
 Требуется `v5-crm-prod` в `~/.cursor/mcp.json` с Bearer-токеном (шаблон: `.cursor/mcp.json.example`). Obsidian vault / Hive Mind: `pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1`. Новые статьи создаются **черновиком** — опубликовать в UI Книги.
 
-*Обновлено: 2026-06-09.*
+*Обновлено: 2026-06-10.*
