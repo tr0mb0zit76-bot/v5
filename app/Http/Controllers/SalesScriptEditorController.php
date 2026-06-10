@@ -135,36 +135,14 @@ class SalesScriptEditorController extends Controller
 
     public function showVersion(SalesScriptVersion $sales_script_version): Response
     {
-        $version = $sales_script_version;
-        $this->authorize('view', $version);
-
-        $version->load(['script']);
-
-        return Inertia::render('SalesScripts/Editor/Version', [
-            'payload' => $this->serializeVersionPayload($version),
-            'reactionClasses' => SalesScriptReactionClass::query()
-                ->orderBy('sort_order')
-                ->orderBy('label')
-                ->get(['id', 'key', 'label']),
-            'nodeKinds' => $this->nodeKindOptions(),
-        ]);
+        return $this->renderGraphEditor($sales_script_version);
     }
 
-    public function showGraph(SalesScriptVersion $sales_script_version): Response
+    public function showGraph(SalesScriptVersion $sales_script_version): RedirectResponse
     {
-        $version = $sales_script_version;
-        $this->authorize('view', $version);
+        $this->authorize('view', $sales_script_version);
 
-        $version->load(['script']);
-
-        return Inertia::render('SalesScripts/Editor/Graph', [
-            'payload' => $this->serializeVersionPayload($version),
-            'reactionClasses' => SalesScriptReactionClass::query()
-                ->orderBy('sort_order')
-                ->orderBy('label')
-                ->get(['id', 'key', 'label']),
-            'nodeKinds' => $this->nodeKindOptions(),
-        ]);
+        return to_route('scripts.editor.versions.show', $sales_script_version);
     }
 
     public function updateGraph(SaveGraphRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse
@@ -252,9 +230,9 @@ class SalesScriptEditorController extends Controller
             ]);
         });
 
-        return to_route('scripts.editor.versions.graph', $version)->with('flash', [
+        return to_route('scripts.editor.versions.show', $version)->with('flash', [
             'type' => 'success',
-            'message' => 'Граф сценария сохранён.',
+            'message' => 'Сценарий сохранён.',
         ]);
     }
 
@@ -472,6 +450,23 @@ class SalesScriptEditorController extends Controller
                 'sort_order' => $t->sort_order,
             ]),
         ];
+    }
+
+    private function renderGraphEditor(SalesScriptVersion $sales_script_version): Response
+    {
+        $version = $sales_script_version;
+        $this->authorize('view', $version);
+
+        $version->load(['script']);
+
+        return Inertia::render('SalesScripts/Editor/Graph', [
+            'payload' => $this->serializeVersionPayload($version),
+            'reactionClasses' => SalesScriptReactionClass::query()
+                ->orderBy('sort_order')
+                ->orderBy('label')
+                ->get(['id', 'key', 'label']),
+            'nodeKinds' => $this->nodeKindOptions(),
+        ]);
     }
 
     /**

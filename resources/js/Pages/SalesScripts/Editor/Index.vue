@@ -100,7 +100,7 @@
                                 :href="route('scripts.editor.versions.show', v.id)"
                                 class="text-sm font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-50"
                             >
-                                Открыть редактор
+                                Конструктор
                             </Link>
                         </li>
                     </ul>

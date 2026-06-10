@@ -77,7 +77,7 @@
                 <article
                     v-for="node in nodes"
                     :key="node.client_key"
-                    class="script-graph__node absolute w-[300px] overflow-hidden rounded-2xl border bg-white shadow-md transition dark:bg-zinc-950"
+                    class="script-graph__node absolute w-[220px] overflow-hidden rounded-2xl border bg-white shadow-md transition dark:bg-zinc-950"
                     :class="[
                         kindBorderClass(node.kind),
                         selectedNodeKey === node.client_key ? 'ring-2 ring-sky-500/40' : '',
@@ -105,13 +105,7 @@
                             {{ kindShort(node.kind) }}
                         </span>
                     </header>
-                    <p class="line-clamp-4 px-3 py-2.5 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">
-                        {{ node.body || '—' }}
-                    </p>
-                    <p v-if="node.hint" class="border-t border-zinc-100 px-3 py-2 text-[11px] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                        {{ node.hint }}
-                    </p>
-                    <div class="relative flex items-center justify-between px-3 py-2">
+                    <div class="relative flex items-center justify-center px-3 py-3">
                         <button
                             type="button"
                             class="script-graph__port script-graph__port--in"
@@ -134,8 +128,8 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
-const NODE_WIDTH = 300;
-const NODE_HEIGHT = 168;
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 102;
 const GRID_PAD = 48;
 
 const props = defineProps({
