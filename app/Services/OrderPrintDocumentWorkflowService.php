@@ -285,38 +285,81 @@ class OrderPrintDocumentWorkflowService
         $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
 
         $pdfContents = $this->docxPdfPreviewService->convertToPdf($docxContents, $generated['download_name']);
-        $pdfPath = null;
-        if ($pdfContents !== null) {
-            $pdfPath = $this->documentStorage->resolveOrderDocumentPath(
-                $order->id,
-                $this->approvedPdfFilename($generated['download_name']),
-            );
-            $this->documentStorage->put($pdfPath, $pdfContents, $this->documentStorage->configuredDriver());
-            $metadata['generated_pdf_storage_driver'] = $this->documentStorage->configuredDriver();
-        } else {
+        if ($pdfContents === null) {
             Log::warning('order.print_workflow.approved_pdf_skipped', [
                 'order_document_id' => $document->id,
                 'message' => 'Конвертация DOCX→PDF недоступна; менеджеру остаётся DOCX с печатью и подписью.',
             ]);
         }
 
-        $updates = [
+        $document->update([
             'file_path' => $permanentPath,
             'metadata' => $metadata,
-        ];
+            'file_size' => $this->documentStorage->size(
+                $permanentPath,
+                knownContents: $docxContents
+            ),
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'original_name' => $generated['download_name'],
+        ]);
+        $document->refresh();
 
-        if ($pdfPath !== null) {
-            $updates['generated_pdf_path'] = $pdfPath;
+        if ($pdfContents !== null) {
+            $this->persistGeneratedApprovedPdf($document, $pdfContents, $generated['download_name']);
+        }
+    }
+
+    /**
+     * Для подписанных заявок без сохранённого PDF — пробует сконвертировать текущий DOCX (лениво, при открытии карточки/превью).
+     */
+    public function ensureApprovedWorkflowPdf(OrderDocument $document): void
+    {
+        if (! in_array($document->workflow_status, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true)) {
+            return;
         }
 
-        $updates['file_size'] = $this->documentStorage->size(
-            $permanentPath,
-            knownContents: $docxContents
-        );
-        $updates['mime_type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        $updates['original_name'] = $generated['download_name'];
+        if (filled($document->generated_pdf_path) || blank($document->file_path)) {
+            return;
+        }
 
-        $document->update($updates);
+        $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
+        $docxContents = $this->documentStorage->get((string) $document->file_path, $storageDriver);
+        $pdfContents = $this->docxPdfPreviewService->convertToPdf(
+            $docxContents,
+            $document->original_name ?: 'draft.docx',
+        );
+
+        if ($pdfContents === null) {
+            return;
+        }
+
+        $this->persistGeneratedApprovedPdf($document, $pdfContents, $document->original_name ?: 'draft.docx');
+    }
+
+    public function persistGeneratedApprovedPdf(OrderDocument $document, string $pdfContents, string $downloadName): void
+    {
+        if (filled($document->generated_pdf_path)) {
+            return;
+        }
+
+        $orderId = (int) $document->order_id;
+        $pdfPath = $this->documentStorage->resolveOrderDocumentPath(
+            $orderId,
+            $this->approvedPdfFilename($downloadName),
+        );
+        $driver = $this->documentStorage->configuredDriver();
+        $this->documentStorage->put($pdfPath, $pdfContents, $driver);
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $metadata['generated_pdf_storage_driver'] = $driver;
+
+        $document->update([
+            'generated_pdf_path' => $pdfPath,
+            'metadata' => $metadata,
+        ]);
     }
 
     /**

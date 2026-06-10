@@ -199,14 +199,21 @@
 
         <div
             :class="crmWizardBody"
-            :inert="isEditing && !isOrderFormEditable"
+            :inert="wizardBodyInert"
         >
             <p
-                v-if="isEditing && !isOrderFormEditable"
+                v-if="isEditing && !isOrderFormEditable && !canViewOrderDocuments"
                 class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
                 role="status"
             >
                 Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Данные можно просматривать; изменения не сохраняются.
+            </p>
+            <p
+                v-else-if="isEditing && !isOrderFormEditable && canViewOrderDocuments"
+                class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                role="status"
+            >
+                Редактирование заказа недоступно: все печатные заявки по заказу доведены до финального PDF. Документы доступны на вкладке «Документы».
             </p>
             <p
                 v-else-if="isEditing && isOrderFormEditable && !canEditFinancialFields"
@@ -1774,7 +1781,7 @@
                 :performers="form.performers"
                 :additional-costs="form.financial_term.additional_costs"
                 :client-request-mode="form.financial_term.client_request_mode"
-                :is-order-form-editable="isOrderFormEditable"
+                :is-order-form-editable="documentsTabEditable"
                 :all-documents="orderAllDocuments"
                 :print-form-template-catalog="printFormTemplateCatalog"
                 :print-form-template-options-customer="printFormTemplateOptionsCustomer"
@@ -3658,6 +3665,25 @@ const isOrderFormEditable = computed(() => {
     }
 
     return props.order?.can_edit_order !== false;
+});
+
+const canViewOrderDocuments = computed(() => props.order?.can_view_order_documents === true);
+
+const canManageOrderDocuments = computed(() => props.order?.can_manage_order_documents === true);
+
+/** Вкладка «Документы»: загрузка и печатные формы не зависят от блокировки карточки заказа. */
+const documentsTabEditable = computed(() => canManageOrderDocuments.value || isOrderFormEditable.value);
+
+const wizardBodyInert = computed(() => {
+    if (!isEditing.value) {
+        return false;
+    }
+
+    if (activeTab.value === 'documents' && canViewOrderDocuments.value) {
+        return false;
+    }
+
+    return !isOrderFormEditable.value;
 });
 
 const canEditFinancialFields = computed(() => {

@@ -57,7 +57,7 @@ function title(doc) {
                     class="rounded-lg border border-zinc-200 px-2 py-1 text-xs hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
                     :href="doc.draft_download_url"
                 >
-                    Скачать черновик DOCX
+                    {{ doc.draft_download_label || 'Скачать черновик DOCX' }}
                 </a>
                 <a
                     v-if="doc.final_pdf_download_url"
@@ -67,7 +67,7 @@ function title(doc) {
                     Скачать PDF
                 </a>
             </div>
-            </div>
+        </div>
         <p v-if="doc.rejection_reason" class="text-xs text-rose-700 dark:text-rose-300">
             Причина отклонения: {{ doc.rejection_reason }}
         </p>

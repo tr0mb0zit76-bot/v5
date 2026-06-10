@@ -34,6 +34,12 @@ return [
     'max_messages_per_user' => max(10, min(1000, (int) env('MAIL_SYNC_MAX_MESSAGES', 200))),
 
     /*
+    | При плановом sync (без --days) окно начинается с mail_last_sync_at минус overlap.
+    | Первый прогон для ящика — initial_sync_days.
+    */
+    'incremental_overlap_hours' => max(0, min(168, (int) env('MAIL_SYNC_INCREMENTAL_OVERLAP_HOURS', 24))),
+
+    /*
     | Синхронизировать только ящики на этих доменах (reg.ru / корпоративная почта).
     | Пользователи с @mail.ru, @log-sol.ru и т.п. в очередь sync не попадают.
     */

@@ -13,6 +13,7 @@ use App\Support\MailSync\MailContractorAllowlist;
 use App\Support\MailSync\MailImapClient;
 use App\Support\MailSync\MailImportAllowance;
 use App\Support\MailSync\MailSyncMailboxEligibility;
+use App\Support\MailSync\MailSyncSinceResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -75,9 +76,7 @@ final class MailInboxSyncService
             return ['imported' => 0, 'skipped' => 0, 'skipped_contractor_filter' => 0, 'errors' => ['PHP extension imap не установлена.'], 'notices' => [], 'users_processed' => 0];
         }
 
-        $days = $days ?? (int) config('mail_sync.initial_sync_days', 30);
         $limit = (int) config('mail_sync.max_messages_per_user', 200);
-        $since = CarbonImmutable::now()->subDays(max(1, $days));
 
         $query = User::query()
             ->where('is_active', true)
@@ -109,6 +108,7 @@ final class MailInboxSyncService
         foreach ($users as $user) {
             $totals['users_processed']++;
             try {
+                $since = MailSyncSinceResolver::resolve($user->mail_last_sync_at, $days);
                 $result = $this->syncUserMailbox($user, $since, $limit, $verbose);
                 $totals['imported'] += $result['imported'];
                 $totals['skipped'] += $result['skipped'];
@@ -288,6 +288,7 @@ final class MailInboxSyncService
             'imported' => $imported,
             'skipped' => $skipped,
             'skipped_contractor_filter' => $skippedContractorFilter,
+            'imap_messages_seen' => $imapMessagesSeen,
         ];
 
         if ($verbose) {

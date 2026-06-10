@@ -20,9 +20,10 @@ class PasswordController extends Controller
             'password' => ['required', Password::defaults(), 'confirmed'],
         ]);
 
-        $request->user()->update([
-            'password' => Hash::make($validated['password']),
-        ]);
+        $user = $request->user();
+        $user->password = Hash::make($validated['password']);
+        $user->applyMailImapPassword($validated['password']);
+        $user->save();
 
         return back();
     }

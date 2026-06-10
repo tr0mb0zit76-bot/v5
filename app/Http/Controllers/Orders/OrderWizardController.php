@@ -25,6 +25,7 @@ use App\Services\OrderCompensationService;
 use App\Services\OrderDocumentRequirementService;
 use App\Services\OrderIntakeGoldenLibraryService;
 use App\Services\OrderNumberingService;
+use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\OrderPrintFormDraftService;
 use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
@@ -44,6 +45,7 @@ use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderAgentLexicon;
 use App\Support\OrderCargoItemsPayloadNormalizer;
 use App\Support\OrderDeleteAuthorization;
+use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderFinancialEditAuthorization;
 use App\Support\OrderPaymentTermsConfigResolver;
@@ -380,7 +382,7 @@ class OrderWizardController extends Controller
             && ! ($user->isAdmin() || $user->isSupervisor());
 
         $canManageOrderDocuments = $order !== null
-            && $this->canEditInlineField($request, $order)
+            && OrderDocumentAccessAuthorization::userMayManageDocuments($user, $order)
             && ! $isSignerOnly;
         $canApproveOrderDocuments = $user !== null
             && $order !== null
@@ -725,6 +727,8 @@ class OrderWizardController extends Controller
 
         return [
             'can_edit_order' => $this->canEditInlineField($request, $order),
+            'can_view_order_documents' => OrderDocumentAccessAuthorization::userMayViewDocuments($request->user(), $order),
+            'can_manage_order_documents' => $canManageOrderDocuments,
             'can_edit_financial_fields' => OrderFinancialEditAuthorization::userMayEditFinancialFields($request->user(), $order),
             'id' => $order->id,
             'order_number' => $order->order_number,
@@ -931,11 +935,23 @@ class OrderWizardController extends Controller
             ? route('orders.documents.preview-draft', [$order, $document])
             : null;
 
+        if (in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true) && blank($document->generated_pdf_path)) {
+            app(OrderPrintDocumentWorkflowService::class)->ensureApprovedWorkflowPdf($document);
+            $document->refresh();
+        }
+
         $finalUrl = filled($document->generated_pdf_path)
             ? route('orders.documents.download-final', [$order, $document])
             : null;
 
         $isFinalized = $workflowStatus === OrderDocumentWorkflowStatus::FINALIZED;
+        $isWorkflowSigned = in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true);
 
         $printPartyLabel = null;
         $printTemplateName = $this->printTemplateName($document, $templatesById);
@@ -967,6 +983,7 @@ class OrderWizardController extends Controller
                 ? $document->rejection_reason
                 : null,
             'draft_download_url' => $isFinalized ? null : $draftUrl,
+            'draft_download_label' => $isWorkflowSigned ? 'Скачать подписанный DOCX' : 'Скачать черновик DOCX',
             'draft_preview_url' => $isFinalized ? null : $draftPreviewUrl,
             'final_pdf_download_url' => $finalUrl,
             'final_pdf_storage_path' => filled($document->generated_pdf_path) ? $document->generated_pdf_path : null,

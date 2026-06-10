@@ -216,15 +216,11 @@ final class MailMimeAttachmentExtractor
     }
 
     /**
-     * @param  list<object>|null  $parameters
+     * @param  array<int, object>|object|null  $parameters
      */
-    private function parameterValue(?array $parameters, string $attribute): ?string
+    private function parameterValue(array|object|null $parameters, string $attribute): ?string
     {
-        if ($parameters === null) {
-            return null;
-        }
-
-        foreach ($parameters as $parameter) {
+        foreach ($this->normalizeParameters($parameters) as $parameter) {
             if (! isset($parameter->attribute, $parameter->value)) {
                 continue;
             }
@@ -237,5 +233,31 @@ final class MailMimeAttachmentExtractor
         }
 
         return null;
+    }
+
+    /**
+     * IMAP может вернуть parameters как массив объектов или один stdClass.
+     *
+     * @return list<object>
+     */
+    private function normalizeParameters(mixed $parameters): array
+    {
+        if ($parameters === null) {
+            return [];
+        }
+
+        if (is_array($parameters)) {
+            return array_values(array_filter($parameters, is_object(...)));
+        }
+
+        if (is_object($parameters)) {
+            if (isset($parameters->attribute)) {
+                return [$parameters];
+            }
+
+            return array_values(array_filter((array) $parameters, is_object(...)));
+        }
+
+        return [];
     }
 }

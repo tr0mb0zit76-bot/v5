@@ -10,6 +10,7 @@ use App\Services\DocumentStorageService;
 use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Support\DocumentRegistryDocumentLabel;
+use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -467,20 +468,10 @@ class DocumentRegistryController extends Controller
 
     private function ensureCanManageOrder(Request $request, Order $order): void
     {
-        $user = $request->user();
-        abort_if($user === null, 403);
-
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return;
-        }
-
-        $docScope = RoleAccess::resolveVisibilityScopeForUser($user, 'documents');
-
-        if ($docScope === 'all') {
-            return;
-        }
-
-        abort_unless((int) $order->manager_id === (int) $user->id, 403);
+        abort_unless(
+            OrderDocumentAccessAuthorization::userMayManageDocuments($request->user(), $order),
+            403,
+        );
     }
 
     private function nullableTrimmedString(mixed $value): ?string

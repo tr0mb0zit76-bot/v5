@@ -15,6 +15,7 @@ use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
 use App\Support\DocumentPreview;
 use App\Support\DocumentUploadBudget;
+use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintFormContext;
 use App\Support\OrderPrintWorkflowLock;
@@ -120,7 +121,7 @@ class OrderDocumentWorkflowController extends Controller
         $this->cabinetNotifier->notifyDocumentApproved($order->fresh(), $orderDocument, $request->user());
 
         return redirect()
-            ->route('orders.edit', $order)
+            ->to(route('orders.edit', $order).'?tab=documents')
             ->with('flash', [
                 'type' => 'success',
                 'message' => 'Документ подписан: в файл добавлены печать и подпись, сформирован PDF для отправки контрагенту (если настроен конвертер DOCX→PDF).',
@@ -245,6 +246,9 @@ class OrderDocumentWorkflowController extends Controller
 
         abort_if(blank($orderDocument->file_path), 404);
 
+        $this->workflowService->ensureApprovedWorkflowPdf($orderDocument);
+        $orderDocument->refresh();
+
         $workflowStatus = $orderDocument->workflow_status;
 
         $canManage = $this->userCanManageOrderDocuments($request, $order);
@@ -301,6 +305,11 @@ class OrderDocumentWorkflowController extends Controller
         $canWorkflowApprove = $canSign && $workflowStatus === OrderDocumentWorkflowStatus::PENDING_APPROVAL;
         $canWorkflowReject = $canWorkflowApprove;
 
+        $workflowSigned = in_array($workflowStatus, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true);
+
         return Inertia::render('Orders/PrintWorkflowDocumentPreview', [
             'orderId' => $order->id,
             'orderNumber' => $order->order_number,
@@ -327,6 +336,12 @@ class OrderDocumentWorkflowController extends Controller
             'signatureHeightMm' => (float) data_get($settings, 'image_overlays.internal_signature.height_mm', 18),
             'stampWidthMm' => (float) data_get($settings, 'image_overlays.internal_stamp.width_mm', 30),
             'stampHeightMm' => (float) data_get($settings, 'image_overlays.internal_stamp.height_mm', 30),
+            'finalPdfDownloadUrl' => filled($orderDocument->generated_pdf_path)
+                ? route('orders.documents.download-final', [$order, $orderDocument])
+                : null,
+            'signedDocxDownloadUrl' => $workflowSigned
+                ? route('orders.documents.download-draft', [$order, $orderDocument])
+                : null,
         ]);
     }
 
@@ -576,6 +591,18 @@ class OrderDocumentWorkflowController extends Controller
         $metadata['preview_pdf_source_docx_size'] = $fingerprintSize;
         $orderDocument->update(['metadata' => $metadata]);
 
+        if (in_array($orderDocument->workflow_status, [
+            OrderDocumentWorkflowStatus::APPROVED,
+            OrderDocumentWorkflowStatus::FINALIZED,
+        ], true) && blank($orderDocument->generated_pdf_path)) {
+            $this->workflowService->persistGeneratedApprovedPdf(
+                $orderDocument,
+                $pdfContents,
+                $orderDocument->original_name ?: 'draft.docx',
+            );
+            $orderDocument->refresh();
+        }
+
         return $this->inlinePdfResponse($pdfContents, $order, $orderDocument);
     }
 
@@ -680,31 +707,10 @@ class OrderDocumentWorkflowController extends Controller
 
     private function ensureCanViewOrderDocuments(Request $request, Order $order): void
     {
-        $user = $request->user();
-
-        if ($user === null) {
-            abort(403);
-        }
-
-        if ($user->isAdmin() || $user->isSupervisor()) {
-            return;
-        }
-
-        if ($user->isManager() && (int) $order->manager_id === (int) $user->id) {
-            return;
-        }
-
-        if ($user->hasSigningAuthority()) {
-            $order->loadMissing('documents');
-            if (
-                OrderPrintWorkflowLock::orderHasPrintDocumentPendingApproval($order)
-                && $user->canSignDocumentsForOwnCompany($order->own_company_id)
-            ) {
-                return;
-            }
-        }
-
-        abort(403);
+        abort_unless(
+            OrderDocumentAccessAuthorization::userMayViewDocuments($request->user(), $order),
+            403,
+        );
     }
 
     /**
