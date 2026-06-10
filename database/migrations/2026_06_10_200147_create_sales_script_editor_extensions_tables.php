@@ -23,10 +23,17 @@ return new class extends Migration
 
         Schema::create('sales_script_play_session_field_values', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sales_script_play_session_id')->constrained('sales_script_play_sessions')->cascadeOnDelete();
-            $table->foreignId('sales_script_capture_field_id')->constrained('sales_script_capture_fields')->cascadeOnDelete();
+            $table->foreignId('sales_script_play_session_id')
+                ->constrained('sales_script_play_sessions', indexName: 'sspsfv_session_id_fk')
+                ->cascadeOnDelete();
+            $table->foreignId('sales_script_capture_field_id')
+                ->constrained('sales_script_capture_fields', indexName: 'sspsfv_capture_field_fk')
+                ->cascadeOnDelete();
             $table->text('value');
-            $table->foreignId('captured_at_node_id')->nullable()->constrained('sales_script_nodes')->nullOnDelete();
+            $table->foreignId('captured_at_node_id')
+                ->nullable()
+                ->constrained('sales_script_nodes', indexName: 'sspsfv_captured_node_fk')
+                ->nullOnDelete();
             $table->timestamps();
 
             $table->unique(

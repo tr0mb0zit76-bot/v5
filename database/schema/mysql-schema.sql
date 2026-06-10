@@ -1619,11 +1619,12 @@ CREATE TABLE `sales_script_play_session_field_values` (
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `sspsfv_session_field_unique` (`sales_script_play_session_id`,`sales_script_capture_field_id`),
-  KEY `sales_script_play_session_field_values_sales_script_capture_field_id_foreign` (`sales_script_capture_field_id`),
-  KEY `sales_script_play_session_field_values_captured_at_node_id_foreign` (`captured_at_node_id`),
-  CONSTRAINT `sales_script_play_session_field_values_captured_at_node_id_foreign` FOREIGN KEY (`captured_at_node_id`) REFERENCES `sales_script_nodes` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `sales_script_play_session_field_values_sales_script_capture_field_id_foreign` FOREIGN KEY (`sales_script_capture_field_id`) REFERENCES `sales_script_capture_fields` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `sales_script_play_session_field_values_sales_script_play_session_id_foreign` FOREIGN KEY (`sales_script_play_session_id`) REFERENCES `sales_script_play_sessions` (`id`) ON DELETE CASCADE
+  KEY `sspsfv_capture_field_fk` (`sales_script_capture_field_id`),
+  KEY `sspsfv_captured_node_fk` (`captured_at_node_id`),
+  KEY `sspsfv_session_id_fk` (`sales_script_play_session_id`),
+  CONSTRAINT `sspsfv_captured_node_fk` FOREIGN KEY (`captured_at_node_id`) REFERENCES `sales_script_nodes` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `sspsfv_capture_field_fk` FOREIGN KEY (`sales_script_capture_field_id`) REFERENCES `sales_script_capture_fields` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `sspsfv_session_id_fk` FOREIGN KEY (`sales_script_play_session_id`) REFERENCES `sales_script_play_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `sales_script_play_sessions`;
