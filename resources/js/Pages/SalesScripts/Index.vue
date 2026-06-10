@@ -12,14 +12,21 @@
             >
                 {{ page.props.flash.message }}
             </p>
-            <p v-if="page.props.can_manage_sales_scripts" class="mt-4">
+            <div v-if="page.props.can_manage_sales_scripts" class="mt-4 flex flex-wrap gap-2">
                 <Link
                     :href="route('scripts.editor.index')"
-                    class="text-sm font-medium text-zinc-800 underline-offset-4 hover:underline dark:text-zinc-200"
+                    :class="crmBtnSecondaryOutline"
                 >
-                    Редактор сценариев (версии и шаги)
+                    Версии и шаги
                 </Link>
-            </p>
+                <Link
+                    v-if="latestGraphVersionId"
+                    :href="route('scripts.editor.versions.show', latestGraphVersionId)"
+                    :class="crmBtnPrimary"
+                >
+                    Конструктор
+                </Link>
+            </div>
         </section>
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -40,7 +47,7 @@
                         {{ tag }}
                     </span>
                 </div>
-                <div class="mt-4 flex flex-1 flex-col justify-end">
+                <div class="mt-4 flex flex-1 flex-col justify-end gap-2">
                     <button
                         v-if="script.active_version"
                         type="button"
@@ -50,6 +57,14 @@
                         Начать сессию
                     </button>
                     <p v-else class="text-sm text-amber-700 dark:text-amber-300">Нет опубликованной версии сценария.</p>
+                    <Link
+                        v-if="page.props.can_manage_sales_scripts && script.latest_editor_version"
+                        :href="route('scripts.editor.versions.show', script.latest_editor_version.id)"
+                        :class="`${crmBtnSecondaryOutline} w-full text-center`"
+                    >
+                        Конструктор
+                        <span class="text-zinc-500">· v{{ script.latest_editor_version.version_number }}</span>
+                    </Link>
                 </div>
             </article>
         </section>
@@ -63,16 +78,28 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnPrimary, crmModuleCard, crmPageEyebrow, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
+import {
+    crmBtnPrimary,
+    crmBtnSecondaryOutline,
+    crmModuleCard,
+    crmPageEyebrow,
+    crmPageLead,
+    crmPageTitle,
+    crmPanel,
+} from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),
 });
 
-const props = defineProps({
+defineProps({
     scripts: {
         type: Array,
         default: () => [],
+    },
+    latestGraphVersionId: {
+        type: Number,
+        default: null,
     },
 });
 

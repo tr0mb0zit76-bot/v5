@@ -52,6 +52,35 @@ class SalesScriptFlowTest extends TestCase
         $this->actingAs($user)->get(route('scripts.index'))->assertForbidden();
     }
 
+    public function test_scripts_index_includes_graph_shortcut_for_script_managers(): void
+    {
+        $this->seed(SalesScriptsDemoSeeder::class);
+
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'scripts_manager',
+            'display_name' => 'Scripts manager',
+            'visibility_areas' => json_encode(['dashboard', 'scripts', 'settings_system'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $versionId = (int) SalesScriptVersion::query()->orderByDesc('updated_at')->value('id');
+
+        $this->actingAs($user)
+            ->get(route('scripts.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('SalesScripts/Index')
+                ->where('latestGraphVersionId', $versionId)
+                ->has('scripts.0.latest_editor_version.id')
+            );
+    }
+
     public function test_manager_can_run_demo_script_and_complete_session(): void
     {
         $this->seed(SalesScriptsDemoSeeder::class);

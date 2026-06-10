@@ -30,6 +30,7 @@ use App\Services\SalesScripts\TrainerScenarioGuidanceService;
 use App\Services\SalesScripts\TrainerScoreCalculator;
 use App\Support\AiChannel;
 use App\Support\AiInteractionFeature;
+use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,16 +54,24 @@ class SalesScriptController extends Controller
         private readonly AiInteractionRecorder $aiInteractionRecorder,
     ) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $canManage = RoleAccess::canManageSalesScripts($request->user());
+
         $scripts = SalesScript::query()
-            ->with(['versions' => function ($q): void {
-                $q->where('is_active', true)->whereNotNull('published_at')->orderByDesc('version_number');
+            ->with(['versions' => function ($q) use ($canManage): void {
+                $q->orderByDesc('version_number');
+                if (! $canManage) {
+                    $q->where('is_active', true)->whereNotNull('published_at');
+                }
             }])
             ->orderBy('title')
             ->get()
-            ->map(function (SalesScript $script): array {
-                $version = $script->versions->first();
+            ->map(function (SalesScript $script) use ($canManage): array {
+                $publishedVersion = $script->versions->first(
+                    fn (SalesScriptVersion $version): bool => $version->is_active && $version->published_at !== null,
+                );
+                $latestEditorVersion = $canManage ? $script->versions->first() : null;
 
                 return [
                     'id' => $script->id,
@@ -70,16 +79,28 @@ class SalesScriptController extends Controller
                     'description' => $script->description,
                     'channel' => $script->channel,
                     'tags' => $script->tags ?? [],
-                    'active_version' => $version ? [
-                        'id' => $version->id,
-                        'version_number' => $version->version_number,
-                        'published_at' => $version->published_at?->toIso8601String(),
+                    'active_version' => $publishedVersion ? [
+                        'id' => $publishedVersion->id,
+                        'version_number' => $publishedVersion->version_number,
+                        'published_at' => $publishedVersion->published_at?->toIso8601String(),
+                    ] : null,
+                    'latest_editor_version' => $latestEditorVersion ? [
+                        'id' => $latestEditorVersion->id,
+                        'version_number' => $latestEditorVersion->version_number,
                     ] : null,
                 ];
             });
 
+        $latestGraphVersionId = null;
+        if ($canManage) {
+            $latestGraphVersionId = SalesScriptVersion::query()
+                ->orderByDesc('updated_at')
+                ->value('id');
+        }
+
         return Inertia::render('SalesScripts/Index', [
             'scripts' => $scripts,
+            'latestGraphVersionId' => $latestGraphVersionId,
         ]);
     }
 

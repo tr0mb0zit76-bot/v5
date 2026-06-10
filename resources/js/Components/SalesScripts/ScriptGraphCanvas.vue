@@ -12,15 +12,27 @@
                     <span class="h-2 w-2 rounded-full bg-violet-500" /> Ветвление
                 </span>
             </div>
-            <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                Тяните связь от <span class="font-medium text-sky-600 dark:text-sky-400">●</span> на грани блока к ● целевого блока
-            </p>
+            <div class="flex flex-wrap items-center gap-3">
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Колёсико — масштаб · фон — перемещение · связь от <span class="font-medium text-sky-600 dark:text-sky-400">●</span> к ●
+                </p>
+                <div class="flex items-center gap-1">
+                    <button type="button" :class="`${crmBtnNeutral} px-2 py-1 text-xs`" title="Уменьшить" @click="zoomOut">−</button>
+                    <button type="button" :class="`${crmBtnNeutral} min-w-[3.25rem] px-2 py-1 text-xs`" title="Сбросить масштаб" @click="resetZoom">
+                        {{ zoomPercent }}%
+                    </button>
+                    <button type="button" :class="`${crmBtnNeutral} px-2 py-1 text-xs`" title="Увеличить" @click="zoomIn">+</button>
+                    <button type="button" :class="`${crmBtnNeutral} px-2 py-1 text-xs`" title="Вписать все блоки" @click="fitToView">Вписать</button>
+                </div>
+            </div>
         </div>
 
         <div
             ref="viewportRef"
-            class="script-graph__viewport relative min-h-[640px] flex-1 overflow-auto"
-            @mousedown.self="clearSelection"
+            class="script-graph__viewport relative min-h-[640px] flex-1 overflow-hidden"
+            :class="panState.active ? 'cursor-grabbing' : 'cursor-grab'"
+            @mousedown.self="onViewportMouseDown"
+            @wheel.prevent="onViewportWheel"
         >
             <div
                 v-if="tagCloud.length"
@@ -56,9 +68,13 @@
             </div>
 
             <div
-                class="script-graph__surface relative"
-                :style="surfaceStyle"
+                class="script-graph__transform absolute left-0 top-0 origin-top-left will-change-transform"
+                :style="transformStyle"
             >
+                <div
+                    class="script-graph__surface relative"
+                    :style="surfaceStyle"
+                >
                 <svg class="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
                     <defs>
                         <marker
@@ -204,13 +220,15 @@
                         @mouseup.stop="finishLink(node.client_key, side)"
                     />
                 </article>
+                </div>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { crmBtnNeutral } from '@/support/crmUi.js';
 import {
     bezierPathBetween,
     edgeGeometryBetweenNodes,
@@ -222,6 +240,9 @@ import {
 const NODE_WIDTH = 240;
 const NODE_MIN_BODY_HEIGHT = 120;
 const GRID_PAD = 48;
+const MIN_ZOOM = 0.35;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 0.1;
 const portSides = ['top', 'right', 'bottom', 'left'];
 
 const props = defineProps({
@@ -245,6 +266,26 @@ const emit = defineEmits([
 ]);
 
 const viewportRef = ref(null);
+
+const viewState = reactive({
+    panX: 0,
+    panY: 0,
+    zoom: 1,
+});
+
+const panState = reactive({
+    active: false,
+    startX: 0,
+    startY: 0,
+    originPanX: 0,
+    originPanY: 0,
+});
+
+const clickState = reactive({
+    pending: false,
+    x: 0,
+    y: 0,
+});
 
 const linkDraft = reactive({
     active: false,
@@ -274,6 +315,12 @@ const tagCloud = computed(() => {
 
     return [...tags].sort((a, b) => a.localeCompare(b, 'ru'));
 });
+
+const zoomPercent = computed(() => Math.round(viewState.zoom * 100));
+
+const transformStyle = computed(() => ({
+    transform: `translate(${viewState.panX}px, ${viewState.panY}px) scale(${viewState.zoom})`,
+}));
 
 const surfaceStyle = computed(() => {
     let maxX = 800;
@@ -498,6 +545,147 @@ function clearSelection() {
     emit('update:selectedTransitionId', null);
 }
 
+function clampZoom(value) {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+function setZoom(nextZoom, anchorX = null, anchorY = null) {
+    const zoom = clampZoom(nextZoom);
+    if (zoom === viewState.zoom) {
+        return;
+    }
+
+    if (!viewportRef.value || anchorX === null || anchorY === null) {
+        viewState.zoom = zoom;
+
+        return;
+    }
+
+    const ratio = zoom / viewState.zoom;
+    viewState.panX = anchorX - (anchorX - viewState.panX) * ratio;
+    viewState.panY = anchorY - (anchorY - viewState.panY) * ratio;
+    viewState.zoom = zoom;
+}
+
+function zoomIn() {
+    if (!viewportRef.value) {
+        setZoom(viewState.zoom + ZOOM_STEP);
+
+        return;
+    }
+
+    const rect = viewportRef.value.getBoundingClientRect();
+    setZoom(viewState.zoom + ZOOM_STEP, rect.width / 2, rect.height / 2);
+}
+
+function zoomOut() {
+    if (!viewportRef.value) {
+        setZoom(viewState.zoom - ZOOM_STEP);
+
+        return;
+    }
+
+    const rect = viewportRef.value.getBoundingClientRect();
+    setZoom(viewState.zoom - ZOOM_STEP, rect.width / 2, rect.height / 2);
+}
+
+function resetZoom() {
+    viewState.zoom = 1;
+    viewState.panX = 0;
+    viewState.panY = 0;
+}
+
+function fitToView() {
+    if (!viewportRef.value) {
+        return;
+    }
+
+    if (props.nodes.length === 0) {
+        resetZoom();
+
+        return;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const node of props.nodes) {
+        const bounds = nodeBounds(node);
+        minX = Math.min(minX, bounds.x);
+        minY = Math.min(minY, bounds.y);
+        maxX = Math.max(maxX, bounds.x + bounds.width);
+        maxY = Math.max(maxY, bounds.y + bounds.height);
+    }
+
+    const contentWidth = maxX - minX + GRID_PAD * 2;
+    const contentHeight = maxY - minY + GRID_PAD * 2;
+    const viewportWidth = viewportRef.value.clientWidth;
+    const viewportHeight = viewportRef.value.clientHeight;
+    const scale = clampZoom(Math.min(viewportWidth / contentWidth, viewportHeight / contentHeight));
+
+    viewState.zoom = scale;
+    viewState.panX = (viewportWidth - contentWidth * scale) / 2 - minX * scale + GRID_PAD * scale;
+    viewState.panY = (viewportHeight - contentHeight * scale) / 2 - minY * scale + GRID_PAD * scale;
+}
+
+function onViewportWheel(event) {
+    if (!viewportRef.value) {
+        return;
+    }
+
+    const rect = viewportRef.value.getBoundingClientRect();
+    const anchorX = event.clientX - rect.left;
+    const anchorY = event.clientY - rect.top;
+    const delta = event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+
+    setZoom(viewState.zoom + delta, anchorX, anchorY);
+}
+
+function onViewportMouseDown(event) {
+    if (event.button !== 0) {
+        return;
+    }
+
+    panState.active = true;
+    panState.startX = event.clientX;
+    panState.startY = event.clientY;
+    panState.originPanX = viewState.panX;
+    panState.originPanY = viewState.panY;
+    clickState.pending = true;
+    clickState.x = event.clientX;
+    clickState.y = event.clientY;
+
+    window.addEventListener('mousemove', onPanMove);
+    window.addEventListener('mouseup', onPanEnd, { once: true });
+}
+
+function onPanMove(event) {
+    if (!panState.active) {
+        return;
+    }
+
+    const dx = event.clientX - panState.startX;
+    const dy = event.clientY - panState.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        clickState.pending = false;
+    }
+
+    viewState.panX = panState.originPanX + dx;
+    viewState.panY = panState.originPanY + dy;
+}
+
+function onPanEnd() {
+    if (clickState.pending) {
+        clearSelection();
+    }
+
+    panState.active = false;
+    window.removeEventListener('mousemove', onPanMove);
+}
+
 function emitAddAnswer(clientKey) {
     emit('update:selectedNodeKey', clientKey);
     emit('add-answer', clientKey);
@@ -526,8 +714,8 @@ function onNodeDragMove(event) {
         return;
     }
 
-    const dx = event.clientX - dragState.startX;
-    const dy = event.clientY - dragState.startY;
+    const dx = (event.clientX - dragState.startX) / viewState.zoom;
+    const dy = (event.clientY - dragState.startY) / viewState.zoom;
 
     emit('update:nodePosition', {
         client_key: dragState.nodeKey,
@@ -550,8 +738,8 @@ function pointerOnSurface(event) {
     const rect = viewportRef.value.getBoundingClientRect();
 
     return {
-        x: event.clientX - rect.left + viewportRef.value.scrollLeft,
-        y: event.clientY - rect.top + viewportRef.value.scrollTop,
+        x: (event.clientX - rect.left - viewState.panX) / viewState.zoom,
+        y: (event.clientY - rect.top - viewState.panY) / viewState.zoom,
     };
 }
 
@@ -598,9 +786,15 @@ function cancelLink() {
     window.removeEventListener('mousemove', onLinkMove);
 }
 
+onMounted(async () => {
+    await nextTick();
+    fitToView();
+});
+
 onBeforeUnmount(() => {
     window.removeEventListener('mousemove', onNodeDragMove);
     window.removeEventListener('mousemove', onLinkMove);
+    window.removeEventListener('mousemove', onPanMove);
 });
 </script>
 

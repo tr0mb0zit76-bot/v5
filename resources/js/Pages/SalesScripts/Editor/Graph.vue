@@ -43,12 +43,18 @@
                     </button>
                 </div>
             </div>
-            <div class="flex flex-wrap gap-4 text-sm">
+            <div class="flex flex-wrap gap-2">
                 <Link
                     :href="route('scripts.editor.index')"
-                    class="font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+                    :class="crmBtnSecondaryOutline"
                 >
-                    ← К списку сценариев
+                    К списку сценариев
+                </Link>
+                <Link
+                    :href="route('scripts.index')"
+                    :class="crmBtnSecondaryOutline"
+                >
+                    К прохождению
                 </Link>
             </div>
             <p
@@ -353,6 +359,7 @@ import {
     crmBtnCreate,
     crmBtnPrimary,
     crmBtnSecondary,
+    crmBtnSecondaryOutline,
     crmFieldFluid,
     crmLabelCompact,
     crmPageEyebrow,

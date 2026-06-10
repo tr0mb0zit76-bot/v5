@@ -12,12 +12,12 @@
             >
                 {{ page.props.flash.message }}
             </p>
-            <div class="mt-4">
+            <div class="mt-4 flex flex-wrap gap-2">
                 <Link
                     :href="route('scripts.index')"
-                    class="text-sm font-medium text-zinc-700 underline-offset-4 hover:underline dark:text-zinc-300"
+                    :class="crmBtnSecondaryOutline"
                 >
-                    ← К прохождению сценариев
+                    К прохождению сценариев
                 </Link>
             </div>
         </section>
@@ -98,7 +98,7 @@
                             </div>
                             <Link
                                 :href="route('scripts.editor.versions.show', v.id)"
-                                class="text-sm font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-50"
+                                :class="crmBtnPrimary"
                             >
                                 Конструктор
                             </Link>
@@ -133,7 +133,7 @@
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { reactive } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnPrimary } from '@/support/crmUi.js';
+import { crmBtnPrimary, crmBtnSecondaryOutline } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-scripts' }, () => page),
