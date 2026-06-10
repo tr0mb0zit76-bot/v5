@@ -55,6 +55,7 @@ class OrderPrintFormDraftService
         Order $order,
         bool $includeTemplateOverlays = true,
         ?OrderPrintFormContext $context = null,
+        bool $applyVmlOverlayPatch = true,
     ): array {
         $templatePrep = PrintFormTemplateDiskSource::ensureMutableTempCopy(
             PrintFormTemplateDiskSource::prepareLocalPathForPhpWord($template->file_disk, $template->file_path),
@@ -190,7 +191,9 @@ class OrderPrintFormDraftService
             }
         }
 
-        DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles, true);
+        if ($applyVmlOverlayPatch) {
+            DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles, true);
+        }
 
         return [
             'disk' => $disk,

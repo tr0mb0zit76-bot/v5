@@ -284,11 +284,15 @@ class OrderPrintDocumentWorkflowService
         $metadata = $this->withoutCachedBrowserPreviewPdf($document, $metadata);
         $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
 
-        $pdfContents = $this->docxPdfPreviewService->convertToPdf($docxContents, $generated['download_name']);
+        $pdfContents = $this->resolveApprovedWorkflowPdfContents(
+            $document,
+            $generated['download_name'],
+            $docxContents,
+        );
         if ($pdfContents === null) {
             Log::warning('order.print_workflow.approved_pdf_skipped', [
                 'order_document_id' => $document->id,
-                'message' => 'Конвертация DOCX→PDF недоступна; менеджеру остаётся DOCX с печатью и подписью.',
+                'message' => 'Конвертация DOCX→PDF недоступна после подписания.',
             ]);
         }
 
@@ -345,16 +349,59 @@ class OrderPrintDocumentWorkflowService
 
         $storageDriver = (string) data_get($document->metadata, 'storage_driver', DocumentStorageService::DRIVER_LOCAL);
         $docxContents = $this->documentStorage->get((string) $document->file_path, $storageDriver);
-        $pdfContents = $this->docxPdfPreviewService->convertToPdf(
-            $docxContents,
-            $document->original_name ?: 'draft.docx',
-        );
+        $downloadName = $document->original_name ?: 'draft.docx';
+        $pdfContents = $this->resolveApprovedWorkflowPdfContents($document, $downloadName, $docxContents);
 
         if ($pdfContents === null) {
             return;
         }
 
-        $this->persistGeneratedApprovedPdf($document, $pdfContents, $document->original_name ?: 'draft.docx');
+        $this->persistGeneratedApprovedPdf($document, $pdfContents, $downloadName);
+    }
+
+    /**
+     * LibreOffice/Gotenberg иногда не конвертирует DOCX после VML-патча позиций подписи/печати — тогда пересобираем без патча только для PDF.
+     */
+    private function resolveApprovedWorkflowPdfContents(
+        OrderDocument $document,
+        string $downloadName,
+        string $docxContents,
+    ): ?string {
+        $pdfContents = $this->docxPdfPreviewService->convertToPdf($docxContents, $downloadName);
+        if ($pdfContents !== null) {
+            return $pdfContents;
+        }
+
+        if ($document->template_id === null) {
+            return null;
+        }
+
+        $template = PrintFormTemplate::query()->find($document->template_id);
+        if ($template === null) {
+            return null;
+        }
+
+        $order = Order::query()->find($document->order_id);
+        if ($order === null) {
+            return null;
+        }
+
+        $order = $this->draftService->loadOrderContext($order);
+        $generated = $this->draftService->generate(
+            $template,
+            $order,
+            true,
+            $this->printContextFromDocumentMetadata($document),
+            applyVmlOverlayPatch: false,
+        );
+
+        try {
+            $fallbackDocx = Storage::disk($generated['disk'])->get($generated['path']);
+
+            return $this->docxPdfPreviewService->convertToPdf($fallbackDocx, $generated['download_name']);
+        } finally {
+            Storage::disk($generated['disk'])->delete($generated['path']);
+        }
     }
 
     public function persistGeneratedApprovedPdf(OrderDocument $document, string $pdfContents, string $downloadName): void
