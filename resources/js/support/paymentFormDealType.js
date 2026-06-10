@@ -87,13 +87,16 @@ export function classifyDealType(customerPaymentForm, carrierPaymentForms = [], 
         return { key: 'unknown', label: 'Появится после заполнения оплат' };
     }
 
+    const customerRate = ratePercentForCode(paymentFormMeta, customer);
     const allCarriersCash = carriers.every((form) => form === 'cash');
+
+    if (customerRate === 0 && allCarriersCash) {
+        return { key: 'vat_zero_cash', label: 'НДС 0% / наличные' };
+    }
 
     if (allCarriersCash) {
         return { key: 'cash', label: 'Наличка' };
     }
-
-    const customerRate = ratePercentForCode(paymentFormMeta, customer);
     const hasCarrier22 = carriers.some((form) => ratePercentForCode(paymentFormMeta, form) === 22);
 
     if (customerRate === 0 && hasCarrier22) {

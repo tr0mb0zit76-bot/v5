@@ -33,6 +33,14 @@ class KpiPaymentCategoryResolverTest extends TestCase
     }
 
     #[Test]
+    public function it_resolves_vat_zero_cash_when_customer_vat_zero_and_carrier_cash(): void
+    {
+        $category = KpiPaymentCategoryResolver::resolve('vat_0', ['cash']);
+
+        $this->assertSame('vat_zero_cash', $category);
+    }
+
+    #[Test]
     public function it_resolves_generic_vat_for_zero_zero_combination(): void
     {
         $category = KpiPaymentCategoryResolver::resolve('vat_0', ['vat_0']);

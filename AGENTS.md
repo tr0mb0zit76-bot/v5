@@ -92,6 +92,22 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Маршруты редактора: `scripts.editor.*` — `capture-fields.*`, `node-templates.*`, сохранение графа с тегами (`SaveGraphRequest`).
 - Область видимости: `sales_assistant_scripts` (легаси `scripts` в `RoleAccess`).
 
+### Управленческий учёт (Финансы)
+
+- Документация: `docs/management-accounting-architecture.md`, план фаз: `docs/management-accounting-implementation-plan.md`.
+- Доступ: `users.can_management_accounting` + admin; `RoleAccess::canAccessManagementAccounting()`. Не путать с бюджетированием (`belongs_to_management`).
+- Импорт: `ManagementAccountingImportService`, парсер `SberRegistryXlsxParser` (`sber_registry_v1`).
+- Матчинг / разнесение: `ManagementAccountingMatchingService`, `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`.
+- ФОТ полупериоды (5 / 20): `ManagementPayrollHalfCalendar`, `ManagementPayrollHalfService`.
+- UI: `Finance/ManagementAccounting/Index.vue`, `Reconcile.vue`; меню `finance-management-accounting`.
+- Маршруты: `finance.management-accounting.*` (`routes/web.php`).
+- Связь с бюджетом (план vs факт, фаза M5): `docs/management-accounting-budgeting-integration.md` — снапшот `BudgetScenario`, дочерний план «Продавцы», `BudgetVarianceService` (ещё не в коде).
+
+### Считалка (маржа в переговорах)
+
+- `SalesMarginCounterService`, `SalesAssistant/Counter.vue`, маршрут `sales-assistant.counter.calculate`.
+- Сценарии: `cash`, `vat_all`, `vat_zero_cash` (заказчик `vat_0`, перевозчик `cash`, вычеты 4%+16% по умолчанию), категория KPI `vat_zero_cash` в `KpiPaymentCategoryResolver`.
+
 ### Условия оплаты и график (`payment_schedules`)
 
 - Документация: `docs/payment-schedule-architecture.md`.

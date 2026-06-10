@@ -17,6 +17,8 @@ final class KpiCustomerDeduction
      *     vat_zero_22_percent: float,
      *     cash_primary_percent: float,
      *     cash_secondary_percent: float,
+     *     vat_zero_cash_primary_percent: float,
+     *     vat_zero_cash_secondary_percent: float,
      * }  $rates
      */
     public static function amount(float $customerRate, string $paymentCategory, array $rates): float
@@ -30,6 +32,11 @@ final class KpiCustomerDeduction
                 $customerRate,
                 (float) $rates['cash_primary_percent'],
                 (float) $rates['cash_secondary_percent'],
+            ),
+            'vat_zero_cash' => self::sequentialCashDeduction(
+                $customerRate,
+                (float) $rates['vat_zero_cash_primary_percent'],
+                (float) $rates['vat_zero_cash_secondary_percent'],
             ),
             'vat_zero_22' => self::percentOf($customerRate, (float) $rates['vat_zero_22_percent']),
             'vat_all' => self::percentOf($customerRate, (float) $rates['vat_all_percent']),

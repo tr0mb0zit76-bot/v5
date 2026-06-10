@@ -387,6 +387,7 @@ grid_views:
 | v0.2.7 | 2026-06-08 | Intake: command bar — вложения в чате ✅; MCP `extract_order_draft_from_document` — открыт |
 | v0.2.8 | 2026-06-08 | Единая модель условий оплаты: транши с якорями и событиями; `installment_sequence`; грид оплат — даты дд.мм.гггг; см. `payment-schedule-architecture.md` |
 | v0.2.9 | 2026-06-03 | Фаза 5 spike: `workflow-end-to-end-spike.md` — карта статусов, сценарии, read-model вместо ProcessInstance, wireframe pipeline |
+| v0.3.0 | 2026-06-11 | Управленческий учёт в «Финансы»: импорт XLSX Сбера, разнесение, ФОТ 5/20, флаг `can_management_accounting`; см. `management-accounting-architecture.md` |
 
 ---
 

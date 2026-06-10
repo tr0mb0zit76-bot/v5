@@ -83,6 +83,7 @@ class KpiDeductionRuleResolver
         return match ($category) {
             'cash' => 'Наличка',
             'vat_zero_22' => 'НДС 0% / 22%',
+            'vat_zero_cash' => 'НДС 0% / наличные',
             'vat_all' => 'НДС у всех',
             'vat', 'cashless' => 'Прочие НДС',
             default => 'Появится после заполнения оплат',

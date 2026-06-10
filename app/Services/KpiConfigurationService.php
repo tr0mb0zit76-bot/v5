@@ -29,6 +29,10 @@ class KpiConfigurationService
 
     public const CASH_SECONDARY_PERCENT_KEY = 'cash_secondary_kpi_percent';
 
+    public const VAT_ZERO_CASH_PRIMARY_PERCENT_KEY = 'vat_zero_cash_primary_kpi_percent';
+
+    public const VAT_ZERO_CASH_SECONDARY_PERCENT_KEY = 'vat_zero_cash_secondary_kpi_percent';
+
     public const DEFAULT_BONUS_MULTIPLIER = 1.3;
 
     public const DEFAULT_INSURANCE_MULTIPLIER = 1.2;
@@ -44,6 +48,10 @@ class KpiConfigurationService
     public const DEFAULT_CASH_PRIMARY_PERCENT = 3.0;
 
     public const DEFAULT_CASH_SECONDARY_PERCENT = 21.0;
+
+    public const DEFAULT_VAT_ZERO_CASH_PRIMARY_PERCENT = 4.0;
+
+    public const DEFAULT_VAT_ZERO_CASH_SECONDARY_PERCENT = 16.0;
 
     public function getBonusMultiplier(): float
     {
@@ -97,6 +105,8 @@ class KpiConfigurationService
      *     vat_zero_22_supplement_percent: float,
      *     cash_primary_percent: float,
      *     cash_secondary_percent: float,
+     *     vat_zero_cash_primary_percent: float,
+     *     vat_zero_cash_secondary_percent: float,
      * }
      */
     public function deductionRates(): array
@@ -112,6 +122,14 @@ class KpiConfigurationService
             'vat_zero_22_supplement_percent' => $this->vatZero22MarginSupplementPercent(),
             'cash_primary_percent' => $this->readPercentSetting(self::CASH_PRIMARY_PERCENT_KEY, self::DEFAULT_CASH_PRIMARY_PERCENT),
             'cash_secondary_percent' => $this->readPercentSetting(self::CASH_SECONDARY_PERCENT_KEY, self::DEFAULT_CASH_SECONDARY_PERCENT),
+            'vat_zero_cash_primary_percent' => $this->readPercentSetting(
+                self::VAT_ZERO_CASH_PRIMARY_PERCENT_KEY,
+                self::DEFAULT_VAT_ZERO_CASH_PRIMARY_PERCENT,
+            ),
+            'vat_zero_cash_secondary_percent' => $this->readPercentSetting(
+                self::VAT_ZERO_CASH_SECONDARY_PERCENT_KEY,
+                self::DEFAULT_VAT_ZERO_CASH_SECONDARY_PERCENT,
+            ),
         ];
     }
 
@@ -180,6 +198,20 @@ class KpiConfigurationService
             'float',
             'kpi',
             'Второй вычет KPI для налички, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::VAT_ZERO_CASH_PRIMARY_PERCENT_KEY,
+            number_format((float) $rates['vat_zero_cash_primary_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Первый вычет KPI при НДС 0% у заказчика и наличных у перевозчика, % от суммы заказчика',
+        );
+        KpiSetting::setValue(
+            self::VAT_ZERO_CASH_SECONDARY_PERCENT_KEY,
+            number_format((float) $rates['vat_zero_cash_secondary_percent'], 2, '.', ''),
+            'float',
+            'kpi',
+            'Второй вычет KPI при НДС 0% / наличные, % от остатка после первого вычета',
         );
     }
 
@@ -293,6 +325,14 @@ class KpiConfigurationService
             );
         }
 
+        if ($paymentCategory === 'vat_zero_cash') {
+            return sprintf(
+                '%s%% + %s%%',
+                $this->formatPercent((float) $rates['vat_zero_cash_primary_percent']),
+                $this->formatPercent((float) $rates['vat_zero_cash_secondary_percent']),
+            );
+        }
+
         if ($paymentCategory === 'vat_zero_22') {
             return sprintf('%s%%', $this->formatPercent((float) $rates['vat_zero_22_percent']));
         }
@@ -350,6 +390,8 @@ class KpiConfigurationService
             'vat_zero_22_supplement_percent' => self::DEFAULT_VAT_ZERO_22_SUPPLEMENT_PERCENT,
             'cash_primary_percent' => self::DEFAULT_CASH_PRIMARY_PERCENT,
             'cash_secondary_percent' => self::DEFAULT_CASH_SECONDARY_PERCENT,
+            'vat_zero_cash_primary_percent' => self::DEFAULT_VAT_ZERO_CASH_PRIMARY_PERCENT,
+            'vat_zero_cash_secondary_percent' => self::DEFAULT_VAT_ZERO_CASH_SECONDARY_PERCENT,
         ];
     }
 }

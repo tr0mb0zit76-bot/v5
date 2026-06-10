@@ -1,7 +1,7 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <CrmPageHeader
-            lead="Ставка заказчика — безнал. Перевозчик — наличные и безнал: две сводки по марже и KPI (сделка с наличкой и сделка с НДС)."
+            lead="Ставка заказчика — безнал. Перевозчик — наличные и безнал: три сводки (наличка, НДС 0% у заказчика + нал. у перевозчика, НДС у всех)."
             title="Считалка"
         />
 
@@ -201,10 +201,11 @@ const kpiRatesFootnote = computed(() => {
     }
 
     const cash = `${formatPercent(rates.cash_primary_percent)}% + ${formatPercent(rates.cash_secondary_percent)}%`;
-    const vat = `${formatPercent(rates.vat_percent)}%`;
+    const vatZeroCash = `${formatPercent(rates.vat_zero_cash_primary_percent)}% + ${formatPercent(rates.vat_zero_cash_secondary_percent)}%`;
+    const vatAll = `${formatPercent(rates.vat_all_percent)}%`;
     const bonusPart = multiplier != null ? ` Бонус ×${formatPercent(multiplier)}.` : '';
 
-    return `Вычеты KPI (настройки мотивации): наличка ${cash}, НДС ${vat} с суммы заказчика.${bonusPart} Доп. расходы и бонус — в обеих сводках.`;
+    return `Вычеты KPI: наличка ${cash}; НДС 0% / нал. ${vatZeroCash}; НДС у всех ${vatAll}.${bonusPart} Доп. расходы и бонус — во всех сводках.`;
 });
 
 const amounts = reactive({

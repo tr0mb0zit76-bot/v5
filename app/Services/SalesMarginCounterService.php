@@ -12,6 +12,8 @@ class SalesMarginCounterService
 
     public const SCENARIO_VAT = 'vat_all';
 
+    public const SCENARIO_VAT_ZERO_CASH = 'vat_zero_cash';
+
     public function __construct(
         private readonly OrderCompensationService $orderCompensationService,
         private readonly KpiConfigurationService $kpiConfigurationService,
@@ -73,6 +75,23 @@ class SalesMarginCounterService
                     $defaultVatForm,
                     $defaultVatForm,
                     'Заказчик и перевозчик — безнал (НДС). Укажите ставку заказчика и «Ставка перевозчика, безнал».',
+                    $deductionRates,
+                    $managerId,
+                    $orderDate,
+                    $additionalExpenses,
+                    $insurance,
+                    $bonus,
+                    $fixedExpense,
+                ),
+                $this->buildScenario(
+                    self::SCENARIO_VAT_ZERO_CASH,
+                    'vat_zero_cash',
+                    'НДС 0% у заказчика, перевозчик наличными',
+                    $customerRate,
+                    $carrierCash,
+                    'vat_0',
+                    'cash',
+                    'Заказчик с НДС 0%, перевозчик — наличные. Укажите ставку заказчика и «Ставка перевозчика, нал.».',
                     $deductionRates,
                     $managerId,
                     $orderDate,
@@ -160,7 +179,7 @@ class SalesMarginCounterService
         );
 
         if ($carrierAmount === null || $carrierAmount < 0) {
-            $column['comment'] = $scenarioKey === self::SCENARIO_CASH
+            $column['comment'] = in_array($scenarioKey, [self::SCENARIO_CASH, self::SCENARIO_VAT_ZERO_CASH], true)
                 ? 'Укажите ставку перевозчика (нал.).'
                 : 'Укажите ставку перевозчика (безнал).';
 
@@ -230,15 +249,17 @@ class SalesMarginCounterService
     ): array {
         $cashLabel = $this->deductionRatesLabel('cash', $deductionRates);
         $vatAllLabel = $this->deductionRatesLabel('vat_all', $deductionRates);
+        $vatZeroCashLabel = $this->deductionRatesLabel('vat_zero_cash', $deductionRates);
 
         return [
-            'Заказчик — одна ставка (оплата только безналом). Перевозчик — отдельно наличные и безнал.',
+            'Заказчик — одна ставка (безнал). Перевозчик — отдельно наличные и безнал.',
             sprintf(
-                'Вычеты KPI из настроек мотивации: «Сделка с наличкой» — %s с суммы заказчика; «Сделка с НДС у всех» — %s.',
+                'Вычеты KPI: «Сделка с наличкой» — %s; «НДС 0%% / наличные» — %s; «Сделка с НДС у всех» — %s.',
                 $cashLabel,
+                $vatZeroCashLabel,
                 $vatAllLabel,
             ),
-            'Сначала заполните ставку заказчика и перевозчика (нал.) — появится обзор «Сделка с наличкой». Затем ставку перевозчика (безнал) — обзор «Сделка с НДС у всех».',
+            'Три сводки: наличка у перевозчика (заказчик безнал), НДС 0%% у заказчика + нал. у перевозчика, безнал у всех.',
             $this->filledFieldsHint($customerRate, $carrierCash, $carrierCashless),
         ];
     }
@@ -258,6 +279,14 @@ class SalesMarginCounterService
                 '%s%% + %s%%',
                 $this->formatPercent((float) $deductionRates['cash_primary_percent']),
                 $this->formatPercent((float) $deductionRates['cash_secondary_percent']),
+            );
+        }
+
+        if ($paymentCategory === 'vat_zero_cash') {
+            return sprintf(
+                '%s%% + %s%%',
+                $this->formatPercent((float) $deductionRates['vat_zero_cash_primary_percent']),
+                $this->formatPercent((float) $deductionRates['vat_zero_cash_secondary_percent']),
             );
         }
 

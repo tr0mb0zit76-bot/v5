@@ -40,6 +40,9 @@
 | Файл | Назначение |
 | --- | --- |
 | [payment-schedule-architecture.md](./payment-schedule-architecture.md) | Единая модель траншей, расчёт `planned_date`, `payment_schedules`, UI и тесты |
+| [management-accounting-architecture.md](./management-accounting-architecture.md) | Управленческий учёт: выписки, разнесение, ФОТ, операционный vs управленческий контур |
+| [management-accounting-implementation-plan.md](./management-accounting-implementation-plan.md) | План фаз M0–M5 модуля «Управленческий учёт» |
+| [management-accounting-budgeting-integration.md](./management-accounting-budgeting-integration.md) | Связь с бюджетированием: план vs факт, дочерний план продавцов |
 | [order-wizard-financial-terms-user-guide.md](./order-wizard-financial-terms-user-guide.md) | Пользовательская инструкция: вкладка «Финансы» в мастере заказа |
 
 ## Документы, печать, OCR
@@ -81,4 +84,4 @@ MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.ph
 
 Требуется `v5-crm-prod` в `~/.cursor/mcp.json` с Bearer-токеном (шаблон: `.cursor/mcp.json.example`). Obsidian vault / Hive Mind: `pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1`. Новые статьи создаются **черновиком** — опубликовать в UI Книги.
 
-*Обновлено: 2026-06-10.*
+*Обновлено: 2026-06-11.*
