@@ -228,11 +228,13 @@ UI: форма «Добавить статью», кнопка синхрони�
 ```bash
 git pull origin master
 php artisan migrate
-php artisan db:seed --class=ManagementAccountingSeeder
+php artisan db:seed --class=ManagementAccountingSeeder   # р/с + sync статей с бюджетом
 npm run build
 ```
 
-Миграции после M0: `management_expense_category_id` на `budget_opex_articles`, таблица `management_reconcile_rules`.
+**Важно:** `ManagementAccountingSeeder` **не** входит в `DatabaseSeeder`. После первого деплоя без сидера таблица `management_expense_categories` пустая — список статей в UI будет пуст. Миграция `seed_management_expense_system_categories` создаёт 10 системных статей при `migrate`; статьи из бюджета — кнопка «Синхронизировать» или полный сидер.
+
+Миграции после M0: `management_expense_category_id` на `budget_opex_articles`, `management_reconcile_rules`, `seed_management_expense_system_categories`.
 
 На Windows, если `php artisan migrate` падает на загрузке `database/schema/mysql-schema.sql` (`mysql` не в PATH), выполнить миграцию по `--path` на сервере/CI или через прямой вызов `up()` миграции.
 
