@@ -11,7 +11,8 @@ final class ManagementExpenseCategoryCatalog
     {
         return [
             ['code' => 'operational_customer_in', 'name' => 'Оплата от заказчика', 'kind' => 'operational_in', 'sort_order' => 10],
-            ['code' => 'operational_carrier_out', 'name' => 'Оплата перевозчику', 'kind' => 'operational_out', 'sort_order' => 20],
+            ['code' => 'operational_carrier_out', 'name' => 'Привлечённый транспорт', 'kind' => 'operational_out_hired', 'sort_order' => 20],
+            ['code' => 'cost_own_fleet', 'name' => 'Собственный парк', 'kind' => 'operational_out_own_fleet', 'sort_order' => 25],
             ['code' => 'bank_fees', 'name' => 'Банковские комиссии и сборы', 'kind' => 'overhead', 'sort_order' => 30],
             ['code' => 'services_other', 'name' => 'Услуги и лицензии (прочее)', 'kind' => 'overhead', 'sort_order' => 40],
             ['code' => 'payroll_accrued_sales', 'name' => 'ФОТ продавцы (начислено)', 'kind' => 'payroll_accrued', 'sort_order' => 50],

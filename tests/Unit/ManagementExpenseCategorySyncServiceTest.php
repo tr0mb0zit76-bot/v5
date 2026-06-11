@@ -22,9 +22,11 @@ class ManagementExpenseCategorySyncServiceTest extends TestCase
 
         Schema::create('management_expense_categories', function (Blueprint $table): void {
             $table->id();
+            $table->unsignedBigInteger('parent_id')->nullable();
             $table->string('code', 64)->unique();
             $table->string('name');
             $table->string('kind', 32);
+            $table->string('flow', 8)->default('out');
             $table->boolean('is_system')->default(false);
             $table->boolean('is_active')->default(true);
             $table->unsignedSmallInteger('sort_order')->default(0);

@@ -16,10 +16,15 @@ class OwnFleetContractorService
             return null;
         }
 
-        $attributes = [
-            'type' => 'carrier',
-            'is_active' => true,
-        ];
+        $attributes = [];
+
+        if (Schema::hasColumn('contractors', 'type')) {
+            $attributes['type'] = 'carrier';
+        }
+
+        if (Schema::hasColumn('contractors', 'is_active')) {
+            $attributes['is_active'] = true;
+        }
 
         if (Schema::hasColumn('contractors', 'is_own_company')) {
             $attributes['is_own_company'] = true;

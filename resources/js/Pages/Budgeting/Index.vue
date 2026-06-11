@@ -29,17 +29,16 @@
             <aside class="space-y-4">
                 <section :class="`${crmPanel} p-4`">
                     <div class="flex items-center justify-between gap-2">
-                        <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Справочник накладных</h2>
-                        <button
-                            type="button"
+                        <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">План по статьям</h2>
+                        <Link
+                            :href="management_accounting_categories_url"
                             class="text-xs font-medium text-sky-700 hover:underline dark:text-sky-300"
-                            @click="addOpexArticle"
                         >
-                            + Статья
-                        </button>
+                            Статьи учёта →
+                        </Link>
                     </div>
                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        Фикс ₽/мес или % от маржи компании за месяц. «Первые N мес.» — только в начале (оклады).
+                        Названия статей — в «Управленческом учёте». Здесь только план: фикс ₽/мес, % маржи или «первые N мес.».
                     </p>
                     <div class="mt-3 space-y-2">
                         <div
@@ -47,13 +46,10 @@
                             :key="article.id ?? article._localKey"
                             class="rounded-xl border border-zinc-200 p-3 dark:border-zinc-700"
                         >
-                            <input
-                                v-model="article.name"
-                                type="text"
-                                class="w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                                placeholder="Название"
-                                @change="persistOpexArticle(article)"
-                            >
+                            <div class="font-medium text-sm text-zinc-800 dark:text-zinc-100">
+                                {{ article.name }}
+                            </div>
+                            <div v-if="article.category_code" class="text-[11px] text-zinc-500">{{ article.category_code }}</div>
                             <label class="mt-2 block space-y-0.5">
                                 <span class="text-[10px] uppercase text-zinc-500">Тип</span>
                                 <select
@@ -102,15 +98,11 @@
                                     >
                                 </label>
                             </div>
-                            <button
-                                v-if="article.id"
-                                type="button"
-                                class="mt-2 text-xs text-rose-600 hover:underline dark:text-rose-400"
-                                @click="removeOpexArticle(article)"
-                            >
-                                Удалить
-                            </button>
                         </div>
+                        <p v-if="localOpexArticles.length === 0" class="text-xs text-zinc-500">
+                            Нет статей с планом. Добавьте их в
+                            <Link :href="management_accounting_categories_url" class="text-sky-700 hover:underline dark:text-sky-300">«Статьи учёта»</Link>.
+                        </p>
                     </div>
                 </section>
 
@@ -591,7 +583,7 @@
 </template>
 
 <script setup>
-import { router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, reactive, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
@@ -623,6 +615,7 @@ const props = defineProps({
     inputs: { type: Object, required: true },
     plan: { type: Object, required: true },
     opex_articles: { type: Array, default: () => [] },
+    management_accounting_categories_url: { type: String, required: true },
     db_benchmark: { type: Object, default: () => ({}) },
 });
 
@@ -759,8 +752,11 @@ function saveScenario() {
 }
 
 function persistOpexArticle(article) {
+    if (!article.id) {
+        return;
+    }
+
     const payload = {
-        name: article.name,
         cost_type: article.cost_type || 'fixed_monthly',
         amount_monthly: article.cost_type === 'percent_of_margin' ? 0 : (Number(article.amount_monthly) || 0),
         percent_of_margin: article.cost_type === 'percent_of_margin'
@@ -769,32 +765,7 @@ function persistOpexArticle(article) {
         ramp_months: article.ramp_months === '' || article.ramp_months === null ? null : Number(article.ramp_months),
     };
 
-    if (article.id) {
-        router.patch(route('budgeting.opex-articles.update', article.id), payload, { preserveScroll: true });
-
-        return;
-    }
-
-    router.post(route('budgeting.opex-articles.store'), payload, {
-        preserveScroll: true,
-        onSuccess: () => {},
-    });
-}
-
-function addOpexArticle() {
-    router.post(
-        route('budgeting.opex-articles.store'),
-        { name: 'Новая статья', cost_type: 'fixed_monthly', amount_monthly: 0, percent_of_margin: null, ramp_months: null },
-        { preserveScroll: true },
-    );
-}
-
-function removeOpexArticle(article) {
-    if (!article.id) {
-        return;
-    }
-
-    router.delete(route('budgeting.opex-articles.destroy', article.id), { preserveScroll: true });
+    router.patch(route('budgeting.opex-articles.update', article.id), payload, { preserveScroll: true });
 }
 
 const planMilestoneCumulativeWarning = computed(() => {

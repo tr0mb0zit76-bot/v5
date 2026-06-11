@@ -5,13 +5,17 @@ namespace App\Services\ManagementAccounting;
 use App\Models\BudgetOpexArticle;
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
-use App\Models\PaymentSchedulePaymentEvent;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 class ManagementAccountingAnalyticsService
 {
+    public function __construct(
+        private readonly ManagementAccountingPivotBuilder $pivotBuilder,
+        private readonly ManagementAccountingOperationalActualsMerger $operationalActualsMerger,
+    ) {}
+
     public const PERIOD_MONTH = 'month';
 
     public const PERIOD_QUARTER = 'quarter';
@@ -45,6 +49,11 @@ class ManagementAccountingAnalyticsService
      *         variance_amount: float|null
      *     }>,
      *     chart: list<array{key: string, label: string, plan: float, fact: float}>,
+     *     pivot: array{
+     *         columns: list<array{key: string, label: string, start: string, end: string}>,
+     *         time_series: list<array{key: string, label: string, revenue: float, expense: float, profit: float}>,
+     *         rows: list<array<string, mixed>>
+     *     },
      *     plan_available: bool
      * }
      */
@@ -57,7 +66,7 @@ class ManagementAccountingAnalyticsService
         $categories = ManagementExpenseCategory::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
-            ->get(['id', 'code', 'name', 'kind']);
+            ->get(['id', 'parent_id', 'code', 'name', 'kind', 'flow']);
 
         $aggregates = $this->aggregateActuals($bounds['start'], $bounds['end']);
         $planOut = $this->resolvePlannedOutflow($bounds['start'], $bounds['end']);
@@ -69,6 +78,7 @@ class ManagementAccountingAnalyticsService
         $planByCategory = $this->resolvePlannedByCategory($bounds['start'], $bounds['end']);
         $rows = $this->buildRows($categories, $aggregates['by_category'], $planByCategory);
         $planAvailable = Schema::hasTable('budget_opex_articles');
+        $pivot = $this->pivotBuilder->build($periodType, $bounds['start'], $bounds['end'], $categories, $planByCategory);
 
         return [
             'period_type' => $periodType,
@@ -106,6 +116,7 @@ class ManagementAccountingAnalyticsService
                     'fact' => $net,
                 ],
             ],
+            'pivot' => $pivot,
             'plan_available' => $planAvailable,
         ];
     }
@@ -183,59 +194,13 @@ class ManagementAccountingAnalyticsService
             $this->addActualBucket($totals, $byCategory, (string) $line->direction, (float) $line->amount, $hasCategoryColumn ? $line->allocation_category_id : null);
         }
 
-        $this->mergeOperationalPaymentEvents($start, $end, $totals, $byCategory);
+        $this->operationalActualsMerger->mergePaymentEvents($start, $end, $totals, $byCategory);
+        $this->operationalActualsMerger->mergeFleetTrips($start, $end, $totals, $byCategory);
 
         return [
             'totals' => $totals,
             'by_category' => $byCategory,
         ];
-    }
-
-    /**
-     * Оплаты из графика (ручная фиксация в ДДС), не прошедшие через выписку.
-     * События с transaction_reference mgmt:{id} уже учтены в management_statement_lines.
-     *
-     * @param  array{in: float, out: float}  $totals
-     * @param  array<int, array{in: float, out: float}>  $byCategory
-     */
-    private function mergeOperationalPaymentEvents(
-        CarbonImmutable $start,
-        CarbonImmutable $end,
-        array &$totals,
-        array &$byCategory,
-    ): void {
-        if (! Schema::hasTable('payment_schedule_payment_events')) {
-            return;
-        }
-
-        $customerCategoryId = $this->categoryIdByCode('operational_customer_in');
-        $carrierCategoryId = $this->categoryIdByCode('operational_carrier_out');
-
-        PaymentSchedulePaymentEvent::query()
-            ->whereBetween('payment_date', [$start->toDateString(), $end->toDateString()])
-            ->where(function ($query): void {
-                $query->whereNull('transaction_reference')
-                    ->orWhere('transaction_reference', 'not like', 'mgmt:%');
-            })
-            ->get(['party', 'amount'])
-            ->each(function (PaymentSchedulePaymentEvent $event) use (&$totals, &$byCategory, $customerCategoryId, $carrierCategoryId): void {
-                $amount = (float) $event->amount;
-                if ($amount <= 0) {
-                    return;
-                }
-
-                $party = strtolower(trim((string) $event->party));
-
-                if ($party === 'customer') {
-                    $this->addActualBucket($totals, $byCategory, 'in', $amount, $customerCategoryId);
-
-                    return;
-                }
-
-                if (in_array($party, ['carrier', 'contractor'], true)) {
-                    $this->addActualBucket($totals, $byCategory, 'out', $amount, $carrierCategoryId);
-                }
-            });
     }
 
     /**
@@ -268,19 +233,6 @@ class ManagementAccountingAnalyticsService
         } elseif ($direction === 'out') {
             $byCategory[$categoryId]['out'] += $amount;
         }
-    }
-
-    private function categoryIdByCode(string $code): ?int
-    {
-        if (! Schema::hasTable('management_expense_categories')) {
-            return null;
-        }
-
-        $id = ManagementExpenseCategory::query()
-            ->where('code', $code)
-            ->value('id');
-
-        return $id !== null ? (int) $id : null;
     }
 
     /**

@@ -8,7 +8,6 @@ use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Services\ManagementAccounting\ManagementAccountingMatchingService;
-use App\Services\ManagementAccounting\ManagementReconcileRuleService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -95,8 +94,15 @@ class ManagementAccountingMatchingServiceTest extends TestCase
 
         ManagementExpenseCategory::query()->create([
             'code' => 'operational_carrier_out',
-            'name' => 'Оплата перевозчику',
-            'kind' => 'operational_out',
+            'name' => 'Привлечённый транспорт',
+            'kind' => 'operational_out_hired',
+            'is_active' => true,
+        ]);
+
+        ManagementExpenseCategory::query()->create([
+            'code' => 'cost_own_fleet',
+            'name' => 'Собственный парк',
+            'kind' => 'operational_out_own_fleet',
             'is_active' => true,
         ]);
     }
@@ -302,6 +308,6 @@ class ManagementAccountingMatchingServiceTest extends TestCase
 
     private function matchingService(): ManagementAccountingMatchingService
     {
-        return new ManagementAccountingMatchingService(new ManagementReconcileRuleService);
+        return app(ManagementAccountingMatchingService::class);
     }
 }

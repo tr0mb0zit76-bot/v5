@@ -15,10 +15,10 @@ use App\Services\ManagementAccounting\ManagementAccountingAllocationService;
 use App\Services\ManagementAccounting\ManagementAccountingImportService;
 use App\Services\ManagementAccounting\ManagementAccountingMatchingService;
 use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
+use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,6 +29,7 @@ class ManagementAccountingImportController extends Controller
         private readonly ManagementAccountingAllocationService $allocationService,
         private readonly ManagementAccountingMatchingService $matchingService,
         private readonly ManagementExpenseCategorySyncService $expenseCategorySyncService,
+        private readonly ManagementExpenseCategoryTreeService $categoryTreeService,
     ) {}
 
     public function store(StoreManagementAccountingImportRequest $request): RedirectResponse
@@ -159,26 +160,14 @@ class ManagementAccountingImportController extends Controller
 
     public function storeCategory(StoreManagementExpenseCategoryRequest $request): RedirectResponse
     {
-        $name = trim((string) $request->validated('name'));
-        $baseCode = 'custom_'.Str::slug($name, '_');
-        $code = $baseCode !== '' && $baseCode !== 'custom_' ? $baseCode : 'custom_article';
-        $suffix = 1;
+        $validated = $request->validated();
+        $parentId = isset($validated['parent_id']) ? (int) $validated['parent_id'] : null;
 
-        while (ManagementExpenseCategory::query()->where('code', $code)->exists()) {
-            $code = $baseCode.'_'.$suffix;
-            $suffix++;
-        }
-
-        $sortOrder = ((int) ManagementExpenseCategory::query()->max('sort_order')) + 10;
-
-        ManagementExpenseCategory::query()->create([
-            'code' => $code,
-            'name' => $name,
-            'kind' => 'overhead',
-            'is_system' => false,
-            'is_active' => true,
-            'sort_order' => $sortOrder,
-        ]);
+        $this->categoryTreeService->create(
+            (string) $validated['name'],
+            $parentId,
+            (string) ($validated['flow'] ?? 'out'),
+        );
 
         return back()->with('flash', ['type' => 'success', 'message' => 'Статья добавлена.']);
     }
@@ -200,8 +189,17 @@ class ManagementAccountingImportController extends Controller
             return back()->with('flash', ['type' => 'error', 'message' => 'Системную статью нельзя переименовать.']);
         }
 
-        $category->update($request->validated());
+        $this->categoryTreeService->update($category, (string) $request->validated('name'));
 
         return back()->with('flash', ['type' => 'success', 'message' => 'Статья обновлена.']);
+    }
+
+    public function destroyCategory(Request $request, ManagementExpenseCategory $category): RedirectResponse
+    {
+        abort_unless(RoleAccess::canAccessManagementAccounting($request->user()), 403);
+
+        $this->categoryTreeService->delete($category);
+
+        return back()->with('flash', ['type' => 'success', 'message' => 'Статья удалена.']);
     }
 }

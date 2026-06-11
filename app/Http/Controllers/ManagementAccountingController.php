@@ -7,6 +7,7 @@ use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementImport;
 use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
 use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
+use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
 use App\Services\ManagementAccounting\ManagementPayrollHalfService;
 use App\Support\RoleAccess;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class ManagementAccountingController extends Controller
         private readonly ManagementAccountingAnalyticsService $analyticsService,
         private readonly ManagementBankAccountSyncService $bankAccountSyncService,
         private readonly ManagementPayrollHalfService $payrollHalfService,
+        private readonly ManagementExpenseCategoryTreeService $categoryTreeService,
     ) {}
 
     public function index(Request $request): Response
@@ -58,7 +60,7 @@ class ManagementAccountingController extends Controller
             ->get(['id', 'bank_name', 'account_mask', 'currency']);
 
         $tab = (string) $request->string('tab');
-        if (! in_array($tab, ['payments', 'ledger'], true)) {
+        if (! in_array($tab, ['payments', 'ledger', 'categories'], true)) {
             $tab = 'payments';
         }
 
@@ -74,15 +76,18 @@ class ManagementAccountingController extends Controller
             ],
             'bank_accounts' => $bankAccounts,
             'default_bank_account_id' => $bankAccounts->first()?->id,
+            'category_tree' => $this->categoryTreeService->treeForUi(),
             'categories' => ManagementExpenseCategory::query()
                 ->where('is_active', true)
                 ->orderBy('sort_order')
-                ->get(['id', 'code', 'name', 'kind', 'is_system'])
+                ->get(['id', 'parent_id', 'code', 'name', 'kind', 'flow', 'is_system'])
                 ->map(static fn (ManagementExpenseCategory $category): array => [
                     'id' => $category->id,
+                    'parent_id' => $category->parent_id,
                     'code' => $category->code,
                     'name' => $category->name,
                     'kind' => $category->kind,
+                    'flow' => $category->flow ?? 'out',
                     'is_system' => $category->is_system,
                     'source' => self::categorySource($category),
                 ]),

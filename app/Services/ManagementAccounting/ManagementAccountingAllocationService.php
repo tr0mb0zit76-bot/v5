@@ -20,6 +20,7 @@ class ManagementAccountingAllocationService
         private readonly PaymentSchedulePaymentLedgerService $paymentLedger,
         private readonly ManagementPayrollHalfService $payrollHalfService,
         private readonly ManagementAccountingMatchingService $matching,
+        private readonly ManagementOperationalCostCategoryResolver $costCategoryResolver,
     ) {}
 
     /**
@@ -49,7 +50,11 @@ class ManagementAccountingAllocationService
 
                 $line->allocation_payment_schedule_id = $schedule->id;
                 $line->allocation_order_id = $schedule->order_id;
-                $line->allocation_category_id = $this->categoryIdForParty((string) $schedule->party);
+                $line->allocation_category_id = $this->categoryIdForParty(
+                    (string) $schedule->party,
+                    $schedule->order_id !== null ? (int) $schedule->order_id : null,
+                    $schedule->counterparty_id !== null ? (int) $schedule->counterparty_id : null,
+                );
                 $line->match_type = 'operational';
             } elseif ($allocationType === 'payroll' && ! empty($payload['user_id'])) {
                 $userId = (int) $payload['user_id'];
@@ -206,11 +211,14 @@ class ManagementAccountingAllocationService
         ]);
     }
 
-    private function categoryIdForParty(string $party): ?int
+    private function categoryIdForParty(string $party, ?int $orderId = null, ?int $contractorId = null): ?int
     {
-        $code = $party === 'customer' ? 'operational_customer_in' : 'operational_carrier_out';
+        if ($party === 'customer') {
+            return $this->categoryIdByCode('operational_customer_in');
+        }
 
-        return $this->categoryIdByCode($code);
+        return $this->costCategoryResolver->categoryIdForCarrier($orderId, $contractorId)
+            ?? $this->categoryIdByCode('operational_carrier_out');
     }
 
     private function categoryIdByCode(string $code): ?int

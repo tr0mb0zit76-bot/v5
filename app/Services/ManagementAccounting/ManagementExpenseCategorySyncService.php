@@ -57,15 +57,27 @@ class ManagementExpenseCategorySyncService
         foreach ($articles as $article) {
             $code = $this->codeForBudgetOpexArticle($article->id);
 
+            $payload = [
+                'name' => $article->name,
+                'kind' => 'overhead',
+                'is_system' => false,
+                'is_active' => true,
+                'sort_order' => 200 + (int) $article->sort_order,
+            ];
+
+            if (Schema::hasColumn('management_expense_categories', 'flow')) {
+                $payload['flow'] = 'out';
+            }
+
+            if (Schema::hasColumn('management_expense_categories', 'parent_id')) {
+                $payload['parent_id'] = ManagementExpenseCategory::query()
+                    ->where('code', 'group_overhead')
+                    ->value('id');
+            }
+
             $category = ManagementExpenseCategory::query()->updateOrCreate(
                 ['code' => $code],
-                [
-                    'name' => $article->name,
-                    'kind' => 'overhead',
-                    'is_system' => false,
-                    'is_active' => true,
-                    'sort_order' => 200 + (int) $article->sort_order,
-                ],
+                $payload,
             );
 
             if ($hasLinkColumn && $article->management_expense_category_id !== $category->id) {

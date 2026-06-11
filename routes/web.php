@@ -578,6 +578,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('finance.management-accounting.categories.sync');
     Route::patch('/finance/management-accounting/categories/{category}', [ManagementAccountingImportController::class, 'updateCategory'])
         ->name('finance.management-accounting.categories.update');
+    Route::delete('/finance/management-accounting/categories/{category}', [ManagementAccountingImportController::class, 'destroyCategory'])
+        ->name('finance.management-accounting.categories.destroy');
     Route::get('/budgeting', [BudgetingController::class, 'index'])->name('budgeting.index');
     Route::patch('/budgeting/scenario', [BudgetingController::class, 'updateScenario'])->name('budgeting.scenario.update');
     Route::post('/budgeting/opex-articles', [BudgetingController::class, 'storeOpexArticle'])->name('budgeting.opex-articles.store');

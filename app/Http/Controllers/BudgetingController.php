@@ -36,6 +36,7 @@ class BudgetingController extends Controller
             'inputs' => $inputs,
             'plan' => $plan,
             'opex_articles' => $opexArticles,
+            'management_accounting_categories_url' => route('finance.management-accounting.index', ['tab' => 'categories']),
             'db_benchmark' => $dbBenchmark,
             'scenario' => [
                 'id' => $scenario->id,
@@ -72,7 +73,12 @@ class BudgetingController extends Controller
 
     public function updateOpexArticle(UpdateBudgetOpexArticleRequest $request, BudgetOpexArticle $opexArticle): RedirectResponse
     {
-        $opexArticle->update($request->validated());
+        $opexArticle->update(collect($request->validated())->only([
+            'cost_type',
+            'amount_monthly',
+            'percent_of_margin',
+            'ramp_months',
+        ])->all());
 
         return to_route('budgeting.index');
     }
@@ -106,6 +112,7 @@ class BudgetingController extends Controller
     private function resolveOpexArticles(BudgetScenario $scenario): array
     {
         $articles = BudgetOpexArticle::query()
+            ->with('managementExpenseCategory:id,name,code')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
@@ -120,7 +127,9 @@ class BudgetingController extends Controller
 
         return $articles->map(fn (BudgetOpexArticle $article): array => [
             'id' => $article->id,
-            'name' => $article->name,
+            'name' => $article->managementExpenseCategory?->name ?? $article->name,
+            'management_expense_category_id' => $article->management_expense_category_id,
+            'category_code' => $article->managementExpenseCategory?->code,
             'cost_type' => $article->cost_type ?? BudgetOpexArticle::COST_FIXED_MONTHLY,
             'amount_monthly' => (float) $article->amount_monthly,
             'percent_of_margin' => $article->percent_of_margin !== null ? (float) $article->percent_of_margin : null,

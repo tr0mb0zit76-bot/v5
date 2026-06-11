@@ -19,6 +19,8 @@ class StoreManagementExpenseCategoryRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'parent_id' => ['nullable', 'integer', 'exists:management_expense_categories,id'],
+            'flow' => ['nullable', 'string', 'in:in,out'],
         ];
     }
 

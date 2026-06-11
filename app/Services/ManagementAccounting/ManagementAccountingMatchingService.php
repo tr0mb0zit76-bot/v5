@@ -8,6 +8,7 @@ use App\Models\ManagementStatementLine;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\User;
+use App\Support\ManagementCostCategoryCodes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -16,6 +17,7 @@ class ManagementAccountingMatchingService
 {
     public function __construct(
         private readonly ManagementReconcileRuleService $reconcileRules,
+        private readonly ManagementOperationalCostCategoryResolver $costCategoryResolver,
     ) {}
 
     /**
@@ -138,8 +140,6 @@ class ManagementAccountingMatchingService
             ->where('order_number', $orderNumber)
             ->first();
 
-        $categoryCode = $direction === 'in' ? 'operational_customer_in' : 'operational_carrier_out';
-
         if ($order === null) {
             return [
                 'match_type' => 'operational',
@@ -147,7 +147,7 @@ class ManagementAccountingMatchingService
                 'match_notes' => 'Номер заявки найден, заказ не найден: '.$orderNumber,
                 'suggested_order_id' => null,
                 'suggested_payment_schedule_id' => null,
-                'suggested_category_id' => $this->defaultCategoryId($categoryCode),
+                'suggested_category_id' => $this->suggestedCarrierCategoryId(null, null),
                 'suggested_user_id' => null,
                 'suggested_candidates' => [],
             ];
@@ -178,7 +178,10 @@ class ManagementAccountingMatchingService
             'match_notes' => $schedule === null ? 'Строка графика не найдена по сумме' : null,
             'suggested_order_id' => $order->id,
             'suggested_payment_schedule_id' => $schedule?->id,
-            'suggested_category_id' => $this->defaultCategoryId($categoryCode),
+            'suggested_category_id' => $this->suggestedCarrierCategoryId(
+                (int) $order->id,
+                $schedule?->counterparty_id !== null ? (int) $schedule->counterparty_id : null,
+            ),
             'suggested_user_id' => null,
             'suggested_candidates' => $candidates,
         ];
@@ -208,7 +211,6 @@ class ManagementAccountingMatchingService
         }
 
         $serializedCandidates = $this->serializeOperationalCandidates($candidates);
-        $categoryCode = $direction === 'in' ? 'operational_customer_in' : 'operational_carrier_out';
 
         if ($candidates->count() > 1) {
             $orderNumbers = $candidates
@@ -224,7 +226,9 @@ class ManagementAccountingMatchingService
                 'match_notes' => 'Несколько заявок ('.$orderNumbers.'): выберите строку графика',
                 'suggested_order_id' => null,
                 'suggested_payment_schedule_id' => null,
-                'suggested_category_id' => $this->defaultCategoryId($categoryCode),
+                'suggested_category_id' => $direction === 'in'
+                    ? $this->defaultCategoryId('operational_customer_in')
+                    : $this->suggestedCarrierCategoryId(null, null),
                 'suggested_user_id' => null,
                 'suggested_candidates' => $serializedCandidates,
             ];
@@ -232,14 +236,20 @@ class ManagementAccountingMatchingService
 
         /** @var array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int} $best */
         $best = $candidates->first();
+        $schedule = $best['schedule'];
 
         return [
             'match_type' => 'operational',
             'match_confidence' => 82,
             'match_notes' => 'Контрагент и сумма: '.$best['contractor_label'],
-            'suggested_order_id' => $best['schedule']->order_id,
-            'suggested_payment_schedule_id' => $best['schedule']->id,
-            'suggested_category_id' => $this->defaultCategoryId($categoryCode),
+            'suggested_order_id' => $schedule->order_id,
+            'suggested_payment_schedule_id' => $schedule->id,
+            'suggested_category_id' => $direction === 'in'
+                ? $this->defaultCategoryId('operational_customer_in')
+                : $this->suggestedCarrierCategoryId(
+                    $schedule->order_id !== null ? (int) $schedule->order_id : null,
+                    $schedule->counterparty_id !== null ? (int) $schedule->counterparty_id : null,
+                ),
             'suggested_user_id' => null,
             'suggested_candidates' => $serializedCandidates,
         ];
@@ -563,6 +573,12 @@ class ManagementAccountingMatchingService
         }
 
         return null;
+    }
+
+    private function suggestedCarrierCategoryId(?int $orderId, ?int $contractorId): ?int
+    {
+        return $this->costCategoryResolver->categoryIdForCarrier($orderId, $contractorId)
+            ?? $this->defaultCategoryId(ManagementCostCategoryCodes::HIRED_TRANSPORT);
     }
 
     private function defaultCategoryId(string $code): ?int

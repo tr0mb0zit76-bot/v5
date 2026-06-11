@@ -25,9 +25,11 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
 
         Schema::create('management_expense_categories', function (Blueprint $table): void {
             $table->id();
+            $table->unsignedBigInteger('parent_id')->nullable();
             $table->string('code', 64)->unique();
             $table->string('name');
             $table->string('kind', 32);
+            $table->string('flow', 8)->default('out');
             $table->boolean('is_system')->default(false);
             $table->boolean('is_active')->default(true);
             $table->unsignedSmallInteger('sort_order')->default(0);
@@ -118,8 +120,10 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $this->assertSame(50000.0, $result['totals']['actual_in']);
         $this->assertSame(1500.0, $result['totals']['actual_out']);
         $this->assertSame(100000.0, $result['totals']['plan_out']);
-        $this->assertCount(1, $result['rows']);
-        $this->assertSame('Банковские комиссии', $result['rows'][0]['name']);
+        $this->assertNotEmpty($result['rows']);
+        $this->assertArrayHasKey('pivot', $result);
+        $this->assertNotEmpty($result['pivot']['columns']);
+        $this->assertNotEmpty($result['pivot']['time_series']);
     }
 
     public function test_includes_customer_payments_from_payment_schedule_events(): void

@@ -23,7 +23,6 @@ class UpdateBudgetOpexArticleRequest extends FormRequest
         $costType = $this->input('cost_type', BudgetOpexArticle::COST_FIXED_MONTHLY);
 
         return [
-            'name' => ['required', 'string', 'max:255'],
             'cost_type' => ['required', 'string', Rule::in([
                 BudgetOpexArticle::COST_FIXED_MONTHLY,
                 BudgetOpexArticle::COST_PERCENT_OF_MARGIN,
