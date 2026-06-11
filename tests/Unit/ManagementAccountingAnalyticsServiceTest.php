@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
+use App\Models\PaymentSchedulePaymentEvent;
 use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -16,6 +17,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         parent::setUp();
 
         $this->schemaDropMany([
+            'payment_schedule_payment_events',
             'management_statement_lines',
             'management_expense_categories',
             'budget_opex_articles',
@@ -41,6 +43,20 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             $table->decimal('amount', 14, 2);
             $table->string('status', 16)->default('pending');
             $table->unsignedBigInteger('allocation_category_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('payment_schedule_payment_events', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('order_id');
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->unsignedBigInteger('payment_schedule_id')->nullable();
+            $table->string('party', 16);
+            $table->decimal('amount', 14, 2);
+            $table->date('payment_date');
+            $table->string('payment_method', 50)->nullable();
+            $table->string('transaction_reference', 100)->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
 
@@ -104,5 +120,40 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $this->assertSame(100000.0, $result['totals']['plan_out']);
         $this->assertCount(1, $result['rows']);
         $this->assertSame('Банковские комиссии', $result['rows'][0]['name']);
+    }
+
+    public function test_includes_customer_payments_from_payment_schedule_events(): void
+    {
+        $customerCategory = ManagementExpenseCategory::query()->create([
+            'code' => 'operational_customer_in',
+            'name' => 'Оплата от заказчика',
+            'kind' => 'operational_in',
+            'is_system' => true,
+            'is_active' => true,
+            'sort_order' => 5,
+        ]);
+
+        PaymentSchedulePaymentEvent::query()->create([
+            'order_id' => 5,
+            'party' => 'customer',
+            'amount' => 620000,
+            'payment_date' => '2026-03-15',
+            'transaction_reference' => null,
+        ]);
+
+        PaymentSchedulePaymentEvent::query()->create([
+            'order_id' => 5,
+            'party' => 'customer',
+            'amount' => 620000,
+            'payment_date' => '2026-03-16',
+            'transaction_reference' => 'mgmt:42',
+        ]);
+
+        $result = app(ManagementAccountingAnalyticsService::class)->build('year', '2026-01-01');
+
+        $this->assertSame(620000.0, $result['totals']['actual_in']);
+        $this->assertCount(1, $result['rows']);
+        $this->assertSame($customerCategory->id, $result['rows'][0]['category_id']);
+        $this->assertSame(620000.0, $result['rows'][0]['actual_in']);
     }
 }

@@ -174,6 +174,10 @@ UI: форма «Добавить статью», кнопка синхрони�
 
 Поддерживаются **частичные** оплаты по одной строке графика (колонки `parent_payment_id`, `is_partial`).
 
+### Вкладка «Учёт» (аналитика)
+
+Факт по периоду = разнесённые `management_statement_lines` **плюс** оплаты из журнала `payment_schedule_payment_events` (ручная фиксация в графике оплат). События с `transaction_reference` вида `mgmt:{line_id}` не дублируются — они уже в выписке. Если старые оплаты есть только в `payment_schedules.paid_amount`, выполните `php artisan payment-schedules:backfill-payment-events`.
+
 ---
 
 ## UI и маршруты
