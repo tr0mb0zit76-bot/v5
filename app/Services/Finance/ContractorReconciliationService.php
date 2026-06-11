@@ -60,14 +60,12 @@ class ContractorReconciliationService
      */
     private function buildCustomerSection(
         int $contractorId,
-        string $contractorType,
         ?Carbon $from,
         ?Carbon $to,
         ?int $userId,
         ?string $roleName,
         string $ordersScope,
     ): array {
-        $counterpartyParty = $contractorType === 'contractor' ? 'contractor' : 'carrier';
         $orders = $this->ordersBaseQuery($userId, $roleName, $ordersScope)
             ->where('orders.customer_id', $contractorId)
             ->when($from, fn ($q) => $q->whereDate('orders.order_date', '>=', $from->toDateString()))
@@ -111,12 +109,15 @@ class ContractorReconciliationService
      */
     private function buildCarrierSection(
         int $contractorId,
+        string $contractorType,
         ?Carbon $from,
         ?Carbon $to,
         ?int $userId,
         ?string $roleName,
         string $ordersScope,
     ): array {
+        $counterpartyParty = $contractorType === 'contractor' ? 'contractor' : 'carrier';
+
         $orders = $this->ordersBaseQuery($userId, $roleName, $ordersScope)
             ->when($from, fn ($q) => $q->whereDate('orders.order_date', '>=', $from->toDateString()))
             ->when($to, fn ($q) => $q->whereDate('orders.order_date', '<=', $to->toDateString()))
