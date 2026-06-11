@@ -29,16 +29,22 @@
 
         <div
             ref="viewportRef"
-            class="script-graph__viewport relative min-h-[640px] flex-1 overflow-hidden"
-            :class="panState.active ? 'cursor-grabbing' : 'cursor-grab'"
-            @mousedown.self="onViewportMouseDown"
+            class="script-graph__viewport relative min-h-[640px] flex-1 overflow-hidden touch-none select-none"
+            :class="[
+                panState.active || dragState.active ? 'script-graph__viewport--dragging' : '',
+                panState.active ? 'cursor-grabbing' : 'cursor-grab',
+            ]"
+            @mousedown="onCanvasPointerDown"
             @wheel.prevent="onViewportWheel"
         >
             <div
                 v-if="tagCloud.length"
                 class="pointer-events-none absolute right-3 top-3 z-20 max-w-[min(100%,320px)]"
             >
-                <div class="pointer-events-auto rounded-2xl border border-zinc-200/90 bg-white/95 p-2.5 shadow-lg backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-950/95">
+                <div
+                    class="pointer-events-auto rounded-2xl border border-zinc-200/90 bg-white/95 p-2.5 shadow-lg backdrop-blur-sm dark:border-zinc-600 dark:bg-zinc-950/95"
+                    @mousedown.stop
+                >
                     <div class="mb-1.5 flex items-center justify-between gap-2">
                         <span class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Теги</span>
                         <button
@@ -138,8 +144,8 @@
                         nodeDimmed(node) ? 'opacity-30' : '',
                     ]"
                     :style="{ left: `${node.canvas_x}px`, top: `${node.canvas_y}px` }"
-                    @mousedown.stop
-                    @click.stop="selectNode(node.client_key)"
+                    @mousedown.stop="onNodePointerDown($event, node.client_key)"
+                    @click.stop="onNodeClick(node.client_key)"
                 >
                     <div
                         v-if="entryNodeKey === node.client_key"
@@ -149,7 +155,6 @@
                     </div>
                     <header
                         class="script-graph__handle flex cursor-grab items-start justify-between gap-2 border-b border-zinc-100 px-3 py-2 active:cursor-grabbing dark:border-zinc-800"
-                        @mousedown="startNodeDrag($event, node.client_key)"
                     >
                         <div class="min-w-0 flex-1">
                             <div class="truncate font-mono text-[11px] text-zinc-500 dark:text-zinc-400">{{ node.client_key }}</div>
@@ -302,6 +307,7 @@ const dragState = reactive({
     startY: 0,
     originX: 0,
     originY: 0,
+    suppressClick: false,
 });
 
 const tagCloud = computed(() => {
@@ -643,11 +649,32 @@ function onViewportWheel(event) {
     setZoom(viewState.zoom + delta, anchorX, anchorY);
 }
 
-function onViewportMouseDown(event) {
-    if (event.button !== 0) {
+function isInteractiveCanvasTarget(target) {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    return target.closest('button, a, input, textarea, select, label, [contenteditable="true"]') !== null;
+}
+
+function onCanvasPointerDown(event) {
+    if (event.button !== 0 || dragState.active || linkDraft.active) {
         return;
     }
 
+    if (event.target instanceof Element && event.target.closest('.script-graph__node')) {
+        return;
+    }
+
+    if (isInteractiveCanvasTarget(event.target)) {
+        return;
+    }
+
+    event.preventDefault();
+    beginPan(event);
+}
+
+function beginPan(event) {
     panState.active = true;
     panState.startX = event.clientX;
     panState.startY = event.clientY;
@@ -665,6 +692,8 @@ function onPanMove(event) {
     if (!panState.active) {
         return;
     }
+
+    event.preventDefault();
 
     const dx = event.clientX - panState.startX;
     const dy = event.clientY - panState.startY;
@@ -691,6 +720,29 @@ function emitAddAnswer(clientKey) {
     emit('add-answer', clientKey);
 }
 
+function onNodeClick(clientKey) {
+    if (dragState.suppressClick) {
+        dragState.suppressClick = false;
+
+        return;
+    }
+
+    selectNode(clientKey);
+}
+
+function onNodePointerDown(event, clientKey) {
+    if (event.button !== 0 || panState.active || linkDraft.active) {
+        return;
+    }
+
+    if (isInteractiveCanvasTarget(event.target)) {
+        return;
+    }
+
+    event.preventDefault();
+    startNodeDrag(event, clientKey);
+}
+
 function startNodeDrag(event, clientKey) {
     const node = nodeByKey.value.get(clientKey);
     if (!node) {
@@ -703,6 +755,7 @@ function startNodeDrag(event, clientKey) {
     dragState.startY = event.clientY;
     dragState.originX = node.canvas_x;
     dragState.originY = node.canvas_y;
+    dragState.suppressClick = false;
     emit('update:selectedNodeKey', clientKey);
 
     window.addEventListener('mousemove', onNodeDragMove);
@@ -714,8 +767,14 @@ function onNodeDragMove(event) {
         return;
     }
 
+    event.preventDefault();
+
     const dx = (event.clientX - dragState.startX) / viewState.zoom;
     const dy = (event.clientY - dragState.startY) / viewState.zoom;
+
+    if (Math.abs(event.clientX - dragState.startX) > 3 || Math.abs(event.clientY - dragState.startY) > 3) {
+        dragState.suppressClick = true;
+    }
 
     emit('update:nodePosition', {
         client_key: dragState.nodeKey,
@@ -744,6 +803,7 @@ function pointerOnSurface(event) {
 }
 
 function startLink(event, fromKey, side) {
+    event.preventDefault();
     linkDraft.active = true;
     linkDraft.fromKey = fromKey;
     linkDraft.fromSide = side;
@@ -803,6 +863,18 @@ onBeforeUnmount(() => {
     background-color: rgb(244 244 245);
     background-image: radial-gradient(rgb(161 161 170 / 0.35) 1px, transparent 1px);
     background-size: 20px 20px;
+}
+
+.script-graph__viewport--dragging,
+.script-graph__viewport--dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.script-graph__node {
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .dark .script-graph__viewport {

@@ -122,14 +122,18 @@
                         </div>
                     </div>
                     <div class="p-3">
-                        <div class="flex items-center justify-between">
+                        <div class="grid grid-cols-3 gap-2">
                             <div>
                                 <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Всего</div>
                                 <div class="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.receivables.total) }}</div>
                             </div>
-                            <div class="text-right">
+                            <div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">По плану</div>
+                                <div class="text-sm font-bold tabular-nums text-sky-700 dark:text-sky-300">{{ formatMoney(cashFlowStats.receivables.pending) }}</div>
+                            </div>
+                            <div>
                                 <div class="text-[10px] font-medium text-rose-800 dark:text-rose-200">Просрочено</div>
-                                <div class="text-lg font-bold tabular-nums text-rose-900 dark:text-rose-100">{{ formatMoney(cashFlowStats.receivables.overdue) }}</div>
+                                <div class="text-sm font-bold tabular-nums text-rose-900 dark:text-rose-100">{{ formatMoney(cashFlowStats.receivables.overdue) }}</div>
                             </div>
                         </div>
                     </div>
@@ -144,14 +148,18 @@
                         </div>
                     </div>
                     <div class="p-3">
-                        <div class="flex items-center justify-between">
+                        <div class="grid grid-cols-3 gap-2">
                             <div>
                                 <div class="text-[10px] text-zinc-500 dark:text-zinc-400">Всего</div>
                                 <div class="text-sm font-bold tabular-nums text-zinc-900 dark:text-zinc-50">{{ formatMoney(cashFlowStats.payables.total) }}</div>
                             </div>
-                            <div class="text-right">
+                            <div>
+                                <div class="text-[10px] text-zinc-500 dark:text-zinc-400">По плану</div>
+                                <div class="text-sm font-bold tabular-nums text-violet-700 dark:text-violet-300">{{ formatMoney(cashFlowStats.payables.pending) }}</div>
+                            </div>
+                            <div>
                                 <div class="text-[10px] font-medium text-orange-800 dark:text-orange-200">Просрочено</div>
-                                <div class="text-lg font-bold tabular-nums text-orange-900 dark:text-orange-100">{{ formatMoney(cashFlowStats.payables.overdue) }}</div>
+                                <div class="text-sm font-bold tabular-nums text-orange-900 dark:text-orange-100">{{ formatMoney(cashFlowStats.payables.overdue) }}</div>
                             </div>
                         </div>
                     </div>
@@ -189,18 +197,7 @@ import { AlertTriangle, ArrowLeft, BarChart3, Clock, TrendingDown, TrendingUp, W
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmModuleCard, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 import CashFlowGrid from '@/Components/Finance/CashFlowGrid.vue';
-
-function defaultCashFlowStats() {
-    return {
-        periods: {
-            today: { incoming: 0.0, outgoing: 0.0 },
-            week: { incoming: 0.0, outgoing: 0.0 },
-            month: { incoming: 0.0, outgoing: 0.0 },
-        },
-        receivables: { total: 0.0, pending: 0.0, overdue: 0.0 },
-        payables: { total: 0.0, pending: 0.0, overdue: 0.0 },
-    };
-}
+import { summarizeCashFlowJournal } from '@/support/cashFlowJournalStats.js';
 
 defineOptions({
     layout: (h, page) =>
@@ -333,14 +330,9 @@ const canShowPaymentScheduleActions = computed(() => props.can_show_payment_sche
 const canPaymentScheduleRecordPayment = computed(() => props.can_payment_schedule_record_payment);
 const canPaymentScheduleCancelRow = computed(() => props.can_payment_schedule_cancel_row);
 
-const cashFlowStats = computed(() => {
-    if (Object.keys(props.cash_flow_stats).length === 0) {
-        return defaultCashFlowStats();
-    }
-    return props.cash_flow_stats;
-});
+const cashFlowStats = computed(() => summarizeCashFlowJournal(props.cashFlowJournal));
 
-const todaysCashFlow = computed(() => props.todays_cash_flow);
+const todaysCashFlow = computed(() => cashFlowStats.value.periods.today);
 
 const submoduleTiles = computed(() => {
     const tiles = [];

@@ -337,7 +337,7 @@ class FinanceOverviewService
 
         $rows = $this->paymentSchedulesOpenRootsBaseQuery($userId, $roleName, $ordersScope)
             ->selectRaw(
-                'payment_schedules.party, '.
+                'LOWER(TRIM(payment_schedules.party)) as party, '.
                 "SUM(CASE WHEN payment_schedules.planned_date = ? THEN {$effective} ELSE 0 END) as today, ".
                 "SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN {$effective} ELSE 0 END) as week, ".
                 "SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN {$effective} ELSE 0 END) as month, ".
@@ -356,7 +356,7 @@ class FinanceOverviewService
                     'overdue',
                 ]
             )
-            ->groupBy('payment_schedules.party')
+            ->groupBy(DB::raw('LOWER(TRIM(payment_schedules.party))'))
             ->get()
             ->keyBy('party');
 
