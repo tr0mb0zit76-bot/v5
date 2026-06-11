@@ -13,6 +13,7 @@ use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
 use App\Services\ManagementAccounting\ManagementAccountingAllocationService;
 use App\Services\ManagementAccounting\ManagementAccountingImportService;
+use App\Services\ManagementAccounting\ManagementAccountingMatchingService;
 use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +27,7 @@ class ManagementAccountingImportController extends Controller
     public function __construct(
         private readonly ManagementAccountingImportService $importService,
         private readonly ManagementAccountingAllocationService $allocationService,
+        private readonly ManagementAccountingMatchingService $matchingService,
         private readonly ManagementExpenseCategorySyncService $expenseCategorySyncService,
     ) {}
 
@@ -61,7 +63,7 @@ class ManagementAccountingImportController extends Controller
             ->orderBy('operation_date')
             ->orderBy('row_number')
             ->get()
-            ->map(static fn (ManagementStatementLine $line): array => [
+            ->map(fn (ManagementStatementLine $line): array => [
                 'id' => $line->id,
                 'operation_date' => $line->operation_date?->toDateString(),
                 'direction' => $line->direction,
@@ -91,6 +93,9 @@ class ManagementAccountingImportController extends Controller
                     'id' => $line->suggestedUser->id,
                     'name' => $line->suggestedUser->name,
                 ],
+                'operational_candidates' => $line->status === 'allocated'
+                    ? []
+                    : $this->matchingService->operationalCandidatesForLine($line),
             ]);
 
         return Inertia::render('Finance/ManagementAccounting/Reconcile', [

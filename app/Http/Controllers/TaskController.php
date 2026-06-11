@@ -20,6 +20,7 @@ use App\Models\TaskEvent;
 use App\Models\User;
 use App\Services\CabinetNotifier;
 use App\Services\TaskSlaService;
+use App\Support\LeadStatus;
 use App\Support\RoleAccess;
 use App\Support\TaskStatus;
 use Illuminate\Http\JsonResponse;
@@ -851,6 +852,11 @@ class TaskController extends Controller
 
         $targetLeadStatus = TaskStatus::leadStatusByTaskStatus($task->status);
         if ($targetLeadStatus === null) {
+            return;
+        }
+
+        $leadStatus = DB::table('leads')->where('id', $task->lead_id)->value('status');
+        if (! is_string($leadStatus) || LeadStatus::isClosed($leadStatus)) {
             return;
         }
 

@@ -14,7 +14,9 @@
             <article class="rounded-lg border border-violet-200/80 bg-white/80 p-3 dark:border-violet-900/40 dark:bg-zinc-950/50">
                 <div class="text-xs uppercase tracking-[0.12em] text-zinc-500">Win rate</div>
                 <div class="mt-1 text-xl font-semibold">{{ insights.summary.win_rate_pct }}%</div>
-                <div class="text-xs text-zinc-500">{{ insights.summary.won_leads }} / {{ insights.summary.closed_leads }}</div>
+                <div class="text-xs text-zinc-500">
+                    выиграно {{ insights.summary.won_leads }} из {{ insights.summary.closed_leads }} закрытых
+                </div>
             </article>
             <article class="rounded-lg border border-violet-200/80 bg-white/80 p-3 dark:border-violet-900/40 dark:bg-zinc-950/50">
                 <div class="text-xs uppercase tracking-[0.12em] text-zinc-500">Lost без ЛПР</div>

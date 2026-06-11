@@ -13,6 +13,7 @@ final class TaskStatus
         'review' => 'На проверке',
         'done' => 'Завершена',
         'on_hold' => 'Отложена',
+        'cancelled' => 'Отменена',
     ];
 
     /**
@@ -48,7 +49,16 @@ final class TaskStatus
             'review' => 'negotiation',
             'done' => 'won',
             'on_hold' => 'on_hold',
+            'cancelled' => null,
             default => null,
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function openStatuses(): array
+    {
+        return ['new', 'in_progress', 'review', 'on_hold'];
     }
 }

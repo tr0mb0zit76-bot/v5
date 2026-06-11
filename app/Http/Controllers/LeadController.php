@@ -24,6 +24,7 @@ use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
+use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrintFormDraftService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
@@ -55,6 +56,7 @@ class LeadController extends Controller
         private readonly ActivityLedgerService $activityLedger,
         private readonly LeadCloseOutcomeService $leadCloseOutcome,
         private readonly ManagerSalesCoachingInsightsService $salesCoachingInsights,
+        private readonly LeadLinkedTaskService $leadLinkedTaskService,
     ) {}
 
     public function index(Request $request): Response
@@ -191,11 +193,15 @@ class LeadController extends Controller
         abort_unless($this->hasLeadsFeatureTables(), 404);
         abort_unless($this->canAccessLead($request, $lead), 403);
 
-        DB::transaction(function () use ($request, $lead): void {
+        $previousStatus = $lead->status;
+        $cancelledTasks = 0;
+
+        DB::transaction(function () use ($request, $lead, $previousStatus, &$cancelledTasks): void {
             $responsibleId = $this->sanitizeResponsibleId($request, $lead->responsible_id);
+            $newStatus = $request->string('status')->toString();
 
             $lead->update([
-                'status' => $request->string('status')->toString(),
+                'status' => $newStatus,
                 'source' => $request->string('source')->toString() ?: null,
                 'counterparty_id' => $request->input('counterparty_id'),
                 'responsible_id' => $responsibleId,
@@ -218,9 +224,17 @@ class LeadController extends Controller
             $this->syncNestedData($lead, $request);
 
             $this->maybeApplyCloseOutcomeFromRequest($lead, $request);
+
+            if ($previousStatus !== 'lost' && $newStatus === 'lost') {
+                $cancelledTasks = $this->leadLinkedTaskService->cancelOpenTasksForLostLead($lead->fresh(), $request->user());
+            }
         });
 
-        return to_route('leads.show', $lead);
+        $followUp = $previousStatus !== 'lost' && $request->string('status')->toString() === 'lost'
+            ? $this->leadFollowUpFlash($cancelledTasks)
+            : null;
+
+        return $this->redirectToLeadShow($lead, 'Лид сохранён.', $followUp);
     }
 
     public function destroy(Request $request, Lead $lead): RedirectResponse
@@ -944,7 +958,7 @@ class LeadController extends Controller
             $this->validateTerminalCloseOutcome($request, $stage);
         }
 
-        $this->leadBusinessProcessService->moveLeadToStage($lead, $stage, $request->user());
+        $cancelledTasks = $this->leadBusinessProcessService->moveLeadToStage($lead, $stage, $request->user());
 
         if ($stage->is_terminal && $request->filled('close_outcome_primary_flag')) {
             $flag = LeadCloseOutcomeFlag::from((string) $request->string('close_outcome_primary_flag'));
@@ -958,7 +972,11 @@ class LeadController extends Controller
             );
         }
 
-        return to_route('leads.show', $lead);
+        $followUp = $stage->terminal_outcome === 'lost'
+            ? $this->leadFollowUpFlash($cancelledTasks)
+            : null;
+
+        return $this->redirectToLeadShow($lead, 'Этап бизнес-процесса обновлён.', $followUp);
     }
 
     public function updateStatus(UpdateLeadStatusRequest $request, Lead $lead): JsonResponse
@@ -1092,5 +1110,33 @@ class LeadController extends Controller
                 'close_outcome_primary_flag' => 'Для этапа успеха выберите причину выигрыша.',
             ]);
         }
+    }
+
+    /**
+     * @return array{cancelled_tasks: int, suggested_title: string}
+     */
+    private function leadFollowUpFlash(int $cancelledTasks): array
+    {
+        return [
+            'cancelled_tasks' => $cancelledTasks,
+            'suggested_title' => 'Узнать новости у клиента',
+        ];
+    }
+
+    /**
+     * @param  array{cancelled_tasks: int, suggested_title: string}|null  $followUp
+     */
+    private function redirectToLeadShow(Lead $lead, ?string $message = null, ?array $followUp = null): RedirectResponse
+    {
+        $flash = [
+            'type' => 'success',
+            'message' => $message,
+        ];
+
+        if ($followUp !== null) {
+            $flash['lead_follow_up'] = $followUp;
+        }
+
+        return to_route('leads.show', $lead)->with('flash', $flash);
     }
 }

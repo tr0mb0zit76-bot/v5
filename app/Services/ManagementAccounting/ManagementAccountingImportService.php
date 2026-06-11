@@ -82,6 +82,7 @@ class ManagementAccountingImportService
                 ]);
 
                 $suggestion = $this->matching->suggestForLine($line);
+                unset($suggestion['suggested_candidates']);
                 $line->fill($suggestion);
                 $line->save();
 

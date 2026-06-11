@@ -120,10 +120,12 @@ class ManagementAccountingMcpService
         }
 
         $suggestion = $this->matching->suggestForLine($line);
+        $candidates = $suggestion['suggested_candidates'] ?? [];
 
         return [
             'line' => $this->linePayload($line),
             'suggestion' => $suggestion,
+            'candidates' => $candidates,
         ];
     }
 

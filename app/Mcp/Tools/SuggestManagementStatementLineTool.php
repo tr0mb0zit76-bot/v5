@@ -13,7 +13,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tool;
 
 #[Name('suggest_management_statement_line')]
-#[Description('Подсказка разнесения для строки выписки: эвристики + сохранённые правила.')]
+#[Description('Подсказка разнесения для строки выписки: эвристики + правила; при нескольких заявках по контрагенту и сумме — candidates[].')]
 class SuggestManagementStatementLineTool extends Tool
 {
     use LogsMcpToolCalls;

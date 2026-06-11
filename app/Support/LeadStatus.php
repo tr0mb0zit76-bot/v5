@@ -39,4 +39,9 @@ final class LeadStatus
     {
         return self::STATUSES[$value] ?? $value;
     }
+
+    public static function isClosed(string $value): bool
+    {
+        return in_array($value, ['won', 'lost'], true);
+    }
 }

@@ -44,6 +44,30 @@
 
         <div :class="crmWizardBody">
             <div v-if="activeTab === 'main'" class="space-y-5">
+                <div
+                    v-if="followUpPrompt"
+                    class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100"
+                >
+                    <p class="font-medium">Лид закрыт без сделки</p>
+                    <p class="mt-1 text-sky-900/90 dark:text-sky-100/90">
+                        <template v-if="followUpPrompt.cancelled_tasks > 0">
+                            Отменено задач по этому лиду: {{ followUpPrompt.cancelled_tasks }}.
+                        </template>
+                        <template v-else>
+                            Открытых задач по лиду не было.
+                        </template>
+                        Клиент может вернуться — создайте задачу на поддержание контакта.
+                    </p>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button type="button" :class="crmBtnPrimary" @click="prefillFollowUpTask">
+                            Создать: «{{ followUpPrompt.suggested_title }}»
+                        </button>
+                        <button type="button" :class="crmBtnSecondary" @click="followUpPrompt = null">
+                            Понятно
+                        </button>
+                    </div>
+                </div>
+
                 <LeadProcessPanel
                     v-if="businessProcessesEnabled"
                     v-model:advance-stage-id="advanceStageId"
@@ -368,7 +392,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowRightLeft, ClipboardList, FileText, History, MapPinned, Package, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import ActivityTimeline from '@/Components/CommercialIntelligence/ActivityTimeline.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
@@ -547,6 +571,19 @@ function leadToForm(lead) {
     };
 }
 
+const page = usePage();
+const followUpPrompt = ref(null);
+
+watch(
+    () => page.props.flash?.lead_follow_up,
+    (value) => {
+        if (value) {
+            followUpPrompt.value = value;
+        }
+    },
+    { immediate: true },
+);
+
 const form = useForm(leadToForm(props.selectedLead));
 const advanceStageId = ref('');
 const processStageForm = useForm({
@@ -586,7 +623,7 @@ const counterpartyPortraitIncomplete = computed(() => {
 });
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
-const openTasks = computed(() => (form.tasks ?? []).filter((task) => task.status !== 'done'));
+const openTasks = computed(() => (form.tasks ?? []).filter((task) => !['done', 'cancelled'].includes(task.status)));
 
 const MIN_CONTRACTOR_QUERY_LENGTH = 2;
 const counterpartySearch = ref('');
@@ -948,6 +985,15 @@ function submitSendOffer() {
 }
 function convertLead() { if (selectedLeadId.value) router.post(route('leads.convert', selectedLeadId.value), {}); }
 function destroyLead() { if (selectedLeadId.value) router.delete(route('leads.destroy', selectedLeadId.value)); }
+function prefillFollowUpTask() {
+    if (!followUpPrompt.value) {
+        return;
+    }
+
+    nextStepForm.title = followUpPrompt.value.suggested_title || 'Узнать новости у клиента';
+    followUpPrompt.value = null;
+}
+
 function createNextStep() {
     if (!selectedLeadId.value) {
         return;

@@ -54,7 +54,7 @@ class LeadBusinessProcessService
         $this->moveLeadToStage($lead, $firstStage, $user, true);
     }
 
-    public function moveLeadToStage(Lead $lead, BusinessProcessStage $stage, ?User $user = null, bool $isProcessStart = false): void
+    public function moveLeadToStage(Lead $lead, BusinessProcessStage $stage, ?User $user = null, bool $isProcessStart = false): int
     {
         abort_if($lead->business_process_id !== null && (int) $lead->business_process_id !== (int) $stage->business_process_id, 422, 'Этап не относится к процессу лида.');
 
@@ -108,7 +108,7 @@ class LeadBusinessProcessService
             $log,
         );
 
-        $this->applyTerminalOutcome($lead, $stage);
+        return $this->applyTerminalOutcome($lead, $stage, $user);
     }
 
     public function advanceToNextStage(Lead $lead, ?User $user = null): ?BusinessProcessStage
@@ -153,9 +153,13 @@ class LeadBusinessProcessService
 
         $stages = $process->stages;
         $total = $stages->count();
+        $currentStage = $lead->businessProcessStage;
         $currentIndex = $stages->search(fn (BusinessProcessStage $stage): bool => (int) $stage->id === (int) $currentStageId);
         $completedCount = $currentIndex === false ? 0 : $currentIndex;
-        $progressPercent = $total > 0 ? (int) round(($completedCount / $total) * 100) : 0;
+        $isTerminalCurrent = $currentStage?->is_terminal ?? false;
+        $progressPercent = $isTerminalCurrent
+            ? 100
+            : ($total > 0 ? (int) round(($completedCount / $total) * 100) : 0);
 
         $isOverdue = $this->isStageOverdue($lead);
 
@@ -169,10 +173,12 @@ class LeadBusinessProcessService
             'process_started_at' => optional($lead->process_started_at)?->toIso8601String(),
             'progress_percent' => $progressPercent,
             'is_stage_overdue' => $isOverdue,
-            'stages' => $stages->values()->map(function (BusinessProcessStage $stage, int $index) use ($currentIndex): array {
+            'stages' => $stages->values()->map(function (BusinessProcessStage $stage, int $index) use ($currentIndex, $isTerminalCurrent): array {
                 $state = 'upcoming';
                 if ($currentIndex !== false) {
-                    if ($index < $currentIndex) {
+                    if ($isTerminalCurrent) {
+                        $state = 'completed';
+                    } elseif ($index < $currentIndex) {
                         $state = 'completed';
                     } elseif ($index === $currentIndex) {
                         $state = 'current';
@@ -266,10 +272,10 @@ class LeadBusinessProcessService
             ->update(['exited_at' => $exitedAt]);
     }
 
-    private function applyTerminalOutcome(Lead $lead, BusinessProcessStage $stage): void
+    private function applyTerminalOutcome(Lead $lead, BusinessProcessStage $stage, ?User $user = null): int
     {
         if (! $stage->is_terminal || $stage->terminal_outcome === null) {
-            return;
+            return 0;
         }
 
         $status = match ($stage->terminal_outcome) {
@@ -281,6 +287,12 @@ class LeadBusinessProcessService
         if ($status !== $lead->status) {
             $lead->forceFill(['status' => $status])->saveQuietly();
         }
+
+        if ($stage->terminal_outcome === 'lost') {
+            return app(LeadLinkedTaskService::class)->cancelOpenTasksForLostLead($lead->fresh(), $user);
+        }
+
+        return 0;
     }
 
     private function isTerminalStage(?BusinessProcessStage $stage): bool
@@ -290,7 +302,7 @@ class LeadBusinessProcessService
 
     private function maybeCreatePlaybookTask(Lead $lead, BusinessProcessStage $stage, LeadProcessStageLog $log, ?User $user): void
     {
-        if (! Schema::hasTable('tasks') || ! $this->stageHasPlaybook($stage) || ! $stage->auto_create_task) {
+        if ($stage->is_terminal || ! Schema::hasTable('tasks') || ! $this->stageHasPlaybook($stage) || ! $stage->auto_create_task) {
             return;
         }
 

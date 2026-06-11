@@ -158,14 +158,6 @@
                     <p v-if="coverError" class="shrink-0 text-xs text-rose-600 dark:text-rose-300">{{ coverError }}</p>
                     <p v-else class="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">Рекомендуемая обложка: широкое изображение с пропорцией 8–10:1.</p>
 
-                    <SalesBookArticleFeedbackBar
-                        v-if="canComment"
-                        :article-id="selectedArticle.id"
-                        :summary="articleFeedbackSummary"
-                        :busy="feedbackForm.processing"
-                        @rate="submitArticleFeedback"
-                    />
-
                     <div class="flex shrink-0 flex-wrap items-center gap-2 text-xs text-zinc-500">
                         <span>Родитель:</span>
                         <select

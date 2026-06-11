@@ -99,6 +99,7 @@ class ManagementAccountingAllocationService
         ]);
 
         $suggestion = $this->matching->suggestForLine($line);
+        unset($suggestion['suggested_candidates']);
         $line->fill($suggestion)->save();
 
         return $line->fresh();
