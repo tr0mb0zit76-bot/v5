@@ -711,15 +711,6 @@ watch(
     { deep: true },
 );
 
-watch(
-    () => props.playPresentation,
-    (v) => {
-        if (v && isTrainerActive.value) {
-            trainerPlayPresentation.value = { ...v };
-        }
-    },
-    { deep: true },
-);
 
 watch(
     () => props.eventTrail,
@@ -845,7 +836,13 @@ function syncCaptureDraftFromPresentation(presentation) {
 
 watch(
     () => props.playPresentation,
-    (presentation) => syncCaptureDraftFromPresentation(presentation),
+    (presentation) => {
+        if (presentation && isTrainerActive.value) {
+            trainerPlayPresentation.value = { ...presentation };
+        }
+
+        syncCaptureDraftFromPresentation(presentation);
+    },
     { immediate: true, deep: true },
 );
 

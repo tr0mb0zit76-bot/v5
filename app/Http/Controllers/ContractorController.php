@@ -467,7 +467,7 @@ class ContractorController extends Controller
 
         /** @var ContractorOperationalStatusService $statusService */
         $statusService = app(ContractorOperationalStatusService::class);
-        $statusService->syncMany($contractorsCollection);
+        $statusService->enrichManyForDisplay($contractorsCollection);
 
         $contractors = $contractorsCollection
             ->map(function (Contractor $contractor) use ($hasContactsTable, $creditService, $debtMap, $statusService): array {

@@ -936,7 +936,6 @@ function saveMobileNavDraft() {
         preserveState: false,
         onSuccess: () => {
             mobileNavModalOpen.value = false;
-            router.reload({ preserveScroll: true });
         },
         onError: (errors) => {
             const messages = Object.values(errors ?? {}).flat().filter(Boolean);
@@ -982,7 +981,6 @@ function resetMobileNavDraft() {
         onSuccess: () => {
             mobileNavDraftKeys.value = [];
             mobileNavModalOpen.value = false;
-            router.reload({ preserveScroll: true });
         },
         onError: (errors) => {
             const messages = Object.values(errors ?? {}).flat().filter(Boolean);

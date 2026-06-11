@@ -6033,7 +6033,7 @@ watch(
                         slot.fleet_vehicle_id = null;
                         slot.fleet_driver_id = null;
                     }
-                    if (prevSlot == null || contractorChanged) {
+                    if (prev != null && contractorChanged) {
                         loadFleetOptionsForLeg(index, slotIndex);
                     }
                 });
@@ -6054,7 +6054,7 @@ watch(
                 performer.fleet_driver_id = null;
             }
 
-            if (!prevRow || prevRow.contractor_id !== row.contractor_id) {
+            if (prev != null && prevRow && prevRow.contractor_id !== row.contractor_id) {
                 loadFleetOptionsForLeg(index);
             }
         });

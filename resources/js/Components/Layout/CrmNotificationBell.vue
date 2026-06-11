@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 import { coerceHttpsUrl, visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
 
@@ -173,7 +173,6 @@ async function markRead(id) {
 async function markAllRead() {
     await markAllReadQuiet();
     open.value = false;
-    router.reload({ preserveScroll: true });
 }
 
 async function visit(item) {

@@ -213,8 +213,9 @@ watch(
     () => props.allDocuments,
     (docs) => {
         signedDocuments.value = signedRegistryDocuments(docs).map((doc) => ({ ...doc }));
+        hydrateTemplateSelectionFromWorkflowDocuments();
     },
-    { immediate: true },
+    { immediate: true, deep: true },
 );
 
 watch(
@@ -339,14 +340,6 @@ watch(
         ensureDefaultTemplateSelection();
     },
     { immediate: true, deep: true },
-);
-
-watch(
-    () => props.allDocuments,
-    () => {
-        hydrateTemplateSelectionFromWorkflowDocuments();
-    },
-    { deep: true },
 );
 
 function printCreateDisabledReason(slot, party) {

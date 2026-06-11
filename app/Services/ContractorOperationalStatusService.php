@@ -23,35 +23,18 @@ class ContractorOperationalStatusService
      */
     public function syncMany(EloquentCollection|Collection $contractors): void
     {
-        if ($contractors->isEmpty()) {
-            return;
-        }
+        $this->applyOperationalRulesToMany($contractors, persist: true);
+    }
 
-        $operationalContractors = $contractors->filter(
-            fn (mixed $contractor): bool => $contractor instanceof Contractor && ! $contractor->isOwnCompanyProfile(),
-        );
-
-        if ($operationalContractors->isEmpty()) {
-            return;
-        }
-
-        $ids = $operationalContractors->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
-        $lastOrderDates = $this->lastOrderDatesForContractorIds($ids);
-
-        foreach ($operationalContractors as $contractor) {
-            if (! $contractor instanceof Contractor) {
-                continue;
-            }
-
-            $this->applyOperationalRules(
-                $contractor,
-                $lastOrderDates[$contractor->id] ?? null,
-            );
-
-            if ($contractor->isDirty()) {
-                $contractor->save();
-            }
-        }
+    /**
+     * Вычисляет операционный статус в памяти для отображения в гриде без записи в БД.
+     * Персистентная синхронизация — при открытии карточки (`sync`) или по расписанию.
+     *
+     * @param  EloquentCollection<int, Contractor>|Collection<int, Contractor>  $contractors
+     */
+    public function enrichManyForDisplay(EloquentCollection|Collection $contractors): void
+    {
+        $this->applyOperationalRulesToMany($contractors, persist: false);
     }
 
     public function sync(Contractor $contractor): Contractor
@@ -142,6 +125,42 @@ class ContractorOperationalStatusService
             $contractor->work_status,
             ! $contractor->is_active,
         );
+    }
+
+    /**
+     * @param  EloquentCollection<int, Contractor>|Collection<int, Contractor>  $contractors
+     */
+    private function applyOperationalRulesToMany(EloquentCollection|Collection $contractors, bool $persist): void
+    {
+        if ($contractors->isEmpty()) {
+            return;
+        }
+
+        $operationalContractors = $contractors->filter(
+            fn (mixed $contractor): bool => $contractor instanceof Contractor && ! $contractor->isOwnCompanyProfile(),
+        );
+
+        if ($operationalContractors->isEmpty()) {
+            return;
+        }
+
+        $ids = $operationalContractors->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+        $lastOrderDates = $this->lastOrderDatesForContractorIds($ids);
+
+        foreach ($operationalContractors as $contractor) {
+            if (! $contractor instanceof Contractor) {
+                continue;
+            }
+
+            $this->applyOperationalRules(
+                $contractor,
+                $lastOrderDates[$contractor->id] ?? null,
+            );
+
+            if ($persist && $contractor->isDirty()) {
+                $contractor->save();
+            }
+        }
     }
 
     private function applyOperationalRules(Contractor $contractor, ?CarbonInterface $lastOrderDate): void
