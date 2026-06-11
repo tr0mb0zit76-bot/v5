@@ -6,7 +6,9 @@
 
 **Связанный операционный контур:** [`payment-schedule-architecture.md`](./payment-schedule-architecture.md) (график оплат по заявкам).
 
-**Последнее обновление:** 2026-06-11
+**Последнее обновление:** 2026-06-11 (аналитика «Учёт» + журнал графика оплат)
+
+**Handoff / Obsidian:** `YandexDisk/Exchange/CRM/Cursor-handoff-latest.md`
 
 ---
 

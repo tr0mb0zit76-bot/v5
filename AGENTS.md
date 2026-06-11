@@ -97,7 +97,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Документация: `docs/management-accounting-architecture.md`, план фаз: `docs/management-accounting-implementation-plan.md`.
 - Доступ: `users.can_management_accounting` + admin; `RoleAccess::canAccessManagementAccounting()`. Не путать с бюджетированием (`belongs_to_management`).
 - Импорт: `ManagementAccountingImportService`, парсер `SberRegistryXlsxParser` (`sber_registry_v1`).
-- Матчинг / разнесение: `ManagementAccountingMatchingService`, `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`.
+- Матчинг / разнесение: `ManagementAccountingMatchingService` (правила → номер заявки → контрагент+сумма → ФОТ → статьи; `suggested_candidates[]` при неоднозначности), `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`.
 - ФОТ полупериоды (5 / 20): `ManagementPayrollHalfCalendar`, `ManagementPayrollHalfService`.
 - UI: `Finance/ManagementAccounting/Index.vue`, `Reconcile.vue`; меню `finance-management-accounting`.
 - Маршруты: `finance.management-accounting.*` (`routes/web.php`); статьи: `POST categories`, `POST categories/sync`.
@@ -105,6 +105,13 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Правила разнесения: `management_reconcile_rules`, `ManagementReconcileRuleService` — приоритет в матчинге до эвристик.
 - MCP (`/mcp/crm`, домен `finance`): `ManagementAccountingMcpService`, tools `list_management_statement_*`, `suggest_*`, `allocate_*`, `get_management_accounting_analytics`, `*_management_reconcile_rule*`, `list_management_expense_categories`; gate `McpAccessGate::requireManagementAccounting()`.
 - Связь с бюджетом (план vs факт): `ManagementAccountingAnalyticsService`, `docs/management-accounting-budgeting-integration.md`.
+- Факт вкладки «Учёт»: разнесённые `management_statement_lines` **+** `payment_schedule_payment_events` (без дублей `mgmt:*`); backfill: `payment-schedules:backfill-payment-events`.
+
+### Лиды
+
+- Отказ (`lost` / этап БП): `LeadLinkedTaskService` отменяет открытые задачи; flash `lead_follow_up` в `Leads/Wizard.vue`.
+- `TaskController::syncLinkedLeadStatus` не перезаписывает закрытые лиды (`LeadStatus::isClosed`).
+- Терминальный этап БП: `LeadBusinessProcessService::progressPayload` → 100%; playbook без `auto_create_task` на terminal.
 
 ### Считалка (маржа в переговорах)
 

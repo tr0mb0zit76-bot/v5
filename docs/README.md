@@ -84,4 +84,15 @@ MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.ph
 
 Требуется `v5-crm-prod` в `~/.cursor/mcp.json` с Bearer-токеном (шаблон: `.cursor/mcp.json.example`). Obsidian vault / Hive Mind: `pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1`. Новые статьи создаются **черновиком** — опубликовать в UI Книги.
 
+## Obsidian / второй компьютер (Yandex Disk)
+
+Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизируется Я.Диском.
+
+| Файл | Назначение |
+| --- | --- |
+| `CRM/Cursor-handoff-latest.md` | Контекст для Cursor: последний коммит, прод, backlog |
+| `CRM/00-index.md` | Навигация vault |
+| `CRM/v5-local/00-index.md` | Карта компонентов кода |
+| `for_note/README.md` | Синхрон MCP/tools между ПК |
+
 *Обновлено: 2026-06-11.*
