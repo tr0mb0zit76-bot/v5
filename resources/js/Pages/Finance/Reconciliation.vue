@@ -1,7 +1,7 @@
 <template>
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
         <CrmPageHeader
-            title="Акт сверки"
+            title="Акты сверок"
             lead="Сводка по заказам и оплатам с контрагентом: начислено по гриду «Заказы» и фактически оплачено по «Графику оплат»."
         />
 

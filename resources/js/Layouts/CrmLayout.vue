@@ -535,6 +535,7 @@ import {
     Settings,
     Smartphone,
     Target,
+    Route,
     Truck,
     Users,
     Wallet,
@@ -1060,7 +1061,7 @@ const menuItems = computed(() => {
         {
             key: 'own-fleet',
             label: 'Собственный транспорт',
-            icon: Truck,
+            icon: Route,
             visibilityArea: 'own_fleet',
             children: [
                 { key: 'fleet-trips', label: 'Рейсы' },
@@ -1079,7 +1080,7 @@ const menuItems = computed(() => {
 
                 if (visibleAreas.value.includes('documents') || visibleAreas.value.includes('payment_schedules')) {
                     children.push({ key: 'finance-cashflow', label: 'График оплат' });
-                    children.push({ key: 'finance-reconciliation', label: 'Акт сверки' });
+                    children.push({ key: 'finance-reconciliation', label: 'Акты сверок' });
                 }
 
                 if (hasFinanceSalaryAccess.value) {

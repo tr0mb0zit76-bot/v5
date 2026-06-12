@@ -79,33 +79,41 @@
             </p>
 
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div :class="crmStatCard">
-                    <div class="text-xs uppercase text-zinc-500">Поступления (факт)</div>
-                    <div class="mt-1 text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                <article :class="`${crmStatCard} min-w-0 p-4`">
+                    <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
+                        Поступления (факт)
+                    </div>
+                    <div class="mt-2 text-right text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
                         {{ formatMoney(analytics.totals.actual_in) }}
                     </div>
-                </div>
-                <div :class="crmStatCard">
-                    <div class="text-xs uppercase text-zinc-500">Расходы (факт)</div>
-                    <div class="mt-1 text-lg font-semibold tabular-nums text-rose-700 dark:text-rose-300">
+                </article>
+                <article :class="`${crmStatCard} min-w-0 p-4`">
+                    <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
+                        Расходы (факт)
+                    </div>
+                    <div class="mt-2 text-right text-lg font-semibold tabular-nums text-rose-700 dark:text-rose-300">
                         {{ formatMoney(analytics.totals.actual_out) }}
                     </div>
-                </div>
-                <div :class="crmStatCard">
-                    <div class="text-xs uppercase text-zinc-500">Расходы (план)</div>
-                    <div class="mt-1 text-lg font-semibold tabular-nums text-sky-700 dark:text-sky-300">
+                </article>
+                <article :class="`${crmStatCard} min-w-0 p-4`">
+                    <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
+                        Расходы (план)
+                    </div>
+                    <div class="mt-2 text-right text-lg font-semibold tabular-nums text-sky-700 dark:text-sky-300">
                         {{ formatMoney(analytics.totals.plan_out) }}
                     </div>
-                </div>
-                <div :class="crmStatCard">
-                    <div class="text-xs uppercase text-zinc-500">Чистый поток (факт)</div>
+                </article>
+                <article :class="`${crmStatCard} min-w-0 p-4`">
+                    <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
+                        Чистый поток (факт)
+                    </div>
                     <div
-                        class="mt-1 text-lg font-semibold tabular-nums"
+                        class="mt-2 text-right text-lg font-semibold tabular-nums"
                         :class="analytics.totals.net >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
                     >
                         {{ formatMoney(analytics.totals.net) }}
                     </div>
-                </div>
+                </article>
             </div>
 
             <ManagementAccountingLedgerReport :pivot="analytics.pivot ?? { columns: [], rows: [], time_series: [] }" />

@@ -395,7 +395,7 @@ const submoduleTiles = computed(() => {
         });
         tiles.push({
             key: 'reconciliation',
-            title: 'Акт сверки',
+            title: 'Акты сверок',
             description: 'Сводка услуг по заказам и фактических оплат с контрагентом',
             icon: 'Clock',
             accent: 'amber',

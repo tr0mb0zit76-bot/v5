@@ -310,60 +310,79 @@
                     </div>
                 </section>
 
-                <section
-                    v-if="planMilestoneCumulativeWarning"
-                    class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
-                >
-                    В месяце {{ plan.summary.plan_milestone_month }} по плану маржа покрывает OPEX за этот месяц,
-                    но накопленный остаток ещё {{ formatMoney(planMilestoneCumulativeValue) }} —
-                    прежние убытки и вливание не отбиты.
-                    Цель «нулевой денежный поток» — месяц {{ plan.summary.cash_zero_month ?? localInputs.cash_zero_month }}.
-                    {{ cashBreakevenTimelineText }}.
-                </section>
-
-                <section
-                    v-if="localInputs.calculation_mode === MODE_BOTTOM_UP"
-                    class="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100"
-                >
-                    <strong>Результат «снизу вверх»:</strong>
-                    безубыточность (накопленный остаток ≥ 0) —
-                    <template v-if="plan.summary.breakeven_month_cash">месяц {{ plan.summary.breakeven_month_cash }}</template>
-                    <template v-else-if="plan.summary.breakeven_month_cash_estimated">≈ месяц {{ plan.summary.breakeven_month_cash_estimated }}</template>
-                    <template v-else>не достигается за горизонт</template>;
-                    «ноль за месяц» —
-                    <template v-if="plan.summary.breakeven_month_operating">месяц {{ plan.summary.breakeven_month_operating }}</template>
-                    <template v-else>—</template>;
-                    дивиденды {{ formatMoney(plan.summary.target_dividends_amount) }} возможны с
-                    <template v-if="plan.summary.dividends_feasible_month">месяца {{ plan.summary.dividends_feasible_month }}</template>
-                    <template v-else>— при текущей марже</template>.
-                </section>
-
-                <section class="flex flex-nowrap gap-2 overflow-x-auto pb-0.5">
-                    <article
-                        v-for="card in summaryCards"
-                        :key="card.key"
-                        :class="`${crmPanel} min-w-[7.5rem] shrink-0 flex-1 p-2.5`"
+                <section :class="`${crmPanel} overflow-hidden`">
+                    <button
+                        type="button"
+                        class="flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-950/40"
+                        @click="summaryPanelOpen = !summaryPanelOpen"
                     >
-                        <div class="text-[10px] font-medium uppercase leading-tight tracking-wide text-zinc-500 dark:text-zinc-400">{{ card.label }}</div>
-                        <div class="mt-0.5 text-base font-semibold tabular-nums leading-tight text-zinc-900 dark:text-zinc-50">{{ card.value }}</div>
-                        <p v-if="card.hint" class="mt-0.5 text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">{{ card.hint }}</p>
-                    </article>
+                        <div class="min-w-0 space-y-1">
+                            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Сводка и оценка сценария</h2>
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                                Ключевые сроки, целевая маржа и общий вывод по текущим вводным.
+                            </p>
+                        </div>
+                        <ChevronDown
+                            class="mt-1 h-5 w-5 shrink-0 text-zinc-500 transition-transform"
+                            :class="summaryPanelOpen ? 'rotate-180' : ''"
+                        />
+                    </button>
+
+                    <div v-show="summaryPanelOpen" class="space-y-4 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+                        <div
+                            class="rounded-2xl border px-4 py-3 text-sm leading-relaxed"
+                            :class="scenarioAssessment.tone === 'warning'
+                                ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100'
+                                : scenarioAssessment.tone === 'positive'
+                                    ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100'
+                                    : 'border-zinc-200 bg-zinc-50 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950/40 dark:text-zinc-200'"
+                        >
+                            <p>{{ scenarioAssessment.situation }}</p>
+                            <p v-if="scenarioAssessment.recommendation" class="mt-2 font-medium">
+                                Рекомендуется: {{ scenarioAssessment.recommendation }}
+                            </p>
+                        </div>
+
+                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            <article
+                                v-for="card in summaryCards"
+                                :key="card.key"
+                                class="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950/30"
+                            >
+                                <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500 dark:text-zinc-400">
+                                    {{ card.label }}
+                                </div>
+                                <div class="mt-2 text-right text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                                    {{ card.value }}
+                                </div>
+                                <p v-if="card.hint" class="mt-2 text-xs leading-snug text-zinc-500 dark:text-zinc-400">
+                                    {{ card.hint }}
+                                </p>
+                            </article>
+                        </div>
+                    </div>
                 </section>
 
-                <section
-                    v-if="plan.summary.min_cumulative < 0"
-                    class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
-                >
-                    Кассовый остаток уходит в минус ({{ formatMoney(plan.summary.min_cumulative) }}). Увеличьте вливание или маржу.
-                </section>
+                <section :class="`${crmPanel} overflow-hidden`">
+                    <button
+                        type="button"
+                        class="flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-950/40"
+                        @click="dualChartOpen = !dualChartOpen"
+                    >
+                        <div class="min-w-0 space-y-1">
+                            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Сводный график: два направления расчёта</h2>
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                                Один сценарий, два ответа. Линия, которую вы редактируете сейчас, — сплошная; вторая — проверка «а что если».
+                            </p>
+                        </div>
+                        <ChevronDown
+                            class="mt-1 h-5 w-5 shrink-0 text-zinc-500 transition-transform"
+                            :class="dualChartOpen ? 'rotate-180' : ''"
+                        />
+                    </button>
 
-                <section :class="`${crmPanel} p-5`">
-                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Сводный график: два направления расчёта</h2>
-                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                        Один сценарий, два ответа. Линия, которую вы редактируете сейчас, — сплошная; вторая — проверка «а что если».
-                    </p>
-
-                    <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div v-show="dualChartOpen" class="border-t border-zinc-200 px-5 pb-5 pt-4 dark:border-zinc-800">
+                    <div class="grid gap-3 lg:grid-cols-2">
                         <article
                             class="rounded-xl border-l-4 p-4"
                             :class="localInputs.calculation_mode === MODE_TOP_DOWN
@@ -532,14 +551,28 @@
                         мес. {{ dualRead.marginToTimeline.dividendsMonth ?? '—' }}.
                         {{ localInputs.calculation_mode === MODE_TOP_DOWN ? 'Проверьте сроки или маржу.' : 'Подстройте маржу или цели.' }}
                     </p>
+                    </div>
                 </section>
 
-                <section :class="`${crmPanel} p-5`">
-                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">График: компания (маржа, OPEX, касса)</h2>
-                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        Столбцы — маржа и OPEX по месяцам; зелёная линия — накопленный остаток с вливанием.
-                    </p>
-                    <div class="mt-4 h-56">
+                <section :class="`${crmPanel} overflow-hidden`">
+                    <button
+                        type="button"
+                        class="flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-950/40"
+                        @click="companyChartOpen = !companyChartOpen"
+                    >
+                        <div class="min-w-0 space-y-1">
+                            <h2 class="text-lg font-semibold text-zinc-900 dark:text-zinc-50">График: компания (маржа, OPEX, касса)</h2>
+                            <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                                Столбцы — маржа и OPEX по месяцам; зелёная линия — накопленный остаток с вливанием.
+                            </p>
+                        </div>
+                        <ChevronDown
+                            class="mt-1 h-5 w-5 shrink-0 text-zinc-500 transition-transform"
+                            :class="companyChartOpen ? 'rotate-180' : ''"
+                        />
+                    </button>
+                    <div v-show="companyChartOpen" class="border-t border-zinc-200 px-5 pb-5 pt-4 dark:border-zinc-800">
+                    <div class="h-56">
                         <svg
                             class="h-full w-full"
                             :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
@@ -576,6 +609,7 @@
                     <div class="mt-2 flex justify-between text-[10px] text-zinc-500 sm:text-xs">
                         <span v-for="point in plan.months" :key="`lbl-${point.month}`" class="flex-1 text-center">М{{ point.month }}</span>
                     </div>
+                    </div>
                 </section>
             </div>
         </div>
@@ -584,7 +618,8 @@
 
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
-import { computed, reactive, watch } from 'vue';
+import { ChevronDown } from 'lucide-vue-next';
+import { computed, reactive, ref, watch } from 'vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
     crmPageLead,
@@ -618,6 +653,10 @@ const props = defineProps({
     management_accounting_categories_url: { type: String, required: true },
     db_benchmark: { type: Object, default: () => ({}) },
 });
+
+const summaryPanelOpen = ref(false);
+const dualChartOpen = ref(false);
+const companyChartOpen = ref(false);
 
 const localInputs = reactive(normalizeBudgetInputs(props.inputs));
 const localOpexArticles = reactive(props.opex_articles.map((a) => ({
@@ -808,6 +847,75 @@ const cashBreakevenTimelineText = computed(() => {
     }
 
     return `При текущей рампе касса ≥ 0 не достигается за ${horizon} месяцев (цель — ${plannedCash})`;
+});
+
+const scenarioAssessment = computed(() => {
+    const s = plan.value.summary;
+    const managerCount = s.manager_count || localInputs.manager_count;
+    const cashZeroMonth = s.cash_zero_month ?? localInputs.cash_zero_month;
+    const operatingMonth = s.breakeven_month_operating;
+    const cashMonth = s.breakeven_month_cash ?? s.breakeven_month_cash_estimated;
+    const dividendsMonth = s.dividends_feasible_month;
+    const parts = [];
+
+    parts.push(
+        `При текущих вводных (${managerCount} менеджеров, вливание ${formatMoney(localInputs.owner_investment)}, горизонт ${localInputs.horizon_months} мес.)`,
+    );
+
+    if (localInputs.calculation_mode === MODE_TOP_DOWN) {
+        const planMonth = s.plan_milestone_month ?? localInputs.breakeven_month;
+        parts.push(
+            `план «ноль за месяц» — к месяцу ${planMonth}, нулевой денежный поток — к месяцу ${cashZeroMonth}, дивиденды ${formatMoney(localInputs.target_dividends_amount)} — с месяца ${localInputs.target_dividends_month}.`,
+        );
+
+        if (planMilestoneCumulativeWarning.value) {
+            parts.push(
+                `В месяце ${planMonth} маржа покрывает OPEX, но накопленный остаток ещё ${formatMoney(planMilestoneCumulativeValue.value)} — прежние убытки не отбиты.`,
+            );
+        }
+    } else {
+        parts.push(
+            `при марже ${formatMoney(s.margin_per_manager_used)} на менеджера «ноль за месяц» — ${operatingMonth ? `месяц ${operatingMonth}` : 'не достигается за горизонт'}, кассовая безубыточность — ${cashMonth ? `месяц ${cashMonth}` : 'не достигается'}, дивиденды ${formatMoney(s.target_dividends_amount)} — ${dividendsMonth ? `с месяца ${dividendsMonth}` : 'недостижимы при текущей марже'}.`,
+        );
+    }
+
+    parts.push(`${cashBreakevenTimelineText.value}.`);
+
+    const recommendations = [];
+
+    if (s.min_cumulative < 0) {
+        recommendations.push(`увеличить вливание или маржу — минимальный остаток ${formatMoney(s.min_cumulative)}`);
+    }
+
+    if (!dualRead.value.aligned && dualRead.value.marginLevel > 0) {
+        recommendations.push(
+            localInputs.calculation_mode === MODE_TOP_DOWN
+                ? 'согласовать сроки дивидендов и целевую маржу: расчёт сверху и снизу расходится'
+                : 'подстроить маржу или цели — расчёт сверху и снизу расходится',
+        );
+    }
+
+    let recommendation = '';
+    if (recommendations.length === 0 && s.min_cumulative >= 0 && dualRead.value.aligned) {
+        recommendation = 'оставить параметры и отслеживать факт по месяцам — сценарий согласован.';
+    } else if (recommendations.length > 0) {
+        recommendation = `${recommendations.join('; ')}.`;
+    } else if (planMilestoneCumulativeWarning.value) {
+        recommendation = `держать рампу маржи до месяца ${cashZeroMonth}, не снижая плановую маржу до выхода кассы в ноль.`;
+    }
+
+    let tone = 'neutral';
+    if (s.min_cumulative < 0 || planMilestoneCumulativeWarning.value || (!dualRead.value.aligned && dualRead.value.marginLevel > 0)) {
+        tone = 'warning';
+    } else if (dualRead.value.aligned && s.min_cumulative >= 0) {
+        tone = 'positive';
+    }
+
+    return {
+        situation: parts.join(' '),
+        recommendation,
+        tone,
+    };
 });
 
 function managerRowClass(row) {
