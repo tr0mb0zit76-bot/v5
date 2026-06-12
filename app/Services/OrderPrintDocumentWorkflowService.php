@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
+use App\Services\Pdf\PdfDocumentCertificationService;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintFormContext;
 use Illuminate\Http\UploadedFile;
@@ -410,6 +411,9 @@ class OrderPrintDocumentWorkflowService
             return;
         }
 
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $pdfContents = $this->maybeCertifyApprovedPdf($pdfContents, $metadata);
+
         $orderId = (int) $document->order_id;
         $pdfPath = $this->documentStorage->resolveOrderDocumentPath(
             $orderId,
@@ -418,13 +422,30 @@ class OrderPrintDocumentWorkflowService
         $driver = $this->documentStorage->configuredDriver();
         $this->documentStorage->put($pdfPath, $pdfContents, $driver);
 
-        $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['generated_pdf_storage_driver'] = $driver;
 
         $document->update([
             'generated_pdf_path' => $pdfPath,
             'metadata' => $metadata,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    private function maybeCertifyApprovedPdf(string $pdfContents, array &$metadata): string
+    {
+        $certification = app(PdfDocumentCertificationService::class)->certify($pdfContents);
+        if ($certification === null) {
+            return $pdfContents;
+        }
+
+        $metadata['pdf_certified'] = true;
+        $metadata['pdf_certified_sha256'] = $certification['sha256'];
+        $metadata['pdf_certified_docmdp'] = $certification['docmdp'];
+        $metadata['pdf_certified_at'] = now()->toIso8601String();
+
+        return $certification['certified_pdf'];
     }
 
     /**
