@@ -1,35 +1,4 @@
 /** Shared saved grid views (filters, columns, quick search). */
-export function gridViewsApiUrl(gridKey) {
-    return `/grid-views?grid_key=${encodeURIComponent(gridKey)}`;
-}
-
-export async function fetchGridViews(gridKey) {
-    const response = await fetch(gridViewsApiUrl(gridKey), {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-    });
-
-    if (!response.ok) {
-        return { views: [], can_share: false };
-    }
-
-    return response.json();
-}
-
-export async function fetchGridView(viewId) {
-    const response = await fetch(`/grid-views/${viewId}`, {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-    });
-
-    if (!response.ok) {
-        return null;
-    }
-
-    const data = await response.json();
-
-    return data.view ?? null;
-}
 
 function csrfHeaders() {
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -42,11 +11,93 @@ function csrfHeaders() {
     };
 }
 
-export async function createGridView(payload) {
-    const response = await fetch('/grid-views', {
-        method: 'POST',
-        headers: csrfHeaders(),
+/**
+ * fetch без follow redirect: иначе DELETE/PATCH после 302 на /login бьёт login методом DELETE.
+ */
+async function gridViewsFetch(url, options = {}) {
+    const response = await fetch(url, {
         credentials: 'same-origin',
+        redirect: 'manual',
+        ...options,
+        headers: {
+            ...csrfHeaders(),
+            ...(options.headers ?? {}),
+        },
+    });
+
+    if (
+        response.status === 401
+        || response.status === 419
+        || (response.status >= 300 && response.status < 400)
+    ) {
+        const location = response.headers.get('Location');
+        const target = location && location !== ''
+            ? (location.startsWith('http') ? location : new URL(location, window.location.origin).href)
+            : '/login';
+
+        window.location.assign(target);
+
+        throw new Error('grid_views_auth_required');
+    }
+
+    return response;
+}
+
+export function gridViewsApiUrl(gridKey) {
+    return `/grid-views?grid_key=${encodeURIComponent(gridKey)}`;
+}
+
+export async function fetchGridViews(gridKey) {
+    try {
+        const response = await gridViewsFetch(gridViewsApiUrl(gridKey), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            return { views: [], can_share: false };
+        }
+
+        return response.json();
+    } catch (error) {
+        if (error instanceof Error && error.message === 'grid_views_auth_required') {
+            throw error;
+        }
+
+        return { views: [], can_share: false };
+    }
+}
+
+export async function fetchGridView(viewId) {
+    try {
+        const response = await gridViewsFetch(`/grid-views/${viewId}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+
+        return data.view ?? null;
+    } catch (error) {
+        if (error instanceof Error && error.message === 'grid_views_auth_required') {
+            throw error;
+        }
+
+        return null;
+    }
+}
+
+export async function createGridView(payload) {
+    const response = await gridViewsFetch('/grid-views', {
+        method: 'POST',
         body: JSON.stringify(payload),
     });
 
@@ -60,10 +111,8 @@ export async function createGridView(payload) {
 }
 
 export async function updateGridView(viewId, payload) {
-    const response = await fetch(`/grid-views/${viewId}`, {
+    const response = await gridViewsFetch(`/grid-views/${viewId}`, {
         method: 'PATCH',
-        headers: csrfHeaders(),
-        credentials: 'same-origin',
         body: JSON.stringify(payload),
     });
 
@@ -77,10 +126,12 @@ export async function updateGridView(viewId, payload) {
 }
 
 export async function deleteGridView(viewId) {
-    const response = await fetch(`/grid-views/${viewId}`, {
+    const response = await gridViewsFetch(`/grid-views/${viewId}`, {
         method: 'DELETE',
-        headers: csrfHeaders(),
-        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
     });
 
     return response.ok;
