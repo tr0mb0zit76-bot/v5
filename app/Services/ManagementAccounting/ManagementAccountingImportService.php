@@ -18,26 +18,16 @@ class ManagementAccountingImportService
 
     public function importFromUpload(
         UploadedFile $file,
-        ManagementBankAccount $bankAccount,
+        ?ManagementBankAccount $bankAccount,
         User $importer,
     ): ManagementStatementImport {
         $parsed = $this->parser->parse($file->getRealPath() ?: $file->path());
-
-        if ($parsed['account_number'] !== null
-            && $parsed['account_number'] !== $bankAccount->account_number) {
-            $matchedAccount = ManagementBankAccount::query()
-                ->where('account_number', $parsed['account_number'])
-                ->first();
-
-            if ($matchedAccount !== null) {
-                $bankAccount = $matchedAccount;
-            }
-        }
+        $bankAccount = $this->resolveBankAccount($bankAccount, $parsed);
 
         return DB::transaction(function () use ($file, $bankAccount, $importer, $parsed): ManagementStatementImport {
             $import = ManagementStatementImport::query()->create([
                 'bank_account_id' => $bankAccount->id,
-                'format' => SberRegistryXlsxParser::FORMAT,
+                'format' => SberRegistryXlsxParser::BANK_REGISTRY_V1,
                 'file_name' => $file->getClientOriginalName(),
                 'imported_by' => $importer->id,
                 'status' => 'draft',
@@ -45,8 +35,8 @@ class ManagementAccountingImportService
 
             $totalIn = 0.0;
             $totalOut = 0.0;
-            $periodFrom = null;
-            $periodTo = null;
+            $periodFrom = $parsed['period_from'] ?? null;
+            $periodTo = $parsed['period_to'] ?? null;
             $created = 0;
 
             foreach ($parsed['lines'] as $row) {
@@ -112,6 +102,28 @@ class ManagementAccountingImportService
 
             return $import->fresh(['bankAccount', 'importer']);
         });
+    }
+
+    /**
+     * @param  array{account_number: ?string, period_from: ?string, period_to: ?string}  $parsed
+     */
+    private function resolveBankAccount(?ManagementBankAccount $bankAccount, array $parsed): ManagementBankAccount
+    {
+        if ($parsed['account_number'] !== null) {
+            $matchedAccount = ManagementBankAccount::query()
+                ->where('account_number', $parsed['account_number'])
+                ->first();
+
+            if ($matchedAccount !== null) {
+                return $matchedAccount;
+            }
+        }
+
+        if ($bankAccount !== null) {
+            return $bankAccount;
+        }
+
+        return ManagementBankAccount::consolidated();
     }
 
     private function lineHash(

@@ -17,6 +17,8 @@ class SberRegistryXlsxParserTest extends TestCase
         $parsed = (new SberRegistryXlsxParser)->parse($path);
 
         $this->assertSame('40702810959710001997', $parsed['account_number']);
+        $this->assertSame('2026-06-09', $parsed['period_from']);
+        $this->assertSame('2026-06-09', $parsed['period_to']);
         $this->assertCount(2, $parsed['lines']);
         $this->assertSame('in', $parsed['lines'][0]['direction']);
         $this->assertSame(150000.0, $parsed['lines'][0]['amount']);

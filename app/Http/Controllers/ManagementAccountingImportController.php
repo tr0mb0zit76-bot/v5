@@ -34,7 +34,10 @@ class ManagementAccountingImportController extends Controller
 
     public function store(StoreManagementAccountingImportRequest $request): RedirectResponse
     {
-        $bankAccount = ManagementBankAccount::query()->findOrFail((int) $request->validated('bank_account_id'));
+        $bankAccountId = $request->validated('bank_account_id');
+        $bankAccount = $bankAccountId !== null
+            ? ManagementBankAccount::query()->findOrFail((int) $bankAccountId)
+            : null;
 
         $import = $this->importService->importFromUpload(
             $request->file('statement_file'),
@@ -178,7 +181,7 @@ class ManagementAccountingImportController extends Controller
 
         $this->expenseCategorySyncService->syncAll();
 
-        return back()->with('flash', ['type' => 'success', 'message' => 'Справочник синхронизирован с бюджетированием.']);
+        return back()->with('flash', ['type' => 'success', 'message' => 'Справочник статей обновлён.']);
     }
 
     public function updateCategory(

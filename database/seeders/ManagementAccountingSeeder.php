@@ -10,6 +10,8 @@ class ManagementAccountingSeeder extends Seeder
 {
     public function run(): void
     {
+        ManagementBankAccount::consolidated();
+
         $accounts = [
             [
                 'bank_name' => 'Сбербанк',

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ManagementBankAccount;
+use App\Models\ManagementStatementImport;
 use App\Services\Finance\FinanceOverviewService;
+use App\Services\ManagementAccounting\ManagementBankAccountSyncService;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
@@ -37,13 +40,23 @@ class FinanceIndexController extends Controller
         $cashFlow = $financeOverview->cashFlowJournal($user?->id, $role['name'], $paymentScheduleScope);
         $cashFlowStats = $financeOverview->cashFlowStats($user?->id, $role['name'], $paymentScheduleScope);
 
-        return Inertia::render('Finance/Index', [
+        $cashflowTab = (string) $request->query('cashflow_tab', 'schedule');
+        if (! in_array($cashflowTab, ['schedule', 'reconcile'], true)) {
+            $cashflowTab = 'schedule';
+        }
+
+        if ($cashflowTab === 'reconcile' && ! RoleAccess::canAccessManagementAccounting($user)) {
+            $cashflowTab = 'schedule';
+        }
+
+        $payload = [
             'summary' => [
                 'cash_flow_total' => $cashFlow->count(),
                 'cash_flow_pending' => $cashFlow->where('status', 'pending')->count(),
             ],
             'cashFlowJournal' => $cashFlow->values(),
             'active_submodule' => $activeSubmodule,
+            'cashflow_tab' => $cashflowTab,
             'todays_cash_flow' => $cashFlowStats['periods']['today'],
             'cash_flow_stats' => $cashFlowStats,
             'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
@@ -54,6 +67,56 @@ class FinanceIndexController extends Controller
             'can_payment_schedule_record_payment' => RoleAccess::canRecordPaymentOnPaymentSchedule($user),
             'can_payment_schedule_cancel_row' => RoleAccess::canCancelPaymentScheduleRow($user),
             'paymentScheduleColumns' => PaymentScheduleTableColumns::options(),
-        ]);
+        ];
+
+        if ($activeSubmodule === 'cashflow' && $cashflowTab === 'reconcile') {
+            $payload = [...$payload, ...$this->statementReconcileProps($request)];
+        }
+
+        return Inertia::render('Finance/Index', $payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function statementReconcileProps(Request $request): array
+    {
+        app(ManagementBankAccountSyncService::class)->syncFromOwnCompanies();
+
+        $imports = ManagementStatementImport::query()
+            ->with(['bankAccount:id,bank_name,account_mask,currency', 'importer:id,name'])
+            ->orderByDesc('created_at')
+            ->limit(30)
+            ->get()
+            ->map(static fn (ManagementStatementImport $import): array => [
+                'id' => $import->id,
+                'file_name' => $import->file_name,
+                'status' => $import->status,
+                'period_from' => $import->period_from?->toDateString(),
+                'period_to' => $import->period_to?->toDateString(),
+                'lines_count' => $import->lines_count,
+                'lines_allocated' => $import->lines_allocated,
+                'total_in' => (float) $import->total_in,
+                'total_out' => (float) $import->total_out,
+                'bank_account' => $import->bankAccount === null ? null : [
+                    'id' => $import->bankAccount->id,
+                    'bank_name' => $import->bankAccount->bank_name,
+                    'account_mask' => $import->bankAccount->account_mask,
+                    'currency' => $import->bankAccount->currency,
+                ],
+                'importer_name' => $import->importer?->name,
+                'created_at' => $import->created_at?->toIso8601String(),
+            ]);
+
+        $bankAccounts = ManagementBankAccount::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'bank_name', 'account_mask', 'currency']);
+
+        return [
+            'statement_imports' => $imports,
+            'bank_accounts' => $bankAccounts,
+            'default_bank_account_id' => $bankAccounts->first()?->id,
+        ];
     }
 }

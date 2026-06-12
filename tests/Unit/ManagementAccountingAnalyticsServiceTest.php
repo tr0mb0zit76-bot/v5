@@ -160,4 +160,37 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $this->assertSame($customerCategory->id, $result['rows'][0]['category_id']);
         $this->assertSame(620000.0, $result['rows'][0]['actual_in']);
     }
+
+    public function test_pivot_includes_payment_events_when_date_is_datetime_string(): void
+    {
+        ManagementExpenseCategory::query()->create([
+            'code' => 'operational_customer_in',
+            'name' => 'Оплата от заказчика',
+            'kind' => 'operational_in',
+            'flow' => 'in',
+            'is_system' => true,
+            'is_active' => true,
+            'sort_order' => 5,
+        ]);
+
+        PaymentSchedulePaymentEvent::query()->create([
+            'order_id' => 1,
+            'party' => 'customer',
+            'amount' => 10000,
+            'payment_date' => '2026-06-03',
+            'transaction_reference' => null,
+        ]);
+
+        $result = app(ManagementAccountingAnalyticsService::class)->build('month', '2026-06-01');
+
+        $dayColumn = collect($result['pivot']['columns'])->firstWhere('key', '2026-06-03');
+        $this->assertNotNull($dayColumn);
+
+        $customerRow = collect($result['pivot']['rows'])->firstWhere('code', 'operational_customer_in');
+        $this->assertNotNull($customerRow);
+
+        $dayCell = collect($customerRow['cells'])->firstWhere('key', '2026-06-03');
+        $this->assertNotNull($dayCell);
+        $this->assertSame(10000.0, $dayCell['amount']);
+    }
 }

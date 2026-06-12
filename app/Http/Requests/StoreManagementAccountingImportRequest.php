@@ -18,7 +18,7 @@ class StoreManagementAccountingImportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'bank_account_id' => ['required', 'integer', 'exists:management_bank_accounts,id'],
+            'bank_account_id' => ['nullable', 'integer', 'exists:management_bank_accounts,id'],
             'statement_file' => ['required', 'file', 'mimes:xlsx', 'max:10240'],
         ];
     }
@@ -30,7 +30,7 @@ class StoreManagementAccountingImportRequest extends FormRequest
     {
         return [
             'statement_file.required' => 'Выберите файл выписки.',
-            'statement_file.mimes' => 'Поддерживается формат XLSX (Сбер «Реестр банковских документов»).',
+            'statement_file.mimes' => 'Поддерживается формат XLSX (реестр банковских документов).',
         ];
     }
 }

@@ -13,7 +13,7 @@
                 :disabled="syncForm.processing"
                 @click="syncCategories"
             >
-                Синхронизировать с бюджетом
+                Обновить справочник
             </button>
         </div>
 

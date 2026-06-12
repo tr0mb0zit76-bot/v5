@@ -19,12 +19,14 @@ class ManagementExpenseCategoryHierarchyService
         }
 
         $this->syncService->ensureSystemCategories();
+        $this->deactivateLegacyPayrollCategories();
 
         $incomeRoot = $this->upsertGroup('group_income', 'Доходы', 'in', 5);
         $expenseRoot = $this->upsertGroup('group_expense', 'Расходы', 'out', 10);
         $costGroup = $this->upsertGroup('group_cost', 'Себестоимость', 'out', 20, $expenseRoot->id);
         $payrollGroup = $this->upsertGroup('group_payroll', 'ФОТ', 'out', 30, $expenseRoot->id);
-        $overheadGroup = $this->upsertGroup('group_overhead', 'Накладные расходы', 'out', 40, $expenseRoot->id);
+        $overheadGroup = $this->upsertGroup('group_overhead', 'АУР', 'out', 40, $expenseRoot->id);
+        $this->upsertGroup('group_taxes', 'Налоги', 'out', 50, $expenseRoot->id);
 
         $this->attachUnder($incomeRoot->id, [
             'operational_customer_in',
@@ -37,8 +39,6 @@ class ManagementExpenseCategoryHierarchyService
         ]);
 
         $this->attachUnder($payrollGroup->id, [
-            'payroll_accrued_sales',
-            'payroll_paid_sales',
             'payroll_other',
         ]);
 
@@ -51,9 +51,13 @@ class ManagementExpenseCategoryHierarchyService
             'cash_other_out',
             'unclassified',
         ]);
+    }
 
-        $this->syncService->syncFromBudgetOpexArticles();
-        $this->attachBudgetArticlesToOverhead($overheadGroup->id);
+    private function deactivateLegacyPayrollCategories(): void
+    {
+        ManagementExpenseCategory::query()
+            ->whereIn('code', ManagementExpenseCategoryCatalog::legacyPayrollCodes())
+            ->update(['is_active' => false]);
     }
 
     private function upsertGroup(
@@ -103,17 +107,6 @@ class ManagementExpenseCategoryHierarchyService
                 'sort_order' => 10 + ($index * 10),
             ])->save();
         }
-    }
-
-    private function attachBudgetArticlesToOverhead(int $overheadGroupId): void
-    {
-        ManagementExpenseCategory::query()
-            ->where('code', 'like', 'budget_opex_%')
-            ->where(function ($query) use ($overheadGroupId): void {
-                $query->whereNull('parent_id')
-                    ->orWhere('parent_id', '!=', $overheadGroupId);
-            })
-            ->update(['parent_id' => $overheadGroupId, 'flow' => 'out']);
     }
 
     /**

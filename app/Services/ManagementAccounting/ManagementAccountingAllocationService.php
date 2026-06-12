@@ -59,7 +59,7 @@ class ManagementAccountingAllocationService
             } elseif ($allocationType === 'payroll' && ! empty($payload['user_id'])) {
                 $userId = (int) $payload['user_id'];
                 $line->allocation_user_id = $userId;
-                $line->allocation_category_id = $payload['category_id'] ?? $this->categoryIdByCode('payroll_paid_sales');
+                $line->allocation_category_id = $payload['category_id'] ?? $this->categoryIdByCode('payroll_other');
                 $line->match_type = 'payroll';
 
                 $half = $this->payrollHalfService->ensureCurrentHalf(

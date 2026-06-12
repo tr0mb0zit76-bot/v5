@@ -7,11 +7,16 @@ use ZipArchive;
 
 class SberRegistryXlsxParser
 {
-    public const FORMAT = 'sber_registry_v1';
+    public const BANK_REGISTRY_V1 = 'bank_registry_v1';
+
+    /** @deprecated Use BANK_REGISTRY_V1 */
+    public const FORMAT = self::BANK_REGISTRY_V1;
 
     /**
      * @return array{
      *     account_number: ?string,
+     *     period_from: ?string,
+     *     period_to: ?string,
      *     lines: list<array{
      *         row_number: int,
      *         operation_date: string,
@@ -42,6 +47,7 @@ class SberRegistryXlsxParser
 
         $rows = $this->parseSheetRows($sheetXml, $sharedStrings);
         $accountNumber = $this->detectAccountNumber($rows);
+        $period = $this->detectPeriod($rows);
 
         $lines = [];
         $started = false;
@@ -71,8 +77,18 @@ class SberRegistryXlsxParser
             throw new RuntimeException('В выписке не найдено операций. Проверьте формат «Реестр банковских документов».');
         }
 
+        if ($period['from'] === null || $period['to'] === null) {
+            foreach ($lines as $line) {
+                $date = $line['operation_date'];
+                $period['from'] = $period['from'] === null || $date < $period['from'] ? $date : $period['from'];
+                $period['to'] = $period['to'] === null || $date > $period['to'] ? $date : $period['to'];
+            }
+        }
+
         return [
             'account_number' => $accountNumber,
+            'period_from' => $period['from'],
+            'period_to' => $period['to'],
             'lines' => $lines,
         ];
     }
@@ -278,6 +294,29 @@ class SberRegistryXlsxParser
         }
 
         return round((float) $normalized, 2);
+    }
+
+    /**
+     * @param  array<int, list<string>>  $rows
+     * @return array{from: ?string, to: ?string}
+     */
+    private function detectPeriod(array $rows): array
+    {
+        $from = null;
+        $to = null;
+
+        foreach ($rows as $cells) {
+            $joined = implode(' ', $cells);
+
+            if (preg_match('/(?:с|от)\s*(\d{1,2}\.\d{1,2}\.\d{2,4})\s*(?:по|до|-)\s*(\d{1,2}\.\d{1,2}\.\d{2,4})/ui', $joined, $matches) === 1) {
+                $from = $this->parseDate($matches[1]);
+                $to = $this->parseDate($matches[2]);
+
+                break;
+            }
+        }
+
+        return ['from' => $from, 'to' => $to];
     }
 
     /**

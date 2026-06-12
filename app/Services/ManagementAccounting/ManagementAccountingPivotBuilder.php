@@ -4,6 +4,7 @@ namespace App\Services\ManagementAccounting;
 
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
+use App\Support\ManagementAccountingPeriodSupport;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -68,7 +69,7 @@ class ManagementAccountingPivotBuilder
                 $monthEnd = $cursor->endOfMonth()->min($end);
                 $columns[] = [
                     'key' => $cursor->format('Y-m'),
-                    'label' => $cursor->locale('ru')->translatedFormat('MMM'),
+                    'label' => ManagementAccountingPeriodSupport::pivotMonthLabel($cursor),
                     'start' => $cursor->toDateString(),
                     'end' => $monthEnd->toDateString(),
                 ];
@@ -156,13 +157,7 @@ class ManagementAccountingPivotBuilder
      */
     private function columnKeyForDate(array $columns, string $date): ?string
     {
-        foreach ($columns as $column) {
-            if ($date >= $column['start'] && $date <= $column['end']) {
-                return $column['key'];
-            }
-        }
-
-        return null;
+        return ManagementAccountingPeriodSupport::columnKeyForDate($columns, $date);
     }
 
     /**
@@ -270,6 +265,7 @@ class ManagementAccountingPivotBuilder
 
         $walk(0, 0);
 
+        $this->appendGrossMarginRow($rows, $columns, $revenueByColumn);
         $this->appendProfitRow($rows, $columns, $revenueByColumn);
 
         return $rows;
@@ -384,12 +380,79 @@ class ManagementAccountingPivotBuilder
         CarbonImmutable $start,
         CarbonImmutable $end,
     ): array {
-        $breakdown = $this->breakdownService->forCategory($category, $categories, $start, $end);
-
         return [
-            'breakdown' => $breakdown['items'],
-            'breakdown_label' => $breakdown['label'],
+            'breakdown' => [],
+            'breakdown_label' => 'none',
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @param  list<array{key: string}>  $columns
+     * @param  array<string, float>  $revenueByColumn
+     */
+    private function appendGrossMarginRow(array &$rows, array $columns, array $revenueByColumn): void
+    {
+        $cells = [];
+
+        foreach ($columns as $column) {
+            $key = $column['key'];
+            $revenue = (float) ($revenueByColumn[$key] ?? 0);
+            $cost = $this->sumGroupExpenseForColumn($rows, $key, 'group_cost');
+            $grossMargin = $revenue - $cost;
+
+            $cells[] = [
+                'key' => $key,
+                'amount' => round($grossMargin, 2),
+                'percent' => $revenue > 0 ? round(($grossMargin / $revenue) * 100, 1) : null,
+            ];
+        }
+
+        $totalRevenue = array_sum($revenueByColumn);
+        $totalCost = array_sum(array_map(
+            fn (array $column): float => $this->sumGroupExpenseForColumn($rows, $column['key'], 'group_cost'),
+            $columns,
+        ));
+
+        $rows[] = [
+            'category_id' => null,
+            'parent_id' => null,
+            'code' => 'gross_margin',
+            'name' => 'Валовая маржа',
+            'kind' => 'summary',
+            'flow' => 'neutral',
+            'depth' => 0,
+            'has_children' => false,
+            'actual_in' => 0.0,
+            'actual_out' => 0.0,
+            'plan_amount' => null,
+            'variance_amount' => null,
+            'cells' => $cells,
+            'breakdown' => [],
+            'breakdown_label' => 'none',
+            'is_summary' => true,
+            'summary_gross_margin' => round($totalRevenue - $totalCost, 2),
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function sumGroupExpenseForColumn(array $rows, string $columnKey, string $groupCode): float
+    {
+        foreach ($rows as $row) {
+            if (($row['code'] ?? '') !== $groupCode) {
+                continue;
+            }
+
+            foreach ($row['cells'] as $cell) {
+                if (($cell['key'] ?? '') === $columnKey) {
+                    return (float) $cell['amount'];
+                }
+            }
+        }
+
+        return 0.0;
     }
 
     /**

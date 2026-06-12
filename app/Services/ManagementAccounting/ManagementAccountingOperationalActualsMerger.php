@@ -5,6 +5,7 @@ namespace App\Services\ManagementAccounting;
 use App\Models\FleetTrip;
 use App\Models\ManagementExpenseCategory;
 use App\Models\PaymentSchedulePaymentEvent;
+use App\Support\ManagementAccountingPeriodSupport;
 use App\Support\ManagementCostCategoryCodes;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Schema;
@@ -262,13 +263,7 @@ class ManagementAccountingOperationalActualsMerger
      */
     private function columnKeyForDate(array $columns, string $date): ?string
     {
-        foreach ($columns as $column) {
-            if ($date >= $column['start'] && $date <= $column['end']) {
-                return $column['key'];
-            }
-        }
-
-        return null;
+        return ManagementAccountingPeriodSupport::columnKeyForDate($columns, $date);
     }
 
     private function categoryIdByCode(string $code): ?int

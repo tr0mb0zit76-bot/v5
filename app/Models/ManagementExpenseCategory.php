@@ -19,6 +19,7 @@ class ManagementExpenseCategory extends Model
         'flow',
         'is_system',
         'is_active',
+        'include_in_budget',
         'sort_order',
     ];
 
@@ -30,6 +31,7 @@ class ManagementExpenseCategory extends Model
         return [
             'is_system' => 'boolean',
             'is_active' => 'boolean',
+            'include_in_budget' => 'boolean',
         ];
     }
 

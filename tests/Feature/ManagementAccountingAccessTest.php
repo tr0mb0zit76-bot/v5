@@ -15,12 +15,14 @@ class ManagementAccountingAccessTest extends TestCase
         parent::setUp();
 
         $this->schemaDropMany([
+            'payment_schedule_payment_events',
             'management_payroll_half_users',
             'management_payroll_halves',
             'management_statement_lines',
             'management_statement_imports',
             'management_expense_categories',
             'management_bank_accounts',
+            'budget_opex_articles',
             'role_user',
             'users',
             'roles',
@@ -67,11 +69,14 @@ class ManagementAccountingAccessTest extends TestCase
 
         Schema::create('management_expense_categories', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('parent_id')->nullable();
             $table->string('code', 64)->unique();
             $table->string('name');
             $table->string('kind', 32);
+            $table->string('flow', 8)->default('out');
             $table->boolean('is_system')->default(false);
             $table->boolean('is_active')->default(true);
+            $table->boolean('include_in_budget')->default(false);
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
@@ -126,6 +131,26 @@ class ManagementAccountingAccessTest extends TestCase
             $table->foreignId('user_id');
             $table->decimal('accrued_amount', 14, 2)->default(0);
             $table->decimal('paid_amount', 14, 2)->default(0);
+            $table->timestamps();
+        });
+
+        Schema::create('payment_schedule_payment_events', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('order_id')->nullable();
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->string('party', 16);
+            $table->decimal('amount', 14, 2);
+            $table->date('payment_date');
+            $table->string('transaction_reference', 100)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('budget_opex_articles', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('cost_type', 32)->default('fixed_monthly');
+            $table->decimal('amount_monthly', 14, 2)->default(0);
+            $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
     }

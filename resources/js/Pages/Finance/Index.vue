@@ -74,10 +74,34 @@
                     </Link>
                     <h1 :class="crmPageTitle">График оплат</h1>
                     <p :class="crmPageLead">
-                        План и факт по строкам графика заказов. Номера счетов можно править в таблице; оплаты фиксируются в колонке «Действия».
+                        План и факт по строкам графика заказов; разнос банковских выписок — отдельной вкладкой.
                     </p>
                 </div>
             </div>
+
+            <div v-if="can_access_management_accounting" class="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
+                <Link
+                    href="/finance?section=cashflow&cashflow_tab=schedule"
+                    :class="cashflowTab === 'schedule' ? cashflowTabActiveClass : cashflowTabClass"
+                >
+                    График
+                </Link>
+                <Link
+                    href="/finance?section=cashflow&cashflow_tab=reconcile"
+                    :class="cashflowTab === 'reconcile' ? cashflowTabActiveClass : cashflowTabClass"
+                >
+                    Разнос выписки
+                </Link>
+            </div>
+
+            <ManagementAccountingStatementImports
+                v-if="cashflowTab === 'reconcile' && can_access_management_accounting"
+                :imports="statement_imports"
+                :bank_accounts="bank_accounts"
+                :default_bank_account_id="default_bank_account_id"
+            />
+
+            <template v-else>
 
             <!-- Блоки статистики ПЕРЕД таблицей - ФИНАЛЬНАЯ ОПТИМИЗАЦИЯ -->
             <div class="grid shrink-0 gap-4 lg:grid-cols-3">
@@ -186,6 +210,7 @@
                     :can-cancel-payment-row="canPaymentScheduleCancelRow"
                 />
             </section>
+            </template>
         </div>
     </div>
 </template>
@@ -197,6 +222,8 @@ import { AlertTriangle, ArrowLeft, BarChart3, Clock, TrendingDown, TrendingUp, W
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmModuleCard, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 import CashFlowGrid from '@/Components/Finance/CashFlowGrid.vue';
+import ManagementAccountingStatementImports from '@/Components/Finance/ManagementAccountingStatementImports.vue';
+import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import { summarizeCashFlowJournal } from '@/support/cashFlowJournalStats.js';
 
 defineOptions({
@@ -239,6 +266,22 @@ const props = defineProps({
         type: String,
         default: 'overview',
     },
+    cashflow_tab: {
+        type: String,
+        default: 'schedule',
+    },
+    statement_imports: {
+        type: Array,
+        default: () => [],
+    },
+    bank_accounts: {
+        type: Array,
+        default: () => [],
+    },
+    default_bank_account_id: {
+        type: [Number, String],
+        default: null,
+    },
     can_access_salary_module: {
         type: Boolean,
         default: false,
@@ -274,6 +317,9 @@ const props = defineProps({
 });
 
 const activeSubmodule = computed(() => props.active_submodule);
+const cashflowTab = computed(() => props.cashflow_tab ?? 'schedule');
+const cashflowTabClass = 'rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800';
+const cashflowTabActiveClass = crmTabButtonClasses(true);
 
 const cashFlowGridPreset = ref(null);
 
@@ -374,7 +420,7 @@ const submoduleTiles = computed(() => {
         tiles.push({
             key: 'management-accounting',
             title: 'Управленческий учёт',
-            description: 'Банковские выписки, операционные платежи, ФОТ и прочие статьи',
+            description: 'Валовая маржа, факт по статьям и план из бюджетирования',
             icon: 'Wallet',
             accent: 'violet',
             group: 'Учёт',

@@ -44,4 +44,18 @@ class ManagementBankAccount extends Model
     {
         return $this->hasMany(ManagementStatementLine::class, 'bank_account_id');
     }
+
+    public static function consolidated(): self
+    {
+        return self::query()->updateOrCreate(
+            ['account_number' => 'CONSOLIDATED'],
+            [
+                'bank_name' => 'Сводная выписка',
+                'account_mask' => 'без счёта',
+                'currency' => 'RUB',
+                'is_active' => true,
+                'sort_order' => 5,
+            ],
+        );
+    }
 }
