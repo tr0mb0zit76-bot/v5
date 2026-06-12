@@ -26,7 +26,6 @@ class OrderClipboardSummaryResolver
             $order->loadMissing([
                 'legs' => fn ($query) => $query->orderBy('sequence'),
                 'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
-                'legs.routePoints.address.city',
             ]);
         });
 

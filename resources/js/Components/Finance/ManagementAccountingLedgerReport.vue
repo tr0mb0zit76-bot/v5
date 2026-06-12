@@ -58,7 +58,7 @@
         <section :class="`${crmPanel} p-5`">
             <h2 :class="crmSectionTitle">Отчёт по статьям</h2>
             <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                В ячейке: сумма и % от дохода периода. Раскройте группу — доли пересчитаются по вложенным статьям.
+                В ячейке расходов: сумма и доля в доходе периода. Доходы и сводные строки — только сумма.
             </p>
             <div class="mt-3 overflow-x-auto">
                 <table class="min-w-full text-sm">
@@ -101,7 +101,7 @@
                                     class="px-2 py-2 text-right tabular-nums"
                                 >
                                     <div>{{ formatMoney(cell.amount) }}</div>
-                                    <div v-if="cell.percent !== null" class="text-[10px] text-zinc-500">
+                                    <div v-if="showPercent(row, cell)" class="text-[10px] text-zinc-500">
                                         {{ cell.percent }}%
                                     </div>
                                 </td>
@@ -277,6 +277,18 @@ function breakdownAmount(item, label) {
     }
 
     return item.actual_out || item.actual_in;
+}
+
+function showPercent(row, cell) {
+    if (cell.percent === null || cell.percent === undefined) {
+        return false;
+    }
+
+    if (row.is_summary) {
+        return false;
+    }
+
+    return (row.flow ?? 'out') === 'out';
 }
 
 function formatMoney(value) {

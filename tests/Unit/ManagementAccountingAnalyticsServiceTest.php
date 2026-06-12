@@ -32,6 +32,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             $table->string('flow', 8)->default('out');
             $table->boolean('is_system')->default(false);
             $table->boolean('is_active')->default(true);
+            $table->boolean('include_in_budget')->default(false);
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
@@ -70,6 +71,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             $table->decimal('percent_of_margin', 8, 2)->nullable();
             $table->unsignedTinyInteger('ramp_months')->nullable();
             $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->unsignedBigInteger('management_expense_category_id')->nullable();
             $table->timestamps();
         });
     }
@@ -82,6 +84,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             'kind' => 'overhead',
             'is_system' => true,
             'is_active' => true,
+            'include_in_budget' => true,
             'sort_order' => 10,
         ]);
 
@@ -110,6 +113,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             'cost_type' => 'fixed_monthly',
             'amount_monthly' => 100000,
             'sort_order' => 10,
+            'management_expense_category_id' => $category->id,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -120,6 +124,7 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $this->assertSame(50000.0, $result['totals']['actual_in']);
         $this->assertSame(1500.0, $result['totals']['actual_out']);
         $this->assertSame(100000.0, $result['totals']['plan_out']);
+        $this->assertSame(97.0, $result['totals']['business_margin_percent']);
         $this->assertNotEmpty($result['rows']);
         $this->assertArrayHasKey('pivot', $result);
         $this->assertNotEmpty($result['pivot']['columns']);

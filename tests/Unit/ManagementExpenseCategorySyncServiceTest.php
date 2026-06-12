@@ -54,6 +54,13 @@ class ManagementExpenseCategorySyncServiceTest extends TestCase
             'sort_order' => 10,
         ]);
 
+        $managerArticle = BudgetOpexArticle::query()->create([
+            'name' => 'Оклады менеджеров',
+            'cost_type' => 'fixed_monthly',
+            'amount_monthly' => 75000,
+            'sort_order' => 20,
+        ]);
+
         app(ManagementExpenseCategorySyncService::class)->syncAll();
 
         $this->assertTrue(ManagementExpenseCategory::query()->where('code', 'bank_fees')->exists());
@@ -62,5 +69,23 @@ class ManagementExpenseCategorySyncServiceTest extends TestCase
         $this->assertTrue(
             (bool) ManagementExpenseCategory::query()->where('code', 'bank_fees')->value('include_in_budget'),
         );
+        $this->assertTrue(ManagementExpenseCategory::query()->where('code', 'payroll_managers')->exists());
+        $this->assertTrue(ManagementExpenseCategory::query()->where('code', 'payroll_office')->exists());
+        $this->assertFalse(
+            (bool) ManagementExpenseCategory::query()->where('code', 'payroll_other')->value('is_active'),
+        );
+
+        $payrollGroupId = ManagementExpenseCategory::query()->where('code', 'group_payroll')->value('id');
+        $this->assertSame(
+            ['payroll_managers', 'payroll_office'],
+            ManagementExpenseCategory::query()
+                ->where('parent_id', $payrollGroupId)
+                ->orderBy('sort_order')
+                ->pluck('code')
+                ->all(),
+        );
+
+        $managerCategoryId = ManagementExpenseCategory::query()->where('code', 'payroll_managers')->value('id');
+        $this->assertSame($managerCategoryId, $managerArticle->fresh()->management_expense_category_id);
     }
 }

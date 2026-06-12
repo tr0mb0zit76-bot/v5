@@ -24,6 +24,7 @@ class ManagementExpenseCategoryTreeService
      *     is_active: bool,
      *     sort_order: int,
      *     source: string,
+     *     include_in_budget: bool,
      *     children: list<mixed>
      * }>
      */
@@ -100,21 +101,37 @@ class ManagementExpenseCategoryTreeService
         ];
     }
 
-    public function update(ManagementExpenseCategory $category, string $name): void
+    /**
+     * @param  array{name?: string, include_in_budget?: bool}  $payload
+     */
+    public function update(ManagementExpenseCategory $category, array $payload): void
     {
-        if ($category->is_system && $category->kind === 'group') {
-            throw ValidationException::withMessages([
-                'name' => 'Системную группу нельзя переименовать.',
-            ]);
+        if (isset($payload['name'])) {
+            if ($category->is_system) {
+                throw ValidationException::withMessages([
+                    'name' => 'Системную статью нельзя переименовать.',
+                ]);
+            }
+
+            $category->update(['name' => trim((string) $payload['name'])]);
+
+            if (Schema::hasTable('budget_opex_articles')
+                && Schema::hasColumn('budget_opex_articles', 'management_expense_category_id')) {
+                BudgetOpexArticle::query()
+                    ->where('management_expense_category_id', $category->id)
+                    ->update(['name' => $category->name]);
+            }
         }
 
-        $category->update(['name' => trim($name)]);
+        if (array_key_exists('include_in_budget', $payload)
+            && Schema::hasColumn('management_expense_categories', 'include_in_budget')) {
+            if ($category->kind === 'group') {
+                throw ValidationException::withMessages([
+                    'include_in_budget' => 'Для группы нельзя менять участие в бюджете.',
+                ]);
+            }
 
-        if (Schema::hasTable('budget_opex_articles')
-            && Schema::hasColumn('budget_opex_articles', 'management_expense_category_id')) {
-            BudgetOpexArticle::query()
-                ->where('management_expense_category_id', $category->id)
-                ->update(['name' => $category->name]);
+            $category->update(['include_in_budget' => (bool) $payload['include_in_budget']]);
         }
     }
 
@@ -177,6 +194,7 @@ class ManagementExpenseCategoryTreeService
                     'is_active' => $category->is_active,
                     'sort_order' => $category->sort_order,
                     'source' => $this->resolveSource($category),
+                    'include_in_budget' => (bool) ($category->include_in_budget ?? false),
                     'children' => $walk($category->id),
                 ];
             })->values()->all();

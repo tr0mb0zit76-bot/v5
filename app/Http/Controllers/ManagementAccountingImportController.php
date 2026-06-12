@@ -188,11 +188,17 @@ class ManagementAccountingImportController extends Controller
         UpdateManagementExpenseCategoryRequest $request,
         ManagementExpenseCategory $category,
     ): RedirectResponse {
-        if ($category->is_system) {
+        $validated = $request->validated();
+
+        if ($category->is_system && array_key_exists('name', $validated)) {
             return back()->with('flash', ['type' => 'error', 'message' => 'Системную статью нельзя переименовать.']);
         }
 
-        $this->categoryTreeService->update($category, (string) $request->validated('name'));
+        if ($validated === []) {
+            return back()->with('flash', ['type' => 'error', 'message' => 'Нет данных для обновления.']);
+        }
+
+        $this->categoryTreeService->update($category, $validated);
 
         return back()->with('flash', ['type' => 'success', 'message' => 'Статья обновлена.']);
     }

@@ -8,11 +8,13 @@ use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\User;
 use App\Services\Ai\AiUsageAnalyticsService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
+use App\Services\ManagementAccounting\ManagementAccountingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
 use App\Services\Mcp\ContractorMcpService;
 use App\Services\Mcp\DispositionMcpService;
 use App\Services\Mcp\FleetMcpService;
 use App\Services\Mcp\MailMcpService;
+use App\Services\Mcp\ManagementAccountingMcpService;
 use App\Services\Mcp\McpAccessGate;
 use App\Services\Mcp\OrderDocumentMcpService;
 use App\Services\Mcp\OrderIntakeMcpService;
@@ -62,6 +64,8 @@ class AgentToolRegistry
         private readonly MailMcpService $mail,
         private readonly PrintFormTemplatesMcpService $printFormTemplates,
         private readonly ContractorPrintFormChangeRequestService $printFormChanges,
+        private readonly ManagementAccountingMcpService $managementAccounting,
+        private readonly ManagementAccountingInsightsService $managementAccountingInsights,
     ) {}
 
     /**
@@ -157,6 +161,7 @@ class AgentToolRegistry
                         'orders_scope' => RoleAccess::resolveVisibilityScopeForUser($user, 'orders'),
                         'tasks_scope' => RoleAccess::resolveVisibilityScopeForUser($user, 'tasks'),
                         'can_view_finance' => $this->access->canViewFinance($user),
+                        'can_management_accounting' => RoleAccess::canAccessManagementAccounting($user),
                     ];
                 },
             ),
@@ -1085,9 +1090,192 @@ class AgentToolRegistry
                     return ['change_request' => $this->printFormChanges->serializeRequest($changeRequest)];
                 },
             ),
+            new AgentToolDefinition(
+                name: 'get_management_accounting_insights',
+                description: 'CFO-аналитика управленки: KPI, тренды, структура расходов, план/факт, риски выписки, рекомендации.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'period_type' => ['type' => 'string', 'enum' => ['month', 'quarter', 'year']],
+                        'period_anchor' => ['type' => 'string', 'description' => 'YYYY-MM-DD'],
+                        'watchlist_limit' => ['type' => 'integer', 'minimum' => 3, 'maximum' => 15],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => $this->managementAccountingInsights->insights(
+                    $user,
+                    (string) ($args['period_type'] ?? 'month'),
+                    isset($args['period_anchor']) ? (string) $args['period_anchor'] : null,
+                    (int) ($args['watchlist_limit'] ?? 8),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_management_accounting_analytics',
+                description: 'Полная аналитика управленки за период: totals, pivot, статьи, план/факт.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'period_type' => ['type' => 'string', 'enum' => ['month', 'quarter', 'year']],
+                        'period_anchor' => ['type' => 'string', 'description' => 'YYYY-MM-DD'],
+                    ],
+                    'required' => ['period_type'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => [
+                    'analytics' => $this->managementAccounting->analytics(
+                        $user,
+                        (string) ($args['period_type'] ?? 'month'),
+                        $args['period_anchor'] ?? null,
+                    ),
+                ],
+            ),
+            new AgentToolDefinition(
+                name: 'list_management_statement_imports',
+                description: 'Список импортов банковских выписок (управленка).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => [
+                    'imports' => $this->managementAccounting->listImports($user, (int) ($args['limit'] ?? 20)),
+                ],
+            ),
+            new AgentToolDefinition(
+                name: 'list_management_statement_lines',
+                description: 'Строки выписки по import_id; status=pending для неразнесённых.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'import_id' => ['type' => 'integer', 'minimum' => 1],
+                        'status' => ['type' => 'string', 'enum' => ['pending', 'allocated']],
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
+                    ],
+                    'required' => ['import_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => [
+                    'lines' => $this->managementAccounting->listLines(
+                        $user,
+                        (int) $args['import_id'],
+                        isset($args['status']) ? (string) $args['status'] : null,
+                        (int) ($args['limit'] ?? 50),
+                    ),
+                ],
+            ),
+            new AgentToolDefinition(
+                name: 'suggest_management_statement_line',
+                description: 'Подсказка разнесения строки выписки (правила, заказ, статья).',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'line_id' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'required' => ['line_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => $this->managementAccounting->suggestLine(
+                    $user,
+                    (int) $args['line_id'],
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'allocate_management_statement_line',
+                description: 'Разнести строку выписки. Только по явной просьбе пользователя.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'line_id' => ['type' => 'integer', 'minimum' => 1],
+                        'allocation_type' => ['type' => 'string', 'enum' => ['operational', 'payroll', 'category']],
+                        'category_id' => ['type' => 'integer', 'minimum' => 1],
+                        'payment_schedule_id' => ['type' => 'integer', 'minimum' => 1],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
+                        'amount' => ['type' => 'number', 'minimum' => 0.01],
+                        'notes' => ['type' => 'string', 'maxLength' => 500],
+                        'remember_keyword' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 128],
+                        'remember_notes' => ['type' => 'string', 'maxLength' => 255],
+                    ],
+                    'required' => ['line_id', 'allocation_type'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => $this->managementAccounting->allocateLine(
+                    $user,
+                    (int) $args['line_id'],
+                    $args,
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'list_management_expense_categories',
+                description: 'Справочник статей управленческого учёта.',
+                parameters: $emptyObject,
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user): array => [
+                    'categories' => $this->managementAccounting->listCategories($user),
+                ],
+            ),
+            new AgentToolDefinition(
+                name: 'list_management_reconcile_rules',
+                description: 'Активные правила автоподбора при разнесении выписки.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: fn (User $user, array $args): array => [
+                    'rules' => $this->managementAccounting->listRules($user, (int) ($args['limit'] ?? 30)),
+                ],
+            ),
+            new AgentToolDefinition(
+                name: 'remember_management_reconcile_rule',
+                description: 'Создать правило разнесения по ключевому слову. Только по явной просьбе.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'keyword' => ['type' => 'string', 'minLength' => 2, 'maxLength' => 128],
+                        'allocation_type' => ['type' => 'string', 'enum' => ['operational', 'payroll', 'category']],
+                        'category_id' => ['type' => 'integer', 'minimum' => 1],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
+                        'order_number' => ['type' => 'string'],
+                        'payment_schedule_id' => ['type' => 'integer', 'minimum' => 1],
+                        'direction' => ['type' => 'string', 'enum' => ['in', 'out']],
+                        'notes' => ['type' => 'string', 'maxLength' => 255],
+                        'priority' => ['type' => 'integer'],
+                    ],
+                    'required' => ['keyword', 'allocation_type'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canManagementAccounting($user),
+                invoke: function (User $user, array $args): array {
+                    $rule = $this->managementAccounting->rememberRule($user, $args);
+
+                    return [
+                        'rule' => [
+                            'id' => $rule->id,
+                            'keyword' => $rule->keyword,
+                            'allocation_type' => $rule->allocation_type,
+                        ],
+                    ];
+                },
+            ),
         ];
 
         return $this->definitions;
+    }
+
+    private function canManagementAccounting(User $user): bool
+    {
+        return RoleAccess::canAccessManagementAccounting($user);
     }
 
     private function canOrders(User $user): bool

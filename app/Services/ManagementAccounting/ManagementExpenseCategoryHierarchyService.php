@@ -2,7 +2,9 @@
 
 namespace App\Services\ManagementAccounting;
 
+use App\Models\BudgetOpexArticle;
 use App\Models\ManagementExpenseCategory;
+use App\Models\ManagementStatementLine;
 use App\Support\ManagementExpenseCategoryCatalog;
 use Illuminate\Support\Facades\Schema;
 
@@ -39,7 +41,8 @@ class ManagementExpenseCategoryHierarchyService
         ]);
 
         $this->attachUnder($payrollGroup->id, [
-            'payroll_other',
+            'payroll_managers',
+            'payroll_office',
         ]);
 
         $this->attachUnder($overheadGroup->id, [
@@ -51,12 +54,69 @@ class ManagementExpenseCategoryHierarchyService
             'cash_other_out',
             'unclassified',
         ]);
+
+        $this->migratePayrollOtherAllocations();
+        $this->relinkBudgetOpexArticles();
+        $this->deactivateLegacyBudgetDuplicateCategories();
     }
 
     private function deactivateLegacyPayrollCategories(): void
     {
         ManagementExpenseCategory::query()
             ->whereIn('code', ManagementExpenseCategoryCatalog::legacyPayrollCodes())
+            ->update(['is_active' => false]);
+    }
+
+    private function migratePayrollOtherAllocations(): void
+    {
+        if (! Schema::hasTable('management_statement_lines')) {
+            return;
+        }
+
+        $legacyId = ManagementExpenseCategory::query()->where('code', 'payroll_other')->value('id');
+        $targetId = ManagementExpenseCategory::query()->where('code', 'payroll_managers')->value('id');
+
+        if ($legacyId === null || $targetId === null) {
+            return;
+        }
+
+        ManagementStatementLine::query()
+            ->where('allocation_category_id', $legacyId)
+            ->update(['allocation_category_id' => $targetId]);
+    }
+
+    private function relinkBudgetOpexArticles(): void
+    {
+        if (! Schema::hasTable('budget_opex_articles')
+            || ! Schema::hasColumn('budget_opex_articles', 'management_expense_category_id')) {
+            return;
+        }
+
+        $mapping = [
+            'Оклады менеджеров' => 'payroll_managers',
+            'Бухгалтерия' => 'payroll_office',
+            'Офис' => 'services_other',
+            'Постоянный ФОТ' => 'payroll_managers',
+            'Постоянный фот' => 'payroll_managers',
+        ];
+
+        foreach ($mapping as $articleName => $categoryCode) {
+            $categoryId = ManagementExpenseCategory::query()->where('code', $categoryCode)->value('id');
+
+            if ($categoryId === null) {
+                continue;
+            }
+
+            BudgetOpexArticle::query()
+                ->where('name', $articleName)
+                ->update(['management_expense_category_id' => $categoryId]);
+        }
+    }
+
+    private function deactivateLegacyBudgetDuplicateCategories(): void
+    {
+        ManagementExpenseCategory::query()
+            ->where('code', 'like', 'budget_opex_%')
             ->update(['is_active' => false]);
     }
 

@@ -16,6 +16,7 @@ use App\Mcp\Tools\GetContractorTool;
 use App\Mcp\Tools\GetMailSyncStatusTool;
 use App\Mcp\Tools\GetMailThreadTool;
 use App\Mcp\Tools\GetManagementAccountingAnalyticsTool;
+use App\Mcp\Tools\GetManagementAccountingInsightsTool;
 use App\Mcp\Tools\GetManagerSalesCoachingInsightsTool;
 use App\Mcp\Tools\GetOrderFieldLexiconTool;
 use App\Mcp\Tools\GetOrderIntakeDraftTool;
@@ -92,6 +93,7 @@ use Laravel\Mcp\Server\Tool;
         - Управленческий учёт (can_management_accounting / admin):
           list_management_statement_imports, list_management_statement_lines, suggest_management_statement_line,
           allocate_management_statement_line (remember_keyword — обучение правила), get_management_accounting_analytics,
+          get_management_accounting_insights,
           list_management_expense_categories, remember_management_reconcile_rule, list_management_reconcile_rules
 
         Аутентификация: Bearer Sanctum token.
@@ -150,6 +152,7 @@ class CrmServer extends Server
         SuggestManagementStatementLineTool::class,
         AllocateManagementStatementLineTool::class,
         GetManagementAccountingAnalyticsTool::class,
+        GetManagementAccountingInsightsTool::class,
         ListManagementExpenseCategoriesTool::class,
         RememberManagementReconcileRuleTool::class,
         ListManagementReconcileRulesTool::class,

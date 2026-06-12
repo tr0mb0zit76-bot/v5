@@ -18,7 +18,8 @@ class UpdateManagementExpenseCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'include_in_budget' => ['sometimes', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

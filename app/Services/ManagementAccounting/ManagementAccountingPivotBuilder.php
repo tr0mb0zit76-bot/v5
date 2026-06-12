@@ -296,13 +296,9 @@ class ManagementAccountingPivotBuilder
 
             $amount = ($category->flow ?? 'out') === 'in' ? $in : $out;
             $revenue = (float) ($revenueByColumn[$key] ?? 0);
-            $percent = $revenue > 0 && ($category->flow ?? 'out') !== 'in'
+            $percent = $revenue > 0 && ($category->flow ?? 'out') === 'out'
                 ? round(($out / $revenue) * 100, 1)
                 : null;
-
-            if (($category->flow ?? 'out') === 'in' && $revenue > 0) {
-                $percent = round(($in / $revenue) * 100, 1);
-            }
 
             $cells[] = [
                 'key' => $key,
@@ -404,7 +400,7 @@ class ManagementAccountingPivotBuilder
             $cells[] = [
                 'key' => $key,
                 'amount' => round($grossMargin, 2),
-                'percent' => $revenue > 0 ? round(($grossMargin / $revenue) * 100, 1) : null,
+                'percent' => null,
             ];
         }
 
@@ -493,7 +489,7 @@ class ManagementAccountingPivotBuilder
             $cells[] = [
                 'key' => $key,
                 'amount' => round($profit, 2),
-                'percent' => $revenue > 0 ? round(($profit / $revenue) * 100, 1) : null,
+                'percent' => null,
             ];
         }
 

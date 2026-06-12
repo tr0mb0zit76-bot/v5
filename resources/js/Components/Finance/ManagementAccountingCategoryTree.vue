@@ -4,7 +4,7 @@
             <div>
                 <h2 :class="crmSectionTitle">Статьи учёта</h2>
                 <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Единый справочник для управленки и бюджетирования. Группы раскрываются в отчёте «Учёт».
+                    Единый справочник для управленки и бюджетирования. Раскройте группу, чтобы увидеть вложенные статьи.
                 </p>
             </div>
             <button
@@ -37,31 +37,51 @@
         </form>
         <p v-if="createForm.errors.name" class="text-sm text-rose-600">{{ createForm.errors.name }}</p>
 
-        <div class="space-y-1">
-            <CategoryTreeNode
-                v-for="node in tree"
-                :key="node.id"
-                :node="node"
-                :depth="0"
-                @rename="renameCategory"
-                @remove="removeCategory"
-            />
-            <p v-if="tree.length === 0" class="py-6 text-center text-sm text-zinc-500">
-                Справочник пуст. Запустите миграции или синхронизацию с бюджетом.
+        <div :class="`${crmPanel} p-4`">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+                <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                    {{ tree.length }} групп верхнего уровня
+                </span>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" :class="crmBtnNeutral" @click="expandAll">
+                        Развернуть все
+                    </button>
+                    <button type="button" :class="crmBtnNeutral" @click="collapseAll">
+                        Свернуть все
+                    </button>
+                </div>
+            </div>
+
+            <ul v-if="tree.length > 0" class="space-y-0.5">
+                <CategoryTreeNode
+                    v-for="node in tree"
+                    :key="node.id"
+                    :node="node"
+                    :expanded-ids="expandedIds"
+                    @toggle="toggleExpanded"
+                    @rename="renameCategory"
+                    @toggle-budget="toggleBudget"
+                    @remove="removeCategory"
+                />
+            </ul>
+            <p v-else class="py-8 text-center text-sm text-zinc-500">
+                Справочник пуст. Запустите миграции или нажмите «Обновить справочник».
             </p>
         </div>
     </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import CategoryTreeNode from '@/Components/Finance/ManagementAccountingCategoryTreeNode.vue';
 import {
+    crmBtnNeutral,
     crmBtnPrimary,
     crmBtnSecondary,
     crmFieldFluid,
     crmLabel,
+    crmPanel,
     crmSectionTitle,
 } from '@/support/crmUi.js';
 
@@ -76,6 +96,7 @@ const createForm = useForm({
 });
 
 const syncForm = useForm({});
+const expandedIds = ref(new Set());
 
 const groupOptions = computed(() => {
     const options = [];
@@ -96,6 +117,53 @@ const groupOptions = computed(() => {
 
     return options;
 });
+
+watch(
+    () => props.tree,
+    (tree) => {
+        const next = new Set();
+
+        tree.forEach((node) => {
+            if ((node.children ?? []).length > 0) {
+                next.add(node.id);
+            }
+        });
+
+        expandedIds.value = next;
+    },
+    { immediate: true, deep: true },
+);
+
+function collectExpandableIds(nodes, ids = []) {
+    nodes.forEach((node) => {
+        if ((node.children ?? []).length > 0) {
+            ids.push(node.id);
+            collectExpandableIds(node.children ?? [], ids);
+        }
+    });
+
+    return ids;
+}
+
+function expandAll() {
+    expandedIds.value = new Set(collectExpandableIds(props.tree));
+}
+
+function collapseAll() {
+    expandedIds.value = new Set();
+}
+
+function toggleExpanded(id) {
+    const next = new Set(expandedIds.value);
+
+    if (next.has(id)) {
+        next.delete(id);
+    } else {
+        next.add(id);
+    }
+
+    expandedIds.value = next;
+}
 
 function submitNew() {
     createForm.transform((data) => ({
@@ -118,6 +186,14 @@ function syncCategories() {
 
 function renameCategory(category, name) {
     router.patch(`/finance/management-accounting/categories/${category.id}?tab=categories`, { name }, {
+        preserveScroll: true,
+    });
+}
+
+function toggleBudget(category, includeInBudget) {
+    router.patch(`/finance/management-accounting/categories/${category.id}?tab=categories`, {
+        include_in_budget: includeInBudget,
+    }, {
         preserveScroll: true,
     });
 }

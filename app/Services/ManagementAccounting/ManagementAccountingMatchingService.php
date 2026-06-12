@@ -468,7 +468,7 @@ class ManagementAccountingMatchingService
             'match_notes' => 'Совпадение по ФИО сотрудника',
             'suggested_order_id' => null,
             'suggested_payment_schedule_id' => null,
-            'suggested_category_id' => $this->defaultCategoryId('payroll_other'),
+            'suggested_category_id' => $this->defaultCategoryId('payroll_managers'),
             'suggested_user_id' => $user->id,
             'suggested_candidates' => [],
         ];

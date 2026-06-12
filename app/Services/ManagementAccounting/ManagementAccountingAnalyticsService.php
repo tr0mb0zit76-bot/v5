@@ -6,6 +6,7 @@ use App\Models\BudgetOpexArticle;
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -36,7 +37,8 @@ class ManagementAccountingAnalyticsService
      *         plan_in: float,
      *         plan_out: float,
      *         plan_net: float,
-     *         variance_net: float
+     *         variance_net: float,
+     *         business_margin_percent: float|null
      *     },
      *     rows: list<array{
      *         category_id: int|null,
@@ -94,6 +96,9 @@ class ManagementAccountingAnalyticsService
                 'plan_out' => $planOut,
                 'plan_net' => 0.0 - $planOut,
                 'variance_net' => $net - (0.0 - $planOut),
+                'business_margin_percent' => $actualIn > 0
+                    ? round(($net / $actualIn) * 100, 1)
+                    : null,
             ],
             'rows' => $rows,
             'chart' => [
@@ -318,7 +323,7 @@ class ManagementAccountingAnalyticsService
         $months = max(1, $start->startOfMonth()->diffInMonths($end->startOfMonth()) + 1);
         $plan = 0.0;
 
-        $articles = BudgetOpexArticle::query()->get(['cost_type', 'amount_monthly']);
+        $articles = $this->budgetArticlesForPlanning();
 
         foreach ($articles as $article) {
             if ($article->cost_type !== BudgetOpexArticle::COST_FIXED_MONTHLY) {
@@ -344,9 +349,8 @@ class ManagementAccountingAnalyticsService
         $months = max(1, $start->startOfMonth()->diffInMonths($end->startOfMonth()) + 1);
         $planByCategory = [];
 
-        $articles = BudgetOpexArticle::query()
-            ->whereNotNull('management_expense_category_id')
-            ->get(['cost_type', 'amount_monthly', 'management_expense_category_id']);
+        $articles = $this->budgetArticlesForPlanning()
+            ->whereNotNull('management_expense_category_id');
 
         foreach ($articles as $article) {
             if ($article->cost_type !== BudgetOpexArticle::COST_FIXED_MONTHLY) {
@@ -359,5 +363,34 @@ class ManagementAccountingAnalyticsService
         }
 
         return $planByCategory;
+    }
+
+    /**
+     * @return EloquentCollection<int, BudgetOpexArticle>
+     */
+    private function budgetArticlesForPlanning(): EloquentCollection
+    {
+        $query = BudgetOpexArticle::query()
+            ->with('managementExpenseCategory:id,include_in_budget');
+
+        if (
+            Schema::hasColumn('management_expense_categories', 'include_in_budget')
+            && Schema::hasColumn('budget_opex_articles', 'management_expense_category_id')
+        ) {
+            $query
+                ->whereNotNull('management_expense_category_id')
+                ->whereHas(
+                    'managementExpenseCategory',
+                    fn ($categoryQuery) => $categoryQuery->where('include_in_budget', true),
+                );
+        }
+
+        $columns = ['cost_type', 'amount_monthly'];
+
+        if (Schema::hasColumn('budget_opex_articles', 'management_expense_category_id')) {
+            $columns[] = 'management_expense_category_id';
+        }
+
+        return $query->get($columns);
     }
 }

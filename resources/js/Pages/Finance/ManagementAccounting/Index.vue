@@ -78,7 +78,7 @@
                 Доходы минус себестоимость — валовая маржа; далее ФОТ, АУР и налоги из пула маржи.
             </p>
 
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <article :class="`${crmStatCard} min-w-0 p-4`">
                     <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
                         Поступления (факт)
@@ -112,6 +112,20 @@
                         :class="analytics.totals.net >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
                     >
                         {{ formatMoney(analytics.totals.net) }}
+                    </div>
+                </article>
+                <article :class="`${crmStatCard} min-w-0 p-4`">
+                    <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
+                        Маржинальность бизнеса
+                    </div>
+                    <div
+                        class="mt-2 text-right text-lg font-semibold tabular-nums"
+                        :class="(analytics.totals.business_margin_percent ?? 0) >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
+                    >
+                        {{ formatBusinessMarginPercent(analytics.totals.business_margin_percent) }}
+                    </div>
+                    <div class="mt-1 text-right text-[10px] text-zinc-500">
+                        чистый поток / поступления
                     </div>
                 </article>
             </div>
@@ -210,6 +224,14 @@ function formatMoney(value) {
         currency: 'RUB',
         maximumFractionDigits: 0,
     }).format(Number(value) || 0);
+}
+
+function formatBusinessMarginPercent(value) {
+    if (value === null || value === undefined) {
+        return '—';
+    }
+
+    return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(Number(value))}%`;
 }
 
 function formatDate(value) {

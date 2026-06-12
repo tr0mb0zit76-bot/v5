@@ -4,6 +4,7 @@ namespace Tests\Feature\Mcp;
 
 use App\Mcp\Servers\CrmServer;
 use App\Mcp\Tools\GetManagementAccountingAnalyticsTool;
+use App\Mcp\Tools\GetManagementAccountingInsightsTool;
 use App\Mcp\Tools\GetUserContextTool;
 use App\Mcp\Tools\ListManagementExpenseCategoriesTool;
 use App\Mcp\Tools\ListManagementStatementImportsTool;
@@ -81,11 +82,14 @@ class ManagementAccountingMcpToolsTest extends TestCase
 
         Schema::create('management_expense_categories', function (Blueprint $table): void {
             $table->id();
+            $table->unsignedBigInteger('parent_id')->nullable();
             $table->string('code', 64)->unique();
             $table->string('name');
             $table->string('kind', 32);
+            $table->string('flow', 8)->default('out');
             $table->boolean('is_system')->default(false);
             $table->boolean('is_active')->default(true);
+            $table->boolean('include_in_budget')->default(false);
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->timestamps();
         });
@@ -167,6 +171,7 @@ class ManagementAccountingMcpToolsTest extends TestCase
             $table->string('cost_type', 32);
             $table->decimal('amount_monthly', 14, 2)->default(0);
             $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->unsignedBigInteger('management_expense_category_id')->nullable();
             $table->timestamps();
         });
     }
@@ -333,6 +338,19 @@ class ManagementAccountingMcpToolsTest extends TestCase
             ->assertOk()
             ->assertSee('period_type')
             ->assertSee('totals');
+    }
+
+    public function test_insights_tool_returns_cfo_brief(): void
+    {
+        $user = $this->makeManagementUser();
+
+        CrmServer::actingAs($user)->tool(GetManagementAccountingInsightsTool::class, [
+            'period_type' => 'month',
+            'period_anchor' => '2026-06-01',
+        ])
+            ->assertOk()
+            ->assertSee('executive_headline')
+            ->assertSee('recommendations');
     }
 
     public function test_list_imports_returns_owner_uploads(): void

@@ -111,6 +111,10 @@ final class AiAgentCatalog
             return RoleAccess::canAccessSettingsSystem($user);
         }
 
+        if ($visibility === 'management_accounting') {
+            return RoleAccess::canAccessManagementAccounting($user);
+        }
+
         return true;
     }
 }
