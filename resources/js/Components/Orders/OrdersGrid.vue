@@ -56,6 +56,8 @@
           Сбросить
         </button>
       </div>
+
+      <span v-if="copyNotice" class="ml-auto text-xs font-medium text-emerald-600 dark:text-emerald-400">{{ copyNotice }}</span>
     </div>
 
     <div
@@ -230,6 +232,7 @@ import {
     crmModalPanel,
 } from '@/support/crmUi.js';
 import { renderOrderOneCSummaryCell } from '@/support/orderOneCSummaryCell.js';
+import { copyTextToClipboard } from '@/support/copyTextToClipboard.js';
 import { renderOrderStatusTextCell, resolveOrderStatusLabel } from '@/support/orderStatusDisplay.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
@@ -511,6 +514,41 @@ const contextMenu = reactive({
   items: [],
 });
 
+const copyNotice = ref('');
+
+let copyNoticeTimeout = null;
+
+async function copyTransportSummary(row) {
+  const summary = String(row?.clipboard_summary ?? row?.one_c_summary ?? '').trim();
+
+  if (summary === '') {
+    copyNotice.value = 'Нет данных для сводки';
+
+    if (copyNoticeTimeout) {
+      clearTimeout(copyNoticeTimeout);
+    }
+
+    copyNoticeTimeout = setTimeout(() => {
+      copyNotice.value = '';
+      copyNoticeTimeout = null;
+    }, 2500);
+
+    return;
+  }
+
+  const copied = await copyTextToClipboard(summary);
+  copyNotice.value = copied ? 'Сводка скопирована в буфер обмена' : 'Не удалось скопировать сводку';
+
+  if (copyNoticeTimeout) {
+    clearTimeout(copyNoticeTimeout);
+  }
+
+  copyNoticeTimeout = setTimeout(() => {
+    copyNotice.value = '';
+    copyNoticeTimeout = null;
+  }, 2500);
+}
+
 function closeRowContextMenu() {
   contextMenu.open = false;
   contextMenu.items = [];
@@ -574,6 +612,13 @@ function onCellContextMenu(params) {
       label: 'Документы и печатные формы…',
       run: () => {
         emit('open-order-documents', row);
+      },
+    },
+    {
+      label: 'Сводка по перевозке',
+      disabled: !String(row?.clipboard_summary ?? row?.one_c_summary ?? '').trim(),
+      run: () => {
+        void copyTransportSummary(row);
       },
     },
     {

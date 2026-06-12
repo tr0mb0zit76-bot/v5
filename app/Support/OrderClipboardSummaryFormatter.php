@@ -2,9 +2,20 @@
 
 namespace App\Support;
 
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
+
 class OrderClipboardSummaryFormatter
 {
+    private const PUBLIC_OFFER_CONTRACT_DATE = '29.05.2026 г.';
+
     public static function format(
+        ?string $companyCode,
+        ?string $customerName,
+        ?string $orderNumber,
+        mixed $orderDate,
+        mixed $customerRate,
+        ?string $customerPaymentForm,
         ?string $loadingCity,
         ?string $unloadingCity,
         ?string $tractorBrand,
@@ -12,89 +23,102 @@ class OrderClipboardSummaryFormatter
         ?string $trailerBrand,
         ?string $trailerPlate,
         ?string $driverName,
-        ?string $driverPassport,
     ): string {
-        $parts = [
-            'Маршрут: '.self::routeLabel($loadingCity, $unloadingCity),
-            'ТС: '.self::vehicleLabel($tractorBrand, $tractorPlate, $trailerBrand, $trailerPlate),
-            'Водитель: '.self::driverLabel($driverName, $driverPassport),
-        ];
+        $companyCodeLabel = self::display($companyCode);
+        $customerLabel = self::display($customerName);
+        $orderNumberLabel = self::display($orderNumber);
+        $orderDateLabel = self::formatDate($orderDate);
+        $costLabel = self::formatMoney($customerRate);
+        $vatLabel = self::display(PaymentFormDictionary::labelForCode($customerPaymentForm));
 
-        return implode('; ', $parts);
+        $header = sprintf(
+            '%s нашей компании %s № %s от %s, %s, %s',
+            $companyCodeLabel,
+            $customerLabel,
+            $orderNumberLabel,
+            $orderDateLabel,
+            $costLabel,
+            $vatLabel,
+        );
+
+        $routeFrom = self::display($loadingCity);
+        $routeTo = self::display($unloadingCity);
+        $driverLabel = self::display($driverName);
+        $vehicleLabel = self::vehicleSlashLabel(
+            $tractorBrand,
+            $tractorPlate,
+            $trailerBrand,
+            $trailerPlate,
+        );
+
+        $body = sprintf(
+            'Транспортно-экспедиционные услуги по Заявке № %s от %s к Договору транспортной экспедиции (публичной оферте) от %s, маршрут %s - %s. Водитель %s, ТС %s.',
+            $orderNumberLabel,
+            $orderDateLabel,
+            self::PUBLIC_OFFER_CONTRACT_DATE,
+            $routeFrom,
+            $routeTo,
+            $driverLabel,
+            $vehicleLabel,
+        );
+
+        return $header."\n\n".$body;
     }
 
-    private static function routeLabel(?string $loadingCity, ?string $unloadingCity): string
-    {
-        $from = self::display($loadingCity);
-        $to = self::display($unloadingCity);
-
-        return "{$from} — {$to}";
-    }
-
-    private static function vehicleLabel(
+    public static function vehicleSlashLabel(
         ?string $tractorBrand,
         ?string $tractorPlate,
         ?string $trailerBrand,
         ?string $trailerPlate,
     ): string {
-        $tractor = self::joinBrandPlate($tractorBrand, $tractorPlate);
-        $trailer = self::joinBrandPlate($trailerBrand, $trailerPlate);
+        $parts = array_values(array_filter([
+            self::clean($tractorBrand),
+            self::clean($tractorPlate),
+            self::clean($trailerBrand),
+            self::clean($trailerPlate),
+        ], fn (?string $value): bool => $value !== null));
 
-        $segments = [];
-
-        if ($tractor !== null) {
-            $segments[] = 'тягач '.$tractor;
-        }
-
-        if ($trailer !== null) {
-            $segments[] = 'прицеп '.$trailer;
-        }
-
-        if ($segments === []) {
+        if ($parts === []) {
             return '—';
         }
 
-        return implode(', ', $segments);
+        return implode(' / ', $parts);
     }
 
-    private static function driverLabel(?string $driverName, ?string $driverPassport): string
+    private static function formatDate(mixed $value): string
     {
-        $name = self::clean($driverName);
-        $passport = self::clean($driverPassport);
+        if ($value instanceof CarbonInterface) {
+            return $value->format('d.m.Y');
+        }
 
-        if ($name === null && $passport === null) {
+        if (is_string($value)) {
+            $trimmed = trim($value);
+
+            if ($trimmed === '') {
+                return '—';
+            }
+
+            try {
+                return Carbon::parse($trimmed)->format('d.m.Y');
+            } catch (\Throwable) {
+                return $trimmed;
+            }
+        }
+
+        return '—';
+    }
+
+    private static function formatMoney(mixed $value): string
+    {
+        if ($value === null || $value === '') {
             return '—';
         }
 
-        if ($name === null) {
-            return 'паспорт '.$passport;
+        if (! is_numeric($value)) {
+            return '—';
         }
 
-        if ($passport === null) {
-            return $name;
-        }
-
-        return $name.', паспорт '.$passport;
-    }
-
-    private static function joinBrandPlate(?string $brand, ?string $plate): ?string
-    {
-        $brandValue = self::clean($brand);
-        $plateValue = self::clean($plate);
-
-        if ($brandValue === null && $plateValue === null) {
-            return null;
-        }
-
-        if ($brandValue === null) {
-            return $plateValue;
-        }
-
-        if ($plateValue === null) {
-            return $brandValue;
-        }
-
-        return trim($brandValue.' '.$plateValue);
+        return number_format((float) $value, 2, ',', ' ').' руб.';
     }
 
     private static function display(?string $value): string

@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\RoutePoint;
 use App\Models\User;
 use App\Notifications\CabinetInAppNotification;
+use App\Support\OrderClipboardSummaryResolver;
 use App\Support\RoutePointActualMilestones;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -40,13 +41,18 @@ class OrderClosingDocumentsNotificationService
 
         $body = $this->buildNotificationBody($order);
         $actionUrl = route('orders.edit', [$order], absolute: false).'?tab=documents';
+        $clipboardSummary = app(OrderClipboardSummaryResolver::class)
+            ->mapForOrders(collect([$order->fresh(['client', 'legs.routePoints'])]))[(int) $order->id] ?? '';
 
         $notification = new CabinetInAppNotification(
             'order_closing_documents_required',
             'Закрывающие документы по перевозке',
             $body,
             $actionUrl,
-            ['order_id' => $order->id],
+            [
+                'order_id' => $order->id,
+                'clipboard_summary' => $clipboardSummary,
+            ],
         );
 
         foreach ($recipients as $recipient) {

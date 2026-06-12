@@ -33,6 +33,7 @@ use App\Http\Controllers\Orders\OrderDocumentWorkflowController;
 use App\Http\Controllers\Orders\OrderIndexController;
 use App\Http\Controllers\Orders\OrderIntakeController;
 use App\Http\Controllers\Orders\OrderPortalInviteController;
+use App\Http\Controllers\Orders\OrderTransportSummaryController;
 use App\Http\Controllers\Orders\OrderWizardController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PipelineController;
@@ -319,6 +320,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
     Route::get('/orders', OrderIndexController::class)->middleware('visibility.area:orders')->name('orders.index');
+    Route::get('/orders/{order}/transport-summary', OrderTransportSummaryController::class)
+        ->middleware('visibility.area:orders')
+        ->name('orders.transport-summary');
     Route::get('/disposition', [DispositionController::class, 'index'])->middleware('visibility.area:orders')->name('disposition.index');
     Route::post('/disposition/entries', [DispositionController::class, 'upsert'])->middleware('visibility.area:orders')->name('disposition.entries.upsert');
     Route::get('/pipeline', [PipelineController::class, 'index'])->middleware('visibility.area:orders')->name('pipeline.index');

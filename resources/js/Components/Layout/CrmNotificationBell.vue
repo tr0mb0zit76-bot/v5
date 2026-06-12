@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 import { coerceHttpsUrl, visitInertiaPath } from '@/support/inertiaHttpsVisit.js';
+import { copyTextToClipboard } from '@/support/copyTextToClipboard.js';
 
 const emit = defineEmits(['badges']);
 
@@ -19,9 +20,11 @@ const open = ref(false);
 const items = ref([]);
 const loading = ref(false);
 const toast = ref(null);
+const copyToast = ref('');
 const localBadges = ref({ total: 0, orders: 0, tasks: 0 });
 let pollTimer = null;
 let lastPolledTotal = 0;
+let copyToastTimeout = null;
 
 const authUser = computed(() => page.props.auth?.user ?? null);
 
@@ -175,9 +178,67 @@ async function markAllRead() {
     open.value = false;
 }
 
+async function fetchTransportSummary(orderId) {
+    if (!orderId) {
+        return '';
+    }
+
+    try {
+        const response = await fetch(route('orders.transport-summary', orderId, false), {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            return '';
+        }
+
+        const data = await response.json();
+
+        return String(data.summary ?? '').trim();
+    } catch {
+        return '';
+    }
+}
+
+function showCopyToast(message) {
+    copyToast.value = message;
+
+    if (copyToastTimeout) {
+        window.clearTimeout(copyToastTimeout);
+    }
+
+    copyToastTimeout = window.setTimeout(() => {
+        copyToast.value = '';
+        copyToastTimeout = null;
+    }, 2500);
+}
+
+async function copyClosingDocumentsSummary(item) {
+    if (item?.kind !== 'order_closing_documents_required') {
+        return;
+    }
+
+    let summary = String(item?.clipboard_summary ?? '').trim();
+
+    if (summary === '' && item?.order_id) {
+        summary = await fetchTransportSummary(item.order_id);
+    }
+
+    if (summary === '') {
+        showCopyToast('Нет данных для сводки');
+
+        return;
+    }
+
+    const copied = await copyTextToClipboard(summary);
+    showCopyToast(copied ? 'Сводка скопирована в буфер обмена' : 'Не удалось скопировать сводку');
+}
+
 async function visit(item) {
     open.value = false;
     await markRead(item.id);
+    await copyClosingDocumentsSummary(item);
     visitInertiaPath(actionUrlForItem(item));
 }
 
@@ -205,6 +266,10 @@ onMounted(() => {
 onUnmounted(() => {
     if (pollTimer) {
         window.clearInterval(pollTimer);
+    }
+
+    if (copyToastTimeout) {
+        window.clearTimeout(copyToastTimeout);
     }
 });
 
@@ -327,6 +392,14 @@ watch(authUser, (u) => {
         />
 
         <Teleport to="body">
+            <div
+                v-if="copyToast"
+                class="fixed bottom-28 left-1/2 z-[81] w-[min(100vw-2rem,24rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900 shadow-lg dark:border-emerald-900/50 dark:bg-emerald-950/90 dark:text-emerald-100 md:bottom-10"
+                role="status"
+            >
+                {{ copyToast }}
+            </div>
+
             <div
                 v-if="toast"
                 class="fixed bottom-28 left-1/2 z-[80] w-[min(100vw-2rem,24rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 md:bottom-10"

@@ -27,6 +27,7 @@ class OrderClosingDocumentsNotificationTest extends TestCase
 
         $order = Order::factory()->create([
             'customer_id' => $customer->id,
+            'company_code' => 'AA',
             'order_number' => 'ORD-1001',
             'order_date' => '2026-05-20',
         ]);
@@ -75,7 +76,11 @@ class OrderClosingDocumentsNotificationTest extends TestCase
         $this->assertStringContainsString('ООО Клиент', (string) data_get($notification->data, 'body'));
         $this->assertStringContainsString('ORD-1001', (string) data_get($notification->data, 'body'));
         $this->assertStringContainsString('Москва - Санкт-Петербург', (string) data_get($notification->data, 'body'));
-        $this->assertSame(route('orders.edit', [$order], false), data_get($notification->data, 'action_url'));
+        $this->assertStringContainsString(
+            'AA нашей компании ООО Клиент № ORD-1001',
+            (string) data_get($notification->data, 'payload.clipboard_summary'),
+        );
+        $this->assertSame(route('orders.edit', [$order], false).'?tab=documents', data_get($notification->data, 'action_url'));
 
         $this->assertFalse($service->maybeNotify($order->fresh()));
     }

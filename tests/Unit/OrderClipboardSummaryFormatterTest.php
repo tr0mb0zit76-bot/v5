@@ -3,13 +3,19 @@
 namespace Tests\Unit;
 
 use App\Support\OrderClipboardSummaryFormatter;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class OrderClipboardSummaryFormatterTest extends TestCase
 {
-    public function test_formats_route_vehicle_and_driver_parts(): void
+    public function test_formats_clerk_transport_summary(): void
     {
         $summary = OrderClipboardSummaryFormatter::format(
+            'AA',
+            'ООО Клиент',
+            'ORD-1001',
+            '2026-05-20',
+            120000,
+            'no_vat',
             'Москва',
             'Казань',
             'MAN',
@@ -17,13 +23,15 @@ class OrderClipboardSummaryFormatterTest extends TestCase
             'Schmitz',
             'В456ВВ77',
             'Иванов Иван Иванович',
-            '4010 123456',
         );
 
-        $this->assertStringContainsString('Маршрут: Москва — Казань', $summary);
-        $this->assertStringContainsString('тягач MAN А123АА77', $summary);
-        $this->assertStringContainsString('прицеп Schmitz В456ВВ77', $summary);
-        $this->assertStringContainsString('Иванов Иван Иванович, паспорт 4010 123456', $summary);
+        $this->assertStringContainsString('120 000,00 руб.', $summary);
+        $this->assertStringContainsString('Без НДС', $summary);
+        $this->assertStringContainsString('Транспортно-экспедиционные услуги по Заявке № ORD-1001 от 20.05.2026', $summary);
+        $this->assertStringContainsString('к Договору транспортной экспедиции (публичной оферте) от 29.05.2026 г.', $summary);
+        $this->assertStringContainsString('маршрут Москва - Казань', $summary);
+        $this->assertStringContainsString('Водитель Иванов Иван Иванович', $summary);
+        $this->assertStringContainsString('ТС MAN / А123АА77 / Schmitz / В456ВВ77', $summary);
     }
 
     public function test_uses_dash_placeholders_for_missing_values(): void
@@ -37,8 +45,23 @@ class OrderClipboardSummaryFormatterTest extends TestCase
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
         );
 
-        $this->assertSame('Маршрут: — — —; ТС: —; Водитель: —', $summary);
+        $this->assertStringContainsString('— нашей компании — № — от —, —, —', $summary);
+        $this->assertStringContainsString('маршрут — - —', $summary);
+        $this->assertStringContainsString('Водитель —, ТС —.', $summary);
+    }
+
+    public function test_vehicle_slash_label_joins_available_parts(): void
+    {
+        $this->assertSame(
+            'MAN / А123АА77 / Schmitz / В456ВВ77',
+            OrderClipboardSummaryFormatter::vehicleSlashLabel('MAN', 'А123АА77', 'Schmitz', 'В456ВВ77'),
+        );
     }
 }

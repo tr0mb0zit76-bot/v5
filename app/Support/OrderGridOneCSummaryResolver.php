@@ -46,7 +46,6 @@ class OrderGridOneCSummaryResolver
         return $rows->map(function (array $row) use ($fleetDrivers, $fleetVehicles, $legacyDrivers): array {
             $selection = $this->resolveFleetSelection($row);
             $driverName = null;
-            $vehiclePlates = null;
 
             if ($selection['fleet_driver_id'] !== null) {
                 $driverName = $fleetDrivers[$selection['fleet_driver_id']] ?? null;
@@ -54,17 +53,28 @@ class OrderGridOneCSummaryResolver
                 $driverName = $legacyDrivers[(int) $row['driver_id']] ?? null;
             }
 
-            if ($selection['fleet_vehicle_id'] !== null) {
-                $vehiclePlates = $fleetVehicles[$selection['fleet_vehicle_id']] ?? null;
-            }
+            $vehicle = $selection['fleet_vehicle_id'] !== null
+                ? ($fleetVehicles[$selection['fleet_vehicle_id']] ?? null)
+                : null;
 
-            $row['one_c_summary'] = OrderOneCSummaryFormatter::format(
+            $summary = OrderClipboardSummaryFormatter::format(
+                isset($row['company_code']) ? (string) $row['company_code'] : null,
+                isset($row['customer_name']) ? (string) $row['customer_name'] : null,
                 isset($row['order_number']) ? (string) $row['order_number'] : null,
+                $row['order_date'] ?? null,
+                $row['customer_rate'] ?? null,
+                isset($row['customer_payment_form']) ? (string) $row['customer_payment_form'] : null,
                 isset($row['loading_point']) ? (string) $row['loading_point'] : null,
                 isset($row['last_unloading_point']) ? (string) $row['last_unloading_point'] : null,
+                $vehicle['tractor_brand'] ?? null,
+                $vehicle['tractor_plate'] ?? null,
+                $vehicle['trailer_brand'] ?? null,
+                $vehicle['trailer_plate'] ?? null,
                 $driverName,
-                $vehiclePlates,
             );
+
+            $row['one_c_summary'] = $summary;
+            $row['clipboard_summary'] = $summary;
 
             unset($row['performers']);
 
@@ -136,7 +146,7 @@ class OrderGridOneCSummaryResolver
 
     /**
      * @param  list<int>  $ids
-     * @return array<int, string>
+     * @return array<int, array{tractor_brand: ?string, tractor_plate: ?string, trailer_brand: ?string, trailer_plate: ?string}>
      */
     private function loadFleetVehicles(array $ids): array
     {
@@ -146,14 +156,15 @@ class OrderGridOneCSummaryResolver
 
         return FleetVehicle::query()
             ->whereIn('id', $ids)
-            ->get(['id', 'tractor_plate', 'trailer_plate'])
+            ->get(['id', 'tractor_brand', 'tractor_plate', 'trailer_brand', 'trailer_plate'])
             ->mapWithKeys(fn (FleetVehicle $vehicle): array => [
-                $vehicle->id => OrderOneCSummaryFormatter::vehiclePlatesLabel(
-                    $vehicle->tractor_plate,
-                    $vehicle->trailer_plate,
-                ) ?? '',
+                $vehicle->id => [
+                    'tractor_brand' => $vehicle->tractor_brand,
+                    'tractor_plate' => $vehicle->tractor_plate,
+                    'trailer_brand' => $vehicle->trailer_brand,
+                    'trailer_plate' => $vehicle->trailer_plate,
+                ],
             ])
-            ->filter(fn (string $plates): bool => $plates !== '')
             ->all();
     }
 

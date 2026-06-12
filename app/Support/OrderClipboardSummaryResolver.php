@@ -24,6 +24,7 @@ class OrderClipboardSummaryResolver
 
         $orders->each(function (Order $order): void {
             $order->loadMissing([
+                'client:id,name',
                 'legs' => fn ($query) => $query->orderBy('sequence'),
                 'legs.routePoints' => fn ($query) => $query->orderBy('sequence'),
             ]);
@@ -59,15 +60,11 @@ class OrderClipboardSummaryResolver
             [$loadingCity, $unloadingCity] = $this->resolveRouteCities($order);
 
             $driverName = null;
-            $driverPassport = null;
 
             if ($selection['fleet_driver_id'] !== null) {
                 $driverName = $fleetDrivers[$selection['fleet_driver_id']]['name'] ?? null;
-                $driverPassport = $fleetDrivers[$selection['fleet_driver_id']]['passport'] ?? null;
             } elseif ((int) ($order->driver_id ?? 0) > 0) {
-                $legacy = $legacyDrivers[(int) $order->driver_id] ?? null;
-                $driverName = $legacy['name'] ?? null;
-                $driverPassport = $legacy['passport'] ?? null;
+                $driverName = $legacyDrivers[(int) $order->driver_id]['name'] ?? null;
             }
 
             $vehicle = $selection['fleet_vehicle_id'] !== null
@@ -75,6 +72,12 @@ class OrderClipboardSummaryResolver
                 : null;
 
             $summaries[(int) $order->id] = OrderClipboardSummaryFormatter::format(
+                $order->company_code,
+                $order->client?->name,
+                filled($order->order_number) ? (string) $order->order_number : null,
+                $order->order_date,
+                $order->customer_rate,
+                $order->customer_payment_form,
                 $loadingCity,
                 $unloadingCity,
                 $vehicle['tractor_brand'] ?? null,
@@ -82,7 +85,6 @@ class OrderClipboardSummaryResolver
                 $vehicle['trailer_brand'] ?? null,
                 $vehicle['trailer_plate'] ?? null,
                 $driverName,
-                $driverPassport,
             );
         }
 
@@ -123,7 +125,6 @@ class OrderClipboardSummaryResolver
     }
 
     /**
-     * @param  array<string, mixed>  $order
      * @return array{fleet_vehicle_id: ?int, fleet_driver_id: ?int}
      */
     private function resolveFleetSelection(Order $order): array
@@ -166,7 +167,7 @@ class OrderClipboardSummaryResolver
 
     /**
      * @param  list<int>  $ids
-     * @return array<int, array{name: string, passport: ?string}>
+     * @return array<int, array{name: string}>
      */
     private function loadFleetDrivers(array $ids): array
     {
@@ -176,22 +177,12 @@ class OrderClipboardSummaryResolver
 
         return FleetDriver::query()
             ->whereIn('id', $ids)
-            ->get(['id', 'full_name', 'passport_series', 'passport_number', 'passport_issued_by', 'passport_issued_at'])
-            ->mapWithKeys(function (FleetDriver $driver): array {
-                $passportParts = array_filter([
-                    $driver->passport_series,
-                    $driver->passport_number,
-                    $driver->passport_issued_by,
-                    $driver->passport_issued_at?->format('d.m.Y'),
-                ]);
-
-                return [
-                    $driver->id => [
-                        'name' => trim((string) $driver->full_name),
-                        'passport' => $passportParts !== [] ? implode(' ', $passportParts) : null,
-                    ],
-                ];
-            })
+            ->get(['id', 'full_name'])
+            ->mapWithKeys(fn (FleetDriver $driver): array => [
+                $driver->id => [
+                    'name' => trim((string) $driver->full_name),
+                ],
+            ])
             ->all();
     }
 
@@ -221,7 +212,7 @@ class OrderClipboardSummaryResolver
 
     /**
      * @param  list<int>  $ids
-     * @return array<int, array{name: string, passport: ?string}>
+     * @return array<int, array{name: string}>
      */
     private function loadLegacyDrivers(array $ids): array
     {
@@ -230,7 +221,7 @@ class OrderClipboardSummaryResolver
         }
 
         return DB::table('drivers')
-            ->select('id', 'first_name', 'last_name', 'patronymic', 'metadata')
+            ->select('id', 'first_name', 'last_name', 'patronymic')
             ->whereIn('id', $ids)
             ->get()
             ->mapWithKeys(function (object $driver): array {
@@ -240,15 +231,9 @@ class OrderClipboardSummaryResolver
                     $driver->patronymic ?? null,
                 ])));
 
-                $metadata = is_string($driver->metadata) ? json_decode($driver->metadata, true) : $driver->metadata;
-                $passportData = is_array($metadata)
-                    ? data_get($metadata, 'passport_data', data_get($metadata, 'passport'))
-                    : null;
-
                 return [
                     (int) $driver->id => [
                         'name' => $name,
-                        'passport' => is_scalar($passportData) ? trim((string) $passportData) : null,
                     ],
                 ];
             })

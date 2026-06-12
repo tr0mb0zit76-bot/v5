@@ -327,7 +327,7 @@ function onCellContextMenu(params) {
                 },
             },
             {
-                label: 'Сводка',
+                label: 'Сводка по перевозке',
                 disabled: !row?.clipboard_summary,
                 run: () => {
                     void copyOrderSummary(row);

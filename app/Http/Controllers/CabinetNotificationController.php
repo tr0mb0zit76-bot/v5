@@ -99,6 +99,9 @@ class CabinetNotificationController extends Controller
         /** @var array<string, mixed> $data */
         $data = $notification->data;
 
+        /** @var array<string, mixed> $payload */
+        $payload = is_array($data['payload'] ?? null) ? $data['payload'] : [];
+
         return [
             'id' => $notification->id,
             'read_at' => $notification->read_at?->toIso8601String(),
@@ -107,6 +110,8 @@ class CabinetNotificationController extends Controller
             'body' => (string) ($data['body'] ?? ''),
             'action_url' => $this->normalizeActionUrl((string) ($data['action_url'] ?? '#')),
             'kind' => (string) ($data['kind'] ?? ''),
+            'order_id' => isset($payload['order_id']) ? (int) $payload['order_id'] : null,
+            'clipboard_summary' => (string) ($payload['clipboard_summary'] ?? ''),
         ];
     }
 
