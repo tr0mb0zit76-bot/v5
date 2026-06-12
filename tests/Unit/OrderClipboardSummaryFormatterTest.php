@@ -25,8 +25,7 @@ class OrderClipboardSummaryFormatterTest extends TestCase
             'Иванов Иван Иванович',
         );
 
-        $this->assertStringContainsString('120 000,00 руб.', $summary);
-        $this->assertStringContainsString('Без НДС', $summary);
+        $this->assertStringContainsString('AA ООО Клиент заявка № ORD-1001 от 20.05.2026, 120 000,00 руб., Без НДС', $summary);
         $this->assertStringContainsString('Транспортно-экспедиционные услуги по Заявке № ORD-1001 от 20.05.2026', $summary);
         $this->assertStringContainsString('к Договору транспортной экспедиции (публичной оферте) от 29.05.2026 г.', $summary);
         $this->assertStringContainsString('маршрут Москва - Казань', $summary);
@@ -52,7 +51,7 @@ class OrderClipboardSummaryFormatterTest extends TestCase
             null,
         );
 
-        $this->assertStringContainsString('— нашей компании — № — от —, —, —', $summary);
+        $this->assertStringContainsString('— — заявка № — от —, —, —', $summary);
         $this->assertStringContainsString('маршрут — - —', $summary);
         $this->assertStringContainsString('Водитель —, ТС —.', $summary);
     }

@@ -77,7 +77,7 @@ class OrderClosingDocumentsNotificationTest extends TestCase
         $this->assertStringContainsString('ORD-1001', (string) data_get($notification->data, 'body'));
         $this->assertStringContainsString('Москва - Санкт-Петербург', (string) data_get($notification->data, 'body'));
         $this->assertStringContainsString(
-            'AA нашей компании ООО Клиент № ORD-1001',
+            'AA ООО Клиент заявка № ORD-1001',
             (string) data_get($notification->data, 'payload.clipboard_summary'),
         );
         $this->assertSame(route('orders.edit', [$order], false).'?tab=documents', data_get($notification->data, 'action_url'));

@@ -32,7 +32,7 @@ class OrderClipboardSummaryFormatter
         $vatLabel = self::display(PaymentFormDictionary::labelForCode($customerPaymentForm));
 
         $header = sprintf(
-            '%s нашей компании %s № %s от %s, %s, %s',
+            '%s %s заявка № %s от %s, %s, %s',
             $companyCodeLabel,
             $customerLabel,
             $orderNumberLabel,

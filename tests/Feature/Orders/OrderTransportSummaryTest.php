@@ -97,7 +97,7 @@ class OrderTransportSummaryTest extends TestCase
 
         $response->assertOk();
         $summary = (string) $response->json('summary');
-        $this->assertStringContainsString('AA нашей компании ООО Клиент № ORD-2002 от 21.05.2026', $summary);
+        $this->assertStringContainsString('AA ООО Клиент заявка № ORD-2002 от 21.05.2026', $summary);
         $this->assertStringContainsString('50 000,00 руб.', $summary);
         $this->assertStringContainsString('Без НДС', $summary);
         $this->assertStringContainsString('маршрут Самара - Уфа', $summary);
