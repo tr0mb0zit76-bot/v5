@@ -1,5 +1,3 @@
-<?php
-
 /** Shared saved grid views (filters, columns, quick search). */
 export function gridViewsApiUrl(gridKey) {
     return `/grid-views?grid_key=${encodeURIComponent(gridKey)}`;
