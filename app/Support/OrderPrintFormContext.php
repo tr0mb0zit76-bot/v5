@@ -14,6 +14,7 @@ final readonly class OrderPrintFormContext
         public ?string $printParty = null,
         public ?int $carrierSlot = null,
         public ?string $documentVerificationCode = null,
+        public ?int $orderDocumentId = null,
     ) {}
 
     public static function forCustomerLeg(string $legStage): self

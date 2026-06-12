@@ -424,8 +424,13 @@ class OrderPrintFormDraftService
             return [];
         }
 
+        $orderDocumentId = (int) ($context?->orderDocumentId ?? 0);
+        if ($orderDocumentId <= 0) {
+            return [];
+        }
+
         $url = route('print-verification.order-documents.show', [
-            'orderDocument' => 0,
+            'orderDocument' => $orderDocumentId,
             'code' => $code,
         ]);
 
@@ -1133,6 +1138,7 @@ class OrderPrintFormDraftService
             printParty: $context->printParty,
             carrierSlot: $carrierSlot,
             documentVerificationCode: $context->documentVerificationCode,
+            orderDocumentId: $context->orderDocumentId,
         );
     }
 

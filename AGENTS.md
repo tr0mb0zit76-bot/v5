@@ -78,6 +78,16 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Варианты имён макросов для `setValue`: `app/Support/PrintFormPlaceholderMacroVariants.php` — **только точное имя**, без вариантов с пробелами (чтобы не портить вёрстку вокруг плейсхолдера).
 - Каталог переменных для UI шаблонов: `app/Services/PrintFormVariableCatalog.php`.
 - Суммы с валютой в одном поле: `order.customer_rate_with_currency`, `order.carrier_rate_with_currency` (легаси `stoimost*` мапятся на них).
+- Workflow печати заказа: `OrderPrintDocumentWorkflowService` — черновик → согласование → `materializeSignedPrintArtifacts()` → финальный PDF.
+- QR проверки: плейсхолдеры `document_verification_code`, `document_verification_qr`; код `PrintFormVerificationCode`; контекст `OrderPrintFormContext` (`documentVerificationCode`, `orderDocumentId`). Публичная страница: `GET /verify/order-documents/{orderDocument}?code=…` (`print-verification.order-documents.show`). Документация: `docs/print-form-pdf-protection.md`.
+- DocMDP (опционально, `PDF_CERTIFY_ENABLED`): `PdfDocumentCertificationService`, `config/pdf_signing.php`, `php artisan pdf-signing:generate-certificate`. После Gotenberg: QR-штамп (`PdfVerificationQrStampService`) → certify. Хеши в `order_documents.metadata`: `pdf_certified_sha256`, `pdf_verification_*`.
+
+### Saved views гридов (P4)
+
+- Модель `grid_views`, API `GridViewController` (`/grid-views`, auth), сервис `GridViewService`, каталог `GridViewCatalog` (ключи гридов + URL с `?view=`).
+- UI: `resources/js/Components/Grid/GridViewsBar.vue`, клиент `resources/js/support/gridViews.js` (`fetch` с `redirect: 'manual'` — иначе DELETE при 302 на login ломается).
+- Избранное в сайдбаре: `HandleInertiaRequests` → `auth.user.pinned_grid_views`, блок в `CrmLayout.vue`.
+- Миграция: `2026_06_12_162154_create_grid_views_table.php` — **обязательна** (`php artisan migrate`), иначе грид заказов падает с `Unexpected token '<'`.
 
 ### Склонение должности (родительный падеж, без второго поля ввода)
 
@@ -115,8 +125,9 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 ### Считалка (маржа в переговорах)
 
-- `SalesMarginCounterService`, `SalesAssistant/Counter.vue`, маршрут `sales-assistant.counter.calculate`.
-- Сценарии: `cash`, `vat_all`, `vat_zero_cash` (заказчик `vat_0`, перевозчик `cash`, вычеты 4%+16% по умолчанию), категория KPI `vat_zero_cash` в `KpiPaymentCategoryResolver`.
+- Модуль **Модули → Считалка**: `resources/js/Pages/Modules/Counter.vue`, маршруты `modules.counter.index` / `modules.counter.calculate` (`/modules/counter`). Редирект с `/sales-assistant/counter`.
+- `SalesMarginCounterService` — ставки заказчик/перевозчик + обязательное правило удержания KPI (`kpi_deduction_rule_id` из активных `kpi_deduction_rules`).
+- Сценарии: `cash`, `vat_all`, `vat_zero_cash`; категория KPI `vat_zero_cash` в `KpiPaymentCategoryResolver`.
 
 ### Условия оплаты и график (`payment_schedules`)
 

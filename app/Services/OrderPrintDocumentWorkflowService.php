@@ -68,7 +68,10 @@ class OrderPrintDocumentWorkflowService
         ]);
 
         $verificationCode = PrintFormVerificationCode::forOrderDocument($document);
-        $contextWithCode = $this->printContextWithVerificationCode($context, $verificationCode);
+        $contextWithCode = $this->printContextWithVerificationCode(
+            $this->printContextWithOrderDocumentId($context, (int) $document->id),
+            $verificationCode,
+        );
 
         $generated = $this->draftService->generate($template, $order, false, $contextWithCode);
 
@@ -102,12 +105,31 @@ class OrderPrintDocumentWorkflowService
      * Создаёт новый контекст с кодом проверки, если исходный контекст есть;
      * иначе создаёт минимальный контекст только с кодом.
      */
+    private function printContextWithOrderDocumentId(?OrderPrintFormContext $context, int $orderDocumentId): ?OrderPrintFormContext
+    {
+        if ($context === null) {
+            return new OrderPrintFormContext(orderDocumentId: $orderDocumentId);
+        }
+
+        return new OrderPrintFormContext(
+            legStage: $context->legStage,
+            carrierContractorId: $context->carrierContractorId,
+            routeLegsAsTableRows: $context->routeLegsAsTableRows,
+            printParty: $context->printParty,
+            carrierSlot: $context->carrierSlot,
+            documentVerificationCode: $context->documentVerificationCode,
+            orderDocumentId: $orderDocumentId,
+        );
+    }
+
     private function printContextWithVerificationCode(
         ?OrderPrintFormContext $context,
         string $verificationCode,
     ): ?OrderPrintFormContext {
         if ($context === null) {
-            return new OrderPrintFormContext(documentVerificationCode: $verificationCode);
+            return new OrderPrintFormContext(
+                documentVerificationCode: $verificationCode,
+            );
         }
 
         return new OrderPrintFormContext(
@@ -117,6 +139,7 @@ class OrderPrintDocumentWorkflowService
             printParty: $context->printParty,
             carrierSlot: $context->carrierSlot,
             documentVerificationCode: $verificationCode,
+            orderDocumentId: $context->orderDocumentId,
         );
     }
 
@@ -664,6 +687,7 @@ class OrderPrintDocumentWorkflowService
             routeLegsAsTableRows: $routeLegsAsTableRows,
             carrierSlot: $carrierSlot,
             documentVerificationCode: ($verificationCode !== null && $verificationCode !== '') ? $verificationCode : null,
+            orderDocumentId: (int) $document->id,
         );
     }
 }
