@@ -26,6 +26,7 @@ use App\Services\LeadBusinessProcessService;
 use App\Services\LeadConversionService;
 use App\Services\LeadLinkedTaskService;
 use App\Services\LeadPrintFormDraftService;
+use App\Services\Leads\LeadBasedOnTemplateBuilder;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Support\ActivityEventType;
 use App\Support\AtiDictionaryOptionCatalog;
@@ -64,9 +65,19 @@ class LeadController extends Controller
         return $this->renderIndexPage($request);
     }
 
-    public function create(Request $request): Response
+    public function create(Request $request, LeadBasedOnTemplateBuilder $leadBasedOnTemplateBuilder): Response
     {
-        return $this->renderIndexPage($request, null, true);
+        $leadTemplate = null;
+
+        if ($request->filled('from')) {
+            $sourceLead = Lead::query()->find((int) $request->query('from'));
+
+            if ($sourceLead instanceof Lead && $this->canAccessLead($request, $sourceLead)) {
+                $leadTemplate = $leadBasedOnTemplateBuilder->build($sourceLead);
+            }
+        }
+
+        return $this->renderIndexPage($request, null, true, $leadTemplate);
     }
 
     public function show(Request $request, Lead $lead): Response
@@ -428,7 +439,10 @@ class LeadController extends Controller
         ]);
     }
 
-    private function renderIndexPage(Request $request, ?Lead $selectedLead = null, bool $isCreating = false): Response
+    /**
+     * @param  array<string, mixed>|null  $leadTemplate
+     */
+    private function renderIndexPage(Request $request, ?Lead $selectedLead = null, bool $isCreating = false, ?array $leadTemplate = null): Response
     {
         if (! $this->hasLeadsFeatureTables()) {
             return Inertia::render('Leads/Index', [
@@ -437,6 +451,7 @@ class LeadController extends Controller
                 'featureUnavailable' => true,
                 'selectedLead' => null,
                 'isCreating' => false,
+                'leadTemplate' => null,
                 ...$this->sharedWizardProps(),
             ]);
         }
@@ -446,6 +461,7 @@ class LeadController extends Controller
             'leadColumns' => LeadTableColumns::options(),
             'selectedLead' => $selectedLead === null ? null : $this->serializeLead($selectedLead),
             'isCreating' => $isCreating,
+            'leadTemplate' => $selectedLead === null ? $leadTemplate : null,
             'salesCoachingInsights' => RoleAccess::canViewSalesCoachingInsights($request->user())
                 ? $this->salesCoachingInsights->insights(
                     $request->user(),

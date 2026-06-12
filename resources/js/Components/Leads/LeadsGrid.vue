@@ -256,7 +256,7 @@ const props = defineProps({
 
 const page = usePage();
 
-const emit = defineEmits(['create', 'row-dblclick', 'columns-changed', 'delete-request']);
+const emit = defineEmits(['create', 'create-from', 'row-dblclick', 'columns-changed', 'delete-request']);
 
 const statusLabels = {
   new: 'Новый',
@@ -368,6 +368,12 @@ function onCellContextMenu(params) {
   ];
 
   if (props.allowCreate) {
+    items.push({
+      label: 'Создать на основании',
+      run: () => {
+        emit('create-from', row);
+      },
+    });
     items.push({
       label: 'Новый лид',
       run: () => {

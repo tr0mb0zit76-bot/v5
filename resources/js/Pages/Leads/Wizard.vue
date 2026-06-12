@@ -427,6 +427,10 @@ defineOptions({ layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => 
 
 const props = defineProps({
     selectedLead: Object,
+    leadTemplate: {
+        type: Object,
+        default: null,
+    },
     isCreating: Boolean,
     embedded: {
         type: Boolean,
@@ -584,7 +588,9 @@ watch(
     { immediate: true },
 );
 
-const form = useForm(leadToForm(props.selectedLead));
+const initialLeadPayload = computed(() => props.selectedLead ?? props.leadTemplate ?? null);
+
+const form = useForm(leadToForm(initialLeadPayload.value));
 const advanceStageId = ref('');
 const processStageForm = useForm({
     stage_id: null,
@@ -599,8 +605,8 @@ const nextStepForm = useForm({
     priority: 'high',
 });
 
-watch(() => props.selectedLead, (lead) => {
-    const payload = leadToForm(lead);
+watch(() => [props.selectedLead, props.leadTemplate], () => {
+    const payload = leadToForm(initialLeadPayload.value);
     form.defaults(payload);
     form.reset();
     Object.entries(payload).forEach(([key, value]) => { form[key] = value; });

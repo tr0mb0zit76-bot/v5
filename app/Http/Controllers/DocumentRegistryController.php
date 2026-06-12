@@ -10,6 +10,7 @@ use App\Services\DocumentStorageService;
 use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Support\DocumentRegistryDocumentLabel;
+use App\Support\OrderClipboardSummaryResolver;
 use App\Support\OrderDocumentAccessAuthorization;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -60,10 +61,13 @@ class DocumentRegistryController extends Controller
         }
 
         $orders = $query->limit(400)->get();
+        $clipboardSummaries = app(OrderClipboardSummaryResolver::class)->mapForOrders($orders);
 
         return Inertia::render('Documents/Index', [
             'search' => $search,
-            'rows' => $orders->map(fn (Order $order): array => $this->serializeRow($order))->values(),
+            'rows' => $orders
+                ->map(fn (Order $order): array => $this->serializeRow($order, $clipboardSummaries[(int) $order->id] ?? ''))
+                ->values(),
             'orders' => $orders->map(fn (Order $order): array => [
                 'id' => $order->id,
                 'order_number' => $order->order_number,
@@ -265,7 +269,7 @@ class DocumentRegistryController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function serializeRow(Order $order): array
+    private function serializeRow(Order $order, string $clipboardSummary = ''): array
     {
         $documents = $order->documents ?? collect();
         $etrn = $this->serializeEtrnSummary($documents);
@@ -275,6 +279,7 @@ class DocumentRegistryController extends Controller
             'order_id' => $order->id,
             'order_number' => $order->order_number ?: '#'.$order->id,
             'order_edit_url' => route('orders.edit', $order).'?tab=documents',
+            'clipboard_summary' => $clipboardSummary,
             'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer', $contractorNamesById),
             'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer', $contractorNamesById),
             'customer_act' => $this->serializeColumnDocs($order, $documents, 'act', 'customer', $contractorNamesById),

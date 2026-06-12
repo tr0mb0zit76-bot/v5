@@ -31,6 +31,7 @@
                 :user-id="userId"
                 :allow-create="!featureUnavailable"
                 @create="openCreateLead"
+                @create-from="openCreateLeadFrom"
                 @row-dblclick="handleRowDblClick"
                 @delete-request="handleLeadDeleteRequest"
             />
@@ -42,6 +43,7 @@
                     embedded
                     :selected-lead="(isCreateModalOpen || isCreateRoute) ? null : selectedLead"
                     :is-creating="isCreateModalOpen || isCreateRoute"
+                    :lead-template="leadTemplate"
                     :contractors="page.props.contractors ?? []"
                     :responsible-users="page.props.responsibleUsers ?? []"
                     :status-options="page.props.statusOptions ?? []"
@@ -94,6 +96,7 @@ const roleColumnsConfig = computed(() => page.props.auth?.user?.role?.columns_co
 const featureUnavailable = computed(() => Boolean(page.props.featureUnavailable));
 const selectedLead = computed(() => page.props.selectedLead ?? null);
 const isCreateRoute = computed(() => Boolean(page.props.isCreating));
+const leadTemplate = computed(() => page.props.leadTemplate ?? null);
 const isCreateModalOpen = ref(false);
 const isLeadModalDismissed = ref(false);
 const isLeadModalOpen = computed(() => !featureUnavailable.value
@@ -102,6 +105,7 @@ const isLeadModalOpen = computed(() => !featureUnavailable.value
 const modalPropKeys = [
     'selectedLead',
     'isCreating',
+    'leadTemplate',
     'contractors',
     'responsibleUsers',
     'statusOptions',
@@ -129,6 +133,21 @@ function openCreateLead() {
     isLeadModalDismissed.value = false;
     isCreateModalOpen.value = true;
     window.history.pushState(window.history.state, '', route('leads.create'));
+}
+
+function openCreateLeadFrom(row) {
+    if (featureUnavailable.value || !row?.id) {
+        return;
+    }
+
+    isLeadModalDismissed.value = false;
+    isCreateModalOpen.value = false;
+
+    router.get(route('leads.create', { from: row.id }), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        only: [...modalPropKeys, 'leads', 'salesCoachingInsights'],
+    });
 }
 
 function handleRowDblClick(row) {

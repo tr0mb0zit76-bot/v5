@@ -27,6 +27,7 @@ use App\Services\OrderIntakeGoldenLibraryService;
 use App\Services\OrderNumberingService;
 use App\Services\OrderPrintDocumentWorkflowService;
 use App\Services\OrderPrintFormDraftService;
+use App\Services\Orders\OrderBasedOnTemplateBuilder;
 use App\Services\Orders\OrderInlineFieldUpdateService;
 use App\Services\OrderWizardService;
 use App\Services\OwnFleetContractorService;
@@ -70,9 +71,19 @@ use JsonException;
 
 class OrderWizardController extends Controller
 {
-    public function create(Request $request): Response
+    public function create(Request $request, OrderBasedOnTemplateBuilder $orderBasedOnTemplateBuilder): Response
     {
-        return $this->renderPage($request);
+        $orderTemplate = null;
+
+        if ($request->filled('from')) {
+            $sourceOrder = Order::query()->find((int) $request->query('from'));
+
+            if ($sourceOrder instanceof Order && $this->userCanUseOrderAsTemplate($request, $sourceOrder)) {
+                $orderTemplate = $orderBasedOnTemplateBuilder->build($sourceOrder);
+            }
+        }
+
+        return $this->renderPage($request, null, $orderTemplate);
     }
 
     public function suggestOrderNumber(Request $request, OrderNumberingService $orderNumbering): JsonResponse
@@ -357,7 +368,10 @@ class OrderWizardController extends Controller
         return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
 
-    private function renderPage(Request $request, ?Order $order = null): Response
+    /**
+     * @param  array<string, mixed>|null  $orderTemplate
+     */
+    private function renderPage(Request $request, ?Order $order = null, ?array $orderTemplate = null): Response
     {
         /** @var ContractorCreditService $creditService */
         $creditService = app(ContractorCreditService::class);
@@ -405,6 +419,7 @@ class OrderWizardController extends Controller
 
         return Inertia::render('Orders/Wizard', [
             'order' => $order === null ? null : $this->serializeOrder($request, $order, $canManageOrderDocuments, $canApproveOrderDocuments),
+            'orderTemplate' => $order === null ? $orderTemplate : null,
             'contractors' => $contractors->values(),
             'ownCompanies' => $this->loadOwnCompaniesForWizard($order)->values(),
             'ownFleetContractor' => $this->ownFleetContractorPayload(),
@@ -3032,5 +3047,22 @@ class OrderWizardController extends Controller
         }
 
         return 'internal';
+    }
+
+    private function userCanUseOrderAsTemplate(Request $request, Order $order): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        if (RoleAccess::isAdminUser($user)) {
+            return true;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
+
+        return $scope === 'all' || (int) $order->manager_id === (int) $user->id;
     }
 }

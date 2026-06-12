@@ -155,6 +155,7 @@
                     @row-dblclick="handleRowDblClick"
                     @row-delete="handleRowDelete"
                     @create-request="openCreateOrder"
+                    @create-from-request="openCreateOrderFrom"
                     @open-order-documents="handleOpenOrderDocuments"
                 />
             </div>
@@ -362,6 +363,14 @@ const closeOrderDocumentsModal = () => {
 
 const openCreateOrder = () => {
     router.get(route('orders.create'), {}, { preserveScroll: true });
+};
+
+const openCreateOrderFrom = (row) => {
+    if (!row?.id) {
+        return;
+    }
+
+    router.get(route('orders.create', { from: row.id }), {}, { preserveScroll: true });
 };
 
 const handleRowDelete = (row) => {

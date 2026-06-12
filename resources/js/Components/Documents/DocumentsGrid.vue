@@ -50,8 +50,9 @@
                 </button>
             </div>
 
-            <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                Двойной клик — документы заказа
+            <div class="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                <span v-if="copyNotice" class="font-medium text-emerald-600 dark:text-emerald-400">{{ copyNotice }}</span>
+                <span>Двойной клик — документы заказа</span>
             </div>
         </div>
 
@@ -178,6 +179,7 @@ import {
     crmGridToolbarBtn,
     crmModalPanel,
 } from '@/support/crmUi.js';
+import { copyTextToClipboard } from '@/support/copyTextToClipboard.js';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
     readPersistedAgGridDensity,
@@ -229,8 +231,10 @@ const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 const bottomScrollbarWidth = ref(0);
 const gridViewportHeight = ref(280);
+const copyNotice = ref('');
 
 let isSyncingHorizontalScroll = false;
+let copyNoticeTimeout = null;
 let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
@@ -245,6 +249,25 @@ const contextMenu = reactive({
 function closeRowContextMenu() {
     contextMenu.open = false;
     contextMenu.items = [];
+}
+
+async function copyOrderSummary(row) {
+    const copied = await copyTextToClipboard(row?.clipboard_summary ?? '');
+
+    if (!copied) {
+        copyNotice.value = 'Нет данных для сводки';
+    } else {
+        copyNotice.value = 'Сводка скопирована в буфер обмена';
+    }
+
+    if (copyNoticeTimeout) {
+        clearTimeout(copyNoticeTimeout);
+    }
+
+    copyNoticeTimeout = setTimeout(() => {
+        copyNotice.value = '';
+        copyNoticeTimeout = null;
+    }, 2500);
 }
 
 /** ПКМ по пустой области грида (не по ячейке) — добавить документ без привязки к строке. */
@@ -301,6 +324,13 @@ function onCellContextMenu(params) {
                 label: 'Документы и печатные формы…',
                 run: () => {
                     window.open(`${route('orders.edit', row.order_id)}?tab=documents`, '_blank', 'noopener,noreferrer');
+                },
+            },
+            {
+                label: 'Сводка',
+                disabled: !row?.clipboard_summary,
+                run: () => {
+                    void copyOrderSummary(row);
                 },
             },
         );

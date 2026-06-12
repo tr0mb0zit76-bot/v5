@@ -281,7 +281,7 @@ const props = defineProps({
 
 const page = usePage();
 
-const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed', 'create-request', 'open-order-documents']);
+const emit = defineEmits(['cell-save', 'row-dblclick', 'row-delete', 'columns-changed', 'create-request', 'create-from-request', 'open-order-documents']);
 
 const paymentFormEditorValues = computed(() => {
     if (Array.isArray(props.paymentFormSelectOptions) && props.paymentFormSelectOptions.length > 0) {
@@ -574,6 +574,12 @@ function onCellContextMenu(params) {
       label: 'Документы и печатные формы…',
       run: () => {
         emit('open-order-documents', row);
+      },
+    },
+    {
+      label: 'Создать на основании',
+      run: () => {
+        emit('create-from-request', row);
       },
     },
     {

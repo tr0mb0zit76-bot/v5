@@ -2016,6 +2016,7 @@ const cargoAllocationFieldClass =
 
 const props = defineProps({
     order: { type: Object, default: null },
+    orderTemplate: { type: Object, default: null },
     contractors: { type: Array, default: () => [] },
     ownCompanies: { type: Array, default: () => [] },
     ownFleetContractor: { type: Object, default: null },
@@ -2256,8 +2257,8 @@ function confirmDiscardPrintWorkflow(doc) {
     });
 }
 
-if (props.order?.client_snapshot) {
-    const snap = props.order.client_snapshot;
+if ((props.order ?? props.orderTemplate)?.client_snapshot) {
+    const snap = (props.order ?? props.orderTemplate).client_snapshot;
     const exists = contractors.value.some((c) => Number(c.id) === Number(snap.id));
 
     if (!exists) {
@@ -3074,28 +3075,30 @@ const initialWizardPerformers = Array.isArray(props.order?.performers)
     }))
     : blankOrder().performers;
 
+const initialOrderPayload = computed(() => props.order ?? props.orderTemplate ?? null);
+
 const form = useForm({
     ...blankOrder(),
-    ...(props.order ?? {}),
-    own_company_id: normalizeNullableNumber(props.order?.own_company_id),
-    own_company_bank_account_id: props.order?.own_company_bank_account_id
-        ? String(props.order.own_company_bank_account_id)
+    ...(initialOrderPayload.value ?? {}),
+    own_company_id: normalizeNullableNumber(initialOrderPayload.value?.own_company_id),
+    own_company_bank_account_id: initialOrderPayload.value?.own_company_bank_account_id
+        ? String(initialOrderPayload.value.own_company_bank_account_id)
         : null,
-    client_id: normalizeNullableNumber(props.order?.client_id),
-    manual_status: props.order?.manual_status ?? null,
-    additional_expenses: props.order?.additional_expenses ?? null,
-    additional_expenses_payment_date: props.order?.additional_expenses_payment_date ?? props.order?.order_date ?? null,
-    insurance: props.order?.insurance ?? null,
-    bonus: props.order?.bonus ?? null,
-    loading_types: Array.isArray(props.order?.loading_types)
-        ? props.order.loading_types
+    client_id: normalizeNullableNumber(initialOrderPayload.value?.client_id),
+    manual_status: initialOrderPayload.value?.manual_status ?? null,
+    additional_expenses: initialOrderPayload.value?.additional_expenses ?? null,
+    additional_expenses_payment_date: initialOrderPayload.value?.additional_expenses_payment_date ?? initialOrderPayload.value?.order_date ?? null,
+    insurance: initialOrderPayload.value?.insurance ?? null,
+    bonus: initialOrderPayload.value?.bonus ?? null,
+    loading_types: Array.isArray(initialOrderPayload.value?.loading_types)
+        ? initialOrderPayload.value.loading_types
         : [],
-    cargo_items: Array.isArray(props.order?.cargo_items)
-        ? props.order.cargo_items.map((c) => normalizeCargoItem(c))
+    cargo_items: Array.isArray(initialOrderPayload.value?.cargo_items)
+        ? initialOrderPayload.value.cargo_items.map((c) => normalizeCargoItem(c))
         : blankOrder().cargo_items,
     performers: initialWizardPerformers,
-    route_points: Array.isArray(props.order?.route_points)
-        ? props.order.route_points.map((point, index) => ({
+    route_points: Array.isArray(initialOrderPayload.value?.route_points)
+        ? initialOrderPayload.value.route_points.map((point, index) => ({
             ...blankRoutePoint(point.type ?? 'loading', Number(point.sequence ?? (index + 1)), toStageKey(point.stage ?? 'leg_1') || 'leg_1'),
             ...point,
             stage: toStageKey(point.stage ?? 'leg_1') || 'leg_1',
@@ -3105,34 +3108,34 @@ const form = useForm({
         : blankOrder().route_points,
     financial_term: {
         ...blankOrder().financial_term,
-        ...(props.order?.financial_term ?? {}),
-        client_payment_schedule: normalizePaymentSchedule(props.order?.financial_term?.client_payment_schedule),
+        ...(initialOrderPayload.value?.financial_term ?? {}),
+        client_payment_schedule: normalizePaymentSchedule(initialOrderPayload.value?.financial_term?.client_payment_schedule),
         client_payment_terms:
-            props.order?.financial_term?.client_payment_terms
-            ?? props.order?.customer_payment_term
+            initialOrderPayload.value?.financial_term?.client_payment_terms
+            ?? initialOrderPayload.value?.customer_payment_term
             ?? '',
         client_payment_form: normalizePaymentFormCode(
-            props.order?.financial_term?.client_payment_form ?? blankOrder().financial_term.client_payment_form,
+            initialOrderPayload.value?.financial_term?.client_payment_form ?? blankOrder().financial_term.client_payment_form,
             'vat',
         ),
-        contractors_costs: normalizeLoadedContractorsCosts(props.order?.financial_term?.contractors_costs, props.order),
-        additional_costs: buildInitialAdditionalCosts(props.order),
-        client_norms_penalties: normalizePartyNormsPenalties(props.order?.financial_term?.client_norms_penalties),
+        contractors_costs: normalizeLoadedContractorsCosts(initialOrderPayload.value?.financial_term?.contractors_costs, initialOrderPayload.value),
+        additional_costs: buildInitialAdditionalCosts(initialOrderPayload.value),
+        client_norms_penalties: normalizePartyNormsPenalties(initialOrderPayload.value?.financial_term?.client_norms_penalties),
         carrier_norms_by_leg: normalizeCarrierNormsByLegList(
-            props.order?.financial_term?.carrier_norms_by_leg,
+            initialOrderPayload.value?.financial_term?.carrier_norms_by_leg,
             initialWizardPerformers,
         ),
     },
-    documents: Array.isArray(props.order?.documents)
-        ? props.order.documents
+    documents: Array.isArray(initialOrderPayload.value?.documents)
+        ? initialOrderPayload.value.documents
             .filter((document) => !document.is_print_workflow && document.status === 'signed')
             .map((document) => normalizeDocument({ ...document, status: 'signed', flow: 'uploaded' }))
         : [],
-    svh_name: props.order?.svh_name ?? '',
-    svh_address: props.order?.svh_address ?? '',
-    customs_post_code: props.order?.customs_post_code ?? '',
-    cargo_declared_sum: props.order?.cargo_declared_sum ?? null,
-    is_international_transport: Boolean(props.order?.is_international_transport),
+    svh_name: initialOrderPayload.value?.svh_name ?? '',
+    svh_address: initialOrderPayload.value?.svh_address ?? '',
+    customs_post_code: initialOrderPayload.value?.customs_post_code ?? '',
+    cargo_declared_sum: initialOrderPayload.value?.cargo_declared_sum ?? null,
+    is_international_transport: Boolean(initialOrderPayload.value?.is_international_transport),
 });
 
 const documentsTabRef = ref(null);
