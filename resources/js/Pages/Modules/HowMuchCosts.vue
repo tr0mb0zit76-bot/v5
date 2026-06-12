@@ -17,8 +17,8 @@
                         тип транспорта и дополнительные условия — без привязки к закрытию заказа в CRM.
                     </p>
                     <p class="text-sm text-zinc-600 dark:text-zinc-300">
-                        Для расчёта маржи и дельты по правилам заказа используйте «Считалку» в разделе
-                        «Помощник продавца».
+                        Для расчёта маржи по условиям вычета используйте модуль
+                        <Link href="/modules/counter" class="font-medium underline-offset-2 hover:underline">«Считалка»</Link>.
                     </p>
                 </div>
             </div>
@@ -34,6 +34,7 @@
 
 <script setup>
 import { Calculator } from 'lucide-vue-next';
+import { Link } from '@inertiajs/vue3';
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmPageLead, crmPanel, crmSectionTitle } from '@/support/crmUi.js';

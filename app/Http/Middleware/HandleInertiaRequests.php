@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Role;
 use App\Services\Documents\OcrServiceClient;
+use App\Services\GridViewService;
 use App\Support\AiAgentCatalog;
 use App\Support\CabinetNotificationBadges;
 use App\Support\CommandBarHistoryLimits;
@@ -115,6 +116,7 @@ class HandleInertiaRequests extends Middleware
                     is_array($user->ui_preferences) ? $user->ui_preferences : null,
                 ),
                 'mobile_nav' => MobileNavResolver::forInertiaUser($user),
+                'pinned_grid_views' => app(GridViewService::class)->pinnedForSidebar($user),
                 'role' => ! $hasRolesTable ? null : (function () use ($user): ?array {
                     $assignedRoles = RoleAccess::assignedRoles($user);
 

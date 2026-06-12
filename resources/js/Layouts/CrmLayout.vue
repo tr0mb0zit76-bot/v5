@@ -270,6 +270,30 @@
             </div>
 
             <nav class="flex-1 space-y-1 overflow-y-auto p-2">
+                <div v-if="pinnedGridViews.length" class="mb-2 space-y-1">
+                    <p
+                        v-if="!collapsed"
+                        class="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500"
+                    >
+                        Избранное
+                    </p>
+
+                    <Link
+                        v-for="view in pinnedGridViews"
+                        :key="`grid-view-${view.id}`"
+                        :href="view.url"
+                        class="crm-nav-link flex items-center gap-3 px-3 py-2"
+                        :class="isPinnedGridViewActive(view) ? 'crm-nav-link--active' : ''"
+                        :title="collapsed ? `${view.name} · ${view.grid_label}` : false"
+                    >
+                        <Bookmark class="h-4 w-4 shrink-0" :class="isPinnedGridViewActive(view) ? '' : 'text-amber-500'" />
+                        <span v-if="!collapsed" class="min-w-0 flex-1">
+                            <span class="block truncate text-sm font-medium">{{ view.name }}</span>
+                            <span class="block truncate text-[11px] text-zinc-500 dark:text-zinc-400">{{ view.grid_label }}</span>
+                        </span>
+                    </Link>
+                </div>
+
                 <div v-for="item in menuItems" :key="item.key" class="space-y-1">
                     <div class="flex items-center gap-1">
                         <button
@@ -515,6 +539,7 @@ import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     BarChart3,
+    Bookmark,
     CalendarRange,
     ChevronDown,
     ClipboardList,
@@ -697,6 +722,7 @@ const isStandaloneApp = ref(false);
 const isMobileViewport = ref(false);
 
 const authUser = computed(() => page.props.auth?.user ?? null);
+const pinnedGridViews = computed(() => authUser.value?.pinned_grid_views ?? []);
 const appearanceModalOpen = ref(false);
 const dynamicCabinetBadges = ref(null);
 const cabinetBadges = computed(
@@ -758,7 +784,7 @@ const MENU_ROUTES = {
     'reports-overview': '/reports',
     trainer: '/sales-assistant/trainer',
     modules: '/modules',
-    'modules-catalog': '/modules',
+    'modules-counter': '/modules/counter',
     'modules-how-much-fits': '/modules/how-much-fits',
     'modules-how-much-costs': '/modules/how-much-costs',
     'sales-assistant-scripts': '/scripts',
@@ -766,7 +792,6 @@ const MENU_ROUTES = {
     'sales-assistant-book-quiz-analytics': '/sales-assistant/book/quiz-analytics',
     'sales-assistant-trainer': '/sales-assistant/trainer',
     'sales-assistant-trainer-analytics': '/sales-assistant/trainer/analytics',
-    'sales-assistant-counter': '/sales-assistant/counter',
     settings: '/settings',
     users: '/settings/users',
     roles: '/settings/roles',
@@ -1027,7 +1052,6 @@ const menuItems = computed(() => {
         { area: 'sales_assistant_scripts', key: 'sales-assistant-scripts', label: 'Скрипты' },
         { area: 'sales_assistant_book', key: 'sales-assistant-book', label: 'Книга продаж' },
         { area: 'sales_assistant_trainer', key: 'sales-assistant-trainer', label: 'Тренажёр' },
-        { area: 'sales_assistant_counter', key: 'sales-assistant-counter', label: 'Считалка' },
     ];
     const salesAssistantChildren = assistantParts.filter(
         (p) => isAdmin || hasSalesAssistantSubmoduleAccess(areas, p.area),
@@ -1131,7 +1155,7 @@ const menuItems = computed(() => {
         })(),
         ...(() => {
             const moduleParts = [
-                { area: 'modules_catalog', key: 'modules-catalog', label: 'Каталог' },
+                { area: 'sales_assistant_counter', key: 'modules-counter', label: 'Считалка' },
                 { area: 'modules_how_much_fits', key: 'modules-how-much-fits', label: 'Сколько влезет?' },
                 { area: 'modules_how_much_costs', key: 'modules-how-much-costs', label: 'Сколько стоит?' },
             ];
@@ -1382,6 +1406,22 @@ function toggleMenuGroup(key) {
     expandedGroups.value = isMenuGroupOpen(key)
         ? expandedGroups.value.filter((item) => item !== key)
         : [...expandedGroups.value, key];
+}
+
+function isPinnedGridViewActive(view) {
+    if (typeof window === 'undefined' || !view?.url) {
+        return false;
+    }
+
+    try {
+        const current = new URL(window.location.href);
+        const target = new URL(view.url, window.location.origin);
+
+        return current.pathname === target.pathname
+            && (target.searchParams.get('view') ?? '') === (current.searchParams.get('view') ?? '');
+    } catch {
+        return false;
+    }
 }
 
 function isSettingsChildActive(child) {

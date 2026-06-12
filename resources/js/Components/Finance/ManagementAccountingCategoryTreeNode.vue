@@ -42,7 +42,6 @@
                         {{ sourceLabel(node.source) }}
                     </span>
                 </div>
-                <div class="truncate font-mono text-[11px] text-zinc-400">{{ node.code }}</div>
             </div>
 
             <div class="flex shrink-0 items-center gap-2" @click.stop>

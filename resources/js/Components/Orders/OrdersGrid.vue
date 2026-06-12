@@ -47,14 +47,19 @@
           </div>
         </div>
 
-        <button
-          type="button"
-          :class="crmGridToolbarBtn"
-          @click="resetToRoleDefaults"
-        >
-          <RotateCcw class="h-4 w-4" />
-          Сбросить
-        </button>
+        <GridViewsBar
+          grid-key="orders"
+          :user-id="userId"
+          :get-grid-api="() => gridApi"
+          :column-storage-key="storageKey"
+          :filter-storage-key="filterModelStorageKey"
+          :quick-search-storage-key="quickSearchStorageKey"
+          :quick-search="quickSearch"
+          :on-reset-defaults="resetGridViewState"
+          @update:quick-search="quickSearch = $event"
+          @applied="onGridViewApplied"
+          @pinned-changed="onGridViewsPinnedChanged"
+        />
       </div>
 
       <span v-if="copyNotice" class="ml-auto text-xs font-medium text-emerald-600 dark:text-emerald-400">{{ copyNotice }}</span>
@@ -207,10 +212,10 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
+import { Rows3, Search, Settings2, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -220,6 +225,7 @@ import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import {
@@ -407,6 +413,7 @@ const showDensityMenu = ref(false);
 const modalColumns = ref([]);
 const draggedColumnField = ref(null);
 const quickSearch = ref('');
+const gridViewsRevision = ref(0);
 const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const gridPanel = ref(null);
@@ -924,6 +931,32 @@ const resetToRoleDefaults = () => {
   saveColumnState();
 };
 
+const resetGridViewState = () => {
+  resetToRoleDefaults();
+
+  if (gridApi.value) {
+    gridApi.value.setFilterModel({});
+  }
+
+  localStorage.removeItem(filterModelStorageKey.value);
+  quickSearch.value = '';
+  localStorage.setItem(quickSearchStorageKey.value, '');
+  gridViewsRevision.value++;
+};
+
+const onGridViewApplied = () => {
+  gridViewsRevision.value++;
+
+  nextTick(() => {
+    refreshGrid();
+    syncBottomScrollbar();
+  });
+};
+
+const onGridViewsPinnedChanged = () => {
+  router.reload({ preserveScroll: true });
+};
+
 const loadDensity = () => {
   currentDensity.value = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
 };
@@ -1040,6 +1073,7 @@ class DateInputEditor {
 }
 
 const dynamicColumnDefs = computed(() => {
+  void gridViewsRevision.value;
   const editableFields = getDefaultEditableFields();
   const saved = readPersistedAgGridColumnState(storageKey.value);
 

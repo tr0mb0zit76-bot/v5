@@ -49,7 +49,6 @@
                             <div class="font-medium text-sm text-zinc-800 dark:text-zinc-100">
                                 {{ article.name }}
                             </div>
-                            <div v-if="article.category_code" class="text-[11px] text-zinc-500">{{ article.category_code }}</div>
                             <label class="mt-2 block space-y-0.5">
                                 <span class="text-[10px] uppercase text-zinc-500">Тип</span>
                                 <select

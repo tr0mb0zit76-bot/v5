@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -66,9 +67,9 @@ class CompletedOrderFinancialAnalytics
         $monthExpr = $this->monthBucketSql();
 
         $query = DB::table('orders')
-            ->where('orders.manager_id', $managerId)
-            ->whereIn('orders.status', self::COMPLETED_STATUSES)
-            ->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
+            ->where('orders.manager_id', $managerId);
+        $this->applyCompletedOrderScope($query);
+        $query->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('orders.deleted_at');
@@ -137,9 +138,9 @@ class CompletedOrderFinancialAnalytics
         $dateCol = $this->completionDateSql();
         $monthExpr = $this->monthBucketSql();
 
-        $query = DB::table('orders')
-            ->whereIn('orders.status', self::COMPLETED_STATUSES)
-            ->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
+        $query = DB::table('orders');
+        $this->applyCompletedOrderScope($query);
+        $query->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('orders.deleted_at');
@@ -208,9 +209,9 @@ class CompletedOrderFinancialAnalytics
         $dateCol = $this->completionDateSql();
 
         $query = DB::table('orders')
-            ->whereNotNull('orders.manager_id')
-            ->whereIn('orders.status', self::COMPLETED_STATUSES)
-            ->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
+            ->whereNotNull('orders.manager_id');
+        $this->applyCompletedOrderScope($query);
+        $query->whereRaw("{$dateCol} between ? and ?", [$fromDate, $toDate]);
 
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('orders.deleted_at');
@@ -267,5 +268,19 @@ class CompletedOrderFinancialAnalytics
         }
 
         return implode(' + ', $parts);
+    }
+
+    /**
+     * @param  Builder  $query
+     */
+    private function applyCompletedOrderScope($query): void
+    {
+        if (Schema::hasColumn('orders', 'manual_status')) {
+            $query->whereRaw("COALESCE(orders.manual_status, orders.status) IN ('closed', 'completed')");
+
+            return;
+        }
+
+        $query->whereIn('orders.status', self::COMPLETED_STATUSES);
     }
 }

@@ -99,6 +99,10 @@
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="space-y-1">
                         <h2 :class="crmSectionTitle">Денежный поток</h2>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                            Завершённые заказы за выбранный период
+                            <span v-if="financeFlowMode === 'margin_own'"> · только ваша маржа</span>
+                        </p>
                     </div>
                     <div
                         v-if="financeFlowMode === 'full'"
@@ -116,7 +120,41 @@
                     </div>
                 </div>
 
-                <div class="mt-6 flex h-56 items-end gap-1.5 sm:gap-2">
+                <div
+                    v-if="financeTotals.hasData"
+                    class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
+                >
+                    <article v-if="financeFlowMode === 'full'" class="crm-stat-card p-4">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Доход за период</div>
+                        <div class="mt-1 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                            {{ formatCurrency(financeTotals.income) }}
+                        </div>
+                    </article>
+                    <article v-if="financeFlowMode === 'full'" class="crm-stat-card p-4">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Расход за период</div>
+                        <div class="mt-1 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                            {{ formatCurrency(financeTotals.expense) }}
+                        </div>
+                    </article>
+                    <article class="crm-stat-card p-4">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Маржа за период</div>
+                        <div
+                            class="mt-1 text-2xl font-semibold tabular-nums"
+                            :class="financeTotals.margin >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
+                        >
+                            {{ formatCurrency(financeTotals.margin) }}
+                        </div>
+                    </article>
+                </div>
+
+                <p
+                    v-else
+                    class="mt-4 rounded-xl border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                >
+                    За выбранный период нет завершённых заказов — график пуст. Проверьте фильтр дат или статусы заказов.
+                </p>
+
+                <div v-if="financeChart.length > 0" class="mt-6 flex h-56 items-end gap-1.5 sm:gap-2">
                     <div
                         v-for="p in financeChart"
                         :key="p.ym"
@@ -416,7 +454,27 @@ const financeFlowMode = computed(() => props.metrics?.finance_flow_mode ?? 'hidd
 
 const financeChart = computed(() => props.metrics?.finance_chart ?? []);
 
-const showFinanceFlowSection = computed(() => financeFlowMode.value !== 'hidden' && financeChart.value.length > 0);
+const showFinanceFlowSection = computed(() => financeFlowMode.value !== 'hidden');
+
+const financeTotals = computed(() => {
+    const totals = { income: 0, expense: 0, margin: 0, hasData: false };
+
+    for (const point of financeChart.value) {
+        totals.income += Number(point.income ?? 0);
+        totals.expense += Number(point.expense ?? 0);
+        totals.margin += Number(point.margin ?? 0);
+
+        if (
+            Math.abs(Number(point.income ?? 0)) > 0
+            || Math.abs(Number(point.expense ?? 0)) > 0
+            || Math.abs(Number(point.margin ?? 0)) > 0
+        ) {
+            totals.hasData = true;
+        }
+    }
+
+    return totals;
+});
 
 const chartMetric = ref('income');
 

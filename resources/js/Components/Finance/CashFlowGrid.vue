@@ -69,6 +69,17 @@
                         </button>
                     </div>
                 </div>
+
+                <GridViewsBar
+                    grid-key="payment_schedule"
+                    :user-id="userId"
+                    :get-grid-api="() => gridApi"
+                    :filter-storage-key="filterModelStorageKey"
+                    :quick-search="quickSearch"
+                    :on-reset-defaults="resetGridViewState"
+                    @update:quick-search="quickSearch = $event"
+                    @pinned-changed="onGridViewsPinnedChanged"
+                />
             </div>
         </div>
 
@@ -136,6 +147,7 @@ import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { PRINT_DOCUMENT_BASE_STYLES, printHtmlDocument } from '@/support/printHtmlDocument.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -886,6 +898,19 @@ watch(quickSearch, (value) => {
 
     gridApi.value.setGridOption('quickFilterText', value ?? '');
 });
+
+function resetGridViewState() {
+    if (gridApi.value) {
+        gridApi.value.setFilterModel({});
+    }
+
+    localStorage.removeItem(filterModelStorageKey.value);
+    quickSearch.value = '';
+}
+
+function onGridViewsPinnedChanged() {
+    router.reload({ preserveScroll: true });
+}
 
 watch(() => props.rows, async () => {
     await nextTick();

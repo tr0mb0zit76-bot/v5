@@ -143,36 +143,63 @@ class DashboardMetricsService
      */
     private function financeChartForUser(User $user, string $tilesScope, int $managerId, string $dateFrom, string $dateTo): array
     {
-        $roleName = $user->role?->name;
         $from = Carbon::parse($dateFrom)->startOfDay();
         $to = Carbon::parse($dateTo)->endOfDay();
 
-        if (! in_array($roleName, ['admin', 'supervisor', 'accountant', 'manager'], true)) {
+        if (! $this->userCanSeeFinanceFlow($user)) {
             return [
                 'finance_chart' => [],
                 'finance_flow_mode' => 'hidden',
             ];
         }
 
-        if ($tilesScope === 'all') {
+        if ($this->userSeesCompanyFinanceFlow($user, $tilesScope)) {
             return [
                 'finance_flow_mode' => 'full',
                 'finance_chart' => $this->completedOrderFinancialAnalytics->monthlyBucketsAggregate($from, $to),
             ];
         }
 
-        $raw = $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to);
-
         return [
             'finance_flow_mode' => 'margin_own',
-            'finance_chart' => array_map(static function (array $row): array {
-                return [
-                    ...$row,
-                    'income' => 0.0,
-                    'expense' => 0.0,
-                ];
-            }, $raw),
+            'finance_chart' => $this->completedOrderFinancialAnalytics->monthlyBucketsForManager($managerId, $from, $to),
         ];
+    }
+
+    private function userCanSeeFinanceFlow(User $user): bool
+    {
+        $areas = RoleAccess::userVisibilityAreas($user);
+
+        if (! RoleAccess::hasVisibilityArea($areas, 'dashboard')) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor() || $user->hasRole('accountant')) {
+            return true;
+        }
+
+        foreach (['manager', 'clerk', 'dispatcher', 'viewer'] as $roleName) {
+            if ($user->hasRole($roleName)) {
+                return true;
+            }
+        }
+
+        return RoleAccess::hasVisibilityArea($areas, 'orders')
+            || RoleAccess::hasVisibilityArea($areas, 'reports')
+            || RoleAccess::hasVisibilityArea($areas, 'payment_schedules');
+    }
+
+    private function userSeesCompanyFinanceFlow(User $user, string $tilesScope): bool
+    {
+        if ($tilesScope !== 'all') {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->isSupervisor() || $user->hasRole('accountant')) {
+            return true;
+        }
+
+        return RoleAccess::hasVisibilityArea(RoleAccess::userVisibilityAreas($user), 'reports');
     }
 
     /**

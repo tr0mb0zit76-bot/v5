@@ -40,6 +40,17 @@
                         </button>
                     </div>
                 </div>
+
+                <GridViewsBar
+                    grid-key="disposition"
+                    :user-id="userId"
+                    :get-grid-api="() => gridApi"
+                    :quick-search-storage-key="quickSearchStorageKey"
+                    :quick-search="quickSearch"
+                    :on-reset-defaults="resetGridViewState"
+                    @update:quick-search="quickSearch = $event"
+                    @pinned-changed="onGridViewsPinnedChanged"
+                />
             </div>
 
             <div class="flex flex-col items-end gap-0.5 text-xs text-zinc-500 dark:text-zinc-400">
@@ -100,7 +111,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import { Rows3, Search } from 'lucide-vue-next';
@@ -110,6 +121,7 @@ import '@/Components/Grid/grid-theme.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import {
     CRM_AG_GRID_DENSITY_CHANGED,
     readPersistedAgGridDensity,
@@ -588,6 +600,19 @@ const attachCenterViewportListener = () => {
         centerViewport.removeEventListener('scroll', handleCenterViewportScroll);
     };
 };
+
+function resetGridViewState() {
+    if (gridApi.value) {
+        gridApi.value.setFilterModel({});
+    }
+
+    quickSearch.value = '';
+    localStorage.removeItem(quickSearchStorageKey.value);
+}
+
+function onGridViewsPinnedChanged() {
+    router.reload({ preserveScroll: true });
+}
 
 function onFilterChanged() {
     refreshDisplayedRowCount();

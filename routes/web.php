@@ -18,6 +18,7 @@ use App\Http\Controllers\FleetDriverController;
 use App\Http\Controllers\FleetEfficiencyController;
 use App\Http\Controllers\FleetTripController;
 use App\Http\Controllers\FleetVehicleController;
+use App\Http\Controllers\GridViewController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
@@ -265,10 +266,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         Route::middleware('visibility.area:sales_assistant_counter')->group(function () {
-            Route::controller(SalesAssistantController::class)->group(function () {
-                Route::get('/counter', 'counter')->name('counter');
-                Route::post('/counter/calculate', 'calculateCounter')->name('counter.calculate');
-            });
+            Route::redirect('/counter', '/modules/counter');
         });
 
         Route::middleware('visibility.area:sales_assistant_trainer')->group(function () {
@@ -642,8 +640,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('leads.status.update');
 
     Route::get('/modules', fn () => Inertia::render('Modules/Index'))
-        ->middleware('visibility.area:modules_catalog')
+        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|sales_assistant_counter')
         ->name('modules.index');
+
+    Route::middleware('visibility.area:sales_assistant_counter')->group(function () {
+        Route::controller(SalesAssistantController::class)->prefix('modules/counter')->name('modules.counter.')->group(function () {
+            Route::get('/', 'counter')->name('index');
+            Route::post('/calculate', 'calculateCounter')->name('calculate');
+        });
+    });
 
     Route::middleware('visibility.area:modules_how_much_fits')->group(function () {
         Route::controller(LoadingPlannerController::class)->prefix('modules/how-much-fits')->name('modules.how-much-fits.')->group(function () {
@@ -671,6 +676,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile/ui-preferences', [ProfileController::class, 'updateUiPreferences'])->name('profile.ui-preferences');
     Route::patch('/profile/mobile-bottom-nav', [ProfileController::class, 'updateMobileBottomNav'])->name('profile.mobile-bottom-nav');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::prefix('grid-views')->name('grid-views.')->group(function () {
+        Route::get('/', [GridViewController::class, 'index'])->name('index');
+        Route::post('/', [GridViewController::class, 'store'])->name('store');
+        Route::get('/{gridView}', [GridViewController::class, 'show'])->name('show');
+        Route::patch('/{gridView}', [GridViewController::class, 'update'])->name('update');
+        Route::delete('/{gridView}', [GridViewController::class, 'destroy'])->name('destroy');
+    });
 
     // Payment Schedule Routes
     Route::prefix('payment-schedules')->name('payment-schedules.')->middleware('visibility.area.any:documents|payment_schedules|finance_salary')->group(function () {

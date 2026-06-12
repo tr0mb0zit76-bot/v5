@@ -19,7 +19,6 @@ use App\Models\SalesBookArticleFeedback;
 use App\Models\SalesScript;
 use App\Models\SalesScriptPlaySession;
 use App\Models\User;
-use App\Services\KpiConfigurationService;
 use App\Services\SalesBook\SalesBookArticleFeedbackSummaryService;
 use App\Services\SalesBook\SalesBookQuizAttemptService;
 use App\Services\SalesBook\SalesBookQuizInsightsService;
@@ -47,16 +46,15 @@ class SalesAssistantController extends Controller
 
     private const string BOOK_COVER_PREFIX = 'sales-book-covers/';
 
-    public function counter(Request $request, KpiConfigurationService $kpiConfigurationService): Response
+    public function counter(Request $request, SalesMarginCounterService $salesMarginCounterService): Response
     {
         abort_unless(RoleAccess::canAccessSalesAssistantCounter($request->user()), 403);
 
-        return Inertia::render('SalesAssistant/Counter', [
-            'orderDate' => now()->toDateString(),
-            'kpiSettings' => [
-                'deduction_rates' => $kpiConfigurationService->deductionRates(),
-                'bonus_multiplier' => $kpiConfigurationService->getBonusMultiplier(),
-            ],
+        $orderDate = now()->toDateString();
+
+        return Inertia::render('Modules/Counter', [
+            'orderDate' => $orderDate,
+            'deductionRules' => $salesMarginCounterService->deductionRuleOptionsForDate($orderDate),
         ]);
     }
 
@@ -66,12 +64,8 @@ class SalesAssistantController extends Controller
     ): JsonResponse {
         abort_unless(RoleAccess::canAccessSalesAssistantCounter($request->user()), 403);
 
-        $payload = $request->validated();
-        $payload['manager_id'] = $request->user()?->id;
-        $payload['order_date'] = $payload['order_date'] ?? now()->toDateString();
-
         return response()->json(
-            $salesMarginCounterService->calculate($payload),
+            $salesMarginCounterService->calculate($request->validated()),
         );
     }
 

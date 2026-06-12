@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CalculateSalesMarginCounterRequest extends FormRequest
 {
@@ -17,17 +18,23 @@ class CalculateSalesMarginCounterRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'kpi_deduction_rule_id' => ['required', 'integer', Rule::exists('kpi_deduction_rules', 'id')],
             'customer_rate' => ['nullable', 'numeric', 'min:0'],
-            'carrier_cash_rate' => ['nullable', 'numeric', 'min:0'],
-            'carrier_cashless_rate' => ['nullable', 'numeric', 'min:0'],
-            'customer_without_vat' => ['nullable', 'numeric', 'min:0'],
-            'customer_with_vat' => ['nullable', 'numeric', 'min:0'],
-            'carrier_without_vat' => ['nullable', 'numeric', 'min:0'],
-            'carrier_with_vat' => ['nullable', 'numeric', 'min:0'],
+            'carrier_rate' => ['nullable', 'numeric', 'min:0'],
             'additional_expenses' => ['nullable', 'numeric', 'min:0'],
-            'insurance' => ['nullable', 'numeric', 'min:0'],
             'bonus' => ['nullable', 'numeric', 'min:0'],
             'order_date' => ['nullable', 'date'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'kpi_deduction_rule_id.required' => 'Выберите условие вычета.',
+            'kpi_deduction_rule_id.exists' => 'Условие вычета не найдено.',
         ];
     }
 }

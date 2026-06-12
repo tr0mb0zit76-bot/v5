@@ -44,10 +44,19 @@
                     </div>
                 </div>
 
-                <button type="button" :class="crmGridToolbarBtn" @click="resetColumns">
-                    <RotateCcw class="h-4 w-4" />
-                    Сбросить
-                </button>
+                <GridViewsBar
+                    grid-key="documents"
+                    :user-id="userId"
+                    :get-grid-api="() => gridApi"
+                    :column-storage-key="storageKey"
+                    :filter-storage-key="filterModelStorageKey"
+                    :quick-search-storage-key="quickSearchStorageKey"
+                    :quick-search="quickSearch"
+                    :on-reset-defaults="resetGridViewState"
+                    @update:quick-search="quickSearch = $event"
+                    @applied="onGridViewApplied"
+                    @pinned-changed="onGridViewsPinnedChanged"
+                />
             </div>
 
             <div class="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
@@ -157,10 +166,10 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import { RotateCcw, Rows3, Search, Settings2, X } from 'lucide-vue-next';
+import { Rows3, Search, Settings2, X } from 'lucide-vue-next';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -169,6 +178,7 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
+import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import {
     crmBtnCreate,
@@ -225,6 +235,7 @@ const showDensityMenu = ref(false);
 const modalColumns = ref([]);
 const draggedColumnField = ref(null);
 const quickSearch = ref('');
+const gridViewsRevision = ref(0);
 const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const gridPanel = ref(null);
@@ -405,6 +416,7 @@ const defaultColDef = {
 };
 
 const columnDefs = computed(() => {
+    void gridViewsRevision.value;
     const saved = readPersistedAgGridColumnState(storageKey.value);
 
     const baseColumns = fallbackColumns.map((column) => {
@@ -637,6 +649,31 @@ function resetColumns() {
 
     gridApi.value.resetColumnState();
     saveColumnState();
+}
+
+function resetGridViewState() {
+    resetColumns();
+
+    if (gridApi.value) {
+        gridApi.value.setFilterModel({});
+    }
+
+    localStorage.removeItem(filterModelStorageKey.value);
+    quickSearch.value = '';
+    localStorage.setItem(quickSearchStorageKey.value, '');
+    gridViewsRevision.value++;
+}
+
+function onGridViewApplied() {
+    gridViewsRevision.value++;
+
+    nextTick(() => {
+        syncBottomScrollbar();
+    });
+}
+
+function onGridViewsPinnedChanged() {
+    router.reload({ preserveScroll: true });
 }
 
 function applyDensity(densityKey) {

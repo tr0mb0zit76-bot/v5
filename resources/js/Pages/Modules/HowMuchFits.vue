@@ -25,15 +25,15 @@
                             </div>
                             <HelpCircle class="h-5 w-5 text-zinc-400" />
                         </div>
-                        <div class="relative mt-4">
-                            <Search class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                            <input v-model="projectSearch" type="search" class="field pl-11" placeholder="Поиск" />
-                        </div>
                         <div class="mt-4 flex flex-wrap items-center gap-2">
+                            <div class="relative w-full min-w-[10rem] sm:w-auto">
+                                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                <input v-model="projectSearch" type="search" :class="crmGridSearchField" placeholder="Поиск" />
+                            </div>
                             <button type="button" class="sort-pill" :class="projectSortBy === 'name' ? 'sort-pill-active' : ''" @click="setProjectSort('name')">по названию</button>
                             <button type="button" class="sort-pill" :class="projectSortBy === 'created' ? 'sort-pill-active' : ''" @click="setProjectSort('created')">по дате добавления</button>
                             <button type="button" class="sort-pill" :class="projectSortBy === 'updated' ? 'sort-pill-active' : ''" @click="setProjectSort('updated')">по дате изменения</button>
-                            <select v-model="projectSortDir" class="field ml-auto w-auto min-w-[9rem]">
+                            <select v-model="projectSortDir" class="field w-auto min-w-[9rem] shrink-0">
                                 <option value="desc">по убыванию</option>
                                 <option value="asc">по возрастанию</option>
                             </select>
@@ -85,7 +85,7 @@
                             </div>
                             <div class="relative mt-3">
                                 <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                                <input v-model="cargoSearch" type="search" class="field pl-9" placeholder="Поиск" />
+                                <input v-model="cargoSearch" type="search" :class="crmGridSearchField" placeholder="Поиск" />
                             </div>
                             <div class="mt-3 flex flex-wrap gap-2">
                                 <button
@@ -173,7 +173,7 @@
                             <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Выбрать шаблон транспорта</div>
                             <div class="relative mt-3">
                                 <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                                <input v-model="transportSearch" type="search" class="field pl-9" placeholder="Поиск" />
+                                <input v-model="transportSearch" type="search" :class="crmGridSearchField" placeholder="Поиск" />
                             </div>
                             <div class="mt-3 flex flex-wrap gap-4 border-b border-zinc-200 text-sm font-semibold dark:border-zinc-800">
                                 <button type="button" class="category-tab" :class="transportCategoryFilter === 'all' ? 'category-tab-active' : ''" @click="transportCategoryFilter = 'all'">Все</button>
@@ -514,7 +514,7 @@ import {
 import CrmPageHeader from '@/Components/Crm/CrmPageHeader.vue';
 import Modal from '@/Components/Modal.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnDangerMuted, crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmPanel } from '@/support/crmUi.js';
+import { crmBtnDangerMuted, crmBtnPrimary, crmBtnSecondary, crmFieldFluid, crmGridSearchField, crmPanel } from '@/support/crmUi.js';
 import {
     blockInTrailer,
     blocksOverlap3D,
