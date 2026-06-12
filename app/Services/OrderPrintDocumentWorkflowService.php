@@ -7,8 +7,10 @@ use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
 use App\Services\Pdf\PdfDocumentCertificationService;
+use App\Services\Pdf\PdfVerificationQrStampService;
 use App\Support\OrderDocumentWorkflowStatus;
 use App\Support\OrderPrintFormContext;
+use App\Support\PrintFormVerificationCode;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -19,10 +21,14 @@ class OrderPrintDocumentWorkflowService
         private readonly OrderPrintFormDraftService $draftService,
         private readonly DocumentStorageService $documentStorage,
         private readonly DocxPdfPreviewService $docxPdfPreviewService,
+        private readonly PdfVerificationQrStampService $pdfVerificationQrStamp,
     ) {}
 
     /**
      * Создаёт запись документа и сохраняет сгенерированный DOCX на диске.
+     *
+     * Порядок: сначала создаём запись OrderDocument (чтобы получить ID и код проверки),
+     * затем генерируем DOCX с QR-кодом в контексте, обновляем запись готовым файлом.
      */
     public function createFromTemplate(
         Order $order,
@@ -31,21 +37,11 @@ class OrderPrintDocumentWorkflowService
         ?OrderPrintFormContext $context = null,
     ): OrderDocument {
         $order = $this->draftService->loadOrderContext($order);
-        $generated = $this->draftService->generate($template, $order, false, $context);
 
-        $permanentPath = $this->documentStorage->resolveOrderDocumentPath(
-            $order->id,
-            $generated['download_name'],
-        );
-        $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
-        $this->documentStorage->put($permanentPath, $docxContents);
-        Storage::disk($generated['disk'])->delete($generated['path']);
-
-        $attributes = [
+        // Создаём временную запись OrderDocument, чтобы получить ID и код проверки.
+        $document = OrderDocument::query()->create([
             'order_id' => $order->id,
             'type' => $template->document_type,
-            'original_name' => $generated['download_name'],
-            'file_path' => $permanentPath,
             'template_id' => $template->id,
             'uploaded_by' => $user->id,
             'document_group' => $template->document_group,
@@ -54,10 +50,7 @@ class OrderPrintDocumentWorkflowService
             'status' => 'draft',
             'signature_status' => 'not_requested',
             'requires_counterparty_signature' => (bool) $template->requires_counterparty_signature,
-            'file_size' => $this->documentStorage->size(
-                $permanentPath,
-                knownContents: $docxContents
-            ),
+            'file_size' => 0,
             'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'metadata' => array_filter([
                 'flow' => 'print_template_workflow',
@@ -72,12 +65,59 @@ class OrderPrintDocumentWorkflowService
                 'carrier_slot' => $context?->carrierSlot,
                 'route_legs_as_table_rows' => $context?->routeLegsAsTableRows ?? false,
             ], fn (mixed $value): bool => $value !== null && $value !== false && $value !== ''),
-        ];
+        ]);
 
-        /** @var OrderDocument $document */
-        $document = OrderDocument::query()->create($attributes);
+        $verificationCode = PrintFormVerificationCode::forOrderDocument($document);
+        $contextWithCode = $this->printContextWithVerificationCode($context, $verificationCode);
 
-        return $document;
+        $generated = $this->draftService->generate($template, $order, false, $contextWithCode);
+
+        $permanentPath = $this->documentStorage->resolveOrderDocumentPath(
+            $order->id,
+            $generated['download_name'],
+        );
+        $docxContents = Storage::disk($generated['disk'])->get($generated['path']);
+        $this->documentStorage->put($permanentPath, $docxContents);
+        Storage::disk($generated['disk'])->delete($generated['path']);
+
+        $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $metadata['pdf_verification_code'] = $verificationCode;
+        $metadata['pdf_verification_qr'] = true;
+        $metadata['pdf_verification_qr_in_docx'] = true;
+
+        $document->update([
+            'original_name' => $generated['download_name'],
+            'file_path' => $permanentPath,
+            'file_size' => $this->documentStorage->size(
+                $permanentPath,
+                knownContents: $docxContents
+            ),
+            'metadata' => $metadata,
+        ]);
+
+        return $document->refresh();
+    }
+
+    /**
+     * Создаёт новый контекст с кодом проверки, если исходный контекст есть;
+     * иначе создаёт минимальный контекст только с кодом.
+     */
+    private function printContextWithVerificationCode(
+        ?OrderPrintFormContext $context,
+        string $verificationCode,
+    ): ?OrderPrintFormContext {
+        if ($context === null) {
+            return new OrderPrintFormContext(documentVerificationCode: $verificationCode);
+        }
+
+        return new OrderPrintFormContext(
+            legStage: $context->legStage,
+            carrierContractorId: $context->carrierContractorId,
+            routeLegsAsTableRows: $context->routeLegsAsTableRows,
+            printParty: $context->printParty,
+            carrierSlot: $context->carrierSlot,
+            documentVerificationCode: $verificationCode,
+        );
     }
 
     public function requestApproval(OrderDocument $document, User $user): void
@@ -412,6 +452,7 @@ class OrderPrintDocumentWorkflowService
         }
 
         $metadata = is_array($document->metadata) ? $document->metadata : [];
+        $pdfContents = $this->stampVerificationQr($pdfContents, $document, $metadata);
         $pdfContents = $this->maybeCertifyApprovedPdf($pdfContents, $metadata);
 
         $orderId = (int) $document->order_id;
@@ -428,6 +469,40 @@ class OrderPrintDocumentWorkflowService
             'generated_pdf_path' => $pdfPath,
             'metadata' => $metadata,
         ]);
+    }
+
+    /**
+     * Наносит QR-штамп на PDF, если он ещё не был вставлен в DOCX через плейсхолдер.
+     * Если QR уже есть в DOCX (признак pdf_verification_qr_in_docx), PDF-штамп не накладывается,
+     * но URL для проверки сохраняется в metadata.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    private function stampVerificationQr(string $pdfContents, OrderDocument $document, array &$metadata): string
+    {
+        if (! empty($metadata['pdf_verification_qr_in_docx'])) {
+            $code = (string) ($metadata['pdf_verification_code'] ?? '');
+            if ($code !== '') {
+                $metadata['pdf_verification_url'] = route('print-verification.order-documents.show', [
+                    'orderDocument' => $document->id,
+                    'code' => $code,
+                ]);
+            }
+
+            return $pdfContents;
+        }
+
+        $stamped = $this->pdfVerificationQrStamp->stamp($pdfContents, $document);
+        if ($stamped === null) {
+            return $pdfContents;
+        }
+
+        $metadata['pdf_verification_qr'] = true;
+        $metadata['pdf_verification_url'] = $stamped['url'];
+        $metadata['pdf_verification_code'] = $stamped['code'];
+        $metadata['pdf_verification_stamped_sha256'] = $stamped['stamped_sha256'];
+
+        return $stamped['pdf'];
     }
 
     /**
@@ -557,6 +632,11 @@ class OrderPrintDocumentWorkflowService
         return 'internal';
     }
 
+    /**
+     * Восстанавливает контекст печатной формы из metadata документа.
+     * Включает documentVerificationCode, чтобы при регенерации / materialize
+     * QR-код подставлялся в DOCX и не дублировался на PDF.
+     */
     private function printContextFromDocumentMetadata(OrderDocument $document): ?OrderPrintFormContext
     {
         $metadata = is_array($document->metadata) ? $document->metadata : [];
@@ -570,8 +650,11 @@ class OrderPrintDocumentWorkflowService
             ? (int) $metadata['carrier_slot']
             : null;
         $routeLegsAsTableRows = (bool) ($metadata['route_legs_as_table_rows'] ?? false);
+        $verificationCode = isset($metadata['pdf_verification_code']) && is_string($metadata['pdf_verification_code'])
+            ? trim($metadata['pdf_verification_code'])
+            : null;
 
-        if (($legStage === null || $legStage === '') && $carrierId === null && ! $routeLegsAsTableRows) {
+        if (($legStage === null || $legStage === '') && $carrierId === null && ! $routeLegsAsTableRows && ($verificationCode === null || $verificationCode === '')) {
             return null;
         }
 
@@ -580,6 +663,7 @@ class OrderPrintDocumentWorkflowService
             carrierContractorId: $carrierId,
             routeLegsAsTableRows: $routeLegsAsTableRows,
             carrierSlot: $carrierSlot,
+            documentVerificationCode: ($verificationCode !== null && $verificationCode !== '') ? $verificationCode : null,
         );
     }
 }

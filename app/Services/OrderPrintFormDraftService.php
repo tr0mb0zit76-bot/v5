@@ -34,13 +34,17 @@ use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\TemplateProcessor;
+use TCPDF2DBarcode;
 
 class OrderPrintFormDraftService
 {
+    private const QR_IMAGE_PLACEHOLDER = 'document_verification_qr';
+
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
         private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
@@ -123,6 +127,10 @@ class OrderPrintFormDraftService
                 continue;
             }
 
+            if ($placeholder === self::QR_IMAGE_PLACEHOLDER) {
+                continue;
+            }
+
             $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
             $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
@@ -151,6 +159,10 @@ class OrderPrintFormDraftService
                     continue;
                 }
 
+                if ($placeholder === self::QR_IMAGE_PLACEHOLDER) {
+                    continue;
+                }
+
                 $mappedPath = $this->resolveMappedPath($placeholder, $mapping, $template);
                 $replacement = $this->stringifyValue(data_get($snapshot, $mappedPath));
 
@@ -159,6 +171,8 @@ class OrderPrintFormDraftService
                 }
             }
         }
+
+        $qrTempFiles = $this->injectVerificationQrImage($processor, $placeholders, $context);
 
         $overlayStyles = [];
         $overlayTempFiles = [];
@@ -186,6 +200,12 @@ class OrderPrintFormDraftService
         $processor->saveAs($absoluteTarget);
 
         foreach ($overlayTempFiles as $tmpPath) {
+            if (is_string($tmpPath) && $tmpPath !== '' && is_file($tmpPath)) {
+                @unlink($tmpPath);
+            }
+        }
+
+        foreach ($qrTempFiles as $tmpPath) {
             if (is_string($tmpPath) && $tmpPath !== '' && is_file($tmpPath)) {
                 @unlink($tmpPath);
             }
@@ -306,7 +326,6 @@ class OrderPrintFormDraftService
             'cargo_sender' => [
                 'name' => $this->resolvePrimaryPartyValue($loadingPoints, 'sender_name'),
                 'address' => $this->resolvePrimaryAddressValue($loadingPoints),
-                // Backward compatibility: legacy mappings can still point to contact / phone.
                 'contact' => $this->resolvePrimaryPartyContactPhone($loadingPoints, 'sender_contact', 'sender_phone'),
                 'phone' => $this->resolvePrimaryPartyContactPhone($loadingPoints, 'sender_contact', 'sender_phone'),
                 'contact_phone' => $this->resolvePrimaryPartyContactPhone($loadingPoints, 'sender_contact', 'sender_phone'),
@@ -317,7 +336,6 @@ class OrderPrintFormDraftService
             'cargo_recipient' => [
                 'name' => $this->resolvePrimaryPartyValue($unloadingPoints, 'recipient_name'),
                 'address' => $this->resolvePrimaryAddressValue($unloadingPoints),
-                // Backward compatibility: legacy mappings can still point to contact / phone.
                 'contact' => $this->resolvePrimaryPartyContactPhone($unloadingPoints, 'recipient_contact', 'recipient_phone'),
                 'phone' => $this->resolvePrimaryPartyContactPhone($unloadingPoints, 'recipient_contact', 'recipient_phone'),
                 'contact_phone' => $this->resolvePrimaryPartyContactPhone($unloadingPoints, 'recipient_contact', 'recipient_phone'),
@@ -380,8 +398,70 @@ class OrderPrintFormDraftService
                 'hs_codes' => $this->resolveCargoHsCodesSummary($cargoItems),
                 'first_hs_code' => $this->resolveCargoFirstHsCode($cargoItems),
             ], $this->cargoPerLinePlaceholderMap($cargoItems, $order, $context)),
+            'document_verification_code' => $context?->documentVerificationCode ?? '',
             'financial' => $this->financialNormsPenaltiesSnapshot($order, $context),
         ];
+    }
+
+    /**
+     * Если в шаблоне есть плейсхолдер document_verification_qr и код проверки не пуст —
+     * генерирует PNG QR-кода и вставляет через setImageValue.
+     *
+     * @param  Collection<int, string>  $placeholders
+     * @return list<string> временные файлы для очистки после saveAs
+     */
+    private function injectVerificationQrImage(
+        TemplateProcessor $processor,
+        Collection $placeholders,
+        ?OrderPrintFormContext $context,
+    ): array {
+        $code = $context?->documentVerificationCode;
+        if ($code === null || $code === '') {
+            return [];
+        }
+
+        if (! $placeholders->contains(self::QR_IMAGE_PLACEHOLDER)) {
+            return [];
+        }
+
+        $url = route('print-verification.order-documents.show', [
+            'orderDocument' => 0,
+            'code' => $code,
+        ]);
+
+        try {
+            $qr = new TCPDF2DBarcode($url, 'QRCODE,H');
+            $qrPng = $qr->getBarcodePngData(6, 6, [0, 0, 0]);
+            if (! is_string($qrPng) || $qrPng === '') {
+                return [];
+            }
+
+            $tmpFile = tempnam(sys_get_temp_dir(), 'crm-docx-qr-');
+            if ($tmpFile === false) {
+                return [];
+            }
+
+            @unlink($tmpFile);
+            $tmpPath = $tmpFile.'.png';
+            if (file_put_contents($tmpPath, $qrPng) === false) {
+                return [];
+            }
+
+            PhpWordTemplateOverlayImageInjector::injectImageForAllMacroStyles($processor, self::QR_IMAGE_PLACEHOLDER, [
+                'path' => $tmpPath,
+                'width' => 150,
+                'height' => 150,
+                'ratio' => true,
+            ]);
+
+            return [$tmpPath];
+        } catch (\Throwable $e) {
+            Log::warning('docx.verification_qr_inject_failed', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 
     /**
@@ -774,10 +854,6 @@ class OrderPrintFormDraftService
         return $order->carrier;
     }
 
-    /**
-     * @param  Collection<int, mixed>  $routePoints
-     * @return Collection<int, mixed>
-     */
     private function resolvePerformerSpecialConditions(Order $order, ?OrderPrintFormContext $context, string $field): ?string
     {
         $performers = is_array($order->performers) ? $order->performers : [];
@@ -1056,6 +1132,7 @@ class OrderPrintFormDraftService
             routeLegsAsTableRows: $context->routeLegsAsTableRows,
             printParty: $context->printParty,
             carrierSlot: $carrierSlot,
+            documentVerificationCode: $context->documentVerificationCode,
         );
     }
 
@@ -1315,9 +1392,6 @@ class OrderPrintFormDraftService
         return null;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     /**
      * @return array{name: string|null, full_name: string|null, email: string|null, phone: string|null}
      */

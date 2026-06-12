@@ -331,6 +331,8 @@ class PrintFormVariableCatalog
             ['value' => 'offer.offer_date', 'label' => 'КП: Дата'],
             ['value' => 'offer.price', 'label' => 'КП: Цена'],
             ['value' => 'offer.currency', 'label' => 'КП: Валюта'],
+            ['value' => 'document_verification_code', 'label' => 'QR: Код проверки целостности (текст)'],
+            ['value' => 'document_verification_qr', 'label' => 'QR: Изображение QR-кода проверки целостности'],
         ]);
     }
 

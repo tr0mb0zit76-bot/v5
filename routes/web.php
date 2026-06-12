@@ -40,6 +40,7 @@ use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\Portal\OrderCarrierPortalController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicOrderDocumentVerificationController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\PublicSlaDocumentController;
 use App\Http\Controllers\ReportsController;
@@ -185,6 +186,10 @@ Route::middleware('throttle:60,1')->prefix('portal')->name('portal.')->group(fun
     Route::post('/carrier/{token}/documents', [OrderCarrierPortalController::class, 'storeDocument'])->name('carrier.documents.store');
     Route::post('/carrier/{token}/fleet-documents', [OrderCarrierPortalController::class, 'storeFleetDocument'])->name('carrier.fleet-documents.store');
 });
+
+Route::middleware('throttle:60,1')
+    ->get('/verify/order-documents/{orderDocument}', [PublicOrderDocumentVerificationController::class, 'show'])
+    ->name('print-verification.order-documents.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/agent/command-bar/chat', [CommandBarAgentController::class, 'chat'])
