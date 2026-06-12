@@ -1169,6 +1169,7 @@ const dynamicColumnDefs = computed(() => {
       applyAgSetListColumn(columnDefinition, {
         values: collectOrderSetFilterValues(column.field),
         filterValueGetter: (params) => orderSetFilterLabel(column.field, params.data),
+        floatingFilterRow: true,
       });
     }
 

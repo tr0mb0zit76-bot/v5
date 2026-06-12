@@ -7,9 +7,25 @@
             @click.self="$emit('close')"
         >
             <div
-                class="mx-auto mt-auto flex h-[min(56vh,520px)] w-full max-w-3xl flex-col rounded-t-3xl border border-b-0 border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                class="mx-auto mt-auto flex flex-col rounded-t-3xl border border-b-0 border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+                :style="panelStyle"
                 @click.stop
             >
+                <div class="relative shrink-0 select-none">
+                    <div class="flex justify-center py-2">
+                        <div class="h-1 w-12 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                    </div>
+                    <button
+                        type="button"
+                        class="absolute right-2 top-1.5 flex h-7 w-7 cursor-nesw-resize items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                        title="Потяните для изменения размера (до ¾ ширины и ½ высоты экрана). Двойной щелчок — сброс."
+                        aria-label="Изменить размер окна"
+                        @mousedown.stop.prevent="startResize"
+                        @dblclick.stop.prevent="resetPanelSize"
+                    >
+                        <Scaling class="h-4 w-4" />
+                    </button>
+                </div>
                 <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                     <div class="flex items-center gap-2">
                         <Sparkles class="h-4 w-4 text-sky-600 dark:text-sky-400" />
@@ -108,9 +124,13 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
-import { Sparkles, X } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Scaling, Sparkles, X } from 'lucide-vue-next';
 import { renderAgentMarkdown } from '@/support/renderAgentMarkdown.js';
+
+const PANEL_SIZE_STORAGE_KEY = 'crm_agent_panel_size_v1';
+const PANEL_MIN_WIDTH = 320;
+const PANEL_MIN_HEIGHT = 240;
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -125,6 +145,136 @@ const props = defineProps({
 defineEmits(['close', 'feedback']);
 
 const threadRef = ref(null);
+const panelWidth = ref(defaultPanelWidth());
+const panelHeight = ref(defaultPanelHeight());
+
+const panelStyle = computed(() => ({
+    width: `${panelWidth.value}px`,
+    height: `${panelHeight.value}px`,
+    maxWidth: '75vw',
+    maxHeight: '50vh',
+}));
+
+let resizeListeners = null;
+
+function maxPanelWidth() {
+    return Math.floor(window.innerWidth * 0.75);
+}
+
+function maxPanelHeight() {
+    return Math.floor(window.innerHeight * 0.5);
+}
+
+function defaultPanelWidth() {
+    return Math.min(768, maxPanelWidth());
+}
+
+function defaultPanelHeight() {
+    return Math.min(520, Math.floor(window.innerHeight * 0.56), maxPanelHeight());
+}
+
+function clampPanelSize() {
+    panelWidth.value = Math.max(PANEL_MIN_WIDTH, Math.min(maxPanelWidth(), panelWidth.value));
+    panelHeight.value = Math.max(PANEL_MIN_HEIGHT, Math.min(maxPanelHeight(), panelHeight.value));
+}
+
+function persistPanelSize() {
+    try {
+        localStorage.setItem(
+            PANEL_SIZE_STORAGE_KEY,
+            JSON.stringify({ width: panelWidth.value, height: panelHeight.value }),
+        );
+    } catch {
+        // ignore quota / private mode
+    }
+}
+
+function loadPanelSize() {
+    try {
+        const raw = localStorage.getItem(PANEL_SIZE_STORAGE_KEY);
+        if (! raw) {
+            return;
+        }
+
+        const parsed = JSON.parse(raw);
+        if (typeof parsed?.width === 'number' && typeof parsed?.height === 'number') {
+            panelWidth.value = parsed.width;
+            panelHeight.value = parsed.height;
+            clampPanelSize();
+        }
+    } catch {
+        // ignore invalid storage
+    }
+}
+
+function resetPanelSize() {
+    panelWidth.value = defaultPanelWidth();
+    panelHeight.value = defaultPanelHeight();
+    persistPanelSize();
+}
+
+function stopResize() {
+    if (! resizeListeners) {
+        return;
+    }
+
+    document.removeEventListener('mousemove', resizeListeners.onMove);
+    document.removeEventListener('mouseup', resizeListeners.onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    resizeListeners = null;
+}
+
+function startResize(event) {
+    if (event.button !== 0) {
+        return;
+    }
+
+    stopResize();
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = panelWidth.value;
+    const startHeight = panelHeight.value;
+
+    const onMove = (moveEvent) => {
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = startY - moveEvent.clientY;
+        panelWidth.value = Math.max(
+            PANEL_MIN_WIDTH,
+            Math.min(maxPanelWidth(), startWidth + deltaX * 2),
+        );
+        panelHeight.value = Math.max(
+            PANEL_MIN_HEIGHT,
+            Math.min(maxPanelHeight(), startHeight + deltaY),
+        );
+    };
+
+    const onUp = () => {
+        stopResize();
+        persistPanelSize();
+    };
+
+    resizeListeners = { onMove, onUp };
+    document.body.style.cursor = 'nesw-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+}
+
+function onWindowResize() {
+    clampPanelSize();
+}
+
+onMounted(() => {
+    loadPanelSize();
+    window.addEventListener('resize', onWindowResize);
+});
+
+onBeforeUnmount(() => {
+    stopResize();
+    window.removeEventListener('resize', onWindowResize);
+});
 
 function renderMarkdown(content) {
     return renderAgentMarkdown(content);

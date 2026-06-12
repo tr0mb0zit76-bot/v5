@@ -503,6 +503,46 @@ class OrderIndexTest extends TestCase
         $this->assertSoftDeleted('orders', ['id' => $orderId]);
     }
 
+    public function test_deleting_order_removes_payment_schedule_financial_records(): void
+    {
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasTable('payment_schedule_payment_events')) {
+            $this->markTestSkipped('Payment schedule tables are not available in this test database.');
+        }
+
+        $managerRoleId = $this->createRole('manager', ['orders' => 'own']);
+        $manager = User::factory()->create();
+
+        DB::table('users')->where('id', $manager->id)->update(['role_id' => $managerRoleId]);
+        $manager->role_id = $managerRoleId;
+
+        $orderId = $this->createOrder('DELETE-PAYMENTS', $manager->id);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'prepayment',
+            'amount' => 1000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedule_payment_events')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'amount' => 500,
+            'payment_date' => '2026-06-01',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($manager)->delete(route('orders.destroy', $orderId));
+
+        $response->assertRedirect(route('orders.index'));
+        $this->assertSoftDeleted('orders', ['id' => $orderId]);
+        $this->assertDatabaseMissing('payment_schedules', ['order_id' => $orderId]);
+        $this->assertDatabaseMissing('payment_schedule_payment_events', ['order_id' => $orderId]);
+    }
+
     public function test_manager_can_inline_update_own_order_fields(): void
     {
         $managerRoleId = $this->createRole('manager', ['orders' => 'own']);

@@ -15,13 +15,24 @@ export function defaultCashFlowStats() {
 }
 
 export function cashFlowRowEffectiveAmount(row) {
+    const amount = Number(row?.amount ?? 0);
     const remaining = row?.remaining_amount;
 
-    if (remaining !== null && remaining !== undefined && remaining !== '') {
-        return Number(remaining);
+    if (remaining === null || remaining === undefined || remaining === '') {
+        return amount;
     }
 
-    return Number(row?.amount ?? 0);
+    const remainingNumber = Number(remaining);
+
+    if (!Number.isFinite(remainingNumber) || remainingNumber <= 0) {
+        if (row?.status === 'paid' || row?.status === 'cancelled') {
+            return 0;
+        }
+
+        return amount;
+    }
+
+    return remainingNumber;
 }
 
 export function cashFlowTodayIso(referenceDate = new Date()) {

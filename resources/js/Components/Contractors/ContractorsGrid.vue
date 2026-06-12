@@ -489,6 +489,7 @@ const dynamicColumnDefs = computed(() => {
       applyAgSetListColumn(columnDefinition, {
         values: collectContractorSetFilterValues(column.field),
         filterValueGetter: (params) => contractorSetFilterLabel(column.field, params.data),
+        floatingFilterRow: true,
       });
     } else if (column.type === 'numeric' && column.field !== 'id') {
       columnDefinition.filter = 'agNumberColumnFilter';

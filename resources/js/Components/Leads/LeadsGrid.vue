@@ -551,6 +551,7 @@ const dynamicColumnDefs = computed(() => {
       applyAgSetListColumn(columnDefinition, {
         values: collectLeadSetFilterValues(column.field),
         filterValueGetter: (params) => leadSetFilterLabel(column.field, params.data),
+        floatingFilterRow: true,
       });
     } else if (column.type === 'numeric' && column.field !== 'id') {
       columnDefinition.filter = 'agNumberColumnFilter';

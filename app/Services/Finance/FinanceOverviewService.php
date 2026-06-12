@@ -74,7 +74,7 @@ class FinanceOverviewService
 
         if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
             $select[] = DB::raw(
-                'CASE WHEN payment_schedules.remaining_amount IS NULL THEN payment_schedules.amount ELSE payment_schedules.remaining_amount END as remaining_amount'
+                $this->paymentScheduleOutstandingAmountSql().' as remaining_amount'
             );
         } else {
             $select[] = DB::raw('payment_schedules.amount as remaining_amount');
@@ -308,11 +308,19 @@ class FinanceOverviewService
      */
     private function paymentScheduleEffectiveAmountSql(): string
     {
-        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
-            return 'CASE WHEN payment_schedules.remaining_amount IS NULL THEN payment_schedules.amount ELSE payment_schedules.remaining_amount END';
+        return $this->paymentScheduleOutstandingAmountSql();
+    }
+
+    private function paymentScheduleOutstandingAmountSql(): string
+    {
+        if (! Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+            return 'payment_schedules.amount';
         }
 
-        return 'payment_schedules.amount';
+        return "CASE WHEN payment_schedules.remaining_amount IS NULL
+            OR (payment_schedules.remaining_amount <= 0 AND payment_schedules.status IN ('pending', 'overdue'))
+            THEN payment_schedules.amount
+            ELSE payment_schedules.remaining_amount END";
     }
 
     /**

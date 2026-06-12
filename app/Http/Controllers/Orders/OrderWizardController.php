@@ -215,6 +215,18 @@ class OrderWizardController extends Controller
                 $order->documents()->delete();
             }
 
+            if (Schema::hasTable('payment_schedule_payment_events')) {
+                DB::table('payment_schedule_payment_events')
+                    ->where('order_id', $order->id)
+                    ->delete();
+            }
+
+            if (Schema::hasTable('payment_schedules')) {
+                DB::table('payment_schedules')
+                    ->where('order_id', $order->id)
+                    ->delete();
+            }
+
             if (Schema::hasTable('financial_terms')) {
                 $order->financialTerms()->delete();
             }
