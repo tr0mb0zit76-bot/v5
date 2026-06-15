@@ -49,6 +49,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
             $table->string('order_number')->nullable();
             $table->unsignedBigInteger('customer_id')->nullable();
             $table->unsignedBigInteger('carrier_id')->nullable();
+            $table->json('performers')->nullable();
             $table->decimal('salary_accrued', 12, 2)->default(0);
             $table->timestamps();
         });
@@ -378,6 +379,75 @@ class ManagementAccountingMatchingServiceTest extends TestCase
 
         $this->assertSame($orderByNumber->id, $suggestion['suggested_order_id']);
         $this->assertSame($scheduleByNumber->id, $suggestion['suggested_payment_schedule_id']);
+    }
+
+    public function test_matches_carrier_from_order_performer_when_carrier_id_is_empty(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО ТК Тандем',
+            'full_name' => 'Общество с ограниченной ответственностью Транспортная компания Тандем',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2506-0301',
+            'carrier_id' => null,
+            'performers' => [
+                ['contractor_id' => $carrier->id, 'name' => 'Тандем'],
+            ],
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'amount' => 78000,
+            'remaining_amount' => 78000,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-14',
+            'direction' => 'out',
+            'amount' => 78000,
+            'description' => 'Оплата по счету ТК Тандем перевозка',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+    }
+
+    public function test_search_operational_candidates_by_contractor_name(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО ТК Тандем',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2506-0302',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'amount' => 78000,
+            'remaining_amount' => 78000,
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-14',
+            'direction' => 'out',
+            'amount' => 78000,
+            'description' => 'Платеж без явного названия',
+        ]);
+
+        $candidates = $this->matchingService()->searchOperationalCandidates($line, 'тандем');
+
+        $this->assertCount(1, $candidates);
+        $this->assertSame('search', $candidates[0]['match_reason']);
     }
 
     private function matchingService(): ManagementAccountingMatchingService

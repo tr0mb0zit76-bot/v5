@@ -15,6 +15,7 @@ class ManagementAccountingAnalyticsService
     public function __construct(
         private readonly ManagementAccountingPivotBuilder $pivotBuilder,
         private readonly ManagementAccountingOperationalActualsMerger $operationalActualsMerger,
+        private readonly ManagementAccountingTotalsSplitter $totalsSplitter,
     ) {}
 
     public const PERIOD_MONTH = 'month';
@@ -33,11 +34,18 @@ class ManagementAccountingAnalyticsService
      *     totals: array{
      *         actual_in: float,
      *         actual_out: float,
+     *         actual_out_cost: float,
+     *         actual_out_budget: float,
+     *         actual_out_other: float,
      *         net: float,
      *         plan_in: float,
      *         plan_out: float,
      *         plan_net: float,
      *         variance_net: float,
+     *         budget_variance: float,
+     *         budget_execution_percent: float|null,
+     *         gross_margin: float,
+     *         gross_margin_percent: float|null,
      *         business_margin_percent: float|null
      *     },
      *     rows: list<array{
@@ -68,7 +76,7 @@ class ManagementAccountingAnalyticsService
         $categories = ManagementExpenseCategory::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
-            ->get(['id', 'parent_id', 'code', 'name', 'kind', 'flow']);
+            ->get(['id', 'parent_id', 'code', 'name', 'kind', 'flow', 'include_in_budget']);
 
         $aggregates = $this->aggregateActuals($bounds['start'], $bounds['end']);
         $planOut = $this->resolvePlannedOutflow($bounds['start'], $bounds['end']);
@@ -76,6 +84,14 @@ class ManagementAccountingAnalyticsService
         $actualIn = (float) ($aggregates['totals']['in'] ?? 0);
         $actualOut = (float) ($aggregates['totals']['out'] ?? 0);
         $net = $actualIn - $actualOut;
+
+        $splitTotals = $this->totalsSplitter->split(
+            $categories,
+            $aggregates['by_category'],
+            $actualIn,
+            $actualOut,
+            $planOut,
+        );
 
         $planByCategory = $this->resolvePlannedByCategory($bounds['start'], $bounds['end']);
         $rows = $this->buildRows($categories, $aggregates['by_category'], $planByCategory);
@@ -91,11 +107,18 @@ class ManagementAccountingAnalyticsService
             'totals' => [
                 'actual_in' => $actualIn,
                 'actual_out' => $actualOut,
+                'actual_out_cost' => $splitTotals['actual_out_cost'],
+                'actual_out_budget' => $splitTotals['actual_out_budget'],
+                'actual_out_other' => $splitTotals['actual_out_other'],
                 'net' => $net,
                 'plan_in' => 0.0,
                 'plan_out' => $planOut,
                 'plan_net' => 0.0 - $planOut,
                 'variance_net' => $net - (0.0 - $planOut),
+                'budget_variance' => $splitTotals['budget_variance'],
+                'budget_execution_percent' => $splitTotals['budget_execution_percent'],
+                'gross_margin' => $splitTotals['gross_margin'],
+                'gross_margin_percent' => $splitTotals['gross_margin_percent'],
                 'business_margin_percent' => $actualIn > 0
                     ? round(($net / $actualIn) * 100, 1)
                     : null,
@@ -110,9 +133,9 @@ class ManagementAccountingAnalyticsService
                 ],
                 [
                     'key' => 'out',
-                    'label' => 'Расходы',
+                    'label' => 'Расходы (бюджет)',
                     'plan' => $planOut,
-                    'fact' => $actualOut,
+                    'fact' => $splitTotals['actual_out_budget'],
                 ],
                 [
                     'key' => 'net',

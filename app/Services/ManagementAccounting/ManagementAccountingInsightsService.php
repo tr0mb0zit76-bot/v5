@@ -87,7 +87,10 @@ final class ManagementAccountingInsightsService
                     ? round(($grossMargin / $revenue) * 100, 1)
                     : null,
                 'planned_expense' => (float) ($totals['plan_out'] ?? 0),
-                'expense_plan_variance' => round((float) ($totals['actual_out'] ?? 0) - (float) ($totals['plan_out'] ?? 0), 2),
+                'actual_out_budget' => (float) ($totals['actual_out_budget'] ?? 0),
+                'actual_out_cost' => (float) ($totals['actual_out_cost'] ?? 0),
+                'budget_variance' => (float) ($totals['budget_variance'] ?? 0),
+                'expense_plan_variance' => (float) ($totals['budget_variance'] ?? 0),
                 'net_vs_plan' => (float) ($totals['variance_net'] ?? 0),
                 'plan_available' => (bool) ($current['plan_available'] ?? false),
             ],

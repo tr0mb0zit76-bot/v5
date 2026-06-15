@@ -124,6 +124,8 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $this->assertSame(50000.0, $result['totals']['actual_in']);
         $this->assertSame(1500.0, $result['totals']['actual_out']);
         $this->assertSame(100000.0, $result['totals']['plan_out']);
+        $this->assertSame(1500.0, $result['totals']['actual_out_budget']);
+        $this->assertSame(0.0, $result['totals']['actual_out_cost']);
         $this->assertSame(97.0, $result['totals']['business_margin_percent']);
         $this->assertNotEmpty($result['rows']);
         $this->assertArrayHasKey('pivot', $result);

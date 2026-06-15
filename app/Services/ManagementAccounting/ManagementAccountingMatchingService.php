@@ -80,6 +80,32 @@ class ManagementAccountingMatchingService
             return $category;
         }
 
+        if ($amount > 0) {
+            $manualCandidates = $this->operationalCandidatesForLine($line);
+
+            if ($manualCandidates !== []) {
+                $singleCandidate = count($manualCandidates) === 1 ? $manualCandidates[0] : null;
+
+                return [
+                    'match_type' => 'operational',
+                    'match_confidence' => $singleCandidate !== null ? 55 : 45,
+                    'match_notes' => $singleCandidate !== null
+                        ? 'Возможное совпадение — подтвердите или выберите другую строку'
+                        : 'Автоматически не определено — выберите строку графика',
+                    'suggested_order_id' => $singleCandidate['order_id'] ?? null,
+                    'suggested_payment_schedule_id' => $singleCandidate['payment_schedule_id'] ?? null,
+                    'suggested_category_id' => $direction === 'in'
+                        ? $this->defaultCategoryId('operational_customer_in')
+                        : $this->suggestedCarrierCategoryId(
+                            isset($singleCandidate['order_id']) ? (int) $singleCandidate['order_id'] : null,
+                            null,
+                        ),
+                    'suggested_user_id' => null,
+                    'suggested_candidates' => $manualCandidates,
+                ];
+            }
+        }
+
         return [
             'match_type' => null,
             'match_confidence' => 0,
@@ -112,21 +138,124 @@ class ManagementAccountingMatchingService
         $description = mb_strtolower($line->description);
         $operationDate = $line->operation_date?->toDateString();
 
-        return $this->serializeOperationalCandidates(
-            $this->operationalCandidatesByContractorAndAmount(
+        $candidates = $this->operationalCandidatesByContractorAndAmount(
+            $description,
+            $line->direction,
+            (float) $line->amount,
+            $operationDate,
+        )->merge(
+            $this->operationalCandidatesByInvoiceNumber(
                 $description,
                 $line->direction,
                 (float) $line->amount,
                 $operationDate,
-            )->merge(
-                $this->operationalCandidatesByInvoiceNumber(
-                    $description,
+            ),
+        )->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)->values();
+
+        if ($candidates->isEmpty() && $line->direction === 'out') {
+            $candidates = $this->operationalCandidatesByAmountOnly(
+                $description,
+                (float) $line->amount,
+                $operationDate,
+            );
+        }
+
+        return $this->serializeOperationalCandidates($candidates);
+    }
+
+    /**
+     * @return list<array{
+     *     payment_schedule_id: int,
+     *     order_id: int,
+     *     order_number: ?string,
+     *     planned_date: ?string,
+     *     amount: float,
+     *     contractor_label: string,
+     *     party: ?string,
+     *     match_reason: ?string
+     * }>
+     */
+    public function searchOperationalCandidates(ManagementStatementLine $line, ?string $search = null): array
+    {
+        if ($line->status === 'allocated' || (float) $line->amount <= 0) {
+            return [];
+        }
+
+        $description = mb_strtolower($line->description);
+        $operationDate = $line->operation_date?->toDateString();
+        $search = mb_strtolower(trim((string) $search));
+
+        $candidates = $this->operationalCandidatesByContractorAndAmount(
+            $description,
+            $line->direction,
+            (float) $line->amount,
+            $operationDate,
+        )->merge(
+            $this->operationalCandidatesByInvoiceNumber(
+                $description,
+                $line->direction,
+                (float) $line->amount,
+                $operationDate,
+            ),
+        );
+
+        if ($search !== '') {
+            $candidates = $candidates->merge(
+                $this->operationalCandidatesBySearchQuery(
+                    $search,
                     $line->direction,
                     (float) $line->amount,
                     $operationDate,
                 ),
-            )->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)->values(),
-        );
+            );
+        } elseif ($line->direction === 'out') {
+            $candidates = $candidates->merge(
+                $this->operationalCandidatesByAmountOnly(
+                    $description,
+                    (float) $line->amount,
+                    $operationDate,
+                ),
+            );
+        }
+
+        $candidates = $candidates
+            ->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)
+            ->values();
+
+        return $this->serializeOperationalCandidates($candidates);
+    }
+
+    public function extractSearchHintFromDescription(string $description): ?string
+    {
+        $description = trim($description);
+
+        if ($description === '') {
+            return null;
+        }
+
+        if (preg_match('/(?:тк|ооо|оао|зао|пао|ип|ао|чп)\s+[«"]?[a-zа-яё0-9\-]+(?:\s+[a-zа-яё0-9\-]+){0,3}/ui', $description, $matches) === 1) {
+            return trim($matches[0]);
+        }
+
+        $normalized = mb_strtolower($description);
+        $stopWords = ['оплата', 'платеж', 'перевод', 'перевозка', 'счет', 'счёт', 'номер', 'без', 'ндс', 'руб', 'рублей'];
+        $parts = preg_split('/[\s,.;:()«»""\/\-]+/u', $normalized) ?: [];
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+
+            if (mb_strlen($part) < 5 || in_array($part, $stopWords, true)) {
+                continue;
+            }
+
+            if (preg_match('/^\d+$/', $part) === 1) {
+                continue;
+            }
+
+            return $part;
+        }
+
+        return null;
     }
 
     /**
@@ -293,6 +422,8 @@ class ManagementAccountingMatchingService
                     'amount' => $this->effectiveScheduleAmount($schedule),
                     'contractor_label' => $candidate['contractor_label'],
                     'party' => $schedule->party,
+                    'match_reason' => $candidate['match_reason'] ?? null,
+                    'match_reason_label' => $this->matchReasonLabel($candidate['match_reason'] ?? null),
                 ];
             })
             ->values()
@@ -311,23 +442,39 @@ class ManagementAccountingMatchingService
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
         return $this->openOperationalSchedulesQuery()
-            ->with(['order:id,order_number,customer_id,carrier_id', 'order.client:id,name,full_name', 'order.carrier:id,name,full_name', 'counterparty:id,name,full_name'])
+            ->with([
+                'order:id,order_number,customer_id,carrier_id,performers',
+                'order.client:id,name,full_name',
+                'order.carrier:id,name,full_name',
+                'counterparty:id,name,full_name',
+            ])
             ->whereIn('party', $parties)
             ->orderBy('id')
             ->get()
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
             ->map(function (PaymentSchedule $schedule) use ($description, $direction, $operationDate, $amount): ?array {
-                $contractor = $this->resolveScheduleContractor($schedule, $direction);
-                if ($contractor === null || ! $this->contractorLabelInDescription($description, $contractor)) {
+                $contractors = $this->contractorsForSchedule($schedule, $direction);
+                $matchedContractor = null;
+
+                foreach ($contractors as $contractor) {
+                    if ($this->contractorLabelInDescription($description, $contractor)) {
+                        $matchedContractor = $contractor;
+
+                        break;
+                    }
+                }
+
+                if ($matchedContractor === null) {
                     return null;
                 }
 
                 return [
                     'schedule' => $schedule,
-                    'contractor_label' => $this->contractorDisplayLabel($contractor),
+                    'contractor_label' => $this->contractorDisplayLabel($matchedContractor),
                     'order_number' => $schedule->order?->order_number,
                     'date_distance' => $this->plannedDateDistanceDays($schedule, $operationDate),
                     'amount_distance' => abs($this->effectiveScheduleAmount($schedule) - $amount),
+                    'match_reason' => 'contractor',
                 ];
             })
             ->filter()
@@ -336,6 +483,120 @@ class ManagementAccountingMatchingService
                 $candidate['date_distance'],
                 $candidate['schedule']->id,
             ])
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int, amount_distance: float, match_reason: string}>
+     */
+    private function operationalCandidatesByAmountOnly(
+        string $description,
+        float $amount,
+        ?string $operationDate,
+    ): Collection {
+        return $this->openOperationalSchedulesQuery()
+            ->with([
+                'order:id,order_number,customer_id,carrier_id,performers',
+                'order.client:id,name,full_name',
+                'order.carrier:id,name,full_name',
+                'counterparty:id,name,full_name',
+            ])
+            ->whereIn('party', ['carrier', 'contractor'])
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
+            ->map(function (PaymentSchedule $schedule) use ($description, $operationDate, $amount): array {
+                $contractors = $this->contractorsForSchedule($schedule, 'out');
+                $contractor = $contractors[0] ?? null;
+                $label = $contractor !== null ? $this->contractorDisplayLabel($contractor) : '—';
+
+                return [
+                    'schedule' => $schedule,
+                    'contractor_label' => $label,
+                    'order_number' => $schedule->order?->order_number,
+                    'date_distance' => $this->plannedDateDistanceDays($schedule, $operationDate),
+                    'amount_distance' => abs($this->effectiveScheduleAmount($schedule) - $amount),
+                    'match_reason' => $contractor !== null && $this->contractorLabelInDescription($description, $contractor)
+                        ? 'contractor'
+                        : 'amount_only',
+                ];
+            })
+            ->sortBy(fn (array $candidate): array => [
+                $candidate['match_reason'] === 'amount_only' ? 1 : 0,
+                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
+                $candidate['date_distance'],
+                $candidate['schedule']->id,
+            ])
+            ->take(20)
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, array{schedule: PaymentSchedule, contractor_label: string, order_number: ?string, date_distance: int, amount_distance: float, match_reason: string}>
+     */
+    private function operationalCandidatesBySearchQuery(
+        string $search,
+        string $direction,
+        float $amount,
+        ?string $operationDate,
+    ): Collection {
+        $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
+
+        return $this->openOperationalSchedulesQuery()
+            ->with([
+                'order:id,order_number,customer_id,carrier_id,performers',
+                'order.client:id,name,full_name',
+                'order.carrier:id,name,full_name',
+                'counterparty:id,name,full_name',
+            ])
+            ->whereIn('party', $parties)
+            ->orderBy('id')
+            ->get()
+            ->filter(function (PaymentSchedule $schedule) use ($search, $direction, $amount): bool {
+                if (! $this->amountMatchesSchedule($schedule, $amount)) {
+                    return false;
+                }
+
+                foreach ($this->contractorsForSchedule($schedule, $direction) as $contractor) {
+                    if ($this->contractorMatchesSearch($contractor, $search)) {
+                        return true;
+                    }
+                }
+
+                $orderNumber = mb_strtolower((string) ($schedule->order?->order_number ?? ''));
+
+                return $orderNumber !== '' && str_contains($orderNumber, $search);
+            })
+            ->map(function (PaymentSchedule $schedule) use ($direction, $operationDate, $amount, $search): array {
+                $matchedContractor = null;
+
+                foreach ($this->contractorsForSchedule($schedule, $direction) as $contractor) {
+                    if ($this->contractorMatchesSearch($contractor, $search)) {
+                        $matchedContractor = $contractor;
+
+                        break;
+                    }
+                }
+
+                $contractor = $matchedContractor ?? $this->resolveScheduleContractor($schedule, $direction);
+
+                return [
+                    'schedule' => $schedule,
+                    'contractor_label' => $contractor !== null
+                        ? $this->contractorDisplayLabel($contractor)
+                        : '—',
+                    'order_number' => $schedule->order?->order_number,
+                    'date_distance' => $this->plannedDateDistanceDays($schedule, $operationDate),
+                    'amount_distance' => abs($this->effectiveScheduleAmount($schedule) - $amount),
+                    'match_reason' => 'search',
+                ];
+            })
+            ->sortBy(fn (array $candidate): array => [
+                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
+                $candidate['date_distance'],
+                $candidate['schedule']->id,
+            ])
+            ->take(20)
             ->values();
     }
 
@@ -355,7 +616,12 @@ class ManagementAccountingMatchingService
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
         return $this->openOperationalSchedulesQuery()
-            ->with(['order:id,order_number,customer_id,carrier_id', 'order.client:id,name,full_name', 'order.carrier:id,name,full_name', 'counterparty:id,name,full_name'])
+            ->with([
+                'order:id,order_number,customer_id,carrier_id,performers',
+                'order.client:id,name,full_name',
+                'order.carrier:id,name,full_name',
+                'counterparty:id,name,full_name',
+            ])
             ->whereIn('party', $parties)
             ->whereNotNull('invoice_number')
             ->where('invoice_number', '!=', '')
@@ -374,6 +640,7 @@ class ManagementAccountingMatchingService
                     'order_number' => $schedule->order?->order_number,
                     'date_distance' => $this->plannedDateDistanceDays($schedule, $operationDate),
                     'amount_distance' => abs($this->effectiveScheduleAmount($schedule) - $amount),
+                    'match_reason' => 'invoice',
                 ];
             })
             ->sortBy(fn (array $candidate): array => [
@@ -534,6 +801,121 @@ class ManagementAccountingMatchingService
         return $schedule->order?->carrier;
     }
 
+    /**
+     * @return list<Contractor>
+     */
+    private function contractorsForSchedule(PaymentSchedule $schedule, string $direction): array
+    {
+        $contractors = [];
+        $seen = [];
+
+        $append = function (?Contractor $contractor) use (&$contractors, &$seen): void {
+            if ($contractor === null) {
+                return;
+            }
+
+            $id = (int) $contractor->id;
+
+            if (isset($seen[$id])) {
+                return;
+            }
+
+            $seen[$id] = true;
+            $contractors[] = $contractor;
+        };
+
+        if ($direction === 'in') {
+            $append($schedule->order?->client);
+
+            return $contractors;
+        }
+
+        $append($schedule->counterparty);
+        $append($schedule->order?->carrier);
+
+        $order = $schedule->order;
+
+        if ($order !== null && Schema::hasColumn('orders', 'performers')) {
+            foreach ($this->performerContractors($order) as $contractor) {
+                $append($contractor);
+            }
+        }
+
+        return $contractors;
+    }
+
+    /**
+     * @return list<Contractor>
+     */
+    private function performerContractors(Order $order): array
+    {
+        $ids = [];
+        $performers = is_array($order->performers) ? $order->performers : [];
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if (! empty($performer['contractor_id'])) {
+                $ids[] = (int) $performer['contractor_id'];
+            }
+
+            foreach ($performer['split_carriers'] ?? [] as $slot) {
+                if (is_array($slot) && ! empty($slot['contractor_id'])) {
+                    $ids[] = (int) $slot['contractor_id'];
+                }
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return Contractor::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'name', 'full_name'])
+            ->all();
+    }
+
+    private function contractorMatchesSearch(Contractor $contractor, string $search): bool
+    {
+        $search = mb_strtolower(trim($search));
+
+        if ($search === '') {
+            return false;
+        }
+
+        if ($this->contractorLabelInDescription($search, $contractor)) {
+            return true;
+        }
+
+        foreach ($this->contractorSearchTokens($contractor) as $token) {
+            if (mb_strlen($token) >= 4 && str_contains($search, $token)) {
+                return true;
+            }
+
+            if (mb_strlen($token) >= 4 && str_contains($token, $search)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function matchReasonLabel(?string $reason): ?string
+    {
+        return match ($reason) {
+            'contractor' => 'контрагент и сумма',
+            'invoice' => 'номер счёта',
+            'amount_only' => 'только сумма',
+            'search' => 'поиск по названию',
+            default => null,
+        };
+    }
+
     private function contractorDisplayLabel(Contractor $contractor): string
     {
         $name = trim((string) $contractor->name);
@@ -564,6 +946,10 @@ class ManagementAccountingMatchingService
 
         foreach ($this->contractorSearchTokens($contractor) as $token) {
             if (str_contains($description, $token)) {
+                return true;
+            }
+
+            if (mb_strlen($token) >= 4 && str_contains($description, 'тк '.$token)) {
                 return true;
             }
         }

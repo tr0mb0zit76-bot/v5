@@ -18,6 +18,7 @@ use App\Services\ManagementAccounting\ManagementAccountingMatchingService;
 use App\Services\ManagementAccounting\ManagementExpenseCategorySyncService;
 use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
 use App\Support\RoleAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -106,6 +107,10 @@ class ManagementAccountingImportController extends Controller
                 'operational_candidates' => $line->status === 'allocated'
                     ? []
                     : $this->matchingService->operationalCandidatesForLine($line),
+                'contractor_search_hint' => $this->matchingService->extractSearchHintFromDescription((string) $line->description),
+                'needs_manual_selection' => $line->status !== 'allocated'
+                    && $line->match_confidence < 70
+                    && $line->suggested_payment_schedule_id === null,
                 'allocation_summary' => $line->status === 'allocated' ? [
                     'match_type' => $line->match_type,
                     'amount' => (float) ($line->allocation_amount ?? $line->amount),
@@ -157,6 +162,23 @@ class ManagementAccountingImportController extends Controller
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->get(['id', 'code', 'name', 'kind']),
+        ]);
+    }
+
+    public function operationalCandidates(Request $request, ManagementStatementLine $line): JsonResponse
+    {
+        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
+
+        if ($line->import_id !== null) {
+            $import = ManagementStatementImport::query()->findOrFail($line->import_id);
+            abort_unless((int) $import->imported_by === (int) $request->user()?->id || $request->user()?->isAdmin(), 403);
+        }
+
+        return response()->json([
+            'candidates' => $this->matchingService->searchOperationalCandidates(
+                $line,
+                $request->string('search')->toString() ?: null,
+            ),
         ]);
     }
 

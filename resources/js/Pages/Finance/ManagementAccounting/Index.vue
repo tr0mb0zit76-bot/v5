@@ -78,10 +78,10 @@
                 Доходы минус себестоимость — валовая маржа; далее ФОТ, АУР и налоги из пула маржи.
             </p>
 
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <article :class="`${crmStatCard} min-w-0 p-4`">
                     <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
-                        Поступления (факт)
+                        Доход (факт)
                     </div>
                     <div class="mt-2 text-right text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
                         {{ formatMoney(analytics.totals.actual_in) }}
@@ -89,10 +89,26 @@
                 </article>
                 <article :class="`${crmStatCard} min-w-0 p-4`">
                     <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
-                        Расходы (факт)
+                        Расход (факт, себестоимость)
                     </div>
                     <div class="mt-2 text-right text-lg font-semibold tabular-nums text-rose-700 dark:text-rose-300">
-                        {{ formatMoney(analytics.totals.actual_out) }}
+                        {{ formatMoney(analytics.totals.actual_out_cost) }}
+                    </div>
+                </article>
+                <article :class="`${crmStatCard} min-w-0 p-4`">
+                    <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
+                        Расход (факт, бюджет)
+                    </div>
+                    <div class="mt-2 text-right text-lg font-semibold tabular-nums text-rose-700 dark:text-rose-300">
+                        {{ formatMoney(analytics.totals.actual_out_budget) }}
+                    </div>
+                    <div
+                        v-if="analytics.plan_available && analytics.totals.plan_out > 0"
+                        class="mt-1 text-right text-[10px] tabular-nums"
+                        :class="(analytics.totals.budget_variance ?? 0) <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300'"
+                    >
+                        план {{ formatMoney(analytics.totals.plan_out) }}
+                        · {{ formatSignedMoney(analytics.totals.budget_variance) }}
                     </div>
                 </article>
                 <article :class="`${crmStatCard} min-w-0 p-4`">
@@ -101,6 +117,12 @@
                     </div>
                     <div class="mt-2 text-right text-lg font-semibold tabular-nums text-sky-700 dark:text-sky-300">
                         {{ formatMoney(analytics.totals.plan_out) }}
+                    </div>
+                    <div
+                        v-if="analytics.plan_available && analytics.totals.budget_execution_percent !== null"
+                        class="mt-1 text-right text-[10px] text-zinc-500"
+                    >
+                        исполнение {{ formatBusinessMarginPercent(analytics.totals.budget_execution_percent) }}
                     </div>
                 </article>
                 <article :class="`${crmStatCard} min-w-0 p-4`">
@@ -116,16 +138,16 @@
                 </article>
                 <article :class="`${crmStatCard} min-w-0 p-4`">
                     <div class="text-xs font-medium uppercase leading-snug tracking-wide text-zinc-500">
-                        Маржинальность бизнеса
+                        Валовая маржа
                     </div>
                     <div
                         class="mt-2 text-right text-lg font-semibold tabular-nums"
-                        :class="(analytics.totals.business_margin_percent ?? 0) >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
+                        :class="(analytics.totals.gross_margin_percent ?? 0) >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
                     >
-                        {{ formatBusinessMarginPercent(analytics.totals.business_margin_percent) }}
+                        {{ formatBusinessMarginPercent(analytics.totals.gross_margin_percent) }}
                     </div>
                     <div class="mt-1 text-right text-[10px] text-zinc-500">
-                        чистый поток / поступления
+                        {{ formatMoney(analytics.totals.gross_margin) }} · доход − себестоимость
                     </div>
                 </article>
             </div>
@@ -224,6 +246,13 @@ function formatMoney(value) {
         currency: 'RUB',
         maximumFractionDigits: 0,
     }).format(Number(value) || 0);
+}
+
+function formatSignedMoney(value) {
+    const amount = Number(value) || 0;
+    const prefix = amount > 0 ? '+' : '';
+
+    return `${prefix}${formatMoney(amount)}`;
 }
 
 function formatBusinessMarginPercent(value) {
