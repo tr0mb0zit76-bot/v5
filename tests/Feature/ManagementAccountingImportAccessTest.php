@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ManagementBankAccount;
 use App\Models\ManagementStatementImport;
+use App\Models\ManagementStatementLine;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
@@ -150,5 +151,62 @@ class ManagementAccountingImportAccessTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Finance/ManagementAccounting/Reconcile')
                 ->where('filters.line_filter', 'allocated'));
+    }
+
+    public function test_user_with_reconcile_access_can_delete_import(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'accountant',
+            'display_name' => 'Accountant',
+            'visibility_areas' => ['finance_payment_reconcile'],
+        ]);
+
+        $user = User::query()->create([
+            'role_id' => $role->id,
+            'name' => 'Accountant',
+            'email' => 'accountant@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('password'),
+            'can_management_accounting' => true,
+        ]);
+
+        $bankAccount = ManagementBankAccount::query()->create([
+            'bank_name' => 'Сбер',
+            'account_number' => '40702810987654321098',
+            'account_mask' => '****1098',
+            'currency' => 'RUB',
+        ]);
+
+        $import = ManagementStatementImport::query()->create([
+            'bank_account_id' => $bankAccount->id,
+            'format' => 'bank_registry_v1',
+            'file_name' => 'duplicate.xlsx',
+            'period_from' => '2026-06-01',
+            'period_to' => '2026-06-30',
+            'imported_by' => $user->id,
+            'status' => 'draft',
+            'lines_count' => 1,
+            'lines_allocated' => 0,
+        ]);
+
+        ManagementStatementLine::query()->create([
+            'import_id' => $import->id,
+            'bank_account_id' => $bankAccount->id,
+            'line_hash' => hash('sha256', 'test-line'),
+            'operation_date' => '2026-06-15',
+            'direction' => 'out',
+            'amount' => 1000,
+            'currency' => 'RUB',
+            'description' => 'Test payment',
+            'status' => 'pending',
+            'source' => 'import',
+        ]);
+
+        $this->actingAs($user)
+            ->delete('/finance/management-accounting/imports/'.$import->id)
+            ->assertRedirect('/finance?section=cashflow&cashflow_tab=reconcile');
+
+        $this->assertDatabaseMissing('management_statement_imports', ['id' => $import->id]);
+        $this->assertDatabaseMissing('management_statement_lines', ['import_id' => $import->id]);
     }
 }

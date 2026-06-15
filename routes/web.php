@@ -575,6 +575,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('finance.management-accounting.imports.store');
     Route::get('/finance/management-accounting/imports/{import}', [ManagementAccountingImportController::class, 'show'])
         ->name('finance.management-accounting.imports.show');
+    Route::delete('/finance/management-accounting/imports/{import}', [ManagementAccountingImportController::class, 'destroy'])
+        ->name('finance.management-accounting.imports.destroy');
     Route::get('/finance/management-accounting/lines/{line}/operational-candidates', [ManagementAccountingImportController::class, 'operationalCandidates'])
         ->name('finance.management-accounting.lines.operational-candidates');
     Route::post('/finance/management-accounting/lines/{line}/allocate', [ManagementAccountingImportController::class, 'allocate'])

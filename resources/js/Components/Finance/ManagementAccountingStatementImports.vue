@@ -89,6 +89,13 @@
                                     >
                                         Открыть
                                     </Link>
+                                    <button
+                                        type="button"
+                                        class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                        @click="deleteImport(item)"
+                                    >
+                                        Удалить
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -103,7 +110,7 @@
 </template>
 
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import {
     crmBtnNeutral,
     crmBtnPrimary,
@@ -141,6 +148,20 @@ function submitImport() {
         .post('/finance/management-accounting/imports', {
             forceFormData: true,
         });
+}
+
+function deleteImport(item) {
+    const allocated = Number(item.lines_allocated) || 0;
+
+    const message = allocated > 0
+        ? `Удалить выписку «${item.file_name}»?\n\nБудут отменены все ${allocated} разнесений и удалены все операции. Это действие нельзя отменить.`
+        : `Удалить выписку «${item.file_name}» и все её операции? Это действие нельзя отменить.`;
+
+    if (!window.confirm(message)) {
+        return;
+    }
+
+    router.delete(`/finance/management-accounting/imports/${item.id}`);
 }
 
 function formatMoney(value) {

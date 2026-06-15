@@ -105,6 +105,9 @@ class ManagementAccountingAllocationService
                     (int) $line->id,
                     $actor,
                     $reason ?? 'Отмена разнесения выписки',
+                    $line->allocation_payment_schedule_id !== null
+                        ? (int) $line->allocation_payment_schedule_id
+                        : null,
                 );
             } elseif ($matchType === 'payroll' && $line->allocation_user_id !== null) {
                 $half = $this->payrollHalfService->ensureCurrentHalf(

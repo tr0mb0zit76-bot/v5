@@ -8,12 +8,23 @@
                 <ArrowLeft class="h-4 w-4" />
                 К разносу выписки
             </Link>
-            <h1 :class="crmPageTitle">Разнесение выписки</h1>
-            <p :class="crmPageLead">
-                {{ importData.file_name }} · {{ importData.bank_account?.bank_name }}
-                · {{ formatDate(importData.period_from) }} — {{ formatDate(importData.period_to) }}
-                · разнесено {{ importData.lines_allocated }} / {{ importData.lines_count }}
-            </p>
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0 space-y-1">
+                    <h1 :class="crmPageTitle">Разнесение выписки</h1>
+                    <p :class="crmPageLead">
+                        {{ importData.file_name }} · {{ importData.bank_account?.bank_name }}
+                        · {{ formatDate(importData.period_from) }} — {{ formatDate(importData.period_to) }}
+                        · разнесено {{ importData.lines_allocated }} / {{ importData.lines_count }}
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    class="rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                    @click="deleteImport"
+                >
+                    Удалить выписку
+                </button>
+            </div>
         </div>
 
         <div class="flex flex-wrap gap-2">
@@ -58,31 +69,36 @@
                 </div>
 
                 <div
-                    v-if="line.status === 'allocated' && line.allocation_summary"
+                    v-if="line.status === 'allocated'"
                     class="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-sm dark:border-emerald-900/40 dark:bg-emerald-950/20"
                 >
-                    <div class="font-medium text-zinc-800 dark:text-zinc-100">
-                        {{ allocationSummaryTitle(line.allocation_summary) }}
-                    </div>
-                    <div v-if="line.allocation_summary.order" class="text-zinc-600 dark:text-zinc-300">
-                        Заявка: <strong>{{ line.allocation_summary.order.order_number }}</strong>
-                        <span v-if="line.allocation_summary.payment_schedule">
-                            · график #{{ line.allocation_summary.payment_schedule.id }}
-                            · {{ formatMoney(line.allocation_summary.payment_schedule.amount) }}
-                        </span>
-                    </div>
-                    <div v-if="line.allocation_summary.category" class="text-zinc-600 dark:text-zinc-300">
-                        Статья: {{ line.allocation_summary.category.name }}
-                    </div>
-                    <div v-if="line.allocation_summary.user" class="text-zinc-600 dark:text-zinc-300">
-                        Сотрудник: {{ line.allocation_summary.user.name }}
-                    </div>
-                    <div v-if="line.allocation_summary.allocated_by_name" class="text-xs text-zinc-500 dark:text-zinc-400">
-                        {{ line.allocation_summary.allocated_by_name }}
-                        <span v-if="line.allocation_summary.allocated_at">
-                            · {{ formatDateTime(line.allocation_summary.allocated_at) }}
-                        </span>
-                    </div>
+                    <template v-if="line.allocation_summary">
+                        <div class="font-medium text-zinc-800 dark:text-zinc-100">
+                            {{ allocationSummaryTitle(line.allocation_summary) }}
+                        </div>
+                        <div v-if="line.allocation_summary.order" class="text-zinc-600 dark:text-zinc-300">
+                            Заявка: <strong>{{ line.allocation_summary.order.order_number }}</strong>
+                            <span v-if="line.allocation_summary.payment_schedule">
+                                · график #{{ line.allocation_summary.payment_schedule.id }}
+                                · {{ formatMoney(line.allocation_summary.payment_schedule.amount) }}
+                            </span>
+                        </div>
+                        <div v-if="line.allocation_summary.category" class="text-zinc-600 dark:text-zinc-300">
+                            Статья: {{ line.allocation_summary.category.name }}
+                        </div>
+                        <div v-if="line.allocation_summary.user" class="text-zinc-600 dark:text-zinc-300">
+                            Сотрудник: {{ line.allocation_summary.user.name }}
+                        </div>
+                        <div v-if="line.allocation_summary.allocated_by_name" class="text-xs text-zinc-500 dark:text-zinc-400">
+                            {{ line.allocation_summary.allocated_by_name }}
+                            <span v-if="line.allocation_summary.allocated_at">
+                                · {{ formatDateTime(line.allocation_summary.allocated_at) }}
+                            </span>
+                        </div>
+                    </template>
+                    <p v-else class="text-zinc-600 dark:text-zinc-300">
+                        Операция разнесена. Можно отменить разнесение и выбрать другой вариант.
+                    </p>
                     <div class="flex flex-wrap gap-2">
                         <button
                             type="button"
@@ -423,6 +439,20 @@ function deallocateLine(line) {
     router.post(`/finance/management-accounting/lines/${line.id}/deallocate`, {}, {
         preserveScroll: true,
     });
+}
+
+function deleteImport() {
+    const allocated = props.importData.lines_allocated ?? 0;
+
+    const message = allocated > 0
+        ? `Удалить выписку «${props.importData.file_name}» целиком?\n\nБудут отменены все ${allocated} разнесений и удалены все операции из файла. Это действие нельзя отменить.`
+        : `Удалить выписку «${props.importData.file_name}» и все её операции? Это действие нельзя отменить.`;
+
+    if (!window.confirm(message)) {
+        return;
+    }
+
+    router.delete(`/finance/management-accounting/imports/${props.importData.id}`);
 }
 
 function allocationSummaryTitle(summary) {

@@ -1097,7 +1097,12 @@ class RoleAccess
      */
     public static function canManageStatementImport(?User $user): bool
     {
-        return static::canAccessPaymentReconcile($user);
+        if ($user === null) {
+            return false;
+        }
+
+        return static::canAccessPaymentReconcile($user)
+            || static::canAccessSettingsSystem($user);
     }
 
     /**

@@ -226,6 +226,21 @@ class ManagementAccountingImportController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Ручная операция отменена.']);
     }
 
+    public function destroy(Request $request, ManagementStatementImport $import): RedirectResponse
+    {
+        abort_unless(RoleAccess::canManageStatementImport($request->user()), 403);
+
+        $this->importService->destroyImport($import, $request->user());
+
+        return to_route('finance.index', [
+            'section' => 'cashflow',
+            'cashflow_tab' => 'reconcile',
+        ])->with('flash', [
+            'type' => 'success',
+            'message' => 'Выписка и все её операции удалены.',
+        ]);
+    }
+
     public function storeManual(StoreManagementManualEntryRequest $request): RedirectResponse
     {
         $line = $this->allocationService->createManualLine($request->validated(), $request->user());

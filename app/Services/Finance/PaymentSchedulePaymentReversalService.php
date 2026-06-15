@@ -14,42 +14,118 @@ class PaymentSchedulePaymentReversalService
 {
     public function reverseEvent(PaymentSchedulePaymentEvent $event, User $actor, ?string $reason = null): PaymentSchedulePaymentEvent
     {
-        if ($event->reversed_at !== null) {
+        $hasReversalColumns = Schema::hasColumn('payment_schedule_payment_events', 'reversed_at');
+
+        if ($hasReversalColumns && $event->reversed_at !== null) {
             throw new InvalidArgumentException('Платёж уже отменён.');
         }
 
-        return DB::transaction(function () use ($event, $actor, $reason): PaymentSchedulePaymentEvent {
+        return DB::transaction(function () use ($event, $actor, $reason, $hasReversalColumns): PaymentSchedulePaymentEvent {
             $this->restoreScheduleAfterReversal($event);
 
-            $event->reversed_at = now();
-            $event->reversed_by = $actor->id;
+            if ($hasReversalColumns) {
+                $event->reversed_at = now();
 
-            if ($reason !== null && trim($reason) !== '') {
-                $event->notes = trim(($event->notes ?? '')."\n[Отмена] ".trim($reason));
+                if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_by')) {
+                    $event->reversed_by = $actor->id;
+                }
+
+                if ($reason !== null && trim($reason) !== '') {
+                    $event->notes = trim(($event->notes ?? '')."\n[Отмена] ".trim($reason));
+                }
+
+                $event->save();
+            } else {
+                $event->delete();
             }
-
-            $event->save();
 
             if ($event->order_id !== null) {
                 PaymentScheduleAutomaticStatus::refreshForOrder((int) $event->order_id);
             }
 
-            return $event->fresh();
+            return $event->exists ? $event->fresh() : $event;
         });
     }
 
-    public function reverseByManagementLineId(int $lineId, User $actor, ?string $reason = null): ?PaymentSchedulePaymentEvent
-    {
+    public function reverseByManagementLineId(
+        int $lineId,
+        User $actor,
+        ?string $reason = null,
+        ?int $fallbackScheduleId = null,
+    ): ?PaymentSchedulePaymentEvent {
         $event = PaymentSchedulePaymentEvent::query()
             ->active()
             ->where('transaction_reference', 'mgmt:'.$lineId)
             ->first();
 
-        if ($event === null) {
-            return null;
+        if ($event !== null) {
+            return $this->reverseEvent($event, $actor, $reason);
         }
 
-        return $this->reverseEvent($event, $actor, $reason);
+        $this->restoreScheduleByManagementLineReference($lineId, $fallbackScheduleId);
+
+        return null;
+    }
+
+    private function restoreScheduleByManagementLineReference(int $lineId, ?int $fallbackScheduleId = null): void
+    {
+        if (! Schema::hasColumn('payment_schedules', 'transaction_reference')) {
+            return;
+        }
+
+        $reference = 'mgmt:'.$lineId;
+        $orderIds = [];
+
+        $partialSchedules = PaymentSchedule::query()
+            ->where('transaction_reference', $reference)
+            ->where('is_partial', true)
+            ->get();
+
+        foreach ($partialSchedules as $partial) {
+            $this->restoreScheduleAfterReversal(new PaymentSchedulePaymentEvent([
+                'payment_schedule_id' => $partial->id,
+                'amount' => $partial->amount,
+                'order_id' => $partial->order_id,
+            ]));
+
+            if ($partial->order_id !== null) {
+                $orderIds[] = (int) $partial->order_id;
+            }
+        }
+
+        $schedule = PaymentSchedule::query()
+            ->where('transaction_reference', $reference)
+            ->first();
+
+        if ($schedule !== null) {
+            $this->restoreScheduleAfterReversal(new PaymentSchedulePaymentEvent([
+                'payment_schedule_id' => $schedule->id,
+                'amount' => (float) ($schedule->paid_amount ?? $schedule->amount),
+                'order_id' => $schedule->order_id,
+            ]));
+
+            if ($schedule->order_id !== null) {
+                $orderIds[] = (int) $schedule->order_id;
+            }
+        } elseif ($fallbackScheduleId !== null) {
+            $fallbackSchedule = PaymentSchedule::query()->find($fallbackScheduleId);
+
+            if ($fallbackSchedule !== null && (float) ($fallbackSchedule->paid_amount ?? 0) > 0.009) {
+                $this->restoreScheduleAfterReversal(new PaymentSchedulePaymentEvent([
+                    'payment_schedule_id' => $fallbackSchedule->id,
+                    'amount' => (float) ($fallbackSchedule->paid_amount ?? $fallbackSchedule->amount),
+                    'order_id' => $fallbackSchedule->order_id,
+                ]));
+
+                if ($fallbackSchedule->order_id !== null) {
+                    $orderIds[] = (int) $fallbackSchedule->order_id;
+                }
+            }
+        }
+
+        foreach (array_unique($orderIds) as $orderId) {
+            PaymentScheduleAutomaticStatus::refreshForOrder($orderId);
+        }
     }
 
     private function restoreScheduleAfterReversal(PaymentSchedulePaymentEvent $event): void

@@ -159,4 +159,86 @@ class PaymentSchedulePaymentReversalServiceTest extends TestCase
         $this->assertNotNull($reversed->reversed_at);
         $this->assertSame('pending', $schedule->fresh()->status);
     }
+
+    public function test_reverse_event_without_reversal_columns_deletes_event(): void
+    {
+        Schema::dropIfExists('payment_schedule_payment_events');
+
+        Schema::create('payment_schedule_payment_events', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('order_id');
+            $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->unsignedBigInteger('payment_schedule_id')->nullable();
+            $table->string('party', 16);
+            $table->decimal('amount', 14, 2);
+            $table->date('payment_date');
+            $table->string('payment_method', 50)->nullable();
+            $table->string('transaction_reference', 100)->nullable();
+            $table->text('notes')->nullable();
+            $table->unsignedBigInteger('recorded_by')->nullable();
+            $table->timestamps();
+        });
+
+        $user = User::query()->create([
+            'name' => 'Admin',
+            'email' => 'legacy-admin@example.com',
+            'password' => bcrypt('secret'),
+        ]);
+
+        $order = Order::query()->create(['order_number' => 'AA-legacy']);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 3000,
+            'paid_amount' => 3000,
+            'remaining_amount' => 0,
+            'status' => 'paid',
+        ]);
+
+        $event = PaymentSchedulePaymentEvent::query()->create([
+            'order_id' => $order->id,
+            'payment_schedule_id' => $schedule->id,
+            'party' => 'customer',
+            'amount' => 3000,
+            'payment_date' => '2026-06-03',
+            'recorded_by' => $user->id,
+        ]);
+
+        app(PaymentSchedulePaymentReversalService::class)->reverseEvent($event, $user, 'Legacy');
+
+        $this->assertDatabaseMissing('payment_schedule_payment_events', ['id' => $event->id]);
+        $this->assertSame('pending', $schedule->fresh()->status);
+    }
+
+    public function test_reverse_by_management_line_id_restores_schedule_without_event(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Finance',
+            'email' => 'finance-fallback@example.com',
+            'password' => bcrypt('secret'),
+        ]);
+
+        $order = Order::query()->create(['order_number' => 'AA-fallback']);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 78000,
+            'paid_amount' => 78000,
+            'remaining_amount' => 0,
+            'transaction_reference' => 'mgmt:99',
+            'status' => 'paid',
+        ]);
+
+        app(PaymentSchedulePaymentReversalService::class)->reverseByManagementLineId(99, $user);
+
+        $schedule->refresh();
+
+        $this->assertSame('pending', $schedule->status);
+        $this->assertSame('0.00', $schedule->paid_amount);
+        $this->assertNull($schedule->transaction_reference);
+    }
 }

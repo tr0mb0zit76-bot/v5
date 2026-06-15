@@ -15,6 +15,7 @@ class ManagementAccountingImportService
     public function __construct(
         private readonly SberRegistryXlsxParser $parser,
         private readonly ManagementAccountingMatchingService $matching,
+        private readonly ManagementAccountingAllocationService $allocationService,
     ) {}
 
     public function importFromUpload(
@@ -121,6 +122,25 @@ class ManagementAccountingImportService
             }
 
             return $import->fresh(['bankAccount', 'importer']);
+        });
+    }
+
+    public function destroyImport(ManagementStatementImport $import, User $actor): void
+    {
+        DB::transaction(function () use ($import, $actor): void {
+            ManagementStatementLine::query()
+                ->where('import_id', $import->id)
+                ->where('status', 'allocated')
+                ->orderBy('id')
+                ->each(function (ManagementStatementLine $line) use ($actor): void {
+                    $this->allocationService->deallocateLine($line, $actor, 'Удаление выписки');
+                });
+
+            ManagementStatementLine::query()
+                ->where('import_id', $import->id)
+                ->delete();
+
+            $import->delete();
         });
     }
 
