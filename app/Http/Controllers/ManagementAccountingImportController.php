@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DuplicateStatementImportException;
 use App\Http\Requests\AllocateManagementStatementLineRequest;
 use App\Http\Requests\DeallocateManagementStatementLineRequest;
 use App\Http\Requests\StoreManagementAccountingImportRequest;
@@ -41,11 +42,21 @@ class ManagementAccountingImportController extends Controller
             ? ManagementBankAccount::query()->findOrFail((int) $bankAccountId)
             : null;
 
-        $import = $this->importService->importFromUpload(
-            $request->file('statement_file'),
-            $bankAccount,
-            $request->user(),
-        );
+        try {
+            $import = $this->importService->importFromUpload(
+                $request->file('statement_file'),
+                $bankAccount,
+                $request->user(),
+            );
+        } catch (DuplicateStatementImportException $exception) {
+            return to_route('finance.management-accounting.imports.show', [
+                'import' => $exception->existingImport,
+                'filter' => 'allocated',
+            ])->with('flash', [
+                'type' => 'warning',
+                'message' => 'Эта выписка уже загружена — открыта существующая для правки.',
+            ]);
+        }
 
         return to_route('finance.management-accounting.imports.show', $import)
             ->with('flash', ['type' => 'success', 'message' => 'Выписка загружена. Разнесите операции.']);
@@ -53,8 +64,7 @@ class ManagementAccountingImportController extends Controller
 
     public function show(Request $request, ManagementStatementImport $import): Response
     {
-        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
-        abort_unless((int) $import->imported_by === (int) $request->user()?->id || $request->user()?->isAdmin(), 403);
+        abort_unless(RoleAccess::canManageStatementImport($request->user()), 403);
 
         $import->load(['bankAccount', 'importer:id,name']);
 
@@ -162,17 +172,17 @@ class ManagementAccountingImportController extends Controller
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->get(['id', 'code', 'name', 'kind']),
+            'filters' => [
+                'line_filter' => in_array($request->query('filter'), ['pending', 'allocated', 'all'], true)
+                    ? $request->string('filter')->toString()
+                    : null,
+            ],
         ]);
     }
 
     public function operationalCandidates(Request $request, ManagementStatementLine $line): JsonResponse
     {
-        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
-
-        if ($line->import_id !== null) {
-            $import = ManagementStatementImport::query()->findOrFail($line->import_id);
-            abort_unless((int) $import->imported_by === (int) $request->user()?->id || $request->user()?->isAdmin(), 403);
-        }
+        abort_unless(RoleAccess::canManageStatementImport($request->user()), 403);
 
         return response()->json([
             'candidates' => $this->matchingService->searchOperationalCandidates(
@@ -200,12 +210,7 @@ class ManagementAccountingImportController extends Controller
         DeallocateManagementStatementLineRequest $request,
         ManagementStatementLine $line,
     ): RedirectResponse {
-        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
-
-        if ($line->import_id !== null) {
-            $import = ManagementStatementImport::query()->findOrFail($line->import_id);
-            abort_unless((int) $import->imported_by === (int) $request->user()?->id || $request->user()?->isAdmin(), 403);
-        }
+        abort_unless(RoleAccess::canManageStatementImport($request->user()), 403);
 
         $this->allocationService->deallocateLine(
             $line,

@@ -3,7 +3,7 @@
         <section :class="`${crmPanel} space-y-4 p-5`">
             <h2 :class="crmSectionTitle">Загрузка выписки</h2>
             <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                Реестр банковских документов (XLSX). Счёт можно не указывать — для сводной выписки без номера в шапке.
+                Реестр банковских документов (XLSX). Повторная загрузка того же файла не создаст дубликат — откроется существующая выписка.
             </p>
             <form class="space-y-3" @submit.prevent="submitImport">
                 <label class="block space-y-1 text-sm">
@@ -25,7 +25,7 @@
                     >
                 </label>
                 <button type="submit" :disabled="importForm.processing" :class="crmBtnPrimary">
-                    Загрузить и разнести
+                    Загрузить выписку
                 </button>
             </form>
         </section>
@@ -41,7 +41,8 @@
                             <th class="px-2 py-2">Период</th>
                             <th class="px-2 py-2">Строки</th>
                             <th class="px-2 py-2">Суммы</th>
-                            <th class="px-2 py-2"></th>
+                            <th class="px-2 py-2">Кто загрузил</th>
+                            <th class="px-2 py-2 text-right">Действия</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -62,17 +63,37 @@
                             <td class="px-2 py-2 tabular-nums">
                                 +{{ formatMoney(item.total_in) }} / −{{ formatMoney(item.total_out) }}
                             </td>
-                            <td class="px-2 py-2 text-right">
-                                <Link
-                                    :href="`/finance/management-accounting/imports/${item.id}`"
-                                    class="font-medium text-sky-700 hover:underline dark:text-sky-300"
-                                >
-                                    Разнести
-                                </Link>
+                            <td class="px-2 py-2 text-zinc-600 dark:text-zinc-300">
+                                {{ item.importer_name ?? '—' }}
+                            </td>
+                            <td class="px-2 py-2">
+                                <div class="flex flex-wrap justify-end gap-2">
+                                    <Link
+                                        v-if="item.pending_lines > 0"
+                                        :href="importHref(item.id, 'pending')"
+                                        :class="crmBtnNeutral"
+                                    >
+                                        Разнести
+                                    </Link>
+                                    <Link
+                                        v-if="item.has_allocated_lines"
+                                        :href="importHref(item.id, 'allocated')"
+                                        :class="crmBtnPrimary"
+                                    >
+                                        Исправить
+                                    </Link>
+                                    <Link
+                                        v-if="item.pending_lines === 0 && !item.has_allocated_lines"
+                                        :href="importHref(item.id, 'all')"
+                                        class="text-sm font-medium text-sky-700 hover:underline dark:text-sky-300"
+                                    >
+                                        Открыть
+                                    </Link>
+                                </div>
                             </td>
                         </tr>
                         <tr v-if="imports.length === 0">
-                            <td colspan="6" class="px-2 py-6 text-center text-zinc-500">Импортов пока нет</td>
+                            <td colspan="7" class="px-2 py-6 text-center text-zinc-500">Импортов пока нет</td>
                         </tr>
                     </tbody>
                 </table>
@@ -84,6 +105,7 @@
 <script setup>
 import { Link, useForm } from '@inertiajs/vue3';
 import {
+    crmBtnNeutral,
     crmBtnPrimary,
     crmFieldFluid,
     crmLabel,
@@ -101,6 +123,10 @@ const importForm = useForm({
     bank_account_id: props.default_bank_account_id ? Number(props.default_bank_account_id) : null,
     statement_file: null,
 });
+
+function importHref(importId, filter) {
+    return `/finance/management-accounting/imports/${importId}?filter=${filter}`;
+}
 
 function onFileChange(event) {
     importForm.statement_file = event.target.files?.[0] ?? null;

@@ -107,6 +107,8 @@ class FinanceIndexController extends Controller
                 ],
                 'importer_name' => $import->importer?->name,
                 'created_at' => $import->created_at?->toIso8601String(),
+                'pending_lines' => max(0, (int) $import->lines_count - (int) $import->lines_allocated),
+                'has_allocated_lines' => (int) $import->lines_allocated > 0,
             ]);
 
         $bankAccounts = ManagementBankAccount::query()

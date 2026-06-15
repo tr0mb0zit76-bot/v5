@@ -240,10 +240,28 @@ const props = defineProps({
     import: { type: Object, required: true },
     lines: { type: Array, default: () => [] },
     categories: { type: Array, default: () => [] },
+    filters: { type: Object, default: () => ({ line_filter: null }) },
 });
 
 const importData = props.import;
-const lineFilter = ref('pending');
+
+function resolveInitialFilter() {
+    const requested = props.filters?.line_filter;
+    if (requested && ['pending', 'allocated', 'all'].includes(requested)) {
+        return requested;
+    }
+
+    const pendingCount = props.lines.filter((line) => line.status !== 'allocated').length;
+    const allocatedCount = props.lines.filter((line) => line.status === 'allocated').length;
+
+    if (pendingCount === 0 && allocatedCount > 0) {
+        return 'allocated';
+    }
+
+    return 'pending';
+}
+
+const lineFilter = ref(resolveInitialFilter());
 const allocationForms = reactive({});
 const searchQueries = reactive({});
 const searchResults = reactive({});

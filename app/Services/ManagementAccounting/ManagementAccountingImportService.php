@@ -2,6 +2,7 @@
 
 namespace App\Services\ManagementAccounting;
 
+use App\Exceptions\DuplicateStatementImportException;
 use App\Models\ManagementBankAccount;
 use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
@@ -99,6 +100,25 @@ class ManagementAccountingImportService
                 'total_in' => round($totalIn, 2),
                 'total_out' => round($totalOut, 2),
             ]);
+
+            if ($created === 0) {
+                $existingImport = ManagementStatementImport::query()
+                    ->where('bank_account_id', $bankAccount->id)
+                    ->where('id', '!=', $import->id)
+                    ->where('lines_count', '>', 0)
+                    ->when($periodFrom !== null, fn ($query) => $query->where('period_to', '>=', $periodFrom))
+                    ->when($periodTo !== null, fn ($query) => $query->where('period_from', '<=', $periodTo))
+                    ->orderByDesc('id')
+                    ->first();
+
+                $import->delete();
+
+                if ($existingImport !== null) {
+                    throw new DuplicateStatementImportException($existingImport);
+                }
+
+                throw new \InvalidArgumentException('В файле нет новых операций для загрузки.');
+            }
 
             return $import->fresh(['bankAccount', 'importer']);
         });

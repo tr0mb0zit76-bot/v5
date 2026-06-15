@@ -1093,6 +1093,14 @@ class RoleAccess
     }
 
     /**
+     * Просмотр и правка импорта выписки (разнесение, отмена разнесения).
+     */
+    public static function canManageStatementImport(?User $user): bool
+    {
+        return static::canAccessPaymentReconcile($user);
+    }
+
+    /**
      * Кнопки «Отменить» и «Восстановить» по строке графика.
      */
     public static function canCancelPaymentScheduleRow(?User $user): bool

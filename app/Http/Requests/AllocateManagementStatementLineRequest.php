@@ -10,7 +10,7 @@ class AllocateManagementStatementLineRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return RoleAccess::canAccessPaymentReconcile($this->user());
+        return RoleAccess::canManageStatementImport($this->user());
     }
 
     /**
