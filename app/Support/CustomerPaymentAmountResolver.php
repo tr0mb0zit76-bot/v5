@@ -25,10 +25,13 @@ final class CustomerPaymentAmountResolver
 
     private static function orderHasLedgerEvents(int $orderId): bool
     {
-        return DB::table('payment_schedule_payment_events')
+        $query = DB::table('payment_schedule_payment_events')
             ->where('order_id', $orderId)
-            ->where('party', 'customer')
-            ->exists();
+            ->where('party', 'customer');
+
+        self::applyActiveLedgerScope($query);
+
+        return $query->exists();
     }
 
     private static function sumFromLedger(int $orderId, ?string $untilDate): float
@@ -37,11 +40,23 @@ final class CustomerPaymentAmountResolver
             ->where('order_id', $orderId)
             ->where('party', 'customer');
 
+        self::applyActiveLedgerScope($query);
+
         if ($untilDate !== null && $untilDate !== '') {
             $query->whereDate('payment_date', '<=', substr($untilDate, 0, 10));
         }
 
         return (float) $query->sum('amount');
+    }
+
+    /**
+     * @param  Builder  $query
+     */
+    private static function applyActiveLedgerScope($query): void
+    {
+        if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
+            $query->whereNull('reversed_at');
+        }
     }
 
     private static function sumFromSchedules(int $orderId, ?string $untilDate): float
