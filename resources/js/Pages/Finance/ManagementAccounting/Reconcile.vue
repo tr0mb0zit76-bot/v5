@@ -32,7 +32,7 @@
                 v-for="filter in lineFilters"
                 :key="filter.key"
                 type="button"
-                :class="lineFilter === filter.key ? crmSegmentedBtnActive : crmSegBtn"
+                :class="lineFilter === filter.key ? crmSegmentedBtnActive : crmSegmentedBtn"
                 @click="lineFilter = filter.key"
             >
                 {{ filter.label }}
@@ -228,8 +228,8 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
     crmPageLead,
     crmPageTitle,
-    crmSegBtn,
-    crmSegBtnActive,
+    crmSegmentedBtn,
+    crmSegmentedBtnActive,
 } from '@/support/crmUi.js';
 
 defineOptions({
