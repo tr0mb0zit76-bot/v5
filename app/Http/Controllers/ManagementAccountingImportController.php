@@ -114,9 +114,7 @@ class ManagementAccountingImportController extends Controller
                     'id' => $line->suggestedUser->id,
                     'name' => $line->suggestedUser->name,
                 ],
-                'operational_candidates' => $line->status === 'allocated'
-                    ? []
-                    : $this->matchingService->operationalCandidatesForLine($line),
+                'operational_candidates' => [],
                 'contractor_search_hint' => $this->matchingService->extractSearchHintFromDescription((string) $line->description),
                 'needs_manual_selection' => $line->status !== 'allocated'
                     && $line->match_confidence < 70

@@ -442,12 +442,7 @@ class ManagementAccountingMatchingService
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
         return $this->openOperationalSchedulesQuery()
-            ->with([
-                'order:id,order_number,customer_id,carrier_id,performers',
-                'order.client:id,name,full_name',
-                'order.carrier:id,name,full_name',
-                'counterparty:id,name,full_name',
-            ])
+            ->with($this->operationalScheduleEagerLoads())
             ->whereIn('party', $parties)
             ->orderBy('id')
             ->get()
@@ -495,12 +490,7 @@ class ManagementAccountingMatchingService
         ?string $operationDate,
     ): Collection {
         return $this->openOperationalSchedulesQuery()
-            ->with([
-                'order:id,order_number,customer_id,carrier_id,performers',
-                'order.client:id,name,full_name',
-                'order.carrier:id,name,full_name',
-                'counterparty:id,name,full_name',
-            ])
+            ->with($this->operationalScheduleEagerLoads())
             ->whereIn('party', ['carrier', 'contractor'])
             ->orderBy('id')
             ->get()
@@ -543,12 +533,7 @@ class ManagementAccountingMatchingService
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
         return $this->openOperationalSchedulesQuery()
-            ->with([
-                'order:id,order_number,customer_id,carrier_id,performers',
-                'order.client:id,name,full_name',
-                'order.carrier:id,name,full_name',
-                'counterparty:id,name,full_name',
-            ])
+            ->with($this->operationalScheduleEagerLoads())
             ->whereIn('party', $parties)
             ->orderBy('id')
             ->get()
@@ -616,12 +601,7 @@ class ManagementAccountingMatchingService
         $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
 
         return $this->openOperationalSchedulesQuery()
-            ->with([
-                'order:id,order_number,customer_id,carrier_id,performers',
-                'order.client:id,name,full_name',
-                'order.carrier:id,name,full_name',
-                'counterparty:id,name,full_name',
-            ])
+            ->with($this->operationalScheduleEagerLoads())
             ->whereIn('party', $parties)
             ->whereNotNull('invoice_number')
             ->where('invoice_number', '!=', '')
@@ -1171,5 +1151,24 @@ class ManagementAccountingMatchingService
         return ManagementExpenseCategory::query()
             ->where('code', $code)
             ->value('id');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function operationalScheduleEagerLoads(): array
+    {
+        $orderColumns = ['id', 'order_number', 'customer_id', 'carrier_id'];
+
+        if (Schema::hasColumn('orders', 'performers')) {
+            $orderColumns[] = 'performers';
+        }
+
+        return [
+            'order:'.implode(',', $orderColumns),
+            'order.client:id,name,full_name',
+            'order.carrier:id,name,full_name',
+            'counterparty:id,name,full_name',
+        ];
     }
 }

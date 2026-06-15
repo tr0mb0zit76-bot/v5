@@ -209,4 +209,61 @@ class ManagementAccountingImportAccessTest extends TestCase
         $this->assertDatabaseMissing('management_statement_imports', ['id' => $import->id]);
         $this->assertDatabaseMissing('management_statement_lines', ['import_id' => $import->id]);
     }
+
+    public function test_show_reconcile_page_with_pending_lines_does_not_query_missing_order_columns(): void
+    {
+        $role = Role::query()->create([
+            'name' => 'accountant',
+            'display_name' => 'Accountant',
+            'visibility_areas' => ['finance_payment_reconcile'],
+        ]);
+
+        $user = User::query()->create([
+            'role_id' => $role->id,
+            'name' => 'Accountant',
+            'email' => 'show-lines@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('password'),
+            'can_management_accounting' => true,
+        ]);
+
+        $bankAccount = ManagementBankAccount::query()->create([
+            'bank_name' => 'Сбер',
+            'account_number' => '40702810111111111111',
+            'account_mask' => '****1111',
+            'currency' => 'RUB',
+        ]);
+
+        $import = ManagementStatementImport::query()->create([
+            'bank_account_id' => $bankAccount->id,
+            'format' => 'bank_registry_v1',
+            'file_name' => 'АС 10.06-14.06.xlsx',
+            'period_from' => '2026-06-10',
+            'period_to' => '2026-06-14',
+            'imported_by' => $user->id,
+            'status' => 'draft',
+            'lines_count' => 1,
+            'lines_allocated' => 0,
+        ]);
+
+        ManagementStatementLine::query()->create([
+            'import_id' => $import->id,
+            'bank_account_id' => $bankAccount->id,
+            'line_hash' => hash('sha256', 'tandem-line'),
+            'operation_date' => '2026-06-11',
+            'direction' => 'out',
+            'amount' => 78000,
+            'currency' => 'RUB',
+            'description' => 'ТК ТАНДЕМ ООО / счет 321 от 10.06.2026',
+            'status' => 'pending',
+            'source' => 'import',
+        ]);
+
+        $this->actingAs($user)
+            ->get('/finance/management-accounting/imports/'.$import->id.'?filter=pending')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Finance/ManagementAccounting/Reconcile')
+                ->has('lines', 1));
+    }
 }
