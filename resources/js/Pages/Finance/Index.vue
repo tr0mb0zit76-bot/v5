@@ -79,7 +79,7 @@
                 </div>
             </div>
 
-            <div v-if="can_access_management_accounting" class="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
+            <div v-if="can_access_payment_reconcile" class="flex shrink-0 flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
                 <Link
                     href="/finance?section=cashflow&cashflow_tab=schedule"
                     :class="cashflowTab === 'schedule' ? cashflowTabActiveClass : cashflowTabClass"
@@ -95,7 +95,7 @@
             </div>
 
             <ManagementAccountingStatementImports
-                v-if="cashflowTab === 'reconcile' && can_access_management_accounting"
+                v-if="cashflowTab === 'reconcile' && can_access_payment_reconcile"
                 :imports="statement_imports"
                 :bank_accounts="bank_accounts"
                 :default_bank_account_id="default_bank_account_id"
@@ -287,6 +287,10 @@ const props = defineProps({
         default: false,
     },
     can_access_management_accounting: {
+        type: Boolean,
+        default: false,
+    },
+    can_access_payment_reconcile: {
         type: Boolean,
         default: false,
     },

@@ -175,6 +175,7 @@ class ContractorReconciliationService
 
         if ($this->ledgerService->ledgerTableExists()) {
             $query = PaymentSchedulePaymentEvent::query()
+                ->active()
                 ->whereIn('order_id', $orderIds)
                 ->where('party', $party)
                 ->where('contractor_id', $contractorId);

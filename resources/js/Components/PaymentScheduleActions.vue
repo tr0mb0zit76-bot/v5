@@ -12,7 +12,7 @@
 
         <!-- Кнопка "Показать частичные платежи" (иконка списка) -->
         <button
-            v-if="payment.has_partial_payments || payment.is_partial"
+            v-if="payment.has_partial_payments || payment.is_partial || Number(payment.paid_amount || 0) > 0"
             @click="togglePartialPayments"
             class="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 p-1.5 text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
             :title="showPartialPayments ? 'Скрыть частичные платежи' : 'Показать частичные платежи'"
@@ -173,13 +173,51 @@
             </div>
         </Teleport>
 
-        <!-- Список частичных платежей -->
-        <div v-if="showPartialPayments && partialPayments.length > 0" class="mt-3 w-full">
+        <!-- История оплат и частичные платежи -->
+        <div v-if="showPartialPayments" class="mt-3 w-full">
             <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
                 <h4 class="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Частичные платежи
+                    История оплат
                 </h4>
-                <div class="space-y-2">
+                <div v-if="paymentEvents.length === 0 && partialPayments.length === 0" class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Нет зафиксированных оплат.
+                </div>
+                <div v-if="paymentEvents.length > 0" class="mb-3 space-y-2">
+                    <div
+                        v-for="event in paymentEvents"
+                        :key="event.id"
+                        class="rounded border border-zinc-200 bg-white p-2 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                    >
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <span class="font-medium text-zinc-900 dark:text-zinc-100">
+                                    {{ formatMoney(event.amount) }}
+                                </span>
+                                <span class="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ event.payment_date }}
+                                </span>
+                                <span v-if="event.payment_method" class="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                    {{ event.payment_method }}
+                                </span>
+                                <div v-if="event.transaction_reference" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                    № {{ event.transaction_reference }}
+                                </div>
+                                <div v-if="event.is_management_allocation" class="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                                    Из разнесения выписки — отмена в разделе «Разнесение выписки».
+                                </div>
+                            </div>
+                            <button
+                                v-if="canVoidPaymentEvents && !event.is_management_allocation"
+                                type="button"
+                                class="shrink-0 rounded border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                                @click="voidPaymentEvent(event)"
+                            >
+                                Отменить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="partialPayments.length > 0" class="space-y-2">
                     <div
                         v-for="partial in partialPayments"
                         :key="partial.id"
@@ -237,6 +275,8 @@ const showRecordPaymentModal = ref(false);
 const showPartialPayments = ref(false);
 const processing = ref(false);
 const partialPayments = ref([]);
+const paymentEvents = ref([]);
+const canVoidPaymentEvents = ref(false);
 
 const remainingToPay = computed(() => {
     const remaining = Number(props.payment.remaining_amount ?? 0);
@@ -287,8 +327,42 @@ function formatMoney(value) {
 
 function togglePartialPayments() {
     showPartialPayments.value = !showPartialPayments.value;
-    if (showPartialPayments.value && partialPayments.value.length === 0) {
+    if (showPartialPayments.value) {
         loadPartialPayments();
+        loadPaymentEvents();
+    }
+}
+
+async function loadPaymentEvents() {
+    if (!props.payment.id) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/payment-schedules/${props.payment.id}/payment-events`);
+        if (response.ok) {
+            const data = await response.json();
+            paymentEvents.value = data.payment_events || [];
+            canVoidPaymentEvents.value = Boolean(data.can_void_payment_events);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки истории оплат:', error);
+    }
+}
+
+async function voidPaymentEvent(event) {
+    if (!window.confirm(`Отменить оплату ${formatMoney(event.amount)}?`)) {
+        return;
+    }
+
+    try {
+        await axios.post(`/payment-schedules/payment-events/${event.id}/void`, {});
+        await loadPaymentEvents();
+        await loadPartialPayments();
+        router.reload({ only: ['cashFlowJournal', 'cash_flow_stats', 'todays_cash_flow'] });
+    } catch (error) {
+        const message = error?.response?.data?.message || 'Ошибка при отмене оплаты.';
+        window.alert(message);
     }
 }
 
@@ -371,8 +445,9 @@ async function restorePayment() {
 }
 
 onMounted(() => {
-    if (props.payment.has_partial_payments || props.payment.is_partial) {
+    if (props.payment.has_partial_payments || props.payment.is_partial || Number(props.payment.paid_amount || 0) > 0) {
         loadPartialPayments();
+        loadPaymentEvents();
     }
 });
 </script>

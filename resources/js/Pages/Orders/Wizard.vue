@@ -1729,8 +1729,8 @@
                 </div>
             </div>
 
-            <div v-else-if="activeTab === 'timeline' && order?.id" class="space-y-4">
-                <div v-if="canAccessMail" :class="`${crmPanel} space-y-3 p-4`">
+            <div v-else-if="activeTab === 'mail' && order?.id && canAccessMail" class="space-y-4">
+                <div :class="`${crmPanel} space-y-3 p-4`">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-50">Переписка</h3>
@@ -1765,7 +1765,9 @@
                         </Link>
                     </div>
                 </div>
+            </div>
 
+            <div v-else-if="activeTab === 'timeline' && order?.id && canViewOrderTimeline" class="space-y-4">
                 <p class="text-sm text-zinc-600 dark:text-zinc-400">
                     Хронология по заказу: комментарии диспозиции, письма и другие события.
                 </p>
@@ -2050,6 +2052,7 @@ const props = defineProps({
     bonusMultiplier: { type: Number, default: 0 },
     cargoTitleSuggestions: { type: Array, default: () => [] },
     canAccessMail: { type: Boolean, default: false },
+    canViewOrderTimeline: { type: Boolean, default: false },
     orderMailThreads: { type: Array, default: () => [] },
     mailComposeDefaults: { type: Object, default: null },
 });
@@ -2062,7 +2065,8 @@ const tabs = computed(() => [
     { key: 'norms_penalties', label: 'Нормативы / штрафы', icon: Gavel },
     { key: 'documents', label: 'Документы', icon: FileText },
     ...(showOrderNormsTab.value ? [{ key: 'order_norms', label: 'Нормы заявки', icon: ScrollText }] : []),
-    ...(props.order?.id ? [{ key: 'timeline', label: 'Лента', icon: History }] : []),
+    ...(props.order?.id && props.canAccessMail ? [{ key: 'mail', label: 'Переписка', icon: Mail }] : []),
+    ...(props.order?.id && props.canViewOrderTimeline ? [{ key: 'timeline', label: 'Лента', icon: History }] : []),
 ]);
 
 const activeTab = ref('main');
@@ -2100,7 +2104,7 @@ onMounted(() => {
     }
     const url = new URL(window.location.href);
     const tab = url.searchParams.get('tab');
-    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'order_norms', 'timeline']);
+    const allowed = new Set(['main', 'route', 'cargo', 'finance', 'norms_penalties', 'documents', 'order_norms', 'mail', 'timeline']);
     if (tab && allowed.has(tab)) {
         activeTab.value = tab;
     }

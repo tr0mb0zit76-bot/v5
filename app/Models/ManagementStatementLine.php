@@ -133,4 +133,12 @@ class ManagementStatementLine extends Model
     {
         return $this->belongsTo(User::class, 'allocation_user_id');
     }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function allocator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'allocated_by');
+    }
 }

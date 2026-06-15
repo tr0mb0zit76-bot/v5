@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AllocateManagementStatementLineRequest;
+use App\Http\Requests\DeallocateManagementStatementLineRequest;
 use App\Http\Requests\StoreManagementAccountingImportRequest;
 use App\Http\Requests\StoreManagementExpenseCategoryRequest;
 use App\Http\Requests\StoreManagementManualEntryRequest;
@@ -51,7 +52,7 @@ class ManagementAccountingImportController extends Controller
 
     public function show(Request $request, ManagementStatementImport $import): Response
     {
-        abort_unless(RoleAccess::canAccessManagementAccounting($request->user()), 403);
+        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
         abort_unless((int) $import->imported_by === (int) $request->user()?->id || $request->user()?->isAdmin(), 403);
 
         $import->load(['bankAccount', 'importer:id,name']);
@@ -63,6 +64,11 @@ class ManagementAccountingImportController extends Controller
                 'suggestedPaymentSchedule:id,party,amount,planned_date',
                 'suggestedCategory:id,name,code',
                 'suggestedUser:id,name',
+                'allocationOrder:id,order_number',
+                'allocationCategory:id,name,code',
+                'allocationPaymentSchedule:id,party,amount,planned_date',
+                'allocationUser:id,name',
+                'allocator:id,name',
             ])
             ->orderBy('operation_date')
             ->orderBy('row_number')
@@ -100,6 +106,31 @@ class ManagementAccountingImportController extends Controller
                 'operational_candidates' => $line->status === 'allocated'
                     ? []
                     : $this->matchingService->operationalCandidatesForLine($line),
+                'allocation_summary' => $line->status === 'allocated' ? [
+                    'match_type' => $line->match_type,
+                    'amount' => (float) ($line->allocation_amount ?? $line->amount),
+                    'allocated_at' => $line->allocated_at?->toIso8601String(),
+                    'allocated_by_name' => $line->allocator?->name,
+                    'order' => $line->allocationOrder === null ? null : [
+                        'id' => $line->allocationOrder->id,
+                        'order_number' => $line->allocationOrder->order_number,
+                    ],
+                    'payment_schedule' => $line->allocationPaymentSchedule === null ? null : [
+                        'id' => $line->allocationPaymentSchedule->id,
+                        'party' => $line->allocationPaymentSchedule->party,
+                        'amount' => (float) $line->allocationPaymentSchedule->amount,
+                        'planned_date' => $line->allocationPaymentSchedule->planned_date,
+                    ],
+                    'category' => $line->allocationCategory === null ? null : [
+                        'id' => $line->allocationCategory->id,
+                        'name' => $line->allocationCategory->name,
+                        'code' => $line->allocationCategory->code,
+                    ],
+                    'user' => $line->allocationUser === null ? null : [
+                        'id' => $line->allocationUser->id,
+                        'name' => $line->allocationUser->name,
+                    ],
+                ] : null,
             ]);
 
         return Inertia::render('Finance/ManagementAccounting/Reconcile', [
@@ -143,6 +174,31 @@ class ManagementAccountingImportController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Ручная операция сохранена.']);
     }
 
+    public function deallocate(
+        DeallocateManagementStatementLineRequest $request,
+        ManagementStatementLine $line,
+    ): RedirectResponse {
+        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
+
+        if ($line->import_id !== null) {
+            $import = ManagementStatementImport::query()->findOrFail($line->import_id);
+            abort_unless((int) $import->imported_by === (int) $request->user()?->id || $request->user()?->isAdmin(), 403);
+        }
+
+        $this->allocationService->deallocateLine(
+            $line,
+            $request->user(),
+            $request->validated('reason'),
+        );
+
+        if ($line->import_id !== null) {
+            return back()->with('flash', ['type' => 'success', 'message' => 'Разнесение отменено.']);
+        }
+
+        return to_route('finance.management-accounting.index')
+            ->with('flash', ['type' => 'success', 'message' => 'Ручная операция отменена.']);
+    }
+
     public function storeManual(StoreManagementManualEntryRequest $request): RedirectResponse
     {
         $line = $this->allocationService->createManualLine($request->validated(), $request->user());
@@ -177,7 +233,7 @@ class ManagementAccountingImportController extends Controller
 
     public function syncCategories(Request $request): RedirectResponse
     {
-        abort_unless(RoleAccess::canAccessManagementAccounting($request->user()), 403);
+        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
 
         $this->expenseCategorySyncService->syncAll();
 
@@ -205,7 +261,7 @@ class ManagementAccountingImportController extends Controller
 
     public function destroyCategory(Request $request, ManagementExpenseCategory $category): RedirectResponse
     {
-        abort_unless(RoleAccess::canAccessManagementAccounting($request->user()), 403);
+        abort_unless(RoleAccess::canAccessPaymentReconcile($request->user()), 403);
 
         $this->categoryTreeService->delete($category);
 

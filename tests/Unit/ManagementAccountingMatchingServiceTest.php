@@ -59,6 +59,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
             $table->string('party', 16)->nullable();
             $table->decimal('amount', 14, 2)->default(0);
             $table->decimal('remaining_amount', 14, 2)->nullable();
+            $table->string('invoice_number', 120)->nullable();
             $table->date('planned_date')->nullable();
             $table->string('status', 16)->default('pending');
             $table->unsignedBigInteger('counterparty_id')->nullable();
@@ -179,7 +180,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
     }
 
-    public function test_does_not_match_when_amount_differs(): void
+    public function test_does_not_match_when_amount_exceeds_open_schedule(): void
     {
         $customer = Contractor::query()->create([
             'name' => 'ООО Ромашка',
@@ -201,7 +202,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $line = ManagementStatementLine::query()->make([
             'operation_date' => '2026-06-09',
             'direction' => 'in',
-            'amount' => 50000,
+            'amount' => 150000,
             'description' => 'Поступление от ООО Ромашка',
         ]);
 
@@ -209,6 +210,79 @@ class ManagementAccountingMatchingServiceTest extends TestCase
 
         $this->assertNotSame('operational', $suggestion['match_type']);
         $this->assertNull($suggestion['suggested_order_id']);
+    }
+
+    public function test_matches_partial_payment_by_contractor_and_open_remainder(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО ТК Тандем',
+            'full_name' => 'Общество с ограниченной ответственностью Транспортная компания Тандем',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2506-0201',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'amount' => 156000,
+            'remaining_amount' => 156000,
+            'invoice_number' => 'СЧ-78000',
+            'planned_date' => '2026-06-15',
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-14',
+            'direction' => 'out',
+            'amount' => 78000,
+            'description' => 'Оплата по счету ТК Тандем перевозка',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($order->id, $suggestion['suggested_order_id']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertStringContainsString('Тандем', (string) $suggestion['match_notes']);
+    }
+
+    public function test_matches_by_invoice_number_in_bank_description(): void
+    {
+        $carrier = Contractor::query()->create([
+            'name' => 'ООО ТК Тандем',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2506-0202',
+            'carrier_id' => $carrier->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'carrier',
+            'amount' => 78000,
+            'remaining_amount' => 78000,
+            'invoice_number' => 'СЧ-45821',
+            'status' => 'pending',
+            'counterparty_id' => $carrier->id,
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-14',
+            'direction' => 'out',
+            'amount' => 78000,
+            'description' => 'Платеж по счету № СЧ-45821 без указания контрагента',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertStringContainsString('СЧ-45821', (string) $suggestion['match_notes']);
     }
 
     public function test_multiple_contractor_matches_return_candidates_without_auto_selection(): void

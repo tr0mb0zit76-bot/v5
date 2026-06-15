@@ -9,7 +9,7 @@ class StoreManagementAccountingImportRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return RoleAccess::canAccessManagementAccounting($this->user());
+        return RoleAccess::canAccessPaymentReconcile($this->user());
     }
 
     /**

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\PaymentSchedule;
+use App\Models\PaymentSchedulePaymentEvent;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
+use App\Services\Finance\PaymentSchedulePaymentReversalService;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +18,7 @@ class PaymentScheduleController extends Controller
 {
     public function __construct(
         private readonly PaymentSchedulePaymentLedgerService $paymentLedger,
+        private readonly PaymentSchedulePaymentReversalService $paymentReversal,
     ) {}
 
     /**
@@ -257,6 +260,106 @@ class PaymentScheduleController extends Controller
             $order->payment_status = 'paid';
             $order->save();
         }
+    }
+
+    /**
+     * Список активных фактических оплат по строке графика (включая частичные).
+     */
+    public function paymentEvents(Request $request, PaymentSchedule $paymentSchedule): JsonResponse
+    {
+        $this->ensureCanViewPaymentSchedule($request, $paymentSchedule);
+
+        if (! $this->paymentLedger->ledgerTableExists()) {
+            return response()->json([
+                'success' => true,
+                'payment_events' => [],
+            ]);
+        }
+
+        $scheduleIds = [$paymentSchedule->id];
+
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')
+            && Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $partialIds = PaymentSchedule::query()
+                ->where('parent_payment_id', $paymentSchedule->id)
+                ->where('is_partial', true)
+                ->pluck('id')
+                ->all();
+            $scheduleIds = array_merge($scheduleIds, $partialIds);
+        }
+
+        $events = PaymentSchedulePaymentEvent::query()
+            ->active()
+            ->whereIn('payment_schedule_id', $scheduleIds)
+            ->orderByDesc('payment_date')
+            ->orderByDesc('id')
+            ->get()
+            ->map(static fn (PaymentSchedulePaymentEvent $event): array => [
+                'id' => $event->id,
+                'amount' => (float) $event->amount,
+                'payment_date' => $event->payment_date?->toDateString(),
+                'payment_method' => $event->payment_method,
+                'transaction_reference' => $event->transaction_reference,
+                'notes' => $event->notes,
+                'is_management_allocation' => str_starts_with((string) $event->transaction_reference, 'mgmt:'),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'payment_events' => $events,
+            'can_void_payment_events' => RoleAccess::canReversePaymentScheduleEvent($request->user()),
+        ]);
+    }
+
+    /**
+     * Отмена ошибочно зафиксированной оплаты (ручной ввод или разнесение).
+     */
+    public function voidPaymentEvent(Request $request, PaymentSchedulePaymentEvent $paymentEvent): JsonResponse
+    {
+        abort_unless(RoleAccess::canReversePaymentScheduleEvent($request->user()), 403);
+
+        $schedule = $paymentEvent->payment_schedule_id !== null
+            ? PaymentSchedule::query()->find($paymentEvent->payment_schedule_id)
+            : null;
+
+        if ($schedule !== null) {
+            $rootSchedule = $schedule;
+            if (Schema::hasColumn('payment_schedules', 'is_partial')
+                && (bool) $schedule->is_partial
+                && $schedule->parent_payment_id) {
+                $rootSchedule = PaymentSchedule::query()->find($schedule->parent_payment_id) ?? $schedule;
+            }
+            $this->ensureCanRecordPayment($request, $rootSchedule);
+        }
+
+        if (str_starts_with((string) $paymentEvent->transaction_reference, 'mgmt:')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Платёж из разнесения выписки отменяйте на экране разнесения.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $this->paymentReversal->reverseEvent(
+                $paymentEvent,
+                $request->user(),
+                $validated['reason'] ?? 'Отмена ручной фиксации оплаты',
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Оплата отменена.',
+        ]);
     }
 
     /**

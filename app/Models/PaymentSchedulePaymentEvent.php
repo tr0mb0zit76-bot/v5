@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 class PaymentSchedulePaymentEvent extends Model
 {
@@ -21,6 +23,8 @@ class PaymentSchedulePaymentEvent extends Model
         'transaction_reference',
         'notes',
         'recorded_by',
+        'reversed_at',
+        'reversed_by',
     ];
 
     /**
@@ -31,7 +35,21 @@ class PaymentSchedulePaymentEvent extends Model
         return [
             'payment_date' => 'date',
             'amount' => 'decimal:2',
+            'reversed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        if (Schema::hasColumn($query->getModel()->getTable(), 'reversed_at')) {
+            return $query->whereNull('reversed_at');
+        }
+
+        return $query;
     }
 
     /**

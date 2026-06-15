@@ -577,6 +577,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('finance.management-accounting.imports.show');
     Route::post('/finance/management-accounting/lines/{line}/allocate', [ManagementAccountingImportController::class, 'allocate'])
         ->name('finance.management-accounting.lines.allocate');
+    Route::post('/finance/management-accounting/lines/{line}/deallocate', [ManagementAccountingImportController::class, 'deallocate'])
+        ->name('finance.management-accounting.lines.deallocate');
     Route::post('/finance/management-accounting/manual-entries', [ManagementAccountingImportController::class, 'storeManual'])
         ->name('finance.management-accounting.manual-entries.store');
     Route::post('/finance/management-accounting/categories', [ManagementAccountingImportController::class, 'storeCategory'])
@@ -695,6 +697,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/{paymentSchedule}/record-payment', [PaymentScheduleController::class, 'recordPayment'])->name('record-payment');
         Route::patch('/{paymentSchedule}/invoice-number', [PaymentScheduleController::class, 'updateInvoiceNumber'])->name('invoice-number');
         Route::get('/{paymentSchedule}/partial-payments', [PaymentScheduleController::class, 'getPartialPayments'])->name('partial-payments');
+        Route::get('/{paymentSchedule}/payment-events', [PaymentScheduleController::class, 'paymentEvents'])->name('payment-events');
+        Route::post('/payment-events/{paymentEvent}/void', [PaymentScheduleController::class, 'voidPaymentEvent'])->name('payment-events.void');
         Route::post('/{paymentSchedule}/cancel', [PaymentScheduleController::class, 'cancel'])->name('cancel');
         Route::post('/{paymentSchedule}/restore', [PaymentScheduleController::class, 'restore'])->name('restore');
     });

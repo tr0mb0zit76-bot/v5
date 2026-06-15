@@ -480,6 +480,7 @@ class OrderWizardController extends Controller
                 ->pluck('title')
                 ->values(),
             'canAccessMail' => $canAccessMail,
+            'canViewOrderTimeline' => $user?->isAdmin() ?? false,
             'orderMailThreads' => $order !== null && $canAccessMail && $user !== null
                 ? $orderMailContext->threadSummariesForOrder($user, $order)
                 : [],

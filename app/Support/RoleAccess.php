@@ -61,6 +61,7 @@ class RoleAccess
             ['key' => 'documents', 'label' => 'Документы', 'description' => 'Реестр документов'],
             ['key' => 'finance_salary', 'label' => 'Финансы: зарплата', 'description' => 'Зарплатные периоды, начисления и выплаты'],
             ['key' => 'payment_schedules', 'label' => 'График оплат', 'description' => 'Плановые и фактические платежи по заказам (ДДС, график)'],
+            ['key' => 'finance_payment_reconcile', 'label' => 'Разнос платежей', 'description' => 'Загрузка банковской выписки и разнесение операций по заявкам и статьям'],
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
@@ -118,7 +119,7 @@ class RoleAccess
             'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
             'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
             'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
-            'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports'],
+            'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'finance_payment_reconcile', 'tasks', 'kanban', 'reports'],
             'clerk' => ['dashboard', 'dashboard_tiles', 'orders', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
             'viewer' => ['dashboard', 'dashboard_tiles', 'orders'],
             default => ['dashboard'],
@@ -933,6 +934,26 @@ class RoleAccess
     }
 
     /**
+     * Разнос банковской выписки (вкладка «Разнос выписки» в графике оплат и импорт операций).
+     */
+    public static function canAccessPaymentReconcile(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->canManagementAccounting()) {
+            return true;
+        }
+
+        return static::canAccessVisibilityArea($user, 'finance_payment_reconcile');
+    }
+
+    /**
      * Просмотр раздела «График оплат» (страница финансов / API чтения).
      */
     public static function canViewPaymentSchedules(?User $user): bool
@@ -1052,6 +1073,23 @@ class RoleAccess
         }
 
         return static::userHasPermission($user, 'payment_schedule_record_payment');
+    }
+
+    /**
+     * Отмена ошибочно зафиксированной оплаты (ручной ввод в графике).
+     */
+    public static function canReversePaymentScheduleEvent(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return static::canAccessPaymentReconcile($user)
+            || static::canManagePaymentSchedules($user);
     }
 
     /**

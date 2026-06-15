@@ -122,6 +122,7 @@ class ManagementAccountingCategoryBreakdownService
             && array_intersect($categoryIds, $costLeafIds) !== []
             && Schema::hasTable('payment_schedule_payment_events')) {
             PaymentSchedulePaymentEvent::query()
+                ->active()
                 ->whereBetween('payment_date', [$start->toDateString(), $end->toDateString()])
                 ->whereIn('party', ['carrier', 'contractor'])
                 ->whereNotNull('order_id')

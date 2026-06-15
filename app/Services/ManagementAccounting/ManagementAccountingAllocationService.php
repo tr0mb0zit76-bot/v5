@@ -9,15 +9,18 @@ use App\Models\ManagementStatementLine;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
+use App\Services\Finance\PaymentSchedulePaymentReversalService;
 use App\Support\PaymentScheduleAutomaticStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 
 class ManagementAccountingAllocationService
 {
     public function __construct(
         private readonly PaymentSchedulePaymentLedgerService $paymentLedger,
+        private readonly PaymentSchedulePaymentReversalService $paymentReversal,
         private readonly ManagementPayrollHalfService $payrollHalfService,
         private readonly ManagementAccountingMatchingService $matching,
         private readonly ManagementOperationalCostCategoryResolver $costCategoryResolver,
@@ -77,6 +80,62 @@ class ManagementAccountingAllocationService
 
             $line->save();
             $this->refreshImportCounters($line->import_id);
+
+            return $line->fresh([
+                'allocationCategory',
+                'allocationOrder',
+                'allocationPaymentSchedule',
+                'allocationUser',
+            ]);
+        });
+    }
+
+    public function deallocateLine(ManagementStatementLine $line, User $actor, ?string $reason = null): ManagementStatementLine
+    {
+        if ($line->status !== 'allocated') {
+            throw new InvalidArgumentException('Операция не разнесена.');
+        }
+
+        return DB::transaction(function () use ($line, $actor, $reason): ManagementStatementLine {
+            $matchType = (string) $line->match_type;
+            $amount = round((float) ($line->allocation_amount ?? $line->amount), 2);
+
+            if ($matchType === 'operational') {
+                $this->paymentReversal->reverseByManagementLineId(
+                    (int) $line->id,
+                    $actor,
+                    $reason ?? 'Отмена разнесения выписки',
+                );
+            } elseif ($matchType === 'payroll' && $line->allocation_user_id !== null) {
+                $half = $this->payrollHalfService->ensureCurrentHalf(
+                    CarbonImmutable::parse($line->operation_date),
+                );
+                $this->payrollHalfService->subtractPaidAmount(
+                    ManagementPayrollHalf::query()->findOrFail($half['id']),
+                    (int) $line->allocation_user_id,
+                    $amount,
+                );
+            }
+
+            $importId = $line->import_id;
+
+            $line->fill([
+                'status' => 'pending',
+                'match_type' => null,
+                'allocation_amount' => null,
+                'allocation_category_id' => null,
+                'allocation_order_id' => null,
+                'allocation_payment_schedule_id' => null,
+                'allocation_user_id' => null,
+                'allocated_by' => null,
+                'allocated_at' => null,
+            ]);
+
+            $suggestion = $this->matching->suggestForLine($line);
+            unset($suggestion['suggested_candidates']);
+            $line->fill($suggestion)->save();
+
+            $this->refreshImportCounters($importId);
 
             return $line->fresh([
                 'allocationCategory',

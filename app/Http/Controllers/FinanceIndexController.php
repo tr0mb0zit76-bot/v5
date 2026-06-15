@@ -45,7 +45,7 @@ class FinanceIndexController extends Controller
             $cashflowTab = 'schedule';
         }
 
-        if ($cashflowTab === 'reconcile' && ! RoleAccess::canAccessManagementAccounting($user)) {
+        if ($cashflowTab === 'reconcile' && ! RoleAccess::canAccessPaymentReconcile($user)) {
             $cashflowTab = 'schedule';
         }
 
@@ -61,6 +61,7 @@ class FinanceIndexController extends Controller
             'cash_flow_stats' => $cashFlowStats,
             'can_access_salary_module' => RoleAccess::canAccessFinanceSalary($user),
             'can_access_management_accounting' => RoleAccess::canAccessManagementAccounting($user),
+            'can_access_payment_reconcile' => RoleAccess::canAccessPaymentReconcile($user),
             'can_access_payment_schedules' => RoleAccess::canViewPaymentSchedules($user),
             'can_manage_payment_schedule' => RoleAccess::canManagePaymentSchedules($user),
             'can_show_payment_schedule_actions' => RoleAccess::canShowPaymentScheduleActionsColumn($user),

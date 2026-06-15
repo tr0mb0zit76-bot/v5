@@ -91,6 +91,25 @@ class ManagementPayrollHalfService
         $row->save();
     }
 
+    public function subtractPaidAmount(ManagementPayrollHalf $half, int $userId, float $amount): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+
+        $row = ManagementPayrollHalfUser::query()
+            ->where('payroll_half_id', $half->id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($row === null) {
+            return;
+        }
+
+        $row->paid_amount = max(0, round((float) $row->paid_amount - $amount, 2));
+        $row->save();
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

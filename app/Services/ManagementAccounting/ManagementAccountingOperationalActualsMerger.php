@@ -33,6 +33,7 @@ class ManagementAccountingOperationalActualsMerger
         $customerCategoryId = $this->categoryIdByCode('operational_customer_in');
 
         PaymentSchedulePaymentEvent::query()
+            ->active()
             ->whereBetween('payment_date', [$start->toDateString(), $end->toDateString()])
             ->where(function ($query): void {
                 $query->whereNull('transaction_reference')
@@ -83,6 +84,7 @@ class ManagementAccountingOperationalActualsMerger
         $customerCategoryId = $this->categoryIdByCode('operational_customer_in');
 
         PaymentSchedulePaymentEvent::query()
+            ->active()
             ->whereBetween('payment_date', [$start->toDateString(), $end->toDateString()])
             ->where(function ($query): void {
                 $query->whereNull('transaction_reference')

@@ -35,6 +35,38 @@
                     </div>
                 </div>
 
+                <div v-if="line.status === 'allocated' && line.allocation_summary" class="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+                    <div class="font-medium text-zinc-800 dark:text-zinc-100">
+                        {{ allocationSummaryTitle(line.allocation_summary) }}
+                    </div>
+                    <div v-if="line.allocation_summary.order" class="text-zinc-600 dark:text-zinc-300">
+                        Заявка: <strong>{{ line.allocation_summary.order.order_number }}</strong>
+                        <span v-if="line.allocation_summary.payment_schedule">
+                            · график #{{ line.allocation_summary.payment_schedule.id }}
+                            · {{ formatMoney(line.allocation_summary.payment_schedule.amount) }}
+                        </span>
+                    </div>
+                    <div v-if="line.allocation_summary.category" class="text-zinc-600 dark:text-zinc-300">
+                        Статья: {{ line.allocation_summary.category.name }}
+                    </div>
+                    <div v-if="line.allocation_summary.user" class="text-zinc-600 dark:text-zinc-300">
+                        Сотрудник: {{ line.allocation_summary.user.name }}
+                    </div>
+                    <div v-if="line.allocation_summary.allocated_by_name" class="text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ line.allocation_summary.allocated_by_name }}
+                        <span v-if="line.allocation_summary.allocated_at">
+                            · {{ formatDateTime(line.allocation_summary.allocated_at) }}
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        :class="crmBtnNeutral"
+                        @click="deallocateLine(line)"
+                    >
+                        Отменить разнесение
+                    </button>
+                </div>
+
                 <div v-if="line.match_notes" class="text-xs text-amber-700 dark:text-amber-300">
                     {{ line.match_notes }} ({{ line.match_confidence }}%)
                 </div>
@@ -125,7 +157,7 @@ import { Link, router } from '@inertiajs/vue3';
 import { reactive } from 'vue';
 import { ArrowLeft } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
-import { crmBtnPrimary, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
+import { crmBtnNeutral, crmBtnPrimary, crmPageLead, crmPageTitle, crmPanel } from '@/support/crmUi.js';
 
 defineOptions({
     layout: (h, page) =>
@@ -179,6 +211,28 @@ function allocateLine(line) {
     });
 }
 
+function deallocateLine(line) {
+    if (!window.confirm('Отменить разнесение этой операции? Связанная оплата в графике будет снята.')) {
+        return;
+    }
+
+    router.post(`/finance/management-accounting/lines/${line.id}/deallocate`, {}, {
+        preserveScroll: true,
+    });
+}
+
+function allocationSummaryTitle(summary) {
+    if (summary.match_type === 'operational') {
+        return 'Операционный платёж';
+    }
+
+    if (summary.match_type === 'payroll') {
+        return 'ФОТ';
+    }
+
+    return 'Статья расходов';
+}
+
 function formatMoney(value) {
     return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
@@ -190,5 +244,10 @@ function formatMoney(value) {
 function formatDate(value) {
     if (!value) return '—';
     return new Date(value).toLocaleDateString('ru-RU');
+}
+
+function formatDateTime(value) {
+    if (!value) return '—';
+    return new Date(value).toLocaleString('ru-RU');
 }
 </script>

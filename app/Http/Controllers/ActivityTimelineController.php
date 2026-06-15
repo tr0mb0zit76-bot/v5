@@ -30,6 +30,7 @@ class ActivityTimelineController extends Controller
 
     public function showForOrder(Request $request, Order $order): JsonResponse
     {
+        abort_unless($request->user()?->isAdmin(), 403);
         abort_unless($this->canAccessOrder($request, $order), 403);
 
         return response()->json([
