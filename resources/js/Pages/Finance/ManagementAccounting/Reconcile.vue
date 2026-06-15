@@ -1,5 +1,5 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         <div class="space-y-1">
             <Link
                 href="/finance?section=cashflow&cashflow_tab=reconcile"
@@ -9,7 +9,7 @@
                 К разносу выписки
             </Link>
             <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="min-w-0 space-y-1">
+                <div class="min-w-0 space-y-0.5">
                     <h1 :class="crmPageTitle">Разнесение выписки</h1>
                     <p :class="crmPageLead">
                         {{ importData.file_name }} · {{ importData.bank_account?.bank_name }}
@@ -19,7 +19,7 @@
                 </div>
                 <button
                     type="button"
-                    class="rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                    class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
                     @click="deleteImport"
                 >
                     Удалить выписку
@@ -32,7 +32,7 @@
                 v-for="filter in lineFilters"
                 :key="filter.key"
                 type="button"
-                :class="lineFilter === filter.key ? crmSegmentedBtnActive : crmSegmentedBtn"
+                :class="lineFilter === filter.key ? crmSegmentedBtnActive : crmSegBtn"
                 @click="lineFilter = filter.key"
             >
                 {{ filter.label }}
@@ -40,192 +40,180 @@
             </button>
         </div>
 
-        <div class="space-y-3">
+        <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
             <article
                 v-for="line in filteredLines"
                 :key="line.id"
-                :class="`${crmPanel} space-y-3 p-4 ${line.status === 'allocated' ? 'border-emerald-200 dark:border-emerald-900/50' : ''}`"
+                class="px-3 py-2.5"
+                :class="line.status === 'allocated' ? 'bg-emerald-50/40 dark:bg-emerald-950/15' : ''"
             >
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div class="min-w-0 space-y-1">
-                        <div class="text-sm text-zinc-500">{{ formatDate(line.operation_date) }}</div>
-                        <div class="font-medium" :class="line.direction === 'in' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
-                            {{ line.direction === 'in' ? '+' : '−' }}{{ formatMoney(line.amount) }}
-                        </div>
-                        <p class="text-sm leading-6 text-zinc-700 dark:text-zinc-300">{{ line.description }}</p>
-                    </div>
-                    <div
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="shrink-0 text-xs tabular-nums text-zinc-500">{{ formatDate(line.operation_date) }}</span>
+                    <span
+                        class="shrink-0 text-sm font-semibold tabular-nums"
+                        :class="line.direction === 'in' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'"
+                    >
+                        {{ line.direction === 'in' ? '+' : '−' }}{{ formatMoney(line.amount) }}
+                    </span>
+                    <p
+                        class="min-w-0 flex-1 truncate text-xs text-zinc-600 dark:text-zinc-400"
+                        :title="line.description"
+                    >
+                        {{ line.description }}
+                    </p>
+                    <span
                         v-if="line.status === 'allocated'"
-                        class="rounded border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                        class="shrink-0 rounded border border-emerald-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
                     >
                         Разнесено
-                    </div>
-                    <div
+                    </span>
+                    <span
                         v-else-if="line.needs_manual_selection"
-                        class="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-800 dark:border-amber-800 dark:text-amber-300"
+                        class="shrink-0 rounded border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 dark:border-amber-800 dark:text-amber-300"
                     >
-                        Нужен выбор
-                    </div>
+                        Выбор
+                    </span>
+                    <span
+                        v-if="line.match_notes"
+                        class="hidden shrink-0 text-[10px] text-amber-700 sm:inline dark:text-amber-300"
+                    >
+                        {{ line.match_notes }}
+                        <span v-if="line.match_confidence">({{ line.match_confidence }}%)</span>
+                    </span>
                 </div>
+
+                <p
+                    v-if="line.match_notes"
+                    class="mt-0.5 truncate text-[10px] text-amber-700 sm:hidden dark:text-amber-300"
+                >
+                    {{ line.match_notes }}
+                    <span v-if="line.match_confidence">({{ line.match_confidence }}%)</span>
+                </p>
 
                 <div
                     v-if="line.status === 'allocated'"
-                    class="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-sm dark:border-emerald-900/40 dark:bg-emerald-950/20"
+                    class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs"
                 >
-                    <template v-if="line.allocation_summary">
-                        <div class="font-medium text-zinc-800 dark:text-zinc-100">
-                            {{ allocationSummaryTitle(line.allocation_summary) }}
-                        </div>
-                        <div v-if="line.allocation_summary.order" class="text-zinc-600 dark:text-zinc-300">
-                            Заявка: <strong>{{ line.allocation_summary.order.order_number }}</strong>
-                            <span v-if="line.allocation_summary.payment_schedule">
-                                · график #{{ line.allocation_summary.payment_schedule.id }}
-                                · {{ formatMoney(line.allocation_summary.payment_schedule.amount) }}
+                    <p class="min-w-0 truncate text-zinc-600 dark:text-zinc-300">
+                        <template v-if="line.allocation_summary">
+                            <span class="font-medium text-zinc-800 dark:text-zinc-100">{{ allocationSummaryInline(line.allocation_summary) }}</span>
+                            <span v-if="line.allocation_summary.allocated_by_name" class="text-zinc-500">
+                                · {{ line.allocation_summary.allocated_by_name }}
                             </span>
-                        </div>
-                        <div v-if="line.allocation_summary.category" class="text-zinc-600 dark:text-zinc-300">
-                            Статья: {{ line.allocation_summary.category.name }}
-                        </div>
-                        <div v-if="line.allocation_summary.user" class="text-zinc-600 dark:text-zinc-300">
-                            Сотрудник: {{ line.allocation_summary.user.name }}
-                        </div>
-                        <div v-if="line.allocation_summary.allocated_by_name" class="text-xs text-zinc-500 dark:text-zinc-400">
-                            {{ line.allocation_summary.allocated_by_name }}
-                            <span v-if="line.allocation_summary.allocated_at">
-                                · {{ formatDateTime(line.allocation_summary.allocated_at) }}
-                            </span>
-                        </div>
-                    </template>
-                    <p v-else class="text-zinc-600 dark:text-zinc-300">
-                        Операция разнесена. Можно отменить разнесение и выбрать другой вариант.
+                        </template>
+                        <template v-else>Операция разнесена</template>
                     </p>
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            :class="crmBtnPrimary"
-                            @click="deallocateLine(line)"
-                        >
-                            Исправить разнесение
-                        </button>
-                    </div>
-                </div>
-
-                <div v-if="line.match_notes" class="text-xs text-amber-700 dark:text-amber-300">
-                    {{ line.match_notes }}
-                    <span v-if="line.match_confidence">({{ line.match_confidence }}%)</span>
+                    <button
+                        type="button"
+                        class="shrink-0 rounded border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                        @click="deallocateLine(line)"
+                    >
+                        Исправить
+                    </button>
                 </div>
 
                 <form
                     v-if="line.status !== 'allocated'"
-                    class="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/30"
+                    class="mt-1.5 space-y-1.5"
                     @submit.prevent="allocateLine(line)"
                 >
-                    <div class="grid gap-2 md:grid-cols-4">
+                    <div class="flex flex-wrap items-center gap-1.5">
                         <select
                             v-model="allocationForms[line.id].allocation_type"
-                            class="rounded-lg border border-zinc-300 px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            class="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
                             @change="onAllocationTypeChange(line)"
                         >
-                            <option value="operational">Операционный / себестоимость</option>
+                            <option value="operational">Операционный</option>
                             <option value="payroll">ФОТ</option>
-                            <option value="category">Статья расходов</option>
+                            <option value="category">Статья</option>
                         </select>
-                        <select
-                            v-if="allocationForms[line.id].allocation_type === 'category' || allocationForms[line.id].allocation_type === 'payroll'"
-                            v-model="allocationForms[line.id].category_id"
-                            class="rounded-lg border border-zinc-300 px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                        >
-                            <option v-for="category in categoriesForType(allocationForms[line.id].allocation_type)" :key="category.id" :value="category.id">
-                                {{ category.name }}
-                            </option>
-                        </select>
-                        <input
-                            v-if="allocationForms[line.id].allocation_type === 'payroll'"
-                            v-model.number="allocationForms[line.id].user_id"
-                            type="number"
-                            placeholder="ID сотрудника"
-                            class="rounded-lg border border-zinc-300 px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                        >
-                    </div>
 
-                    <div v-if="allocationForms[line.id].allocation_type === 'operational'" class="space-y-2">
-                        <label class="block space-y-1 text-sm">
-                            <span class="text-zinc-600 dark:text-zinc-400">Поиск перевозчика / заявки в графике</span>
-                            <div class="flex flex-wrap gap-2">
-                                <input
-                                    v-model="searchQueries[line.id]"
-                                    type="search"
-                                    placeholder="Например: Тандем, АС-2506-0201"
-                                    class="min-w-[14rem] flex-1 rounded-lg border border-zinc-300 px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                                    @input="debouncedSearch(line)"
-                                >
-                                <button
-                                    type="button"
-                                    :class="crmBtnNeutral"
-                                    :disabled="searchLoading[line.id]"
-                                    @click="searchCandidates(line)"
-                                >
-                                    {{ searchLoading[line.id] ? 'Поиск…' : 'Найти' }}
-                                </button>
-                            </div>
-                        </label>
-
-                        <div v-if="displayCandidates(line).length > 0" class="space-y-2">
-                            <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                                Выберите строку графика, куда разнести платёж:
-                            </p>
-                            <label
-                                v-for="candidate in displayCandidates(line)"
-                                :key="candidate.payment_schedule_id"
-                                class="flex cursor-pointer gap-3 rounded-lg border px-3 py-2 text-sm transition"
-                                :class="Number(allocationForms[line.id].payment_schedule_id) === Number(candidate.payment_schedule_id)
-                                    ? 'border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/30'
-                                    : 'border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600'"
+                        <template v-if="allocationForms[line.id].allocation_type === 'operational'">
+                            <input
+                                v-model="searchQueries[line.id]"
+                                type="search"
+                                placeholder="Перевозчик / заявка"
+                                class="min-w-[7rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                @input="debouncedSearch(line)"
                             >
-                                <input
-                                    v-model="allocationForms[line.id].payment_schedule_id"
-                                    type="radio"
-                                    class="mt-1"
+                            <button
+                                type="button"
+                                class="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                :disabled="searchLoading[line.id]"
+                                @click="searchCandidates(line)"
+                            >
+                                {{ searchLoading[line.id] ? '…' : 'Найти' }}
+                            </button>
+                            <select
+                                v-if="displayCandidates(line).length > 0"
+                                v-model="allocationForms[line.id].payment_schedule_id"
+                                class="min-w-[10rem] max-w-full flex-[2] rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                                <option disabled value="">Строка графика</option>
+                                <option
+                                    v-for="candidate in displayCandidates(line)"
+                                    :key="candidate.payment_schedule_id"
                                     :value="candidate.payment_schedule_id"
                                 >
-                                <span class="min-w-0 flex-1">
-                                    <span class="font-medium">{{ candidateOptionLabel(candidate) }}</span>
-                                    <span
-                                        v-if="candidate.match_reason_label"
-                                        class="ml-2 text-xs text-zinc-500"
-                                    >
-                                        · {{ candidate.match_reason_label }}
-                                    </span>
-                                </span>
-                            </label>
-                        </div>
+                                    {{ candidateOptionLabel(candidate) }}
+                                </option>
+                            </select>
+                            <input
+                                v-else
+                                v-model.number="allocationForms[line.id].payment_schedule_id"
+                                type="number"
+                                placeholder="ID графика"
+                                class="w-24 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </template>
 
-                        <p v-else class="text-xs text-zinc-500 dark:text-zinc-400">
-                            Совпадений не найдено. Уточните название перевозчика или введите номер заявки.
-                        </p>
+                        <template v-else-if="allocationForms[line.id].allocation_type === 'payroll'">
+                            <select
+                                v-model="allocationForms[line.id].category_id"
+                                class="min-w-[8rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                                <option v-for="category in categoriesForType('payroll')" :key="category.id" :value="category.id">
+                                    {{ category.name }}
+                                </option>
+                            </select>
+                            <input
+                                v-model.number="allocationForms[line.id].user_id"
+                                type="number"
+                                placeholder="ID сотр."
+                                class="w-20 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </template>
 
-                        <input
-                            v-if="displayCandidates(line).length === 0"
-                            v-model.number="allocationForms[line.id].payment_schedule_id"
-                            type="number"
-                            placeholder="Или укажите ID строки графика вручную"
-                            class="w-full rounded-lg border border-zinc-300 px-2 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
-                        >
-                    </div>
+                        <template v-else>
+                            <select
+                                v-model="allocationForms[line.id].category_id"
+                                class="min-w-[10rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                                <option v-for="category in categoriesForType('category')" :key="category.id" :value="category.id">
+                                    {{ category.name }}
+                                </option>
+                            </select>
+                        </template>
 
-                    <div class="flex justify-end">
                         <button
                             type="submit"
-                            :class="crmBtnPrimary"
+                            class="shrink-0 rounded bg-sky-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50 dark:bg-sky-500 dark:hover:bg-sky-600"
                             :disabled="!canSubmit(line)"
                         >
-                            Подтвердить разнесение
+                            Разнести
                         </button>
                     </div>
+
+                    <p
+                        v-if="allocationForms[line.id].allocation_type === 'operational' && displayCandidates(line).length === 0 && !searchLoading[line.id]"
+                        class="truncate text-[10px] text-zinc-500 dark:text-zinc-400"
+                    >
+                        Совпадений нет — уточните поиск или укажите ID строки графика.
+                    </p>
                 </form>
             </article>
 
-            <p v-if="filteredLines.length === 0" class="py-8 text-center text-sm text-zinc-500">
+            <p v-if="filteredLines.length === 0" class="px-3 py-6 text-center text-sm text-zinc-500">
                 Нет операций для выбранного фильтра.
             </p>
         </div>
@@ -238,13 +226,10 @@ import { Link, router } from '@inertiajs/vue3';
 import { ArrowLeft } from 'lucide-vue-next';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import {
-    crmBtnNeutral,
-    crmBtnPrimary,
     crmPageLead,
     crmPageTitle,
-    crmPanel,
-    crmSegmentedBtn,
-    crmSegmentedBtnActive,
+    crmSegBtn,
+    crmSegBtnActive,
 } from '@/support/crmUi.js';
 
 defineOptions({
@@ -416,13 +401,13 @@ function canSubmit(line) {
 
 function candidateOptionLabel(candidate) {
     const order = candidate.order_number || `#${candidate.order_id}`;
-    const plan = candidate.planned_date ? formatDate(candidate.planned_date) : 'без даты';
+    const plan = candidate.planned_date ? formatDate(candidate.planned_date) : '—';
     const amount = formatMoney(candidate.amount);
     const contractor = candidate.contractor_label && candidate.contractor_label !== '—'
         ? `${candidate.contractor_label} · `
         : '';
 
-    return `${contractor}${order} · ${amount} · план ${plan} · график #${candidate.payment_schedule_id}`;
+    return `${contractor}${order} · ${amount} · ${plan} · #${candidate.payment_schedule_id}`;
 }
 
 function allocateLine(line) {
@@ -455,16 +440,34 @@ function deleteImport() {
     router.delete(`/finance/management-accounting/imports/${props.importData.id}`);
 }
 
-function allocationSummaryTitle(summary) {
+function allocationSummaryInline(summary) {
     if (summary.match_type === 'operational') {
-        return 'Операционный платёж (себестоимость)';
+        const order = summary.order?.order_number;
+        const schedule = summary.payment_schedule;
+        const parts = ['Операционный'];
+
+        if (order) {
+            parts.push(order);
+        }
+
+        if (schedule) {
+            parts.push(`#${schedule.id} · ${formatMoney(schedule.amount)}`);
+        }
+
+        if (summary.category?.name) {
+            parts.push(summary.category.name);
+        }
+
+        return parts.join(' · ');
     }
 
     if (summary.match_type === 'payroll') {
-        return 'ФОТ';
+        const user = summary.user?.name;
+
+        return user ? `ФОТ · ${user}` : 'ФОТ';
     }
 
-    return 'Статья расходов';
+    return summary.category?.name ?? 'Статья расхоов';
 }
 
 function formatMoney(value) {
@@ -476,12 +479,10 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-    if (!value) return '—';
-    return new Date(value).toLocaleDateString('ru-RU');
-}
+    if (!value) {
+        return '—';
+    }
 
-function formatDateTime(value) {
-    if (!value) return '—';
-    return new Date(value).toLocaleString('ru-RU');
+    return new Date(value).toLocaleDateString('ru-RU');
 }
 </script>

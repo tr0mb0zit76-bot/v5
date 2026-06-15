@@ -450,6 +450,41 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame('search', $candidates[0]['match_reason']);
     }
 
+    public function test_suggests_customer_schedule_before_direction_fallback(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО КАМИОН',
+            'full_name' => 'Общество с ограниченной ответственностью КАМИОН',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2605-0100',
+            'customer_id' => $customer->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'amount' => 100000,
+            'remaining_amount' => 100000,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-11',
+            'direction' => 'in',
+            'amount' => 100000,
+            'description' => 'ООО КАМИОН оплата по договору перевозки',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertNotEmpty($suggestion['suggested_candidates']);
+        $this->assertNotSame('Эвристика по направлению', $suggestion['match_notes']);
+    }
+
     private function matchingService(): ManagementAccountingMatchingService
     {
         return app(ManagementAccountingMatchingService::class);

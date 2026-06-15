@@ -75,11 +75,6 @@ class ManagementAccountingMatchingService
             return $payroll;
         }
 
-        $category = $this->matchCategoryByKeywords($description, $direction);
-        if ($category !== null) {
-            return $category;
-        }
-
         if ($amount > 0) {
             $manualCandidates = $this->operationalCandidatesForLine($line);
 
@@ -106,16 +101,12 @@ class ManagementAccountingMatchingService
             }
         }
 
-        return [
-            'match_type' => null,
-            'match_confidence' => 0,
-            'match_notes' => null,
-            'suggested_order_id' => null,
-            'suggested_payment_schedule_id' => null,
-            'suggested_category_id' => $this->defaultCategoryId('unclassified'),
-            'suggested_user_id' => null,
-            'suggested_candidates' => [],
-        ];
+        $category = $this->matchCategoryByKeywords($description, $direction);
+        if ($category !== null) {
+            return $category;
+        }
+
+        return $this->directionFallbackCategory($direction);
     }
 
     /**
@@ -1085,6 +1076,23 @@ class ManagementAccountingMatchingService
             }
         }
 
+        return null;
+    }
+
+    /**
+     * @return array{
+     *     match_type: ?string,
+     *     match_confidence: int,
+     *     match_notes: ?string,
+     *     suggested_order_id: null,
+     *     suggested_payment_schedule_id: null,
+     *     suggested_category_id: ?int,
+     *     suggested_user_id: null,
+     *     suggested_candidates: list<array<string, mixed>>
+     * }
+     */
+    private function directionFallbackCategory(string $direction): array
+    {
         $cashCode = $direction === 'in' ? 'cash_other_in' : 'cash_other_out';
 
         return [

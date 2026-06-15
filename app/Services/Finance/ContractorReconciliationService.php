@@ -81,8 +81,9 @@ class ContractorReconciliationService
 
         $orderIds = $orders->pluck('id')->map(fn ($id): int => (int) $id)->all();
         $paidByOrder = $this->paidAmountsByOrder($orderIds, 'customer', $contractorId, $from, $to);
+        $tranchesByOrder = $this->tranchesByOrder($orderIds, 'customer', $contractorId, $from, $to);
 
-        $rows = $orders->map(function (Order $order) use ($paidByOrder): array {
+        $rows = $orders->map(function (Order $order) use ($paidByOrder, $tranchesByOrder): array {
             $accrued = $this->resolveCustomerAccrued($order);
             $paid = (float) ($paidByOrder[(int) $order->id] ?? 0);
 
@@ -93,6 +94,7 @@ class ContractorReconciliationService
                 'accrued' => round($accrued, 2),
                 'paid' => round($paid, 2),
                 'balance' => round($accrued - $paid, 2),
+                'tranches' => $tranchesByOrder[(int) $order->id] ?? [],
             ];
         })->values()->all();
 
@@ -135,6 +137,7 @@ class ContractorReconciliationService
             }
 
             $paid = $this->paidAmountForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
+            $tranches = $this->tranchesForOrder((int) $order->id, $counterpartyParty, $contractorId, $from, $to);
 
             $rows[] = [
                 'order_id' => $order->id,
@@ -143,6 +146,7 @@ class ContractorReconciliationService
                 'accrued' => round($accrued, 2),
                 'paid' => round($paid, 2),
                 'balance' => round($accrued - $paid, 2),
+                'tranches' => $tranches,
             ];
         }
 
@@ -209,6 +213,148 @@ class ContractorReconciliationService
         $map = $this->paidAmountsByOrder([$orderId], $party, $contractorId, $from, $to);
 
         return (float) ($map[$orderId] ?? 0);
+    }
+
+    /**
+     * @param  list<int>  $orderIds
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function tranchesByOrder(
+        array $orderIds,
+        string $party,
+        int $contractorId,
+        ?Carbon $from,
+        ?Carbon $to,
+    ): array {
+        $result = [];
+
+        foreach ($orderIds as $orderId) {
+            $tranches = $this->tranchesForOrder((int) $orderId, $party, $contractorId, $from, $to);
+
+            if ($tranches !== []) {
+                $result[(int) $orderId] = $tranches;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function tranchesForOrder(
+        int $orderId,
+        string $party,
+        int $contractorId,
+        ?Carbon $from,
+        ?Carbon $to,
+    ): array {
+        if (! Schema::hasTable('payment_schedules')) {
+            return [];
+        }
+
+        $query = DB::table('payment_schedules')
+            ->where('order_id', $orderId)
+            ->where('party', $party)
+            ->where('status', '!=', 'cancelled');
+
+        if ($party !== 'customer' && Schema::hasColumn('payment_schedules', 'counterparty_id')) {
+            $query->where('counterparty_id', $contractorId);
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $query->where(function ($partialQuery): void {
+                $partialQuery->whereNull('is_partial')
+                    ->orWhere('is_partial', false);
+            });
+        }
+
+        $schedules = $query
+            ->orderBy('planned_date')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'planned_date',
+                'amount',
+                'paid_amount',
+                'remaining_amount',
+                'status',
+                'invoice_number',
+            ]);
+
+        if ($schedules->isEmpty()) {
+            return [];
+        }
+
+        $scheduleIds = $schedules->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $paymentsBySchedule = $this->paymentsByScheduleIds($scheduleIds, $contractorId, $from, $to);
+
+        return $schedules
+            ->map(function ($schedule) use ($paymentsBySchedule): array {
+                $accrued = round((float) $schedule->amount, 2);
+                $payments = $paymentsBySchedule[(int) $schedule->id] ?? [];
+                $paid = round(array_sum(array_column($payments, 'amount')), 2);
+
+                if ($paid <= 0 && $schedule->paid_amount !== null) {
+                    $paid = round((float) $schedule->paid_amount, 2);
+                }
+
+                return [
+                    'id' => (int) $schedule->id,
+                    'planned_date' => $schedule->planned_date,
+                    'invoice_number' => $schedule->invoice_number,
+                    'accrued' => $accrued,
+                    'paid' => $paid,
+                    'balance' => round($accrued - $paid, 2),
+                    'status' => $schedule->status,
+                    'payments' => $payments,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $scheduleIds
+     * @return array<int, list<array{date: ?string, amount: float, reference: ?string, method: ?string}>>
+     */
+    private function paymentsByScheduleIds(
+        array $scheduleIds,
+        int $contractorId,
+        ?Carbon $from,
+        ?Carbon $to,
+    ): array {
+        if ($scheduleIds === [] || ! $this->ledgerService->ledgerTableExists()) {
+            return [];
+        }
+
+        $query = PaymentSchedulePaymentEvent::query()
+            ->active()
+            ->whereIn('payment_schedule_id', $scheduleIds)
+            ->where('contractor_id', $contractorId);
+
+        if ($from) {
+            $query->whereDate('payment_date', '>=', $from->toDateString());
+        }
+
+        if ($to) {
+            $query->whereDate('payment_date', '<=', $to->toDateString());
+        }
+
+        $grouped = [];
+
+        foreach ($query->orderBy('payment_date')->orderBy('id')->get() as $event) {
+            $scheduleId = (int) $event->payment_schedule_id;
+
+            $grouped[$scheduleId][] = [
+                'date' => $event->payment_date?->toDateString(),
+                'amount' => round((float) $event->amount, 2),
+                'reference' => $event->transaction_reference,
+                'method' => $event->payment_method,
+            ];
+        }
+
+        return $grouped;
     }
 
     /**
