@@ -487,10 +487,10 @@ const visibilityGroupDefinitions = [
     {
         id: 'sales',
         label: 'Продажи',
-        description: 'Дашборд, лиды, заказы, контрагенты, ТС, задачи, канбан',
+        description: 'Дашборд, лиды, заказы, контрагенты, ТС, задачи, канбан, pipeline',
         collapsible: true,
-        keys: ['dashboard', 'leads', 'mail', 'orders', 'contractors', 'drivers', 'tasks', 'kanban'],
-        groupScopeKeys: ['orders', 'leads', 'tasks', 'kanban', 'contractors'],
+        keys: ['dashboard', 'leads', 'mail', 'orders', 'pipeline', 'contractors', 'drivers', 'tasks', 'kanban'],
+        groupScopeKeys: ['orders', 'pipeline', 'leads', 'tasks', 'kanban', 'contractors'],
     },
     {
         id: 'own_fleet',
@@ -1072,6 +1072,10 @@ function updateVisibilityScope(role, areaKey, mode) {
 function scopeHint(areaKey) {
     if (areaKey === 'orders') {
         return 'Все заказы или только свои';
+    }
+
+    if (areaKey === 'pipeline') {
+        return 'Все заказы на доске Pipeline или только свои';
     }
 
     if (areaKey === 'leads') {

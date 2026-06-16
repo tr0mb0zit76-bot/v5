@@ -23,6 +23,8 @@ final class PrintFormCargoTableCloner
         'cargo_row_weight',
         'cargo_row_volume',
         'cargo_row_packages',
+        'cargo_row_packages_label',
+        'cargo_row_pack_type',
         'cargo_row_hs_code',
         'cargo_row_dimensions',
     ];

@@ -22,7 +22,7 @@ class PipelineBoardTest extends TestCase
     use CreatesInTransitOrders;
     use RefreshDatabase;
 
-    public function test_pipeline_index_requires_orders_visibility(): void
+    public function test_pipeline_index_requires_pipeline_visibility(): void
     {
         $user = $this->makeUser(['dashboard']);
 
@@ -31,9 +31,19 @@ class PipelineBoardTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_pipeline_index_allows_leads_only_role_for_leads_view(): void
+    {
+        $user = $this->makeUser(['leads'], ['leads' => 'all']);
+
+        $this->actingAs($user)
+            ->get(route('pipeline.index', ['view' => 'leads', 'lead_process' => 'transport-intake']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Pipeline/Index')->where('view', 'leads'));
+    }
+
     public function test_orders_board_renders_inertia_with_columns(): void
     {
-        $user = $this->makeUser(['orders'], ['orders' => 'all']);
+        $user = $this->makeUser(['pipeline', 'orders'], ['orders' => 'all', 'pipeline' => 'all']);
 
         $this->createInTransitOrder(['manager_id' => $user->id]);
 
@@ -57,7 +67,7 @@ class PipelineBoardTest extends TestCase
             $this->markTestSkipped('payment_schedules table is not migrated.');
         }
 
-        $user = $this->makeUser(['orders'], ['orders' => 'all']);
+        $user = $this->makeUser(['pipeline', 'orders'], ['orders' => 'all', 'pipeline' => 'all']);
 
         $order = $this->createInTransitOrder(['manager_id' => $user->id]);
 
@@ -86,7 +96,7 @@ class PipelineBoardTest extends TestCase
 
     public function test_closed_order_appears_in_closed_column(): void
     {
-        $user = $this->makeUser(['orders'], ['orders' => 'all']);
+        $user = $this->makeUser(['pipeline', 'orders'], ['orders' => 'all', 'pipeline' => 'all']);
 
         $order = $this->createClosedOrder(['manager_id' => $user->id]);
 
@@ -137,13 +147,22 @@ class PipelineBoardTest extends TestCase
 
     public function test_accounting_handoff_denied_without_finance_salary(): void
     {
-        $user = $this->makeUser(['orders'], ['orders' => 'all']);
+        $user = $this->makeUser(['pipeline', 'orders'], ['orders' => 'all', 'pipeline' => 'all']);
 
         $order = $this->createClosedOrder(['manager_id' => $user->id]);
 
         $this->actingAs($user)
             ->post(route('pipeline.orders.accounting-handoff', $order))
             ->assertForbidden();
+    }
+
+    public function test_legacy_orders_visibility_grants_pipeline_access(): void
+    {
+        $user = $this->makeUser(['orders'], ['orders' => 'all']);
+
+        $this->actingAs($user)
+            ->get(route('pipeline.index'))
+            ->assertOk();
     }
 
     public function test_leads_board_groups_cards_by_process_stage(): void

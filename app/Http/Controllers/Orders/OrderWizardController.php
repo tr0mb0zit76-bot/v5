@@ -38,6 +38,7 @@ use App\Services\PrintForm\ContractorPrintFormChangeRequestService;
 use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormTemplateOrderEligibility;
+use App\Support\AtiDictionaryOptionCatalog;
 use App\Support\CargoPerformerAllocationNormalizer;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\CashToCashMarginCalculator;
@@ -426,7 +427,7 @@ class OrderWizardController extends Controller
             'ownCompanies' => $this->loadOwnCompaniesForWizard($order)->values(),
             'ownFleetContractor' => $this->ownFleetContractorPayload(),
             'cargoTypeOptions' => $this->atiDictionaryOptions('cargo_type', $this->fallbackCargoTypeOptions()),
-            'packageTypeOptions' => $this->atiDictionaryOptions('pack_type', $this->fallbackPackageTypeOptions()),
+            'packageTypeOptions' => $this->atiDictionaryOptions('pack_type', AtiDictionaryOptionCatalog::fallbackPackageTypeOptions()),
             'loadingTypeOptions' => $this->atiDictionaryOptions('loading_type', $this->fallbackLoadingTypeOptions()),
             'truckBodyTypeOptions' => $this->atiDictionaryOptions('truck_body_type', $this->fallbackTruckBodyTypeOptions()),
             'trailerTypeOptions' => $this->atiDictionaryOptions('trailer_type', $this->fallbackTrailerTypeOptions()),
@@ -2289,20 +2290,6 @@ class OrderWizardController extends Controller
             ['value' => 3, 'code' => 'temperature_controlled', 'label' => 'Температурный режим'],
             ['value' => 4, 'code' => 'oversized', 'label' => 'Негабаритный груз'],
             ['value' => 5, 'code' => 'fragile', 'label' => 'Хрупкий груз'],
-        ];
-    }
-
-    /**
-     * @return list<array{value:int, code:string, label:string}>
-     */
-    private function fallbackPackageTypeOptions(): array
-    {
-        return [
-            ['value' => 1, 'code' => 'pallet', 'label' => 'Паллета'],
-            ['value' => 2, 'code' => 'box', 'label' => 'Короб'],
-            ['value' => 3, 'code' => 'crate', 'label' => 'Ящик'],
-            ['value' => 4, 'code' => 'roll', 'label' => 'Рулон'],
-            ['value' => 5, 'code' => 'bag', 'label' => 'Мешок'],
         ];
     }
 

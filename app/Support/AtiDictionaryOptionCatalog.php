@@ -81,6 +81,7 @@ final class AtiDictionaryOptionCatalog
             ['value' => 3, 'code' => 'crate', 'label' => 'Ящик'],
             ['value' => 4, 'code' => 'roll', 'label' => 'Рулон'],
             ['value' => 5, 'code' => 'bag', 'label' => 'Мешок'],
+            ['value' => 6, 'code' => 'barrel', 'label' => 'Бочки'],
         ];
     }
 

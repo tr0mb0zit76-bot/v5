@@ -104,7 +104,7 @@ class StoreLeadRequest extends FormRequest
             'cargo_items.*.height_m' => ['nullable', 'numeric', 'min:0'],
             'cargo_items.*.diameter_m' => ['nullable', 'numeric', 'min:0'],
             'cargo_items.*.volume_m3' => ['nullable', 'numeric', 'min:0'],
-            'cargo_items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag'])],
+            'cargo_items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag', 'barrel'])],
             'cargo_items.*.pack_type_id' => ['nullable', 'integer', 'min:0'],
             'cargo_items.*.pack_type_label' => ['nullable', 'string', 'max:255'],
             'cargo_items.*.loading_type_id' => ['nullable', 'integer', 'min:0'],

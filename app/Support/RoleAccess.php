@@ -64,6 +64,7 @@ class RoleAccess
             ['key' => 'finance_payment_reconcile', 'label' => 'Разнос платежей', 'description' => 'Загрузка банковской выписки и разнесение операций по заявкам и статьям'],
             ['key' => 'tasks', 'label' => 'Задачи', 'description' => 'Управление внутренними и клиентскими задачами'],
             ['key' => 'kanban', 'label' => 'Канбан', 'description' => 'Визуальная доска задач'],
+            ['key' => 'pipeline', 'label' => 'Pipeline', 'description' => 'Сквозная доска заказов и лидов по этапам'],
             ['key' => 'reports', 'label' => 'Отчеты', 'description' => 'Финансовые и операционные отчеты'],
             ['key' => 'modules', 'label' => 'Модули', 'description' => 'Каталог доступных модулей; при выборе компонентов уточните строки ниже'],
             ['key' => 'modules_catalog', 'label' => 'Модули: каталог', 'description' => 'Страница со списком модулей'],
@@ -116,12 +117,12 @@ class RoleAccess
     {
         return match ($roleName) {
             'admin' => static::visibilityAreaKeys(),
-            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
-            'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
-            'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
-            'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'documents', 'finance_salary', 'payment_schedules', 'finance_payment_reconcile', 'tasks', 'kanban', 'reports'],
-            'clerk' => ['dashboard', 'dashboard_tiles', 'orders', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
-            'viewer' => ['dashboard', 'dashboard_tiles', 'orders'],
+            'supervisor' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'pipeline', 'scripts', 'users', 'contractors', 'drivers', 'documents', 'finance_salary', 'payment_schedules', 'tasks', 'kanban', 'reports', 'settings_motivation'],
+            'manager' => ['dashboard', 'dashboard_tiles', 'leads', 'orders', 'pipeline', 'scripts', 'contractors', 'documents', 'payment_schedules', 'tasks', 'kanban', 'reports'],
+            'dispatcher' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'scripts', 'drivers', 'payment_schedules', 'tasks', 'kanban'],
+            'accountant' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'documents', 'finance_salary', 'payment_schedules', 'finance_payment_reconcile', 'tasks', 'kanban', 'reports'],
+            'clerk' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline', 'scripts', 'documents', 'contractors', 'payment_schedules', 'tasks', 'kanban'],
+            'viewer' => ['dashboard', 'dashboard_tiles', 'orders', 'pipeline'],
             default => ['dashboard'],
         };
     }
@@ -134,6 +135,7 @@ class RoleAccess
         return match ($roleName) {
             'admin' => [
                 'orders' => 'all',
+                'pipeline' => 'all',
                 'leads' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
@@ -144,6 +146,7 @@ class RoleAccess
             ],
             'supervisor' => [
                 'orders' => 'all',
+                'pipeline' => 'all',
                 'leads' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
@@ -154,6 +157,7 @@ class RoleAccess
             ],
             'manager' => [
                 'orders' => 'own',
+                'pipeline' => 'own',
                 'leads' => 'own',
                 'tasks' => 'own',
                 'kanban' => 'own',
@@ -164,6 +168,7 @@ class RoleAccess
             ],
             'dispatcher' => [
                 'orders' => 'all',
+                'pipeline' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
                 'payment_schedules' => 'all',
@@ -171,6 +176,7 @@ class RoleAccess
             ],
             'accountant' => [
                 'orders' => 'all',
+                'pipeline' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
                 'documents' => 'all',
@@ -179,6 +185,7 @@ class RoleAccess
             ],
             'clerk' => [
                 'orders' => 'all',
+                'pipeline' => 'all',
                 'tasks' => 'all',
                 'kanban' => 'all',
                 'contractors' => 'all',
@@ -188,6 +195,7 @@ class RoleAccess
             ],
             'viewer' => [
                 'orders' => 'all',
+                'pipeline' => 'all',
                 'dashboard_tiles' => 'all',
             ],
             default => [],
@@ -203,7 +211,15 @@ class RoleAccess
             ? $visibilityScopes
             : static::defaultVisibilityScopes($roleName);
 
-        $value = $scopes[$area] ?? static::defaultVisibilityScopes($roleName)[$area] ?? 'own';
+        $value = $scopes[$area] ?? static::defaultVisibilityScopes($roleName)[$area] ?? null;
+
+        if ($value === null && $area === 'pipeline') {
+            $value = $scopes['orders'] ?? static::defaultVisibilityScopes($roleName)['orders'] ?? 'own';
+        }
+
+        if ($value === null) {
+            $value = 'own';
+        }
 
         return in_array($value, ['own', 'all'], true) ? $value : 'own';
     }
@@ -482,10 +498,26 @@ class RoleAccess
         $expanded = static::expandLegacySalesAssistantVisibilityAreas(array_values(array_unique($filtered)));
         $expanded = static::expandLegacyModulesVisibilityAreas($expanded);
         $expanded = static::expandLegacyOwnFleetVisibilityAreas($expanded);
+        $expanded = static::expandLegacyOrdersPlanningVisibilityAreas($expanded);
 
         return $expanded !== []
             ? $expanded
             : static::defaultVisibilityAreas($roleName);
+    }
+
+    /**
+     * Роли с доступом к заказам автоматически получают Pipeline (обратная совместимость).
+     *
+     * @param  list<string>  $areas
+     * @return list<string>
+     */
+    public static function expandLegacyOrdersPlanningVisibilityAreas(array $areas): array
+    {
+        if (in_array('orders', $areas, true) && ! in_array('pipeline', $areas, true)) {
+            $areas[] = 'pipeline';
+        }
+
+        return array_values(array_unique($areas));
     }
 
     /**

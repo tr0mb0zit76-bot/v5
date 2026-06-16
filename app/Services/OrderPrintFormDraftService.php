@@ -11,6 +11,7 @@ use App\Models\PrintFormBasicTerm;
 use App\Models\PrintFormTemplate;
 use App\Models\User;
 use App\Services\PrintForm\PrintFormBasicTermsService;
+use App\Support\CargoPackagesLabelFormatter;
 use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\ContractorPrimaryContactResolver;
@@ -2464,6 +2465,8 @@ class OrderPrintFormDraftService
                     'cargo_row_weight' => $this->cargoRowWeightLabel($cargo, $scope),
                     'cargo_row_volume' => $this->cargoRowVolumeLabel($cargo, $scope),
                     'cargo_row_packages' => (string) $metrics['package_count'],
+                    'cargo_row_packages_label' => CargoPackagesLabelFormatter::countLabel($metrics['package_count']),
+                    'cargo_row_pack_type' => CargoPackagesLabelFormatter::packTypeLabel($cargo),
                     'cargo_row_hs_code' => is_object($cargo) ? trim((string) ($cargo->hs_code ?? '')) : '',
                     'cargo_row_dimensions' => $dimensions ?? '',
                 ];

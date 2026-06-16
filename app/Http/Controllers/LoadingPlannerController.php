@@ -195,7 +195,7 @@ class LoadingPlannerController extends Controller
             'cargo_groups.*.items' => ['required', 'array', 'min:1'],
             'cargo_groups.*.items.*.name' => ['required', 'string', 'max:255'],
             'cargo_groups.*.items.*.client_key' => ['nullable', 'string', 'max:80'],
-            'cargo_groups.*.items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag', 'custom'])],
+            'cargo_groups.*.items.*.package_type' => ['nullable', Rule::in(['pallet', 'box', 'crate', 'roll', 'bag', 'barrel', 'custom'])],
             'cargo_groups.*.items.*.quantity' => ['required', 'integer', 'min:1', 'max:7000'],
             'cargo_groups.*.items.*.length_mm' => ['required', 'integer', 'min:1', 'max:30000'],
             'cargo_groups.*.items.*.width_mm' => ['required', 'integer', 'min:1', 'max:10000'],

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\PrintFormTemplate;
+use App\Support\CargoPackagesLabelFormatter;
 use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\PhpWordTemplateOverlayImageInjector;
@@ -415,6 +416,10 @@ class LeadPrintFormDraftService
                     'cargo_row_weight' => $this->leadCargoRowWeightLabel($cargo),
                     'cargo_row_volume' => $this->leadCargoRowVolumeLabel($cargo),
                     'cargo_row_packages' => is_object($cargo) ? (string) (int) ($cargo->package_count ?? 0) : '',
+                    'cargo_row_packages_label' => is_object($cargo)
+                        ? CargoPackagesLabelFormatter::countLabel((int) ($cargo->package_count ?? 0))
+                        : '',
+                    'cargo_row_pack_type' => CargoPackagesLabelFormatter::packTypeLabel($cargo),
                     'cargo_row_hs_code' => is_object($cargo) ? trim((string) ($cargo->hs_code ?? '')) : '',
                     'cargo_row_dimensions' => '',
                 ];

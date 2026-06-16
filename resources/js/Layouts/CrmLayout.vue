@@ -1037,6 +1037,8 @@ const menuItems = computed(() => {
     }
     if (isAdmin || areas.includes('orders')) {
         planningChildren.push({ key: 'disposition', label: 'Диспозиция' });
+    }
+    if (isAdmin || areas.includes('pipeline')) {
         planningChildren.push({ key: 'pipeline', label: 'Pipeline' });
     }
     const planningItem =
