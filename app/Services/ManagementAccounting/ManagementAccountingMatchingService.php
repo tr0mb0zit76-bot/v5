@@ -145,17 +145,22 @@ class ManagementAccountingMatchingService
         )->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)->values();
 
         if ($candidates->isEmpty()) {
-            $candidates = $line->direction === 'out'
-                ? $this->operationalCandidatesByAmountOnly(
-                    $description,
-                    (float) $line->amount,
-                    $operationDate,
-                )
-                : $this->operationalCandidatesByContractorInDescription(
-                    $description,
-                    (float) $line->amount,
-                    $operationDate,
-                );
+            $candidates = $this->operationalCandidatesByAmountOnly(
+                $description,
+                $line->direction,
+                (float) $line->amount,
+                $operationDate,
+            );
+
+            if ($line->direction === 'in') {
+                $candidates = $candidates->merge(
+                    $this->operationalCandidatesByContractorInDescription(
+                        $description,
+                        (float) $line->amount,
+                        $operationDate,
+                    ),
+                )->unique(fn (array $candidate): int => (int) $candidate['schedule']->id)->values();
+            }
         }
 
         return $this->serializeOperationalCandidates($candidates);
@@ -208,18 +213,23 @@ class ManagementAccountingMatchingService
             );
         } else {
             $candidates = $candidates->merge(
-                $line->direction === 'out'
-                    ? $this->operationalCandidatesByAmountOnly(
-                        $description,
-                        (float) $line->amount,
-                        $operationDate,
-                    )
-                    : $this->operationalCandidatesByContractorInDescription(
+                $this->operationalCandidatesByAmountOnly(
+                    $description,
+                    $line->direction,
+                    (float) $line->amount,
+                    $operationDate,
+                ),
+            );
+
+            if ($line->direction === 'in') {
+                $candidates = $candidates->merge(
+                    $this->operationalCandidatesByContractorInDescription(
                         $description,
                         (float) $line->amount,
                         $operationDate,
                     ),
-            );
+                );
+            }
         }
 
         $candidates = $candidates
@@ -292,7 +302,7 @@ class ManagementAccountingMatchingService
                 'match_notes' => 'Номер заявки найден, заказ не найден: '.$orderNumber,
                 'suggested_order_id' => null,
                 'suggested_payment_schedule_id' => null,
-                'suggested_category_id' => $this->suggestedCarrierCategoryId(null, null),
+                'suggested_category_id' => $this->suggestedOperationalCategoryId($direction, null, null),
                 'suggested_user_id' => null,
                 'suggested_candidates' => [],
             ];
@@ -323,7 +333,8 @@ class ManagementAccountingMatchingService
             'match_notes' => $schedule === null ? 'Строка графика не найдена по сумме' : null,
             'suggested_order_id' => $order->id,
             'suggested_payment_schedule_id' => $schedule?->id,
-            'suggested_category_id' => $this->suggestedCarrierCategoryId(
+            'suggested_category_id' => $this->suggestedOperationalCategoryId(
+                $direction,
                 (int) $order->id,
                 $schedule?->counterparty_id !== null ? (int) $schedule->counterparty_id : null,
             ),
@@ -423,7 +434,9 @@ class ManagementAccountingMatchingService
                     'order_id' => (int) $schedule->order_id,
                     'order_number' => $candidate['order_number'],
                     'planned_date' => $schedule->planned_date?->toDateString(),
-                    'amount' => $this->effectiveScheduleAmount($schedule),
+                    'amount' => (float) $schedule->amount,
+                    'amount_due' => $this->effectiveScheduleAmount($schedule),
+                    'paid_amount' => (float) ($schedule->paid_amount ?? 0),
                     'contractor_label' => $candidate['contractor_label'],
                     'party' => $schedule->party,
                     'match_reason' => $candidate['match_reason'] ?? null,
@@ -487,17 +500,20 @@ class ManagementAccountingMatchingService
      */
     private function operationalCandidatesByAmountOnly(
         string $description,
+        string $direction,
         float $amount,
         ?string $operationDate,
     ): Collection {
+        $parties = $direction === 'in' ? ['customer'] : ['carrier', 'contractor'];
+
         return $this->openOperationalSchedulesQuery()
             ->with($this->operationalScheduleEagerLoads())
-            ->whereIn('party', ['carrier', 'contractor'])
+            ->whereIn('party', $parties)
             ->orderBy('id')
             ->get()
             ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
-            ->map(function (PaymentSchedule $schedule) use ($description, $operationDate, $amount): array {
-                $contractors = $this->contractorsForSchedule($schedule, 'out');
+            ->map(function (PaymentSchedule $schedule) use ($description, $direction, $operationDate, $amount): array {
+                $contractors = $this->contractorsForSchedule($schedule, $direction);
                 $contractor = $contractors[0] ?? null;
                 $label = $contractor !== null ? $this->contractorDisplayLabel($contractor) : '—';
 
@@ -1300,6 +1316,15 @@ class ManagementAccountingMatchingService
         }
 
         return null;
+    }
+
+    private function suggestedOperationalCategoryId(string $direction, ?int $orderId, ?int $contractorId): ?int
+    {
+        if ($direction === 'in') {
+            return $this->defaultCategoryId('operational_customer_in');
+        }
+
+        return $this->suggestedCarrierCategoryId($orderId, $contractorId);
     }
 
     private function suggestedCarrierCategoryId(?int $orderId, ?int $contractorId): ?int

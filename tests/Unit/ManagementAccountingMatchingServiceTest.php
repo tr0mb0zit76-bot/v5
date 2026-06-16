@@ -555,6 +555,42 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame('ООО КАМИОН', $candidates[0]['contractor_label']);
     }
 
+    public function test_incoming_amount_only_candidate_when_contractor_name_missing_in_description(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО Дайтона моторс',
+            'full_name' => 'Общество с ограниченной ответственностью "Дайтона моторс"',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2606-0002',
+            'customer_id' => $customer->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'amount' => 250000,
+            'remaining_amount' => 250000,
+            'paid_amount' => 0,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-11',
+            'direction' => 'in',
+            'amount' => 250000,
+            'description' => 'Поступление по договору транспортных услуг',
+        ]);
+
+        $candidates = $this->matchingService()->operationalCandidatesForLine($line);
+
+        $this->assertCount(1, $candidates);
+        $this->assertSame($order->id, $candidates[0]['order_id']);
+        $this->assertSame(250000.0, $candidates[0]['amount_due']);
+    }
+
     public function test_prefers_prepayment_slot_before_final_for_same_order(): void
     {
         $customer = Contractor::query()->create([

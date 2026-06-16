@@ -279,7 +279,7 @@ const debounceTimers = {};
 const COST_CATEGORY_CODES = ['operational_carrier_out', 'cost_own_fleet'];
 
 function defaultAllocationType(line) {
-    if (line.match_type === 'operational' || line.direction === 'out') {
+    if (line.match_type === 'operational' || line.direction === 'in' || line.direction === 'out') {
         return 'operational';
     }
 
@@ -330,7 +330,7 @@ onMounted(() => {
             continue;
         }
 
-        if (line.contractor_search_hint || line.needs_manual_selection) {
+        if (line.contractor_search_hint || line.needs_manual_selection || line.direction === 'in') {
             searchCandidates(line);
         }
     }
@@ -432,7 +432,11 @@ function canSubmit(line) {
 function candidateOptionLabel(candidate) {
     const order = candidate.order_number || `#${candidate.order_id}`;
     const plan = candidate.planned_date ? formatDate(candidate.planned_date) : '—';
-    const amount = formatMoney(candidate.amount);
+    const due = formatMoney(candidate.amount_due ?? candidate.amount);
+    const lineAmount = candidate.amount !== undefined && candidate.amount_due !== undefined
+        && Math.abs(Number(candidate.amount_due) - Number(candidate.amount)) > 0.01
+        ? ` (строка ${formatMoney(candidate.amount)})`
+        : '';
     const contractor = candidate.contractor_label && candidate.contractor_label !== '—'
         ? `${candidate.contractor_label} · `
         : '';
@@ -442,7 +446,7 @@ function candidateOptionLabel(candidate) {
 
     const slot = candidate.slot_label ? `${candidate.slot_label} · ` : '';
 
-    return `${contractor}${slot}${order} · ${amount} · ${plan} · #${candidate.payment_schedule_id}${reason}`;
+    return `${contractor}${slot}${order} · к оплате ${due}${lineAmount} · ${plan} · #${candidate.payment_schedule_id}${reason}`;
 }
 
 function allocateLine(line) {

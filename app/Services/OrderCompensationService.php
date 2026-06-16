@@ -16,6 +16,7 @@ use App\Support\OrderRouteMilestoneDateResolver;
 use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\PaymentScheduleCashBasis;
 use App\Support\PaymentScheduleSettlementPreserver;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PaymentTermsSummaryLimits;
@@ -482,6 +483,8 @@ class OrderCompensationService
             OrderPaymentTermsConfigResolver::resolveClientPaymentSchedule($order),
             null,
             $invoiceByKey,
+            null,
+            filled($order->customer_payment_form) ? (string) $order->customer_payment_form : null,
         );
 
         $contractorCosts = $this->extractContractorsCosts($order);
@@ -519,6 +522,7 @@ class OrderCompensationService
                     $carrierContractorId,
                     $invoiceByKey,
                     $scheduleOrderDate,
+                    filled($cost['payment_form'] ?? null) ? (string) $cost['payment_form'] : null,
                 ),
             ];
         }
@@ -544,6 +548,7 @@ class OrderCompensationService
                     (int) $contractorId,
                     $invoiceByKey,
                     filled($additionalCost['service_date'] ?? null) ? (string) $additionalCost['service_date'] : null,
+                    filled($additionalCost['payment_form'] ?? null) ? (string) $additionalCost['payment_form'] : null,
                 ),
             ];
         }
@@ -574,6 +579,7 @@ class OrderCompensationService
         ?int $carrierContractorId,
         array $invoiceByKey = [],
         ?string $scheduleOrderDate = null,
+        ?string $paymentForm = null,
     ): array {
         if ($amount <= 0) {
             return [];
@@ -592,6 +598,7 @@ class OrderCompensationService
             $carrierContractorId,
             $invoiceByKey,
             $scheduleOrderDate,
+            $paymentForm,
         );
     }
 
@@ -608,6 +615,7 @@ class OrderCompensationService
         ?int $carrierContractorId,
         array $invoiceByKey = [],
         ?string $scheduleOrderDate = null,
+        ?string $paymentForm = null,
     ): array {
         $order->loadMissing(['legs.routePoints']);
         $ctx = PaymentInstallmentPlanner::dateContextFromOrder($order);
@@ -623,7 +631,7 @@ class OrderCompensationService
 
         foreach ($installments as $index => $row) {
             $slot = $index + 1;
-            $planned = $this->plannedDateForInstallmentRow($order, $party, $row, $ctx);
+            $planned = $this->plannedDateForInstallmentRow($order, $party, $row, $ctx, $paymentForm);
             $partAmount = round((float) ($row['amount'] ?? 0), 2);
             if ($partAmount <= 0) {
                 continue;
@@ -664,9 +672,17 @@ class OrderCompensationService
      * @param  array<string, mixed>  $row
      * @param  array<string, ?string>  $contextDates
      */
-    private function plannedDateForInstallmentRow(Order $order, string $party, array $row, array $contextDates): ?string
-    {
-        $basis = strtolower((string) ($row['basis'] ?? 'fttn'));
+    private function plannedDateForInstallmentRow(
+        Order $order,
+        string $party,
+        array $row,
+        array $contextDates,
+        ?string $paymentForm = null,
+    ): ?string {
+        $basis = PaymentScheduleCashBasis::effectiveBasis(
+            $paymentForm ?? $this->paymentFormForParty($order, $party),
+            (string) ($row['basis'] ?? 'fttn'),
+        );
         $offsetDays = (int) ($row['offset_days'] ?? 0);
         $offsetUnit = (string) ($row['offset_unit'] ?? CalendarBankDayShifter::UNIT_CALENDAR);
 
@@ -860,6 +876,39 @@ class OrderCompensationService
     private function decodePaymentTerms(Order $order): array
     {
         return OrderPaymentTermsConfigResolver::forSync($order);
+    }
+
+    private function paymentFormForParty(Order $order, string $party): ?string
+    {
+        if ($party === 'customer') {
+            return filled($order->customer_payment_form)
+                ? (string) $order->customer_payment_form
+                : null;
+        }
+
+        $costs = $this->extractContractorsCosts($order);
+
+        foreach ($costs as $cost) {
+            $contractorId = isset($cost['contractor_id']) && $cost['contractor_id'] !== null && $cost['contractor_id'] !== ''
+                ? (int) $cost['contractor_id']
+                : null;
+
+            if ($contractorId === null) {
+                continue;
+            }
+
+            if (filled($cost['payment_form'] ?? null)) {
+                if ($party === 'carrier' && (int) ($order->carrier_id ?? 0) === $contractorId) {
+                    return (string) $cost['payment_form'];
+                }
+
+                if ($party === 'contractor') {
+                    return (string) $cost['payment_form'];
+                }
+            }
+        }
+
+        return filled($order->carrier_payment_form) ? (string) $order->carrier_payment_form : null;
     }
 
     /**
