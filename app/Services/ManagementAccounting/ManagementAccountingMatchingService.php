@@ -427,6 +427,7 @@ class ManagementAccountingMatchingService
                     'party' => $schedule->party,
                     'match_reason' => $candidate['match_reason'] ?? null,
                     'match_reason_label' => $this->matchReasonLabel($candidate['match_reason'] ?? null),
+                    'slot_label' => $this->scheduleSlotLabel($schedule),
                 ];
             })
             ->values()
@@ -476,11 +477,7 @@ class ManagementAccountingMatchingService
                 ];
             })
             ->filter()
-            ->sortBy(fn (array $candidate): array => [
-                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
-                $candidate['date_distance'],
-                $candidate['schedule']->id,
-            ])
+            ->sortBy(fn (array $candidate): array => $this->candidateSortKey($candidate, $amount, $operationDate))
             ->values();
     }
 
@@ -514,12 +511,12 @@ class ManagementAccountingMatchingService
                         : 'amount_only',
                 ];
             })
-            ->sortBy(fn (array $candidate): array => [
+            ->sortBy(fn (array $candidate): array => $this->candidateSortKey(
+                $candidate,
+                $amount,
+                $operationDate,
                 $candidate['match_reason'] === 'amount_only' ? 1 : 0,
-                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
-                $candidate['date_distance'],
-                $candidate['schedule']->id,
-            ])
+            ))
             ->take(20)
             ->values();
     }
@@ -566,11 +563,7 @@ class ManagementAccountingMatchingService
                 ];
             })
             ->filter()
-            ->sortBy(fn (array $candidate): array => [
-                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
-                $candidate['date_distance'],
-                $candidate['schedule']->id,
-            ])
+            ->sortBy(fn (array $candidate): array => $this->candidateSortKey($candidate, $amount, $operationDate))
             ->take(10)
             ->values();
     }
@@ -630,11 +623,7 @@ class ManagementAccountingMatchingService
                     'match_reason' => 'search',
                 ];
             })
-            ->sortBy(fn (array $candidate): array => [
-                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
-                $candidate['date_distance'],
-                $candidate['schedule']->id,
-            ])
+            ->sortBy(fn (array $candidate): array => $this->candidateSortKey($candidate, $amount, $operationDate))
             ->take(20)
             ->values();
     }
@@ -677,11 +666,7 @@ class ManagementAccountingMatchingService
                     'match_reason' => 'invoice',
                 ];
             })
-            ->sortBy(fn (array $candidate): array => [
-                $candidate['amount_distance'] >= 0.01 ? 1 : 0,
-                $candidate['date_distance'],
-                $candidate['schedule']->id,
-            ])
+            ->sortBy(fn (array $candidate): array => $this->candidateSortKey($candidate, $amount, $operationDate))
             ->values();
     }
 
@@ -778,24 +763,75 @@ class ManagementAccountingMatchingService
 
     private function findScheduleForOrder(Order $order, string $party, float $amount, ?string $operationDate): ?PaymentSchedule
     {
-        $scheduleQuery = $this->openOperationalSchedulesQuery()
+        return $this->openOperationalSchedulesQuery()
             ->where('order_id', $order->id)
-            ->where('party', $party);
+            ->where('party', $party)
+            ->get()
+            ->filter(fn (PaymentSchedule $schedule): bool => $this->amountMatchesSchedule($schedule, $amount))
+            ->sortBy(fn (PaymentSchedule $schedule): array => $this->scheduleCandidateSortKey($schedule, $amount, $operationDate))
+            ->first();
+    }
 
-        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
-            $scheduleQuery->where(function (Builder $query) use ($amount): void {
-                $query->where('remaining_amount', '>=', $amount - 0.01)
-                    ->orWhere('amount', '>=', $amount - 0.01);
-            });
-        } else {
-            $scheduleQuery->where('amount', '>=', $amount - 0.01);
+    /**
+     * @return array{0: int, 1: int, 2: int, 3: int}
+     */
+    private function scheduleCandidateSortKey(PaymentSchedule $schedule, float $amount, ?string $operationDate): array
+    {
+        return [
+            abs($this->effectiveScheduleAmount($schedule) - $amount) >= 0.01 ? 1 : 0,
+            $this->scheduleSlotSequence($schedule),
+            $this->plannedDateDistanceDays($schedule, $operationDate),
+            $schedule->id,
+        ];
+    }
+
+    /**
+     * @param  array{schedule: PaymentSchedule, date_distance?: int, amount_distance?: float, match_reason?: string}  $candidate
+     * @return array{0: int, 1: int, 2: int, 3: int, 4: int}
+     */
+    private function candidateSortKey(array $candidate, float $amount, ?string $operationDate, int $prefixRank = 0): array
+    {
+        $schedule = $candidate['schedule'];
+
+        return [
+            $prefixRank,
+            ($candidate['amount_distance'] ?? abs($this->effectiveScheduleAmount($schedule) - $amount)) >= 0.01 ? 1 : 0,
+            $this->scheduleSlotSequence($schedule),
+            $candidate['date_distance'] ?? $this->plannedDateDistanceDays($schedule, $operationDate),
+            $schedule->id,
+        ];
+    }
+
+    private function scheduleSlotSequence(PaymentSchedule $schedule): int
+    {
+        if (Schema::hasColumn('payment_schedules', 'installment_sequence') && $schedule->installment_sequence !== null) {
+            return (int) $schedule->installment_sequence;
         }
 
-        if ($operationDate !== null) {
-            $scheduleQuery->orderByRaw('ABS(DATEDIFF(COALESCE(planned_date, ?), ?))', [$operationDate, $operationDate]);
+        if (Schema::hasColumn('payment_schedules', 'type')) {
+            return match ((string) $schedule->type) {
+                'prepayment' => 1,
+                'installment' => 50,
+                'final' => 100,
+                default => 200,
+            };
         }
 
-        return $scheduleQuery->orderBy('id')->first();
+        return 200;
+    }
+
+    private function scheduleSlotLabel(PaymentSchedule $schedule): ?string
+    {
+        if (! Schema::hasColumn('payment_schedules', 'type')) {
+            return null;
+        }
+
+        return match ((string) $schedule->type) {
+            'prepayment' => 'Предоплата',
+            'final' => 'Финальный платёж',
+            'installment' => 'Транш',
+            default => null,
+        };
     }
 
     private function amountMatchesSchedule(PaymentSchedule $schedule, float $amount): bool
@@ -805,6 +841,10 @@ class ManagementAccountingMatchingService
         }
 
         $openAmount = $this->effectiveScheduleAmount($schedule);
+
+        if ($openAmount <= 0.009) {
+            return false;
+        }
 
         if (abs($openAmount - $amount) < 0.01) {
             return true;

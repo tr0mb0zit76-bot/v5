@@ -440,7 +440,9 @@ function candidateOptionLabel(candidate) {
         ? ` · ${candidate.match_reason_label}`
         : '';
 
-    return `${contractor}${order} · ${amount} · ${plan} · #${candidate.payment_schedule_id}${reason}`;
+    const slot = candidate.slot_label ? `${candidate.slot_label} · ` : '';
+
+    return `${contractor}${slot}${order} · ${amount} · ${plan} · #${candidate.payment_schedule_id}${reason}`;
 }
 
 function allocateLine(line) {

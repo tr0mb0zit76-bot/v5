@@ -58,6 +58,8 @@ class ManagementAccountingMatchingServiceTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('order_id')->nullable();
             $table->string('party', 16)->nullable();
+            $table->string('type', 16)->nullable();
+            $table->unsignedTinyInteger('installment_sequence')->nullable();
             $table->decimal('amount', 14, 2)->default(0);
             $table->decimal('remaining_amount', 14, 2)->nullable();
             $table->decimal('paid_amount', 14, 2)->nullable();
@@ -551,6 +553,54 @@ class ManagementAccountingMatchingServiceTest extends TestCase
 
         $this->assertCount(1, $candidates);
         $this->assertSame('ООО КАМИОН', $candidates[0]['contractor_label']);
+    }
+
+    public function test_prefers_prepayment_slot_before_final_for_same_order(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО "Дайтона моторс"',
+            'full_name' => 'Общество с ограниченной ответственностью "Дайтона моторс"',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => 'АС-2606-0001',
+            'customer_id' => $customer->id,
+        ]);
+
+        $prepayment = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'prepayment',
+            'installment_sequence' => 1,
+            'amount' => 617231,
+            'remaining_amount' => 617231,
+            'planned_date' => '2026-06-10',
+            'status' => 'pending',
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'type' => 'final',
+            'installment_sequence' => 2,
+            'amount' => 617230.5,
+            'remaining_amount' => 617230.5,
+            'planned_date' => '2026-06-18',
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-11',
+            'direction' => 'in',
+            'amount' => 617231,
+            'description' => 'ООО "Дайтона моторс" предоплата по перевозке',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($prepayment->id, $suggestion['suggested_payment_schedule_id']);
+        $this->assertSame('Предоплата', $suggestion['suggested_candidates'][0]['slot_label'] ?? null);
     }
 
     private function matchingService(): ManagementAccountingMatchingService
