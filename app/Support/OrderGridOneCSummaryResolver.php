@@ -199,7 +199,7 @@ class OrderGridOneCSummaryResolver
                     }
 
                     $submission = $slot['carrier_portal_submission'] ?? null;
-                    if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+                    if (CarrierPortalSubmission::isUsable(is_array($submission) ? $submission : null)) {
                         return $submission;
                     }
                 }
@@ -208,7 +208,7 @@ class OrderGridOneCSummaryResolver
             }
 
             $submission = $performer['carrier_portal_submission'] ?? null;
-            if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+            if (CarrierPortalSubmission::isUsable(is_array($submission) ? $submission : null)) {
                 return $submission;
             }
         }

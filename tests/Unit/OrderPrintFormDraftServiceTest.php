@@ -342,4 +342,53 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $this->assertSame('Schmitz', data_get($snapshot, 'vehicle.trailer_brand'));
         $this->assertSame('BB123477', data_get($snapshot, 'vehicle.trailer_plate'));
     }
+
+    public function test_uses_carrier_portal_submission_plates_without_driver_name(): void
+    {
+        $service = $this->makeService();
+        $order = new Order([
+            'performers' => [[
+                'stage' => 'leg_1',
+                'carrier_portal_submission' => [
+                    'tractor_plate' => 'X111XX77',
+                    'trailer_plate' => 'YY222277',
+                    'trailer_brand' => 'Krone',
+                ],
+            ]],
+        ]);
+
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+        $order->setRelation('legs', new Collection);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+
+        $this->assertSame('X111XX77', data_get($snapshot, 'vehicle.number'));
+        $this->assertSame('YY222277', data_get($snapshot, 'vehicle.trailer_plate'));
+        $this->assertSame('Krone', data_get($snapshot, 'vehicle.trailer_brand'));
+    }
+
+    public function test_uses_wizard_state_performers_when_order_performers_empty(): void
+    {
+        $service = $this->makeService();
+        $order = new Order;
+        $order->forceFill([
+            'wizard_state' => [
+                'performers' => [[
+                    'stage' => 'leg_1',
+                    'carrier_portal_submission' => [
+                        'tractor_plate' => 'M555MM99',
+                    ],
+                ]],
+            ],
+        ]);
+
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+        $order->setRelation('legs', new Collection);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+
+        $this->assertSame('M555MM99', data_get($snapshot, 'vehicle.number'));
+    }
 }

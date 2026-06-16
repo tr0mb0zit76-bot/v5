@@ -35,6 +35,33 @@ export function cashFlowRowEffectiveAmount(row) {
     return remainingNumber;
 }
 
+export function cashFlowRowDisplayAmount(row) {
+    if (row?.amount_due !== undefined && row?.amount_due !== null && row?.amount_due !== '') {
+        const amountDue = Number(row.amount_due);
+
+        if (Number.isFinite(amountDue)) {
+            return amountDue;
+        }
+    }
+
+    return cashFlowRowEffectiveAmount(row);
+}
+
+export function cashFlowRowStatusLabel(row) {
+    if (row?.is_partially_settled) {
+        return 'Частично оплачено';
+    }
+
+    const labels = {
+        pending: 'По плану',
+        paid: 'Оплачено',
+        overdue: 'Просрочено',
+        cancelled: 'Отменено',
+    };
+
+    return labels[row?.status] || row?.status || '';
+}
+
 export function cashFlowTodayIso(referenceDate = new Date()) {
     return referenceDate.toISOString().slice(0, 10);
 }
@@ -95,7 +122,7 @@ export function summarizeCashFlowJournal(rows, referenceDate = new Date()) {
     const monthEnd = monthEndIso(referenceDate);
 
     for (const row of rows ?? []) {
-        const amount = cashFlowRowEffectiveAmount(row);
+        const amount = cashFlowRowDisplayAmount(row);
 
         if (!Number.isFinite(amount) || amount <= 0) {
             continue;

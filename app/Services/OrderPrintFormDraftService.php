@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Contractor;
 use App\Models\FleetDriver;
+use App\Models\FleetTrip;
 use App\Models\FleetVehicle;
 use App\Models\Order;
 use App\Models\OrderLeg;
@@ -14,6 +15,7 @@ use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Support\CargoPackagesLabelFormatter;
 use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
+use App\Support\CarrierPortalSubmission;
 use App\Support\ContractorPrimaryContactResolver;
 use App\Support\DocxPrintFormPlaceholderPreprocessor;
 use App\Support\DocxTextRunPlaceholderMerger;
@@ -295,8 +297,8 @@ class OrderPrintFormDraftService
 
         $loadingPoints = $routePoints->where('type', 'loading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
         $unloadingPoints = $routePoints->where('type', 'unloading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
-        $portalSubmission = $this->resolveCarrierPortalSubmission($order);
-        $fleetSelection = $this->resolvePrimaryFleetSelection($order);
+        $portalSubmission = $this->resolveCarrierPortalSubmission($order, $context);
+        $fleetSelection = $this->resolvePrimaryFleetSelection($order, $context);
         $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id'], $portalSubmission);
         $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id'], $cargoItems, $portalSubmission);
         $loadingMethod = $this->resolveLoadingMethod($loadingPoints->first(), $order);
@@ -550,45 +552,31 @@ class OrderPrintFormDraftService
     /**
      * @return array{fleet_vehicle_id:int|null,fleet_driver_id:int|null}
      */
-    private function resolvePrimaryFleetSelection(Order $order): array
+    private function resolvePrimaryFleetSelection(Order $order, ?OrderPrintFormContext $context = null): array
     {
         foreach ($this->collectPerformerRows($order) as $performer) {
+            if (! $this->performerMatchesPrintContext($order, $performer, $context)) {
+                continue;
+            }
+
             if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
                 foreach ($performer['split_carriers'] as $slot) {
                     if (! is_array($slot)) {
                         continue;
                     }
 
-                    $vehicleId = isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null
-                        ? (int) $slot['fleet_vehicle_id']
-                        : null;
-                    $driverId = isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null
-                        ? (int) $slot['fleet_driver_id']
-                        : null;
-
-                    if ($vehicleId !== null || $driverId !== null) {
-                        return [
-                            'fleet_vehicle_id' => $vehicleId,
-                            'fleet_driver_id' => $driverId,
-                        ];
+                    $selection = $this->extractFleetIdsFromRow($slot);
+                    if ($selection['fleet_vehicle_id'] !== null || $selection['fleet_driver_id'] !== null) {
+                        return $selection;
                     }
                 }
 
                 continue;
             }
 
-            $vehicleId = isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null
-                ? (int) $performer['fleet_vehicle_id']
-                : null;
-            $driverId = isset($performer['fleet_driver_id']) && $performer['fleet_driver_id'] !== null
-                ? (int) $performer['fleet_driver_id']
-                : null;
-
-            if ($vehicleId !== null || $driverId !== null) {
-                return [
-                    'fleet_vehicle_id' => $vehicleId,
-                    'fleet_driver_id' => $driverId,
-                ];
+            $selection = $this->extractFleetIdsFromRow($performer);
+            if ($selection['fleet_vehicle_id'] !== null || $selection['fleet_driver_id'] !== null) {
+                return $selection;
             }
         }
 
@@ -599,11 +587,76 @@ class OrderPrintFormDraftService
     }
 
     /**
+     * @param  array<string, mixed>  $row
+     * @return array{fleet_vehicle_id:int|null,fleet_driver_id:int|null}
+     */
+    private function extractFleetIdsFromRow(array $row): array
+    {
+        $vehicleId = isset($row['fleet_vehicle_id']) && $row['fleet_vehicle_id'] !== null && $row['fleet_vehicle_id'] !== ''
+            ? (int) $row['fleet_vehicle_id']
+            : null;
+        $driverId = isset($row['fleet_driver_id']) && $row['fleet_driver_id'] !== null && $row['fleet_driver_id'] !== ''
+            ? (int) $row['fleet_driver_id']
+            : null;
+
+        if ($vehicleId === null) {
+            $tripId = isset($row['fleet_trip_id']) && $row['fleet_trip_id'] !== null && $row['fleet_trip_id'] !== ''
+                ? (int) $row['fleet_trip_id']
+                : null;
+
+            if ($tripId !== null) {
+                $fromTrip = $this->resolveFleetIdsFromTrip($tripId);
+                $vehicleId = $fromTrip['fleet_vehicle_id'];
+                if ($driverId === null) {
+                    $driverId = $fromTrip['fleet_driver_id'];
+                }
+            }
+        }
+
+        return [
+            'fleet_vehicle_id' => $vehicleId,
+            'fleet_driver_id' => $driverId,
+        ];
+    }
+
+    /**
+     * @return array{fleet_vehicle_id:int|null,fleet_driver_id:int|null}
+     */
+    private function resolveFleetIdsFromTrip(int $fleetTripId): array
+    {
+        if (! Schema::hasTable('fleet_trips')) {
+            return [
+                'fleet_vehicle_id' => null,
+                'fleet_driver_id' => null,
+            ];
+        }
+
+        /** @var FleetTrip|null $trip */
+        $trip = FleetTrip::query()->find($fleetTripId);
+
+        if ($trip === null) {
+            return [
+                'fleet_vehicle_id' => null,
+                'fleet_driver_id' => null,
+            ];
+        }
+
+        return [
+            'fleet_vehicle_id' => $trip->fleet_vehicle_id !== null ? (int) $trip->fleet_vehicle_id : null,
+            'fleet_driver_id' => $trip->fleet_driver_id !== null ? (int) $trip->fleet_driver_id : null,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
-    private function resolveCarrierPortalSubmission(Order $order): ?array
+    private function resolveCarrierPortalSubmission(Order $order, ?OrderPrintFormContext $context = null): ?array
     {
         foreach ($this->collectPerformerRows($order) as $performer) {
+            if (! $this->performerMatchesPrintContext($order, $performer, $context)) {
+                continue;
+            }
+
             if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
                 foreach ($performer['split_carriers'] as $slot) {
                     if (! is_array($slot)) {
@@ -611,7 +664,7 @@ class OrderPrintFormDraftService
                     }
 
                     $submission = $slot['carrier_portal_submission'] ?? null;
-                    if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+                    if (CarrierPortalSubmission::isUsable(is_array($submission) ? $submission : null)) {
                         return $submission;
                     }
                 }
@@ -620,7 +673,7 @@ class OrderPrintFormDraftService
             }
 
             $submission = $performer['carrier_portal_submission'] ?? null;
-            if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+            if (CarrierPortalSubmission::isUsable(is_array($submission) ? $submission : null)) {
                 return $submission;
             }
         }
@@ -647,6 +700,15 @@ class OrderPrintFormDraftService
         foreach (is_array($order->performers) ? $order->performers : [] as $performer) {
             if (is_array($performer)) {
                 $rows[] = $performer;
+            }
+        }
+
+        if ($rows === []) {
+            $wizardPerformers = data_get($order->wizard_state, 'performers');
+            foreach (is_array($wizardPerformers) ? $wizardPerformers : [] as $performer) {
+                if (is_array($performer)) {
+                    $rows[] = $performer;
+                }
             }
         }
 

@@ -136,6 +136,11 @@ class FinanceOverviewService
             $paymentProgress = min(100, ($paidAmount / (float) $row->amount) * 100);
         }
 
+        $amountDue = $remainingAmount > 0.009
+            ? $remainingAmount
+            : ($paidAmount > 0.009 ? 0.0 : (float) ($row->amount ?? 0));
+        $isPartiallySettled = $paidAmount > 0.009 && $remainingAmount > 0.009;
+
         return [
             'id' => $row->id,
             'order_id' => $row->order_id,
@@ -150,6 +155,7 @@ class FinanceOverviewService
                 : null,
             'payment_type' => $row->type === 'prepayment' ? 'Предоплата' : 'Финальный платёж',
             'amount' => (float) ($row->amount ?? 0),
+            'amount_due' => $amountDue,
             'planned_date' => $row->planned_date,
             'actual_date' => $row->actual_date,
             'status' => $row->status,
@@ -160,6 +166,7 @@ class FinanceOverviewService
             'parent_payment_id' => $parentPaymentId,
             'payment_progress' => $paymentProgress,
             'has_partial_payments' => $parentPaymentId === null && $paidAmount > 0 && $remainingAmount > 0,
+            'is_partially_settled' => $isPartiallySettled,
             'invoice_number' => data_get($row, 'invoice_number'),
         ];
     }

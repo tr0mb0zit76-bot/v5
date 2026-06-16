@@ -193,7 +193,7 @@ final class PipelineBoardService
             ])
             ->orderByDesc('id');
 
-        $this->dispositionScope->applyVisibility($builder, $user);
+        $this->dispositionScope->applyVisibilityForArea($builder, $user, 'pipeline');
 
         return $builder;
     }

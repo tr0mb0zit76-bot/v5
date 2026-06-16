@@ -303,4 +303,88 @@ class ManagementAccountingOperationalAllocationTest extends TestCase
         $this->assertNotNull($journalRow);
         $this->assertSame(300000.0, $journalRow['remaining_amount']);
     }
+
+    public function test_reallocate_operational_payment_moves_settlement_to_another_schedule(): void
+    {
+        $userId = DB::table('users')->insertGetId([
+            'name' => 'Бухгалтер',
+            'email' => 'acct@example.test',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $user = User::query()->findOrFail($userId);
+        $carrierId = DB::table('contractors')->insertGetId(['name' => 'ООО Камион']);
+        $orderId = DB::table('orders')->insertGetId([
+            'order_number' => 'ORD-REALLOC',
+            'carrier_id' => $carrierId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $prepaymentId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'carrier',
+            'type' => 'prepayment',
+            'amount' => 400000,
+            'paid_amount' => 0,
+            'remaining_amount' => 0,
+            'status' => 'pending',
+            'planned_date' => '2026-05-01',
+            'counterparty_id' => $carrierId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $finalId = DB::table('payment_schedules')->insertGetId([
+            'order_id' => $orderId,
+            'party' => 'carrier',
+            'type' => 'final',
+            'amount' => 400000,
+            'paid_amount' => 0,
+            'remaining_amount' => 0,
+            'status' => 'overdue',
+            'planned_date' => '2026-06-07',
+            'counterparty_id' => $carrierId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $line = ManagementStatementLine::query()->create([
+            'line_hash' => hash('sha256', 'kamion-realloc'),
+            'operation_date' => '2026-06-11',
+            'direction' => 'out',
+            'amount' => 400000,
+            'description' => 'Оплата ООО Камион',
+            'status' => 'pending',
+            'source' => 'manual',
+        ]);
+
+        $service = app(ManagementAccountingAllocationService::class);
+
+        $service->allocateLine($line, [
+            'allocation_type' => 'operational',
+            'payment_schedule_id' => $prepaymentId,
+            'amount' => 400000,
+        ], $user);
+
+        $service->allocateLine($line->fresh(), [
+            'allocation_type' => 'operational',
+            'payment_schedule_id' => $finalId,
+            'amount' => 400000,
+        ], $user);
+
+        $prepayment = PaymentSchedule::query()->findOrFail($prepaymentId);
+        $final = PaymentSchedule::query()->findOrFail($finalId);
+
+        $this->assertSame(0.0, (float) $prepayment->paid_amount);
+        $this->assertContains($prepayment->status, ['pending', 'overdue']);
+        $this->assertNull($prepayment->actual_date);
+        $this->assertSame('paid', $final->status);
+        $this->assertSame(400000.0, (float) $final->paid_amount);
+        $this->assertSame(0.0, (float) $final->remaining_amount);
+
+        $journal = app(FinanceOverviewService::class)->cashFlowJournal(null, 'admin', 'all');
+        $this->assertNotNull($journal->firstWhere('id', $prepaymentId));
+        $this->assertNull($journal->firstWhere('id', $finalId));
+    }
 }

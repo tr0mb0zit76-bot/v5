@@ -10,6 +10,7 @@ use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Services\Finance\PaymentSchedulePaymentReversalService;
+use App\Services\Finance\PaymentScheduleSettlementSyncService;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleSettlementStatus;
 use Carbon\CarbonImmutable;
@@ -22,6 +23,7 @@ class ManagementAccountingAllocationService
     public function __construct(
         private readonly PaymentSchedulePaymentLedgerService $paymentLedger,
         private readonly PaymentSchedulePaymentReversalService $paymentReversal,
+        private readonly PaymentScheduleSettlementSyncService $settlementSync,
         private readonly ManagementPayrollHalfService $payrollHalfService,
         private readonly ManagementAccountingMatchingService $matching,
         private readonly ManagementOperationalCostCategoryResolver $costCategoryResolver,
@@ -40,6 +42,11 @@ class ManagementAccountingAllocationService
     public function allocateLine(ManagementStatementLine $line, array $payload, User $allocator): ManagementStatementLine
     {
         return DB::transaction(function () use ($line, $payload, $allocator): ManagementStatementLine {
+            if ($line->status === 'allocated') {
+                $this->reverseAllocatedLine($line, $allocator, 'Переразнесение на другую строку графика');
+                $line->refresh();
+            }
+
             $amount = round((float) ($payload['amount'] ?? $line->amount), 2);
             $allocationType = (string) ($payload['allocation_type'] ?? 'category');
 
@@ -98,28 +105,7 @@ class ManagementAccountingAllocationService
         }
 
         return DB::transaction(function () use ($line, $actor, $reason): ManagementStatementLine {
-            $matchType = (string) $line->match_type;
-            $amount = round((float) ($line->allocation_amount ?? $line->amount), 2);
-
-            if ($matchType === 'operational') {
-                $this->paymentReversal->reverseByManagementLineId(
-                    (int) $line->id,
-                    $actor,
-                    $reason ?? 'Отмена разнесения выписки',
-                    $line->allocation_payment_schedule_id !== null
-                        ? (int) $line->allocation_payment_schedule_id
-                        : null,
-                );
-            } elseif ($matchType === 'payroll' && $line->allocation_user_id !== null) {
-                $half = $this->payrollHalfService->ensureCurrentHalf(
-                    CarbonImmutable::parse($line->operation_date),
-                );
-                $this->payrollHalfService->subtractPaidAmount(
-                    ManagementPayrollHalf::query()->findOrFail($half['id']),
-                    (int) $line->allocation_user_id,
-                    $amount,
-                );
-            }
+            $this->reverseAllocatedLine($line, $actor, $reason);
 
             $importId = $line->import_id;
 
@@ -148,6 +134,41 @@ class ManagementAccountingAllocationService
                 'allocationUser',
             ]);
         });
+    }
+
+    private function reverseAllocatedLine(ManagementStatementLine $line, User $actor, ?string $reason = null): void
+    {
+        $matchType = (string) $line->match_type;
+        $amount = round((float) ($line->allocation_amount ?? $line->amount), 2);
+
+        if ($matchType === 'operational') {
+            $scheduleId = $line->allocation_payment_schedule_id !== null
+                ? (int) $line->allocation_payment_schedule_id
+                : null;
+
+            $this->paymentReversal->reverseByManagementLineId(
+                (int) $line->id,
+                $actor,
+                $reason ?? 'Отмена разнесения выписки',
+                $scheduleId,
+            );
+
+            if ($scheduleId !== null) {
+                $schedule = PaymentSchedule::query()->find($scheduleId);
+                if ($schedule !== null) {
+                    $this->settlementSync->syncRootSchedule($schedule);
+                }
+            }
+        } elseif ($matchType === 'payroll' && $line->allocation_user_id !== null) {
+            $half = $this->payrollHalfService->ensureCurrentHalf(
+                CarbonImmutable::parse($line->operation_date),
+            );
+            $this->payrollHalfService->subtractPaidAmount(
+                ManagementPayrollHalf::query()->findOrFail($half['id']),
+                (int) $line->allocation_user_id,
+                $amount,
+            );
+        }
     }
 
     public function createManualLine(array $payload, User $creator): ManagementStatementLine
@@ -258,6 +279,9 @@ class ManagementAccountingAllocationService
             $allocator->id,
             $partialScheduleId,
         );
+
+        $schedule->refresh();
+        $this->settlementSync->syncRootSchedule($schedule);
 
         PaymentScheduleAutomaticStatus::refreshForOrder((int) $schedule->order_id);
     }

@@ -170,7 +170,7 @@ final class PipelineKpiService
             ])
             ->orderByDesc('id');
 
-        $this->dispositionScope->applyVisibility($builder, $user);
+        $this->dispositionScope->applyVisibilityForArea($builder, $user, 'pipeline');
 
         if (Schema::hasColumn('orders', 'created_at') && $periodMonths > 0) {
             $builder->where('created_at', '>=', now()->subMonths($periodMonths));

@@ -156,6 +156,33 @@ class PipelineBoardTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_pipeline_own_scope_hides_other_managers_orders_even_when_orders_scope_is_all(): void
+    {
+        $user = $this->makeUser(['pipeline', 'orders'], ['orders' => 'all', 'pipeline' => 'own']);
+        $otherManager = User::factory()->create([
+            'role_id' => $user->role_id,
+            'is_active' => true,
+        ]);
+
+        $ownOrder = $this->createInTransitOrder(['manager_id' => $user->id]);
+        $foreignOrder = $this->createInTransitOrder(['manager_id' => $otherManager->id]);
+
+        $this->actingAs($user)
+            ->get(route('pipeline.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('kpi.active_orders_count', 1)
+                ->where('columns', function ($columns) use ($ownOrder, $foreignOrder): bool {
+                    $cardIds = collect($columns)
+                        ->flatMap(fn (array $column) => collect($column['cards'] ?? [])
+                            ->where('type', 'order')
+                            ->pluck('id'));
+
+                    return $cardIds->contains($ownOrder->id) && ! $cardIds->contains($foreignOrder->id);
+                }),
+            );
+    }
+
     public function test_legacy_orders_visibility_grants_pipeline_access(): void
     {
         $user = $this->makeUser(['orders'], ['orders' => 'all']);

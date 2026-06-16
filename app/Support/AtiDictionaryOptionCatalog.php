@@ -16,15 +16,7 @@ final class AtiDictionaryOptionCatalog
     public static function options(string $dictionary, array $fallback): array
     {
         if (! Schema::hasTable('ati_dictionary_items')) {
-            return array_map(
-                fn (array $item): array => [
-                    'value' => $item['value'],
-                    'code' => $item['code'],
-                    'label' => $item['label'],
-                    'ati_id' => $item['value'],
-                ],
-                $fallback
-            );
+            return self::mapFallbackOptions($fallback);
         }
 
         $items = AtiDictionaryItem::query()
@@ -34,18 +26,10 @@ final class AtiDictionaryOptionCatalog
             ->get(['id', 'ati_id', 'code', 'label']);
 
         if ($items->isEmpty()) {
-            return array_map(
-                fn (array $item): array => [
-                    'value' => $item['value'],
-                    'code' => $item['code'],
-                    'label' => $item['label'],
-                    'ati_id' => $item['value'],
-                ],
-                $fallback
-            );
+            return self::mapFallbackOptions($fallback);
         }
 
-        return $items
+        $options = $items
             ->map(fn (AtiDictionaryItem $item): array => [
                 'value' => $item->ati_id ?? $item->id,
                 'code' => $item->code,
@@ -54,6 +38,57 @@ final class AtiDictionaryOptionCatalog
             ])
             ->values()
             ->all();
+
+        return self::mergeFallbackOptions($options, $fallback);
+    }
+
+    /**
+     * @param  list<array{value:int, code:string|null, label:string, ati_id:int|null}>  $options
+     * @param  list<array{value:int, code:string, label:string}>  $fallback
+     * @return list<array{value:int, code:string|null, label:string, ati_id:int|null}>
+     */
+    private static function mergeFallbackOptions(array $options, array $fallback): array
+    {
+        $codesInDatabase = collect($options)
+            ->pluck('code')
+            ->filter(fn (?string $code): bool => filled($code))
+            ->flip();
+
+        foreach ($fallback as $item) {
+            $code = $item['code'] ?? null;
+            if (! is_string($code) || $code === '' || $codesInDatabase->has($code)) {
+                continue;
+            }
+
+            $options[] = [
+                'value' => $item['value'],
+                'code' => $item['code'],
+                'label' => $item['label'],
+                'ati_id' => $item['value'],
+            ];
+        }
+
+        return collect($options)
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array{value:int, code:string, label:string}>  $fallback
+     * @return list<array{value:int, code:string|null, label:string, ati_id:int|null}>
+     */
+    private static function mapFallbackOptions(array $fallback): array
+    {
+        return array_map(
+            fn (array $item): array => [
+                'value' => $item['value'],
+                'code' => $item['code'],
+                'label' => $item['label'],
+                'ati_id' => $item['value'],
+            ],
+            $fallback
+        );
     }
 
     /**

@@ -144,5 +144,7 @@ class FinanceOverviewCashFlowStatsTest extends TestCase
 
         $this->assertNotNull($row);
         $this->assertSame(40000.0, $row['remaining_amount']);
+        $this->assertSame(40000.0, $row['amount_due']);
+        $this->assertTrue($row['is_partially_settled']);
     }
 }

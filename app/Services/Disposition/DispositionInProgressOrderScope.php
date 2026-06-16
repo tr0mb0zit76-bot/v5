@@ -21,12 +21,21 @@ final class DispositionInProgressOrderScope
      */
     public function applyVisibility(Builder $query, User $user): Builder
     {
+        return $this->applyVisibilityForArea($query, $user, 'orders');
+    }
+
+    /**
+     * @param  Builder<Order>  $query
+     * @return Builder<Order>
+     */
+    public function applyVisibilityForArea(Builder $query, User $user, string $area): Builder
+    {
         if (Schema::hasColumn('orders', 'deleted_at')) {
             $query->whereNull('deleted_at');
         }
 
         if (! RoleAccess::isAdminUser($user)) {
-            $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'orders');
+            $scope = RoleAccess::resolveVisibilityScopeForUser($user, $area);
 
             if ($scope !== 'all') {
                 $query->where('manager_id', $user->id);

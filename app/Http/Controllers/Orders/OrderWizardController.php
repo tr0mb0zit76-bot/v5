@@ -7,7 +7,6 @@ use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateInlineOrderFieldRequest;
 use App\Http\Requests\UpdateOrderRequest;
-use App\Models\AtiDictionaryItem;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
@@ -2241,45 +2240,7 @@ class OrderWizardController extends Controller
      */
     private function atiDictionaryOptions(string $dictionary, array $fallback): array
     {
-        if (! Schema::hasTable('ati_dictionary_items')) {
-            return array_map(
-                fn (array $item): array => [
-                    'value' => $item['value'],
-                    'code' => $item['code'],
-                    'label' => $item['label'],
-                    'ati_id' => $item['value'],
-                ],
-                $fallback
-            );
-        }
-
-        $items = AtiDictionaryItem::query()
-            ->where('dictionary', $dictionary)
-            ->where('is_active', true)
-            ->orderBy('label')
-            ->get(['id', 'ati_id', 'code', 'label']);
-
-        if ($items->isEmpty()) {
-            return array_map(
-                fn (array $item): array => [
-                    'value' => $item['value'],
-                    'code' => $item['code'],
-                    'label' => $item['label'],
-                    'ati_id' => $item['value'],
-                ],
-                $fallback
-            );
-        }
-
-        return $items
-            ->map(fn (AtiDictionaryItem $item): array => [
-                'value' => $item->ati_id ?? $item->id,
-                'code' => $item->code,
-                'label' => $item->label,
-                'ati_id' => $item->ati_id,
-            ])
-            ->values()
-            ->all();
+        return AtiDictionaryOptionCatalog::options($dictionary, $fallback);
     }
 
     /**

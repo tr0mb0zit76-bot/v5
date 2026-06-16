@@ -147,6 +147,7 @@ import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import { cashFlowRowDisplayAmount, cashFlowRowStatusLabel } from '@/support/cashFlowJournalStats.js';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { PRINT_DOCUMENT_BASE_STYLES, printHtmlDocument } from '@/support/printHtmlDocument.js';
 
@@ -193,7 +194,7 @@ const props = defineProps({
 
 const DIRECTION_FILTER_VALUES = ['Мы', 'Нам'];
 const PAYMENT_TYPE_FILTER_VALUES = ['Предоплата', 'Финальный платёж'];
-const STATUS_FILTER_VALUES = ['По плану', 'Оплачено', 'Просрочено', 'Отменено'];
+const STATUS_FILTER_VALUES = ['По плану', 'Частично оплачено', 'Оплачено', 'Просрочено', 'Отменено'];
 
 const presetFilterModels = {
     customer_overdue: {
@@ -281,8 +282,8 @@ function operationalExportTableHtml(rows) {
             <td>${row.payment_type ?? ''}</td>
             <td>${row.invoice_number ?? '—'}</td>
             <td>${formatGridDate(row.planned_date)}</td>
-            <td>${formatMoneyValue(row.amount)}</td>
-            <td>${statusLabel(row.status)}</td>
+            <td>${formatMoneyValue(cashFlowRowDisplayAmount(row))}</td>
+            <td>${cashFlowRowStatusLabel(row)}</td>
         </tr>
     `,
         )
@@ -355,8 +356,8 @@ function downloadOperationalPaymentsCsv() {
                 row.payment_type,
                 row.invoice_number,
                 formatGridDate(row.planned_date),
-                row.amount,
-                statusLabel(row.status),
+                cashFlowRowDisplayAmount(row),
+                cashFlowRowStatusLabel(row),
             ]
                 .map(escapeCsv)
                 .join(';'),
@@ -401,7 +402,11 @@ function formatMoneyValue(value) {
     }).format(value);
 }
 
-function statusLabel(status) {
+function statusLabel(status, row = null) {
+    if (row) {
+        return cashFlowRowStatusLabel(row);
+    }
+
     const labels = {
         pending: 'По плану',
         paid: 'Оплачено',
@@ -412,7 +417,11 @@ function statusLabel(status) {
     return labels[status] || status;
 }
 
-function statusClass(status) {
+function statusClass(status, row = null) {
+    if (row?.is_partially_settled) {
+        return 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200';
+    }
+
     const classes = {
         pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
         paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200',
@@ -445,8 +454,8 @@ function statusCellRenderer(params) {
     const wrap = document.createElement('div');
     wrap.className = 'flex h-full items-center';
     const span = document.createElement('span');
-    span.className = `px-2.5 py-1 text-xs font-medium ${statusClass(params.data?.status)}`;
-    span.textContent = statusLabel(params.data?.status);
+    span.className = `px-2.5 py-1 text-xs font-medium ${statusClass(params.data?.status, params.data)}`;
+    span.textContent = statusLabel(params.data?.status, params.data);
     wrap.appendChild(span);
 
     return wrap;
@@ -524,12 +533,12 @@ function buildBaseColumnDefs() {
         headerName: 'Статус',
         minWidth: 120,
         sortable: true,
-        valueGetter: (p) => statusLabel(p.data?.status),
+        valueGetter: (p) => statusLabel(p.data?.status, p.data),
         cellRenderer: statusCellRenderer,
     };
     applyAgSetListColumn(statusCol, {
         values: STATUS_FILTER_VALUES,
-        filterValueGetter: (p) => statusLabel(p.data?.status),
+        filterValueGetter: (p) => statusLabel(p.data?.status, p.data),
         floatingFilterRow: true,
     });
 
@@ -604,12 +613,13 @@ function buildBaseColumnDefs() {
     },
     {
         colId: 'amount',
-        field: 'amount',
-        headerName: 'Сумма',
+        field: 'amount_due',
+        headerName: 'К оплате',
         minWidth: 120,
         sortable: true,
         filter: 'agNumberColumnFilter',
         floatingFilter: true,
+        valueGetter: (params) => cashFlowRowDisplayAmount(params.data),
         valueFormatter: (p) => formatMoneyValue(p.value),
     },
     statusCol,
