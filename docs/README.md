@@ -95,4 +95,4 @@ Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизиру�
 | `CRM/v5-local/00-index.md` | Карта компонентов кода |
 | `for_note/README.md` | Синхрон MCP/tools между ПК |
 
-*Обновлено: 2026-06-11.*
+*Обновлено: 2026-06-03.*

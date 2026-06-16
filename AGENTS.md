@@ -139,6 +139,15 @@ This project has domain-specific skills available. You MUST activate the relevan
 - UI: `PaymentTermsWizardBlock.vue`, `orderPaymentScheduleUi.js` (`applyInstallmentScheduleInPlace` — без deep-watch циклов); грид — `CashFlowGrid.vue`, даты **дд.мм.гггг**.
 - Миграция: `2026_06_08_155321_add_installment_sequence_to_payment_schedules_table.php`.
 
+### Документы и чек-лист заказа
+
+- Реестр + вкладка «Документы»: `DocumentRegistryController`, `OrderWizardDocumentsTab.vue`, `DocumentsGrid.vue`.
+- Слоты обязательных документов: `OrderDocumentRequirementSlotBuilder`, зеркало на фронте `orderDocumentRequirementSlots.js`.
+- Транспортные типы (ТН / ЭТрН / CMR / ТСД) — одна группа: `OrderDocumentTransportTypes`, слот `waybill` с `accepted_types` waybill|etrn|cmr.
+- **Наличные (`cash`):** закрывающие слоты (УПД / СФ / акт) **не создаются** — только заявка по контрагенту + общий слот ТСД. Форма оплаты: заказчик — `customer_payment_form`; перевозчик — `contractors_costs` / `leg_costs`; подрядчик — `additional_costs.payment_form`.
+- Закрытие сделки: `OrderStatusService` → `checklistForOrder()` — все пункты чек-листа должны быть `completed`.
+- Документация: `docs/documents-user-guide.md`, `docs/documents-regulation.md`; публикация в Книгу: `php scripts/mcp-prod-upsert-documents.php`.
+
 ### Прочее
 
 - Мобильная нижняя панель: `app/Support/MobileNavCatalog.php` — кандидаты кнопок с учётом `visibility_areas` (дашборд не навязывается, если области нет); итоговый проп для фронта собирает `app/Support/MobileNavResolver.php` (`HandleInertiaRequests` → `auth.user.mobile_nav`). Сохранение выбора пользователя: `ProfileController::updateMobileBottomNav`, маршрут `profile.mobile-bottom-nav` (`routes/web.php`).
