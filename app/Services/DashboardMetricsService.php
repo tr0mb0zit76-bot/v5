@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Disposition\DispositionKpiService;
+use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
@@ -366,15 +367,13 @@ class DashboardMetricsService
             $query->whereNull('orders.deleted_at');
         }
 
+        PaymentScheduleSettlementStatus::applyUnsettledRootScope($query);
+
         return $query;
     }
 
     private function paymentScheduleOutstandingAmountExpression(): string
     {
-        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
-            return 'CASE WHEN payment_schedules.remaining_amount IS NULL THEN payment_schedules.amount ELSE payment_schedules.remaining_amount END';
-        }
-
-        return 'payment_schedules.amount';
+        return PaymentScheduleSettlementStatus::outstandingAmountSql();
     }
 }

@@ -358,7 +358,7 @@ class FinanceOverviewService
                 "SUM(CASE WHEN payment_schedules.planned_date BETWEEN ? AND ? THEN {$effective} ELSE 0 END) as month, ".
                 "SUM(CASE WHEN payment_schedules.status IN (?, ?) THEN {$effective} ELSE 0 END) as outstanding, ".
                 "SUM(CASE WHEN payment_schedules.status = ? THEN {$effective} ELSE 0 END) as pending_only, ".
-                "SUM(CASE WHEN payment_schedules.status = ? THEN {$effective} ELSE 0 END) as overdue",
+                "SUM(CASE WHEN payment_schedules.status = ? OR (payment_schedules.status = ? AND payment_schedules.planned_date < ?) THEN {$effective} ELSE 0 END) as overdue",
                 [
                     $today,
                     $today,
@@ -369,6 +369,8 @@ class FinanceOverviewService
                     'overdue',
                     'pending',
                     'overdue',
+                    'pending',
+                    $today,
                 ]
             )
             ->groupBy(DB::raw('LOWER(TRIM(payment_schedules.party))'))

@@ -95,7 +95,7 @@
                 <AgGridVue
                     ref="agGrid"
                     :gridOptions="gridOptions"
-                    :rowData="rows"
+                    :rowData="gridRows"
                     :columnDefs="dynamicColumnDefs"
                     :defaultColDef="defaultColDef"
                     domLayout="normal"
@@ -126,7 +126,7 @@
 </template>
 
 <script setup>
-import { createVNode, computed, nextTick, onMounted, onUnmounted, ref, render, watch } from 'vue';
+import { createVNode, computed, markRaw, nextTick, onMounted, onUnmounted, ref, render, shallowRef, watch } from 'vue';
 import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 import { AgGridVue } from 'ag-grid-vue3';
@@ -226,6 +226,16 @@ let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
 
 const filterModelStorageKey = computed(() => `cashflow_grid_filter_model_v1_${props.userId}`);
+
+const gridRows = shallowRef([]);
+
+watch(
+    () => props.rows,
+    (rows) => {
+        gridRows.value = Array.isArray(rows) ? rows.map((row) => ({ ...row })) : [];
+    },
+    { immediate: true },
+);
 
 const todayIsoDate = () => new Date().toISOString().slice(0, 10);
 
@@ -373,10 +383,12 @@ function downloadOperationalPaymentsCsv() {
     URL.revokeObjectURL(url);
 }
 
-const gridOptions = {
+const gridOptions = markRaw({
     theme: 'legacy',
     localeText: agGridLocaleRu,
-};
+});
+
+const baseColumnDefs = markRaw(buildBaseColumnDefs());
 
 const gridContainerStyle = computed(() => ({
     height: `${gridViewportHeight.value}px`,
@@ -640,12 +652,12 @@ function buildBaseColumnDefs() {
 }
 
 const dynamicColumnDefs = computed(() => {
-    const baseById = new Map(buildBaseColumnDefs().map((column) => [column.colId, { ...column }]));
+    const baseById = new Map(baseColumnDefs.map((column) => [column.colId, { ...column }]));
     const roleState = Array.isArray(props.roleColumnsConfig?.payment_schedule)
         ? props.roleColumnsConfig.payment_schedule
         : [];
 
-    let ordered = [...buildBaseColumnDefs()];
+    let ordered = baseColumnDefs.map((column) => ({ ...column }));
     if (roleState.length > 0) {
         const sortedState = [...roleState].sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0));
         const seen = new Set();
@@ -664,7 +676,7 @@ const dynamicColumnDefs = computed(() => {
             })
             .filter(Boolean);
 
-        buildBaseColumnDefs().forEach((column) => {
+        baseColumnDefs.forEach((column) => {
             if (!seen.has(column.colId)) {
                 ordered.push({ ...column });
             }
@@ -922,12 +934,15 @@ function onGridViewsPinnedChanged() {
     router.reload({ preserveScroll: true });
 }
 
-watch(() => props.rows, async () => {
-    await nextTick();
-    updateGridViewportHeight();
-    attachCenterViewportListener();
-    syncBottomScrollbar();
-}, { deep: true });
+watch(
+    () => props.rows?.length ?? 0,
+    async () => {
+        await nextTick();
+        updateGridViewportHeight();
+        attachCenterViewportListener();
+        syncBottomScrollbar();
+    },
+);
 
 const loadDensity = () => {
     currentDensity.value = readPersistedAgGridDensity(props.userId);

@@ -52,6 +52,10 @@ export function cashFlowRowStatusLabel(row) {
         return 'Частично оплачено';
     }
 
+    if (isCashFlowRowOverdue(row)) {
+        return 'Просрочено';
+    }
+
     const labels = {
         pending: 'По плану',
         paid: 'Оплачено',
