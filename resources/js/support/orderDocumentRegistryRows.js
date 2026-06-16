@@ -1,4 +1,5 @@
 import { documentMatchesRequirementRule } from '@/support/orderDocumentRequirementSlots.js';
+import { documentTypeDisplayLabel } from '@/support/orderDocumentTypes.js';
 
 /**
  * Строки таблицы учёта документов: обязательные слоты + доп. подписанные файлы.
@@ -98,7 +99,8 @@ export function buildRegistryTableRows(
  * @param {Map<string, string>} typeLabels
  */
 function registryTypeLabel(document, rule, typeLabels) {
-    const base = typeLabels.get(String(document?.type ?? '')) ?? rule.label;
+    const transportLabel = documentTypeDisplayLabel(String(document?.type ?? ''), typeLabels);
+    const base = transportLabel !== String(document?.type ?? '') ? transportLabel : (typeLabels.get(String(document?.type ?? '')) ?? rule.label);
     const counterparty = rule.counterparty_label ? String(rule.counterparty_label) : '';
 
     if (counterparty !== '' && String(rule.party) !== 'internal') {

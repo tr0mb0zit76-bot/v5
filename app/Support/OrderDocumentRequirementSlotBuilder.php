@@ -9,12 +9,14 @@ final class OrderDocumentRequirementSlotBuilder
 {
     private const REQUEST_TYPES = ['request', 'contract_request'];
 
-    private const CLOSING_TYPES = ['upd', 'invoice_factura', 'act', 'waybill', 'cmr', 'etrn', 'other'];
+    private const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
 
-    private const WAYBILL_TYPES = ['waybill', 'cmr', 'etrn'];
+    /** @var list<string> */
+    private const WAYBILL_TYPES = OrderDocumentTransportTypes::VALUES;
 
     /**
      * @param  list<array{stage?: string|null, contractor_id?: int|null, contractor_name?: string|null}>  $performers
+     * @param  array{customer?: string|null, carriers?: array<int, string|null>}  $paymentContext
      * @return list<array{
      *     key: string,
      *     label: string,
@@ -29,17 +31,33 @@ final class OrderDocumentRequirementSlotBuilder
      *     allows_multiple?: bool
      * }>
      */
-    public static function buildRules(array $performers, string $clientRequestMode, array $additionalCosts = []): array
-    {
+    public static function buildRules(
+        array $performers,
+        string $clientRequestMode,
+        array $additionalCosts = [],
+        array $paymentContext = [],
+    ): array {
         $mode = $clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
         $rules = [];
+        $customerPaymentForm = isset($paymentContext['customer']) ? (string) $paymentContext['customer'] : null;
+        /** @var array<int, string|null> $carrierPaymentForms */
+        $carrierPaymentForms = is_array($paymentContext['carriers'] ?? null) ? $paymentContext['carriers'] : [];
 
         foreach (self::customerRequestSlots($performers, $mode) as $slot) {
             $rules[] = self::requestRule('customer', $slot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES);
         }
 
         foreach (self::customerRequestSlots($performers, $mode) as $slot) {
-            $rules[] = self::requestRule('customer', $slot, 'customer_closing', 'Закрывающий документ заказчику', self::CLOSING_TYPES, true);
+            if (self::closingRequiredForPaymentForm($customerPaymentForm)) {
+                $rules[] = self::requestRule(
+                    'customer',
+                    $slot,
+                    'customer_closing',
+                    'Закрывающий документ заказчику',
+                    self::CLOSING_TYPES,
+                    true,
+                );
+            }
         }
 
         foreach (self::carrierRequestSlots($performers, $mode) as $slot) {
@@ -47,17 +65,42 @@ final class OrderDocumentRequirementSlotBuilder
         }
 
         foreach (self::carrierRequestSlots($performers, $mode) as $slot) {
-            $rules[] = self::requestRule('carrier', $slot, 'carrier_closing', 'Закрывающий документ перевозчика', self::CLOSING_TYPES, true);
+            $contractorId = isset($slot['contractorId']) && (int) $slot['contractorId'] > 0
+                ? (int) $slot['contractorId']
+                : null;
+            $carrierPaymentForm = $contractorId !== null ? ($carrierPaymentForms[$contractorId] ?? null) : null;
+
+            if (self::closingRequiredForPaymentForm($carrierPaymentForm)) {
+                $rules[] = self::requestRule(
+                    'carrier',
+                    $slot,
+                    'carrier_closing',
+                    'Закрывающий документ перевозчика',
+                    self::CLOSING_TYPES,
+                    true,
+                );
+            }
         }
 
         foreach (self::contractorAdditionalCostSlots($additionalCosts) as $slot) {
-            $rules[] = self::requestRule('contractor', $slot, 'contractor_closing', 'Закрывающий документ подрядчику', self::CLOSING_TYPES, true);
+            $contractorPaymentForm = isset($slot['paymentForm']) ? (string) $slot['paymentForm'] : null;
+
+            if (self::closingRequiredForPaymentForm($contractorPaymentForm)) {
+                $rules[] = self::requestRule(
+                    'contractor',
+                    $slot,
+                    'contractor_closing',
+                    'Закрывающий документ подрядчику',
+                    self::CLOSING_TYPES,
+                    true,
+                );
+            }
         }
 
         $rules[] = [
             'key' => 'waybill',
-            'label' => 'ТН / ЭТрН / пакет товаросопровождающих',
-            'description' => 'Бумажная ТН, CMR, ЭТрН или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+            'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
+            'description' => 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
             'party' => 'internal',
             'accepted_types' => self::WAYBILL_TYPES,
             'slot_kind' => 'waybill',
@@ -203,7 +246,7 @@ final class OrderDocumentRequirementSlotBuilder
 
     /**
      * @param  list<array<string, mixed>>  $additionalCosts
-     * @return list<array{slotKey: string, orderLegStage: string|null, contractorId: int|null, contractorName: string|null, labelSuffix: string}>
+     * @return list<array{slotKey: string, orderLegStage: string|null, contractorId: int|null, contractorName: string|null, labelSuffix: string, paymentForm: string|null}>
      */
     private static function contractorAdditionalCostSlots(array $additionalCosts): array
     {
@@ -232,14 +275,20 @@ final class OrderDocumentRequirementSlotBuilder
                 'contractorId' => $contractorId,
                 'contractorName' => $name !== '' ? $name : null,
                 'labelSuffix' => $name !== '' ? " · {$name}" : '',
+                'paymentForm' => PaymentFormDictionary::normalizeForStorage($row['payment_form'] ?? null),
             ];
         }
 
         return $slots;
     }
 
+    private static function closingRequiredForPaymentForm(?string $paymentForm): bool
+    {
+        return ! PaymentScheduleCashBasis::isCash($paymentForm);
+    }
+
     /**
-     * @param  array{slotKey: string, orderLegStage: string|null, contractorId: int|null, contractorName: string|null, labelSuffix: string}  $slot
+     * @param  array{slotKey: string, orderLegStage: string|null, contractorId: int|null, contractorName: string|null, labelSuffix: string, paymentForm?: string|null}  $slot
      * @param  list<string>  $acceptedTypes
      * @return array{
      *     key: string,

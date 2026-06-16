@@ -2,6 +2,12 @@
 import { computed } from 'vue';
 import { ExternalLink, Trash2 } from 'lucide-vue-next';
 import { buildRegistryTableRows } from '@/support/orderDocumentRegistryRows.js';
+import {
+    documentTypeDisplayLabel,
+    isTransportDocumentType,
+    TRANSPORT_SUBTYPE_OPTIONS,
+    withTransportSubtypeOptions,
+} from '@/support/orderDocumentTypes.js';
 
 const props = defineProps({
     signedDocuments: { type: Array, default: () => [] },
@@ -31,6 +37,8 @@ const typeLabelByValue = computed(() => {
     return map;
 });
 
+const attachTypeOptions = computed(() => withTransportSubtypeOptions(props.documentTypeOptions || []));
+
 function partyLabel(party) {
     if (party === 'customer') {
         return 'Заказчик';
@@ -48,7 +56,15 @@ function displayTypeLabel(row) {
         return row.type_label;
     }
 
-    return typeLabelByValue.value.get(row.type) ?? row.type ?? '—';
+    return documentTypeDisplayLabel(row.type, typeLabelByValue.value);
+}
+
+function typeOptionsForRow(row) {
+    if (isTransportDocumentType(row.type)) {
+        return TRANSPORT_SUBTYPE_OPTIONS;
+    }
+
+    return attachTypeOptions.value;
 }
 
 function onFieldChange(doc, field, value) {
@@ -97,7 +113,7 @@ function onFieldChange(doc, field, value) {
                             class="w-full min-w-[140px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-950"
                             @change="onFieldChange(row, 'type', $event.target.value)"
                         >
-                            <option v-for="opt in documentTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                            <option v-for="opt in typeOptionsForRow(row)" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                         <span v-else>{{ displayTypeLabel(row) }}</span>
                     </td>

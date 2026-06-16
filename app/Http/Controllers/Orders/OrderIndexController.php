@@ -22,7 +22,7 @@ use Inertia\Response;
 
 class OrderIndexController extends Controller
 {
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request, OrderGridOneCSummaryResolver $oneCSummaryResolver): Response
     {
         $user = $request->user();
         $role = $this->resolveRole($user?->role_id);
@@ -227,7 +227,7 @@ class OrderIndexController extends Controller
             ];
         });
 
-        $rows = (new OrderGridOneCSummaryResolver)->enrich(collect($rows))->values()->all();
+        $rows = $oneCSummaryResolver->enrich(collect($rows))->values()->all();
 
         return Inertia::render('Orders/Index', [
             'rows' => $rows,

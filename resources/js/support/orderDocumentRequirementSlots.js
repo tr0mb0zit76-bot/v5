@@ -1,9 +1,47 @@
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import { expandPerformersForCarrierSlots, filterExternalCarrierSlots, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
+import { TRANSPORT_DOCUMENT_LABEL, TRANSPORT_DOCUMENT_TYPES } from '@/support/orderDocumentTypes.js';
 
 const REQUEST_TYPES = ['request', 'contract_request'];
 const CLOSING_TYPES = ['upd', 'invoice_factura', 'act'];
-const WAYBILL_TYPES = ['waybill', 'cmr', 'etrn'];
+const WAYBILL_TYPES = TRANSPORT_DOCUMENT_TYPES;
+
+function isCashPaymentForm(paymentForm) {
+    return String(paymentForm ?? '').trim().toLowerCase() === 'cash';
+}
+
+function closingRequiredForPaymentForm(paymentForm) {
+    return !isCashPaymentForm(paymentForm);
+}
+
+const CLOSING_DESCRIPTION = 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
+
+/**
+ * @param {string|null|undefined} customerPaymentForm
+ * @param {Array<Record<string, unknown>>} contractorsCosts
+ * @returns {{customer: string|null, carriers: Record<number, string|null>}}
+ */
+export function buildDocumentPaymentContext(customerPaymentForm, contractorsCosts = []) {
+    /** @type {Record<number, string|null>} */
+    const carriers = {};
+
+    (Array.isArray(contractorsCosts) ? contractorsCosts : []).forEach((row) => {
+        const contractorId = row?.contractor_id != null && row?.contractor_id !== ''
+            ? Number(row.contractor_id)
+            : null;
+
+        if (contractorId) {
+            carriers[contractorId] = row?.payment_form != null ? String(row.payment_form) : null;
+        }
+    });
+
+    return {
+        customer: customerPaymentForm != null && String(customerPaymentForm).trim() !== ''
+            ? String(customerPaymentForm)
+            : null,
+        carriers,
+    };
+}
 
 /**
  * @param {Array<{stage?: string, contractor_id?: number|null, contractor_name?: string|null}>} performers
@@ -154,9 +192,12 @@ export function buildDocumentRequirementRules(
     performers,
     clientRequestMode = 'single_request',
     additionalCosts = [],
+    paymentContext = {},
 ) {
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
     const rules = [];
+    const customerPaymentForm = paymentContext?.customer ?? null;
+    const carrierPaymentForms = paymentContext?.carriers ?? {};
 
     customerRequestSlots(performers, mode).forEach((slot) => {
         rules.push({
@@ -174,12 +215,16 @@ export function buildDocumentRequirementRules(
     });
 
     customerRequestSlots(performers, mode).forEach((slot) => {
+        if (!closingRequiredForPaymentForm(customerPaymentForm)) {
+            return;
+        }
+
         rules.push({
             key: `customer_closing:${slot.slotKey}`,
             label: `Закрывающий документ заказчику${slot.labelSuffix}`,
-            description: 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».',
+            description: CLOSING_DESCRIPTION,
             party: 'customer',
-            accepted_types: CLOSING_TYPES,
+            accepted_types: [...CLOSING_TYPES],
             slot_kind: 'customer_closing',
             slot_key: slot.slotKey,
             contractor_id: slot.contractorId,
@@ -204,12 +249,20 @@ export function buildDocumentRequirementRules(
     });
 
     carrierRequestSlots(performers, mode).forEach((slot) => {
+        const carrierPaymentForm = slot.contractorId != null
+            ? (carrierPaymentForms[Number(slot.contractorId)] ?? null)
+            : null;
+
+        if (!closingRequiredForPaymentForm(carrierPaymentForm)) {
+            return;
+        }
+
         rules.push({
             key: `carrier_closing:${slot.slotKey}`,
             label: `Закрывающий документ перевозчика${slot.labelSuffix}`,
-            description: 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».',
+            description: CLOSING_DESCRIPTION,
             party: 'carrier',
-            accepted_types: CLOSING_TYPES,
+            accepted_types: [...CLOSING_TYPES],
             slot_kind: 'carrier_closing',
             slot_key: slot.slotKey,
             contractor_id: slot.contractorId,
@@ -232,12 +285,18 @@ export function buildDocumentRequirementRules(
         const name = row?.contractor_name ? String(row.contractor_name).trim() : '';
         const suffix = name !== '' ? ` · ${name}` : '';
 
+        const contractorPaymentForm = row?.payment_form ?? null;
+
+        if (!closingRequiredForPaymentForm(contractorPaymentForm)) {
+            return;
+        }
+
         rules.push({
             key: `contractor_closing:${slotKey}`,
             label: `Закрывающий документ подрядчику${suffix}`,
-            description: 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».',
+            description: CLOSING_DESCRIPTION,
             party: 'contractor',
-            accepted_types: CLOSING_TYPES,
+            accepted_types: [...CLOSING_TYPES],
             slot_kind: 'contractor_closing',
             slot_key: slotKey,
             contractor_id: contractorId,
@@ -248,8 +307,8 @@ export function buildDocumentRequirementRules(
 
     rules.push({
         key: 'waybill',
-        label: 'ТН / ЭТрН / пакет товаросопровождающих',
-        description: 'Бумажная ТН, CMR, ЭТрН или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+        label: TRANSPORT_DOCUMENT_LABEL,
+        description: 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
         party: 'internal',
         accepted_types: WAYBILL_TYPES,
         slot_kind: 'waybill',

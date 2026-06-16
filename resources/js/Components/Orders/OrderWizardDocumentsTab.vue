@@ -14,6 +14,7 @@ import {
 } from '@/support/documentRegistryClient.js';
 import {
     buildDocumentRequirementRules,
+    buildDocumentPaymentContext,
     carrierAttachTargetOptions,
     customerRequestSlots,
     documentMatchesRequirementRule,
@@ -49,6 +50,8 @@ const props = defineProps({
     isInternationalTransport: { type: Boolean, default: false },
     customerId: { type: [Number, String, null], default: null },
     documentTypeOptions: { type: Array, default: () => [] },
+    customerPaymentForm: { type: String, default: '' },
+    contractorsCosts: { type: Array, default: () => [] },
     requiredDocumentRules: { type: Array, default: () => [] },
     requiredDocumentChecklist: { type: Array, default: () => [] },
     documentTabValidationMessages: { type: Array, default: () => [] },
@@ -113,10 +116,16 @@ const carrierVedTemplateHint = computed(() => {
     return 'Шаблоны для ВЭД появятся после выбора «Международная» на вкладке «Основное». Сохраните заказ, если переключатель уже включён.';
 });
 
+const documentPaymentContext = computed(() => buildDocumentPaymentContext(
+    props.customerPaymentForm,
+    props.contractorsCosts,
+));
+
 const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRules(
     props.performers,
     props.clientRequestMode,
     props.additionalCosts,
+    documentPaymentContext.value,
 ));
 
 const effectiveDocumentChecklist = computed(() => {
@@ -949,7 +958,7 @@ async function onGlobalDrop(event) {
         <section class="space-y-3">
             <div class="text-sm font-semibold">Учёт документов</div>
             <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                Пять обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы.
+                {{ effectiveRequiredDocumentRules.length }} обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы. При оплате наличными у контрагента закрывающие документы (УПД, счёт-фактура, акт) не требуются — только заявка.
             </p>
             <OrderSignedDocumentsTable
                 :signed-documents="signedDocuments"

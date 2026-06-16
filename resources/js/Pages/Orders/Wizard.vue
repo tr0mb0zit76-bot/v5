@@ -1791,6 +1791,8 @@
                 :own-company-id="form.own_company_id"
                 :is-international-transport="form.is_international_transport"
                 :customer-id="form.client_id"
+                :customer-payment-form="form.financial_term.client_payment_form"
+                :contractors-costs="form.financial_term.contractors_costs"
                 :document-type-options="documentTypeOptions"
                 :document-tab-validation-messages="documentTabValidationMessages"
                 :document-storage="documentStorage"

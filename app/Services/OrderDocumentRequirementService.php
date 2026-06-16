@@ -8,7 +8,9 @@ use App\Models\OrderDocument;
 use App\Models\PrintFormTemplate;
 use App\Support\OrderAdditionalCostNormalizer;
 use App\Support\OrderDocumentRequirementSlotBuilder;
+use App\Support\OrderDocumentTransportTypes;
 use App\Support\OrderDocumentWorkflowStatus;
+use App\Support\PaymentFormDictionary;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -37,8 +39,9 @@ class OrderDocumentRequirementService
         array $performers,
         string $clientRequestMode = 'single_request',
         array $additionalCosts = [],
+        array $paymentContext = [],
     ): array {
-        return OrderDocumentRequirementSlotBuilder::buildRules($performers, $clientRequestMode, $additionalCosts);
+        return OrderDocumentRequirementSlotBuilder::buildRules($performers, $clientRequestMode, $additionalCosts, $paymentContext);
     }
 
     /**
@@ -50,6 +53,7 @@ class OrderDocumentRequirementService
             $this->resolvePerformersForOrder($order),
             $this->resolveClientRequestModeForOrder($order),
             $this->resolveAdditionalCostsForOrder($order),
+            $this->resolvePaymentContextForOrder($order),
         );
     }
 
@@ -58,13 +62,10 @@ class OrderDocumentRequirementService
      */
     public function documentTypeOptions(): array
     {
-        return [
+        $options = [
             ['value' => 'contract_request', 'label' => 'Договор-заявка'],
             ['value' => 'contract', 'label' => 'Договор'],
             ['value' => 'request', 'label' => 'Заявка'],
-            ['value' => 'waybill', 'label' => 'ТН'],
-            ['value' => 'etrn', 'label' => 'ЭТрН'],
-            ['value' => 'cmr', 'label' => 'CMR'],
             ['value' => 'upd', 'label' => 'УПД'],
             ['value' => 'invoice', 'label' => 'Счет'],
             ['value' => 'invoice_factura', 'label' => 'Счет-фактура'],
@@ -73,6 +74,8 @@ class OrderDocumentRequirementService
             ['value' => 'customs_declaration', 'label' => 'Таможенная декларация'],
             ['value' => 'other', 'label' => 'Другое'],
         ];
+
+        return array_merge($options, OrderDocumentTransportTypes::selectOptions());
     }
 
     /**
@@ -122,7 +125,7 @@ class OrderDocumentRequirementService
             ? $order->documents
             : $order->documents()->get();
 
-        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, ['waybill', 'cmr', 'etrn']));
+        $transportDocuments = $documents->filter(fn (OrderDocument $document): bool => $this->matchesType($document, OrderDocumentTransportTypes::VALUES));
         if ($transportDocuments->isEmpty()) {
             return null;
         }
@@ -561,6 +564,67 @@ class OrderDocumentRequirementService
         $mode = data_get($snapshot, 'client.request_mode');
 
         return $mode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
+    }
+
+    /**
+     * @return array{customer: string|null, carriers: array<int, string|null>}
+     */
+    private function resolvePaymentContextForOrder(Order $order): array
+    {
+        $customer = filled($order->customer_payment_form)
+            ? PaymentFormDictionary::normalizeForStorage((string) $order->customer_payment_form)
+            : null;
+
+        /** @var array<int, string|null> $carriers */
+        $carriers = [];
+
+        if (Schema::hasTable('financial_terms')) {
+            $order->loadMissing('financialTerms');
+            $financialTerm = $order->financialTerms->first();
+
+            if ($financialTerm instanceof FinancialTerm) {
+                $costRows = is_array($financialTerm->contractors_costs) ? $financialTerm->contractors_costs : [];
+
+                foreach ($costRows as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+
+                    $contractorId = isset($row['contractor_id']) && $row['contractor_id'] !== null && $row['contractor_id'] !== ''
+                        ? (int) $row['contractor_id']
+                        : 0;
+
+                    if ($contractorId <= 0) {
+                        continue;
+                    }
+
+                    $carriers[$contractorId] = PaymentFormDictionary::normalizeForStorage($row['payment_form'] ?? null);
+                }
+            }
+        }
+
+        if (Schema::hasTable('leg_costs') && Schema::hasTable('order_legs')) {
+            $order->loadMissing(['legs.contractorAssignment', 'legs.cost']);
+
+            foreach ($order->legs as $leg) {
+                $contractorId = $leg->contractorAssignment?->contractor_id;
+
+                if ($contractorId === null) {
+                    continue;
+                }
+
+                $paymentForm = PaymentFormDictionary::normalizeForStorage($leg->cost?->payment_form);
+
+                if ($paymentForm !== null) {
+                    $carriers[(int) $contractorId] = $paymentForm;
+                }
+            }
+        }
+
+        return [
+            'customer' => $customer,
+            'carriers' => $carriers,
+        ];
     }
 
     private function resolvePartyForMatching(OrderDocument $document): string
