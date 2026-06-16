@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Http\Requests\UpdateMobileBottomNavRequest;
+use App\Http\Requests\UpdateSidebarFavoritesRequest;
 use App\Http\Requests\UpdateUiPreferencesRequest;
 use App\Support\CrmAppearance;
 use App\Support\MobileNavResolver;
+use App\Support\SidebarMenuFavoritesResolver;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,6 +62,34 @@ class ProfileController extends Controller
             $request->validated('mobile_nav_keys'),
         );
         $user->mobile_nav_keys = $keys === [] ? null : $keys;
+        $user->save();
+
+        return Redirect::back(303);
+    }
+
+    /**
+     * Закреплённые пункты бокового меню (до 5 быстрых ссылок).
+     */
+    public function updateSidebarFavorites(UpdateSidebarFavoritesRequest $request): RedirectResponse
+    {
+        if (! Schema::hasColumn('users', 'ui_preferences')) {
+            abort(404);
+        }
+
+        $user = $request->user();
+        $keys = SidebarMenuFavoritesResolver::sanitizeUserSelection(
+            $user,
+            $request->validated('sidebar_favorite_keys'),
+        );
+
+        $preferences = is_array($user->ui_preferences) ? $user->ui_preferences : [];
+        if ($keys === []) {
+            unset($preferences['sidebar_favorite_keys']);
+        } else {
+            $preferences['sidebar_favorite_keys'] = $keys;
+        }
+
+        $user->ui_preferences = $preferences;
         $user->save();
 
         return Redirect::back(303);

@@ -35,6 +35,7 @@ class User extends Authenticatable
         'has_signing_authority',
         'belongs_to_management',
         'can_management_accounting',
+        'sees_company_dashboard',
         'ntfy_topic',
         'ai_preferences',
         'ai_learning_enabled',
@@ -64,6 +65,7 @@ class User extends Authenticatable
             'has_signing_authority' => 'boolean',
             'belongs_to_management' => 'boolean',
             'can_management_accounting' => 'boolean',
+            'sees_company_dashboard' => 'boolean',
             'ai_learning_enabled' => 'boolean',
             'mail_imap_secret' => 'encrypted',
             'mail_sync_enabled' => 'boolean',
@@ -133,6 +135,11 @@ class User extends Authenticatable
     public function canManagementAccounting(): bool
     {
         return (bool) $this->can_management_accounting;
+    }
+
+    public function seesCompanyDashboard(): bool
+    {
+        return (bool) ($this->sees_company_dashboard ?? false);
     }
 
     /**

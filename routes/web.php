@@ -271,7 +271,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         Route::middleware('visibility.area:sales_assistant_counter')->group(function () {
-            Route::redirect('/counter', '/modules/counter');
+            Route::controller(SalesAssistantController::class)->prefix('counter')->name('counter.')->group(function () {
+                Route::get('/', 'counter')->name('index');
+                Route::post('/calculate', 'calculateCounter')->name('calculate');
+            });
         });
 
         Route::middleware('visibility.area:sales_assistant_trainer')->group(function () {
@@ -651,15 +654,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('leads.status.update');
 
     Route::get('/modules', fn () => Inertia::render('Modules/Index'))
-        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|sales_assistant_counter')
+        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|modules')
         ->name('modules.index');
 
-    Route::middleware('visibility.area:sales_assistant_counter')->group(function () {
-        Route::controller(SalesAssistantController::class)->prefix('modules/counter')->name('modules.counter.')->group(function () {
-            Route::get('/', 'counter')->name('index');
-            Route::post('/calculate', 'calculateCounter')->name('calculate');
-        });
-    });
+    Route::redirect('/modules/counter', '/sales-assistant/counter')
+        ->middleware('visibility.area:sales_assistant_counter');
 
     Route::middleware('visibility.area:modules_how_much_fits')->group(function () {
         Route::controller(LoadingPlannerController::class)->prefix('modules/how-much-fits')->name('modules.how-much-fits.')->group(function () {
@@ -686,6 +685,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/ui-preferences', [ProfileController::class, 'updateUiPreferences'])->name('profile.ui-preferences');
     Route::patch('/profile/mobile-bottom-nav', [ProfileController::class, 'updateMobileBottomNav'])->name('profile.mobile-bottom-nav');
+    Route::patch('/profile/sidebar-favorites', [ProfileController::class, 'updateSidebarFavorites'])->name('profile.sidebar-favorites');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::prefix('grid-views')->name('grid-views.')->group(function () {

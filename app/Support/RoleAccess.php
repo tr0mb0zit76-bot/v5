@@ -90,6 +90,7 @@ class RoleAccess
     {
         return [
             ['value' => 'own', 'label' => 'Только своё'],
+            ['value' => 'department', 'label' => 'Подразделение'],
             ['value' => 'all', 'label' => 'Всё'],
         ];
     }
@@ -153,7 +154,7 @@ class RoleAccess
                 'contractors' => 'all',
                 'documents' => 'all',
                 'payment_schedules' => 'all',
-                'dashboard_tiles' => 'all',
+                'dashboard_tiles' => 'department',
             ],
             'manager' => [
                 'orders' => 'own',
@@ -221,7 +222,21 @@ class RoleAccess
             $value = 'own';
         }
 
-        return in_array($value, ['own', 'all'], true) ? $value : 'own';
+        return in_array($value, ['own', 'department', 'all'], true) ? $value : 'own';
+    }
+
+    public static function mergeVisibilityScopeValues(string $current, string $incoming): string
+    {
+        $priority = [
+            'own' => 0,
+            'department' => 1,
+            'all' => 2,
+        ];
+
+        $currentPriority = $priority[$current] ?? 0;
+        $incomingPriority = $priority[$incoming] ?? 0;
+
+        return $incomingPriority >= $currentPriority ? $incoming : $current;
     }
 
     /**
@@ -275,7 +290,7 @@ class RoleAccess
 
         $value = $scopes[$area] ?? static::defaultVisibilityScopes($fallbackRoleName)[$area] ?? 'own';
 
-        return in_array($value, ['own', 'all'], true) ? $value : 'own';
+        return in_array($value, ['own', 'department', 'all'], true) ? $value : 'own';
     }
 
     /**
@@ -403,13 +418,10 @@ class RoleAccess
                     continue;
                 }
 
-                if (($merged[$area] ?? 'own') === 'all' || $value === 'all') {
-                    $merged[$area] = 'all';
-
-                    continue;
-                }
-
-                $merged[$area] = $merged[$area] ?? 'own';
+                $merged[$area] = static::mergeVisibilityScopeValues(
+                    (string) ($merged[$area] ?? 'own'),
+                    is_string($value) ? $value : 'own',
+                );
             }
         }
 

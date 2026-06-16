@@ -8,7 +8,9 @@ use App\Models\User;
 use App\Services\Disposition\DispositionKpiService;
 use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
+use App\Support\UserDashboardDepartmentScope;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -38,27 +40,28 @@ class DashboardMetricsService
      */
     public function forDashboard(User $user, string $dateFrom, string $dateTo): array
     {
-        $user->loadMissing('role');
-        $managerId = $user->id;
+        $user->loadMissing(['role', 'departments']);
+        $managerId = (int) $user->id;
         $tilesScope = RoleAccess::resolveVisibilityScopeForUser($user, 'dashboard_tiles');
-        $effectiveManagerId = $tilesScope === 'own' ? $managerId : null;
+        $metricsScope = $this->resolveMetricsScope($user, $tilesScope);
+        $managerFilter = $this->resolveManagerFilter($user, $metricsScope);
         $roleName = $user->role?->name;
-        $showDualMetrics = $tilesScope === 'all'
+        $showDualMetrics = in_array($metricsScope, ['company', 'department'], true)
             && in_array($roleName, ['admin', 'supervisor'], true);
 
-        $primary = $this->tileMetricsForManager($effectiveManagerId, $dateFrom, $dateTo);
-        $finance = $this->financeChartForUser($user, $tilesScope, $managerId, $dateFrom, $dateTo);
+        $primary = $this->tileMetricsForScope($managerFilter, $dateFrom, $dateTo);
+        $finance = $this->financeChartForUser($user, $metricsScope === 'company' ? 'all' : 'own', $managerId, $dateFrom, $dateTo);
 
         $payload = [
             ...$primary,
             ...$finance,
             'show_dual_metrics' => $showDualMetrics,
-            'metrics_scope' => $tilesScope === 'all' ? 'company' : 'own',
+            'metrics_scope' => $metricsScope,
             'metrics_own' => null,
         ];
 
         if ($showDualMetrics) {
-            $payload['metrics_own'] = $this->tileMetricsForManager($managerId, $dateFrom, $dateTo);
+            $payload['metrics_own'] = $this->tileMetricsForScope(['mode' => 'managers', 'ids' => [$managerId]], $dateFrom, $dateTo);
         }
 
         $dispositionKpi = $this->dispositionKpiPayload($user, $showDualMetrics, $managerId);
@@ -67,6 +70,45 @@ class DashboardMetricsService
         }
 
         return $payload;
+    }
+
+    private function resolveMetricsScope(User $user, string $tilesScope): string
+    {
+        if ($user->isAdmin()) {
+            return 'company';
+        }
+
+        if ($user->seesCompanyDashboard()) {
+            return 'company';
+        }
+
+        if ($tilesScope === 'all') {
+            return 'company';
+        }
+
+        if ($tilesScope === 'department') {
+            return 'department';
+        }
+
+        return 'own';
+    }
+
+    /**
+     * @return array{mode: 'all'|'managers', ids?: list<int>}
+     */
+    private function resolveManagerFilter(User $user, string $metricsScope): array
+    {
+        return match ($metricsScope) {
+            'company' => ['mode' => 'all'],
+            'department' => [
+                'mode' => 'managers',
+                'ids' => UserDashboardDepartmentScope::departmentUserIds($user),
+            ],
+            default => [
+                'mode' => 'managers',
+                'ids' => [(int) $user->id],
+            ],
+        };
     }
 
     /**
@@ -91,6 +133,7 @@ class DashboardMetricsService
     }
 
     /**
+     * @param  array{mode: 'all'|'managers', ids?: list<int>}  $managerFilter
      * @return array{
      *     total_orders:int,
      *     period_delta:float,
@@ -104,7 +147,7 @@ class DashboardMetricsService
      *     margin_rank:string
      * }
      */
-    private function tileMetricsForManager(?int $managerId, string $dateFrom, string $dateTo): array
+    private function tileMetricsForScope(array $managerFilter, string $dateFrom, string $dateTo): array
     {
         $orderColumns = array_values(array_filter(
             ['id', 'delta'],
@@ -112,18 +155,19 @@ class DashboardMetricsService
         ));
 
         $query = Order::query()
-            ->when($managerId !== null, fn ($q) => $q->where('manager_id', $managerId))
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
             );
 
+        $this->applyManagerFilter($query, $managerFilter, 'manager_id');
+
         $select = $orderColumns === [] ? ['*'] : $orderColumns;
         $orders = $query->get($select);
 
-        $weeklyReturns = $this->weeklyCustomerReturnDueTotals($managerId);
-        $taskMetrics = $this->taskMetricsForManager($managerId, $dateFrom, $dateTo);
+        $weeklyReturns = $this->weeklyCustomerReturnDueTotals($managerFilter);
+        $taskMetrics = $this->taskMetricsForScope($managerFilter, $dateFrom, $dateTo);
 
         return [
             'total_orders' => $orders->count(),
@@ -137,6 +181,36 @@ class DashboardMetricsService
             'tasks_sla_breached_open' => $taskMetrics['tasks_sla_breached_open'],
             'margin_rank' => '—',
         ];
+    }
+
+    /**
+     * @param  EloquentBuilder<Order>|Builder  $query
+     * @param  array{mode: 'all'|'managers', ids?: list<int>}  $managerFilter
+     */
+    private function applyManagerFilter(EloquentBuilder|Builder $query, array $managerFilter, string $managerColumn = 'manager_id'): void
+    {
+        if (($managerFilter['mode'] ?? 'all') === 'all') {
+            return;
+        }
+
+        $managerIds = array_values(array_unique(array_map(
+            static fn (mixed $id): int => (int) $id,
+            $managerFilter['ids'] ?? [],
+        )));
+
+        if ($managerIds === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        if (count($managerIds) === 1) {
+            $query->where($managerColumn, $managerIds[0]);
+
+            return;
+        }
+
+        $query->whereIn($managerColumn, $managerIds);
     }
 
     /**
@@ -204,6 +278,7 @@ class DashboardMetricsService
     }
 
     /**
+     * @param  array{mode: 'all'|'managers', ids?: list<int>}  $managerFilter
      * @return array{
      *     tasks_today:int,
      *     tasks_overdue:int,
@@ -212,7 +287,7 @@ class DashboardMetricsService
      *     tasks_sla_breached_open:int
      * }
      */
-    private function taskMetricsForManager(?int $managerId, string $dateFrom, string $dateTo): array
+    private function taskMetricsForScope(array $managerFilter, string $dateFrom, string $dateTo): array
     {
         if (! Schema::hasTable('tasks')) {
             return [
@@ -228,11 +303,12 @@ class DashboardMetricsService
         $now = Carbon::now();
 
         $base = Task::query()
-            ->when($managerId !== null, fn ($q) => $q->where('responsible_id', $managerId))
             ->when(
                 Schema::hasColumn('tasks', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
             );
+
+        $this->applyTaskManagerFilter($base, $managerFilter);
 
         $open = (clone $base)->where('status', '!=', 'done');
 
@@ -271,15 +347,17 @@ class DashboardMetricsService
         }
 
         $completedInPeriod = Task::query()
-            ->when($managerId !== null, fn ($q) => $q->where('responsible_id', $managerId))
             ->where('status', 'done')
             ->whereNotNull('completed_at')
             ->whereBetween('completed_at', [$periodStart, $periodEnd])
             ->when(
                 Schema::hasColumn('tasks', 'deleted_at'),
                 fn ($query) => $query->whereNull('deleted_at')
-            )
-            ->get($completedTaskColumns);
+            );
+
+        $this->applyTaskManagerFilter($completedInPeriod, $managerFilter);
+
+        $completedInPeriod = $completedInPeriod->get($completedTaskColumns);
 
         $withDeadline = $completedInPeriod->filter(
             fn (Task $task): bool => $task->due_at !== null || ($task->sla_deadline_at ?? null) !== null
@@ -316,9 +394,40 @@ class DashboardMetricsService
     }
 
     /**
+     * @param  EloquentBuilder<Task>  $query
+     * @param  array{mode: 'all'|'managers', ids?: list<int>}  $managerFilter
+     */
+    private function applyTaskManagerFilter(EloquentBuilder $query, array $managerFilter): void
+    {
+        if (($managerFilter['mode'] ?? 'all') === 'all') {
+            return;
+        }
+
+        $managerIds = array_values(array_unique(array_map(
+            static fn (mixed $id): int => (int) $id,
+            $managerFilter['ids'] ?? [],
+        )));
+
+        if ($managerIds === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        if (count($managerIds) === 1) {
+            $query->where('responsible_id', $managerIds[0]);
+
+            return;
+        }
+
+        $query->whereIn('responsible_id', $managerIds);
+    }
+
+    /**
+     * @param  array{mode: 'all'|'managers', ids?: list<int>}  $managerFilter
      * @return array{total: float, overdue: float}
      */
-    private function weeklyCustomerReturnDueTotals(?int $managerId): array
+    private function weeklyCustomerReturnDueTotals(array $managerFilter): array
     {
         if (! Schema::hasTable('payment_schedules') || ! Schema::hasColumn('payment_schedules', 'planned_date')) {
             return ['total' => 0.0, 'overdue' => 0.0];
@@ -328,7 +437,7 @@ class DashboardMetricsService
         $weekEnd = Carbon::now()->endOfWeek();
         $amountExpr = $this->paymentScheduleOutstandingAmountExpression();
 
-        $base = $this->customerScheduleDueBaseQuery($managerId);
+        $base = $this->customerScheduleDueBaseQuery($managerFilter);
 
         $overdue = (float) (clone $base)
             ->whereDate('payment_schedules.planned_date', '<', $today)
@@ -344,13 +453,17 @@ class DashboardMetricsService
         return ['total' => $total, 'overdue' => $overdue];
     }
 
-    private function customerScheduleDueBaseQuery(?int $managerId): Builder
+    /**
+     * @param  array{mode: 'all'|'managers', ids?: list<int>}  $managerFilter
+     */
+    private function customerScheduleDueBaseQuery(array $managerFilter): Builder
     {
         $query = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
-            ->when($managerId !== null, fn ($q) => $q->where('orders.manager_id', $managerId))
             ->where('payment_schedules.party', 'customer')
             ->whereIn('payment_schedules.status', ['pending', 'overdue']);
+
+        $this->applyManagerFilter($query, $managerFilter, 'orders.manager_id');
 
         if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
             $query->whereNull('payment_schedules.parent_payment_id');

@@ -9,25 +9,6 @@
             <button
                 type="button"
                 :class="crmModuleCard"
-                @click="router.visit(route('modules.counter.index'))"
-            >
-                <div class="flex items-start justify-between gap-4">
-                    <div class="crm-module-card__icon flex h-12 w-12 items-center justify-center rounded-2xl">
-                        <Calculator class="h-6 w-6" />
-                    </div>
-                </div>
-                <div class="mt-5 text-xl font-semibold">Считалка</div>
-                <p class="mt-2 text-sm leading-6">
-                    Маржа по ставке заказчика и перевозчика с выбором условия вычета из настроек мотивации.
-                </p>
-                <div class="crm-module-card__cta mt-5 text-sm font-medium group-hover:underline">
-                    Открыть модуль
-                </div>
-            </button>
-
-            <button
-                type="button"
-                :class="crmModuleCard"
                 @click="router.visit(route('modules.how-much-fits.index'))"
             >
                 <div class="flex items-start justify-between gap-4">

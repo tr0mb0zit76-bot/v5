@@ -6,9 +6,10 @@ use App\Models\BusinessProcess;
 use App\Models\BusinessProcessStage;
 use App\Models\Lead;
 use App\Models\LeadProcessStageLog;
-use App\Models\Task;
+use App\Models\SalesScriptVersion;
 use App\Models\User;
 use App\Support\ActivityEventType;
+use App\Support\BusinessProcessPlaybook;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -142,7 +143,7 @@ class LeadBusinessProcessService
             return null;
         }
 
-        $lead->loadMissing(['businessProcess.stages', 'businessProcessStage']);
+        $lead->loadMissing(['businessProcess.stages', 'businessProcessStage.salesScript.versions']);
 
         $process = $lead->businessProcess;
         $currentStageId = $lead->business_process_stage_id;
@@ -166,8 +167,13 @@ class LeadBusinessProcessService
         return [
             'process_id' => $process->id,
             'process_name' => $process->name,
+            'process_description' => $process->description,
             'current_stage_id' => $currentStageId,
             'current_stage_name' => $lead->businessProcessStage?->name,
+            'current_stage_goal' => $currentStage?->stage_goal,
+            'current_stage_playbook' => BusinessProcessPlaybook::normalize($currentStage?->description),
+            'current_stage_success_criteria' => BusinessProcessPlaybook::normalize($currentStage?->success_criteria),
+            'current_stage_sales_script' => $this->resolveStageSalesScriptPayload($currentStage),
             'stage_entered_at' => optional($lead->stage_entered_at)?->toIso8601String(),
             'stage_due_at' => optional($lead->stage_due_at)?->toIso8601String(),
             'process_started_at' => optional($lead->process_started_at)?->toIso8601String(),
@@ -192,6 +198,8 @@ class LeadBusinessProcessService
                     'duration_days' => $stage->duration_days,
                     'is_terminal' => $stage->is_terminal,
                     'terminal_outcome' => $stage->terminal_outcome,
+                    'stage_goal' => $stage->stage_goal,
+                    'has_playbook' => filled($stage->description) || filled($stage->stage_goal),
                     'state' => $state,
                 ];
             })->all(),
@@ -322,7 +330,9 @@ class LeadBusinessProcessService
         );
 
         $description = filled($stage->task_description_template)
-            ? $this->renderPlaybookTemplate($stage->task_description_template, $lead, $stage)
+            ? BusinessProcessPlaybook::toPlainText(
+                $this->renderPlaybookTemplate($stage->task_description_template, $lead, $stage),
+            )
             : null;
 
         $dueAt = (int) ($stage->task_due_days_offset ?? 0) > 0
@@ -367,6 +377,37 @@ class LeadBusinessProcessService
         ];
 
         return trim(str_replace(array_keys($replacements), array_values($replacements), $template));
+    }
+
+    /**
+     * @return array{id: int, title: string, version_id: int}|null
+     */
+    private function resolveStageSalesScriptPayload(?BusinessProcessStage $stage): ?array
+    {
+        if ($stage === null || $stage->sales_script_id === null || ! Schema::hasTable('sales_scripts')) {
+            return null;
+        }
+
+        $stage->loadMissing(['salesScript.versions']);
+
+        $script = $stage->salesScript;
+        if ($script === null) {
+            return null;
+        }
+
+        /** @var SalesScriptVersion|null $published */
+        $published = $script->versions
+            ->first(fn (SalesScriptVersion $version): bool => $version->is_active && $version->published_at !== null);
+
+        if ($published === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $script->id,
+            'title' => (string) $script->title,
+            'version_id' => (int) $published->id,
+        ];
     }
 
     private function nextTaskNumber(): string

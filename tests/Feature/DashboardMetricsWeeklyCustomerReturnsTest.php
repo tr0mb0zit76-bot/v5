@@ -84,7 +84,7 @@ class DashboardMetricsWeeklyCustomerReturnsTest extends TestCase
             $method = new ReflectionMethod(DashboardMetricsService::class, 'weeklyCustomerReturnDueTotals');
             $method->setAccessible(true);
             /** @var array{total: float, overdue: float} $result */
-            $result = $method->invoke($svc, 1);
+            $result = $method->invoke($svc, ['mode' => 'managers', 'ids' => [1]]);
 
             $this->assertSame(380.0, $result['total']);
             $this->assertSame(150.0, $result['overdue']);
@@ -159,7 +159,7 @@ class DashboardMetricsWeeklyCustomerReturnsTest extends TestCase
             $method = new ReflectionMethod(DashboardMetricsService::class, 'weeklyCustomerReturnDueTotals');
             $method->setAccessible(true);
             /** @var array{total: float, overdue: float} $result */
-            $result = $method->invoke($svc, null);
+            $result = $method->invoke($svc, ['mode' => 'all']);
 
             $this->assertSame(450_000.0, $result['overdue']);
             $this->assertSame(450_000.0, $result['total']);

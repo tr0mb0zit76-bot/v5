@@ -433,7 +433,17 @@ const emptyTileMetrics = {
 
 const showDualMetrics = computed(() => props.metrics?.show_dual_metrics === true);
 const metricsOwn = computed(() => ({ ...emptyTileMetrics, ...(props.metrics?.metrics_own ?? {}) }));
-const primaryScopeLabel = computed(() => (props.metrics?.metrics_scope === 'company' ? 'По компании' : 'Мои'));
+const primaryScopeLabel = computed(() => {
+    if (props.metrics?.metrics_scope === 'company') {
+        return 'По компании';
+    }
+
+    if (props.metrics?.metrics_scope === 'department') {
+        return 'По подразделению';
+    }
+
+    return 'Мои';
+});
 
 const ordersPeriodUrl = computed(() => route('orders.index', {
     order_date_from: filterForm.date_from,

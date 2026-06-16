@@ -38,6 +38,9 @@ class LeadBusinessProcessProgressTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('business_process_id');
             $table->string('name');
+            $table->text('description')->nullable();
+            $table->string('stage_goal', 500)->nullable();
+            $table->text('success_criteria')->nullable();
             $table->unsignedInteger('sequence')->default(0);
             $table->unsignedSmallInteger('duration_days')->default(0);
             $table->boolean('is_terminal')->default(false);
@@ -112,6 +115,38 @@ class LeadBusinessProcessProgressTest extends TestCase
         $this->assertTrue(
             collect($payload['stages'])->every(fn (array $stage): bool => $stage['state'] === 'completed'),
         );
+    }
+
+    public function test_progress_payload_includes_current_stage_playbook(): void
+    {
+        $process = BusinessProcess::query()->create([
+            'name' => 'Playbook test',
+            'slug' => 'playbook-test',
+            'is_active' => true,
+        ]);
+
+        $stage = BusinessProcessStage::query()->create([
+            'business_process_id' => $process->id,
+            'name' => 'Квалификация',
+            'sequence' => 10,
+            'stage_goal' => 'Собрать параметры',
+            'description' => '- [ ] Позвонить клиенту',
+            'success_criteria' => 'Все поля заполнены',
+        ]);
+
+        $lead = Lead::query()->create([
+            'number' => 'LD-PB-1',
+            'status' => 'new',
+            'title' => 'Лид',
+            'business_process_id' => $process->id,
+            'business_process_stage_id' => $stage->id,
+        ]);
+
+        $payload = $this->processService()->progressPayload($lead);
+
+        $this->assertSame('Собрать параметры', $payload['current_stage_goal']);
+        $this->assertStringContainsString('Позвонить', $payload['current_stage_playbook']);
+        $this->assertSame('Все поля заполнены', $payload['current_stage_success_criteria']);
     }
 
     private function processService(): LeadBusinessProcessService

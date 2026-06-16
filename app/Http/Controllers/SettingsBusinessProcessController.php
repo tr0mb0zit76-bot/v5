@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\BusinessProcess;
 use App\Models\BusinessProcessStage;
+use App\Models\SalesScript;
+use App\Services\BusinessProcessAnalyticsService;
 use App\Services\LeadBusinessProcessService;
+use App\Services\Reports\LeadProcessReportsService;
+use App\Support\BusinessProcessPlaybook;
 use App\Support\RoleAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +21,8 @@ class SettingsBusinessProcessController extends Controller
 {
     public function __construct(
         private readonly LeadBusinessProcessService $leadBusinessProcessService,
+        private readonly BusinessProcessAnalyticsService $businessProcessAnalyticsService,
+        private readonly LeadProcessReportsService $leadProcessReportsService,
     ) {}
 
     public function index(Request $request): Response
@@ -24,8 +30,10 @@ class SettingsBusinessProcessController extends Controller
         abort_unless(RoleAccess::canAccessSettingsSystem($request->user()), 403);
         abort_unless($this->leadBusinessProcessService->tablesReady(), 404);
 
+        $lookbackDays = max(7, min(365, (int) $request->query('lookback_days', 90)));
+
         $processes = BusinessProcess::query()
-            ->with(['stages' => fn ($query) => $query->orderBy('sequence')])
+            ->with(['stages' => fn ($query) => $query->with('salesScript:id,title')->orderBy('sequence')])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -35,6 +43,15 @@ class SettingsBusinessProcessController extends Controller
 
         return Inertia::render('Settings/BusinessProcesses/Index', [
             'processes' => $processes,
+            'playbook_placeholders' => BusinessProcessPlaybook::placeholderCatalog(),
+            'playbook_templates' => [
+                'stage' => BusinessProcessPlaybook::emptyPlaybookTemplate('Название этапа'),
+                'success_criteria' => BusinessProcessPlaybook::emptySuccessCriteriaTemplate(),
+            ],
+            'sales_script_options' => $this->salesScriptOptions(),
+            'health' => $this->businessProcessAnalyticsService->healthOverview($lookbackDays),
+            'stage_issues' => $this->leadProcessReportsService->processStageIssues(),
+            'lookback_days' => $lookbackDays,
         ]);
     }
 
@@ -55,7 +72,7 @@ class SettingsBusinessProcessController extends Controller
         BusinessProcess::query()->create([
             'name' => $validated['name'],
             'slug' => $slug,
-            'description' => $validated['description'] ?? null,
+            'description' => BusinessProcessPlaybook::normalize($validated['description'] ?? null),
             'is_active' => (bool) $validated['is_active'],
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ]);
@@ -77,7 +94,7 @@ class SettingsBusinessProcessController extends Controller
         $businessProcess->update([
             'name' => $validated['name'],
             'slug' => $this->leadBusinessProcessService->makeSlug($validated['name'], $businessProcess->id),
-            'description' => $validated['description'] ?? null,
+            'description' => BusinessProcessPlaybook::normalize($validated['description'] ?? null),
             'is_active' => (bool) $validated['is_active'],
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ]);
@@ -160,6 +177,10 @@ class SettingsBusinessProcessController extends Controller
                 'id' => $stage->id,
                 'name' => $stage->name,
                 'description' => $stage->description,
+                'stage_goal' => $stage->stage_goal,
+                'success_criteria' => $stage->success_criteria,
+                'sales_script_id' => $stage->sales_script_id,
+                'sales_script_title' => $stage->salesScript?->title,
                 'sequence' => $stage->sequence,
                 'duration_days' => $stage->duration_days,
                 'is_terminal' => $stage->is_terminal,
@@ -178,9 +199,12 @@ class SettingsBusinessProcessController extends Controller
      */
     private function validateStage(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'stage_goal' => ['nullable', 'string', 'max:500'],
+            'success_criteria' => ['nullable', 'string'],
+            'sales_script_id' => ['nullable', 'integer', 'exists:sales_scripts,id'],
             'sequence' => ['nullable', 'integer', 'min:0'],
             'duration_days' => ['required', 'integer', 'min:0', 'max:365'],
             'is_terminal' => ['required', 'boolean'],
@@ -192,6 +216,16 @@ class SettingsBusinessProcessController extends Controller
             'task_priority' => ['nullable', Rule::in(['low', 'medium', 'high', 'critical'])],
         ]);
 
+        $validated['description'] = BusinessProcessPlaybook::normalize($validated['description'] ?? null);
+        $validated['success_criteria'] = BusinessProcessPlaybook::normalize($validated['success_criteria'] ?? null);
+        $validated['task_description_template'] = BusinessProcessPlaybook::normalize($validated['task_description_template'] ?? null);
+        $validated['stage_goal'] = filled($validated['stage_goal'] ?? null)
+            ? trim((string) $validated['stage_goal'])
+            : null;
+        $validated['sales_script_id'] = filled($validated['sales_script_id'] ?? null)
+            ? (int) $validated['sales_script_id']
+            : null;
+
         if (Schema::hasColumn('business_process_stages', 'auto_create_task')) {
             $validated['auto_create_task'] = (bool) ($validated['auto_create_task'] ?? false);
             $validated['task_due_days_offset'] = (int) ($validated['task_due_days_offset'] ?? 0);
@@ -199,5 +233,25 @@ class SettingsBusinessProcessController extends Controller
         }
 
         return $validated;
+    }
+
+    /**
+     * @return list<array{id: int, title: string}>
+     */
+    private function salesScriptOptions(): array
+    {
+        if (! Schema::hasTable('sales_scripts')) {
+            return [];
+        }
+
+        return SalesScript::query()
+            ->orderBy('title')
+            ->get(['id', 'title'])
+            ->map(fn (SalesScript $script): array => [
+                'id' => $script->id,
+                'title' => $script->title,
+            ])
+            ->values()
+            ->all();
     }
 }

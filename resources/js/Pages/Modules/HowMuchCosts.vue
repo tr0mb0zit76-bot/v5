@@ -18,7 +18,7 @@
                     </p>
                     <p class="text-sm text-zinc-600 dark:text-zinc-300">
                         Для расчёта маржи по условиям вычета используйте модуль
-                        <Link href="/modules/counter" class="font-medium underline-offset-2 hover:underline">«Считалка»</Link>.
+                        <Link :href="route('sales-assistant.counter.index')" class="font-medium underline-offset-2 hover:underline">«Считалка»</Link>.
                     </p>
                 </div>
             </div>

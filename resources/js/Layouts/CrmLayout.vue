@@ -270,30 +270,12 @@
             </div>
 
             <nav class="flex-1 space-y-1 overflow-y-auto p-2">
-                <div v-if="pinnedGridViews.length" class="mb-2 space-y-1">
-                    <p
-                        v-if="!collapsed"
-                        class="px-3 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500"
-                    >
-                        Избранное
-                    </p>
-
-                    <Link
-                        v-for="view in pinnedGridViews"
-                        :key="`grid-view-${view.id}`"
-                        :href="view.url"
-                        class="crm-nav-link flex items-center gap-3 px-3 py-2"
-                        :class="isPinnedGridViewActive(view) ? 'crm-nav-link--active' : ''"
-                        :title="collapsed ? `${view.name} · ${view.grid_label}` : false"
-                    >
-                        <Bookmark class="h-4 w-4 shrink-0" :class="isPinnedGridViewActive(view) ? '' : 'text-amber-500'" />
-                        <span v-if="!collapsed" class="min-w-0 flex-1">
-                            <span class="block truncate text-sm font-medium">{{ view.name }}</span>
-                            <span class="block truncate text-[11px] text-zinc-500 dark:text-zinc-400">{{ view.grid_label }}</span>
-                        </span>
-                    </Link>
-                </div>
-
+                <p
+                    v-if="sidebarFavoriteError"
+                    class="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+                >
+                    {{ sidebarFavoriteError }}
+                </p>
                 <div v-for="item in menuItems" :key="item.key" class="space-y-1">
                     <div class="flex items-center gap-1">
                         <button
@@ -323,6 +305,20 @@
                         >
                             <ChevronDown class="h-4 w-4 transition-transform" :class="isMenuGroupOpen(item.key) ? 'rotate-180' : ''" />
                         </button>
+
+                        <button
+                            v-if="!collapsed && canPinMenuKey(item.key)"
+                            type="button"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-amber-500 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-amber-400"
+                            :title="isSidebarFavoritePinned(item.key) ? 'Убрать из избранного' : 'Закрепить в избранном'"
+                            :disabled="sidebarFavoriteSaving"
+                            @click.stop="toggleSidebarFavorite(item.key)"
+                        >
+                            <Star
+                                class="h-3.5 w-3.5"
+                                :class="isSidebarFavoritePinned(item.key) ? 'fill-amber-400 text-amber-500' : ''"
+                            />
+                        </button>
                     </div>
 
                     <div
@@ -331,12 +327,41 @@
                     >
                         <div v-for="child in item.children" :key="child.key" class="space-y-1">
                             <div class="flex items-center gap-1">
-                                <button
+                                <Link
+                                    v-if="child.href && !child.disabled"
+                                    :href="child.href"
                                     class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
-                                    :class="isSettingsChildActive(child) ? 'crm-nav-link--active' : ''"
-                                    @click="handleMenuSelect(child.key)"
+                                    :class="isMenuChildActive(child) ? 'crm-nav-link--active' : ''"
+                                    @click="mobileMenuOpen = false"
                                 >
-                                    {{ child.label }}
+                                    <span v-if="!collapsed" class="min-w-0 flex-1">
+                                        <span class="block truncate">{{ child.label }}</span>
+                                        <span
+                                            v-if="child.hint"
+                                            class="block truncate text-[11px] text-zinc-500 dark:text-zinc-400"
+                                        >
+                                            {{ child.hint }}
+                                        </span>
+                                    </span>
+                                    <span v-else class="truncate">{{ child.label }}</span>
+                                </Link>
+                                <button
+                                    v-else
+                                    class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
+                                    :class="isMenuChildActive(child) ? 'crm-nav-link--active' : ''"
+                                    :disabled="child.disabled"
+                                    @click="child.disabled ? undefined : handleMenuSelect(child.key)"
+                                >
+                                    <span v-if="!collapsed" class="min-w-0 flex-1">
+                                        <span class="block truncate">{{ child.label }}</span>
+                                        <span
+                                            v-if="child.hint"
+                                            class="block truncate text-[11px] text-zinc-500 dark:text-zinc-400"
+                                        >
+                                            {{ child.hint }}
+                                        </span>
+                                    </span>
+                                    <span v-else class="truncate">{{ child.label }}</span>
                                 </button>
 
                                 <button
@@ -347,21 +372,52 @@
                                 >
                                     <ChevronDown class="h-4 w-4 transition-transform" :class="isMenuGroupOpen(child.key) ? 'rotate-180' : ''" />
                                 </button>
+
+                                <button
+                                    v-if="canPinMenuKey(child.key)"
+                                    type="button"
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-amber-500 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-amber-400"
+                                    :title="isSidebarFavoritePinned(child.key) ? 'Убрать из избранного' : 'Закрепить в избранном'"
+                                    :disabled="sidebarFavoriteSaving"
+                                    @click.stop="toggleSidebarFavorite(child.key)"
+                                >
+                                    <Star
+                                        class="h-3.5 w-3.5"
+                                        :class="isSidebarFavoritePinned(child.key) ? 'fill-amber-400 text-amber-500' : ''"
+                                    />
+                                </button>
                             </div>
 
                             <div
                                 v-if="child.children?.length && isMenuGroupOpen(child.key)"
                                 class="crm-nav-submenu-border ml-3 space-y-1 border-l border-zinc-200 pl-3 dark:border-zinc-800"
                             >
-                                <button
+                                <div
                                     v-for="grandChild in child.children"
                                     :key="grandChild.key"
-                                    class="crm-nav-link flex w-full items-center px-3 py-2 text-left"
-                                    :class="(activeSubKey === grandChild.key || activeLeafKey === grandChild.key) ? 'crm-nav-link--active' : ''"
-                                    @click="handleMenuSelect(grandChild.key)"
+                                    class="flex items-center gap-1"
                                 >
-                                    {{ grandChild.label }}
-                                </button>
+                                    <button
+                                        class="crm-nav-link flex min-w-0 flex-1 items-center px-3 py-2 text-left"
+                                        :class="(activeSubKey === grandChild.key || activeLeafKey === grandChild.key) ? 'crm-nav-link--active' : ''"
+                                        @click="handleMenuSelect(grandChild.key)"
+                                    >
+                                        {{ grandChild.label }}
+                                    </button>
+                                    <button
+                                        v-if="canPinMenuKey(grandChild.key)"
+                                        type="button"
+                                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-amber-500 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-amber-400"
+                                        :title="isSidebarFavoritePinned(grandChild.key) ? 'Убрать из избранного' : 'Закрепить в избранном'"
+                                        :disabled="sidebarFavoriteSaving"
+                                        @click.stop="toggleSidebarFavorite(grandChild.key)"
+                                    >
+                                        <Star
+                                            class="h-3.5 w-3.5"
+                                            :class="isSidebarFavoritePinned(grandChild.key) ? 'fill-amber-400 text-amber-500' : ''"
+                                        />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -433,10 +489,10 @@
                     type="button"
                     role="menuitem"
                     class="flex w-full px-3 py-2 text-left text-sm transition-colors"
-                    :class="isFlyoutNavKeyActive(row.key)
+                    :class="isFlyoutNavKeyActive(row)
                         ? 'bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                         : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800/80'"
-                    @click="selectFlyoutNav(row.key)"
+                    @click="selectFlyoutNav(row)"
                 >
                     {{ row.label }}
                 </button>
@@ -559,6 +615,7 @@ import {
     SquarePen,
     Settings,
     Smartphone,
+    Star,
     Target,
     Route,
     Truck,
@@ -702,11 +759,35 @@ function requiredExpandedGroupKeys(activeKey, activeSubKey, activeLeafKey) {
     if (activeKey === 'sales-assistant') {
         keys.push('sales-assistant');
     }
+    if (activeKey === 'favorites') {
+        keys.push('favorites');
+    }
     return keys;
+}
+
+function sortMenuByLabel(items) {
+    return [...items].sort((a, b) => String(a.label).localeCompare(String(b.label), 'ru'));
+}
+
+function withSortedChildren(item) {
+    if (!item?.children?.length) {
+        return item;
+    }
+
+    return {
+        ...item,
+        children: sortMenuByLabel(item.children.map((child) => (
+            child.children?.length ? withSortedChildren(child) : child
+        ))),
+    };
 }
 
 function applyRouteToExpandedGroups() {
     const required = requiredExpandedGroupKeys(props.activeKey, props.activeSubKey, props.activeLeafKey);
+    const routeKeys = [props.activeKey, props.activeSubKey, props.activeLeafKey].filter(Boolean);
+    if (routeKeys.some((key) => sidebarFavoriteKeys.value.includes(key))) {
+        required.push('favorites');
+    }
     if (required.length === 0) {
         return;
     }
@@ -722,7 +803,11 @@ const isStandaloneApp = ref(false);
 const isMobileViewport = ref(false);
 
 const authUser = computed(() => page.props.auth?.user ?? null);
-const pinnedGridViews = computed(() => authUser.value?.pinned_grid_views ?? []);
+const sidebarFavorites = computed(() => authUser.value?.sidebar_favorites ?? null);
+const sidebarFavoriteKeys = computed(() => sidebarFavorites.value?.keys ?? []);
+const sidebarFavoriteMax = computed(() => sidebarFavorites.value?.max ?? 5);
+const sidebarFavoriteSaving = ref(false);
+const sidebarFavoriteError = ref('');
 const appearanceModalOpen = ref(false);
 const dynamicCabinetBadges = ref(null);
 const cabinetBadges = computed(
@@ -757,6 +842,60 @@ const hasFinanceSalaryAccess = computed(() => isAdminUser.value || visibleAreas.
 const hasManagementAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.belongs_to_management));
 const hasManagementAccountingAccess = computed(() => isAdminUser.value || Boolean(authUser.value?.can_management_accounting));
 
+function canPinMenuKey(key) {
+    if (!key || !MENU_ROUTES[key]) {
+        return false;
+    }
+
+    const candidates = sidebarFavorites.value?.candidate_keys;
+    if (!Array.isArray(candidates)) {
+        return false;
+    }
+
+    return candidates.includes(key);
+}
+
+function isSidebarFavoritePinned(key) {
+    return sidebarFavoriteKeys.value.includes(key);
+}
+
+function toggleSidebarFavorite(key) {
+    if (!canPinMenuKey(key) || sidebarFavoriteSaving.value) {
+        return;
+    }
+
+    const current = [...sidebarFavoriteKeys.value];
+    const idx = current.indexOf(key);
+    let next;
+
+    if (idx >= 0) {
+        next = current.filter((item) => item !== key);
+    } else {
+        if (current.length >= sidebarFavoriteMax.value) {
+            sidebarFavoriteError.value = `Можно закрепить не более ${sidebarFavoriteMax.value} пунктов меню`;
+            return;
+        }
+
+        next = [...current, key];
+    }
+
+    sidebarFavoriteError.value = '';
+    sidebarFavoriteSaving.value = true;
+
+    router.patch(route('profile.sidebar-favorites'), { sidebar_favorite_keys: next }, {
+        preserveScroll: true,
+        onError: (errors) => {
+            const messages = Object.values(errors ?? {}).flat().filter(Boolean);
+            sidebarFavoriteError.value = messages.length
+                ? messages.join(' ')
+                : 'Не удалось обновить избранное.';
+        },
+        onFinish: () => {
+            sidebarFavoriteSaving.value = false;
+        },
+    });
+}
+
 const MENU_ROUTES = {
     dashboard: '/dashboard',
     leads: '/leads',
@@ -784,7 +923,7 @@ const MENU_ROUTES = {
     'reports-overview': '/reports',
     trainer: '/sales-assistant/trainer',
     modules: '/modules',
-    'modules-counter': '/modules/counter',
+    'sales-assistant-counter': '/sales-assistant/counter',
     'modules-how-much-fits': '/modules/how-much-fits',
     'modules-how-much-costs': '/modules/how-much-costs',
     'sales-assistant-scripts': '/scripts',
@@ -1054,6 +1193,7 @@ const menuItems = computed(() => {
         { area: 'sales_assistant_scripts', key: 'sales-assistant-scripts', label: 'Скрипты' },
         { area: 'sales_assistant_book', key: 'sales-assistant-book', label: 'Книга продаж' },
         { area: 'sales_assistant_trainer', key: 'sales-assistant-trainer', label: 'Тренажёр' },
+        { area: 'sales_assistant_counter', key: 'sales-assistant-counter', label: 'Считалка' },
     ];
     const salesAssistantChildren = assistantParts.filter(
         (p) => isAdmin || hasSalesAssistantSubmoduleAccess(areas, p.area),
@@ -1068,8 +1208,33 @@ const menuItems = computed(() => {
             }
             : null;
 
+    const favoriteMenuItems = sortMenuByLabel(
+        (sidebarFavorites.value?.items ?? []).map((entry) => ({
+            key: entry.key,
+            label: entry.label,
+            href: entry.href,
+        })),
+    );
+
+    const favoritesItem = authUser.value
+        ? {
+            key: 'favorites',
+            label: 'Избранное',
+            icon: Bookmark,
+            children: favoriteMenuItems.length > 0
+                ? favoriteMenuItems
+                : [{
+                    key: 'favorites-empty',
+                    label: 'Нет закреплённых пунктов',
+                    hint: 'Нажмите ★ у часто используемых разделов',
+                    disabled: true,
+                }],
+        }
+        : null;
+
     const items = [
         { key: 'dashboard', label: 'Дашборд', icon: LayoutDashboard, visibilityArea: 'dashboard' },
+        ...(favoritesItem ? [favoritesItem] : []),
         { key: 'leads', label: 'Лиды', icon: Target, visibilityArea: 'leads' },
         { key: 'orders', label: 'Заказы', icon: Package, visibilityArea: 'orders' },
         { key: 'contractors', label: 'Контрагенты', icon: Users, visibilityArea: 'contractors' },
@@ -1157,7 +1322,6 @@ const menuItems = computed(() => {
         })(),
         ...(() => {
             const moduleParts = [
-                { area: 'sales_assistant_counter', key: 'modules-counter', label: 'Считалка' },
                 { area: 'modules_how_much_fits', key: 'modules-how-much-fits', label: 'Сколько влезет?' },
                 { area: 'modules_how_much_costs', key: 'modules-how-much-costs', label: 'Сколько стоит?' },
             ];
@@ -1239,6 +1403,10 @@ const menuItems = computed(() => {
             return true;
         }
 
+        if (item.key === 'favorites') {
+            return true;
+        }
+
         if (item.key === 'settings') {
             return hasSettingsSystemAccess.value || hasSettingsMotivationAccess.value;
         }
@@ -1283,7 +1451,7 @@ const menuItems = computed(() => {
         }
 
         return visibleAreas.value.includes(item.visibilityArea);
-    });
+    }).map(withSortedChildren);
 });
 
 watch(
@@ -1410,28 +1578,14 @@ function toggleMenuGroup(key) {
         : [...expandedGroups.value, key];
 }
 
-function isPinnedGridViewActive(view) {
-    if (typeof window === 'undefined' || !view?.url) {
-        return false;
-    }
-
-    try {
-        const current = new URL(window.location.href);
-        const target = new URL(view.url, window.location.origin);
-
-        return current.pathname === target.pathname
-            && (target.searchParams.get('view') ?? '') === (current.searchParams.get('view') ?? '');
-    } catch {
-        return false;
-    }
-}
-
-function isSettingsChildActive(child) {
-    if (props.activeSubKey === child.key) {
+function isMenuChildActive(child) {
+    if (props.activeKey === child.key || props.activeSubKey === child.key || props.activeLeafKey === child.key) {
         return true;
     }
 
-    return child.children?.some((grandChild) => grandChild.key === props.activeSubKey || grandChild.key === props.activeLeafKey) ?? false;
+    return child.children?.some(
+        (grandChild) => grandChild.key === props.activeSubKey || grandChild.key === props.activeLeafKey,
+    ) ?? false;
 }
 
 function closeCollapsedFlyout() {
@@ -1471,13 +1625,21 @@ function openCollapsedFlyout(item, event) {
     };
 }
 
-function isFlyoutNavKeyActive(key) {
-    return key === props.activeSubKey || key === props.activeLeafKey || key === props.activeKey;
+function isFlyoutNavKeyActive(row) {
+    return row.key === props.activeSubKey || row.key === props.activeLeafKey || row.key === props.activeKey;
 }
 
-function selectFlyoutNav(key) {
+function selectFlyoutNav(row) {
     closeCollapsedFlyout();
-    handleMenuSelect(key);
+
+    if (row.href) {
+        mobileMenuOpen.value = false;
+        visitInertiaPath(row.href);
+
+        return;
+    }
+
+    handleMenuSelect(row.key);
 }
 
 function isMobileNavItemActive(key) {
@@ -1504,7 +1666,7 @@ function handleMenuSelect(key, event) {
 
     closeCollapsedFlyout();
 
-    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning', 'modules'].includes(key)) {
+    if (['settings', 'administration', 'configuration', 'motivation', 'finance', 'fleet', 'sales-assistant', 'planning', 'modules', 'favorites'].includes(key)) {
         toggleMenuGroup(key);
     }
 

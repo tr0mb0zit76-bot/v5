@@ -19,6 +19,7 @@ use App\Support\OrderTableColumns;
 use App\Support\PaymentScheduleTableColumns;
 use App\Support\RoleAccess;
 use App\Support\ShowcaseUrl;
+use App\Support\SidebarMenuFavoritesResolver;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -116,6 +117,7 @@ class HandleInertiaRequests extends Middleware
                     is_array($user->ui_preferences) ? $user->ui_preferences : null,
                 ),
                 'mobile_nav' => MobileNavResolver::forInertiaUser($user),
+                'sidebar_favorites' => SidebarMenuFavoritesResolver::forInertiaUser($user),
                 'pinned_grid_views' => app(GridViewService::class)->pinnedForSidebar($user),
                 'role' => ! $hasRolesTable ? null : (function () use ($user): ?array {
                     $assignedRoles = RoleAccess::assignedRoles($user);

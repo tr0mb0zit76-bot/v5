@@ -4,7 +4,7 @@
             <div>
                 <h2 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Бизнес-процесс</h2>
                 <p v-if="!selectedLeadId" class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Выберите воронку при создании лида — этапы и сроки подтянутся из справочника.
+                    Выберите воронку при создании лида — этапы, сроки и playbook подтянутся из справочника.
                 </p>
                 <p v-else-if="processProgress" class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                     {{ processProgress.process_name }} · {{ processProgress.current_stage_name }}
@@ -27,12 +27,40 @@
                     {{ process.name }}
                 </option>
             </select>
-            <p v-if="selectedProcessDescription" class="text-xs text-zinc-500 dark:text-zinc-400">
-                {{ selectedProcessDescription }}
-            </p>
+            <div v-if="selectedProcessDescription" class="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <CrmMarkdownView :model-value="selectedProcessDescription" compact />
+            </div>
         </div>
 
         <template v-else-if="processProgress">
+            <div
+                v-if="processProgress.current_stage_goal || processProgress.current_stage_playbook || processProgress.current_stage_success_criteria"
+                class="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+            >
+                <div class="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                    Playbook текущего этапа
+                </div>
+                <p v-if="processProgress.current_stage_goal" class="text-sm font-medium text-emerald-950 dark:text-emerald-100">
+                    Цель: {{ processProgress.current_stage_goal }}
+                </p>
+                <div v-if="processProgress.current_stage_playbook" class="rounded-lg border border-emerald-100 bg-white/90 p-2 dark:border-emerald-900/30 dark:bg-zinc-950/60">
+                    <CrmMarkdownView :model-value="processProgress.current_stage_playbook" />
+                </div>
+                <div v-if="processProgress.current_stage_success_criteria">
+                    <div class="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">Критерии готовности</div>
+                    <CrmMarkdownView :model-value="processProgress.current_stage_success_criteria" compact />
+                </div>
+                <div v-if="processProgress.current_stage_sales_script">
+                    <button
+                        type="button"
+                        class="inline-flex items-center rounded-lg border border-emerald-400 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50 dark:border-emerald-700 dark:bg-zinc-900 dark:text-emerald-100"
+                        @click="startSalesScript(processProgress.current_stage_sales_script.version_id)"
+                    >
+                        Открыть скрипт «{{ processProgress.current_stage_sales_script.title }}»
+                    </button>
+                </div>
+            </div>
+
             <div class="space-y-1">
                 <div class="flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
                     <span>Прогресс</span>
@@ -52,6 +80,7 @@
                     :key="stage.id"
                     class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs"
                     :class="stageStateClass(stage.state)"
+                    :title="stage.stage_goal || undefined"
                 >
                     {{ stage.name }}
                 </span>
@@ -95,6 +124,8 @@
 
 <script setup>
 import { computed } from 'vue';
+import { router } from '@inertiajs/vue3';
+import CrmMarkdownView from '@/Components/Crm/CrmMarkdownView.vue';
 import LeadCloseOutcomeFields from '@/Components/Leads/LeadCloseOutcomeFields.vue';
 
 const props = defineProps({
@@ -178,6 +209,12 @@ function formatDateTime(value) {
     }
 
     return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function startSalesScript(versionId) {
+    router.post(route('scripts.sessions.store'), {
+        sales_script_version_id: versionId,
+    });
 }
 </script>
 

@@ -168,7 +168,7 @@ import {
 } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'modules', activeSubKey: 'modules-counter' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'sales-assistant', activeSubKey: 'sales-assistant-counter' }, () => page),
 });
 
 const props = defineProps({
@@ -240,7 +240,7 @@ async function recalculate() {
     loading.value = true;
 
     try {
-        const response = await fetch(route('modules.counter.calculate'), {
+        const response = await fetch(route('sales-assistant.counter.calculate'), {
             method: 'POST',
             headers: {
                 Accept: 'application/json',

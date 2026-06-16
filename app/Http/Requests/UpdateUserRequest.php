@@ -37,6 +37,7 @@ class UpdateUserRequest extends FormRequest
             'has_signing_authority' => ['nullable', 'boolean'],
             'belongs_to_management' => ['nullable', 'boolean'],
             'can_management_accounting' => ['nullable', 'boolean'],
+            'sees_company_dashboard' => ['nullable', 'boolean'],
             'signing_own_company_ids' => ['nullable', 'array'],
             'signing_own_company_ids.*' => [
                 'integer',

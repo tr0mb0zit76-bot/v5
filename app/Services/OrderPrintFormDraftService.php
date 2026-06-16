@@ -1839,11 +1839,8 @@ class OrderPrintFormDraftService
             $fleetVehicle = FleetVehicle::query()->find($fleetVehicleId);
             if ($fleetVehicle !== null) {
                 return [
-                    'brand' => $this->firstFilledValue([$fleetVehicle->tractor_brand, $fleetVehicle->trailer_brand]),
-                    'number' => $this->firstFilledValue([
-                        $fleetVehicle->tractor_plate,
-                        $fleetVehicle->trailer_plate,
-                    ]),
+                    'brand' => $fleetVehicle->tractor_brand,
+                    'number' => $fleetVehicle->tractor_plate,
                     'trailer_brand' => $fleetVehicle->trailer_brand,
                     'trailer_plate' => $fleetVehicle->trailer_plate,
                     'cargo_body_type' => $cargoTruckBody,

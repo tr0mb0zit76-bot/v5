@@ -15,6 +15,9 @@ class BusinessProcessStage extends Model
         'business_process_id',
         'name',
         'description',
+        'stage_goal',
+        'success_criteria',
+        'sales_script_id',
         'sequence',
         'duration_days',
         'is_terminal',
@@ -44,6 +47,14 @@ class BusinessProcessStage extends Model
     public function process(): BelongsTo
     {
         return $this->belongsTo(BusinessProcess::class, 'business_process_id');
+    }
+
+    /**
+     * @return BelongsTo<SalesScript, $this>
+     */
+    public function salesScript(): BelongsTo
+    {
+        return $this->belongsTo(SalesScript::class, 'sales_script_id');
     }
 
     /**
