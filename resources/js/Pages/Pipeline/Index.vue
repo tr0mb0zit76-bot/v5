@@ -1,5 +1,5 @@
 <template>
-    <div class="flex min-h-0 flex-1 flex-col gap-2">
+    <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         <CrmPageHeader
             :lead="headerLead"
             title="Сквозной pipeline"
@@ -41,14 +41,14 @@
 
         <p
             v-if="error"
-            class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+            class="shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
         >
             {{ error }}
         </p>
 
         <section
             v-if="kpi"
-            class="crm-panel grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
+            class="crm-panel grid shrink-0 grid-cols-1 gap-3 p-4 sm:grid-cols-3"
         >
             <div>
                 <div class="text-xs text-zinc-500 dark:text-zinc-400">
@@ -85,13 +85,13 @@
             </div>
         </section>
 
-        <div :class="crmGridPanel">
-            <div class="min-h-0 flex-1 overflow-x-auto p-4">
-                <div class="flex gap-4 pb-2" style="min-height: min(70vh, calc(100dvh - 16rem));">
+        <div :class="[crmGridPanel, 'flex flex-col']">
+            <div class="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden p-4">
+                <div class="flex h-full min-h-0 gap-4 pb-2">
                     <div
                         v-for="column in columns"
                         :key="column.key"
-                        class="flex w-72 shrink-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                        class="flex h-full min-h-0 w-72 shrink-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50 p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
                         :class="{ 'ring-2 ring-sky-500/60': dragOverColumn === column.key }"
                         @dragover.prevent="onColumnDragOver(column)"
                         @dragleave="onColumnDragLeave(column.key)"
@@ -102,7 +102,7 @@
                             <span>{{ column.cards?.length ?? 0 }}</span>
                         </div>
 
-                        <div class="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
+                        <div class="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                             <article
                                 v-for="card in column.cards"
                                 :key="`${card.type}-${card.id}`"
@@ -172,7 +172,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmBtnPrimary, crmBtnSecondaryOutline, crmGridPanel } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'pipeline' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'pipeline', mainFill: true }, () => page),
 });
 
 const props = defineProps({
