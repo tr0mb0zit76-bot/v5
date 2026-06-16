@@ -28,6 +28,15 @@ export function isLegacyFixedCargoLinePlaceholder(name) {
         || /^cargo_name\d+$/u.test(normalized);
 }
 
+export function isVerificationQrImagePlaceholder(name) {
+    const normalized = String(name ?? '').trim().toLowerCase();
+    const base = normalized.replace(/#\d+$/u, '');
+
+    return base === 'document_verification_qr';
+}
+
 export function shouldHideFromVariableMapping(name) {
-    return isPrintFormCloneRowPlaceholder(name) || isLegacyFixedCargoLinePlaceholder(name);
+    return isPrintFormCloneRowPlaceholder(name)
+        || isLegacyFixedCargoLinePlaceholder(name)
+        || isVerificationQrImagePlaceholder(name);
 }

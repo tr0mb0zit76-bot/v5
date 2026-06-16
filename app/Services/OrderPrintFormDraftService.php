@@ -16,6 +16,7 @@ use App\Support\CarrierNormsPenaltiesForPrintContext;
 use App\Support\CarrierPaymentTermResolver;
 use App\Support\ContractorPrimaryContactResolver;
 use App\Support\DocxPrintFormPlaceholderPreprocessor;
+use App\Support\DocxTextRunPlaceholderMerger;
 use App\Support\DocxVmlOverlayStylePatcher;
 use App\Support\OrderPrintFormContext;
 use App\Support\PaymentFormCodeLabel;
@@ -47,6 +48,19 @@ class OrderPrintFormDraftService
 {
     private const QR_IMAGE_PLACEHOLDER = 'document_verification_qr';
 
+    /** @var list<string> */
+    private const RESERVED_PREPROCESS_MACROS = [
+        'document_verification_code',
+        'document_verification_qr',
+    ];
+
+    public static function isVerificationQrPlaceholder(string $placeholder): bool
+    {
+        $base = trim(explode('#', trim($placeholder))[0]);
+
+        return $base === self::QR_IMAGE_PLACEHOLDER;
+    }
+
     public function __construct(
         private readonly DocxPlaceholderExtractor $placeholderExtractor,
         private readonly PrintFormPlaceholderPathResolver $placeholderPathResolver,
@@ -54,7 +68,7 @@ class OrderPrintFormDraftService
     ) {}
 
     /**
-     * @return array{disk: string, path: string, download_name: string}
+     * @return array{disk: string, path: string, download_name: string, verification_qr_injected: bool}
      */
     public function generate(
         PrintFormTemplate $template,
@@ -74,7 +88,13 @@ class OrderPrintFormDraftService
             ->unique()
             ->values();
 
-        DocxPrintFormPlaceholderPreprocessor::preprocess($templatePrep['path'], $placeholders->all());
+        $placeholderNames = $placeholders
+            ->merge(self::RESERVED_PREPROCESS_MACROS)
+            ->unique()
+            ->values()
+            ->all();
+
+        DocxPrintFormPlaceholderPreprocessor::preprocess($templatePrep['path'], $placeholderNames);
 
         try {
             $processor = new TemplateProcessor($templatePrep['path']);
@@ -97,7 +117,7 @@ class OrderPrintFormDraftService
 
         PrintFormTemplateProcessorPreparer::repairTextMacros(
             $processor,
-            $placeholders->all(),
+            $placeholderNames,
         );
 
         (new PrintFormCargoTableCloner)->apply(
@@ -116,6 +136,9 @@ class OrderPrintFormDraftService
         );
 
         $this->applyBasicTermsTables($processor, $orderForSnapshot, $template, $context, $placeholders);
+
+        $qrTempFiles = $this->injectVerificationQrImage($processor, $placeholders, $context);
+        $verificationQrInjected = $qrTempFiles !== [];
 
         foreach ($placeholders as $placeholder) {
             if (in_array($placeholder, $overlayPlaceholders, true)) {
@@ -138,7 +161,7 @@ class OrderPrintFormDraftService
                 continue;
             }
 
-            if ($placeholder === self::QR_IMAGE_PLACEHOLDER) {
+            if (self::isVerificationQrPlaceholder($placeholder)) {
                 continue;
             }
 
@@ -174,7 +197,7 @@ class OrderPrintFormDraftService
                     continue;
                 }
 
-                if ($placeholder === self::QR_IMAGE_PLACEHOLDER) {
+                if (self::isVerificationQrPlaceholder($placeholder)) {
                     continue;
                 }
 
@@ -186,8 +209,6 @@ class OrderPrintFormDraftService
                 }
             }
         }
-
-        $qrTempFiles = $this->injectVerificationQrImage($processor, $placeholders, $context);
 
         $overlayStyles = [];
         $overlayTempFiles = [];
@@ -234,6 +255,7 @@ class OrderPrintFormDraftService
             'disk' => $disk,
             'path' => $storagePath,
             'download_name' => $downloadName,
+            'verification_qr_injected' => $verificationQrInjected,
         ];
     }
 
@@ -436,7 +458,12 @@ class OrderPrintFormDraftService
             return [];
         }
 
-        if (! $placeholders->contains(self::QR_IMAGE_PLACEHOLDER)) {
+        $this->repairVerificationQrMacroInProcessor($processor);
+
+        if (
+            ! $placeholders->contains(self::QR_IMAGE_PLACEHOLDER)
+            && ! $this->processorHasVerificationQrMacro($processor)
+        ) {
             return [];
         }
 
@@ -451,6 +478,14 @@ class OrderPrintFormDraftService
         ]);
 
         try {
+            if (! class_exists(TCPDF2DBarcode::class)) {
+                Log::warning('docx.verification_qr_inject_failed', [
+                    'message' => 'TCPDF2DBarcode is not available. Run composer install (tecnickcom/tcpdf).',
+                ]);
+
+                return [];
+            }
+
             $qr = new TCPDF2DBarcode($url, 'QRCODE,H');
             $qrPng = $qr->getBarcodePngData(6, 6, [0, 0, 0]);
             if (! is_string($qrPng) || $qrPng === '') {
@@ -483,6 +518,33 @@ class OrderPrintFormDraftService
 
             return [];
         }
+    }
+
+    private function repairVerificationQrMacroInProcessor(TemplateProcessor $processor): void
+    {
+        foreach ([['${', '}'], ['{{', '}}']] as [$open, $close]) {
+            DocxTextRunPlaceholderMerger::applyToTemplateProcessor(
+                $processor,
+                $open,
+                $close,
+                self::QR_IMAGE_PLACEHOLDER,
+            );
+        }
+    }
+
+    private function processorHasVerificationQrMacro(TemplateProcessor $processor): bool
+    {
+        if (PhpWordTemplateOverlayImageInjector::countPlaceholderMacros($processor, self::QR_IMAGE_PLACEHOLDER) > 0) {
+            return true;
+        }
+
+        foreach ($processor->getVariables() as $variable) {
+            if (self::isVerificationQrPlaceholder((string) $variable)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

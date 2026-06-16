@@ -63,6 +63,7 @@ class TemplateManagementTest extends TestCase
         Schema::create('contractors', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->boolean('is_own_company')->default(false);
             $table->string('ogrn')->nullable();
             $table->string('bank_name')->nullable();
             $table->string('bik', 9)->nullable();
@@ -84,6 +85,8 @@ class TemplateManagementTest extends TestCase
             $table->string('party', 50)->default('internal');
             $table->string('source_type', 50)->default('system');
             $table->unsignedBigInteger('contractor_id')->nullable();
+            $table->unsignedBigInteger('own_company_id')->nullable();
+            $table->string('transport_scope', 20)->default('any');
             $table->boolean('is_default')->default(false);
             $table->string('vue_component', 255);
             $table->string('pdf_view', 255)->nullable();
@@ -1093,6 +1096,125 @@ class TemplateManagementTest extends TestCase
 
         $this->assertSame(['customer.name', 'order.number'], $settings['variables']);
         $this->assertSame(['order.number' => 'order.order_number'], $settings['variable_mapping']);
+    }
+
+    public function test_default_template_requires_own_company_when_multiple_own_companies_exist(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        DB::table('contractors')->insert([
+            ['name' => 'Компания А', 'is_own_company' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Компания Б', 'is_own_company' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('settings.templates.store'), [
+            'code' => 'company_a_default',
+            'name' => 'Заявка компании А',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'system',
+            'transport_scope' => 'domestic',
+            'is_default' => true,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+        ]);
+
+        $response->assertSessionHasErrors('own_company_id');
+    }
+
+    public function test_setting_default_for_one_own_company_does_not_clear_default_for_another(): void
+    {
+        $adminRoleId = $this->createRole('admin', 'Администратор');
+        $admin = User::factory()->create(['role_id' => $adminRoleId]);
+
+        $companyAId = DB::table('contractors')->insertGetId([
+            'name' => 'Компания А',
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $companyBId = DB::table('contractors')->insertGetId([
+            'name' => 'Компания Б',
+            'is_own_company' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateAId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'default_company_a',
+            'name' => 'РФ заказчик А',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'system',
+            'own_company_id' => $companyAId,
+            'transport_scope' => 'domestic',
+            'is_default' => true,
+            'vue_component' => 'SystemPrintFormTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_path' => 'print-form-templates/a.docx',
+            'file_disk' => 'local',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $templateBId = DB::table('print_form_templates')->insertGetId([
+            'code' => 'default_company_b',
+            'name' => 'РФ заказчик Б',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'system',
+            'own_company_id' => $companyBId,
+            'transport_scope' => 'domestic',
+            'is_default' => false,
+            'vue_component' => 'SystemPrintFormTemplate',
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+            'version' => 1,
+            'file_path' => 'print-form-templates/b.docx',
+            'file_disk' => 'local',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->patch(route('settings.templates.update', $templateBId), [
+            'code' => 'default_company_b',
+            'name' => 'РФ заказчик Б',
+            'entity_type' => 'order',
+            'document_type' => 'contract_request',
+            'document_group' => 'contractual',
+            'party' => 'customer',
+            'source_type' => 'system',
+            'own_company_id' => $companyBId,
+            'transport_scope' => 'domestic',
+            'is_default' => true,
+            'requires_internal_signature' => true,
+            'requires_counterparty_signature' => false,
+            'is_active' => true,
+        ]);
+
+        $response->assertRedirect(route('settings.templates.index'));
+
+        $this->assertDatabaseHas('print_form_templates', [
+            'id' => $templateAId,
+            'is_default' => true,
+        ]);
+        $this->assertDatabaseHas('print_form_templates', [
+            'id' => $templateBId,
+            'is_default' => true,
+        ]);
     }
 
     private function createRole(string $name, string $displayName): int

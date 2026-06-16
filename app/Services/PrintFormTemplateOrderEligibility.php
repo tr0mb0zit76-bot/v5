@@ -157,7 +157,7 @@ final class PrintFormTemplateOrderEligibility
             return null;
         }
 
-        $default = $available->first(function (PrintFormTemplate|array $template): bool {
+        $defaultCandidates = $available->filter(function (PrintFormTemplate|array $template): bool {
             if ($template instanceof PrintFormTemplate) {
                 return (bool) $template->is_default;
             }
@@ -165,7 +165,41 @@ final class PrintFormTemplateOrderEligibility
             return (bool) ($template['is_default'] ?? false);
         });
 
-        return $default ?? $available->first();
+        if ($defaultCandidates->isNotEmpty()) {
+            return $defaultCandidates
+                ->sortByDesc(fn (PrintFormTemplate|array $template): int => $this->specificityScore(
+                    $template instanceof PrintFormTemplate ? $this->templateToArray($template) : $template,
+                    $ownCompanyId,
+                    $isInternationalTransport,
+                ))
+                ->first();
+        }
+
+        return $available->first();
+    }
+
+    /**
+     * Если для «нашей» компании есть привязанные шаблоны — универсальные (без own_company_id) не показываем.
+     *
+     * @param  Collection<int, array<string, mixed>>  $templates
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function preferOwnCompanySpecificTemplates(Collection $templates, ?int $ownCompanyId): Collection
+    {
+        if ($ownCompanyId === null) {
+            return $templates;
+        }
+
+        $specific = $templates->filter(
+            fn (array $template): bool => isset($template['own_company_id'])
+                && (int) $template['own_company_id'] === $ownCompanyId,
+        );
+
+        if ($specific->isEmpty()) {
+            return $templates;
+        }
+
+        return $specific->values();
     }
 
     /**

@@ -155,12 +155,35 @@ export function templateMatchesOrderContext(template, context) {
     return matchesContractor(template.contractor_id, contractorIds);
 }
 
+export function preferOwnCompanySpecificTemplates(templates, ownCompanyId) {
+    const list = Array.isArray(templates) ? templates : [];
+
+    if (ownCompanyId == null || ownCompanyId === '') {
+        return list;
+    }
+
+    const companyId = Number(ownCompanyId);
+    const specific = list.filter(
+        (template) => template?.own_company_id != null
+            && Number(template.own_company_id) === companyId,
+    );
+
+    if (specific.length === 0) {
+        return list;
+    }
+
+    return specific;
+}
+
 export function filterPrintFormTemplates(catalog, context, party) {
     const list = Array.isArray(catalog) ? catalog : [];
+    const ownCompanyId = context?.ownCompanyId ?? null;
 
-    return list
+    const filtered = list
         .filter((template) => templateMatchesOrderContext(template, { ...context, party }))
         .sort((left, right) => templateSpecificityScore(right, context) - templateSpecificityScore(left, context));
+
+    return preferOwnCompanySpecificTemplates(filtered, ownCompanyId);
 }
 
 export function defaultTemplateForContext(catalog, context, party) {
@@ -170,7 +193,15 @@ export function defaultTemplateForContext(catalog, context, party) {
         return null;
     }
 
-    return filtered.find((template) => template.is_default) ?? filtered[0];
+    const defaults = filtered.filter((template) => template.is_default);
+
+    if (defaults.length > 0) {
+        return defaults.sort(
+            (left, right) => templateSpecificityScore(right, context) - templateSpecificityScore(left, context),
+        )[0];
+    }
+
+    return filtered[0];
 }
 
 export function buildPrintFormTemplateContext({

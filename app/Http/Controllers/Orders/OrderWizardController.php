@@ -2112,14 +2112,17 @@ class OrderWizardController extends Controller
             : false;
         $contractorIds = $order !== null ? $eligibility->contractorIdsForOrder($order) : [];
 
-        return $this->printFormTemplateCatalog()
+        $filtered = $this->printFormTemplateCatalog()
             ->filter(fn (array $template): bool => $eligibility->isArrayTemplateAvailableForContext(
                 $template,
                 $ownCompanyId,
                 $isInternational,
                 $party,
                 $contractorIds,
-            ))
+            ));
+
+        return $eligibility
+            ->preferOwnCompanySpecificTemplates($filtered, $ownCompanyId)
             ->sortByDesc(fn (array $template): int => $eligibility->specificityScore(
                 $template,
                 $ownCompanyId,

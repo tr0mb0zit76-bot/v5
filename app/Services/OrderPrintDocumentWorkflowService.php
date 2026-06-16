@@ -86,7 +86,7 @@ class OrderPrintDocumentWorkflowService
         $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['pdf_verification_code'] = $verificationCode;
         $metadata['pdf_verification_qr'] = true;
-        $metadata['pdf_verification_qr_in_docx'] = true;
+        $metadata['pdf_verification_qr_in_docx'] = (bool) ($generated['verification_qr_injected'] ?? false);
 
         $document->update([
             'original_name' => $generated['download_name'],
@@ -300,6 +300,7 @@ class OrderPrintDocumentWorkflowService
 
         $metadata = is_array($document->metadata) ? $document->metadata : [];
         $metadata['storage_driver'] = $this->documentStorage->configuredDriver();
+        $metadata['pdf_verification_qr_in_docx'] = (bool) ($generated['verification_qr_injected'] ?? false);
         $metadata = $this->withoutCachedBrowserPreviewPdf($document, $metadata);
         $updates['metadata'] = $metadata;
 

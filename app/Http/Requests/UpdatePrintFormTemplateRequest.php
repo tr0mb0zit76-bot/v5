@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\PrintFormTemplate;
+use App\Support\PrintFormTemplateDefaultScope;
 use App\Support\PrintFormTemplateTransportScope;
 use App\Support\RoleAccess;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -88,7 +89,21 @@ class UpdatePrintFormTemplateRequest extends FormRequest
             $rules[] = Rule::exists('contractors', 'id');
         }
 
+        if ($this->boolean('is_default') && PrintFormTemplateDefaultScope::defaultRequiresOwnCompany()) {
+            $rules[0] = 'required';
+        }
+
         return $rules;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'own_company_id.required' => 'Укажите свою компанию для шаблона по умолчанию — у вас несколько «наших» компаний.',
+        ];
     }
 
     protected function prepareForValidation(): void
