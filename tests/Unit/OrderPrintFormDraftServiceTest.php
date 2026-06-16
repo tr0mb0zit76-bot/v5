@@ -265,4 +265,81 @@ class OrderPrintFormDraftServiceTest extends TestCase
         $this->assertContains('own_company.postal_address', $catalogValues);
         $this->assertContains('own_company.signer_position', $catalogValues);
     }
+
+    public function test_builds_route_point_table_rows_for_each_loading_and_unloading_point(): void
+    {
+        $service = $this->makeService();
+        $order = new Order;
+
+        $order->setRelation('routePoints', new Collection([
+            new RoutePoint([
+                'type' => 'loading',
+                'sequence' => 1,
+                'address' => 'Самара, Заводская 1',
+                'sender_name' => 'ООО Отправитель',
+                'normalized_data' => ['city' => 'Самара'],
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 2,
+                'address' => 'Казань, Логистическая 10',
+                'recipient_name' => 'ООО Получатель 1',
+                'normalized_data' => ['city' => 'Казань'],
+            ]),
+            new RoutePoint([
+                'type' => 'unloading',
+                'sequence' => 3,
+                'address' => 'Москва, Склад 5',
+                'recipient_name' => 'ООО Получатель 2',
+                'normalized_data' => ['city' => 'Москва'],
+            ]),
+        ]));
+        $order->setRelation('legs', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+
+        $method = new \ReflectionMethod($service, 'buildRoutePointTableRowsForTemplate');
+        $method->setAccessible(true);
+
+        /** @var list<array<string, string>> $rows */
+        $rows = $method->invoke($service, $order, null);
+
+        $this->assertCount(3, $rows);
+        $this->assertSame('1', $rows[0]['route_point_row_index']);
+        $this->assertSame('Погрузка', $rows[0]['route_point_row_type_label']);
+        $this->assertSame('2', $rows[1]['route_point_row_index']);
+        $this->assertSame('Казань, Логистическая 10', $rows[1]['route_point_row_address']);
+        $this->assertSame('3', $rows[2]['route_point_row_index']);
+        $this->assertSame('Москва, Склад 5', $rows[2]['route_point_row_address']);
+    }
+
+    public function test_uses_carrier_portal_submission_for_driver_and_vehicle_when_fleet_ids_missing(): void
+    {
+        $service = $this->makeService();
+        $order = new Order([
+            'performers' => [[
+                'stage' => 'leg_1',
+                'carrier_portal_submission' => [
+                    'driver_full_name' => 'Петров Пётр Петрович',
+                    'driver_phone' => '+79991234567',
+                    'driver_license' => '77 AA 123456',
+                    'tractor_plate' => 'A123BC77',
+                    'tractor_brand' => 'MAN',
+                    'trailer_plate' => 'BB123477',
+                    'trailer_brand' => 'Schmitz',
+                ],
+            ]],
+        ]);
+
+        $order->setRelation('routePoints', new Collection);
+        $order->setRelation('cargoItems', new Collection);
+        $order->setRelation('legs', new Collection);
+
+        $snapshot = $this->buildSnapshot($service, $order);
+
+        $this->assertSame('Петров Пётр Петрович', data_get($snapshot, 'driver.full_name'));
+        $this->assertSame('+79991234567', data_get($snapshot, 'driver.phone'));
+        $this->assertSame('A123BC77', data_get($snapshot, 'vehicle.number'));
+        $this->assertSame('Schmitz', data_get($snapshot, 'vehicle.trailer_brand'));
+        $this->assertSame('BB123477', data_get($snapshot, 'vehicle.trailer_plate'));
+    }
 }

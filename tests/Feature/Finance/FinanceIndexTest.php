@@ -107,6 +107,15 @@ class FinanceIndexTest extends TestCase
             $table->enum('status', ['pending', 'paid', 'overdue', 'cancelled'])->default('pending');
             $table->timestamps();
         });
+
+        Carbon::setTestNow('2026-04-15 12:00:00');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_finance_hub_returns_cash_flow_journal_and_stats(): void

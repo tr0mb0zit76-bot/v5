@@ -60,6 +60,8 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             $table->string('payment_method', 50)->nullable();
             $table->string('transaction_reference', 100)->nullable();
             $table->text('notes')->nullable();
+            $table->timestamp('reversed_at')->nullable();
+            $table->unsignedBigInteger('reversed_by')->nullable();
             $table->timestamps();
         });
 
@@ -199,5 +201,30 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $dayCell = collect($customerRow['cells'])->firstWhere('key', '2026-06-03');
         $this->assertNotNull($dayCell);
         $this->assertSame(10000.0, $dayCell['amount']);
+    }
+
+    public function test_excludes_reversed_payment_schedule_events_from_actuals(): void
+    {
+        ManagementExpenseCategory::query()->create([
+            'code' => 'operational_customer_in',
+            'name' => 'Оплата от заказчика',
+            'kind' => 'operational_in',
+            'is_system' => true,
+            'is_active' => true,
+            'sort_order' => 5,
+        ]);
+
+        PaymentSchedulePaymentEvent::query()->create([
+            'order_id' => 5,
+            'party' => 'customer',
+            'amount' => 620000,
+            'payment_date' => '2026-03-15',
+            'transaction_reference' => null,
+            'reversed_at' => now(),
+        ]);
+
+        $result = app(ManagementAccountingAnalyticsService::class)->build('year', '2026-01-01');
+
+        $this->assertSame(0.0, $result['totals']['actual_in']);
     }
 }

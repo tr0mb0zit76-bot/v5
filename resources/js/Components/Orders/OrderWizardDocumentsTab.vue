@@ -853,7 +853,7 @@ async function onGlobalDrop(event) {
                     <div class="text-sm font-semibold text-rose-950 dark:text-rose-100">{{ slot.label }}</div>
                     <p class="mt-1 text-xs text-rose-900/80 dark:text-rose-200/80">
                         Шаблоны только для перевозчика.
-                        <span v-if="slot.routeLegsAsTableRows"> Маршрут по плечам — таблица ${route_row_stage} в шаблоне.</span>
+                        <span v-if="slot.routeLegsAsTableRows"> Маршрут по плечам — таблица ${route_row_stage}; точки маршрута — ${route_point_row_address}.</span>
                     </p>
                     <p v-if="carrierVedTemplateHint" class="mt-2 text-xs text-amber-800 dark:text-amber-200">
                         {{ carrierVedTemplateHint }}

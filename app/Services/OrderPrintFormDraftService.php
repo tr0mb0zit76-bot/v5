@@ -26,6 +26,7 @@ use App\Support\PrintFormCargoTableCloner;
 use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderMacroVariants;
 use App\Support\PrintFormPlaceholderPathResolver;
+use App\Support\PrintFormRoutePointTableCloner;
 use App\Support\PrintFormRouteTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
 use App\Support\PrintFormTemplateProcessorPreparer;
@@ -108,6 +109,11 @@ class OrderPrintFormDraftService
             $this->buildRouteTableRowsForTemplate($orderForSnapshot, $context),
         );
 
+        (new PrintFormRoutePointTableCloner)->apply(
+            $processor,
+            $this->buildRoutePointTableRowsForTemplate($orderForSnapshot, $context),
+        );
+
         $this->applyBasicTermsTables($processor, $orderForSnapshot, $template, $context, $placeholders);
 
         foreach ($placeholders as $placeholder) {
@@ -120,6 +126,10 @@ class OrderPrintFormDraftService
             }
 
             if (PrintFormRouteTableCloner::isRouteTablePlaceholder($placeholder)) {
+                continue;
+            }
+
+            if (PrintFormRoutePointTableCloner::isRoutePointTablePlaceholder($placeholder)) {
                 continue;
             }
 
@@ -152,6 +162,10 @@ class OrderPrintFormDraftService
                 }
 
                 if (PrintFormRouteTableCloner::isRouteTablePlaceholder($placeholder)) {
+                    continue;
+                }
+
+                if (PrintFormRoutePointTableCloner::isRoutePointTablePlaceholder($placeholder)) {
                     continue;
                 }
 
@@ -258,9 +272,10 @@ class OrderPrintFormDraftService
 
         $loadingPoints = $routePoints->where('type', 'loading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
         $unloadingPoints = $routePoints->where('type', 'unloading')->sortBy(fn ($p) => (int) ($p->sequence ?? 0))->values();
+        $portalSubmission = $this->resolveCarrierPortalSubmission($order);
         $fleetSelection = $this->resolvePrimaryFleetSelection($order);
-        $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id']);
-        $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id'], $cargoItems);
+        $driver = $this->driverPayload((int) ($order->driver_id ?? 0), $fleetSelection['fleet_driver_id'], $portalSubmission);
+        $vehicle = $this->vehiclePayload($order, $driver, $fleetSelection['fleet_vehicle_id'], $cargoItems, $portalSubmission);
         $loadingMethod = $this->resolveLoadingMethod($loadingPoints->first(), $order);
 
         $cargoNames = $cargoItems
@@ -474,28 +489,28 @@ class OrderPrintFormDraftService
      */
     private function resolvePrimaryFleetSelection(Order $order): array
     {
-        if ($order->relationLoaded('legs')) {
-            foreach ($order->legs->sortBy('sequence') as $leg) {
-                $performer = is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : [];
-                $vehicleId = isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null
-                    ? (int) $performer['fleet_vehicle_id']
-                    : null;
-                $driverId = isset($performer['fleet_driver_id']) && $performer['fleet_driver_id'] !== null
-                    ? (int) $performer['fleet_driver_id']
-                    : null;
+        foreach ($this->collectPerformerRows($order) as $performer) {
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
 
-                if ($vehicleId !== null || $driverId !== null) {
-                    return [
-                        'fleet_vehicle_id' => $vehicleId,
-                        'fleet_driver_id' => $driverId,
-                    ];
+                    $vehicleId = isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null
+                        ? (int) $slot['fleet_vehicle_id']
+                        : null;
+                    $driverId = isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null
+                        ? (int) $slot['fleet_driver_id']
+                        : null;
+
+                    if ($vehicleId !== null || $driverId !== null) {
+                        return [
+                            'fleet_vehicle_id' => $vehicleId,
+                            'fleet_driver_id' => $driverId,
+                        ];
+                    }
                 }
-            }
-        }
 
-        $performers = is_array($order->performers) ? $order->performers : [];
-        foreach ($performers as $performer) {
-            if (! is_array($performer)) {
                 continue;
             }
 
@@ -518,6 +533,61 @@ class OrderPrintFormDraftService
             'fleet_vehicle_id' => null,
             'fleet_driver_id' => null,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveCarrierPortalSubmission(Order $order): ?array
+    {
+        foreach ($this->collectPerformerRows($order) as $performer) {
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $submission = $slot['carrier_portal_submission'] ?? null;
+                    if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+                        return $submission;
+                    }
+                }
+
+                continue;
+            }
+
+            $submission = $performer['carrier_portal_submission'] ?? null;
+            if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+                return $submission;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function collectPerformerRows(Order $order): array
+    {
+        $rows = [];
+
+        if ($order->relationLoaded('legs')) {
+            foreach ($order->legs->sortBy('sequence') as $leg) {
+                $performer = is_array($leg->metadata['performer'] ?? null) ? $leg->metadata['performer'] : null;
+                if (is_array($performer)) {
+                    $rows[] = $performer;
+                }
+            }
+        }
+
+        foreach (is_array($order->performers) ? $order->performers : [] as $performer) {
+            if (is_array($performer)) {
+                $rows[] = $performer;
+            }
+        }
+
+        return $rows;
     }
 
     private function resolveCarrierRateValue(Order $order, ?OrderPrintFormContext $context = null): ?float
@@ -1019,6 +1089,82 @@ class OrderPrintFormDraftService
         return $rows;
     }
 
+    /**
+     * @return list<array<string, string>>
+     */
+    private function buildRoutePointTableRowsForTemplate(Order $order, ?OrderPrintFormContext $context): array
+    {
+        /** @var Collection<int, mixed> $routePoints */
+        $routePoints = $order->relationLoaded('routePoints') ? $order->routePoints : collect();
+        $routePoints = $this->filterRoutePointsForPrintContext($order, $routePoints, $context)
+            ->sortBy(fn ($point): int => (int) ($point->sequence ?? 0))
+            ->values();
+
+        if ($routePoints->isEmpty()) {
+            return [];
+        }
+
+        $legStageLabels = [];
+        if ($order->relationLoaded('legs')) {
+            foreach ($order->legs as $leg) {
+                $legStageLabels[(int) $leg->id] = $this->formatLegStageLabel((string) $leg->description);
+            }
+        }
+
+        $rows = [];
+        $index = 0;
+
+        foreach ($routePoints as $point) {
+            $type = strtolower(trim((string) ($point->type ?? '')));
+            if (! in_array($type, ['loading', 'unloading'], true)) {
+                continue;
+            }
+
+            $address = $this->resolvePointAddress($point) ?? '';
+            if ($address === '') {
+                continue;
+            }
+
+            $city = $this->resolvePointCity($point) ?? '';
+            $partyName = $type === 'loading'
+                ? trim((string) ($point->sender_name ?? ''))
+                : trim((string) ($point->recipient_name ?? ''));
+            $contactPhone = $type === 'loading'
+                ? ($this->buildContactPhoneValue($point->sender_contact ?? null, $point->sender_phone ?? null) ?? '')
+                : ($this->buildContactPhoneValue($point->recipient_contact ?? null, $point->recipient_phone ?? null) ?? '');
+            $typeLabel = $type === 'loading' ? 'Погрузка' : 'Выгрузка';
+            $stageLabel = $legStageLabels[(int) ($point->order_leg_id ?? 0)] ?? '';
+            $plannedDate = $point->planned_date?->format('d.m.Y') ?? '';
+            $timeRange = $this->resolvePointTimeRange($point) ?? '';
+            $summaryParts = array_filter([
+                $typeLabel,
+                $city !== '' ? $city : null,
+                $address !== '' ? $address : null,
+                $partyName !== '' ? $partyName : null,
+                $contactPhone !== '' ? $contactPhone : null,
+                $plannedDate !== '' ? $plannedDate : null,
+                $timeRange !== '' ? $timeRange : null,
+            ]);
+
+            $index++;
+            $rows[] = [
+                'route_point_row_index' => (string) $index,
+                'route_point_row_stage' => $stageLabel,
+                'route_point_row_type' => $type,
+                'route_point_row_type_label' => $typeLabel,
+                'route_point_row_city' => $city,
+                'route_point_row_address' => $address,
+                'route_point_row_party_name' => $partyName,
+                'route_point_row_contact_phone' => $contactPhone,
+                'route_point_row_planned_date' => $plannedDate,
+                'route_point_row_time_range' => $timeRange,
+                'route_point_row_summary' => implode("\n", $summaryParts),
+            ];
+        }
+
+        return $rows;
+    }
+
     private function resolveLegIdForStage(Order $order, string $stage): ?int
     {
         if (! $order->relationLoaded('legs')) {
@@ -1479,7 +1625,7 @@ class OrderPrintFormDraftService
     /**
      * @return array<string, string|null>
      */
-    private function driverPayload(int $driverId, ?int $fleetDriverId = null): array
+    private function driverPayload(int $driverId, ?int $fleetDriverId = null, ?array $portalSubmission = null): array
     {
         if ($fleetDriverId !== null && Schema::hasTable('fleet_drivers')) {
             /** @var FleetDriver|null $fleetDriver */
@@ -1496,6 +1642,22 @@ class OrderPrintFormDraftService
                     'full_name' => $fleetDriver->full_name,
                     'phone' => $fleetDriver->phone,
                     'passport_data' => $passportParts !== [] ? implode(', ', $passportParts) : null,
+                ];
+            }
+        }
+
+        if (is_array($portalSubmission)) {
+            $fullName = trim((string) ($portalSubmission['driver_full_name'] ?? ''));
+
+            if ($fullName !== '') {
+                return [
+                    'full_name' => $fullName,
+                    'phone' => filled($portalSubmission['driver_phone'] ?? null)
+                        ? (string) $portalSubmission['driver_phone']
+                        : null,
+                    'passport_data' => filled($portalSubmission['driver_license'] ?? null)
+                        ? (string) $portalSubmission['driver_license']
+                        : null,
                 ];
             }
         }
@@ -1543,7 +1705,7 @@ class OrderPrintFormDraftService
      * @param  Collection<int, mixed>  $cargoItems
      * @return array{brand: ?string, number: ?string, trailer_brand: ?string, trailer_plate: ?string, cargo_body_type: ?string, trailer_type: ?string}
      */
-    private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId, Collection $cargoItems): array
+    private function vehiclePayload(Order $order, array $driver, ?int $fleetVehicleId, Collection $cargoItems, ?array $portalSubmission = null): array
     {
         $cargoTruckBody = $this->resolveCargoDictionaryItemLabels($cargoItems, 'truck_body_type_items', 'truck_body_type_label');
 
@@ -1559,6 +1721,31 @@ class OrderPrintFormDraftService
                     ]),
                     'trailer_brand' => $fleetVehicle->trailer_brand,
                     'trailer_plate' => $fleetVehicle->trailer_plate,
+                    'cargo_body_type' => $cargoTruckBody,
+                    'trailer_type' => $cargoTruckBody,
+                ];
+            }
+        }
+
+        if (is_array($portalSubmission)) {
+            $tractorPlate = filled($portalSubmission['tractor_plate'] ?? null)
+                ? (string) $portalSubmission['tractor_plate']
+                : null;
+            $trailerPlate = filled($portalSubmission['trailer_plate'] ?? null)
+                ? (string) $portalSubmission['trailer_plate']
+                : null;
+
+            if ($tractorPlate !== null || $trailerPlate !== null) {
+                return [
+                    'brand' => $this->firstFilledValue([
+                        $portalSubmission['tractor_brand'] ?? null,
+                        $portalSubmission['trailer_brand'] ?? null,
+                    ]),
+                    'number' => $this->firstFilledValue([$tractorPlate, $trailerPlate]),
+                    'trailer_brand' => filled($portalSubmission['trailer_brand'] ?? null)
+                        ? (string) $portalSubmission['trailer_brand']
+                        : null,
+                    'trailer_plate' => $trailerPlate,
                     'cargo_body_type' => $cargoTruckBody,
                     'trailer_type' => $cargoTruckBody,
                 ];

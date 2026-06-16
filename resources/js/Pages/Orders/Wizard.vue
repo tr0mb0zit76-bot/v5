@@ -2134,6 +2134,8 @@ onMounted(() => {
 
     remapCargoAllocationsToCanonicalStages(form.cargo_items);
 
+    preloadFleetOptionsForPerformers();
+
     (form.financial_term.additional_costs ?? []).forEach((row) => {
         const contractor = getContractorById(row?.contractor_id);
         const label = contractor?.name ?? row?.contractor_name ?? '';
@@ -4985,7 +4987,75 @@ async function loadFleetOptionsForLeg(legIndex, slotIndex = null) {
         .catch(() => []);
 
     const [vehicles, drivers] = await Promise.all([loadVehicles, loadDrivers]);
+    const existing = fleetOptionsCache.value[cacheKey] ?? { vehicles: [], drivers: [] };
+    const mergedVehicles = [...vehicles];
+    const mergedDrivers = [...drivers];
+
+    for (const item of existing.vehicles) {
+        if (!mergedVehicles.some((entry) => Number(entry.id) === Number(item.id))) {
+            mergedVehicles.push(item);
+        }
+    }
+
+    for (const item of existing.drivers) {
+        if (!mergedDrivers.some((entry) => Number(entry.id) === Number(item.id))) {
+            mergedDrivers.push(item);
+        }
+    }
+
+    fleetOptionsCache.value = { ...fleetOptionsCache.value, [cacheKey]: { vehicles: mergedVehicles, drivers: mergedDrivers } };
+}
+
+function seedFleetOptionsFromPerformer(legIndex, slotIndex = null) {
+    const cacheKey = performerFleetCacheKey(legIndex, slotIndex);
+    const target = slotIndex !== null ? splitCarrierAt(legIndex, slotIndex) : form.performers[legIndex];
+
+    if (!target) {
+        return;
+    }
+
+    const vehicleId = normalizeNullableNumber(target.fleet_vehicle_id);
+    const driverId = normalizeNullableNumber(target.fleet_driver_id);
+
+    if (vehicleId === null && driverId === null) {
+        return;
+    }
+
+    const existing = fleetOptionsCache.value[cacheKey] ?? { vehicles: [], drivers: [] };
+    const vehicles = [...existing.vehicles];
+    const drivers = [...existing.drivers];
+
+    if (vehicleId !== null && target.fleet_vehicle_label && !vehicles.some((entry) => Number(entry.id) === vehicleId)) {
+        vehicles.push({ id: vehicleId, label: target.fleet_vehicle_label });
+    }
+
+    if (driverId !== null && target.fleet_driver_label && !drivers.some((entry) => Number(entry.id) === driverId)) {
+        drivers.push({ id: driverId, label: target.fleet_driver_label });
+    }
+
     fleetOptionsCache.value = { ...fleetOptionsCache.value, [cacheKey]: { vehicles, drivers } };
+}
+
+function preloadFleetOptionsForPerformers() {
+    form.performers.forEach((performer, legIndex) => {
+        if (isPerformerSplit(performer)) {
+            performer.split_carriers.forEach((slot, slotIndex) => {
+                seedFleetOptionsFromPerformer(legIndex, slotIndex);
+
+                if (normalizeNullableNumber(slot.contractor_id) !== null) {
+                    loadFleetOptionsForLeg(legIndex, slotIndex);
+                }
+            });
+
+            return;
+        }
+
+        seedFleetOptionsFromPerformer(legIndex);
+
+        if (normalizeNullableNumber(performer.contractor_id) !== null) {
+            loadFleetOptionsForLeg(legIndex);
+        }
+    });
 }
 
 function fleetVehicleOptionsForLeg(legIndex, slotIndex = null) {

@@ -205,6 +205,13 @@
                     </div>
 
                     <p
+                        v-if="displayCandidates(line).length > 0 && line.match_confidence < 70"
+                        class="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
+                    >
+                        Возможные совпадения — выберите строку графика или подтвердите предложенный вариант.
+                    </p>
+
+                    <p
                         v-if="allocationForms[line.id].allocation_type === 'operational' && displayCandidates(line).length === 0 && !searchLoading[line.id]"
                         class="truncate text-[10px] text-zinc-500 dark:text-zinc-400"
                     >
@@ -271,6 +278,31 @@ const debounceTimers = {};
 
 const COST_CATEGORY_CODES = ['operational_carrier_out', 'cost_own_fleet'];
 
+function defaultAllocationType(line) {
+    if (line.match_type === 'operational' || line.direction === 'out') {
+        return 'operational';
+    }
+
+    if (line.match_type === 'payroll') {
+        return 'payroll';
+    }
+
+    const candidates = Array.isArray(line.operational_candidates) ? line.operational_candidates : [];
+
+    if (candidates.length > 0) {
+        return 'operational';
+    }
+
+    if (
+        line.direction === 'in'
+        && (line.needs_manual_selection || line.contractor_search_hint || line.suggested_payment_schedule)
+    ) {
+        return 'operational';
+    }
+
+    return 'category';
+}
+
 for (const line of props.lines) {
     const candidates = Array.isArray(line.operational_candidates) ? line.operational_candidates : [];
     const ambiguous = candidates.length > 1;
@@ -281,9 +313,7 @@ for (const line of props.lines) {
             ?? '');
 
     allocationForms[line.id] = {
-        allocation_type: line.match_type === 'operational' || line.direction === 'out'
-            ? 'operational'
-            : (line.match_type === 'payroll' ? 'payroll' : 'category'),
+        allocation_type: defaultAllocationType(line),
         category_id: line.suggested_category?.id ?? props.categories[0]?.id ?? null,
         payment_schedule_id: defaultScheduleId,
         user_id: line.suggested_user?.id ?? null,
@@ -406,8 +436,11 @@ function candidateOptionLabel(candidate) {
     const contractor = candidate.contractor_label && candidate.contractor_label !== '—'
         ? `${candidate.contractor_label} · `
         : '';
+    const reason = candidate.match_reason_label
+        ? ` · ${candidate.match_reason_label}`
+        : '';
 
-    return `${contractor}${order} · ${amount} · ${plan} · #${candidate.payment_schedule_id}`;
+    return `${contractor}${order} · ${amount} · ${plan} · #${candidate.payment_schedule_id}${reason}`;
 }
 
 function allocateLine(line) {

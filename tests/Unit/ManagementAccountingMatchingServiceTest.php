@@ -60,6 +60,7 @@ class ManagementAccountingMatchingServiceTest extends TestCase
             $table->string('party', 16)->nullable();
             $table->decimal('amount', 14, 2)->default(0);
             $table->decimal('remaining_amount', 14, 2)->nullable();
+            $table->decimal('paid_amount', 14, 2)->nullable();
             $table->string('invoice_number', 120)->nullable();
             $table->date('planned_date')->nullable();
             $table->string('status', 16)->default('pending');
@@ -483,6 +484,73 @@ class ManagementAccountingMatchingServiceTest extends TestCase
         $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
         $this->assertNotEmpty($suggestion['suggested_candidates']);
         $this->assertNotSame('Эвристика по направлению', $suggestion['match_notes']);
+    }
+
+    public function test_suggests_customer_schedule_by_short_invoice_number_in_description(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО КАМИОН',
+            'full_name' => 'Общество с ограниченной ответственностью КАМИОН',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => '1',
+            'customer_id' => $customer->id,
+        ]);
+
+        $schedule = PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'amount' => 400000,
+            'remaining_amount' => 400000,
+            'invoice_number' => '1',
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-11',
+            'direction' => 'in',
+            'amount' => 100000,
+            'description' => 'ООО КАМИОН / Частичная оплата по сч.1 от 05.06.2026г. за транспортные услуги',
+        ]);
+
+        $suggestion = $this->matchingService()->suggestForLine($line);
+
+        $this->assertSame('operational', $suggestion['match_type']);
+        $this->assertSame($schedule->id, $suggestion['suggested_payment_schedule_id']);
+    }
+
+    public function test_operational_candidates_when_remaining_amount_is_zero_but_schedule_open(): void
+    {
+        $customer = Contractor::query()->create([
+            'name' => 'ООО КАМИОН',
+        ]);
+
+        $order = Order::query()->create([
+            'order_number' => '1',
+            'customer_id' => $customer->id,
+        ]);
+
+        PaymentSchedule::query()->create([
+            'order_id' => $order->id,
+            'party' => 'customer',
+            'amount' => 400000,
+            'remaining_amount' => 0,
+            'paid_amount' => 0,
+            'status' => 'pending',
+        ]);
+
+        $line = ManagementStatementLine::query()->make([
+            'operation_date' => '2026-06-11',
+            'direction' => 'in',
+            'amount' => 100000,
+            'description' => 'ООО КАМИОН частичная оплата перевозки',
+        ]);
+
+        $candidates = $this->matchingService()->operationalCandidatesForLine($line);
+
+        $this->assertCount(1, $candidates);
+        $this->assertSame('ООО КАМИОН', $candidates[0]['contractor_label']);
     }
 
     private function matchingService(): ManagementAccountingMatchingService

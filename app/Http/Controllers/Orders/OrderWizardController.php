@@ -11,6 +11,8 @@ use App\Models\AtiDictionaryItem;
 use App\Models\Cargo;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
+use App\Models\FleetDriver;
+use App\Models\FleetVehicle;
 use App\Models\LegContractorAssignment;
 use App\Models\Order;
 use App\Models\OrderDocument;
@@ -691,6 +693,7 @@ class OrderWizardController extends Controller
         }
 
         $performers = PerformerRouteActualDates::hydratePerformersFromRoutePoints($performers, $routePoints);
+        $performers = $this->performersPayloadWithFleetLabels($performers);
 
         $financialTermForNormalize = $financialTerm;
         if ($useWizardState) {
@@ -1304,6 +1307,9 @@ class OrderWizardController extends Controller
                 : null,
             'loading_actual' => PerformerRouteActualDates::normalizeDate($row['loading_actual'] ?? null),
             'unloading_actual' => PerformerRouteActualDates::normalizeDate($row['unloading_actual'] ?? null),
+            'carrier_portal_submission' => is_array($row['carrier_portal_submission'] ?? null)
+                ? $row['carrier_portal_submission']
+                : null,
             'split_carriers' => [],
         ];
 
@@ -1329,6 +1335,9 @@ class OrderWizardController extends Controller
                             : null,
                         'fleet_trip_id' => isset($slot['fleet_trip_id']) && $slot['fleet_trip_id'] !== null && $slot['fleet_trip_id'] !== ''
                             ? (int) $slot['fleet_trip_id']
+                            : null,
+                        'carrier_portal_submission' => is_array($slot['carrier_portal_submission'] ?? null)
+                            ? $slot['carrier_portal_submission']
                             : null,
                         'loading_actual' => PerformerRouteActualDates::normalizeDate($slot['loading_actual'] ?? null),
                         'unloading_actual' => PerformerRouteActualDates::normalizeDate($slot['unloading_actual'] ?? null),
@@ -1376,6 +1385,9 @@ class OrderWizardController extends Controller
             'contractor_name' => $wizard['contractor_name'] ?? $base['contractor_name'] ?? null,
             'fleet_vehicle_id' => $wizard['fleet_vehicle_id'] ?? $base['fleet_vehicle_id'] ?? null,
             'fleet_driver_id' => $wizard['fleet_driver_id'] ?? $base['fleet_driver_id'] ?? null,
+            'execution_mode' => $wizard['execution_mode'] ?? $base['execution_mode'] ?? null,
+            'fleet_trip_id' => $wizard['fleet_trip_id'] ?? $base['fleet_trip_id'] ?? null,
+            'carrier_portal_submission' => $wizard['carrier_portal_submission'] ?? $base['carrier_portal_submission'] ?? null,
             'loading_actual' => $wizard['loading_actual'] ?? $base['loading_actual'] ?? null,
             'unloading_actual' => $wizard['unloading_actual'] ?? $base['unloading_actual'] ?? null,
         ];
@@ -1480,6 +1492,9 @@ class OrderWizardController extends Controller
                     'fleet_driver_id' => isset($wizardSlot['fleet_driver_id']) && $wizardSlot['fleet_driver_id'] !== null && $wizardSlot['fleet_driver_id'] !== ''
                         ? (int) $wizardSlot['fleet_driver_id']
                         : (is_array($baseSlot) && isset($baseSlot['fleet_driver_id']) ? $baseSlot['fleet_driver_id'] : null),
+                    'carrier_portal_submission' => is_array($wizardSlot['carrier_portal_submission'] ?? null)
+                        ? $wizardSlot['carrier_portal_submission']
+                        : (is_array($baseSlot['carrier_portal_submission'] ?? null) ? $baseSlot['carrier_portal_submission'] : null),
                     'loading_actual' => PerformerRouteActualDates::normalizeDate(
                         $wizardSlot['loading_actual'] ?? (is_array($baseSlot) ? ($baseSlot['loading_actual'] ?? null) : null),
                     ),
@@ -1670,6 +1685,9 @@ class OrderWizardController extends Controller
                         'fleet_driver_id' => isset($metadataPerformer['fleet_driver_id']) && $metadataPerformer['fleet_driver_id'] !== null
                             ? (int) $metadataPerformer['fleet_driver_id']
                             : null,
+                        'carrier_portal_submission' => is_array($metadataPerformer['carrier_portal_submission'] ?? null)
+                            ? $metadataPerformer['carrier_portal_submission']
+                            : null,
                         'split_carriers' => $splitCarriers,
                     ];
                 })
@@ -1677,8 +1695,10 @@ class OrderWizardController extends Controller
             : [];
 
         if ($fromLegs !== []) {
-            return $this->performersPayloadWithContractorLabels(
-                $this->mergeSavedPerformersIntoLegPayload($fromLegs, $savedPerformers)
+            return $this->performersPayloadWithFleetLabels(
+                $this->performersPayloadWithContractorLabels(
+                    $this->mergeSavedPerformersIntoLegPayload($fromLegs, $savedPerformers)
+                ),
             );
         }
 
@@ -1693,21 +1713,28 @@ class OrderWizardController extends Controller
                         'contractor_id' => isset($cost['contractor_id']) && $cost['contractor_id'] !== null ? (int) $cost['contractor_id'] : null,
                         'fleet_vehicle_id' => isset($saved['fleet_vehicle_id']) && $saved['fleet_vehicle_id'] !== null ? (int) $saved['fleet_vehicle_id'] : null,
                         'fleet_driver_id' => isset($saved['fleet_driver_id']) && $saved['fleet_driver_id'] !== null ? (int) $saved['fleet_driver_id'] : null,
+                        'carrier_portal_submission' => is_array($saved['carrier_portal_submission'] ?? null)
+                            ? $saved['carrier_portal_submission']
+                            : null,
                     ];
                 })
                 ->values()
                 ->all();
 
-            return $this->performersPayloadWithContractorLabels($fromCosts);
+            return $this->performersPayloadWithFleetLabels(
+                $this->performersPayloadWithContractorLabels($fromCosts),
+            );
         }
 
         if ($order->carrier_id !== null) {
-            return $this->performersPayloadWithContractorLabels([
-                [
-                    'stage' => 'leg_1',
-                    'contractor_id' => (int) $order->carrier_id,
-                ],
-            ]);
+            return $this->performersPayloadWithFleetLabels(
+                $this->performersPayloadWithContractorLabels([
+                    [
+                        'stage' => 'leg_1',
+                        'contractor_id' => (int) $order->carrier_id,
+                    ],
+                ]),
+            );
         }
 
         return [];
@@ -1787,6 +1814,140 @@ class OrderWizardController extends Controller
                         ? $existingName
                         : ($label !== null && $label !== '' ? (string) $label : null),
                 ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array<string, mixed>>
+     */
+    private function performersPayloadWithFleetLabels(array $performers): array
+    {
+        if ($performers === []) {
+            return [];
+        }
+
+        $vehicleIds = [];
+        $driverIds = [];
+
+        foreach ($performers as $performer) {
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    if (isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null) {
+                        $vehicleIds[(int) $slot['fleet_vehicle_id']] = true;
+                    }
+
+                    if (isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null) {
+                        $driverIds[(int) $slot['fleet_driver_id']] = true;
+                    }
+                }
+
+                continue;
+            }
+
+            if (isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null) {
+                $vehicleIds[(int) $performer['fleet_vehicle_id']] = true;
+            }
+
+            if (isset($performer['fleet_driver_id']) && $performer['fleet_driver_id'] !== null) {
+                $driverIds[(int) $performer['fleet_driver_id']] = true;
+            }
+        }
+
+        $vehicleLabels = $this->fleetVehicleLabels(array_keys($vehicleIds));
+        $driverLabels = $this->fleetDriverLabels(array_keys($driverIds));
+
+        return collect($performers)
+            ->map(function (array $performer) use ($vehicleLabels, $driverLabels): array {
+                if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                    $performer['split_carriers'] = collect($performer['split_carriers'])
+                        ->map(function (array $slot) use ($vehicleLabels, $driverLabels): array {
+                            $vehicleId = isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null
+                                ? (int) $slot['fleet_vehicle_id']
+                                : null;
+                            $driverId = isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null
+                                ? (int) $slot['fleet_driver_id']
+                                : null;
+
+                            return [
+                                ...$slot,
+                                'fleet_vehicle_label' => $vehicleId !== null ? ($vehicleLabels[$vehicleId] ?? null) : null,
+                                'fleet_driver_label' => $driverId !== null ? ($driverLabels[$driverId] ?? null) : null,
+                            ];
+                        })
+                        ->all();
+
+                    return $performer;
+                }
+
+                $vehicleId = isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null
+                    ? (int) $performer['fleet_vehicle_id']
+                    : null;
+                $driverId = isset($performer['fleet_driver_id']) && $performer['fleet_driver_id'] !== null
+                    ? (int) $performer['fleet_driver_id']
+                    : null;
+
+                return [
+                    ...$performer,
+                    'fleet_vehicle_label' => $vehicleId !== null ? ($vehicleLabels[$vehicleId] ?? null) : null,
+                    'fleet_driver_label' => $driverId !== null ? ($driverLabels[$driverId] ?? null) : null,
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return array<int, string>
+     */
+    private function fleetVehicleLabels(array $ids): array
+    {
+        if ($ids === [] || ! Schema::hasTable('fleet_vehicles')) {
+            return [];
+        }
+
+        return FleetVehicle::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'tractor_plate', 'trailer_plate', 'tractor_brand'])
+            ->mapWithKeys(function (FleetVehicle $vehicle): array {
+                $parts = array_filter([
+                    $vehicle->tractor_plate,
+                    $vehicle->trailer_plate,
+                    $vehicle->tractor_brand,
+                ]);
+
+                $label = $parts !== [] ? implode(' · ', $parts) : 'ТС #'.$vehicle->id;
+
+                return [$vehicle->id => $label];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return array<int, string>
+     */
+    private function fleetDriverLabels(array $ids): array
+    {
+        if ($ids === [] || ! Schema::hasTable('fleet_drivers')) {
+            return [];
+        }
+
+        return FleetDriver::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'full_name', 'phone'])
+            ->mapWithKeys(function (FleetDriver $driver): array {
+                $label = trim((string) $driver->full_name);
+                if ($driver->phone) {
+                    $label .= ' · '.$driver->phone;
+                }
+
+                return [$driver->id => $label !== '' ? $label : 'Водитель #'.$driver->id];
             })
             ->all();
     }

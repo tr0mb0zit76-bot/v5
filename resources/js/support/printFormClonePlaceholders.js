@@ -1,6 +1,7 @@
 const CLONE_ROW_PREFIXES = [
     'cargo_row_',
     'route_row_',
+    'route_point_row_',
     'cp_basic_terms_row_',
     'dp_basic_terms_row_',
 ];

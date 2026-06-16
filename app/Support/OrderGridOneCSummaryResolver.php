@@ -45,17 +45,40 @@ class OrderGridOneCSummaryResolver
 
         return $rows->map(function (array $row) use ($fleetDrivers, $fleetVehicles, $legacyDrivers): array {
             $selection = $this->resolveFleetSelection($row);
+            $portalSubmission = $this->resolvePortalSubmission($row);
             $driverName = null;
 
             if ($selection['fleet_driver_id'] !== null) {
                 $driverName = $fleetDrivers[$selection['fleet_driver_id']] ?? null;
             } elseif ((int) ($row['driver_id'] ?? 0) > 0) {
                 $driverName = $legacyDrivers[(int) $row['driver_id']] ?? null;
+            } elseif (is_array($portalSubmission)) {
+                $driverName = trim((string) ($portalSubmission['driver_full_name'] ?? ''));
+                if ($driverName === '') {
+                    $driverName = null;
+                }
             }
 
             $vehicle = $selection['fleet_vehicle_id'] !== null
                 ? ($fleetVehicles[$selection['fleet_vehicle_id']] ?? null)
                 : null;
+
+            if ($vehicle === null && is_array($portalSubmission)) {
+                $vehicle = [
+                    'tractor_brand' => filled($portalSubmission['tractor_brand'] ?? null)
+                        ? (string) $portalSubmission['tractor_brand']
+                        : null,
+                    'tractor_plate' => filled($portalSubmission['tractor_plate'] ?? null)
+                        ? (string) $portalSubmission['tractor_plate']
+                        : null,
+                    'trailer_brand' => filled($portalSubmission['trailer_brand'] ?? null)
+                        ? (string) $portalSubmission['trailer_brand']
+                        : null,
+                    'trailer_plate' => filled($portalSubmission['trailer_plate'] ?? null)
+                        ? (string) $portalSubmission['trailer_plate']
+                        : null,
+                ];
+            }
 
             $summary = OrderClipboardSummaryFormatter::format(
                 isset($row['company_code']) ? (string) $row['company_code'] : null,
@@ -103,6 +126,30 @@ class OrderGridOneCSummaryResolver
                 continue;
             }
 
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $vehicleId = isset($slot['fleet_vehicle_id']) && $slot['fleet_vehicle_id'] !== null
+                        ? (int) $slot['fleet_vehicle_id']
+                        : null;
+                    $driverId = isset($slot['fleet_driver_id']) && $slot['fleet_driver_id'] !== null
+                        ? (int) $slot['fleet_driver_id']
+                        : null;
+
+                    if ($vehicleId !== null || $driverId !== null) {
+                        return [
+                            'fleet_vehicle_id' => $vehicleId,
+                            'fleet_driver_id' => $driverId,
+                        ];
+                    }
+                }
+
+                continue;
+            }
+
             $vehicleId = isset($performer['fleet_vehicle_id']) && $performer['fleet_vehicle_id'] !== null
                 ? (int) $performer['fleet_vehicle_id']
                 : null;
@@ -122,6 +169,51 @@ class OrderGridOneCSummaryResolver
             'fleet_vehicle_id' => null,
             'fleet_driver_id' => null,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>|null
+     */
+    private function resolvePortalSubmission(array $row): ?array
+    {
+        $performers = $row['performers'] ?? null;
+        if (is_string($performers)) {
+            $decoded = json_decode($performers, true);
+            $performers = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($performers)) {
+            return null;
+        }
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $submission = $slot['carrier_portal_submission'] ?? null;
+                    if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+                        return $submission;
+                    }
+                }
+
+                continue;
+            }
+
+            $submission = $performer['carrier_portal_submission'] ?? null;
+            if (is_array($submission) && filled($submission['driver_full_name'] ?? null)) {
+                return $submission;
+            }
+        }
+
+        return null;
     }
 
     /**
