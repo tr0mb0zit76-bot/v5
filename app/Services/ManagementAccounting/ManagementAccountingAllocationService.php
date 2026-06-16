@@ -184,13 +184,18 @@ class ManagementAccountingAllocationService
         }
 
         $paymentDate = $line->operation_date?->toDateString() ?? now()->toDateString();
+        $scheduleAmount = (float) $schedule->amount;
         $paidAmount = (float) ($schedule->paid_amount ?? 0);
-        $remaining = (float) ($schedule->remaining_amount ?? max(0, (float) $schedule->amount - $paidAmount));
+        $openBefore = PaymentScheduleSettlementStatus::outstandingAmount(
+            $scheduleAmount,
+            $paidAmount,
+            $schedule->remaining_amount !== null ? (float) $schedule->remaining_amount : null,
+        );
         $partialScheduleId = null;
 
         if ($paidAmount <= 0) {
-            $schedule->paid_amount = $amount;
-            $schedule->remaining_amount = max(0, $remaining - $amount);
+            $schedule->paid_amount = round($amount, 2);
+            $schedule->remaining_amount = max(0, round($openBefore - $amount, 2));
             $schedule->actual_date = $paymentDate;
 
             if (Schema::hasColumn('payment_schedules', 'payment_method')) {
@@ -230,9 +235,12 @@ class ManagementAccountingAllocationService
 
             $partial->save();
             $partialScheduleId = $partial->id;
-            $schedule->remaining_amount = max(0, $remaining - $amount);
+            $schedule->paid_amount = round($paidAmount + $amount, 2);
+            $schedule->remaining_amount = max(0, round($openBefore - $amount, 2));
             if ($schedule->remaining_amount <= 0.009) {
                 $schedule->status = 'paid';
+            } else {
+                $schedule->status = 'pending';
             }
             PaymentScheduleSettlementStatus::applyToSchedule($schedule);
             $schedule->save();

@@ -13,6 +13,34 @@ use Illuminate\Support\Facades\Schema;
  */
 final class PaymentScheduleSettlementStatus
 {
+    /**
+     * Остаток к оплате по строке графика.
+     * remaining_amount = 0 при paid_amount = 0 — «ещё не инициализировано», берём полную сумму строки.
+     */
+    public static function outstandingAmount(float $amount, float $paidAmount = 0, ?float $remainingAmount = null): float
+    {
+        $amount = round($amount, 2);
+        $paidAmount = round($paidAmount, 2);
+
+        if ($remainingAmount !== null) {
+            $remaining = round((float) $remainingAmount, 2);
+
+            if ($remaining > 0.009) {
+                return $remaining;
+            }
+
+            if ($paidAmount <= 0.009) {
+                return $amount;
+            }
+        }
+
+        if ($paidAmount > 0.009) {
+            return max(0, round($amount - $paidAmount, 2));
+        }
+
+        return $amount;
+    }
+
     public static function isFullySettled(float $amount, float $paidAmount, float $remainingAmount): bool
     {
         if ($amount <= 0 || $paidAmount <= 0.009) {
@@ -30,10 +58,11 @@ final class PaymentScheduleSettlementStatus
 
         $amount = round((float) $schedule->amount, 2);
         $paidAmount = round((float) ($schedule->paid_amount ?? 0), 2);
-        $remainingAmount = round(
-            (float) ($schedule->remaining_amount ?? max(0, $amount - $paidAmount)),
-            2,
-        );
+        $remainingAmount = round(self::outstandingAmount(
+            $amount,
+            $paidAmount,
+            $schedule->remaining_amount !== null ? (float) $schedule->remaining_amount : null,
+        ), 2);
 
         if (! self::isFullySettled($amount, $paidAmount, $remainingAmount)) {
             return;

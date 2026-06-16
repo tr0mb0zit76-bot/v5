@@ -37,7 +37,13 @@ final class PaymentScheduleAutomaticStatus
         foreach ($query->get($columns) as $row) {
             $amount = (float) ($row->amount ?? 0);
             $paidAmount = (float) ($row->paid_amount ?? 0);
-            $remainingAmount = (float) ($row->remaining_amount ?? max(0, $amount - $paidAmount));
+            $remainingAmount = PaymentScheduleSettlementStatus::outstandingAmount(
+                $amount,
+                $paidAmount,
+                Schema::hasColumn('payment_schedules', 'remaining_amount') && $row->remaining_amount !== null
+                    ? (float) $row->remaining_amount
+                    : null,
+            );
 
             if (PaymentScheduleSettlementStatus::isFullySettled($amount, $paidAmount, $remainingAmount)) {
                 $update = [

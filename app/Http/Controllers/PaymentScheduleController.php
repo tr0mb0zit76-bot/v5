@@ -8,6 +8,7 @@ use App\Models\PaymentSchedulePaymentEvent;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Services\Finance\PaymentSchedulePaymentReversalService;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,9 +49,11 @@ class PaymentScheduleController extends Controller
 
         try {
             $paidAmount = (float) $paymentSchedule->paid_amount;
-            $remainingTotal = (float) ($paymentSchedule->remaining_amount > 0
-                ? $paymentSchedule->remaining_amount
-                : $paymentSchedule->amount);
+            $remainingTotal = PaymentScheduleSettlementStatus::outstandingAmount(
+                (float) $paymentSchedule->amount,
+                $paidAmount,
+                $paymentSchedule->remaining_amount !== null ? (float) $paymentSchedule->remaining_amount : null,
+            );
             $incomingPaid = (float) $validated['paid_amount'];
 
             // Если это первый платеж

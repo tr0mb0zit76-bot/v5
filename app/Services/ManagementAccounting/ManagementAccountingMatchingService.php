@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Support\ManagementCostCategoryCodes;
+use App\Support\PaymentScheduleSettlementStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -855,29 +856,11 @@ class ManagementAccountingMatchingService
 
     private function effectiveScheduleAmount(PaymentSchedule $schedule): float
     {
-        $totalAmount = (float) $schedule->amount;
-
-        if (Schema::hasColumn('payment_schedules', 'remaining_amount') && $schedule->remaining_amount !== null) {
-            $remaining = (float) $schedule->remaining_amount;
-
-            if ($remaining > 0.009) {
-                return $remaining;
-            }
-        }
-
-        if (Schema::hasColumn('payment_schedules', 'paid_amount') && $schedule->paid_amount !== null) {
-            $openAmount = $totalAmount - (float) $schedule->paid_amount;
-
-            if ($openAmount > 0.009) {
-                return $openAmount;
-            }
-        }
-
-        if (! in_array((string) $schedule->status, ['paid', 'cancelled'], true)) {
-            return $totalAmount;
-        }
-
-        return 0.0;
+        return PaymentScheduleSettlementStatus::outstandingAmount(
+            (float) $schedule->amount,
+            (float) ($schedule->paid_amount ?? 0),
+            $schedule->remaining_amount !== null ? (float) $schedule->remaining_amount : null,
+        );
     }
 
     private function resolveScheduleContractor(PaymentSchedule $schedule, string $direction): ?Contractor
