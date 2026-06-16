@@ -340,6 +340,69 @@ class FinanceIndexTest extends TestCase
             );
     }
 
+    public function test_cash_flow_journal_excludes_settled_row_when_status_still_pending(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'visibility_areas' => json_encode(['dashboard', 'documents'], JSON_THROW_ON_ERROR),
+            'visibility_scopes' => json_encode(['orders' => 'own'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $manager = User::factory()->create([
+            'role_id' => $roleId,
+            'email_verified_at' => now(),
+        ]);
+
+        $customerId = DB::table('contractors')->insertGetId([
+            'name' => 'ООО "Дайтона моторс"',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $carrierId = DB::table('contractors')->insertGetId([
+            'name' => 'ИП Перевозчик',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderId = DB::table('orders')->insertGetId([
+            'manager_id' => $manager->id,
+            'customer_id' => $customerId,
+            'carrier_id' => $carrierId,
+            'order_number' => 'АС-2606-0001',
+            'order_date' => '2026-06-04',
+            'customer_rate' => 1234461,
+            'carrier_rate' => 800000,
+            'customer_payment_form' => 'vat',
+            'carrier_payment_form' => 'vat',
+            'status' => 'in_progress',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('payment_schedules')->insert([
+            'order_id' => $orderId,
+            'party' => 'customer',
+            'type' => 'prepayment',
+            'amount' => 617231,
+            'paid_amount' => 617231,
+            'remaining_amount' => 0,
+            'planned_date' => '2026-06-10',
+            'actual_date' => '2026-06-11',
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($manager)->get(route('finance.index', ['section' => 'cashflow']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('cashFlowJournal', 0)
+            );
+    }
+
     public function test_cash_flow_stats_use_full_amount_when_remaining_amount_is_null(): void
     {
         $roleId = DB::table('roles')->insertGetId([

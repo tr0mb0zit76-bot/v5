@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
 use App\Services\Finance\PaymentSchedulePaymentReversalService;
 use App\Support\PaymentScheduleAutomaticStatus;
+use App\Support\PaymentScheduleSettlementStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -201,6 +202,7 @@ class ManagementAccountingAllocationService
             }
 
             $schedule->status = $schedule->remaining_amount <= 0.009 ? 'paid' : 'pending';
+            PaymentScheduleSettlementStatus::applyToSchedule($schedule);
             $schedule->save();
         } else {
             if (! Schema::hasColumn('payment_schedules', 'parent_payment_id')
@@ -232,6 +234,7 @@ class ManagementAccountingAllocationService
             if ($schedule->remaining_amount <= 0.009) {
                 $schedule->status = 'paid';
             }
+            PaymentScheduleSettlementStatus::applyToSchedule($schedule);
             $schedule->save();
         }
 

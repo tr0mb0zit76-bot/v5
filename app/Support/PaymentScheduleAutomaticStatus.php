@@ -20,13 +20,40 @@ final class PaymentScheduleAutomaticStatus
 
         $query = DB::table('payment_schedules')
             ->where('order_id', $orderId)
-            ->whereNotIn('status', ['paid', 'cancelled'])
             ->whereNull('parent_payment_id')
             ->where(function ($q): void {
                 $q->whereNull('is_partial')->orWhere('is_partial', false);
-            });
+            })
+            ->whereNotIn('status', ['paid', 'cancelled']);
 
-        foreach ($query->get(['id', 'planned_date']) as $row) {
+        $columns = ['id', 'planned_date', 'amount'];
+        if (Schema::hasColumn('payment_schedules', 'paid_amount')) {
+            $columns[] = 'paid_amount';
+        }
+        if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+            $columns[] = 'remaining_amount';
+        }
+
+        foreach ($query->get($columns) as $row) {
+            $amount = (float) ($row->amount ?? 0);
+            $paidAmount = (float) ($row->paid_amount ?? 0);
+            $remainingAmount = (float) ($row->remaining_amount ?? max(0, $amount - $paidAmount));
+
+            if (PaymentScheduleSettlementStatus::isFullySettled($amount, $paidAmount, $remainingAmount)) {
+                $update = [
+                    'status' => 'paid',
+                    'updated_at' => now(),
+                ];
+
+                if (Schema::hasColumn('payment_schedules', 'remaining_amount')) {
+                    $update['remaining_amount'] = 0;
+                }
+
+                DB::table('payment_schedules')->where('id', $row->id)->update($update);
+
+                continue;
+            }
+
             $planned = $row->planned_date ?? null;
             $isOverdue = $planned !== null
                 && Carbon::parse((string) $planned)->startOfDay()->lt($today);

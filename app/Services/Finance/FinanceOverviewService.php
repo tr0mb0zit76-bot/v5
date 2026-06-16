@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Support\PaymentScheduleSettlementStatus;
 use App\Support\RoleAccess;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -37,8 +38,11 @@ class FinanceOverviewService
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('orders.deleted_at')
-            )
-            ->whereNotIn('payment_schedules.status', ['paid', 'cancelled'])
+            );
+
+        PaymentScheduleSettlementStatus::applyUnsettledRootScope($journalQuery);
+
+        $journalQuery
             ->when(
                 Schema::hasColumn('payment_schedules', 'parent_payment_id'),
                 fn ($query) => $query->whereNull('payment_schedules.parent_payment_id'),
@@ -279,7 +283,7 @@ class FinanceOverviewService
      */
     private function paymentSchedulesOpenRootsBaseQuery(?int $userId, ?string $roleName, string $ordersScope)
     {
-        return DB::table('payment_schedules')
+        $query = DB::table('payment_schedules')
             ->join('orders', 'orders.id', '=', 'payment_schedules.order_id')
             ->when(
                 $userId !== null && $roleName !== 'admin' && $ordersScope !== 'all',
@@ -288,8 +292,11 @@ class FinanceOverviewService
             ->when(
                 Schema::hasColumn('orders', 'deleted_at'),
                 fn ($query) => $query->whereNull('orders.deleted_at'),
-            )
-            ->whereNotIn('payment_schedules.status', ['paid', 'cancelled'])
+            );
+
+        PaymentScheduleSettlementStatus::applyUnsettledRootScope($query);
+
+        return $query
             ->when(
                 Schema::hasColumn('payment_schedules', 'parent_payment_id'),
                 fn ($query) => $query->whereNull('payment_schedules.parent_payment_id'),
@@ -308,19 +315,12 @@ class FinanceOverviewService
      */
     private function paymentScheduleEffectiveAmountSql(): string
     {
-        return $this->paymentScheduleOutstandingAmountSql();
+        return PaymentScheduleSettlementStatus::outstandingAmountSql();
     }
 
     private function paymentScheduleOutstandingAmountSql(): string
     {
-        if (! Schema::hasColumn('payment_schedules', 'remaining_amount')) {
-            return 'payment_schedules.amount';
-        }
-
-        return "CASE WHEN payment_schedules.remaining_amount IS NULL
-            OR (payment_schedules.remaining_amount <= 0 AND payment_schedules.status IN ('pending', 'overdue'))
-            THEN payment_schedules.amount
-            ELSE payment_schedules.remaining_amount END";
+        return PaymentScheduleSettlementStatus::outstandingAmountSql();
     }
 
     /**
