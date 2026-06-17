@@ -318,8 +318,10 @@ watch(authUser, (u) => {
         <div
             v-if="open"
             :class="[
-                'absolute right-0 z-[70] w-[min(100vw-2rem,22rem)] rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900',
-                props.large ? 'bottom-full mb-2' : 'mt-2',
+                'absolute z-[70] rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900',
+                props.large
+                    ? 'bottom-full left-0 mb-2 w-[min(26rem,calc(100vw-1.5rem))]'
+                    : 'right-0 mt-2 w-[min(100vw-2rem,22rem)]',
             ]"
         >
             <div class="flex items-center justify-between border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
@@ -348,10 +350,10 @@ watch(authUser, (u) => {
                             @click="visit(item)"
                         >
                             <div class="flex items-start justify-between gap-2">
-                                <span class="text-sm font-medium text-zinc-900 dark:text-zinc-50">{{ item.title }}</span>
+                                <span class="break-words text-sm font-medium text-zinc-900 dark:text-zinc-50">{{ item.title }}</span>
                                 <span v-if="!item.read_at" class="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">новое</span>
                             </div>
-                            <p class="text-xs leading-snug text-zinc-600 dark:text-zinc-400">{{ item.body }}</p>
+                            <p class="break-words text-xs leading-snug text-zinc-600 dark:text-zinc-400">{{ item.body }}</p>
                             <span class="text-[10px] text-zinc-400">{{ formatTime(item.created_at) }}</span>
                         </button>
                         <div class="flex flex-wrap gap-2 px-3 pb-2">
