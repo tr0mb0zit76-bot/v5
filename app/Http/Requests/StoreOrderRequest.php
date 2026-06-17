@@ -19,7 +19,6 @@ use App\Support\PaymentFormDictionary;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -240,30 +239,6 @@ class StoreOrderRequest extends FormRequest
                 $clientPrice = Arr::get($this->input('financial_term', []), 'client_price');
                 if ($clientPrice === null || $clientPrice === '' || (float) $clientPrice <= 0) {
                     $validator->errors()->add('financial_term.client_price', 'Укажите цену клиента больше 0.');
-                }
-            },
-            function (Validator $validator): void {
-                $documents = $this->input('documents', []);
-                if (! is_array($documents)) {
-                    return;
-                }
-
-                foreach ($documents as $index => $document) {
-                    $file = $this->file("documents.$index.file");
-                    if (! $file instanceof UploadedFile) {
-                        continue;
-                    }
-
-                    $type = is_array($document) ? (string) ($document['type'] ?? '') : '';
-                    $maxKb = in_array($type, self::CONTRACT_TYPES, true) ? 3072 : 1024;
-                    if ((int) $file->getSize() > ($maxKb * 1024)) {
-                        $validator->errors()->add(
-                            "documents.$index.file",
-                            $maxKb === 3072
-                                ? 'Для договоров допустим размер файла до 3 МБ.'
-                                : 'Для этого типа документа допустим размер файла до 1 МБ.'
-                        );
-                    }
                 }
             },
             function (Validator $validator): void {

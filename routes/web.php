@@ -11,6 +11,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DispositionController;
 use App\Http\Controllers\DocumentOptimizeController;
 use App\Http\Controllers\DocumentRegistryController;
+use App\Http\Controllers\DocumentUploadBudgetEstimateController;
 use App\Http\Controllers\FinanceDocumentController;
 use App\Http\Controllers\FinanceIndexController;
 use App\Http\Controllers\FinanceReconciliationController;
@@ -604,6 +605,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/documents', [DocumentRegistryController::class, 'index'])->middleware('visibility.area.any:documents|orders')->name('documents.index');
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
     Route::post('/documents/optimize-pdf', DocumentOptimizeController::class)->middleware('visibility.area.any:documents|orders')->name('documents.optimize-pdf');
+    Route::post('/documents/estimate-upload-budget', DocumentUploadBudgetEstimateController::class)->middleware('visibility.area.any:documents|orders')->name('documents.estimate-upload-budget');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');
     Route::patch('/documents/orders/{order}/entered-in-1c', [DocumentRegistryController::class, 'updateEnteredIn1C'])->middleware('visibility.area.any:documents|orders')->name('documents.orders.entered-in-1c');
     Route::delete('/documents/{document}', [DocumentRegistryController::class, 'destroy'])->middleware('visibility.area.any:documents|orders')->name('documents.destroy');

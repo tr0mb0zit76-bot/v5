@@ -13,6 +13,13 @@ export async function computeDocumentUploadBudget(file, limits) {
     const imgPages = Math.max(1, Number(limits.image_placeholder_pages) || 18);
     const ext = (file.name.split('.').pop() || '').toLowerCase();
 
+    if (ext === 'pdf') {
+        const serverBudget = await fetchServerPdfUploadBudget(file, limits);
+        if (serverBudget) {
+            return serverBudget;
+        }
+    }
+
     let pages = 1;
     if (ext === 'pdf') {
         const headB = Math.max(256_000, Number(limits.pdf_head_scan_bytes) || 4 * 1024 * 1024);
@@ -141,6 +148,50 @@ function estimatePdfPagesFromBinaryString(content) {
     const fromMediaBox = mediaBoxes ? mediaBoxes.length : 0;
 
     return Math.max(1, fromPageObjects, fromCount, fromMediaBox);
+}
+
+/**
+ * @param {File} file
+ * @param {Record<string, number|string>} limits
+ * @returns {Promise<{ pages: number, maxBytes: number }|null>}
+ */
+async function fetchServerPdfUploadBudget(file, limits) {
+    const url = limits.estimate_budget_url;
+    if (!url || typeof url !== 'string') {
+        return null;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+            },
+            body: formData,
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        const pages = Math.max(1, Number(data.pages) || 1);
+        const maxBytes = Math.max(1, Number(data.max_bytes) || 0);
+
+        if (maxBytes <= 0) {
+            return null;
+        }
+
+        return { pages, maxBytes };
+    } catch {
+        return null;
+    }
 }
 
 /**

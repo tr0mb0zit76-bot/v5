@@ -39,6 +39,7 @@ final class DocumentUploadLimits
             'absolute_max_bytes' => $effectiveAbs,
             'pdf_head_scan_bytes' => max(256_000, (int) config('documents.pdf_head_scan_bytes', 4 * 1024 * 1024)),
             'pdf_tail_scan_bytes' => max(256_000, (int) config('documents.pdf_tail_scan_bytes', 4 * 1024 * 1024)),
+            'estimate_budget_url' => route('documents.estimate-upload-budget', absolute: false),
             'hint_ru' => sprintf(
                 'Допустимый размер зависит от числа страниц: примерно %d КиБ на страницу, не более %d страниц (максимум около %.0f МиБ).',
                 $kbPerPage,
