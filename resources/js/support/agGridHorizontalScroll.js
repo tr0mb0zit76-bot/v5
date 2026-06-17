@@ -38,20 +38,17 @@ export function resolveAgGridViewportHeight(panelElement, bottomScrollbarElement
     }
 
     const bottomScrollbarHeight = bottomScrollbarElement?.offsetHeight ?? 18;
-    const panelHeight = panelElement.getBoundingClientRect().height;
+    const panelRect = panelElement.getBoundingClientRect();
+    const panelTop = panelRect.top;
+    const fromPanel = panelRect.height > 0
+        ? Math.floor(panelRect.height - bottomScrollbarHeight)
+        : 0;
 
-    if (panelHeight > 0) {
-        return Math.max(minHeight, Math.floor(panelHeight - bottomScrollbarHeight));
-    }
-
-    const sectionTop = panelElement.getBoundingClientRect().top;
     const commandBarFooter = document.querySelector('.crm-layout-footer') ?? document.querySelector('footer');
     const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
+    const fromViewport = Math.floor(footerTop - panelTop - bottomScrollbarHeight - 8);
 
-    return Math.max(
-        minHeight,
-        Math.floor(footerTop - sectionTop - bottomScrollbarHeight - 8),
-    );
+    return Math.max(minHeight, fromPanel, fromViewport);
 }
 
 /**

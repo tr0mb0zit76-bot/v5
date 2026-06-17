@@ -181,7 +181,7 @@ import {
 } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'documents' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'documents', mainFill: true }, () => page),
 });
 
 const props = defineProps({
