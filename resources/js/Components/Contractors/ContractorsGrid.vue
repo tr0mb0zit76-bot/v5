@@ -67,7 +67,7 @@
       :class="crmGridInnerPanel"
       @contextmenu.capture="suppressNativeContextMenuCapture"
     >
-      <div class="ag-theme-alpine orders-grid-theme orders-grid-ag-host min-h-0 min-w-0 overflow-hidden" :class="densityClass">
+      <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 shrink-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
@@ -303,7 +303,7 @@ const gridSection = ref(null);
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 
-const { bottomScrollbarWidth, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
+const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
   gridPanel,
   bottomScrollbar,
   agGrid,

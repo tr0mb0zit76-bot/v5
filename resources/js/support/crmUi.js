@@ -101,7 +101,7 @@ export const crmWizardBack = 'crm-wizard-back';
 export const crmWizardBody = 'crm-wizard-body';
 
 /** Контейнер AG Grid на странице реестра */
-export const crmGridPanel = 'crm-grid-panel min-h-0 flex-1 overflow-hidden p-1';
+export const crmGridPanel = 'crm-grid-panel flex min-h-0 flex-1 flex-col overflow-hidden p-1';
 
 /** Внутренняя оболочка AG Grid (без дублирующей рамки — её даёт crmGridPanel) */
 export const crmGridInnerPanel = 'flex min-h-0 flex-1 flex-col overflow-hidden';

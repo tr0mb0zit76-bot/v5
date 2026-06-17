@@ -70,7 +70,8 @@
 
         <div ref="gridPanel" :class="crmGridInnerPanel">
             <div
-                class="ag-theme-alpine orders-grid-theme disposition-grid-theme orders-grid-ag-host min-h-0 min-w-0 overflow-hidden"
+                class="ag-theme-alpine orders-grid-theme disposition-grid-theme min-h-0 min-w-0 shrink-0 overflow-hidden"
+                :style="gridContainerStyle"
                 :class="densityClass"
             >
                 <AgGridVue
@@ -146,7 +147,7 @@ const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
 const displayedRowCount = ref(0);
 
-const { bottomScrollbarWidth, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
+const { bottomScrollbarWidth, gridContainerStyle, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
     gridPanel,
     bottomScrollbar,
     agGrid,
