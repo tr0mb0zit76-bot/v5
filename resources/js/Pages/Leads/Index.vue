@@ -84,7 +84,7 @@ import Modal from '@/Components/Modal.vue';
 import LeadWizard from '@/Pages/Leads/Wizard.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'leads' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'leads', mainFill: true }, () => page),
 });
 
 const page = usePage();

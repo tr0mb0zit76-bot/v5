@@ -190,7 +190,7 @@ import OrdersGrid from '@/Components/Orders/OrdersGrid.vue';
 import OrderDocumentsModal from '@/Components/Orders/OrderDocumentsModal.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'orders' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'orders', mainFill: true }, () => page),
 });
 
 const page = usePage();

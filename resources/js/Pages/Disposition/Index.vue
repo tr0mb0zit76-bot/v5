@@ -58,7 +58,7 @@ import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmGridPanel } from '@/support/crmUi.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'disposition' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'disposition', mainFill: true }, () => page),
 });
 
 const props = defineProps({

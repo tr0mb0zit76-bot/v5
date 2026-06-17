@@ -51,7 +51,7 @@ import FleetDriversGrid from '@/Components/Fleet/FleetDriversGrid.vue';
 import DriverWizard from '@/Pages/Fleet/DriverWizard.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-drivers' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-drivers', mainFill: true }, () => page),
 });
 
 const modalKeys = ['selectedDriver', 'drivers', 'driverDocumentTypeOptions'];

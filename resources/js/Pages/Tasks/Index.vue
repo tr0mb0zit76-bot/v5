@@ -450,7 +450,7 @@ import TasksGrid from '@/Components/Tasks/TasksGrid.vue';
 import { ChevronDown, Plus } from 'lucide-vue-next';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'tasks' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'planning', activeSubKey: 'tasks', mainFill: true }, () => page),
 });
 
 const modalPropKeys = ['selectedTask', 'tasks', 'quickFilters'];

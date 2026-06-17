@@ -55,7 +55,7 @@
       @contextmenu.capture="suppressNativeContextMenuCapture"
       @contextmenu="onGridPanelEmptyContextMenu"
     >
-      <div class="ag-theme-alpine orders-grid-theme min-h-0 min-w-0 overflow-hidden" :class="densityClass" :style="gridContainerStyle">
+      <div class="ag-theme-alpine orders-grid-theme orders-grid-ag-host min-h-0 min-w-0 overflow-hidden" :class="densityClass">
         <AgGridVue
           ref="agGrid"
           :gridOptions="gridOptions"
@@ -113,7 +113,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
-import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
+import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
@@ -140,13 +140,15 @@ const gridApi = ref(null);
 const quickSearch = ref('');
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
-const bottomScrollbarWidth = ref(0);
-const gridViewportHeight = ref(360);
 const currentDensity = ref(defaultGridDensity);
 const showDensityMenu = ref(false);
 
-let removeCenterViewportListener = null;
-let isSyncingHorizontalScroll = false;
+const { bottomScrollbarWidth, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
+  gridPanel,
+  bottomScrollbar,
+  agGrid,
+  gridApi,
+});
 
 const contextMenu = reactive({
   open: false,
@@ -219,11 +221,6 @@ function onCellContextMenu(params) {
 const columnStorageKey = computed(() => `fleet_vehicles_grid_columns_v2_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
-const gridContainerStyle = computed(() => ({
-  height: `${gridViewportHeight.value}px`,
-  minHeight: `${gridViewportHeight.value}px`,
-  width: '100%',
-}));
 
 const gridOptions = {
   theme: 'legacy',
@@ -336,8 +333,7 @@ const columnDefs = computed(() => {
 
 function onGridReady(params) {
   gridApi.value = params.api;
-  attachCenterViewportListener();
-  syncBottomScrollbar();
+  refreshAgGridPanelLayout();
 }
 
 function onCellDoubleClicked(event) {
@@ -345,10 +341,6 @@ function onCellDoubleClicked(event) {
   if (id) {
     emit('row-dblclick', event.data);
   }
-}
-
-function updateGridViewportHeight() {
-  gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
 }
 
 function applyDensity(densityKey) {
@@ -360,7 +352,7 @@ function applyDensity(densityKey) {
   nextTick(() => {
     gridApi.value?.resetRowHeights();
     gridApi.value?.refreshCells({ force: true });
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   });
 }
 
@@ -372,75 +364,6 @@ function resetFilters() {
   quickSearch.value = '';
   gridApi.value?.setFilterModel(null);
   gridApi.value?.onFilterChanged();
-}
-
-function getCenterViewport() {
-  return agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
-}
-
-function syncBottomScrollbar() {
-  const centerViewport = getCenterViewport();
-
-  if (!centerViewport) {
-    return;
-  }
-
-  bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
-  updateGridViewportHeight();
-
-  if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
-    bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
-  }
-}
-
-function onBottomScrollbarScroll() {
-  if (isSyncingHorizontalScroll) {
-    return;
-  }
-
-  const centerViewport = getCenterViewport();
-
-  if (!centerViewport) {
-    return;
-  }
-
-  isSyncingHorizontalScroll = true;
-  centerViewport.scrollLeft = bottomScrollbar.value?.scrollLeft ?? 0;
-
-  requestAnimationFrame(() => {
-    isSyncingHorizontalScroll = false;
-  });
-}
-
-function attachCenterViewportListener() {
-  removeCenterViewportListener?.();
-
-  const centerViewport = getCenterViewport();
-
-  if (!centerViewport) {
-    return;
-  }
-
-  const handleCenterViewportScroll = () => {
-    if (isSyncingHorizontalScroll) {
-      return;
-    }
-
-    isSyncingHorizontalScroll = true;
-
-    if (bottomScrollbar.value) {
-      bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
-    }
-
-    requestAnimationFrame(() => {
-      isSyncingHorizontalScroll = false;
-    });
-  };
-
-  centerViewport.addEventListener('scroll', handleCenterViewportScroll, { passive: true });
-  removeCenterViewportListener = () => {
-    centerViewport.removeEventListener('scroll', handleCenterViewportScroll);
-  };
 }
 
 watch(quickSearch, () => {
@@ -460,16 +383,12 @@ function onExternalAgGridDensityChange(event) {
   nextTick(() => {
     gridApi.value?.resetRowHeights();
     gridApi.value?.refreshCells({ force: true });
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   });
 }
 
 onMounted(() => {
   currentDensity.value = readPersistedAgGridDensity(props.userId, page.props.auth?.user);
-
-  updateGridViewportHeight();
-  window.addEventListener('resize', updateGridViewportHeight);
-  window.addEventListener('resize', syncBottomScrollbar);
   window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
 });
 
@@ -478,17 +397,12 @@ onUnmounted(() => {
     clearTimeout(columnSaveTimeout);
   }
 
-  window.removeEventListener('resize', updateGridViewportHeight);
-  window.removeEventListener('resize', syncBottomScrollbar);
   window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
-  removeCenterViewportListener?.();
 });
 
 function onFirstDataRendered() {
   nextTick(() => {
-    updateGridViewportHeight();
-    attachCenterViewportListener();
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   });
 }
 </script>

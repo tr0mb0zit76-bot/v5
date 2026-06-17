@@ -24,34 +24,6 @@ export function resolveAgGridBottomScrollbarWidth(gridApi, centerViewport) {
 }
 
 /**
- * Высота области ag-grid с учётом нижнего скролла и command bar.
- *
- * @param {HTMLElement | null | undefined} panelElement
- * @param {HTMLElement | null | undefined} bottomScrollbarElement
- * @param {{ minHeight?: number }} [options]
- */
-export function resolveAgGridViewportHeight(panelElement, bottomScrollbarElement, options = {}) {
-    const minHeight = options.minHeight ?? 280;
-
-    if (!panelElement) {
-        return minHeight;
-    }
-
-    const bottomScrollbarHeight = bottomScrollbarElement?.offsetHeight ?? 18;
-    const panelRect = panelElement.getBoundingClientRect();
-    const panelTop = panelRect.top;
-    const fromPanel = panelRect.height > 0
-        ? Math.floor(panelRect.height - bottomScrollbarHeight)
-        : 0;
-
-    const commandBarFooter = document.querySelector('.crm-layout-footer') ?? document.querySelector('footer');
-    const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
-    const fromViewport = Math.floor(footerTop - panelTop - bottomScrollbarHeight - 8);
-
-    return Math.max(minHeight, fromPanel, fromViewport);
-}
-
-/**
  * @param {HTMLElement | null | undefined} panelElement
  * @param {() => void} callback
  * @returns {() => void}

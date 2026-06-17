@@ -91,7 +91,7 @@
             ref="gridPanel"
             :class="crmGridInnerPanel"
         >
-            <div class="ag-theme-alpine orders-grid-theme" :class="densityClass" :style="gridContainerStyle">
+            <div class="ag-theme-alpine orders-grid-theme orders-grid-ag-host min-h-0 min-w-0 overflow-hidden" :class="densityClass">
                 <AgGridVue
                     ref="agGrid"
                     :gridOptions="gridOptions"
@@ -146,7 +146,7 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import PaymentScheduleActions from '@/Components/PaymentScheduleActions.vue';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
-import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
+import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
 import { cashFlowRowDisplayAmount, cashFlowRowStatusLabel } from '@/support/cashFlowJournalStats.js';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
@@ -219,12 +219,15 @@ const gridApi = ref(null);
 const gridSection = ref(null);
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
-const bottomScrollbarWidth = ref(0);
-const gridViewportHeight = ref(280);
 
-let isSyncingHorizontalScroll = false;
+const { bottomScrollbarWidth, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
+    gridPanel,
+    bottomScrollbar,
+    agGrid,
+    gridApi,
+});
+
 let filterModelSaveTimeout = null;
-let removeCenterViewportListener = null;
 
 const filterModelStorageKey = computed(() => `cashflow_grid_filter_model_v1_${props.userId}`);
 
@@ -390,12 +393,6 @@ const gridOptions = markRaw({
 });
 
 const baseColumnDefs = markRaw(buildBaseColumnDefs());
-
-const gridContainerStyle = computed(() => ({
-    height: `${gridViewportHeight.value}px`,
-    minHeight: `${gridViewportHeight.value}px`,
-    width: '100%',
-}));
 
 function formatMoneyValue(value) {
     if (typeof value !== 'number') {
@@ -719,77 +716,6 @@ const defaultColDef = {
     suppressSizeToFit: true,
 };
 
-const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
-
-const updateGridViewportHeight = () => {
-    gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
-};
-
-const syncBottomScrollbar = () => {
-    const centerViewport = getCenterViewport();
-
-    if (!centerViewport) {
-        return;
-    }
-
-    bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
-    updateGridViewportHeight();
-
-    if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
-        bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
-    }
-};
-
-const onBottomScrollbarScroll = () => {
-    if (isSyncingHorizontalScroll) {
-        return;
-    }
-
-    const centerViewport = getCenterViewport();
-
-    if (!centerViewport) {
-        return;
-    }
-
-    isSyncingHorizontalScroll = true;
-    centerViewport.scrollLeft = bottomScrollbar.value?.scrollLeft ?? 0;
-
-    requestAnimationFrame(() => {
-        isSyncingHorizontalScroll = false;
-    });
-};
-
-const attachCenterViewportListener = () => {
-    removeCenterViewportListener?.();
-
-    const centerViewport = getCenterViewport();
-
-    if (!centerViewport) {
-        return;
-    }
-
-    const handleCenterViewportScroll = () => {
-        if (isSyncingHorizontalScroll) {
-            return;
-        }
-
-        isSyncingHorizontalScroll = true;
-
-        if (bottomScrollbar.value) {
-            bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
-        }
-
-        requestAnimationFrame(() => {
-            isSyncingHorizontalScroll = false;
-        });
-    };
-
-    centerViewport.addEventListener('scroll', handleCenterViewportScroll, { passive: true });
-    removeCenterViewportListener = () => {
-        centerViewport.removeEventListener('scroll', handleCenterViewportScroll);
-    };
-};
-
 const persistFilterModel = () => {
     if (!gridApi.value) {
         return;
@@ -848,17 +774,13 @@ const onGridReady = async (params) => {
     }
 
     await nextTick();
-    updateGridViewportHeight();
-    attachCenterViewportListener();
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
 };
 
 const onFirstDataRendered = () => {
     requestAnimationFrame(() => {
         autoSizeIdColumnIfNotPersisted(gridApi.value, null);
-        updateGridViewportHeight();
-        attachCenterViewportListener();
-        syncBottomScrollbar();
+        refreshAgGridPanelLayout();
     });
 };
 
@@ -924,9 +846,7 @@ watch(
     () => props.rows?.length ?? 0,
     async () => {
         await nextTick();
-        updateGridViewportHeight();
-        attachCenterViewportListener();
-        syncBottomScrollbar();
+        refreshAgGridPanelLayout();
     },
 );
 
@@ -941,6 +861,7 @@ const applyDensity = (densityKey) => {
 
     nextTick(() => {
         gridApi.value?.resetRowHeights();
+        refreshAgGridPanelLayout();
     });
 };
 
@@ -959,22 +880,17 @@ const onGlobalDensityChanged = (event) => {
 
     nextTick(() => {
         gridApi.value?.resetRowHeights();
+        refreshAgGridPanelLayout();
     });
 };
 
 onMounted(() => {
     loadDensity();
-    updateGridViewportHeight();
-    window.addEventListener('resize', updateGridViewportHeight);
-    window.addEventListener('resize', syncBottomScrollbar);
     window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onGlobalDensityChanged);
 });
 
 onUnmounted(() => {
-    window.removeEventListener('resize', updateGridViewportHeight);
-    window.removeEventListener('resize', syncBottomScrollbar);
     window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onGlobalDensityChanged);
-    removeCenterViewportListener?.();
 
     if (filterModelSaveTimeout) {
         clearTimeout(filterModelSaveTimeout);

@@ -70,9 +70,8 @@
       @contextmenu.capture="suppressNativeContextMenuCapture"
     >
       <div
-        class="ag-theme-alpine orders-grid-theme"
+        class="ag-theme-alpine orders-grid-theme orders-grid-ag-host min-h-0 min-w-0 overflow-hidden"
         :class="densityClass"
-        :style="gridContainerStyle"
       >
         <AgGridVue
           ref="agGrid"
@@ -217,7 +216,7 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
-import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
+import { useAgGridHorizontalPanel } from '@/support/useAgGridHorizontalPanel.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
@@ -334,13 +333,16 @@ const currentDensity = ref(defaultGridDensity);
 const gridSection = ref(null);
 const gridPanel = ref(null);
 const bottomScrollbar = ref(null);
-const bottomScrollbarWidth = ref(0);
-const gridViewportHeight = ref(280);
 
-let isSyncingHorizontalScroll = false;
+const { bottomScrollbarWidth, onBottomScrollbarScroll, refreshAgGridPanelLayout } = useAgGridHorizontalPanel({
+  gridPanel,
+  bottomScrollbar,
+  agGrid,
+  gridApi,
+});
+
 let saveTimeout = null;
 let filterModelSaveTimeout = null;
-let removeCenterViewportListener = null;
 
 const contextMenu = reactive({
   open: false,
@@ -420,11 +422,6 @@ const filtersStorageKey = computed(() => `leads_grid_filters_v1_${props.userId}`
 const filterModelStorageKey = computed(() => `leads_grid_filter_model_v1_${props.userId}`);
 const densityClass = computed(() => `orders-grid-density--${currentDensity.value}`);
 const currentDensityLabel = computed(() => resolveGridDensity(currentDensity.value).label);
-const gridContainerStyle = computed(() => ({
-  height: `${gridViewportHeight.value}px`,
-  minHeight: `${gridViewportHeight.value}px`,
-  width: '100%',
-}));
 
 const defaultColDef = {
   sortable: true,
@@ -642,7 +639,7 @@ const saveColumnState = () => {
 
     localStorage.setItem(storageKey.value, JSON.stringify(columnState));
     syncModalColumnsWithGrid();
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   }, 250);
 };
 
@@ -677,7 +674,7 @@ const onGridViewApplied = () => {
 
   nextTick(() => {
     refreshGrid();
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   });
 };
 
@@ -930,17 +927,13 @@ const onGridReady = async (params) => {
   loadPersistedFilterModel();
 
   await nextTick();
-  updateGridViewportHeight();
-  attachCenterViewportListener();
-  syncBottomScrollbar();
+  refreshAgGridPanelLayout();
 };
 
 const onFirstDataRendered = () => {
   requestAnimationFrame(() => {
     autoSizeIdColumnIfNotPersisted(gridApi.value, storageKey.value);
-    updateGridViewportHeight();
-    attachCenterViewportListener();
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   });
 };
 
@@ -964,82 +957,9 @@ watch(
   () => props.rows,
   async () => {
     await nextTick();
-    updateGridViewportHeight();
-    attachCenterViewportListener();
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   },
 );
-
-const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
-
-const updateGridViewportHeight = () => {
-  gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
-};
-
-const syncBottomScrollbar = () => {
-  const centerViewport = getCenterViewport();
-
-  if (!centerViewport) {
-    return;
-  }
-
-  bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
-  updateGridViewportHeight();
-
-  if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
-    bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
-  }
-};
-
-const onBottomScrollbarScroll = () => {
-  if (isSyncingHorizontalScroll) {
-    return;
-  }
-
-  const centerViewport = getCenterViewport();
-
-  if (!centerViewport) {
-    return;
-  }
-
-  isSyncingHorizontalScroll = true;
-  centerViewport.scrollLeft = bottomScrollbar.value?.scrollLeft ?? 0;
-
-  requestAnimationFrame(() => {
-    isSyncingHorizontalScroll = false;
-  });
-};
-
-const attachCenterViewportListener = () => {
-  removeCenterViewportListener?.();
-
-  const centerViewport = getCenterViewport();
-
-  if (!centerViewport) {
-    return;
-  }
-
-  const handleCenterViewportScroll = () => {
-    if (isSyncingHorizontalScroll) {
-      return;
-    }
-
-    isSyncingHorizontalScroll = true;
-
-    if (bottomScrollbar.value) {
-      bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
-    }
-
-    requestAnimationFrame(() => {
-      isSyncingHorizontalScroll = false;
-    });
-  };
-
-  centerViewport.addEventListener('scroll', handleCenterViewportScroll, { passive: true });
-  removeCenterViewportListener = () => {
-    centerViewport.removeEventListener('scroll', handleCenterViewportScroll);
-  };
-};
 
 const refreshGrid = () => {
   if (!gridApi.value) {
@@ -1049,7 +969,7 @@ const refreshGrid = () => {
   nextTick(() => {
     gridApi.value.resetRowHeights();
     gridApi.value.refreshCells({ force: true });
-    syncBottomScrollbar();
+    refreshAgGridPanelLayout();
   });
 };
 
@@ -1071,17 +991,11 @@ function onExternalAgGridDensityChange(event) {
 onMounted(() => {
   loadFilters();
   loadDensity();
-  updateGridViewportHeight();
-  window.addEventListener('resize', updateGridViewportHeight);
-  window.addEventListener('resize', syncBottomScrollbar);
   window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateGridViewportHeight);
-  window.removeEventListener('resize', syncBottomScrollbar);
   window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
-  removeCenterViewportListener?.();
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);

@@ -55,7 +55,7 @@ import {
 } from '@/support/contractorPartyAutofill.js';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'contractors' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'contractors', mainFill: true }, () => page),
 });
 
 const props = defineProps({

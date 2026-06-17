@@ -236,6 +236,7 @@ defineOptions({
                     page.props.active_submodule === 'cashflow'
                         ? 'finance-cashflow'
                         : null,
+                mainFill: page.props.active_submodule === 'cashflow',
             },
             () => page,
         ),

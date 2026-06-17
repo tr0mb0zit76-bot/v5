@@ -51,7 +51,7 @@ import FleetVehiclesGrid from '@/Components/Fleet/FleetVehiclesGrid.vue';
 import VehicleWizard from '@/Pages/Fleet/VehicleWizard.vue';
 
 defineOptions({
-    layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-vehicles' }, () => page),
+    layout: (h, page) => h(CrmLayout, { activeKey: 'fleet', activeSubKey: 'fleet-vehicles', mainFill: true }, () => page),
 });
 
 const modalKeys = ['selectedVehicle', 'vehicles', 'vehicleDocumentTypeOptions'];
