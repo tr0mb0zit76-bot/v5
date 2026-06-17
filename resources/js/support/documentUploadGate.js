@@ -106,7 +106,8 @@ export function useDocumentUploadGate() {
 function showManualPrepareAlert(file, limits, budget) {
     const curMb = (file.size / 1024 / 1024).toFixed(2);
     const limMb = (budget.maxBytes / 1024 / 1024).toFixed(2);
-    const abs = Number(limits.absolute_max_bytes) || 0;
+    const abs =
+        Number(limits.server_upload_max_bytes) || Number(limits.absolute_max_bytes) || 0;
 
     if (budget.overAbsolute && abs > 0) {
         const maxMb = (abs / 1024 / 1024).toFixed(1);

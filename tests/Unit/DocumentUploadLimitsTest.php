@@ -19,7 +19,8 @@ class DocumentUploadLimitsTest extends TestCase
 
         $this->assertSame(600 * 1024, $limits['bytes_per_page']);
         $this->assertSame(200, $limits['max_pages_cap']);
-        $this->assertGreaterThan(1024 * 1024, $limits['absolute_max_bytes']);
+        $this->assertGreaterThan(1024 * 1024, $limits['policy_max_bytes']);
+        $this->assertGreaterThanOrEqual($limits['policy_max_bytes'], $limits['absolute_max_bytes']);
         $this->assertStringContainsString('estimate-upload-budget', (string) ($limits['estimate_budget_url'] ?? ''));
         $this->assertStringContainsString('600 КиБ', $limits['hint_ru']);
     }

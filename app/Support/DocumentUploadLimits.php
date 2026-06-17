@@ -10,9 +10,12 @@ namespace App\Support;
  *     max_pages_cap: int,
  *     fallback_pages_unknown: int,
  *     image_placeholder_pages: int,
+ *     policy_max_bytes: int,
  *     absolute_max_bytes: int,
+ *     server_upload_max_bytes: int,
  *     pdf_head_scan_bytes: int,
  *     pdf_tail_scan_bytes: int,
+ *     estimate_budget_url: string,
  *     hint_ru: string
  * }
  */
@@ -36,17 +39,37 @@ final class DocumentUploadLimits
             'max_pages_cap' => $cap,
             'fallback_pages_unknown' => max(1, (int) config('documents.fallback_pages_unknown', 12)),
             'image_placeholder_pages' => max(1, (int) config('documents.image_placeholder_pages', 18)),
+            'policy_max_bytes' => $policyAbs,
             'absolute_max_bytes' => $effectiveAbs,
+            'server_upload_max_bytes' => $serverHard,
             'pdf_head_scan_bytes' => max(256_000, (int) config('documents.pdf_head_scan_bytes', 4 * 1024 * 1024)),
             'pdf_tail_scan_bytes' => max(256_000, (int) config('documents.pdf_tail_scan_bytes', 4 * 1024 * 1024)),
             'estimate_budget_url' => route('documents.estimate-upload-budget', absolute: false),
-            'hint_ru' => sprintf(
-                'Допустимый размер зависит от числа страниц: примерно %d КиБ на страницу, не более %d страниц (максимум около %.0f МиБ).',
+            'hint_ru' => self::hintRu($kbPerPage, $cap, $policyAbs, $effectiveAbs),
+        ];
+    }
+
+    private static function hintRu(int $kbPerPage, int $cap, int $policyAbs, int $effectiveAbs): string
+    {
+        $policyMib = $policyAbs / 1024 / 1024;
+        $effectiveMib = $effectiveAbs / 1024 / 1024;
+
+        if ($effectiveAbs < $policyAbs) {
+            return sprintf(
+                'По числу страниц: ~%d КиБ на страницу, до %d стр. (политика до ~%.0f МиБ). Сейчас PHP на сервере принимает файлы до ~%.0f МиБ — для сканов нужно поднять upload_max_filesize/post_max_size.',
                 $kbPerPage,
                 $cap,
-                $effectiveAbs / 1024 / 1024
-            ),
-        ];
+                $policyMib,
+                $effectiveMib,
+            );
+        }
+
+        return sprintf(
+            'Допустимый размер зависит от числа страниц: примерно %d КиБ на страницу, не более %d страниц (максимум около %.0f МиБ).',
+            $kbPerPage,
+            $cap,
+            $effectiveMib,
+        );
     }
 
     /**

@@ -56,6 +56,11 @@ final class DocumentPageEstimator
             return min($fromFpdi, (int) config('documents.max_pages_cap', 200));
         }
 
+        $fromPdfinfo = self::estimatePdfWithPdfinfo($path);
+        if ($fromPdfinfo !== null) {
+            return min($fromPdfinfo, (int) config('documents.max_pages_cap', 200));
+        }
+
         $size = filesize($path);
         if ($size === false || $size <= 0) {
             return self::fallbackUnknown();
@@ -87,6 +92,34 @@ final class DocumentPageEstimator
         } catch (Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Подсчёт через poppler pdfinfo (если установлен на сервере).
+     */
+    private static function estimatePdfWithPdfinfo(string $path): ?int
+    {
+        if (! function_exists('shell_exec')) {
+            return null;
+        }
+
+        $pdfinfo = trim((string) shell_exec('command -v pdfinfo 2>/dev/null'));
+        if ($pdfinfo === '') {
+            return null;
+        }
+
+        $output = shell_exec('pdfinfo '.escapeshellarg($path).' 2>/dev/null');
+        if (! is_string($output) || $output === '') {
+            return null;
+        }
+
+        if (preg_match('/^Pages:\s*(\d+)/m', $output, $matches) !== 1) {
+            return null;
+        }
+
+        $pages = (int) $matches[1];
+
+        return $pages > 0 ? $pages : null;
     }
 
     /**

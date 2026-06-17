@@ -16,7 +16,12 @@ export async function computeDocumentUploadBudget(file, limits) {
     if (ext === 'pdf') {
         const serverBudget = await fetchServerPdfUploadBudget(file, limits);
         if (serverBudget) {
-            return serverBudget;
+            return {
+                pages: serverBudget.pages,
+                maxBytes: serverBudget.maxBytes,
+                policyMaxBytes: serverBudget.policyMaxBytes ?? serverBudget.maxBytes,
+                serverMaxBytes: serverBudget.serverMaxBytes ?? (Number(limits.absolute_max_bytes) || 0),
+            };
         }
     }
 
@@ -33,10 +38,14 @@ export async function computeDocumentUploadBudget(file, limits) {
     }
 
     pages = Math.max(1, Math.min(pages, cap));
-    const policyAbs = Math.max(1, Number(limits.absolute_max_bytes) || cap * bpp);
-    const maxBytes = Math.min(pages * bpp, policyAbs);
+    const policyMaxBytes = Math.max(1, Number(limits.policy_max_bytes) || cap * bpp);
+    const serverMaxBytes = Math.max(
+        1,
+        Number(limits.server_upload_max_bytes) || Number(limits.absolute_max_bytes) || policyMaxBytes,
+    );
+    const maxBytes = Math.min(pages * bpp, policyMaxBytes);
 
-    return { pages, maxBytes };
+    return { pages, maxBytes, policyMaxBytes, serverMaxBytes };
 }
 
 /**
@@ -45,10 +54,11 @@ export async function computeDocumentUploadBudget(file, limits) {
  * @returns {Promise<{ pages: number, maxBytes: number, exceeds: boolean, overAbsolute: boolean, canOptimize: boolean }>}
  */
 export async function assessDocumentUploadBudget(file, limits) {
-    const abs = Number(limits.absolute_max_bytes) || 0;
+    const serverMaxBytes =
+        Number(limits.server_upload_max_bytes) || Number(limits.absolute_max_bytes) || 0;
     const { pages, maxBytes } = await computeDocumentUploadBudget(file, limits);
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    const overAbsolute = abs > 0 && file.size > abs;
+    const overAbsolute = serverMaxBytes > 0 && file.size > serverMaxBytes;
     const overPageBudget = file.size > maxBytes;
     const exceeds = overAbsolute || overPageBudget;
     const optimizeEnabled = Boolean(limits.optimize_enabled);
@@ -183,12 +193,14 @@ async function fetchServerPdfUploadBudget(file, limits) {
         const data = await response.json();
         const pages = Math.max(1, Number(data.pages) || 1);
         const maxBytes = Math.max(1, Number(data.max_bytes) || 0);
+        const policyMaxBytes = Math.max(1, Number(data.policy_max_bytes) || maxBytes);
+        const serverMaxBytes = Math.max(1, Number(data.server_max_bytes) || Number(limits.absolute_max_bytes) || 0);
 
         if (maxBytes <= 0) {
             return null;
         }
 
-        return { pages, maxBytes };
+        return { pages, maxBytes, policyMaxBytes, serverMaxBytes };
     } catch {
         return null;
     }

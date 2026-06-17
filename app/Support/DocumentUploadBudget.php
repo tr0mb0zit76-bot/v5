@@ -20,6 +20,17 @@ final class DocumentUploadBudget
     }
 
     /**
+     * Верхний предел по политике (страницы × размер), без учёта php.ini.
+     */
+    public static function policyMaxBytes(): int
+    {
+        $cap = max(1, (int) config('documents.max_pages_cap', 200));
+        $perPage = max(1024, (int) config('documents.bytes_per_page', 600 * 1024));
+
+        return $cap * $perPage;
+    }
+
+    /**
      * Лимит для файла на диске (после оптимизации на sidecar).
      */
     public static function maxBytesForPath(string $path, string $originalName): int

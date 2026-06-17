@@ -1,0 +1,4 @@
+; Фрагмент для /etc/php/8.3/fpm/pool.d/user.d/www-root.conf (ISPmanager)
+; После правки: systemctl reload php8.3-fpm
+php_admin_value[upload_max_filesize] = 128M
+php_admin_value[post_max_size] = 128M
