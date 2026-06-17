@@ -109,6 +109,86 @@ final class OrderFleetTransportDetailsResolver
     }
 
     /**
+     * Исполнители из `order_legs.metadata` для грида заказов (на проде колонки `orders.performers` может не быть).
+     *
+     * @param  list<int>  $orderIds
+     * @return array<int, list<array<string, mixed>>>
+     */
+    public function loadPerformerRowsByOrderIds(array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $orderIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if ($orderIds === [] || ! Schema::hasTable('order_legs') || ! Schema::hasColumn('order_legs', 'metadata')) {
+            return [];
+        }
+
+        $rows = DB::table('order_legs')
+            ->whereIn('order_id', $orderIds)
+            ->orderBy('order_id')
+            ->orderBy('sequence')
+            ->get(['order_id', 'metadata']);
+
+        $map = [];
+
+        foreach ($rows as $leg) {
+            $metadata = json_decode((string) ($leg->metadata ?? ''), true);
+            $performer = is_array($metadata['performer'] ?? null) ? $metadata['performer'] : null;
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            $orderId = (int) $leg->order_id;
+            $map[$orderId] ??= [];
+            $map[$orderId][] = $performer;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     */
+    public function performersContainFleetOrPortalData(array $performers): bool
+    {
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            $selection = $this->extractFleetIdsFromRow($performer);
+            if ($selection['fleet_vehicle_id'] !== null || $selection['fleet_driver_id'] !== null) {
+                return true;
+            }
+
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $slotSelection = $this->extractFleetIdsFromRow($slot);
+                    if ($slotSelection['fleet_vehicle_id'] !== null || $slotSelection['fleet_driver_id'] !== null) {
+                        return true;
+                    }
+
+                    if (CarrierPortalSubmission::isUsable(is_array($slot['carrier_portal_submission'] ?? null) ? $slot['carrier_portal_submission'] : null)) {
+                        return true;
+                    }
+                }
+            }
+
+            if (CarrierPortalSubmission::isUsable(is_array($performer['carrier_portal_submission'] ?? null) ? $performer['carrier_portal_submission'] : null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function collectPerformerRows(Order $order): array
@@ -135,6 +215,14 @@ final class OrderFleetTransportDetailsResolver
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function normalizePerformersForGrid(mixed $performers): array
+    {
+        return $this->normalizePerformers($performers);
     }
 
     /**

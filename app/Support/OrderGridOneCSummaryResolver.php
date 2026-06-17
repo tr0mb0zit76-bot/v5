@@ -20,8 +20,32 @@ class OrderGridOneCSummaryResolver
             return $rows;
         }
 
-        return $rows->map(function (array $row): array {
-            $transport = $this->transportDetails->resolveForGridRow($row);
+        $orderIds = $rows
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $legPerformersByOrderId = $this->transportDetails->loadPerformerRowsByOrderIds($orderIds);
+
+        return $rows->map(function (array $row) use ($legPerformersByOrderId): array {
+            $orderId = (int) ($row['id'] ?? 0);
+            $performers = $this->transportDetails->normalizePerformersForGrid($row['performers'] ?? null);
+
+            if (! $this->transportDetails->performersContainFleetOrPortalData($performers)) {
+                $fromLegs = $legPerformersByOrderId[$orderId] ?? [];
+                if ($fromLegs !== []) {
+                    $performers = $fromLegs;
+                    $row['performers'] = $fromLegs;
+                }
+            }
+
+            $transport = $this->transportDetails->resolveForGridRow([
+                ...$row,
+                'performers' => $performers,
+            ]);
 
             $summary = OrderClipboardSummaryFormatter::format(
                 isset($row['company_code']) ? (string) $row['company_code'] : null,
