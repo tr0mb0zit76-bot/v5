@@ -130,14 +130,17 @@ function estimatePdfPagesFromBinaryString(content) {
     const fromPageObjects = m ? m.length : 0;
 
     let fromCount = 0;
-    const reCount = /\/Type\s*\/Pages\b[\s\S]{0,8000}?\/Count\s+(\d+)/g;
+    const reCount = /\/Count\s+(\d+)/g;
     let cm;
     while ((cm = reCount.exec(content)) !== null) {
         const n = parseInt(cm[1], 10) || 0;
         fromCount = Math.max(fromCount, n);
     }
 
-    return Math.max(1, fromPageObjects, fromCount);
+    const mediaBoxes = content.match(/\/MediaBox\s*\[/g);
+    const fromMediaBox = mediaBoxes ? mediaBoxes.length : 0;
+
+    return Math.max(1, fromPageObjects, fromCount, fromMediaBox);
 }
 
 /**

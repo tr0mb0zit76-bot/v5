@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use Illuminate\Http\UploadedFile;
+use setasign\Fpdi\Tcpdf\Fpdi;
+use Throwable;
 use ZipArchive;
 
 /**
@@ -49,6 +51,11 @@ final class DocumentPageEstimator
 
     private static function estimatePdf(string $path): int
     {
+        $fromFpdi = self::estimatePdfWithFpdi($path);
+        if ($fromFpdi !== null) {
+            return min($fromFpdi, (int) config('documents.max_pages_cap', 200));
+        }
+
         $size = filesize($path);
         if ($size === false || $size <= 0) {
             return self::fallbackUnknown();
@@ -62,19 +69,49 @@ final class DocumentPageEstimator
         $tail = $size > $headN ? (string) file_get_contents($path, false, null, $tailStart, $size - $tailStart) : '';
         $blob = $head.$tail;
 
+        return self::estimatePdfFromBlob($blob);
+    }
+
+    /**
+     * Точный подсчёт страниц через FPDI (чтение xref); при ошибке — null.
+     */
+    private static function estimatePdfWithFpdi(string $path): ?int
+    {
+        try {
+            $pdf = new Fpdi;
+            $pdf->setPrintHeader(false);
+            $pdf->setPrintFooter(false);
+            $count = $pdf->setSourceFile($path);
+
+            return $count > 0 ? $count : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Запасной подсчёт по фрагменту PDF (синхронизирован с documentUploadClientCheck.js).
+     */
+    private static function estimatePdfFromBlob(string $blob): int
+    {
         $fromPageObjects = 0;
         if (preg_match_all('/\/Type\s*\/Page\b(?!\w)/', $blob, $m)) {
             $fromPageObjects = count($m[0]);
         }
 
         $fromCount = 0;
-        if (preg_match_all('/\/Type\s*\/Pages\b[\s\S]{0,8000}?\/Count\s+(\d+)/', $blob, $m2)) {
+        if (preg_match_all('/\/Count\s+(\d+)/', $blob, $m2)) {
             foreach ($m2[1] as $c) {
                 $fromCount = max($fromCount, (int) $c);
             }
         }
 
-        $n = max($fromPageObjects, $fromCount, 1);
+        $fromMediaBox = 0;
+        if (preg_match_all('/\/MediaBox\s*\[/', $blob, $m3)) {
+            $fromMediaBox = count($m3[0]);
+        }
+
+        $n = max($fromPageObjects, $fromCount, $fromMediaBox, 1);
 
         return min($n, (int) config('documents.max_pages_cap', 200));
     }
