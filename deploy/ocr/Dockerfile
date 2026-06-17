@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ghostscript \
     ocrmypdf \
+    pngquant \
     poppler-utils \
     tesseract-ocr \
     tesseract-ocr-rus \

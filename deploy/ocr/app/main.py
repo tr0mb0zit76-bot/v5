@@ -87,22 +87,27 @@ def optimize_pdf_bytes(content: bytes) -> tuple[bytes | None, str, list[str]]:
         source.write_bytes(content)
         optimized = Path(tmp) / "optimized.pdf"
 
-        result = run_command(
-            [
-                "ocrmypdf",
-                "--skip-text",
-                "--optimize",
-                "3",
-                str(source),
-                str(optimized),
-            ]
-        )
+        optimize_levels: list[str] = ["3", "1"] if shutil.which("pngquant") else ["1"]
 
-        if result.returncode == 0 and optimized.exists() and optimized.stat().st_size > 0:
-            return optimized.read_bytes(), "ocrmypdf", warnings
+        for level in optimize_levels:
+            result = run_command(
+                [
+                    "ocrmypdf",
+                    "--skip-text",
+                    "--optimize",
+                    level,
+                    str(source),
+                    str(optimized),
+                ]
+            )
 
-        if result.stderr:
-            warnings.append((result.stderr or "").strip()[:500])
+            if result.returncode == 0 and optimized.exists() and optimized.stat().st_size > 0:
+                method = "ocrmypdf" if level == "1" else f"ocrmypdf-{level}"
+
+                return optimized.read_bytes(), method, warnings
+
+            if result.stderr:
+                warnings.append((result.stderr or "").strip()[:500])
 
         gs_out = Path(tmp) / "gs.pdf"
         gs = run_command(
