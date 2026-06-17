@@ -20,6 +20,7 @@ use App\Http\Controllers\FleetEfficiencyController;
 use App\Http\Controllers\FleetTripController;
 use App\Http\Controllers\FleetVehicleController;
 use App\Http\Controllers\GridViewController;
+use App\Http\Controllers\ImportCostCalculatorController;
 use App\Http\Controllers\Integrations\AstralEpdWebhookController;
 use App\Http\Controllers\Integrations\OneCFreshEtrnController;
 use App\Http\Controllers\LeadController;
@@ -658,7 +659,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('leads.status.update');
 
     Route::get('/modules', fn () => Inertia::render('Modules/Index'))
-        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|modules')
+        ->middleware('visibility.area.any:modules_how_much_fits|modules_how_much_costs|modules_import_cost|modules')
         ->name('modules.index');
 
     Route::redirect('/modules/counter', '/sales-assistant/counter')
@@ -679,6 +680,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/modules/how-much-costs', fn () => Inertia::render('Modules/HowMuchCosts'))
         ->middleware('visibility.area:modules_how_much_costs')
         ->name('modules.how-much-costs.index');
+
+    Route::middleware('visibility.area:modules_import_cost')->group(function () {
+        Route::controller(ImportCostCalculatorController::class)->prefix('modules/import-cost')->name('modules.import-cost.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/calculate', 'calculate')->name('calculate');
+        });
+    });
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.area:settings')->name('settings.index');
 

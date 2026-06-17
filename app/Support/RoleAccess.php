@@ -70,6 +70,7 @@ class RoleAccess
             ['key' => 'modules_catalog', 'label' => 'Модули: каталог', 'description' => 'Страница со списком модулей'],
             ['key' => 'modules_how_much_fits', 'label' => 'Модули: «Сколько влезет?»', 'description' => '3D-планировщик загрузки транспорта'],
             ['key' => 'modules_how_much_costs', 'label' => 'Модули: «Сколько стоит?»', 'description' => 'Калькулятор маржи и дельты сделки'],
+            ['key' => 'modules_import_cost', 'label' => 'Модули: «Растаможка»', 'description' => 'Калькулятор стоимости ввоза с пошлиной и утильсбором'],
             ['key' => 'scripts', 'label' => 'Помощник продавца', 'description' => 'Общий доступ к модулю; при выборе компонентов уточните строки ниже'],
             ['key' => 'sales_assistant_scripts', 'label' => 'Помощник продавца: скрипты', 'description' => 'Список сценариев и прохождение шагов (в т.ч. из тренажёра)'],
             ['key' => 'sales_assistant_book', 'label' => 'Помощник продавца: книга продаж', 'description' => 'База знаний и статьи'],
@@ -541,6 +542,7 @@ class RoleAccess
             'modules_catalog',
             'modules_how_much_fits',
             'modules_how_much_costs',
+            'modules_import_cost',
         ];
     }
 

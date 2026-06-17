@@ -926,6 +926,7 @@ const MENU_ROUTES = {
     'sales-assistant-counter': '/sales-assistant/counter',
     'modules-how-much-fits': '/modules/how-much-fits',
     'modules-how-much-costs': '/modules/how-much-costs',
+    'modules-import-cost': '/modules/import-cost',
     'sales-assistant-scripts': '/scripts',
     'sales-assistant-book': '/sales-assistant/book',
     'sales-assistant-book-quiz-analytics': '/sales-assistant/book/quiz-analytics',
@@ -1324,6 +1325,7 @@ const menuItems = computed(() => {
             const moduleParts = [
                 { area: 'modules_how_much_fits', key: 'modules-how-much-fits', label: 'Сколько влезет?' },
                 { area: 'modules_how_much_costs', key: 'modules-how-much-costs', label: 'Сколько стоит?' },
+                { area: 'modules_import_cost', key: 'modules-import-cost', label: 'Растаможка' },
             ];
             const moduleChildren = moduleParts.filter(
                 (part) => isAdmin || areas.includes('modules') || areas.includes(part.area),

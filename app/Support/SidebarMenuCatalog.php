@@ -46,6 +46,7 @@ final class SidebarMenuCatalog
             'sales-assistant-counter' => '/sales-assistant/counter',
             'modules-how-much-fits' => '/modules/how-much-fits',
             'modules-how-much-costs' => '/modules/how-much-costs',
+            'modules-import-cost' => '/modules/import-cost',
             'sales-assistant-scripts' => '/scripts',
             'sales-assistant-book' => '/sales-assistant/book',
             'sales-assistant-book-quiz-analytics' => '/sales-assistant/book/quiz-analytics',
@@ -103,6 +104,7 @@ final class SidebarMenuCatalog
             'sales-assistant-counter' => 'Считалка',
             'modules-how-much-fits' => 'Сколько влезет?',
             'modules-how-much-costs' => 'Сколько стоит?',
+            'modules-import-cost' => 'Растаможка',
             'sales-assistant-scripts' => 'Скрипты',
             'sales-assistant-book' => 'Книга продаж',
             'sales-assistant-book-quiz-analytics' => 'Статистика тестов',
@@ -208,6 +210,7 @@ final class SidebarMenuCatalog
             'modules' => self::hasAnyModulesRoute($areas),
             'modules-how-much-fits' => isset($areaSet['modules']) || isset($areaSet['modules_how_much_fits']),
             'modules-how-much-costs' => isset($areaSet['modules']) || isset($areaSet['modules_how_much_costs']),
+            'modules-import-cost' => isset($areaSet['modules']) || isset($areaSet['modules_import_cost']),
             'settings' => self::hasSettingsSystemAccess($areas) || self::hasSettingsMotivationAccess($areas),
             'users', 'business-processes', 'table-presets', 'dictionaries', 'templates', 'mcp-integrations', 'system', 'order-numbering', 'ai-analytics' => self::hasSettingsSystemAccess($areas),
             'roles' => false,
@@ -272,6 +275,7 @@ final class SidebarMenuCatalog
     {
         return in_array('modules', $areas, true)
             || in_array('modules_how_much_fits', $areas, true)
-            || in_array('modules_how_much_costs', $areas, true);
+            || in_array('modules_how_much_costs', $areas, true)
+            || in_array('modules_import_cost', $areas, true);
     }
 }

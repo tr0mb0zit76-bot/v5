@@ -470,6 +470,7 @@ const childAreaMap = {
         'modules_catalog',
         'modules_how_much_fits',
         'modules_how_much_costs',
+        'modules_import_cost',
     ],
 };
 const salesBookPermissionKeys = ['sales_book_read', 'sales_book_comment', 'sales_book_write'];

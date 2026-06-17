@@ -15,6 +15,7 @@ Schedule::command('mail:sync')
     ->everyTenMinutes()
     ->withoutOverlapping(15);
 Schedule::command('contractors:sync-operational-status')->dailyAt('02:30');
+Schedule::command('import-cost:sync-references')->weeklyOn(1, '03:15');
 
 $dispositionTimezone = config('disposition.timezone', 'Europe/Samara');
 
