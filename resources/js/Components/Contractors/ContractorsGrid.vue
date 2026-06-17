@@ -215,7 +215,7 @@ import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/sup
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
-import { resolveAgGridBottomScrollbarWidth } from '@/support/agGridHorizontalScroll.js';
+import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -912,22 +912,7 @@ watch(
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 
 const updateGridViewportHeight = () => {
-  const panelElement = gridPanel.value;
-
-  if (!panelElement) {
-    return;
-  }
-
-  const sectionTop = panelElement.getBoundingClientRect().top;
-  const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
-  const commandBarFooter = document.querySelector('footer');
-  const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
-  const footerReserve = 60;
-
-  gridViewportHeight.value = Math.max(
-    280,
-    Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
-  );
+  gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
 };
 
 const syncBottomScrollbar = () => {

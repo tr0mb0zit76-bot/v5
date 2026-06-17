@@ -436,7 +436,7 @@ onMounted(() => {
     router.reload({
         only: ['rows'],
         preserveScroll: true,
-        preserveState: true,
+        preserveState: false,
     });
 });
 </script>

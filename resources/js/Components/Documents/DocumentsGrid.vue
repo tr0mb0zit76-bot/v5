@@ -177,7 +177,9 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Components/Grid/grid-density';
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
+import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
@@ -449,8 +451,11 @@ const columnDefs = computed(() => {
             colDef.cellEditor = 'agSelectCellEditor';
             colDef.cellEditorParams = { values: ['да', 'нет'] };
             colDef.cellClass = () => ['orders-grid-editable-cell'];
-            colDef.filter = 'agSetColumnFilter';
             colDef.valueGetter = (params) => params.data?.entered_in_1c ?? 'нет';
+            applyAgSetListColumn(colDef, {
+                values: ['да', 'нет'],
+                filterValueGetter: (params) => params.data?.entered_in_1c ?? 'нет',
+            });
             return colDef;
         }
         if (column.kind === 'etrn-status') {
@@ -832,17 +837,7 @@ function onCellDoubleClicked(event) {
 const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
 
 function updateGridViewportHeight() {
-    const panel = gridPanel.value;
-    if (!panel) {
-        return;
-    }
-
-    const sectionTop = panel.getBoundingClientRect().top;
-    const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
-    const footerTop = document.querySelector('footer')?.getBoundingClientRect().top ?? window.innerHeight;
-    const footerReserve = 60;
-
-    gridViewportHeight.value = Math.max(280, Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve));
+    gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
 }
 
 function syncBottomScrollbar() {
@@ -851,7 +846,7 @@ function syncBottomScrollbar() {
         return;
     }
 
-    bottomScrollbarWidth.value = Math.max(centerViewport.scrollWidth, centerViewport.clientWidth);
+    bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
     updateGridViewportHeight();
 
     if (bottomScrollbar.value && !isSyncingHorizontalScroll) {

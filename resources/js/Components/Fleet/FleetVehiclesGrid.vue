@@ -113,6 +113,7 @@ import { defaultGridDensity, gridDensityOptions, resolveGridDensity } from '@/Co
 import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
+import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
@@ -347,20 +348,7 @@ function onCellDoubleClicked(event) {
 }
 
 function updateGridViewportHeight() {
-  if (!gridPanel.value) {
-    return;
-  }
-
-  const sectionTop = gridPanel.value.getBoundingClientRect().top;
-  const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
-  const commandBarFooter = document.querySelector('footer');
-  const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
-  const footerReserve = 60;
-
-  gridViewportHeight.value = Math.max(
-    280,
-    Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
-  );
+  gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
 }
 
 function applyDensity(densityKey) {
@@ -397,7 +385,7 @@ function syncBottomScrollbar() {
     return;
   }
 
-  bottomScrollbarWidth.value = Math.max(centerViewport.scrollWidth, centerViewport.clientWidth);
+  bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
   updateGridViewportHeight();
 
   if (bottomScrollbar.value && !isSyncingHorizontalScroll) {

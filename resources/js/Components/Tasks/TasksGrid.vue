@@ -111,6 +111,7 @@ import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import { AgSetListFilter, setListFilterParams } from '@/Components/Grid/agSetListFilter.js';
 import { suppressNativeContextMenuCapture } from '@/Components/Grid/suppressNativeContextMenuCapture.js';
 import { crmGridDropdown, crmGridInnerPanel, crmGridSearchField, crmGridToolbarBtn } from '@/support/crmUi.js';
+import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -572,49 +573,39 @@ function readDensityFromStorage() {
 }
 
 function updateGridViewportHeight() {
-  const panelElement = gridPanel.value;
-  if (!panelElement) {
-    return;
-  }
-
-  const sectionTop = panelElement.getBoundingClientRect().top;
-  const bottomScrollbarHeight = bottomScrollbar.value?.offsetHeight ?? 16;
-  const commandBarFooter = document.querySelector('footer');
-  const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
-  const footerReserve = 60;
-
-  gridViewportHeight.value = Math.max(
-    280,
-    Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
-  );
+  gridViewportHeight.value = resolveAgGridViewportHeight(gridPanel.value, bottomScrollbar.value);
 }
 
+const getCenterViewport = () => agGrid.value?.$el?.querySelector('.ag-viewport.ag-center-cols-viewport') ?? null;
+
 function syncBottomScrollbar() {
-  const api = gridApi.value;
-  if (!api) {
-    return;
-  }
-  const centerViewport = document.querySelector('.ag-body-horizontal-scroll-viewport');
+  const centerViewport = getCenterViewport();
+
   if (!centerViewport) {
     bottomScrollbarWidth.value = 0;
     updateGridViewportHeight();
 
     return;
   }
-  bottomScrollbarWidth.value = Math.max(centerViewport.scrollWidth, centerViewport.clientWidth);
+
+  bottomScrollbarWidth.value = resolveAgGridBottomScrollbarWidth(gridApi.value, centerViewport);
   updateGridViewportHeight();
+
   if (bottomScrollbar.value && !isSyncingHorizontalScroll) {
     bottomScrollbar.value.scrollLeft = centerViewport.scrollLeft;
   }
 }
 
 function onBottomScrollbarScroll() {
-  const centerViewport = document.querySelector('.ag-body-horizontal-scroll-viewport');
+  const centerViewport = getCenterViewport();
+
   if (!centerViewport || !bottomScrollbar.value) {
     return;
   }
+
   isSyncingHorizontalScroll = true;
   centerViewport.scrollLeft = bottomScrollbar.value.scrollLeft;
+
   requestAnimationFrame(() => {
     isSyncingHorizontalScroll = false;
   });
