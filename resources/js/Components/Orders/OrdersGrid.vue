@@ -224,7 +224,11 @@ import { agGridLocaleRu } from '@/Components/Grid/ag-grid-locale-ru';
 import '@/Components/Grid/grid-theme.css';
 import { applySavedToColDef, buildLayoutIndex, readPersistedAgGridColumnState } from '@/support/agGridColumnLayout.js';
 import { applyAgGridIdColumnSizing, autoSizeIdColumnIfNotPersisted } from '@/support/agGridIdColumn.js';
-import { resolveAgGridBottomScrollbarWidth, resolveAgGridViewportHeight } from '@/support/agGridHorizontalScroll.js';
+import {
+    observeAgGridPanelLayout,
+    resolveAgGridBottomScrollbarWidth,
+    resolveAgGridViewportHeight,
+} from '@/support/agGridHorizontalScroll.js';
 import GridContextMenu from '@/Components/Grid/GridContextMenu.vue';
 import GridViewsBar from '@/Components/Grid/GridViewsBar.vue';
 import { applyAgSetListColumn } from '@/Components/Grid/agSetListFilter.js';
@@ -426,6 +430,7 @@ let isSyncingHorizontalScroll = false;
 let saveTimeout = null;
 let filterModelSaveTimeout = null;
 let removeCenterViewportListener = null;
+let disposePanelResizeObserver = null;
 
 const TERMINAL_ORDER_STATUSES = ['closed', 'cancelled', 'disruption'];
 
@@ -1660,12 +1665,20 @@ onMounted(() => {
   loadQuickSearch();
   loadDensity();
   updateGridViewportHeight();
+  nextTick(() => {
+    disposePanelResizeObserver = observeAgGridPanelLayout(gridPanel.value, () => {
+      updateGridViewportHeight();
+      syncBottomScrollbar();
+    });
+  });
   window.addEventListener('resize', updateGridViewportHeight);
   window.addEventListener('resize', syncBottomScrollbar);
   window.addEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);
 });
 
 onUnmounted(() => {
+  disposePanelResizeObserver?.();
+  disposePanelResizeObserver = null;
   window.removeEventListener('resize', updateGridViewportHeight);
   window.removeEventListener('resize', syncBottomScrollbar);
   window.removeEventListener(CRM_AG_GRID_DENSITY_CHANGED, onExternalAgGridDensityChange);

@@ -160,6 +160,8 @@
 }
 
 .orders-grid-bottom-scroll {
+  position: relative;
+  z-index: 5;
   height: 18px;
   overflow-x: auto;
   overflow-y: hidden;

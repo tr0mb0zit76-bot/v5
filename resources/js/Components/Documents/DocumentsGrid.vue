@@ -455,6 +455,7 @@ const columnDefs = computed(() => {
             applyAgSetListColumn(colDef, {
                 values: ['да', 'нет'],
                 filterValueGetter: (params) => params.data?.entered_in_1c ?? 'нет',
+                floatingFilterRow: true,
             });
             return colDef;
         }

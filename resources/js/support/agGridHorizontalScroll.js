@@ -17,26 +17,10 @@ export function resolveAgGridBottomScrollbarWidth(gridApi, centerViewport) {
     const container = centerViewport?.querySelector?.('.ag-center-cols-container');
     const fromContainer = container?.scrollWidth ?? 0;
     const fromViewport = centerViewport?.scrollWidth ?? 0;
-    const clientWidth = centerViewport?.clientWidth ?? 0;
+    const viewportWidth = centerViewport?.clientWidth ?? 0;
+    const scrollLeft = centerViewport?.scrollLeft ?? 0;
 
-    return Math.max(columnTotal, fromContainer, fromViewport, clientWidth);
-}
-
-const DEFAULT_CRM_COMMAND_BAR_RESERVE_PX = 100;
-
-/**
- * Резерв снизу под фиксированную панель «Джарвис» (crm-layout-footer).
- */
-export function resolveCrmGridFooterReservePx() {
-    const footer = document.querySelector('.crm-layout-footer');
-
-    if (!footer) {
-        return DEFAULT_CRM_COMMAND_BAR_RESERVE_PX;
-    }
-
-    const height = footer.getBoundingClientRect().height;
-
-    return Math.max(DEFAULT_CRM_COMMAND_BAR_RESERVE_PX, Math.ceil(height) + 8);
+    return Math.max(columnTotal, fromContainer, fromViewport, scrollLeft + viewportWidth, 1);
 }
 
 /**
@@ -53,14 +37,40 @@ export function resolveAgGridViewportHeight(panelElement, bottomScrollbarElement
         return minHeight;
     }
 
-    const sectionTop = panelElement.getBoundingClientRect().top;
     const bottomScrollbarHeight = bottomScrollbarElement?.offsetHeight ?? 18;
+    const panelHeight = panelElement.getBoundingClientRect().height;
+
+    if (panelHeight > 0) {
+        return Math.max(minHeight, Math.floor(panelHeight - bottomScrollbarHeight));
+    }
+
+    const sectionTop = panelElement.getBoundingClientRect().top;
     const commandBarFooter = document.querySelector('.crm-layout-footer') ?? document.querySelector('footer');
     const footerTop = commandBarFooter?.getBoundingClientRect().top ?? window.innerHeight;
-    const footerReserve = resolveCrmGridFooterReservePx();
 
     return Math.max(
         minHeight,
-        Math.floor(footerTop - sectionTop - bottomScrollbarHeight - footerReserve),
+        Math.floor(footerTop - sectionTop - bottomScrollbarHeight - 8),
     );
+}
+
+/**
+ * @param {HTMLElement | null | undefined} panelElement
+ * @param {() => void} callback
+ * @returns {() => void}
+ */
+export function observeAgGridPanelLayout(panelElement, callback) {
+    if (!panelElement || typeof ResizeObserver === 'undefined') {
+        return () => {};
+    }
+
+    const observer = new ResizeObserver(() => {
+        callback();
+    });
+
+    observer.observe(panelElement);
+
+    return () => {
+        observer.disconnect();
+    };
 }
