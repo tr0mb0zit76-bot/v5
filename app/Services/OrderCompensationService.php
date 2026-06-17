@@ -108,17 +108,33 @@ class OrderCompensationService
             ->get();
 
         foreach ($orders as $order) {
-            $calculation = $this->calculateOrder($order);
-
-            $order->forceFill([
-                'kpi_percent' => $calculation['kpi_percent'],
-                'delta' => $calculation['delta'],
-                'salary_accrued' => $calculation['salary_accrued'],
-            ])->saveQuietly();
-
-            $this->syncFinancialTerms($order);
+            $this->refreshOrderCompensationFields($order);
             $this->syncPaymentSchedules($order);
         }
+    }
+
+    /**
+     * Пересчитывает и сохраняет kpi_percent / delta / salary_accrued для одного заказа.
+     */
+    public function refreshOrderCompensationFields(Order $order): void
+    {
+        if (Schema::hasTable('financial_terms') && ! $order->relationLoaded('financialTerms')) {
+            $order->load('financialTerms');
+        }
+
+        if (Schema::hasTable('order_documents') && ! $order->relationLoaded('documents')) {
+            $order->load('documents');
+        }
+
+        $calculation = $this->calculateOrder($order);
+
+        $order->forceFill([
+            'kpi_percent' => $calculation['kpi_percent'],
+            'delta' => $calculation['delta'],
+            'salary_accrued' => $calculation['salary_accrued'],
+        ])->saveQuietly();
+
+        $this->syncFinancialTerms($order);
     }
 
     /**

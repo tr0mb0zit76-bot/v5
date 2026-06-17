@@ -6876,7 +6876,7 @@ onBeforeUnmount(() => {
 function goBack() {
     discardActiveIntakeLearning();
     // Всегда запрашиваем реестр с сервера: history.back() отдаёт старый снимок Inertia без свежих строк.
-    router.get(route('orders.index'), {}, { preserveScroll: true });
+    router.get(route('orders.index'), {}, { preserveScroll: true, preserveState: false });
 }
 
 </script>

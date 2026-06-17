@@ -75,6 +75,7 @@ class OrderWizardService
             $this->syncNestedData($order, $validated, $user);
             $freshOrder = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
             $this->orderCompensationService->recalculateImpactedPeriods($freshOrder);
+            $this->orderCompensationService->refreshOrderCompensationFields($freshOrder->fresh());
             $this->syncDerivedStatus($freshOrder, $validated, $user, null);
 
             $this->orderWizardStateService->persistFromValidated($order->fresh(), $validated);
@@ -113,6 +114,7 @@ class OrderWizardService
             $updatedOrder = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
 
             $this->orderCompensationService->recalculateImpactedPeriods($updatedOrder, $previousManagerId, $previousOrderDate);
+            $this->orderCompensationService->refreshOrderCompensationFields($updatedOrder->fresh());
             $this->syncDerivedStatus($updatedOrder, $validated, $user, $previousStatus);
 
             $this->orderWizardStateService->persistFromValidated($updatedOrder->fresh(), $validated);
@@ -204,9 +206,6 @@ class OrderWizardService
             'carrier_rate' => $performerTotal ?: null,
             'carrier_payment_form' => $carrierPaymentForm,
             'carrier_payment_term' => $carrierPaymentSummary,
-            'kpi_percent' => 0,
-            'delta' => 0,
-            'salary_accrued' => 0,
             'status' => $validated['status'],
             'status_updated_by' => $user->id,
             'status_updated_at' => now(),
@@ -239,6 +238,12 @@ class OrderWizardService
 
             $raw = $validated[$key] ?? null;
             $attributes[$key] = $raw !== null && $raw !== '' ? (float) $raw : 0.0;
+        }
+
+        if ($isCreating) {
+            $attributes['kpi_percent'] = 0;
+            $attributes['delta'] = 0;
+            $attributes['salary_accrued'] = 0;
         }
 
         $additionalCostsRaw = Arr::get($financialTerm, 'additional_costs', []);

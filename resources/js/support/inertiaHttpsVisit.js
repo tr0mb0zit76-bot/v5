@@ -97,7 +97,18 @@ function applyVisitUrl(visit, next) {
 
 /** Безопасный переход по пути меню (относительный URL текущего origin). */
 export function visitInertiaPath(path) {
-    router.visit(coerceHttpsUrl(path));
+    const url = coerceHttpsUrl(path);
+    const pathname = (() => {
+        try {
+            return new URL(url, typeof window !== 'undefined' ? window.location.origin : 'https://localhost').pathname;
+        } catch {
+            return typeof url === 'string' ? url : '';
+        }
+    })();
+
+    const isOrdersIndex = pathname === '/orders';
+
+    router.visit(url, isOrdersIndex ? { preserveState: false } : {});
 }
 
 /** Ziggy в HTML может содержать схему из APP_URL — выравниваем под протокол страницы. */

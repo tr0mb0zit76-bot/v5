@@ -64,6 +64,7 @@ class OrderInlineFieldUpdateService
                 null,
                 $previousOrderDate,
             );
+            $this->orderCompensationService->refreshOrderCompensationFields($syncOrder->fresh());
         }
 
         if (in_array($field, [

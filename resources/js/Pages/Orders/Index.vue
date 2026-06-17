@@ -431,4 +431,12 @@ const mobileStatusClass = (status) => {
 
     return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200';
 };
+
+onMounted(() => {
+    router.reload({
+        only: ['rows'],
+        preserveScroll: true,
+        preserveState: true,
+    });
+});
 </script>
