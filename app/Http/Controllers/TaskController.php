@@ -420,6 +420,27 @@ class TaskController extends Controller
         return to_route('tasks.index');
     }
 
+    public function destroy(Request $request, Task $task): RedirectResponse|JsonResponse
+    {
+        abort_unless($this->canAccessTaskRow($request, $task), 403);
+        abort_unless(RoleAccess::canDeleteTask($request->user()), 403);
+
+        $title = $task->title;
+        $task->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Задача удалена.',
+            ]);
+        }
+
+        return to_route('tasks.index')->with('flash', [
+            'type' => 'success',
+            'message' => sprintf('Задача «%s» удалена.', $title),
+        ]);
+    }
+
     public function downloadAttachment(Request $request, Task $task, TaskAttachment $taskAttachment): BinaryFileResponse
     {
         abort_unless($taskAttachment->task_id === $task->id, 404);
@@ -441,6 +462,13 @@ class TaskController extends Controller
         abort_unless($tasks->count() === count(array_unique($ids)), 404);
 
         foreach ($tasks as $task) {
+            if ($action === 'delete') {
+                abort_unless(RoleAccess::canDeleteTask($request->user()), 403);
+                $task->delete();
+
+                continue;
+            }
+
             if ($action === 'close') {
                 abort_unless(RoleAccess::canMutateTask($request->user(), $task), 403);
                 $task->update([
@@ -568,6 +596,7 @@ class TaskController extends Controller
             'contractorOptions' => $this->contractorOptions($request),
             'attachmentBaseUrl' => route('tasks.index'),
             'can_bulk_mutate_tasks' => RoleAccess::canBulkMutateTasks($request->user()),
+            'can_delete_tasks' => RoleAccess::canDeleteTask($request->user()),
         ];
     }
 

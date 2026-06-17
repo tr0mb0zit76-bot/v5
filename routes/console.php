@@ -20,8 +20,10 @@ $dispositionTimezone = config('disposition.timezone', 'Europe/Samara');
 
 Schedule::command('disposition:remind-unfilled-slots morning')
     ->dailyAt(config('disposition.reminder_schedule.morning', '10:00'))
-    ->timezone($dispositionTimezone);
+    ->timezone($dispositionTimezone)
+    ->when(fn (): bool => (bool) config('disposition.reminder_tasks_enabled', false));
 
 Schedule::command('disposition:remind-unfilled-slots evening')
     ->dailyAt(config('disposition.reminder_schedule.evening', '16:00'))
-    ->timezone($dispositionTimezone);
+    ->timezone($dispositionTimezone)
+    ->when(fn (): bool => (bool) config('disposition.reminder_tasks_enabled', false));

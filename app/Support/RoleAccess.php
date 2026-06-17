@@ -833,6 +833,18 @@ class RoleAccess
         return $scope === 'all';
     }
 
+    /**
+     * Удаление задач — только администратор или руководитель (роль supervisor).
+     */
+    public static function canDeleteTask(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->isAdmin() || $user->isSupervisor();
+    }
+
     public static function canAccessSettingsSystem(?User $user): bool
     {
         if ($user === null) {

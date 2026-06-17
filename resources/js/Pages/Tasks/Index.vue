@@ -24,6 +24,14 @@
 
         <div v-if="selectedTaskIds.length > 0" class="flex shrink-0 flex-wrap items-center gap-2">
             <button
+                v-if="canDeleteTasks && selectedTaskIds.length > 0"
+                type="button"
+                :class="crmBtnDangerMuted"
+                @click="bulkDeleteSelected"
+            >
+                Удалить выбранные ({{ selectedTaskIds.length }})
+            </button>
+            <button
                 v-if="selectedTaskIds.length > 0"
                 type="button"
                 :class="crmBtnDangerMuted"
@@ -114,11 +122,13 @@
                 :users="users"
                 :status-options="statusOptions"
                 :can-bulk-mutate-tasks="canBulkMutateTasks"
+                :can-delete-tasks="canDeleteTasks"
                 @row-dblclick="handleRowDblClick"
                 @selection-changed="onTaskSelectionChanged"
                 @quick-status="onQuickStatus"
                 @quick-reschedule-due="onQuickRescheduleDue"
                 @assign-request="onAssignRequest"
+                @delete-task="deleteTask"
                 @cell-save="handleCellSave"
             />
         </div>
@@ -212,6 +222,15 @@
                             @click="openRescheduleModal"
                         >
                             Перенести срок
+                        </button>
+                        <button
+                            v-if="canDeleteTasks && selectedTask"
+                            type="button"
+                            :class="crmBtnDangerMuted"
+                            class="!px-3 !py-2 text-xs"
+                            @click="deleteTask(selectedTask)"
+                        >
+                            Удалить
                         </button>
                     </template>
                 </CrmModalHeader>
@@ -457,6 +476,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    can_delete_tasks: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const tasks = ref(props.tasks ?? []);
@@ -466,6 +489,7 @@ const users = computed(() => props.users ?? []);
 const leadOptions = computed(() => props.leadOptions ?? []);
 const contractorOptions = computed(() => props.contractorOptions ?? []);
 const canBulkMutateTasks = computed(() => props.can_bulk_mutate_tasks === true);
+const canDeleteTasks = computed(() => props.can_delete_tasks === true);
 
 watch(() => page.props.tasks, (next) => {
     tasks.value = next ?? [];
@@ -507,6 +531,46 @@ function bulkCloseSelected() {
         preserveScroll: true,
         onSuccess: () => {
             selectedTaskIds.value = [];
+        },
+    });
+}
+
+function bulkDeleteSelected() {
+    if (!selectedTaskIds.value.length || !canDeleteTasks.value) {
+        return;
+    }
+
+    const count = selectedTaskIds.value.length;
+    if (!window.confirm(`Удалить выбранные задачи (${count})? Это действие нельзя отменить.`)) {
+        return;
+    }
+
+    router.post(route('tasks.bulk'), {
+        task_ids: selectedTaskIds.value,
+        action: 'delete',
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedTaskIds.value = [];
+            isTaskDetailDismissed.value = true;
+        },
+    });
+}
+
+function deleteTask(task) {
+    if (!task?.id || !canDeleteTasks.value) {
+        return;
+    }
+
+    const label = task.number ? `#${task.number}` : `#${task.id}`;
+    if (!window.confirm(`Удалить задачу ${label}? Это действие нельзя отменить.`)) {
+        return;
+    }
+
+    router.delete(route('tasks.destroy', task.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isTaskDetailDismissed.value = true;
         },
     });
 }

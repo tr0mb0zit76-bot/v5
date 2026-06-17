@@ -131,6 +131,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  canDeleteTasks: {
+    type: Boolean,
+    default: false,
+  },
   statusOptions: {
     type: Array,
     default: () => [],
@@ -145,6 +149,7 @@ const emit = defineEmits([
   'quick-status',
   'quick-reschedule-due',
   'assign-request',
+  'delete-task',
   'cell-save',
 ]);
 
@@ -523,6 +528,13 @@ function onCellContextMenu(params) {
     items.push({
       label: 'Назначить ответственного…',
       run: () => emit('assign-request', row),
+    });
+  }
+
+  if (props.canDeleteTasks) {
+    items.push({
+      label: 'Удалить',
+      run: () => emit('delete-task', row),
     });
   }
 

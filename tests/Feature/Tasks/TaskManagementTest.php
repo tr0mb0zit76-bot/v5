@@ -479,4 +479,129 @@ class TaskManagementTest extends TestCase
 
         $this->assertNotNull($task->fresh()->sla_escalated_at);
     }
+
+    public function test_supervisor_can_delete_task(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $supervisor = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-DEL-1',
+            'title' => 'К удалению',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $supervisor->id,
+            'created_by' => $supervisor->id,
+        ]);
+
+        $this->actingAs($supervisor)
+            ->delete(route('tasks.destroy', $task))
+            ->assertRedirect(route('tasks.index'));
+
+        $this->assertSoftDeleted('tasks', ['id' => $task->id]);
+    }
+
+    public function test_manager_cannot_delete_foreign_task(): void
+    {
+        $supervisorRoleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $managerRoleId = DB::table('roles')->insertGetId([
+            'name' => 'manager',
+            'display_name' => 'Manager',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'own']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $supervisor = User::factory()->create(['role_id' => $supervisorRoleId]);
+        $manager = User::factory()->create(['role_id' => $managerRoleId]);
+
+        $task = Task::query()->create([
+            'number' => 'TSK-DEL-2',
+            'title' => 'Чужая задача',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $supervisor->id,
+            'created_by' => $supervisor->id,
+        ]);
+
+        $this->actingAs($manager)
+            ->delete(route('tasks.destroy', $task))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('tasks', [
+            'id' => $task->id,
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_supervisor_can_bulk_delete_tasks(): void
+    {
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'supervisor',
+            'display_name' => 'Supervisor',
+            'visibility_areas' => json_encode(['tasks']),
+            'visibility_scopes' => json_encode(['tasks' => 'all']),
+            'columns_config' => json_encode([]),
+            'permissions' => json_encode([]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $supervisor = User::factory()->create([
+            'role_id' => $roleId,
+        ]);
+
+        $a = Task::query()->create([
+            'number' => 'TSK-BULK-DEL-A',
+            'title' => 'A',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $supervisor->id,
+            'created_by' => $supervisor->id,
+        ]);
+
+        $b = Task::query()->create([
+            'number' => 'TSK-BULK-DEL-B',
+            'title' => 'B',
+            'status' => 'new',
+            'priority' => 'medium',
+            'responsible_id' => $supervisor->id,
+            'created_by' => $supervisor->id,
+        ]);
+
+        $this->actingAs($supervisor)
+            ->post(route('tasks.bulk'), [
+                'task_ids' => [$a->id, $b->id],
+                'action' => 'delete',
+            ])
+            ->assertRedirect(route('tasks.index'));
+
+        $this->assertSoftDeleted('tasks', ['id' => $a->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $b->id]);
+    }
 }

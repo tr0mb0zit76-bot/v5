@@ -39,6 +39,10 @@ class DispositionReminderService
      */
     public function createRemindersForSlot(DispositionSlot $slot, ?Carbon $date = null): int
     {
+        if (! config('disposition.reminder_tasks_enabled', false)) {
+            return 0;
+        }
+
         if (! Schema::hasTable('tasks') || ! Schema::hasTable('disposition_entries')) {
             return 0;
         }

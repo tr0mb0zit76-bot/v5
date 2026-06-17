@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDocumentRegistryRequest;
 use App\Http\Requests\UpdateDocumentRegistryRequest;
+use App\Http\Requests\UpdateOrderEnteredIn1CRequest;
 use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Services\DocumentStorageService;
@@ -220,6 +221,32 @@ class DocumentRegistryController extends Controller
         ]);
     }
 
+    public function updateEnteredIn1C(UpdateOrderEnteredIn1CRequest $request, Order $order): JsonResponse
+    {
+        $this->ensureCanManageOrder($request, $order);
+        abort_unless(Schema::hasColumn('orders', 'accounting_handoff_at'), 404);
+
+        $entered = $request->validated('entered_in_1c') === 'да';
+
+        if ($entered) {
+            $order->forceFill([
+                'accounting_handoff_at' => $order->accounting_handoff_at ?? now(),
+                'accounting_handoff_by' => $request->user()->id,
+            ]);
+        } else {
+            $order->forceFill([
+                'accounting_handoff_at' => null,
+                'accounting_handoff_by' => null,
+            ]);
+        }
+
+        $order->save();
+
+        return response()->json([
+            'entered_in_1c' => $entered ? 'да' : 'нет',
+        ]);
+    }
+
     public function destroy(Request $request, OrderDocument $document): RedirectResponse|JsonResponse
     {
         $order = Order::query()->findOrFail((int) $document->order_id);
@@ -279,6 +306,7 @@ class DocumentRegistryController extends Controller
             'order_id' => $order->id,
             'order_number' => $order->order_number ?: '#'.$order->id,
             'order_edit_url' => route('orders.edit', $order).'?tab=documents',
+            'entered_in_1c' => $this->serializeEnteredIn1C($order),
             'clipboard_summary' => $clipboardSummary,
             'customer_invoice' => $this->serializeColumnDocs($order, $documents, 'invoice', 'customer', $contractorNamesById),
             'customer_upd' => $this->serializeColumnDocs($order, $documents, 'upd', 'customer', $contractorNamesById),
@@ -477,6 +505,15 @@ class DocumentRegistryController extends Controller
             OrderDocumentAccessAuthorization::userMayManageDocuments($request->user(), $order),
             403,
         );
+    }
+
+    private function serializeEnteredIn1C(Order $order): string
+    {
+        if (! Schema::hasColumn('orders', 'accounting_handoff_at')) {
+            return 'нет';
+        }
+
+        return $order->accounting_handoff_at !== null ? 'да' : 'нет';
     }
 
     private function nullableTrimmedString(mixed $value): ?string

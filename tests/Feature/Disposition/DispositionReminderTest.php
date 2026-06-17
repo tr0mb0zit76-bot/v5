@@ -16,6 +16,13 @@ class DispositionReminderTest extends TestCase
     use CreatesInTransitOrders;
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['disposition.reminder_tasks_enabled' => true]);
+    }
+
     public function test_command_creates_task_for_unfilled_morning_slot(): void
     {
         $manager = $this->makeUser(['orders', 'tasks'], ['orders' => 'all']);
@@ -40,6 +47,29 @@ class DispositionReminderTest extends TestCase
             app(DispositionReminderService::class)->slotKey($order->id, now()->toDateString(), 'morning'),
             $task->meta['disposition_slot_key'] ?? null,
         );
+    }
+
+    public function test_reminders_are_not_created_when_disabled(): void
+    {
+        config(['disposition.reminder_tasks_enabled' => false]);
+
+        $manager = $this->makeUser(['orders', 'tasks'], ['orders' => 'all']);
+
+        $order = $this->createInTransitOrder([
+            'manager_id' => $manager->id,
+            'order_number' => 'DISP-REM-OFF',
+        ]);
+
+        $this->artisan('disposition:remind-unfilled-slots morning')
+            ->assertSuccessful();
+
+        $this->assertDatabaseMissing('tasks', [
+            'order_id' => $order->id,
+        ]);
+
+        $created = app(DispositionReminderService::class)->createRemindersForSlot(DispositionSlot::Morning);
+
+        $this->assertSame(0, $created);
     }
 
     public function test_upsert_location_closes_disposition_reminder_task(): void

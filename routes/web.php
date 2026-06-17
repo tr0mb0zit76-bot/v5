@@ -605,6 +605,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/documents', [DocumentRegistryController::class, 'store'])->middleware('visibility.area.any:documents|orders')->name('documents.store');
     Route::post('/documents/optimize-pdf', DocumentOptimizeController::class)->middleware('visibility.area.any:documents|orders')->name('documents.optimize-pdf');
     Route::patch('/documents/{document}', [DocumentRegistryController::class, 'update'])->middleware('visibility.area.any:documents|orders')->name('documents.update');
+    Route::patch('/documents/orders/{order}/entered-in-1c', [DocumentRegistryController::class, 'updateEnteredIn1C'])->middleware('visibility.area.any:documents|orders')->name('documents.orders.entered-in-1c');
     Route::delete('/documents/{document}', [DocumentRegistryController::class, 'destroy'])->middleware('visibility.area.any:documents|orders')->name('documents.destroy');
     Route::post('/finance/documents', [FinanceDocumentController::class, 'store'])->middleware('visibility.area:documents')->name('finance.documents.store');
     Route::patch('/finance/documents/{financeDocument}', [FinanceDocumentController::class, 'update'])->middleware('visibility.area:documents')->name('finance.documents.update');
@@ -631,6 +632,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('/tasks/{task}', 'update')->name('tasks.update');
             Route::patch('/tasks/{task}/inline', 'inlineUpdate')->name('tasks.inline-update');
             Route::patch('/tasks/{task}/due', 'updateDue')->name('tasks.due.update');
+            Route::delete('/tasks/{task}', 'destroy')->name('tasks.destroy');
             Route::post('/tasks/{task}/complete-and-follow-up', 'completeAndCreateFollowUp')->name('tasks.complete-and-follow-up');
             Route::post('/tasks/{task}/checklist-items', 'storeChecklistItem')->name('tasks.checklist-items.store');
             Route::patch('/tasks/{task}/checklist-items/{taskChecklistItem}', 'toggleChecklistItem')->name('tasks.checklist-items.toggle');

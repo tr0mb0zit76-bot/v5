@@ -81,12 +81,13 @@
                     :domLayout="'normal'"
                     :pagination="false"
                     :animateRows="false"
-                    :suppressCellFocus="true"
+                    :suppressCellFocus="false"
                     :alwaysShowVerticalScroll="true"
                     style="height: 100%; width: 100%;"
                     @grid-ready="onGridReady"
                     @first-data-rendered="onFirstDataRendered"
                     @cell-double-clicked="onCellDoubleClicked"
+                    @cell-value-changed="onCellValueChanged"
                     @column-visible="saveColumnState"
                     @column-resized="saveColumnState"
                     @column-moved="saveColumnState"
@@ -210,6 +211,7 @@ const emit = defineEmits(['open-create', 'row-dblclick', 'open-order-documents']
 
 const fallbackColumns = [
     { field: 'order_number', headerName: 'Номер заказа', width: 160, minWidth: 140 },
+    { field: 'entered_in_1c', headerName: 'Внесено в 1С', width: 140, minWidth: 120, kind: 'entered-in-1c' },
     { field: 'customer_invoice', headerName: 'Счёт заказчику', width: 220, minWidth: 180 },
     { field: 'customer_upd', headerName: 'УПД с заказчиком', width: 220, minWidth: 180 },
     { field: 'customer_act', headerName: 'Акт с заказчиком', width: 220, minWidth: 180 },
@@ -439,6 +441,16 @@ const columnDefs = computed(() => {
 
         if (column.kind === 'text') {
             colDef.cellRenderer = (params) => textCellRenderer(params.data, column.field);
+            return colDef;
+        }
+        if (column.kind === 'entered-in-1c') {
+            colDef.editable = true;
+            colDef.singleClickEdit = true;
+            colDef.cellEditor = 'agSelectCellEditor';
+            colDef.cellEditorParams = { values: ['да', 'нет'] };
+            colDef.cellClass = () => ['orders-grid-editable-cell'];
+            colDef.filter = 'agSetColumnFilter';
+            colDef.valueGetter = (params) => params.data?.entered_in_1c ?? 'нет';
             return colDef;
         }
         if (column.kind === 'etrn-status') {
@@ -789,6 +801,26 @@ function loadFilterModel() {
 
 function onFilterChanged() {
     persistFilterModel();
+}
+
+async function onCellValueChanged(event) {
+    if (event.colDef?.field !== 'entered_in_1c' || event.newValue === event.oldValue) {
+        return;
+    }
+
+    const orderId = event.data?.order_id;
+    if (!orderId) {
+        return;
+    }
+
+    try {
+        await window.axios.patch(route('documents.orders.entered-in-1c', orderId), {
+            entered_in_1c: event.newValue,
+        });
+    } catch (error) {
+        event.node?.setDataValue('entered_in_1c', event.oldValue ?? 'нет');
+        console.error('Failed to update entered_in_1c', error);
+    }
 }
 
 function onCellDoubleClicked(event) {
