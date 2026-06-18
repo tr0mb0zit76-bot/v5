@@ -1,5 +1,5 @@
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
-import { expandPerformersForCarrierSlots, filterExternalCarrierSlots, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
+import { expandPerformersForCarrierSlots, filterExternalCarrierSlots, isOwnFleetCarrierOnly, splitCarrierSlotLabel } from '@/support/orderPerformers.js';
 import { TRANSPORT_DOCUMENT_LABEL, TRANSPORT_DOCUMENT_TYPES } from '@/support/orderDocumentTypes.js';
 
 const REQUEST_TYPES = ['request', 'contract_request'];
@@ -15,6 +15,56 @@ function closingRequiredForPaymentForm(paymentForm) {
 }
 
 const CLOSING_DESCRIPTION = 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
+
+function buildOwnFleetCarrierOnlyRules() {
+    const customerSlot = {
+        slotKey: 'customer-all',
+        orderLegStage: null,
+        contractorId: null,
+        contractorName: null,
+        labelSuffix: '',
+    };
+
+    return [
+        {
+            key: `customer_request:${customerSlot.slotKey}`,
+            label: 'Заявка заказчика',
+            description: 'Загружаемый файл: статус «Отправлен» или «Подписан». Печатная форма: финальный PDF и подписи по шаблону.',
+            party: 'customer',
+            accepted_types: REQUEST_TYPES,
+            slot_kind: 'customer_request',
+            slot_key: customerSlot.slotKey,
+            contractor_id: customerSlot.contractorId,
+            order_leg_stage: customerSlot.orderLegStage,
+            counterparty_label: customerSlot.contractorName,
+        },
+        {
+            key: `customer_closing:${customerSlot.slotKey}`,
+            label: 'Закрывающий документ заказчику',
+            description: CLOSING_DESCRIPTION,
+            party: 'customer',
+            accepted_types: [...CLOSING_TYPES],
+            slot_kind: 'customer_closing',
+            slot_key: customerSlot.slotKey,
+            contractor_id: customerSlot.contractorId,
+            order_leg_stage: customerSlot.orderLegStage,
+            counterparty_label: customerSlot.contractorName,
+        },
+        {
+            key: 'waybill',
+            label: TRANSPORT_DOCUMENT_LABEL,
+            description: 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+            party: 'internal',
+            accepted_types: WAYBILL_TYPES,
+            slot_kind: 'waybill',
+            slot_key: 'waybill',
+            contractor_id: null,
+            order_leg_stage: null,
+            counterparty_label: null,
+            allows_multiple: true,
+        },
+    ];
+}
 
 /**
  * @param {string|null|undefined} customerPaymentForm
@@ -194,6 +244,10 @@ export function buildDocumentRequirementRules(
     additionalCosts = [],
     paymentContext = {},
 ) {
+    if (isOwnFleetCarrierOnly(performers)) {
+        return buildOwnFleetCarrierOnlyRules();
+    }
+
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
     const rules = [];
     const customerPaymentForm = paymentContext?.customer ?? null;

@@ -902,6 +902,25 @@ class RoleAccess
     }
 
     /**
+     * Аналитика руководителя отдела продаж — admin, supervisor или отчёты + лиды.
+     */
+    public static function canViewHeadOfSalesInsights(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->isAdmin() || $user->hasRole('supervisor')) {
+            return true;
+        }
+
+        $areas = static::userVisibilityAreas($user);
+
+        return static::hasVisibilityArea($areas, 'reports')
+            && (static::hasVisibilityArea($areas, 'leads') || static::canViewAiAnalytics($user));
+    }
+
+    /**
      * Редактор сценариев (структура версий, узлы, переходы) — только администраторы и роли с доступом к системным настройкам.
      */
     public static function canManageSalesScripts(?User $user): bool

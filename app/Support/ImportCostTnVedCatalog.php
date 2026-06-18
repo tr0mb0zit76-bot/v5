@@ -180,6 +180,7 @@ final class ImportCostTnVedCatalog
     public static function dutySourceLabel(?string $source): ?string
     {
         return match ($source) {
+            'alta' => 'Alta API',
             'eec' => 'ЕЭК OData',
             'kodtnved' => 'kodtnved.ru',
             'config' => 'локальный справочник',

@@ -107,7 +107,8 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Документация: `docs/management-accounting-architecture.md`, план фаз: `docs/management-accounting-implementation-plan.md`.
 - Доступ: `users.can_management_accounting` + admin; `RoleAccess::canAccessManagementAccounting()`. Не путать с бюджетированием (`belongs_to_management`).
 - Импорт: `ManagementAccountingImportService`, парсер `SberRegistryXlsxParser` (`sber_registry_v1`).
-- Матчинг / разнесение: `ManagementAccountingMatchingService` (правила → номер заявки → контрагент+сумма → ФОТ → статьи; `suggested_candidates[]` при неоднозначности), `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`.
+- Матчинг / разнесение: `ManagementAccountingMatchingService` (правила → номер заявки → контрагент+сумма → **входящие только по сумме** → ФОТ → статьи; `suggested_candidates[]` с `amount_due` при неоднозначности), `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`; переразнесение — `PaymentScheduleSettlementSyncService`.
+- UI разнесения: `Reconcile.vue` — входящие по умолчанию «Операционный», автокандидаты, «к оплате» в списке.
 - ФОТ полупериоды (5 / 20): `ManagementPayrollHalfCalendar`, `ManagementPayrollHalfService`.
 - UI: `Finance/ManagementAccounting/Index.vue`, `Reconcile.vue`; меню `finance-management-accounting`.
 - Маршруты: `finance.management-accounting.*` (`routes/web.php`); статьи: `POST categories`, `POST categories/sync`.
@@ -122,6 +123,12 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Отказ (`lost` / этап БП): `LeadLinkedTaskService` отменяет открытые задачи; flash `lead_follow_up` в `Leads/Wizard.vue`.
 - `TaskController::syncLinkedLeadStatus` не перезаписывает закрытые лиды (`LeadStatus::isClosed`).
 - Терминальный этап БП: `LeadBusinessProcessService::progressPayload` → 100%; playbook без `auto_create_task` на terminal.
+- **Playbook этапов БП:** `BusinessProcessPlaybook`, `BusinessProcessDefaultPlaybookLibrary`, `BusinessProcessPlaybookSeederService`; поля на `business_process_stages` (`coaching_hint`, `sales_script_id`); сидер `php artisan business-processes:seed-playbooks`; UI — `Settings/BusinessProcesses/Index.vue` (`CrmMarkdownEditor`).
+
+### Дашборд и меню
+
+- Дашборд по подразделению: `users.sees_company_dashboard`, `UserDashboardDepartmentScope`, `DashboardMetricsService` (scope отдела vs вся компания).
+- Избранное в сайдбаре: `SidebarMenuCatalog`, `SidebarMenuFavoritesResolver`, `ProfileController::updateSidebarFavorites` (`profile.sidebar-favorites`).
 
 ### Считалка (маржа в переговорах)
 
@@ -129,12 +136,22 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `SalesMarginCounterService` — ставки заказчик/перевозчик + обязательное правило удержания KPI (`kpi_deduction_rule_id` из активных `kpi_deduction_rules`).
 - Сценарии: `cash`, `vat_all`, `vat_zero_cash`; категория KPI `vat_zero_cash` в `KpiPaymentCategoryResolver`.
 
+### Растаможка (калькулятор ввоза)
+
+- Документация: `docs/import-cost-calculator-architecture.md`.
+- Модуль **Модули → Растаможка**: `resources/js/Pages/Modules/ImportCostCalculator.vue`, маршруты `modules.import-cost.*` (`/modules/import-cost`). Область `modules_import_cost`.
+- Расчёт: `ImportCostCalculatorService` — таможенная стоимость, пошлина, НДС, таможенный сбор, утильсбор (ПП № 1291: `base_fee_rub × coefficient` по возрасту), доставка; суммы до целых ₽.
+- Справочники: `ImportCostTnVedCatalog`, `UtilizationFeeCatalog`, `ImportCostReferenceMeta`; БД `import_cost_tn_ved_entries`, `import_cost_pp1291_categories`, `import_cost_reference_syncs`.
+- Синхронизация: `php artisan import-cost:sync-references` (`--eec-only`, `--pp1291-only`); cron пн 03:15 (`routes/console.php`); сервисы `EecTnVedSyncService`, `Pp1291ReferenceSyncService`, клиент `EecODataClient`.
+- Конфиг: `config/import_cost_calculator.php`, `config/import_cost_pp1291.php`. TKS API не используется.
+
 ### Условия оплаты и график (`payment_schedules`)
 
 - Документация: `docs/payment-schedule-architecture.md`.
 - Единый формат JSON: `installments[]` (до 10 траншей): `percent`, `amount`, `offset_days`, `offset_unit`, `anchor`, `basis`. Легаси `has_prepayment` / `postpayment_*` → `PaymentScheduleLegacyConverter`.
 - Пересборка строк БД: `OrderCompensationService::syncPaymentSchedules()`; сохранение фактических оплат при пересборке — `PaymentScheduleSettlementPreserver` (ключ `installment_sequence` + fallback на `type`).
-- Расчёт `planned_date`: событие (`basis`) + сдвиг, либо якорь через `PaymentInstallmentPlanner`; даты погрузки/выгрузки — `OrderRouteMilestoneDateResolver` (факт точки → план → performers → колонка заказа); синхронизация при сохранении мастера и факта на точке.
+- Расчёт `planned_date`: событие (`basis`) + сдвиг, либо якорь через `PaymentInstallmentPlanner`; даты погрузки/выгрузки — `OrderRouteMilestoneDateResolver` (факт точки → план → performers → колонка заказа); синхронизация при сохранении мастера и факта на точке; **наличка** — `PaymentScheduleCashBasis` (базисы документов → `unloading`).
+- Частичные оплаты: `PaymentScheduleSettlementStatus`, колонка «К оплате» в `CashFlowGrid.vue`; после деплоя правок — `payment-schedules:sync-settlement-amounts`.
 - FTTN по сканам — авто (`OrderDocumentRequirementService::paymentPackageAttachedAt`); квиток/OTTN — вручную в гриде документов (`track_received_date_*`), стороны раздельно.
 - UI: `PaymentTermsWizardBlock.vue`, `orderPaymentScheduleUi.js` (`applyInstallmentScheduleInPlace` — без deep-watch циклов); грид — `CashFlowGrid.vue`, даты **дд.мм.гггг**.
 - Миграция: `2026_06_08_155321_add_installment_sequence_to_payment_schedules_table.php`.
@@ -152,6 +169,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - Мобильная нижняя панель: `app/Support/MobileNavCatalog.php` — кандидаты кнопок с учётом `visibility_areas` (дашборд не навязывается, если области нет); итоговый проп для фронта собирает `app/Support/MobileNavResolver.php` (`HandleInertiaRequests` → `auth.user.mobile_nav`). Сохранение выбора пользователя: `ProfileController::updateMobileBottomNav`, маршрут `profile.mobile-bottom-nav` (`routes/web.php`).
 - PWA: `public/sw.js` — кэш shell для `/`, навигации на другие пути идут через сеть.
+- Синхрон индексов Obsidian ↔ git: `docs/sync/`, `scripts/sync-docs-to-yandex.ps1`; MCP bearer с Я.Диска: `scripts/sync-cursor-mcp-from-yandex.ps1`.
 
 
 ## Frontend Bundling

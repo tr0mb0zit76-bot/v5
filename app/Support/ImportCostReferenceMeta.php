@@ -10,6 +10,7 @@ final class ImportCostReferenceMeta
     /**
      * @return array{
      *     eec: array{synced_at: string|null, status: string|null, message: string|null},
+     *     alta: array{synced_at: string|null, status: string|null, message: string|null},
      *     kodtnved: array{synced_at: string|null, status: string|null, message: string|null},
      *     pp1291: array{synced_at: string|null, status: string|null, message: string|null, effective_from: string|null}
      * }
@@ -19,6 +20,7 @@ final class ImportCostReferenceMeta
         if (! Schema::hasTable('import_cost_reference_syncs')) {
             return [
                 'eec' => ['synced_at' => null, 'status' => null, 'message' => null],
+                'alta' => ['synced_at' => null, 'status' => null, 'message' => null],
                 'kodtnved' => ['synced_at' => null, 'status' => null, 'message' => null],
                 'pp1291' => [
                     'synced_at' => null,
@@ -30,6 +32,7 @@ final class ImportCostReferenceMeta
         }
 
         $eec = ImportCostReferenceSync::latestForSource('eec');
+        $alta = ImportCostReferenceSync::latestForSource('alta');
         $kodtnved = ImportCostReferenceSync::latestForSource('kodtnved');
         $pp = ImportCostReferenceSync::latestForSource('pp1291');
 
@@ -38,6 +41,11 @@ final class ImportCostReferenceMeta
                 'synced_at' => $eec?->synced_at?->toIso8601String(),
                 'status' => $eec?->status,
                 'message' => $eec?->message,
+            ],
+            'alta' => [
+                'synced_at' => $alta?->synced_at?->toIso8601String(),
+                'status' => $alta?->status,
+                'message' => $alta?->message,
             ],
             'kodtnved' => [
                 'synced_at' => $kodtnved?->synced_at?->toIso8601String(),

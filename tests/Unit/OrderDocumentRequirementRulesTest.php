@@ -168,4 +168,65 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertCount(1, $transportOptions);
         $this->assertSame(OrderDocumentTransportTypes::UNIFIED_LABEL, $transportOptions->first()['label']);
     }
+
+    #[Test]
+    public function own_fleet_carrier_only_requires_customer_request_closing_and_transport(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 99,
+            'contractor_name' => 'Собственный парк',
+            'execution_mode' => 'own_fleet',
+        ]];
+
+        $additionalCosts = [[
+            'id' => 'cost-vat',
+            'contractor_id' => 32,
+            'contractor_name' => 'Подрядчик',
+            'payment_form' => 'vat_20',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', $additionalCosts, [
+            'customer' => 'cash',
+            'carriers' => [99 => 'cash'],
+        ]);
+
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_request:customer-all'));
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'customer_closing:customer-all'));
+        $this->assertNotNull(collect($rules)->firstWhere('key', 'waybill'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'carrier_request:carrier-99'));
+        $this->assertNull(collect($rules)->firstWhere('key', 'contractor_closing:contractor-32-cost-vat'));
+        $this->assertCount(3, $rules);
+    }
+
+    #[Test]
+    public function mixed_own_fleet_and_external_carrier_keeps_external_carrier_rules(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'carrier_mode' => 'split',
+            'split_carriers' => [
+                [
+                    'slot' => 1,
+                    'contractor_id' => 10,
+                    'contractor_name' => 'Внешний',
+                    'execution_mode' => null,
+                ],
+                [
+                    'slot' => 2,
+                    'contractor_id' => 99,
+                    'contractor_name' => 'Собственный парк',
+                    'execution_mode' => 'own_fleet',
+                ],
+            ],
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request', [], [
+            'customer' => 'vat_20',
+            'carriers' => [10 => 'vat_20', 99 => 'cash'],
+        ]);
+
+        $this->assertNotNull(collect($rules)->first(fn (array $rule): bool => str_starts_with((string) ($rule['key'] ?? ''), 'carrier_request:')));
+        $this->assertNotNull(collect($rules)->first(fn (array $rule): bool => str_starts_with((string) ($rule['key'] ?? ''), 'carrier_closing:')));
+    }
 }

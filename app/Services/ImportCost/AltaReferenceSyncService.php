@@ -8,14 +8,13 @@ use App\Models\ImportCostReferenceSync;
 use App\Models\ImportCostTnVedEntry;
 use App\Support\ImportCostTnVedCatalog;
 use App\Support\ImportCostTnVedCategoryResolver;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 
-final class KodTnVedReferenceSyncService
+final class AltaReferenceSyncService
 {
     public function __construct(
-        private readonly KodTnVedPageParser $parser,
+        private readonly AltaSpravkaApiClient $client,
+        private readonly AltaSpravkaResponseParser $parser,
     ) {}
 
     /**
@@ -32,8 +31,21 @@ final class KodTnVedReferenceSyncService
             ];
         }
 
-        $limit = $limit ?? (int) config('import_cost_calculator.kodtnved.batch_limit', 200);
-        $delayMs = max(0, (int) config('import_cost_calculator.kodtnved.delay_ms', 1000));
+        if (! $this->client->isConfigured()) {
+            $log = [
+                'status' => 'partial',
+                'items_updated' => 0,
+                'message' => 'Alta API: учётные данные не настроены (IMPORT_COST_ALTA_LOGIN / IMPORT_COST_ALTA_PASSWORD).',
+                'meta' => ['skipped' => true, 'reason' => 'credentials_missing'],
+            ];
+
+            $this->logSync($log);
+
+            return $log;
+        }
+
+        $limit = $limit ?? (int) config('import_cost_calculator.alta.batch_limit', 200);
+        $delayMs = max(0, (int) config('import_cost_calculator.alta.delay_ms', 500));
         $updated = 0;
         $skipped = 0;
         $failed = 0;
@@ -43,10 +55,10 @@ final class KodTnVedReferenceSyncService
             ->where(function ($builder): void {
                 $builder
                     ->where('duty_source', 'config')
-                    ->orWhereNull('kodtnved_synced_at')
+                    ->orWhereNull('alta_synced_at')
                     ->orWhere(function ($nested): void {
                         $nested->where('duty_percent', 0)
-                            ->whereIn('duty_source', ['config', 'eec']);
+                            ->whereIn('duty_source', ['config', 'eec', 'kodtnved']);
                     });
             })
             ->orderBy('code');
@@ -74,7 +86,7 @@ final class KodTnVedReferenceSyncService
         }
 
         $status = $failed > 0 && $updated === 0 ? 'partial' : ($updated > 0 ? 'success' : 'partial');
-        $message = "kodtnved.ru: обновлено {$updated}, пропущено {$skipped}, ошибок {$failed}.";
+        $message = "Alta API: обновлено {$updated}, пропущено {$skipped}, ошибок {$failed}.";
 
         $log = [
             'status' => $status,
@@ -94,6 +106,10 @@ final class KodTnVedReferenceSyncService
 
     public function syncCode(string $code): ?ImportCostTnVedEntry
     {
+        if (! $this->client->isConfigured()) {
+            return null;
+        }
+
         $normalized = ImportCostTnVedCatalog::normalizeCode($code);
         $prefixes = config('import_cost_calculator.eec.code_prefixes', []);
 
@@ -118,7 +134,7 @@ final class KodTnVedReferenceSyncService
             ],
         );
 
-        $delayMs = max(0, (int) config('import_cost_calculator.kodtnved.delay_ms', 1000));
+        $delayMs = max(0, (int) config('import_cost_calculator.alta.delay_ms', 500));
         $this->syncEntry($entry, $delayMs);
 
         return $entry->fresh();
@@ -130,14 +146,6 @@ final class KodTnVedReferenceSyncService
             return false;
         }
 
-        if ($entry->duty_source === 'kodtnved' && $entry->duty_percent > 0 && $entry->kodtnved_synced_at !== null) {
-            return false;
-        }
-
-        if ($entry->duty_source === 'eec' && $entry->duty_percent > 0) {
-            return false;
-        }
-
         return true;
     }
 
@@ -146,15 +154,27 @@ final class KodTnVedReferenceSyncService
      */
     private function syncEntry(ImportCostTnVedEntry $entry, int $delayMs): ?bool
     {
-        $html = $this->fetchPageHtml($entry->code);
+        $response = $this->client->fetchGoodInfo($entry->code);
 
-        if ($html === null) {
+        if ($response === null) {
             return false;
         }
 
-        $parsed = $this->parser->parse($html);
+        if ($response['status'] !== 200) {
+            return false;
+        }
+
+        $parsed = $this->parser->parse($response['body']);
 
         if ($parsed === null) {
+            return false;
+        }
+
+        if ($parsed['error_code'] !== null) {
+            return false;
+        }
+
+        if ($parsed['duty_percent'] === null && $parsed['vat_percent'] === null && $parsed['label'] === null) {
             return false;
         }
 
@@ -166,9 +186,9 @@ final class KodTnVedReferenceSyncService
             $changes = true;
         }
 
-        if ($parsed['duty_percent'] !== null && $this->shouldApplyKodtnvedDuty($entry, $parsed['duty_percent'])) {
+        if ($parsed['duty_percent'] !== null && $this->shouldApplyAltaDuty($entry, $parsed['duty_percent'])) {
             $entry->duty_percent = $parsed['duty_percent'];
-            $entry->duty_source = 'kodtnved';
+            $entry->duty_source = 'alta';
             $changes = true;
         }
 
@@ -180,14 +200,9 @@ final class KodTnVedReferenceSyncService
             $changes = true;
         }
 
-        $entry->kodtnved_payload = $parsed;
-        $entry->kodtnved_synced_at = now();
-
-        if ($changes || $entry->wasRecentlyCreated) {
-            $entry->save();
-        } else {
-            $entry->save();
-        }
+        $entry->alta_payload = $parsed;
+        $entry->alta_synced_at = now();
+        $entry->save();
 
         if ($delayMs > 0) {
             usleep($delayMs * 1000);
@@ -196,45 +211,13 @@ final class KodTnVedReferenceSyncService
         return $changes || $parsed['duty_percent'] !== null ? true : null;
     }
 
-    private function shouldApplyKodtnvedDuty(ImportCostTnVedEntry $entry, float $dutyPercent): bool
+    private function shouldApplyAltaDuty(ImportCostTnVedEntry $entry, float $dutyPercent): bool
     {
-        if ($entry->duty_source === 'alta') {
-            return false;
-        }
-
-        if ($entry->duty_source === 'eec' && $entry->duty_percent > 0) {
-            return false;
-        }
-
-        if ($entry->duty_source === 'kodtnved' && abs($entry->duty_percent - $dutyPercent) < 0.0001) {
+        if ($entry->duty_source === 'alta' && abs($entry->duty_percent - $dutyPercent) < 0.0001) {
             return false;
         }
 
         return true;
-    }
-
-    private function fetchPageHtml(string $code): ?string
-    {
-        $baseUrl = rtrim((string) config('import_cost_calculator.kodtnved.base_url', 'https://kodtnved.ru'), '/');
-        $timeout = (int) config('import_cost_calculator.kodtnved.timeout_seconds', 30);
-        $url = $baseUrl.'/ts/'.$code.'.html';
-
-        try {
-            $response = Http::timeout($timeout)
-                ->withHeaders([
-                    'User-Agent' => 'AvtoalyansCrmImportCost/1.0 (+internal sync)',
-                    'Accept' => 'text/html',
-                ])
-                ->get($url);
-        } catch (ConnectionException) {
-            return null;
-        }
-
-        if (! $response->successful()) {
-            return null;
-        }
-
-        return $response->body();
     }
 
     /**
@@ -247,7 +230,7 @@ final class KodTnVedReferenceSyncService
         }
 
         ImportCostReferenceSync::query()->create([
-            'source' => 'kodtnved',
+            'source' => 'alta',
             'status' => $log['status'],
             'items_updated' => $log['items_updated'],
             'message' => $log['message'],

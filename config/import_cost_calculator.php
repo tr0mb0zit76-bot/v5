@@ -14,7 +14,7 @@ return [
 
     'default_vat_percent' => 22,
 
-    'disclaimer' => 'Ориентировочный расчёт для продажной цены: ставки пошлины — из ЕЭК OData и kodtnved.ru, утильсбор — по ПП РФ № 1291. Не заменяет таможенную декларацию.',
+    'disclaimer' => 'Ориентировочный расчёт для продажной цены: ставки пошлины — из Alta API (при наличии ключа), иначе kodtnved.ru, утильсбор — по ПП РФ № 1291. Не заменяет таможенную декларацию.',
 
     'eec' => [
         'base_url' => 'https://portal.eaeunion.org/sites/odata/_api',
@@ -23,6 +23,16 @@ return [
         'timeout_seconds' => 45,
         'page_size' => 200,
         'code_prefixes' => ['8429', '8430', '8701', '8704', '8709'],
+    ],
+
+    'alta' => [
+        'base_url' => 'https://www.alta.ru/tnved/xml/',
+        'login' => env('IMPORT_COST_ALTA_LOGIN'),
+        'password' => env('IMPORT_COST_ALTA_PASSWORD'),
+        'default_country_code' => env('IMPORT_COST_ALTA_COUNTRY_CODE', '156'),
+        'timeout_seconds' => 30,
+        'delay_ms' => 500,
+        'batch_limit' => 200,
     ],
 
     'kodtnved' => [

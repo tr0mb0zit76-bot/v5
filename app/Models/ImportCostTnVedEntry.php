@@ -19,6 +19,8 @@ class ImportCostTnVedEntry extends Model
         'eec_synced_at',
         'kodtnved_payload',
         'kodtnved_synced_at',
+        'alta_payload',
+        'alta_synced_at',
         'is_active',
     ];
 
@@ -32,6 +34,8 @@ class ImportCostTnVedEntry extends Model
             'eec_synced_at' => 'datetime',
             'kodtnved_payload' => 'array',
             'kodtnved_synced_at' => 'datetime',
+            'alta_payload' => 'array',
+            'alta_synced_at' => 'datetime',
             'is_active' => 'boolean',
         ];
     }

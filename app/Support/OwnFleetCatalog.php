@@ -60,6 +60,63 @@ final class OwnFleetCatalog
     }
 
     /**
+     * Все слоты перевозчика на заказе — «Свой транспорт» (нет внешних перевозчиков).
+     *
+     * @param  list<array<string, mixed>>  $performers
+     */
+    public static function isOwnFleetCarrierOnly(array $performers): bool
+    {
+        $expanded = self::expandCarrierExecutionRows($performers);
+
+        if ($expanded === []) {
+            return false;
+        }
+
+        foreach ($expanded as $row) {
+            if (! self::isOwnFleetExecutionMode(isset($row['execution_mode']) ? (string) $row['execution_mode'] : null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     * @return list<array{execution_mode?: string|null}>
+     */
+    public static function expandCarrierExecutionRows(array $performers): array
+    {
+        $expanded = [];
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            if (($performer['carrier_mode'] ?? 'single') === 'split' && is_array($performer['split_carriers'] ?? null)) {
+                foreach ($performer['split_carriers'] as $slot) {
+                    if (! is_array($slot)) {
+                        continue;
+                    }
+
+                    $expanded[] = [
+                        'execution_mode' => isset($slot['execution_mode']) ? (string) $slot['execution_mode'] : null,
+                    ];
+                }
+
+                continue;
+            }
+
+            $expanded[] = [
+                'execution_mode' => isset($performer['execution_mode']) ? (string) $performer['execution_mode'] : null,
+            ];
+        }
+
+        return $expanded;
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      */
     public static function performerRowIsOwnFleet(array $row): bool

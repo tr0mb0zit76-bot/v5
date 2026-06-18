@@ -20,6 +20,7 @@ import {
     documentMatchesRequirementRule,
     findRequirementRuleForUpload,
 } from '@/support/orderDocumentRequirementSlots.js';
+import { isOwnFleetCarrierOnly } from '@/support/orderPerformers.js';
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import {
     carrierPrintSlots,
@@ -127,6 +128,14 @@ const effectiveRequiredDocumentRules = computed(() => buildDocumentRequirementRu
     props.additionalCosts,
     documentPaymentContext.value,
 ));
+
+const documentChecklistHint = computed(() => {
+    if (isOwnFleetCarrierOnly(props.performers)) {
+        return `${effectiveRequiredDocumentRules.value.length} обязательных пункта для этапов «Оплата» и «Завершено» при собственном парке: заявка заказчику, закрывающие (УПД / акт + счёт-фактура), ТСД. Документы перевозчика не требуются.`;
+    }
+
+    return `${effectiveRequiredDocumentRules.value.length} обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы. При оплате наличными у контрагента закрывающие документы (УПД, счёт-фактура, акт) не требуются — только заявка.`;
+});
 
 const effectiveDocumentChecklist = computed(() => {
     const rules = effectiveRequiredDocumentRules.value;
@@ -469,34 +478,6 @@ function submitWorkflowReject(documentId) {
             },
         },
     );
-}
-
-async function finalizeWorkflowPdf(doc, event) {
-    const file = event.target?.files?.[0];
-    if (!file || !props.order?.id) {
-        return;
-    }
-
-    const accepted = await uploadGate.ensureDocumentWithinBudget(file, documentUploadLimits.value);
-    if (!accepted) {
-        if (event.target) {
-            event.target.value = '';
-        }
-
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', accepted);
-
-    router.post(route('orders.documents.finalize', [props.order.id, doc.id]), formData, {
-        preserveScroll: true,
-        onFinish: () => {
-            if (event.target) {
-                event.target.value = '';
-            }
-        },
-    });
 }
 
 function confirmDiscardPrintWorkflow(doc) {
@@ -846,7 +827,6 @@ async function onGlobalDrop(event) {
                         @workflow-action="postWorkflowAction"
                         @toggle-reject="toggleWorkflowReject"
                         @submit-reject="submitWorkflowReject"
-                        @finalize="finalizeWorkflowPdf"
                         @discard="confirmDiscardPrintWorkflow"
                         @update:reject-reason="workflowRejectReason = $event"
                     />
@@ -914,7 +894,6 @@ async function onGlobalDrop(event) {
                         @workflow-action="postWorkflowAction"
                         @toggle-reject="toggleWorkflowReject"
                         @submit-reject="submitWorkflowReject"
-                        @finalize="finalizeWorkflowPdf"
                         @discard="confirmDiscardPrintWorkflow"
                         @update:reject-reason="workflowRejectReason = $event"
                     />
@@ -958,7 +937,7 @@ async function onGlobalDrop(event) {
         <section class="space-y-3">
             <div class="text-sm font-semibold">Учёт документов</div>
             <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                {{ effectiveRequiredDocumentRules.length }} обязательных пунктов для этапов «Оплата» и «Завершено». Галочка — после подписанного файла или финализации печатной формы. При оплате наличными у контрагента закрывающие документы (УПД, счёт-фактура, акт) не требуются — только заявка.
+                {{ documentChecklistHint }}
             </p>
             <OrderSignedDocumentsTable
                 :signed-documents="signedDocuments"

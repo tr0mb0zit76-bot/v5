@@ -115,6 +115,10 @@ final class AiAgentCatalog
             return RoleAccess::canAccessManagementAccounting($user);
         }
 
+        if ($visibility === 'head_of_sales') {
+            return RoleAccess::canViewHeadOfSalesInsights($user);
+        }
+
         return true;
     }
 }

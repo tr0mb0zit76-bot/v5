@@ -7,6 +7,7 @@ use App\Models\Contractor;
 use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\User;
 use App\Services\Ai\AiUsageAnalyticsService;
+use App\Services\Commercial\HeadOfSalesInsightsService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\ManagementAccounting\ManagementAccountingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
@@ -60,6 +61,7 @@ class AgentToolRegistry
         private readonly TrainerCoachingInsightsService $trainerCoachingInsights,
         private readonly SalesScriptCoachingInsightsService $salesScriptCoachingInsights,
         private readonly ManagerSalesCoachingInsightsService $managerSalesCoachingInsights,
+        private readonly HeadOfSalesInsightsService $headOfSalesInsights,
         private readonly OrderIntakeMcpService $orderIntake,
         private readonly MailMcpService $mail,
         private readonly PrintFormTemplatesMcpService $printFormTemplates,
@@ -943,6 +945,24 @@ class AgentToolRegistry
                     (int) ($args['days'] ?? config('outcome_intelligence.coaching_default_days', 90)),
                     isset($args['user_id']) ? (int) $args['user_id'] : null,
                     (int) ($args['sample_limit'] ?? config('outcome_intelligence.coaching_sample_limit', 10)),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'get_head_of_sales_insights',
+                description: 'Сводка для руководителя продаж: маржа по менеджерам, воронка, скрипты, риски открытых лидов, transport mix, приоритетные действия.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'minimum' => 7, 'maximum' => 365],
+                        'user_id' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => RoleAccess::canViewHeadOfSalesInsights($user),
+                invoke: fn (User $user, array $args): array => $this->headOfSalesInsights->insights(
+                    $user,
+                    (int) ($args['days'] ?? 90),
+                    isset($args['user_id']) ? (int) $args['user_id'] : null,
                 ),
             ),
             new AgentToolDefinition(

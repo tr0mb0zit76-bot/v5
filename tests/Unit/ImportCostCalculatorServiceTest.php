@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\ImportCostPp1291Category;
 use App\Models\ImportCostTnVedEntry;
+use App\Services\ImportCost\AltaReferenceSyncService;
 use App\Services\ImportCost\EecTnVedSyncService;
 use App\Services\ImportCost\KodTnVedReferenceSyncService;
 use App\Services\ImportCost\Pp1291ReferenceSyncService;
@@ -124,6 +125,60 @@ class ImportCostCalculatorServiceTest extends TestCase
         $this->assertSame('crawler_excavator', $entry->pp1291_category_key);
     }
 
+    public function test_alta_sync_skips_when_credentials_missing(): void
+    {
+        config([
+            'import_cost_calculator.alta.login' => null,
+            'import_cost_calculator.alta.password' => null,
+        ]);
+
+        $result = app(AltaReferenceSyncService::class)->sync(10);
+
+        $this->assertSame('partial', $result['status']);
+        $this->assertSame(0, $result['items_updated']);
+        $this->assertStringContainsString('учётные данные не настроены', $result['message']);
+    }
+
+    public function test_alta_sync_updates_duty_from_xml(): void
+    {
+        ImportCostTnVedEntry::query()->updateOrCreate(
+            ['code' => '8429529000'],
+            [
+                'code_display' => '8429.52.90',
+                'label' => '8429529000',
+                'duty_percent' => 0,
+                'vat_percent' => 22,
+                'pp1291_category_key' => 'crawler_excavator',
+                'requires_utilization_fee' => true,
+                'duty_source' => 'config',
+                'alta_synced_at' => null,
+                'is_active' => true,
+            ],
+        );
+
+        $xml = file_get_contents(base_path('tests/Fixtures/alta-8429529000.xml'));
+        $this->assertNotFalse($xml);
+
+        config([
+            'import_cost_calculator.alta.login' => 'crm-login',
+            'import_cost_calculator.alta.password' => 'crm-password',
+            'import_cost_calculator.alta.delay_ms' => 0,
+        ]);
+
+        Http::fake([
+            'https://www.alta.ru/tnved/xml/*' => Http::response($xml, 200),
+        ]);
+
+        $result = app(AltaReferenceSyncService::class)->sync(10);
+
+        $this->assertContains($result['status'], ['success', 'partial']);
+        $entry = ImportCostTnVedEntry::query()->where('code', '8429529000')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame(5.0, (float) $entry->duty_percent);
+        $this->assertSame('alta', $entry->duty_source);
+        $this->assertSame(22.0, (float) $entry->vat_percent);
+    }
+
     public function test_kodtnved_sync_updates_zero_duty_from_html(): void
     {
         ImportCostTnVedEntry::query()->updateOrCreate(
@@ -158,6 +213,41 @@ class ImportCostCalculatorServiceTest extends TestCase
         $this->assertSame(5.0, (float) $entry->duty_percent);
         $this->assertSame('kodtnved', $entry->duty_source);
         $this->assertSame(20.0, (float) $entry->vat_percent);
+    }
+
+    public function test_kodtnved_does_not_override_alta_duty_source(): void
+    {
+        ImportCostTnVedEntry::query()->updateOrCreate(
+            ['code' => '8429529000'],
+            [
+                'code_display' => '8429.52.90',
+                'label' => 'Прочие машины полноповоротные',
+                'duty_percent' => 5,
+                'vat_percent' => 22,
+                'pp1291_category_key' => 'crawler_excavator',
+                'requires_utilization_fee' => true,
+                'duty_source' => 'alta',
+                'alta_synced_at' => now(),
+                'kodtnved_synced_at' => null,
+                'is_active' => true,
+            ],
+        );
+
+        $html = file_get_contents(base_path('tests/Fixtures/kodtnved-8429529000.html'));
+        $this->assertNotFalse($html);
+
+        Http::fake([
+            'https://kodtnved.ru/ts/8429529000.html' => Http::response($html, 200),
+        ]);
+
+        config(['import_cost_calculator.kodtnved.delay_ms' => 0]);
+
+        app(KodTnVedReferenceSyncService::class)->sync(10);
+
+        $entry = ImportCostTnVedEntry::query()->where('code', '8429529000')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame('alta', $entry->duty_source);
+        $this->assertSame(5.0, (float) $entry->duty_percent);
     }
 
     public function test_catalog_search_finds_codes_by_prefix(): void
@@ -202,13 +292,20 @@ class ImportCostCalculatorServiceTest extends TestCase
                 $table->timestamp('eec_synced_at')->nullable();
                 $table->json('kodtnved_payload')->nullable();
                 $table->timestamp('kodtnved_synced_at')->nullable();
+                $table->json('alta_payload')->nullable();
+                $table->timestamp('alta_synced_at')->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
             });
-        } elseif (! Schema::hasColumn('import_cost_tn_ved_entries', 'kodtnved_synced_at')) {
+        } elseif (! Schema::hasColumn('import_cost_tn_ved_entries', 'alta_synced_at')) {
             Schema::table('import_cost_tn_ved_entries', function (Blueprint $table): void {
-                $table->json('kodtnved_payload')->nullable()->after('eec_synced_at');
-                $table->timestamp('kodtnved_synced_at')->nullable()->after('kodtnved_payload');
+                if (! Schema::hasColumn('import_cost_tn_ved_entries', 'kodtnved_synced_at')) {
+                    $table->json('kodtnved_payload')->nullable()->after('eec_synced_at');
+                    $table->timestamp('kodtnved_synced_at')->nullable()->after('kodtnved_payload');
+                }
+
+                $table->json('alta_payload')->nullable()->after('kodtnved_synced_at');
+                $table->timestamp('alta_synced_at')->nullable()->after('alta_payload');
             });
         }
 

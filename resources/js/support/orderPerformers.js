@@ -143,6 +143,22 @@ export function filterExternalCarrierSlots(expanded) {
     );
 }
 
+export function isOwnFleetCarrierOnly(performers) {
+    const all = Array.isArray(performers) ? performers : [];
+
+    if (all.length === 0) {
+        return false;
+    }
+
+    const expanded = expandPerformersForCarrierSlots(all);
+
+    if (expanded.length === 0) {
+        return false;
+    }
+
+    return expanded.every((row) => isOwnFleetExecutionMode(row?.execution_mode));
+}
+
 export function isDedicatedAdditionalCostStage(stage) {
     const value = String(stage ?? '');
 

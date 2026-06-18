@@ -48,20 +48,21 @@ UI (ImportCostCalculator.vue)
 
 | Справочник | Источник | Таблица / fallback |
 | --- | --- | --- |
-| ТН ВЭД, ставки пошлины/НДС | ЕЭК OData (`portal.eaeunion.org`) + kodtnved.ru (дозаполнение) | `import_cost_tn_ved_entries` → `config/import_cost_calculator` |
+| ТН ВЭД, ставки пошлины/НДС | Alta API «Справка о товаре» + kodtnved.ru (fallback) + ЕЭК OData (seed) | `import_cost_tn_ved_entries` → `config/import_cost_calculator` |
 | Утильсбор (категории, коэффициенты) | ПП РФ № 1291 (сид + sync) | `import_cost_pp1291_categories` → `config/import_cost_pp1291` |
 | Мета синхронизаций | — | `import_cost_reference_syncs` |
 
 ### Команда синхронизации
 
 ```bash
-php artisan import-cost:sync-references           # ПП 1291 + ЕЭК + kodtnved.ru
+php artisan import-cost:sync-references           # ПП 1291 + ЕЭК + Alta API + kodtnved.ru
 php artisan import-cost:sync-references --eec-only
 php artisan import-cost:sync-references --pp1291-only
+php artisan import-cost:sync-references --alta-only
 php artisan import-cost:sync-references --kodtnved-only
 ```
 
-**Приоритет ставок пошлины:** `eec` > `kodtnved` > `config`. Kodtnved дозаполняет коды с нулевой ставкой или без синхронизации; не перезаписывает непустые ставки ЕЭК.
+**Приоритет ставок пошлины:** `alta` > `kodtnved` > `eec` > `config`. Alta — платный API (логин/пароль ЛК); без ключей sync пропускается. Kodtnved не перезаписывает ставки Alta.
 
 **Поиск в UI:** `GET /modules/import-cost/tn-ved/search?q=…` — debounced запрос, без загрузки всего каталога в props.
 
@@ -82,6 +83,7 @@ UI показывает дату и статус последней синхро
 | Расчёт | `app/Services/ImportCostCalculatorService.php` |
 | Валидация | `app/Http/Requests/CalculateImportCostRequest.php` |
 | ЕЭК sync | `app/Services/ImportCost/EecTnVedSyncService.php`, `EecODataClient.php` |
+| Alta API sync | `app/Services/ImportCost/AltaReferenceSyncService.php`, `AltaSpravkaApiClient.php`, `AltaSpravkaResponseParser.php` |
 | kodtnved sync | `app/Services/ImportCost/KodTnVedReferenceSyncService.php`, `KodTnVedPageParser.php` |
 | Категории ПП 1291 по префиксу | `app/Support/ImportCostTnVedCategoryResolver.php` |
 | ПП 1291 sync | `app/Services/ImportCost/Pp1291ReferenceSyncService.php` |

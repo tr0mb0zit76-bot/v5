@@ -13,6 +13,7 @@ use App\Mcp\Tools\CreateTaskTool;
 use App\Mcp\Tools\ExtractOrderDraftFromDocumentTool;
 use App\Mcp\Tools\GetAiUsageInsightsTool;
 use App\Mcp\Tools\GetContractorTool;
+use App\Mcp\Tools\GetHeadOfSalesInsightsTool;
 use App\Mcp\Tools\GetMailSyncStatusTool;
 use App\Mcp\Tools\GetMailThreadTool;
 use App\Mcp\Tools\GetManagementAccountingAnalyticsTool;
@@ -81,6 +82,7 @@ use Laravel\Mcp\Server\Tool;
         - get_trainer_coaching_insights — зацикливание и коучинг в тренажёре (аналитика тренажёра / settings_system)
         - get_sales_script_coaching_insights — живые прохождения скриптов: исходы, возражения, слабые менеджеры, рекомендации (аналитика тренажёра / settings_system)
         - get_manager_sales_coaching_insights — Outcome Intelligence по лидам (область leads / settings_system)
+        - get_head_of_sales_insights — сводка для руководителя продаж: команда, воронка, скрипты (supervisor / reports)
         - get_order_intake_draft / list_order_intake_drafts / create_order_intake_draft_from_text / extract_order_draft_from_document / apply_order_wizard_draft / remember_order_intake_phrase — черновики заявок
         - apply_order_wizard_draft: dry_run=true → confirm_token, затем вызов с confirm_token (создание заказа из draft_id)
         - После create/extract в ответе draft_id и wizard_path. Альтернатива UI: apply_order_wizard_draft после dry_run.
@@ -131,6 +133,7 @@ class CrmServer extends Server
         GetTrainerCoachingInsightsTool::class,
         GetSalesScriptCoachingInsightsTool::class,
         GetManagerSalesCoachingInsightsTool::class,
+        GetHeadOfSalesInsightsTool::class,
         GetPrintFormBasicTermsTool::class,
         GetPrintFormTemplatesInsightsTool::class,
         UpsertPrintFormBasicTermsTool::class,

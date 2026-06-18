@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GoodInfo>
+  <Code>8429529000</Code>
+  <Name>Прочие машины полноповоротные</Name>
+  <Prim></Prim>
+  <Importlist>
+    <Import>
+      <Value>5%</Value>
+      <ValueDetail>
+        <ValueCount>5</ValueCount>
+        <ValueUnit>%</ValueUnit>
+      </ValueDetail>
+      <Order>п.80</Order>
+      <Measure>
+        <Name>Количество:</Name>
+        <Razm>ед.</Razm>
+      </Measure>
+    </Import>
+  </Importlist>
+  <Exciselist/>
+  <VATlist>
+    <VAT>
+      <Value>22%</Value>
+      <ValueDetail>
+        <ValueCount>22</ValueCount>
+        <ValueUnit>%</ValueUnit>
+      </ValueDetail>
+    </VAT>
+  </VATlist>
+</GoodInfo>

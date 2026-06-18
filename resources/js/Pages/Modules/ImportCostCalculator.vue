@@ -305,12 +305,16 @@ let debounceTimer = null;
 let tnVedSearchTimer = null;
 
 const referenceMetaLine = computed(() => {
+    const alta = props.referenceMeta?.alta?.synced_at;
     const eec = props.referenceMeta?.eec?.synced_at;
     const kodtnved = props.referenceMeta?.kodtnved?.synced_at;
     const pp = props.referenceMeta?.pp1291?.synced_at;
     const ppFrom = props.referenceMeta?.pp1291?.effective_from;
 
     const parts = [];
+    if (alta) {
+        parts.push(`Alta: ${formatSyncDate(alta)}`);
+    }
     if (eec) {
         parts.push(`ЕЭК: ${formatSyncDate(eec)}`);
     }

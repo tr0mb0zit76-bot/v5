@@ -386,7 +386,7 @@
                     <select
                         v-if="agentOptions.length > 1"
                         :value="selectedAgentSlug"
-                        class="max-w-[6.5rem] shrink-0 truncate rounded-lg border-0 bg-transparent py-1 pl-1 pr-0 text-xs font-medium text-zinc-700 outline-none dark:text-zinc-200"
+                        class="w-[9.25rem] shrink-0 truncate rounded-lg border-0 bg-transparent py-1 pl-1.5 pr-7 text-xs font-medium text-zinc-700 outline-none dark:text-zinc-200"
                         :title="'Ассистент'"
                         @change="onAgentSlugChange"
                     >

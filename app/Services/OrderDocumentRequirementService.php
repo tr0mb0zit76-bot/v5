@@ -491,6 +491,9 @@ class OrderDocumentRequirementService
                         ? (int) $row['contractor_id']
                         : null,
                     'contractor_name' => isset($row['contractor_name']) ? (string) $row['contractor_name'] : null,
+                    'carrier_mode' => isset($row['carrier_mode']) ? (string) $row['carrier_mode'] : 'single',
+                    'execution_mode' => isset($row['execution_mode']) ? (string) $row['execution_mode'] : null,
+                    'split_carriers' => is_array($row['split_carriers'] ?? null) ? $row['split_carriers'] : null,
                 ])
                 ->values()
                 ->all();

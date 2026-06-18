@@ -37,6 +37,10 @@ final class OrderDocumentRequirementSlotBuilder
         array $additionalCosts = [],
         array $paymentContext = [],
     ): array {
+        if (OwnFleetCatalog::isOwnFleetCarrierOnly($performers)) {
+            return self::buildOwnFleetCarrierOnlyRules();
+        }
+
         $mode = $clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
         $rules = [];
         $customerPaymentForm = isset($paymentContext['customer']) ? (string) $paymentContext['customer'] : null;
@@ -112,6 +116,47 @@ final class OrderDocumentRequirementSlotBuilder
         ];
 
         return $rules;
+    }
+
+    /**
+     * Собственный парк: заявка заказчику, закрывающие заказчику, ТСД/ТН — без заявок и закрывающих перевозчика и подрядчиков.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function buildOwnFleetCarrierOnlyRules(): array
+    {
+        $customerSlot = [
+            'slotKey' => 'customer-all',
+            'orderLegStage' => null,
+            'contractorId' => null,
+            'contractorName' => null,
+            'labelSuffix' => '',
+        ];
+
+        return [
+            self::requestRule('customer', $customerSlot, 'customer_request', 'Заявка заказчика', self::REQUEST_TYPES),
+            self::requestRule(
+                'customer',
+                $customerSlot,
+                'customer_closing',
+                'Закрывающий документ заказчику',
+                self::CLOSING_TYPES,
+                true,
+            ),
+            [
+                'key' => 'waybill',
+                'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
+                'description' => 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+                'party' => 'internal',
+                'accepted_types' => self::WAYBILL_TYPES,
+                'slot_kind' => 'waybill',
+                'slot_key' => 'waybill',
+                'contractor_id' => null,
+                'order_leg_stage' => null,
+                'counterparty_label' => null,
+                'allows_multiple' => true,
+            ],
+        ];
     }
 
     /**

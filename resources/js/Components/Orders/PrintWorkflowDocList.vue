@@ -14,7 +14,6 @@ const emit = defineEmits([
     'workflow-action',
     'toggle-reject',
     'submit-reject',
-    'finalize',
     'discard',
     'update:reject-reason',
 ]);
@@ -106,13 +105,6 @@ function title(doc) {
             >
                 Отказать
             </button>
-            <label
-                v-if="doc.can_finalize"
-                class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100"
-            >
-                <span>Сохранить финальный PDF</span>
-                <input type="file" accept="application/pdf" class="hidden" @change="emit('finalize', doc, $event)" />
-            </label>
             <button
                 v-if="doc.can_discard_print_draft"
                 type="button"
