@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\ImportCostPp1291Category;
 use App\Models\ImportCostTnVedEntry;
 use App\Services\ImportCost\EecTnVedSyncService;
+use App\Services\ImportCost\KodTnVedReferenceSyncService;
 use App\Services\ImportCost\Pp1291ReferenceSyncService;
 use App\Services\ImportCostCalculatorService;
 use App\Support\ImportCostTnVedCatalog;
@@ -31,7 +32,7 @@ class ImportCostCalculatorServiceTest extends TestCase
             'invoice_amount' => 100_000,
             'currency' => 'USD',
             'exchange_rate' => 100,
-            'tn_ved_code' => '8429.52',
+            'tn_ved_code' => '8429.51',
             'freight_to_border' => 50_000,
             'vehicle_age_years' => 1,
             'include_utilization_fee' => true,
@@ -86,6 +87,93 @@ class ImportCostCalculatorServiceTest extends TestCase
         $this->assertSame('eec', $entry->duty_source);
     }
 
+    public function test_eec_sync_creates_new_matching_codes(): void
+    {
+        ImportCostTnVedEntry::query()->where('code', '8429529000')->delete();
+
+        Http::fake([
+            '*MetadataList*' => Http::response([
+                'd' => [
+                    'results' => [
+                        ['MetadataList_title_name' => 'ЕТТ ставки ТН ВЭД'],
+                    ],
+                ],
+            ], 200),
+            '*%D0%95%D0%A2%D0%A2*' => Http::response([
+                'd' => [
+                    'results' => [
+                        [
+                            'Code' => '8429529000',
+                            'Name' => 'Прочие машины полноповоротные',
+                            'ImportDuty' => '5',
+                        ],
+                    ],
+                ],
+            ], 200),
+            '*' => Http::response(['d' => ['results' => []]], 200),
+        ]);
+
+        $this->assertNull(ImportCostTnVedEntry::query()->where('code', '8429529000')->first());
+
+        app(EecTnVedSyncService::class)->sync();
+
+        $entry = ImportCostTnVedEntry::query()->where('code', '8429529000')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame(5.0, (float) $entry->duty_percent);
+        $this->assertSame('eec', $entry->duty_source);
+        $this->assertSame('crawler_excavator', $entry->pp1291_category_key);
+    }
+
+    public function test_kodtnved_sync_updates_zero_duty_from_html(): void
+    {
+        ImportCostTnVedEntry::query()->updateOrCreate(
+            ['code' => '8429529000'],
+            [
+                'code_display' => '8429.52.90',
+                'label' => '8429529000',
+                'duty_percent' => 0,
+                'vat_percent' => 22,
+                'pp1291_category_key' => 'crawler_excavator',
+                'requires_utilization_fee' => true,
+                'duty_source' => 'config',
+                'kodtnved_synced_at' => null,
+                'is_active' => true,
+            ],
+        );
+
+        $html = file_get_contents(base_path('tests/Fixtures/kodtnved-8429529000.html'));
+        $this->assertNotFalse($html);
+
+        Http::fake([
+            'https://kodtnved.ru/ts/8429529000.html' => Http::response($html, 200),
+        ]);
+
+        config(['import_cost_calculator.kodtnved.delay_ms' => 0]);
+
+        $result = app(KodTnVedReferenceSyncService::class)->sync(10);
+
+        $this->assertContains($result['status'], ['success', 'partial']);
+        $entry = ImportCostTnVedEntry::query()->where('code', '8429529000')->first();
+        $this->assertNotNull($entry);
+        $this->assertSame(5.0, (float) $entry->duty_percent);
+        $this->assertSame('kodtnved', $entry->duty_source);
+        $this->assertSame(20.0, (float) $entry->vat_percent);
+    }
+
+    public function test_catalog_search_finds_codes_by_prefix(): void
+    {
+        $results = ImportCostTnVedCatalog::search('842952');
+
+        $this->assertNotEmpty($results);
+        $this->assertTrue(collect($results)->contains(fn (array $row): bool => str_starts_with($row['code'], '842952')));
+    }
+
+    public function test_coarse_code_flag_for_parent_tn_ved(): void
+    {
+        $this->assertTrue(ImportCostTnVedCatalog::isCoarseCode('8429520000'));
+        $this->assertFalse(ImportCostTnVedCatalog::isCoarseCode('8429529000'));
+    }
+
     public function test_returns_warning_when_invoice_missing(): void
     {
         $service = app(ImportCostCalculatorService::class);
@@ -112,8 +200,15 @@ class ImportCostCalculatorServiceTest extends TestCase
                 $table->string('duty_source', 32)->default('config');
                 $table->json('eec_payload')->nullable();
                 $table->timestamp('eec_synced_at')->nullable();
+                $table->json('kodtnved_payload')->nullable();
+                $table->timestamp('kodtnved_synced_at')->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
+            });
+        } elseif (! Schema::hasColumn('import_cost_tn_ved_entries', 'kodtnved_synced_at')) {
+            Schema::table('import_cost_tn_ved_entries', function (Blueprint $table): void {
+                $table->json('kodtnved_payload')->nullable()->after('eec_synced_at');
+                $table->timestamp('kodtnved_synced_at')->nullable()->after('kodtnved_payload');
             });
         }
 

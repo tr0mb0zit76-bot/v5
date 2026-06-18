@@ -684,6 +684,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('visibility.area:modules_import_cost')->group(function () {
         Route::controller(ImportCostCalculatorController::class)->prefix('modules/import-cost')->name('modules.import-cost.')->group(function () {
             Route::get('/', 'index')->name('index');
+            Route::get('/tn-ved/search', 'searchTnVed')->name('tn-ved.search');
             Route::post('/calculate', 'calculate')->name('calculate');
         });
     });

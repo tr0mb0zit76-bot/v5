@@ -14,7 +14,7 @@ return [
 
     'default_vat_percent' => 22,
 
-    'disclaimer' => 'Ориентировочный расчёт для продажной цены: ставки пошлины — из справочника ЕЭК (OData), утильсбор — по ПП РФ № 1291. Не заменяет таможенную декларацию.',
+    'disclaimer' => 'Ориентировочный расчёт для продажной цены: ставки пошлины — из ЕЭК OData и kodtnved.ru, утильсбор — по ПП РФ № 1291. Не заменяет таможенную декларацию.',
 
     'eec' => [
         'base_url' => 'https://portal.eaeunion.org/sites/odata/_api',
@@ -23,6 +23,37 @@ return [
         'timeout_seconds' => 45,
         'page_size' => 200,
         'code_prefixes' => ['8429', '8430', '8701', '8704', '8709'],
+    ],
+
+    'kodtnved' => [
+        'base_url' => 'https://kodtnved.ru',
+        'timeout_seconds' => 30,
+        'delay_ms' => 1000,
+        'batch_limit' => 200,
+    ],
+
+    /**
+     * Сопоставление префикса кода ТН ВЭД с категорией утильсбора (ПП № 1291).
+     *
+     * @var list<array{prefix: string, category: string}>
+     */
+    'pp1291_prefix_map' => [
+        ['prefix' => '842911', 'category' => 'bulldozer'],
+        ['prefix' => '842919', 'category' => 'bulldozer'],
+        ['prefix' => '842920', 'category' => 'motor_grader'],
+        ['prefix' => '842940', 'category' => 'self_propelled_other'],
+        ['prefix' => '842951', 'category' => 'wheeled_loader'],
+        ['prefix' => '842952', 'category' => 'crawler_excavator'],
+        ['prefix' => '842959', 'category' => 'crawler_excavator'],
+        ['prefix' => '843041', 'category' => 'self_propelled_other'],
+        ['prefix' => '843049', 'category' => 'self_propelled_other'],
+        ['prefix' => '843061', 'category' => 'crawler_excavator'],
+        ['prefix' => '870120', 'category' => 'road_tractor'],
+        ['prefix' => '870421', 'category' => 'truck'],
+        ['prefix' => '870422', 'category' => 'truck'],
+        ['prefix' => '870423', 'category' => 'truck'],
+        ['prefix' => '870911', 'category' => 'works_truck'],
+        ['prefix' => '870919', 'category' => 'works_truck'],
     ],
 
     'currencies' => [
@@ -190,10 +221,10 @@ return [
         [
             'code' => '8429520000',
             'code_display' => '8429.52',
-            'label' => 'Погрузчики фронтальные колёсные',
+            'label' => 'Машины полноповоротные (укрупнённый код)',
             'duty_percent' => 0,
             'vat_percent' => null,
-            'utilization_profile' => 'wheeled_loader',
+            'utilization_profile' => 'crawler_excavator',
             'requires_utilization_fee' => true,
         ],
         [

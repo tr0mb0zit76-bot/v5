@@ -17,6 +17,8 @@ class ImportCostTnVedEntry extends Model
         'duty_source',
         'eec_payload',
         'eec_synced_at',
+        'kodtnved_payload',
+        'kodtnved_synced_at',
         'is_active',
     ];
 
@@ -28,6 +30,8 @@ class ImportCostTnVedEntry extends Model
             'requires_utilization_fee' => 'boolean',
             'eec_payload' => 'array',
             'eec_synced_at' => 'datetime',
+            'kodtnved_payload' => 'array',
+            'kodtnved_synced_at' => 'datetime',
             'is_active' => 'boolean',
         ];
     }

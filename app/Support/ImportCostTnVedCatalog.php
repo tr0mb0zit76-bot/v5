@@ -18,6 +18,83 @@ final class ImportCostTnVedCatalog
      *     utilization_profile: string|null,
      *     requires_utilization_fee: bool,
      *     duty_source: string|null,
+     *     duty_source_label: string|null,
+     *     is_coarse: bool,
+     *     search_text: string
+     * }>
+     */
+    public static function search(string $query, int $limit = 30): array
+    {
+        $query = trim($query);
+        $limit = max(1, min(50, $limit));
+
+        if ($query === '') {
+            return [];
+        }
+
+        $digits = preg_replace('/\D+/', '', $query) ?? '';
+        $compactQuery = mb_strtolower(str_replace([' ', '.', '-'], '', $query));
+
+        if (Schema::hasTable('import_cost_tn_ved_entries')) {
+            $builder = ImportCostTnVedEntry::query()->where('is_active', true);
+
+            $builder->where(function ($nested) use ($query, $digits, $compactQuery): void {
+                if ($digits !== '') {
+                    $nested->where('code', 'like', substr($digits, 0, 10).'%')
+                        ->orWhere('code_display', 'like', '%'.$digits.'%');
+                }
+
+                if (mb_strlen($query) >= 2) {
+                    $nested->orWhere('label', 'like', '%'.$query.'%');
+                }
+
+                if ($compactQuery !== '' && $compactQuery !== $digits) {
+                    $nested->orWhereRaw('LOWER(REPLACE(REPLACE(code_display, \'.\', \'\'), \' \', \'\')) LIKE ?', ['%'.$compactQuery.'%']);
+                }
+            });
+
+            $fromDb = $builder
+                ->orderBy('code')
+                ->limit($limit)
+                ->get()
+                ->map(fn (ImportCostTnVedEntry $entry): array => self::mapEntry($entry))
+                ->all();
+
+            if ($fromDb !== []) {
+                return $fromDb;
+            }
+        }
+
+        return collect(self::fromConfig())
+            ->filter(function (array $row) use ($query, $digits, $compactQuery): bool {
+                if ($digits !== '' && str_starts_with($row['code'], substr($digits, 0, 10))) {
+                    return true;
+                }
+
+                if (mb_strlen($query) >= 2 && str_contains($row['search_text'], mb_strtolower($query))) {
+                    return true;
+                }
+
+                return $compactQuery !== '' && str_contains($row['search_text'], $compactQuery);
+            })
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{
+     *     code: string,
+     *     code_display: string,
+     *     label: string,
+     *     duty_percent: float,
+     *     vat_percent: float,
+     *     pp1291_category_key: string|null,
+     *     utilization_profile: string|null,
+     *     requires_utilization_fee: bool,
+     *     duty_source: string|null,
+     *     duty_source_label: string|null,
+     *     is_coarse: bool,
      *     search_text: string
      * }>
      */
@@ -50,6 +127,8 @@ final class ImportCostTnVedCatalog
      *     utilization_profile: string|null,
      *     requires_utilization_fee: bool,
      *     duty_source: string|null,
+     *     duty_source_label: string|null,
+     *     is_coarse: bool,
      *     search_text: string
      * }|null
      */
@@ -91,6 +170,23 @@ final class ImportCostTnVedCatalog
         return substr($digits, 0, 4).'.'.substr($digits, 4, 2);
     }
 
+    public static function isCoarseCode(string $code): bool
+    {
+        $normalized = self::normalizeCode($code);
+
+        return str_ends_with($normalized, '0000');
+    }
+
+    public static function dutySourceLabel(?string $source): ?string
+    {
+        return match ($source) {
+            'eec' => 'ЕЭК OData',
+            'kodtnved' => 'kodtnved.ru',
+            'config' => 'локальный справочник',
+            default => $source,
+        };
+    }
+
     /**
      * @return list<array{
      *     code: string,
@@ -102,6 +198,8 @@ final class ImportCostTnVedCatalog
      *     utilization_profile: string|null,
      *     requires_utilization_fee: bool,
      *     duty_source: string|null,
+     *     duty_source_label: string|null,
+     *     is_coarse: bool,
      *     search_text: string
      * }>
      */
@@ -131,6 +229,8 @@ final class ImportCostTnVedCatalog
                     'utilization_profile' => $category,
                     'requires_utilization_fee' => (bool) ($row['requires_utilization_fee'] ?? false),
                     'duty_source' => 'config',
+                    'duty_source_label' => self::dutySourceLabel('config'),
+                    'is_coarse' => self::isCoarseCode($code),
                     'search_text' => mb_strtolower($display.' '.$code.' '.$label),
                 ];
             })
@@ -150,6 +250,8 @@ final class ImportCostTnVedCatalog
      *     utilization_profile: string|null,
      *     requires_utilization_fee: bool,
      *     duty_source: string|null,
+     *     duty_source_label: string|null,
+     *     is_coarse: bool,
      *     search_text: string
      * }
      */
@@ -168,6 +270,8 @@ final class ImportCostTnVedCatalog
             'utilization_profile' => $entry->pp1291_category_key,
             'requires_utilization_fee' => (bool) $entry->requires_utilization_fee,
             'duty_source' => $entry->duty_source,
+            'duty_source_label' => self::dutySourceLabel($entry->duty_source),
+            'is_coarse' => self::isCoarseCode($entry->code),
             'search_text' => mb_strtolower($display.' '.$entry->code.' '.$label),
         ];
     }

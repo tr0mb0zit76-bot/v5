@@ -67,14 +67,16 @@
                         :class="crmFieldFluid"
                         placeholder="8429.52 или «погрузчик»"
                         @focus="tnVedDropdownOpen = true"
-                        @input="tnVedDropdownOpen = true; scheduleRecalculate()"
+                        @input="onTnVedSearchInput"
                     >
                     <div
-                        v-if="tnVedDropdownOpen && filteredTnVedCodes.length > 0"
+                        v-if="tnVedDropdownOpen && tnVedSearch.trim().length >= 2"
                         class="max-h-56 overflow-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
                     >
+                        <p v-if="tnVedSearchLoading" class="px-4 py-3 text-sm text-zinc-500">Ищем коды…</p>
+                        <p v-else-if="tnVedSearchResults.length === 0" class="px-4 py-3 text-sm text-zinc-500">Ничего не найдено</p>
                         <button
-                            v-for="item in filteredTnVedCodes"
+                            v-for="item in tnVedSearchResults"
                             :key="item.code"
                             type="button"
                             class="flex w-full flex-col items-start gap-0.5 border-b border-zinc-100 px-4 py-2.5 text-left text-sm last:border-0 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"
@@ -83,12 +85,25 @@
                             <span class="font-medium">{{ item.code_display }} · {{ item.label }}</span>
                             <span class="text-xs text-zinc-500">
                                 пошлина {{ item.duty_percent }}% · НДС {{ item.vat_percent }}%
+                                <template v-if="item.duty_source_label"> · {{ item.duty_source_label }}</template>
                                 <template v-if="item.requires_utilization_fee"> · утильсбор</template>
+                            </span>
+                            <span v-if="item.is_coarse" class="text-xs text-amber-600 dark:text-amber-400">
+                                Укрупнённый код — уточните до 10 знаков
                             </span>
                         </button>
                     </div>
+                    <p v-else-if="tnVedDropdownOpen" class="text-xs text-zinc-500">
+                        Введите код или название (минимум 2 символа)
+                    </p>
                     <p v-if="selectedTnVed" class="text-xs text-zinc-600 dark:text-zinc-300">
                         Выбрано: <span class="font-medium">{{ selectedTnVed.code_display }}</span> — {{ selectedTnVed.label }}
+                        <template v-if="selectedTnVed.duty_source_label">
+                            · ставка: {{ selectedTnVed.duty_source_label }}
+                        </template>
+                    </p>
+                    <p v-if="selectedTnVed?.is_coarse" class="text-xs text-amber-700 dark:text-amber-300">
+                        Выбран укрупнённый код ТН ВЭД — для точного расчёта уточните 10-значный код.
                     </p>
                 </div>
 
@@ -260,7 +275,6 @@ defineOptions({
 
 const props = defineProps({
     currencies: { type: Array, default: () => [] },
-    tnVedCodes: { type: Array, default: () => [] },
     disclaimer: { type: String, default: '' },
     defaultVatPercent: { type: Number, default: 22 },
     referenceMeta: { type: Object, default: () => ({}) },
@@ -282,20 +296,26 @@ const form = reactive({
 
 const tnVedSearch = ref('');
 const tnVedDropdownOpen = ref(false);
+const tnVedSearchResults = ref([]);
+const tnVedSearchLoading = ref(false);
+const selectedTnVed = ref(null);
 const loading = ref(false);
 const result = ref(null);
 let debounceTimer = null;
-
-const selectedTnVed = computed(() => props.tnVedCodes.find((item) => item.code === form.tn_ved_code) ?? null);
+let tnVedSearchTimer = null;
 
 const referenceMetaLine = computed(() => {
     const eec = props.referenceMeta?.eec?.synced_at;
+    const kodtnved = props.referenceMeta?.kodtnved?.synced_at;
     const pp = props.referenceMeta?.pp1291?.synced_at;
     const ppFrom = props.referenceMeta?.pp1291?.effective_from;
 
     const parts = [];
     if (eec) {
         parts.push(`ЕЭК: ${formatSyncDate(eec)}`);
+    }
+    if (kodtnved) {
+        parts.push(`kodtnved.ru: ${formatSyncDate(kodtnved)}`);
     }
     if (pp) {
         parts.push(`ПП № 1291: ${formatSyncDate(pp)}${ppFrom ? ` (ред. ${ppFrom})` : ''}`);
@@ -316,20 +336,61 @@ function formatSyncDate(iso) {
     }
 }
 
-const filteredTnVedCodes = computed(() => {
-    const query = tnVedSearch.value.trim().toLowerCase().replace(/\s+/g, '');
 
-    if (!query) {
-        return props.tnVedCodes.slice(0, 30);
+function onTnVedSearchInput() {
+    tnVedDropdownOpen.value = true;
+    form.tn_ved_code = '';
+    selectedTnVed.value = null;
+    scheduleTnVedSearch();
+    scheduleRecalculate();
+}
+
+function scheduleTnVedSearch() {
+    clearTimeout(tnVedSearchTimer);
+    tnVedSearchTimer = setTimeout(searchTnVedCodes, 300);
+}
+
+async function searchTnVedCodes() {
+    const query = tnVedSearch.value.trim();
+
+    if (query.length < 2) {
+        tnVedSearchResults.value = [];
+        tnVedSearchLoading.value = false;
+
+        return;
     }
 
-    return props.tnVedCodes
-        .filter((item) => item.search_text.includes(query) || item.code.includes(query.replace(/\./g, '')))
-        .slice(0, 30);
-});
+    tnVedSearchLoading.value = true;
+
+    try {
+        const url = new URL(route('modules.import-cost.tn-ved.search'), window.location.origin);
+        url.searchParams.set('q', query);
+
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            tnVedSearchResults.value = [];
+
+            return;
+        }
+
+        const payload = await response.json();
+        tnVedSearchResults.value = Array.isArray(payload.items) ? payload.items : [];
+    } catch {
+        tnVedSearchResults.value = [];
+    } finally {
+        tnVedSearchLoading.value = false;
+    }
+}
 
 function selectTnVed(item) {
     form.tn_ved_code = item.code;
+    selectedTnVed.value = item;
     tnVedSearch.value = `${item.code_display} · ${item.label}`;
     tnVedDropdownOpen.value = false;
     scheduleRecalculate();
@@ -451,6 +512,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     clearTimeout(debounceTimer);
+    clearTimeout(tnVedSearchTimer);
     document.removeEventListener('click', onDocumentClick);
 });
 </script>

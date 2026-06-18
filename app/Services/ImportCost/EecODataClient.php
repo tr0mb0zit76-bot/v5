@@ -126,6 +126,38 @@ final class EecODataClient
     /**
      * @param  array<string, mixed>  $row
      */
+    public function extractVatPercent(array $row): ?float
+    {
+        $candidates = [];
+
+        foreach ($row as $key => $value) {
+            $keyLower = mb_strtolower((string) $key);
+            if (! is_scalar($value)) {
+                continue;
+            }
+
+            if (
+                str_contains($keyLower, 'vat')
+                || str_contains($keyLower, 'nds')
+                || str_contains($keyLower, 'ндс')
+            ) {
+                $numeric = $this->toPercent((string) $value);
+                if ($numeric !== null) {
+                    $candidates[] = $numeric;
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        return max(0.0, min(100.0, $candidates[0]));
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
     public function extractLabel(array $row): ?string
     {
         foreach (['Name', 'name', 'NAIM', 'naim', 'Title', 'title', 'Description'] as $key) {

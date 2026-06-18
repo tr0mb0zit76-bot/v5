@@ -17,7 +17,6 @@ final class ImportCostCalculatorService
     {
         return [
             'currencies' => config('import_cost_calculator.currencies', []),
-            'tnVedCodes' => ImportCostTnVedCatalog::all(),
             'disclaimer' => (string) config('import_cost_calculator.disclaimer', ''),
             'defaultVatPercent' => (float) config('import_cost_calculator.default_vat_percent', 22),
             'referenceMeta' => ImportCostReferenceMeta::forUi(),
@@ -119,7 +118,7 @@ final class ImportCostCalculatorService
                 'key' => 'duty',
                 'label' => 'Таможенная пошлина',
                 'amount' => $dutyAmount,
-                'meta' => $dutyPercent.'% · источник: '.($tnVed['duty_source'] ?? 'config'),
+                'meta' => $dutyPercent.'% · источник: '.($tnVed['duty_source_label'] ?? $tnVed['duty_source'] ?? 'config'),
             ],
             [
                 'key' => 'vat',

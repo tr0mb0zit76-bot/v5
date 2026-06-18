@@ -41,8 +41,8 @@ class ImportCostCalculatorTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Modules/ImportCostCalculator')
-                ->has('tnVedCodes')
-                ->has('referenceMeta'));
+                ->has('referenceMeta')
+                ->missing('tnVedCodes'));
 
         $this->actingAs($deniedUser)
             ->get(route('modules.import-cost.index'))
@@ -64,5 +64,29 @@ class ImportCostCalculatorTest extends TestCase
                 'tn_ved_code' => '8429520000',
             ])
             ->assertForbidden();
+    }
+
+    public function test_tn_ved_search_returns_matching_codes(): void
+    {
+        if (! Schema::hasTable('roles') || ! Schema::hasTable('users')) {
+            $this->markTestSkipped('Таблицы roles или users недоступны.');
+        }
+
+        $role = Role::query()->firstOrCreate(
+            ['name' => 'import_cost_search_tester'],
+            [
+                'display_name' => 'Import cost search tester',
+                'visibility_areas' => ['modules_import_cost'],
+            ],
+        );
+        $role->update(['visibility_areas' => ['modules_import_cost']]);
+
+        $user = User::factory()->create(['role_id' => $role->id]);
+
+        $this->actingAs($user)
+            ->getJson(route('modules.import-cost.tn-ved.search', ['q' => '8429']))
+            ->assertOk()
+            ->assertJsonStructure(['items'])
+            ->assertJson(fn ($json) => $json->has('items')->etc());
     }
 }

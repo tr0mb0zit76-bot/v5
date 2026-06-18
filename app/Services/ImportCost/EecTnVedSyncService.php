@@ -7,6 +7,7 @@ namespace App\Services\ImportCost;
 use App\Models\ImportCostReferenceSync;
 use App\Models\ImportCostTnVedEntry;
 use App\Support\ImportCostTnVedCatalog;
+use App\Support\ImportCostTnVedCategoryResolver;
 use Illuminate\Support\Facades\Schema;
 
 final class EecTnVedSyncService
@@ -29,12 +30,14 @@ final class EecTnVedSyncService
             ];
         }
 
-        $seeded = $this->seedFromConfig();
+        $this->applyConfigCategoryHints();
         $registryTitles = $this->client->registryTitlesForKeywords();
         $prefixes = config('import_cost_calculator.eec.code_prefixes', []);
         $pageSize = (int) config('import_cost_calculator.eec.page_size', 200);
-        $updated = $seeded;
+        $updated = 0;
+        $created = 0;
         $matchedRows = 0;
+        $defaultVat = (float) config('import_cost_calculator.default_vat_percent', 22);
 
         foreach ($registryTitles as $title) {
             $skip = 0;
@@ -51,25 +54,62 @@ final class EecTnVedSyncService
                         continue;
                     }
 
-                    $matchedRows++;
-                    $duty = $this->client->extractDutyPercent($row);
-                    $label = $this->client->extractLabel($row);
-
-                    $entry = ImportCostTnVedEntry::query()->where('code', $code)->first();
-                    if ($entry === null) {
+                    if (strlen(preg_replace('/\D+/', '', $code) ?? '') < 4) {
                         continue;
                     }
 
-                    $changes = false;
+                    $matchedRows++;
+                    $duty = $this->client->extractDutyPercent($row);
+                    $vat = $this->client->extractVatPercent($row);
+                    $label = $this->client->extractLabel($row);
+                    $resolved = ImportCostTnVedCategoryResolver::resolveForCode($code);
+
+                    $entry = ImportCostTnVedEntry::query()->where('code', $code)->first();
+                    $isNew = $entry === null;
+
+                    if ($isNew) {
+                        $entry = new ImportCostTnVedEntry([
+                            'code' => $code,
+                            'code_display' => ImportCostTnVedCatalog::formatDisplayCode($code),
+                            'label' => $label ?? $code,
+                            'duty_percent' => $duty ?? 0,
+                            'vat_percent' => $vat ?? $defaultVat,
+                            'pp1291_category_key' => $resolved['category'],
+                            'requires_utilization_fee' => $resolved['requires_utilization_fee'],
+                            'duty_source' => $duty !== null ? 'eec' : 'config',
+                            'is_active' => true,
+                        ]);
+                        $created++;
+                    }
+
+                    $changes = $isNew;
+
+                    if ($label !== null && $label !== $entry->label) {
+                        $entry->label = $label;
+                        $changes = true;
+                    }
 
                     if ($duty !== null && abs((float) $entry->duty_percent - $duty) > 0.0001) {
                         $entry->duty_percent = $duty;
                         $entry->duty_source = 'eec';
                         $changes = true;
+                    } elseif ($duty !== null && $entry->duty_source !== 'eec') {
+                        $entry->duty_source = 'eec';
+                        $changes = true;
                     }
 
-                    if ($label !== null && $label !== $entry->label) {
-                        $entry->label = $label;
+                    if ($vat !== null && abs((float) $entry->vat_percent - $vat) > 0.0001) {
+                        $entry->vat_percent = $vat;
+                        $changes = true;
+                    }
+
+                    if ($entry->pp1291_category_key === null && $resolved['category'] !== null) {
+                        $entry->pp1291_category_key = $resolved['category'];
+                        $changes = true;
+                    }
+
+                    if ($resolved['requires_utilization_fee'] && ! $entry->requires_utilization_fee) {
+                        $entry->requires_utilization_fee = true;
                         $changes = true;
                     }
 
@@ -87,8 +127,8 @@ final class EecTnVedSyncService
 
         $status = $registryTitles === [] ? 'partial' : ($matchedRows > 0 ? 'success' : 'partial');
         $message = $registryTitles === []
-            ? 'ЕЭК OData: реестры не найдены, используются локальные ставки из config/БД.'
-            : "ЕЭК OData: обновлено {$updated} код(ов), просмотрено {$matchedRows} строк.";
+            ? 'ЕЭК OData: реестры не найдены, используются локальные ставки из БД.'
+            : "ЕЭК OData: обновлено {$updated} код(ов) (новых {$created}), просмотрено {$matchedRows} строк.";
 
         $log = [
             'status' => $status,
@@ -96,7 +136,7 @@ final class EecTnVedSyncService
             'message' => $message,
             'meta' => [
                 'registry_titles' => $registryTitles,
-                'seeded_from_config' => $seeded,
+                'created' => $created,
                 'matched_rows' => $matchedRows,
             ],
         ];
@@ -108,6 +148,11 @@ final class EecTnVedSyncService
 
     public function seedFromConfig(): int
     {
+        return $this->applyConfigCategoryHints();
+    }
+
+    public function applyConfigCategoryHints(): int
+    {
         $count = 0;
         $defaultVat = (float) config('import_cost_calculator.default_vat_percent', 22);
 
@@ -118,24 +163,33 @@ final class EecTnVedSyncService
 
             $code = ImportCostTnVedCatalog::normalizeCode((string) $row['code']);
             $categoryKey = (string) ($row['pp1291_category_key'] ?? $row['utilization_profile'] ?? '');
+            $resolved = ImportCostTnVedCategoryResolver::resolveForCode($code);
 
-            ImportCostTnVedEntry::query()->updateOrCreate(
-                ['code' => $code],
-                [
-                    'code_display' => (string) ($row['code_display'] ?? ImportCostTnVedCatalog::formatDisplayCode($code)),
-                    'label' => (string) ($row['label'] ?? $code),
-                    'duty_percent' => (float) ($row['duty_percent'] ?? 0),
-                    'vat_percent' => isset($row['vat_percent']) && $row['vat_percent'] !== null
-                        ? (float) $row['vat_percent']
-                        : $defaultVat,
-                    'pp1291_category_key' => $categoryKey !== '' ? $categoryKey : null,
-                    'requires_utilization_fee' => (bool) ($row['requires_utilization_fee'] ?? false),
-                    'duty_source' => 'config',
-                    'is_active' => true,
-                ],
-            );
+            $entry = ImportCostTnVedEntry::query()->firstOrNew(['code' => $code]);
+            $isNew = ! $entry->exists;
 
-            $count++;
+            if ($isNew) {
+                $entry->code_display = (string) ($row['code_display'] ?? ImportCostTnVedCatalog::formatDisplayCode($code));
+                $entry->label = (string) ($row['label'] ?? $code);
+                $entry->duty_percent = (float) ($row['duty_percent'] ?? 0);
+                $entry->vat_percent = isset($row['vat_percent']) && $row['vat_percent'] !== null
+                    ? (float) $row['vat_percent']
+                    : $defaultVat;
+                $entry->duty_source = 'config';
+                $entry->is_active = true;
+            }
+
+            $category = $categoryKey !== '' ? $categoryKey : $resolved['category'];
+            if ($category !== null && $category !== '') {
+                $entry->pp1291_category_key = $category;
+            }
+
+            $entry->requires_utilization_fee = (bool) ($row['requires_utilization_fee'] ?? $resolved['requires_utilization_fee']);
+
+            if ($isNew || $entry->isDirty(['pp1291_category_key', 'requires_utilization_fee', 'label', 'code_display'])) {
+                $entry->save();
+                $count++;
+            }
         }
 
         return $count;
@@ -146,17 +200,7 @@ final class EecTnVedSyncService
      */
     private function matchesPrefixes(string $code, array $prefixes): bool
     {
-        if ($prefixes === []) {
-            return true;
-        }
-
-        foreach ($prefixes as $prefix) {
-            if (str_starts_with($code, (string) $prefix)) {
-                return true;
-            }
-        }
-
-        return false;
+        return ImportCostTnVedCategoryResolver::matchesAnyPrefix($code, $prefixes);
     }
 
     /**
