@@ -75,7 +75,137 @@ final class PaymentSchedulePaymentEventRelinker
             $relinked++;
         }
 
+        $relinked += $this->relinkManagementAllocationsForOrder($orderId);
+
         return $relinked;
+    }
+
+    /**
+     * Восстановить allocation_payment_schedule_id у разнесённых строк выписки после пересборки графика.
+     */
+    public function relinkManagementAllocationsForOrder(int $orderId): int
+    {
+        if (! Schema::hasTable('management_statement_lines')) {
+            return 0;
+        }
+
+        $updated = 0;
+
+        $lines = DB::table('management_statement_lines')
+            ->where('allocation_order_id', $orderId)
+            ->where('status', 'allocated')
+            ->whereIn('match_type', ['operational', 'operational_split'])
+            ->get(['id', 'match_type', 'allocation_payment_schedule_id']);
+
+        foreach ($lines as $line) {
+            if ($this->scheduleIdExists((int) ($line->allocation_payment_schedule_id ?? 0))) {
+                continue;
+            }
+
+            if ((string) $line->match_type === 'operational_split' && Schema::hasTable('management_statement_line_splits')) {
+                $updated += $this->relinkManagementSplitsForLine((int) $line->id);
+            }
+
+            $rootScheduleId = $this->resolveRootScheduleIdFromMgmtReference('mgmt:'.(int) $line->id);
+            if ($rootScheduleId === null) {
+                continue;
+            }
+
+            DB::table('management_statement_lines')
+                ->where('id', (int) $line->id)
+                ->update([
+                    'allocation_payment_schedule_id' => $rootScheduleId,
+                    'allocation_order_id' => $orderId,
+                    'updated_at' => now(),
+                ]);
+
+            $updated++;
+        }
+
+        return $updated;
+    }
+
+    private function relinkManagementSplitsForLine(int $lineId): int
+    {
+        $updated = 0;
+
+        $splits = DB::table('management_statement_line_splits')
+            ->where('management_statement_line_id', $lineId)
+            ->get(['id', 'payment_schedule_id']);
+
+        foreach ($splits as $split) {
+            if ($this->scheduleIdExists((int) ($split->payment_schedule_id ?? 0))) {
+                continue;
+            }
+
+            $rootScheduleId = $this->resolveRootScheduleIdFromMgmtReference('mgmt:'.$lineId.':'.(int) $split->id);
+            if ($rootScheduleId === null) {
+                continue;
+            }
+
+            DB::table('management_statement_line_splits')
+                ->where('id', (int) $split->id)
+                ->update([
+                    'payment_schedule_id' => $rootScheduleId,
+                    'order_id' => DB::table('payment_schedules')->where('id', $rootScheduleId)->value('order_id'),
+                    'updated_at' => now(),
+                ]);
+
+            $updated++;
+        }
+
+        return $updated;
+    }
+
+    private function resolveRootScheduleIdFromMgmtReference(string $reference): ?int
+    {
+        if (! $this->ledgerTableExists()) {
+            return null;
+        }
+
+        $query = DB::table('payment_schedule_payment_events')
+            ->where('transaction_reference', $reference);
+
+        if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
+            $query->whereNull('reversed_at');
+        }
+
+        $scheduleId = $query->value('payment_schedule_id');
+        if ($scheduleId === null) {
+            return null;
+        }
+
+        return $this->rootScheduleIdForLedgerScheduleId((int) $scheduleId);
+    }
+
+    private function rootScheduleIdForLedgerScheduleId(int $scheduleId): ?int
+    {
+        if (! $this->scheduleIdExists($scheduleId)) {
+            return null;
+        }
+
+        $row = DB::table('payment_schedules')->where('id', $scheduleId)->first(['id', 'parent_payment_id', 'is_partial']);
+        if ($row === null) {
+            return null;
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')
+            && Schema::hasColumn('payment_schedules', 'parent_payment_id')
+            && (bool) ($row->is_partial ?? false)
+            && $row->parent_payment_id !== null) {
+            return (int) $row->parent_payment_id;
+        }
+
+        return (int) $row->id;
+    }
+
+    private function scheduleIdExists(int $scheduleId): bool
+    {
+        if ($scheduleId <= 0 || ! Schema::hasTable('payment_schedules')) {
+            return false;
+        }
+
+        return DB::table('payment_schedules')->where('id', $scheduleId)->exists();
     }
 
     /**
