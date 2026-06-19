@@ -48,6 +48,10 @@ function partyLabel(party) {
         return 'Перевозчик';
     }
 
+    if (party === 'contractor') {
+        return 'Подрядчик';
+    }
+
     return 'Внутренний';
 }
 

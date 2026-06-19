@@ -129,11 +129,9 @@ function buildPlaceholderRow(rule) {
  * @param {Map<string, string>} typeLabels
  */
 function buildMatchedRow(document, rule, completed, typeLabels) {
-    const displayParty = rule.slot_kind === 'waybill' ? 'carrier' : document.party;
-
     return {
         ...document,
-        party: displayParty ?? rule.party,
+        party: rule.party ?? document.party,
         requirement_key: rule.key,
         requirement_label: rule.label,
         type_label: registryTypeLabel(document, rule, typeLabels),
