@@ -359,8 +359,22 @@ class OrderDocumentRequirementService
             ? $this->resolvePartyForMatching($document)
             : (string) data_get($document, 'party', data_get($document, 'metadata.party', 'internal'));
 
-        if (! in_array($type, $rule['accepted_types'], true) || $party !== $rule['party']) {
+        $isWaybillSlot = ($rule['slot_kind'] ?? '') === 'waybill';
+
+        if (! in_array($type, $rule['accepted_types'], true)) {
             return false;
+        }
+
+        if ($isWaybillSlot) {
+            if (! in_array($party, ['carrier', 'internal'], true)) {
+                return false;
+            }
+        } elseif ($party !== $rule['party']) {
+            return false;
+        }
+
+        if ($isWaybillSlot) {
+            return true;
         }
 
         $ruleStage = filled($rule['order_leg_stage'] ?? null)

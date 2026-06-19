@@ -38,7 +38,7 @@ final class OrderDocumentRequirementSlotBuilder
         array $paymentContext = [],
     ): array {
         if (OwnFleetCatalog::isOwnFleetCarrierOnly($performers)) {
-            return self::buildOwnFleetCarrierOnlyRules();
+            return self::buildOwnFleetCarrierOnlyRules($performers, $mode);
         }
 
         $mode = $clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
@@ -101,21 +101,60 @@ final class OrderDocumentRequirementSlotBuilder
             }
         }
 
-        $rules[] = [
+        $rules[] = self::waybillRule($performers, $mode);
+
+        return $rules;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     * @return array<string, mixed>
+     */
+    private static function waybillRule(array $performers, string $clientRequestMode): array
+    {
+        $carrierLabel = self::primaryCarrierTransportLabel($performers, $clientRequestMode);
+
+        return [
             'key' => 'waybill',
             'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
             'description' => 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
-            'party' => 'internal',
+            'party' => 'carrier',
             'accepted_types' => self::WAYBILL_TYPES,
             'slot_kind' => 'waybill',
             'slot_key' => 'waybill',
             'contractor_id' => null,
             'order_leg_stage' => null,
-            'counterparty_label' => null,
+            'counterparty_label' => $carrierLabel,
             'allows_multiple' => true,
         ];
+    }
 
-        return $rules;
+    /**
+     * @param  list<array<string, mixed>>  $performers
+     */
+    private static function primaryCarrierTransportLabel(array $performers, string $clientRequestMode): ?string
+    {
+        foreach (self::carrierRequestSlots($performers, $clientRequestMode) as $slot) {
+            $name = trim((string) ($slot['contractorName'] ?? ''));
+
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        foreach ($performers as $performer) {
+            if (! is_array($performer)) {
+                continue;
+            }
+
+            $name = trim((string) ($performer['contractor_name'] ?? ''));
+
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -123,7 +162,7 @@ final class OrderDocumentRequirementSlotBuilder
      *
      * @return list<array<string, mixed>>
      */
-    private static function buildOwnFleetCarrierOnlyRules(): array
+    private static function buildOwnFleetCarrierOnlyRules(array $performers, string $clientRequestMode): array
     {
         $customerSlot = [
             'slotKey' => 'customer-all',
@@ -143,19 +182,7 @@ final class OrderDocumentRequirementSlotBuilder
                 self::CLOSING_TYPES,
                 true,
             ),
-            [
-                'key' => 'waybill',
-                'label' => OrderDocumentTransportTypes::UNIFIED_LABEL,
-                'description' => 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
-                'party' => 'internal',
-                'accepted_types' => self::WAYBILL_TYPES,
-                'slot_kind' => 'waybill',
-                'slot_key' => 'waybill',
-                'contractor_id' => null,
-                'order_leg_stage' => null,
-                'counterparty_label' => null,
-                'allows_multiple' => true,
-            ],
+            self::waybillRule($performers, $clientRequestMode),
         ];
     }
 

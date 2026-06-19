@@ -27,12 +27,42 @@ export function buildRegistryTableRows(
     );
     const usedSignedIds = new Set();
 
-    const rows = rules.map((rule) => {
+    /** @type {Array<Record<string, unknown>>} */
+    const rows = [];
+
+    rules.forEach((rule) => {
         const checklistItem = checklist.find((item) => item?.key === rule.key);
         const completed = Boolean(checklistItem?.completed);
         const matchedId = checklistItem?.matched_document_id
             ? Number(checklistItem.matched_document_id)
             : null;
+
+        if (rule.allows_multiple) {
+            const matchingDocs = signed.filter((doc) => {
+                if (!doc?.id || usedSignedIds.has(doc.id)) {
+                    return false;
+                }
+
+                if (matchedId && Number(doc.id) === matchedId) {
+                    return true;
+                }
+
+                return documentMatchesRequirementRule(doc, rule);
+            });
+
+            if (matchingDocs.length === 0) {
+                rows.push(buildPlaceholderRow(rule));
+
+                return;
+            }
+
+            matchingDocs.forEach((doc) => {
+                usedSignedIds.add(doc.id);
+                rows.push(buildMatchedRow(doc, rule, completed, typeLabels));
+            });
+
+            return;
+        }
 
         let matchedSigned = matchedId ? signedById.get(matchedId) : null;
 
@@ -45,36 +75,13 @@ export function buildRegistryTableRows(
         }
 
         if (matchedSigned?.id) {
-            if (!rule.allows_multiple) {
-                usedSignedIds.add(matchedSigned.id);
-            }
+            usedSignedIds.add(matchedSigned.id);
+            rows.push(buildMatchedRow(matchedSigned, rule, completed, typeLabels));
 
-            return {
-                ...matchedSigned,
-                requirement_key: rule.key,
-                requirement_label: rule.label,
-                type_label: registryTypeLabel(matchedSigned, rule, typeLabels),
-                checklist_completed: completed,
-                is_placeholder: false,
-            };
+            return;
         }
 
-        const defaultType = Array.isArray(rule.accepted_types) ? rule.accepted_types[0] : 'other';
-
-        return {
-            _localKey: `requirement-${rule.key}`,
-            requirement_key: rule.key,
-            requirement_label: rule.label,
-            party: rule.party,
-            type: defaultType,
-            type_label: rule.label,
-            number: null,
-            document_date: null,
-            original_name: null,
-            uploaded_file_preview_url: null,
-            checklist_completed: false,
-            is_placeholder: true,
-        };
+        rows.push(buildPlaceholderRow(rule));
     });
 
     signed
@@ -91,6 +98,48 @@ export function buildRegistryTableRows(
         });
 
     return rows;
+}
+
+/**
+ * @param {Record<string, unknown>} rule
+ */
+function buildPlaceholderRow(rule) {
+    const defaultType = Array.isArray(rule.accepted_types) ? rule.accepted_types[0] : 'other';
+
+    return {
+        _localKey: `requirement-${rule.key}`,
+        requirement_key: rule.key,
+        requirement_label: rule.label,
+        party: rule.party,
+        type: defaultType,
+        type_label: rule.label,
+        number: null,
+        document_date: null,
+        original_name: null,
+        uploaded_file_preview_url: null,
+        checklist_completed: false,
+        is_placeholder: true,
+    };
+}
+
+/**
+ * @param {Record<string, unknown>} document
+ * @param {Record<string, unknown>} rule
+ * @param {boolean} completed
+ * @param {Map<string, string>} typeLabels
+ */
+function buildMatchedRow(document, rule, completed, typeLabels) {
+    const displayParty = rule.slot_kind === 'waybill' ? 'carrier' : document.party;
+
+    return {
+        ...document,
+        party: displayParty ?? rule.party,
+        requirement_key: rule.key,
+        requirement_label: rule.label,
+        type_label: registryTypeLabel(document, rule, typeLabels),
+        checklist_completed: completed,
+        is_placeholder: false,
+    };
 }
 
 /**

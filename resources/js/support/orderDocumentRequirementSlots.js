@@ -16,7 +16,44 @@ function closingRequiredForPaymentForm(paymentForm) {
 
 const CLOSING_DESCRIPTION = 'УПД, счёт-фактура или акт: статус «Отправлен» или «Подписан».';
 
-function buildOwnFleetCarrierOnlyRules() {
+function primaryCarrierTransportLabel(performers, clientRequestMode) {
+    const slots = carrierRequestSlots(performers, clientRequestMode);
+    const withContractor = slots.find((slot) => slot.contractorId);
+
+    if (withContractor?.contractorName) {
+        return String(withContractor.contractorName).trim();
+    }
+
+    const legs = Array.isArray(performers) ? performers : [];
+
+    for (const performer of legs) {
+        const name = performer?.contractor_name ? String(performer.contractor_name).trim() : '';
+
+        if (name !== '') {
+            return name;
+        }
+    }
+
+    return null;
+}
+
+function buildWaybillRule(performers, clientRequestMode) {
+    return {
+        key: 'waybill',
+        label: TRANSPORT_DOCUMENT_LABEL,
+        description: 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
+        party: 'carrier',
+        accepted_types: WAYBILL_TYPES,
+        slot_kind: 'waybill',
+        slot_key: 'waybill',
+        contractor_id: null,
+        order_leg_stage: null,
+        counterparty_label: primaryCarrierTransportLabel(performers, clientRequestMode),
+        allows_multiple: true,
+    };
+}
+
+function buildOwnFleetCarrierOnlyRules(performers, clientRequestMode = 'single_request') {
     const customerSlot = {
         slotKey: 'customer-all',
         orderLegStage: null,
@@ -50,19 +87,7 @@ function buildOwnFleetCarrierOnlyRules() {
             order_leg_stage: customerSlot.orderLegStage,
             counterparty_label: customerSlot.contractorName,
         },
-        {
-            key: 'waybill',
-            label: TRANSPORT_DOCUMENT_LABEL,
-            description: 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
-            party: 'internal',
-            accepted_types: WAYBILL_TYPES,
-            slot_kind: 'waybill',
-            slot_key: 'waybill',
-            contractor_id: null,
-            order_leg_stage: null,
-            counterparty_label: null,
-            allows_multiple: true,
-        },
+        buildWaybillRule(performers, clientRequestMode),
     ];
 }
 
@@ -245,7 +270,7 @@ export function buildDocumentRequirementRules(
     paymentContext = {},
 ) {
     if (isOwnFleetCarrierOnly(performers)) {
-        return buildOwnFleetCarrierOnlyRules();
+        return buildOwnFleetCarrierOnlyRules(performers, clientRequestMode);
     }
 
     const mode = clientRequestMode === 'split_by_leg' ? 'split_by_leg' : 'single_request';
@@ -359,19 +384,7 @@ export function buildDocumentRequirementRules(
         });
     });
 
-    rules.push({
-        key: 'waybill',
-        label: TRANSPORT_DOCUMENT_LABEL,
-        description: 'Бумажная ТН, CMR, ЭТрН, ТСД или пакет файлов по маршруту: статус «Отправлен» или «Подписан». Можно прикрепить несколько файлов.',
-        party: 'internal',
-        accepted_types: WAYBILL_TYPES,
-        slot_kind: 'waybill',
-        slot_key: 'waybill',
-        contractor_id: null,
-        order_leg_stage: null,
-        counterparty_label: null,
-        allows_multiple: true,
-    });
+    rules.push(buildWaybillRule(performers, mode));
 
     return rules;
 }
@@ -425,8 +438,20 @@ export function documentMatchesRequirementRule(document, rule) {
         return false;
     }
 
-    if (String(document?.party ?? 'internal') !== String(rule.party ?? '')) {
+    const docParty = String(document?.party ?? 'internal');
+    const ruleParty = String(rule.party ?? '');
+    const isWaybillSlot = String(rule.slot_kind ?? '') === 'waybill';
+
+    if (isWaybillSlot) {
+        if (!['carrier', 'internal'].includes(docParty)) {
+            return false;
+        }
+    } elseif (docParty !== ruleParty) {
         return false;
+    }
+
+    if (isWaybillSlot) {
+        return true;
     }
 
     const ruleStage = rule.order_leg_stage ? toStageKey(String(rule.order_leg_stage)) : null;

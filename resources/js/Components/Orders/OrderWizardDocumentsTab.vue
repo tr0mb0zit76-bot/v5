@@ -20,6 +20,7 @@ import {
     documentMatchesRequirementRule,
     findRequirementRuleForUpload,
 } from '@/support/orderDocumentRequirementSlots.js';
+import { isTransportDocumentType } from '@/support/orderDocumentTypes.js';
 import { isOwnFleetCarrierOnly } from '@/support/orderPerformers.js';
 import { stageLabel, toStageKey } from '@/support/orderPrintFormSlots.js';
 import {
@@ -157,7 +158,7 @@ const effectiveDocumentChecklist = computed(() => {
             return documentMatchesRequirementRule(document, rule);
         });
 
-        if (matchedDocument?.id && !rule.allows_multiple) {
+        if (matchedDocument?.id) {
             usedIds.add(matchedDocument.id);
         }
 
@@ -234,6 +235,18 @@ watch(
         hydrateTemplateSelectionFromWorkflowDocuments();
     },
     { immediate: true, deep: true },
+);
+
+watch(
+    () => attachForm.type,
+    (type) => {
+        if (!isTransportDocumentType(type)) {
+            return;
+        }
+
+        attachForm.party = 'carrier';
+        attachForm.carrier_target_key = defaultAttachCarrierTargetKey();
+    },
 );
 
 watch(

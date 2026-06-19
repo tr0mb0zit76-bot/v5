@@ -137,6 +137,39 @@ class OrderDocumentRequirementRulesTest extends TestCase
         $this->assertNotNull($waybillRule);
         $this->assertSame(OrderDocumentTransportTypes::UNIFIED_LABEL, $waybillRule['label']);
         $this->assertSame(OrderDocumentTransportTypes::VALUES, $waybillRule['accepted_types']);
+        $this->assertSame('carrier', $waybillRule['party']);
+    }
+
+    #[Test]
+    public function waybill_slot_matches_legacy_internal_and_carrier_transport_documents(): void
+    {
+        $performers = [[
+            'stage' => 'leg_1',
+            'contractor_id' => 5,
+            'contractor_name' => 'ООО Перевоз',
+        ]];
+
+        $rules = OrderDocumentRequirementSlotBuilder::buildRules($performers, 'single_request');
+        $waybillRule = collect($rules)->firstWhere('key', 'waybill');
+
+        $this->assertSame('carrier', $waybillRule['party']);
+        $this->assertSame('ООО Перевоз', $waybillRule['counterparty_label']);
+
+        $service = app(OrderDocumentRequirementService::class);
+
+        foreach (['internal', 'carrier'] as $party) {
+            $document = new OrderDocument([
+                'type' => 'cmr',
+                'status' => 'signed',
+                'metadata' => ['party' => $party],
+            ]);
+
+            $checklist = $service->checklistForDocuments([$document], $rules);
+            $waybill = collect($checklist)->firstWhere('key', 'waybill');
+
+            $this->assertNotNull($waybill, "waybill checklist missing for party {$party}");
+            $this->assertTrue($waybill['completed'], "waybill not completed for party {$party}");
+        }
     }
 
     #[Test]
