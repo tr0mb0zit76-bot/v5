@@ -27,7 +27,7 @@ class OrderDocumentVerificationPageTest extends TestCase
         ]));
 
         $response->assertOk();
-        $response->assertSee('QR-код принадлежит документу CRM');
+        $response->assertSee('Проверка целостности документа');
         $response->assertSee(str_repeat('a', 64));
     }
 

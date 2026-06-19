@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use App\Models\OrderDocument;
 use App\Support\PrintFormVerificationCode;
 use Illuminate\Http\Request;
@@ -10,11 +11,6 @@ use Illuminate\Support\Carbon;
 
 class PublicOrderDocumentVerificationController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth');
-    }
-
     public function show(Request $request, OrderDocument $orderDocument): Response
     {
         abort_unless(
@@ -38,7 +34,7 @@ class PublicOrderDocumentVerificationController extends Controller
     }
 
     /**
-     * @param  \App\Models\Order|null  $order
+     * @param  Order|null  $order
      */
     private function html(OrderDocument $document, $order, string $sha256, string $certifiedAt, string $signatureStatus): string
     {
