@@ -446,7 +446,7 @@ export function documentMatchesRequirementRule(document, rule) {
         if (!['carrier', 'internal'].includes(docParty)) {
             return false;
         }
-    } elseif (docParty !== ruleParty) {
+    } else if (docParty !== ruleParty) {
         return false;
     }
 
