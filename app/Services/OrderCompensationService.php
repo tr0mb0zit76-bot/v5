@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Contractor;
 use App\Models\FinancialTerm;
 use App\Models\Order;
+use App\Models\PaymentSchedule;
 use App\Models\SalaryCoefficient;
+use App\Services\Finance\PaymentScheduleSettlementSyncService;
 use App\Support\CalendarBankDayShifter;
 use App\Support\CarrierRateFromFinancialTerms;
 use App\Support\ContractorCostRowClassification;
@@ -17,6 +19,7 @@ use App\Support\PaymentInstallmentPlanner;
 use App\Support\PaymentInstallmentScheduleNormalizer;
 use App\Support\PaymentScheduleAutomaticStatus;
 use App\Support\PaymentScheduleCashBasis;
+use App\Support\PaymentSchedulePaymentEventRelinker;
 use App\Support\PaymentScheduleSettlementPreserver;
 use App\Support\PaymentScheduleSummaryFormatter;
 use App\Support\PaymentTermsSummaryLimits;
@@ -579,7 +582,34 @@ class OrderCompensationService
 
         app(PaymentScheduleSettlementPreserver::class)->restore($orderId, $settlementSnapshot);
 
+        app(PaymentSchedulePaymentEventRelinker::class)->relinkOrphanedEventsForOrder($orderId);
+        $this->syncPaymentScheduleSettlementForOrder($orderId);
+
         PaymentScheduleAutomaticStatus::refreshForOrder($orderId);
+    }
+
+    private function syncPaymentScheduleSettlementForOrder(int $orderId): void
+    {
+        $sync = app(PaymentScheduleSettlementSyncService::class);
+        if (! $sync->ledgerTableExists() || ! Schema::hasColumn('payment_schedules', 'paid_amount')) {
+            return;
+        }
+
+        $query = PaymentSchedule::query()->where('order_id', $orderId);
+
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $query->whereNull('parent_payment_id');
+        }
+
+        if (Schema::hasColumn('payment_schedules', 'is_partial')) {
+            $query->where(function ($q): void {
+                $q->whereNull('is_partial')->orWhere('is_partial', false);
+            });
+        }
+
+        foreach ($query->cursor() as $schedule) {
+            $sync->syncRootSchedule($schedule);
+        }
     }
 
     /**

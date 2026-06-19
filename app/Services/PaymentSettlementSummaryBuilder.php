@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\Contractor;
 use App\Models\Order;
 use App\Models\PaymentSchedule;
+use App\Models\PaymentSchedulePaymentEvent;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -219,12 +220,50 @@ class PaymentSettlementSummaryBuilder
     private function paidAmountForRoot(PaymentSchedule $row): float
     {
         $paid = (float) ($row->paid_amount ?? 0);
-        if ($paid > 0) {
+        if ($paid > 0.009) {
             return min($paid, (float) $row->amount);
+        }
+
+        $fromLedger = $this->paidAmountFromLedgerForRoot($row);
+        if ($fromLedger > 0.009) {
+            return min($fromLedger, (float) $row->amount);
         }
 
         if ($row->status === 'paid') {
             return (float) $row->amount;
+        }
+
+        return 0.0;
+    }
+
+    private function paidAmountFromLedgerForRoot(PaymentSchedule $row): float
+    {
+        if (! Schema::hasTable('payment_schedule_payment_events')) {
+            return 0.0;
+        }
+
+        $scheduleIds = [(int) $row->id];
+        if (Schema::hasColumn('payment_schedules', 'parent_payment_id')) {
+            $partialIds = PaymentSchedule::query()
+                ->where('parent_payment_id', $row->id)
+                ->when(
+                    Schema::hasColumn('payment_schedules', 'is_partial'),
+                    fn ($query) => $query->where('is_partial', true),
+                )
+                ->pluck('id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->all();
+            $scheduleIds = array_merge($scheduleIds, $partialIds);
+        }
+
+        $linkedQuery = PaymentSchedulePaymentEvent::query()->whereIn('payment_schedule_id', $scheduleIds);
+        if (Schema::hasColumn('payment_schedule_payment_events', 'reversed_at')) {
+            $linkedQuery->whereNull('reversed_at');
+        }
+
+        $linkedPaid = round((float) $linkedQuery->sum('amount'), 2);
+        if ($linkedPaid > 0.009) {
+            return $linkedPaid;
         }
 
         return 0.0;

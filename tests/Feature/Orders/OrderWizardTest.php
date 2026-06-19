@@ -3211,6 +3211,8 @@ class OrderWizardTest extends TestCase
             'planned_date' => '2026-04-01',
             'actual_date' => '2026-04-05',
             'status' => 'paid',
+            'paid_amount' => 100000,
+            'remaining_amount' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -3232,12 +3234,14 @@ class OrderWizardTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('Orders/Wizard')
-            ->where('order.payment_settlement.customer.has_rows', true)
-            ->where('order.payment_settlement.customer.complete', true)
-            ->where('order.payment_settlement.customer.settled_at', '2026-04-05')
-            ->where('order.payment_settlement.carrier.has_rows', true)
-            ->where('order.payment_settlement.carrier.complete', false)
-            ->where('order.payment_settlement.carrier.settled_at', null)
+            ->has('order.payment_settlement.lines', 2)
+            ->where('order.payment_settlement.lines.0.party', 'customer')
+            ->where('order.payment_settlement.lines.0.state', 'complete')
+            ->where('order.payment_settlement.lines.0.percent_paid', 100)
+            ->where('order.payment_settlement.lines.0.last_payment_at', '2026-04-05')
+            ->where('order.payment_settlement.lines.1.party', 'carrier')
+            ->where('order.payment_settlement.lines.1.state', 'none')
+            ->where('order.payment_settlement.lines.1.percent_paid', 0)
         );
     }
 
