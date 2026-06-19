@@ -29,6 +29,8 @@ class OrderDocumentVerificationPageTest extends TestCase
         $response->assertOk();
         $response->assertSee('Проверка целостности документа');
         $response->assertSee(str_repeat('a', 64));
+        $response->assertDontSee('Сравните хеш', false);
+        $response->assertDontSee('Сверьте этот хеш', false);
     }
 
     public function test_public_verification_page_returns_not_found_for_invalid_code(): void
