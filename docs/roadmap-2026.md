@@ -346,8 +346,10 @@ grid_views:
 
 **Цель:** защита от неумелой правки PDF менеджером; сверка с эталоном в CRM. Не юридическая КЭП.
 
-- [x] Код проверки + публичная страница `/verify/order-documents/{id}?code=…`
+- [x] Код проверки + публичная страница `/verify/order-documents/{id}?code=…` (без auth)
 - [x] QR в DOCX (`${document_verification_qr}`) и fallback-штамп на PDF
+- [x] Размеры QR в config; VML-патч не смещает подпись/печать из‑за QR
+- [x] Страница проверки: контрагент только своей стороны (`metadata.party`)
 - [x] Опционально certifying signature DocMDP (`PDF_CERTIFY_ENABLED`)
 - [ ] UI «сверить хеш» в карточке документа заказа
 

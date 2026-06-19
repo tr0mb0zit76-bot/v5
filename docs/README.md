@@ -49,7 +49,7 @@
 
 | Файл | Назначение |
 | --- | --- |
-| [print-form-pdf-protection.md](./print-form-pdf-protection.md) | QR-проверка и DocMDP-подпись PDF (эксперимент) |
+| [print-form-pdf-protection.md](./print-form-pdf-protection.md) | QR-проверка, размеры, party на странице verify, DocMDP (эксперимент) |
 | [order-intake-ocr-service.md](./order-intake-ocr-service.md) | Sidecar OCR (локальная интеграция) |
 | [order-intake-ocr-production.md](./order-intake-ocr-production.md) | OCR на проде |
 | [nextcloud-install.md](./nextcloud-install.md) | WebDAV-хранилище |
@@ -106,8 +106,8 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 | `Cursor-handoff-latest.md` | `CRM/Cursor-handoff-latest.md` — контекст для Cursor |
 | `CRM-00-index.md` | `CRM/00-index.md` — навигация vault |
 | `v5-local-00-index.md` | `CRM/v5-local/00-index.md` — карта компонентов |
-| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Import Cost, Management Accounting, Utility Modules) |
+| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Import Cost, Management Accounting, Print Forms Verification, Utility Modules) |
 
 `Exchange/for_note/README.md` — MCP, tools, scripts-local между ПК.
 
-*Обновлено: 2026-06-18.*
+*Обновлено: 2026-06-20.*

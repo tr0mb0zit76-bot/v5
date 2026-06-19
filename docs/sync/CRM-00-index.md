@@ -40,6 +40,7 @@
 - [[v5-local/00-index|Карта компонентов v5-local]]
 - [[v5-local/Components/Import Cost Calculator|Растаможка — калькулятор ввоза]]
 - [[v5-local/Components/Management Accounting|Управленческий учёт — план/факт, split]]
+- [[v5-local/Components/Print Forms Verification|Печать — QR и страница verify]]
 
 ## Документация в репозитории
 
@@ -53,6 +54,7 @@
 | План vs факт (бюджет) | `docs/management-accounting-budgeting-integration.md` |
 | План внедрения управленки | `docs/management-accounting-implementation-plan.md` |
 | График оплат | `docs/payment-schedule-architecture.md` |
+| **Печать: QR / verify** | `docs/print-form-pdf-protection.md` |
 | **Растаможка (архитектура)** | `docs/import-cost-calculator-architecture.md` |
 | AI personas (command bar) | `docs/ai-agent-personas.md` |
 | **Документы (пользователи)** | `docs/documents-user-guide.md` |
@@ -60,4 +62,4 @@
 | Мастер заказов | `docs/order-wizard-user-guide.md` |
 | Синхрон vault ↔ git | `docs/sync/README.md` |
 
-*Обновлено: 2026-06-18.*
+*Обновлено: 2026-06-20.*

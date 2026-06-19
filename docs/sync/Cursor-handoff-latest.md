@@ -3,7 +3,7 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-18 · **HEAD:** см. `git log -1` после pull
+**Обновлено:** 2026-06-20 · **HEAD:** см. `git log -1` после pull
 
 ---
 
@@ -18,13 +18,26 @@
    - Глобально: скопировать `mcp.json` с другой машины **или** выпустить tokens заново
    - `pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1` — Obsidian MCP (порт 27200)
 6. Документация vault: `pwsh -File scripts/sync-docs-to-yandex.ps1`
-7. Прод после pull: `php artisan migrate`, `npm run build`; модуль растаможки — `php artisan import-cost:sync-references`; при смене логики оплат — `php artisan payment-schedules:sync-settlement-amounts`
-
-7. Прод после pull: `php artisan migrate`, `npm run build`; модуль растаможки — `php artisan import-cost:sync-references`; при смене логики оплат — `php artisan payment-schedules:sync-settlement-amounts`
+7. Прод после pull: `php artisan migrate`, `npm run build`, `php artisan optimize:clear`; растаможка — `php artisan import-cost:sync-references`; график оплат — при рассинхроне `php artisan payment-schedules:repair-settlement --order=ID`
 
 ---
 
 ## Что сделано недавно
+
+### Печать: QR, verify, подпись/печать (2026-06-20)
+
+- Размеры QR в `config/documents.php` (`PRINT_VERIFICATION_QR_*`), по умолчанию 80 px в DOCX
+- `DocxVmlOverlayStylePatcher` — QR не забирает смещения подписи/печати
+- Публичная `/verify/order-documents/{id}?code=…` **без auth**; контрагент по `metadata.party` (`PrintVerificationPageScope`)
+- Отдельный QR на каждый `OrderDocument` (заказчик ≠ перевозчик)
+- Документация: `docs/print-form-pdf-protection.md`, карточка `docs/sync/v5-local-Components-Print-Forms-Verification.md`
+- Коммиты ориентира: `5337664`, `590c44f`, `bb0673f`, `1ae41cb`
+
+### График оплат и разнесение (2026-06)
+
+- После пересборки `payment_schedules` — relink журнала и `allocation_payment_schedule_id` (`a1459d7`, `65c9c7a`)
+- Команда: `php artisan payment-schedules:repair-settlement --order=5`
+- Грид «График оплат»: фикс TDZ в `CashFlowGrid.vue` (`56a8a9d`) — на проде нужен `npm run build`
 
 ### Управленка: план/факт, наличные, split (2026-06-18)
 
@@ -34,38 +47,19 @@
 - **Ручные операции:** модалка «Добавить операцию» (наличные без выписки)
 - **Split:** один платёж → несколько строк графика (`management_statement_line_splits`, Reconcile)
 - Документация: `management-accounting-budgeting-integration.md`, `management-accounting-implementation-plan.md` (v1.3)
-- **Прод:** `php artisan migrate`, `npm run build`
 
 ### Модуль «Растаможка» (`530c6be`)
 
 - **Маршрут:** `/modules/import-cost`, область `modules_import_cost`
-- Расчёт продажной цены: инвойс + ТН ВЭД → пошлина, НДС, таможенный сбор, утильсбор (ПП № 1291), доставка; округление до целых ₽
-- Справочники: ЕЭК OData + таблицы `import_cost_*`; `php artisan import-cost:sync-references` (cron пн 03:15)
-- Документация: `docs/import-cost-calculator-architecture.md`, [[v5-local/Components/Import Cost Calculator]]
-- **Прод:** после migrate — `import-cost:sync-references`, включить область в ролях, `npm run build`
-
-### Лимиты загрузки документов (`9d62bd2`, `fffe87f`, `087c274`)
-
-- Разделены `policy_max_bytes` и `server_upload_max_bytes`; оценка страниц PDF на сервере
-- На проде: PHP-FPM `upload_max_filesize = 128M`, `poppler-utils`
-
-### AG Grid (`785cabe`)
-
-- Восстановлен `resolveAgGridViewportHeight()` на 9 гридах
-
-### Колокольчик уведомлений (`911128f`)
-
-- В свёрнутом сайдбаре панель открывается вправо, шире
-
-### OCR / pngquant (`a97b035`)
-
-- `pngquant` в Docker OCR, fallback Ghostscript
+- Расчёт продажной цены: инвойс + ТН ВЭД → пошлина, НДС, таможенный сбор, утильсбор (ПП № 1291), доставка
+- `php artisan import-cost:sync-references` (cron пн 03:15)
+- Документация: `docs/import-cost-calculator-architecture.md`
 
 ### Ранее (июнь)
 
-- Playbook БП, избранное меню, дашборд по подразделению
-- Документы: ТН/ЭТрН/CMR/ТСД одной группой; наличка — без закрывающих в чек-листе
-- Управленка: входящие по сумме, частичные оплаты, наличка → срок от выгрузки
+- Лимиты загрузки документов, AG Grid viewport, колокольчик в sidebar
+- Playbook БП, документы ТН/ЭТрН/CMR/ТСД; наличка — без закрывающих в чек-листе
+- Управленка: входящие по сумме, частичные оплаты
 
 ---
 
@@ -76,13 +70,12 @@
 | Индекс vault | [[00-index]] |
 | Компоненты кода | [[v5-local/00-index]] |
 | Changelog | [[Changelog/2026-06]] |
+| **QR / verify печати** | git `docs/print-form-pdf-protection.md` |
 | **Растаможка** | git `docs/import-cost-calculator-architecture.md` |
 | Документы (инструкция) | git `docs/documents-user-guide.md` |
 | MCP tools | git `docs/mcp-crm-instructions.md` |
 | Roadmap | git `docs/roadmap-2026.md` |
 | Управленка | git `docs/management-accounting-architecture.md` |
-| План vs факт | git `docs/management-accounting-budgeting-integration.md` |
-| Компонент управленки | git `docs/sync/v5-local-Components-Management-Accounting.md` |
 | График оплат | git `docs/payment-schedule-architecture.md` |
 | Синхрон индексов | git `docs/sync/README.md` |
 
@@ -93,24 +86,26 @@
 ```bash
 git pull
 php artisan migrate
-php artisan import-cost:sync-references   # после деплоя растаможки
 npm run build
 php artisan optimize:clear
+php artisan import-cost:sync-references   # после деплоя растаможки
+php artisan payment-schedules:repair-settlement --order=ID   # при рассинхроне оплат
 ```
 
 - Документы в Книге: `php scripts/mcp-prod-upsert-documents.php`
 - После правок графика/разнесения: `php artisan payment-schedules:sync-settlement-amounts`
-- Роли: включить `modules_import_cost` для менеджеров продаж спецтехники
 
 ---
 
 ## Коммиты для ориентира
 
 ```
-530c6be Модуль «Растаможка»: ЕЭК OData, ПП № 1291 и калькулятор для продажной цены
-9d62bd2 Разделить лимит политики и PHP upload_max_filesize для документов
-a97b035 Исправить сжатие PDF: pngquant и безопасный уровень optimize
-fffe87f Точный лимит вложений PDF через серверную оценку страниц
-785cabe AG Grid: viewport height на гридах
-911128f Колокольчик уведомлений в collapsed sidebar
+1ae41cb Страница verify: party + без внутренних подсказок
+bb0673f Убрать auth middleware со страницы verify
+590c44f VML: подпись/печать не смещаются из-за QR
+5337664 Уменьшить QR в печатных формах
+65c9c7a Relink разноски выписки после resync графика
+56a8a9d CashFlowGrid TDZ
+a1459d7 Сохранение оплат графика после пересборки
+530c6be Модуль «Растаможка»
 ```

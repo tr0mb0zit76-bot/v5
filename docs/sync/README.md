@@ -11,6 +11,7 @@
 | `v5-local-00-index.md` | `Yandex.Disk/Exchange/CRM/v5-local/00-index.md` |
 | `v5-local-Components-Import-Cost-Calculator.md` | `.../v5-local/Components/Import Cost Calculator.md` |
 | `v5-local-Components-Management-Accounting.md` | `.../v5-local/Components/Management Accounting.md` |
+| `v5-local-Components-Print-Forms-Verification.md` | `.../v5-local/Components/Print Forms Verification.md` |
 | `v5-local-Components-Utility-Modules.md` | `.../v5-local/Components/Utility Modules.md` |
 
 Путь по умолчанию: `%USERPROFILE%\Yandex.Disk\Exchange`. На другом ПК может быть `D:\YandexDisk\Exchange` — передайте `-ExchangeRoot` в скрипт.
@@ -43,4 +44,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 
 См. `Exchange/for_note/README.md` на Я.Диске.
 
-*Обновлено: 2026-06-18.*
+*Обновлено: 2026-06-20.*
