@@ -6,6 +6,7 @@ use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementPayrollHalf;
 use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
+use App\Models\ManagementStatementLineSplit;
 use App\Models\PaymentSchedule;
 use App\Models\User;
 use App\Services\Finance\PaymentSchedulePaymentLedgerService;
@@ -36,11 +37,16 @@ class ManagementAccountingAllocationService
      *     payment_schedule_id?: ?int,
      *     user_id?: ?int,
      *     amount?: ?float,
-     *     notes?: ?string
+     *     notes?: ?string,
+     *     allocations?: list<array{payment_schedule_id: int, amount: float}>
      * }  $payload
      */
     public function allocateLine(ManagementStatementLine $line, array $payload, User $allocator): ManagementStatementLine
     {
+        if (! empty($payload['allocations']) && is_array($payload['allocations'])) {
+            return $this->allocateLineSplit($line, $payload, $allocator);
+        }
+
         return DB::transaction(function () use ($line, $payload, $allocator): ManagementStatementLine {
             if ($line->status === 'allocated') {
                 $this->reverseAllocatedLine($line, $allocator, 'Переразнесение на другую строку графика');
@@ -98,6 +104,109 @@ class ManagementAccountingAllocationService
         });
     }
 
+    /**
+     * @param  array{
+     *     allocation_type: string,
+     *     allocations: list<array{payment_schedule_id: int, amount: float}>,
+     *     notes?: ?string
+     * }  $payload
+     */
+    private function allocateLineSplit(ManagementStatementLine $line, array $payload, User $allocator): ManagementStatementLine
+    {
+        return DB::transaction(function () use ($line, $payload, $allocator): ManagementStatementLine {
+            if ((string) ($payload['allocation_type'] ?? '') !== 'operational') {
+                throw new InvalidArgumentException('Разделение доступно только для операционного разнесения.');
+            }
+
+            $allocations = collect($payload['allocations'])
+                ->map(fn (array $row): array => [
+                    'payment_schedule_id' => (int) $row['payment_schedule_id'],
+                    'amount' => round((float) $row['amount'], 2),
+                ])
+                ->filter(fn (array $row): bool => $row['payment_schedule_id'] > 0 && $row['amount'] > 0)
+                ->values()
+                ->all();
+
+            if ($allocations === []) {
+                throw new InvalidArgumentException('Укажите хотя бы одну строку графика для разнесения.');
+            }
+
+            $total = round(array_sum(array_column($allocations, 'amount')), 2);
+            $lineAmount = round((float) $line->amount, 2);
+
+            if (abs($total - $lineAmount) > 0.02) {
+                throw new InvalidArgumentException('Сумма разнесения должна совпадать с суммой операции.');
+            }
+
+            if ($line->status === 'allocated') {
+                $this->reverseAllocatedLine($line, $allocator, 'Переразнесение на несколько заявок');
+                $line->refresh();
+            }
+
+            ManagementStatementLineSplit::query()
+                ->where('management_statement_line_id', $line->id)
+                ->delete();
+
+            $line->allocation_amount = $lineAmount;
+            $line->allocated_by = $allocator->id;
+            $line->allocated_at = now();
+            $line->status = 'allocated';
+            $line->match_type = 'operational_split';
+            $line->allocation_payment_schedule_id = null;
+            $line->allocation_order_id = null;
+            $line->allocation_category_id = null;
+            $line->allocation_user_id = null;
+            $line->save();
+
+            foreach ($allocations as $allocation) {
+                $schedule = PaymentSchedule::query()->findOrFail($allocation['payment_schedule_id']);
+                $split = ManagementStatementLineSplit::query()->create([
+                    'management_statement_line_id' => $line->id,
+                    'allocation_type' => 'operational',
+                    'payment_schedule_id' => $schedule->id,
+                    'order_id' => $schedule->order_id,
+                    'category_id' => $this->categoryIdForParty(
+                        (string) $schedule->party,
+                        $schedule->order_id !== null ? (int) $schedule->order_id : null,
+                        $schedule->counterparty_id !== null ? (int) $schedule->counterparty_id : null,
+                    ),
+                    'amount' => $allocation['amount'],
+                ]);
+
+                $this->recordOperationalPayment(
+                    $schedule,
+                    $line,
+                    $allocation['amount'],
+                    $allocator,
+                    'mgmt:'.$line->id.':'.$split->id,
+                );
+            }
+
+            $firstSplit = ManagementStatementLineSplit::query()
+                ->where('management_statement_line_id', $line->id)
+                ->orderBy('id')
+                ->first();
+
+            if ($firstSplit !== null) {
+                $line->allocation_payment_schedule_id = $firstSplit->payment_schedule_id;
+                $line->allocation_order_id = $firstSplit->order_id;
+                $line->allocation_category_id = $firstSplit->category_id;
+                $line->save();
+            }
+
+            $this->refreshImportCounters($line->import_id);
+
+            return $line->fresh([
+                'allocationCategory',
+                'allocationOrder',
+                'allocationPaymentSchedule',
+                'allocationUser',
+                'splits.paymentSchedule',
+                'splits.order',
+            ]);
+        });
+    }
+
     public function deallocateLine(ManagementStatementLine $line, User $actor, ?string $reason = null): ManagementStatementLine
     {
         if ($line->status !== 'allocated') {
@@ -106,6 +215,10 @@ class ManagementAccountingAllocationService
 
         return DB::transaction(function () use ($line, $actor, $reason): ManagementStatementLine {
             $this->reverseAllocatedLine($line, $actor, $reason);
+
+            ManagementStatementLineSplit::query()
+                ->where('management_statement_line_id', $line->id)
+                ->delete();
 
             $importId = $line->import_id;
 
@@ -141,7 +254,7 @@ class ManagementAccountingAllocationService
         $matchType = (string) $line->match_type;
         $amount = round((float) ($line->allocation_amount ?? $line->amount), 2);
 
-        if ($matchType === 'operational') {
+        if ($matchType === 'operational' || $matchType === 'operational_split') {
             $scheduleId = $line->allocation_payment_schedule_id !== null
                 ? (int) $line->allocation_payment_schedule_id
                 : null;
@@ -199,10 +312,13 @@ class ManagementAccountingAllocationService
         ManagementStatementLine $line,
         float $amount,
         User $allocator,
+        ?string $transactionReference = null,
     ): void {
         if (! Schema::hasColumn('payment_schedules', 'paid_amount')) {
             return;
         }
+
+        $reference = $transactionReference ?? ('mgmt:'.$line->id);
 
         $paymentDate = $line->operation_date?->toDateString() ?? now()->toDateString();
         $scheduleAmount = (float) $schedule->amount;
@@ -224,7 +340,7 @@ class ManagementAccountingAllocationService
             }
 
             if (Schema::hasColumn('payment_schedules', 'transaction_reference')) {
-                $schedule->transaction_reference = 'mgmt:'.$line->id;
+                $schedule->transaction_reference = $reference;
             }
 
             $schedule->status = $schedule->remaining_amount <= 0.009 ? 'paid' : 'pending';
@@ -251,7 +367,7 @@ class ManagementAccountingAllocationService
             }
 
             if (Schema::hasColumn('payment_schedules', 'transaction_reference')) {
-                $partial->transaction_reference = 'mgmt:'.$line->id;
+                $partial->transaction_reference = $reference;
             }
 
             $partial->save();
@@ -273,7 +389,7 @@ class ManagementAccountingAllocationService
             $paymentDate,
             [
                 'payment_method' => 'bank_transfer',
-                'transaction_reference' => 'mgmt:'.$line->id,
+                'transaction_reference' => $reference,
                 'notes' => 'Управленческий учёт: '.$line->description,
             ],
             $allocator->id,

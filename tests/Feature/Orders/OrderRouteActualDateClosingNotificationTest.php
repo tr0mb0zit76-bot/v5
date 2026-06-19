@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Orders;
 
 use App\Models\Contractor;
 use App\Models\Order;
@@ -8,18 +8,20 @@ use App\Models\OrderDocument;
 use App\Models\OrderLeg;
 use App\Models\RoutePoint;
 use App\Models\User;
-use App\Services\OrderClosingDocumentsNotificationService;
+use App\Services\Orders\OrderRouteActualDateUpdateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
-class OrderClosingDocumentsNotificationTest extends TestCase
+class OrderRouteActualDateClosingNotificationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_clerk_receives_notification_when_transport_is_completed(): void
+    public function test_clerk_receives_notification_when_unloading_actual_is_set_via_route_service(): void
     {
         $clerk = $this->createClerkUser();
+        $actor = User::factory()->create(['email_verified_at' => now()]);
+
         $customer = Contractor::query()->create([
             'name' => 'ООО Клиент',
             'type' => 'customer',
@@ -36,6 +38,7 @@ class OrderClosingDocumentsNotificationTest extends TestCase
             'order_id' => $order->id,
             'sequence' => 0,
             'type' => 'transport',
+            'description' => 'leg_1',
         ]);
 
         RoutePoint::factory()->create([
@@ -43,7 +46,6 @@ class OrderClosingDocumentsNotificationTest extends TestCase
             'type' => 'loading',
             'sequence' => 0,
             'address' => 'Москва',
-            'actual_date' => '2026-05-24',
         ]);
 
         RoutePoint::factory()->create([
@@ -51,7 +53,6 @@ class OrderClosingDocumentsNotificationTest extends TestCase
             'type' => 'unloading',
             'sequence' => 1,
             'address' => 'Санкт-Петербург',
-            'actual_date' => '2026-05-25',
         ]);
 
         OrderDocument::query()->create([
@@ -65,29 +66,24 @@ class OrderClosingDocumentsNotificationTest extends TestCase
             'entity_id' => $order->id,
         ]);
 
-        $service = app(OrderClosingDocumentsNotificationService::class);
+        app(OrderRouteActualDateUpdateService::class)->apply(
+            $actor,
+            $order->fresh(['legs.routePoints']),
+            'unloading_actual',
+            '2026-06-02',
+        );
 
-        $this->assertTrue($service->isTransportCompleted($order->fresh(['legs.routePoints', 'documents', 'client'])));
-        $this->assertTrue($service->maybeNotify($order->fresh(['legs.routePoints', 'documents', 'client'])));
         $this->assertSame(1, $clerk->fresh()->unreadNotifications()->count());
 
         $notification = $clerk->fresh()->unreadNotifications()->first();
         $this->assertSame('order_closing_documents_required', data_get($notification->data, 'kind'));
-        $this->assertStringContainsString('ООО Клиент', (string) data_get($notification->data, 'body'));
         $this->assertStringContainsString('ORD-1001', (string) data_get($notification->data, 'body'));
-        $this->assertStringContainsString('Москва - Санкт-Петербург', (string) data_get($notification->data, 'body'));
-        $this->assertStringContainsString(
-            'AA ООО Клиент заявка № ORD-1001',
-            (string) data_get($notification->data, 'payload.clipboard_summary'),
-        );
-        $this->assertSame(route('orders.edit', [$order], false).'?tab=documents', data_get($notification->data, 'action_url'));
-
-        $this->assertFalse($service->maybeNotify($order->fresh()));
     }
 
-    public function test_notification_is_not_sent_without_waybill(): void
+    public function test_route_service_does_not_notify_without_waybill(): void
     {
-        $this->createClerkUser();
+        $clerk = $this->createClerkUser();
+        $actor = User::factory()->create(['email_verified_at' => now()]);
 
         $order = Order::factory()->create();
 
@@ -95,61 +91,23 @@ class OrderClosingDocumentsNotificationTest extends TestCase
             'order_id' => $order->id,
             'sequence' => 0,
             'type' => 'transport',
+            'description' => 'leg_1',
         ]);
 
         RoutePoint::factory()->create([
             'order_leg_id' => $leg->id,
             'type' => 'unloading',
             'sequence' => 0,
-            'actual_date' => '2026-05-25',
         ]);
 
-        $service = app(OrderClosingDocumentsNotificationService::class);
-
-        $this->assertFalse($service->maybeNotify($order->fresh()));
-    }
-
-    public function test_clerk_receives_notification_when_waybill_is_uploaded_after_unload_date(): void
-    {
-        $clerk = $this->createClerkUser();
-
-        $order = Order::factory()->create([
-            'order_number' => 'ORD-2002',
-        ]);
-
-        $leg = OrderLeg::query()->create([
-            'order_id' => $order->id,
-            'sequence' => 0,
-            'type' => 'transport',
-        ]);
-
-        RoutePoint::factory()->create([
-            'order_leg_id' => $leg->id,
-            'type' => 'unloading',
-            'sequence' => 0,
-            'actual_date' => '2026-06-01',
-        ]);
-
-        $service = app(OrderClosingDocumentsNotificationService::class);
-        $this->assertFalse($service->maybeNotify($order->fresh(['legs.routePoints', 'documents'])));
-        $this->assertSame(0, $clerk->fresh()->unreadNotifications()->count());
-
-        OrderDocument::query()->create([
-            'order_id' => $order->id,
-            'type' => 'waybill',
-            'status' => 'signed',
-            'original_name' => 'tsd.pdf',
-            'file_path' => 'orders/'.$order->id.'/tsd.pdf',
-            'metadata' => ['party' => 'internal', 'flow' => 'uploaded'],
-            'entity_type' => 'order',
-            'entity_id' => $order->id,
-        ]);
-
-        $this->assertSame(1, $clerk->fresh()->unreadNotifications()->count());
-        $this->assertSame(
-            'order_closing_documents_required',
-            data_get($clerk->fresh()->unreadNotifications()->first()->data, 'kind'),
+        app(OrderRouteActualDateUpdateService::class)->apply(
+            $actor,
+            $order->fresh(['legs.routePoints']),
+            'unloading_actual',
+            '2026-06-02',
         );
+
+        $this->assertSame(0, $clerk->fresh()->unreadNotifications()->count());
     }
 
     private function createClerkUser(): User

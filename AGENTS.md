@@ -110,12 +110,13 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Матчинг / разнесение: `ManagementAccountingMatchingService` (правила → номер заявки → контрагент+сумма → **входящие только по сумме** → ФОТ → статьи; `suggested_candidates[]` с `amount_due` при неоднозначности), `ManagementAccountingAllocationService` → при операционном типе `PaymentSchedulePaymentLedgerService`; переразнесение — `PaymentScheduleSettlementSyncService`.
 - UI разнесения: `Reconcile.vue` — входящие по умолчанию «Операционный», автокандидаты, «к оплате» в списке.
 - ФОТ полупериоды (5 / 20): `ManagementPayrollHalfCalendar`, `ManagementPayrollHalfService`.
-- UI: `Finance/ManagementAccounting/Index.vue`, `Reconcile.vue`; меню `finance-management-accounting`.
-- Маршруты: `finance.management-accounting.*` (`routes/web.php`); статьи: `POST categories`, `POST categories/sync`.
+- UI: `Finance/ManagementAccounting/Index.vue` (variance, ручные операции), `Reconcile.vue` (split); `Budgeting/Index.vue` (freeze плана); меню `finance-management-accounting`.
+- Маршруты: `finance.management-accounting.*`, `budgeting.plan-snapshots.store`; статьи: `POST categories`, `POST categories/sync`.
+- План vs факт: `BudgetPlanSnapshotService`, `BudgetVarianceService`, `ManagementAccountingAnalyticsService` (`plan_source`, `variance_rows`); см. `docs/management-accounting-budgeting-integration.md`.
+- Split: `management_statement_line_splits`, `allocations[]` при разнесении.
 - Справочник статей: `ManagementExpenseCategoryCatalog`, `ManagementExpenseCategorySyncService` (системные + `budget_opex_*`).
 - Правила разнесения: `management_reconcile_rules`, `ManagementReconcileRuleService` — приоритет в матчинге до эвристик.
 - MCP (`/mcp/crm`, домен `finance`): `ManagementAccountingMcpService`, tools `list_management_statement_*`, `suggest_*`, `allocate_*`, `get_management_accounting_analytics`, `*_management_reconcile_rule*`, `list_management_expense_categories`; gate `McpAccessGate::requireManagementAccounting()`.
-- Связь с бюджетом (план vs факт): `ManagementAccountingAnalyticsService`, `docs/management-accounting-budgeting-integration.md`.
 - Факт вкладки «Учёт»: разнесённые `management_statement_lines` **+** `payment_schedule_payment_events` (без дублей `mgmt:*`); backfill: `payment-schedules:backfill-payment-events`.
 
 ### Лиды

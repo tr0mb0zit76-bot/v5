@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Observers\OrderDocumentObserver;
 use Database\Factories\OrderDocumentFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * For electronic transport waybills (`type` = etrn), `metadata` may include an `epd` key:
  * `external_id`, `operator_code`, `gis_status`, `registered_at` (ISO 8601).
  */
+#[ObservedBy([OrderDocumentObserver::class])]
 class OrderDocument extends Model
 {
     /** @use HasFactory<OrderDocumentFactory> */

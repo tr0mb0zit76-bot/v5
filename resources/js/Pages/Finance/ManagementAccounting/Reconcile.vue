@@ -97,6 +97,15 @@
                     <p class="min-w-0 truncate text-zinc-600 dark:text-zinc-300">
                         <template v-if="line.allocation_summary">
                             <span class="font-medium text-zinc-800 dark:text-zinc-100">{{ allocationSummaryInline(line.allocation_summary) }}</span>
+                            <span v-if="line.allocation_summary.splits?.length" class="block text-zinc-500">
+                                <span
+                                    v-for="split in line.allocation_summary.splits"
+                                    :key="split.id"
+                                    class="mr-2"
+                                >
+                                    #{{ split.payment_schedule_id }} · {{ formatMoney(split.amount) }}
+                                </span>
+                            </span>
                             <span v-if="line.allocation_summary.allocated_by_name" class="text-zinc-500">
                                 · {{ line.allocation_summary.allocated_by_name }}
                             </span>
@@ -129,6 +138,57 @@
                         </select>
 
                         <template v-if="allocationForms[line.id].allocation_type === 'operational'">
+                            <label class="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-300">
+                                <input
+                                    v-model="splitModes[line.id]"
+                                    type="checkbox"
+                                    class="rounded border-zinc-300"
+                                >
+                                Несколько заявок
+                            </label>
+
+                            <template v-if="splitModes[line.id]">
+                                <div
+                                    v-for="(row, index) in splitAllocations[line.id]"
+                                    :key="`${line.id}-split-${index}`"
+                                    class="flex w-full flex-wrap items-center gap-1.5"
+                                >
+                                    <input
+                                        v-model.number="row.payment_schedule_id"
+                                        type="number"
+                                        placeholder="ID графика"
+                                        class="w-24 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
+                                    >
+                                    <input
+                                        v-model.number="row.amount"
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        placeholder="Сумма"
+                                        class="w-28 rounded border border-zinc-300 bg-white px-2 py-1 text-xs tabular-nums dark:border-zinc-600 dark:bg-zinc-950"
+                                    >
+                                    <button
+                                        v-if="splitAllocations[line.id].length > 2"
+                                        type="button"
+                                        class="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-600"
+                                        @click="removeSplitRow(line, index)"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="rounded border border-zinc-200 px-2 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+                                    @click="addSplitRow(line)"
+                                >
+                                    + строка
+                                </button>
+                                <span class="text-[10px] tabular-nums text-zinc-500">
+                                    Σ {{ formatMoney(splitTotal(line)) }} / {{ formatMoney(line.amount) }}
+                                </span>
+                            </template>
+
+                            <template v-else>
                             <input
                                 v-model="searchQueries[line.id]"
                                 type="search"
@@ -165,6 +225,7 @@
                                 placeholder="ID графика"
                                 class="w-24 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-950"
                             >
+                            </template>
                         </template>
 
                         <template v-else-if="allocationForms[line.id].allocation_type === 'payroll'">
@@ -271,6 +332,8 @@ function resolveInitialFilter() {
 
 const lineFilter = ref(resolveInitialFilter());
 const allocationForms = reactive({});
+const splitModes = reactive({});
+const splitAllocations = reactive({});
 const searchQueries = reactive({});
 const searchResults = reactive({});
 const searchLoading = reactive({});
@@ -322,6 +385,11 @@ for (const line of props.lines) {
     searchQueries[line.id] = line.contractor_search_hint ?? '';
     searchResults[line.id] = candidates;
     searchLoading[line.id] = false;
+    splitModes[line.id] = false;
+    splitAllocations[line.id] = [
+        { payment_schedule_id: defaultScheduleId || null, amount: null },
+        { payment_schedule_id: null, amount: null },
+    ];
 }
 
 onMounted(() => {
@@ -418,6 +486,13 @@ async function searchCandidates(line) {
 function canSubmit(line) {
     const form = allocationForms[line.id];
 
+    if (form.allocation_type === 'operational' && splitModes[line.id]) {
+        const rows = splitAllocations[line.id] || [];
+        const validRows = rows.filter((row) => row.payment_schedule_id && row.amount > 0);
+
+        return validRows.length >= 2 && Math.abs(splitTotal(line) - Number(line.amount)) < 0.02;
+    }
+
     if (form.allocation_type === 'operational') {
         return Boolean(form.payment_schedule_id);
     }
@@ -450,9 +525,39 @@ function candidateOptionLabel(candidate) {
 }
 
 function allocateLine(line) {
-    router.post(`/finance/management-accounting/lines/${line.id}/allocate`, allocationForms[line.id], {
+    const form = allocationForms[line.id];
+
+    if (form.allocation_type === 'operational' && splitModes[line.id]) {
+        router.post(`/finance/management-accounting/lines/${line.id}/allocate`, {
+            allocation_type: 'operational',
+            allocations: (splitAllocations[line.id] || [])
+                .filter((row) => row.payment_schedule_id && row.amount > 0)
+                .map((row) => ({
+                    payment_schedule_id: row.payment_schedule_id,
+                    amount: row.amount,
+                })),
+        }, {
+            preserveScroll: true,
+        });
+
+        return;
+    }
+
+    router.post(`/finance/management-accounting/lines/${line.id}/allocate`, form, {
         preserveScroll: true,
     });
+}
+
+function addSplitRow(line) {
+    splitAllocations[line.id].push({ payment_schedule_id: null, amount: null });
+}
+
+function removeSplitRow(line, index) {
+    splitAllocations[line.id].splice(index, 1);
+}
+
+function splitTotal(line) {
+    return (splitAllocations[line.id] || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
 }
 
 function deallocateLine(line) {
@@ -480,7 +585,7 @@ function deleteImport() {
 }
 
 function allocationSummaryInline(summary) {
-    if (summary.match_type === 'operational') {
+    if (summary.match_type === 'operational' || summary.match_type === 'operational_split') {
         const order = summary.order?.order_number;
         const schedule = summary.payment_schedule;
         const parts = ['Операционный'];

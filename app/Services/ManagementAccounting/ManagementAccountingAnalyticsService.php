@@ -3,8 +3,11 @@
 namespace App\Services\ManagementAccounting;
 
 use App\Models\BudgetOpexArticle;
+use App\Models\BudgetPlanSnapshot;
 use App\Models\ManagementExpenseCategory;
 use App\Models\ManagementStatementLine;
+use App\Services\Budgeting\BudgetPlanSnapshotService;
+use App\Services\Budgeting\BudgetVarianceService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -16,6 +19,8 @@ class ManagementAccountingAnalyticsService
         private readonly ManagementAccountingPivotBuilder $pivotBuilder,
         private readonly ManagementAccountingOperationalActualsMerger $operationalActualsMerger,
         private readonly ManagementAccountingTotalsSplitter $totalsSplitter,
+        private readonly BudgetPlanSnapshotService $snapshotService,
+        private readonly BudgetVarianceService $varianceService,
     ) {}
 
     public const PERIOD_MONTH = 'month';
@@ -64,7 +69,31 @@ class ManagementAccountingAnalyticsService
      *         time_series: list<array{key: string, label: string, revenue: float, expense: float, profit: float}>,
      *         rows: list<array<string, mixed>>
      *     },
-     *     plan_available: bool
+     *     plan_available: bool,
+     *     plan_source: string,
+     *     plan_snapshot: array{
+     *         id: int,
+     *         period_label: string,
+     *         approved_at: string
+     *     }|null,
+     *     variance_rows: list<array{
+     *         category_id: int|null,
+     *         code: string|null,
+     *         name: string,
+     *         kind: string|null,
+     *         planned: float,
+     *         actual: float,
+     *         variance: float,
+     *         variance_percent: float|null
+     *     }>,
+     *     payroll_variance: array{
+     *         name: string,
+     *         planned: float,
+     *         actual_accrued: float,
+     *         actual_paid: float,
+     *         variance_paid: float,
+     *         variance_percent: float|null
+     *     }|null
      * }
      */
     public function build(string $periodType, ?string $periodAnchor = null): array
@@ -79,7 +108,9 @@ class ManagementAccountingAnalyticsService
             ->get(['id', 'parent_id', 'code', 'name', 'kind', 'flow', 'include_in_budget']);
 
         $aggregates = $this->aggregateActuals($bounds['start'], $bounds['end']);
-        $planOut = $this->resolvePlannedOutflow($bounds['start'], $bounds['end']);
+        $planContext = $this->resolvePlanContext($bounds['start'], $bounds['end']);
+        $planOut = $planContext['plan_out'];
+        $planByCategory = $planContext['plan_by_category'];
 
         $actualIn = (float) ($aggregates['totals']['in'] ?? 0);
         $actualOut = (float) ($aggregates['totals']['out'] ?? 0);
@@ -93,10 +124,27 @@ class ManagementAccountingAnalyticsService
             $planOut,
         );
 
-        $planByCategory = $this->resolvePlannedByCategory($bounds['start'], $bounds['end']);
         $rows = $this->buildRows($categories, $aggregates['by_category'], $planByCategory);
         $planAvailable = Schema::hasTable('budget_opex_articles');
         $pivot = $this->pivotBuilder->build($periodType, $bounds['start'], $bounds['end'], $categories, $planByCategory);
+
+        $varianceRows = [];
+        $payrollVariance = null;
+
+        if ($planContext['snapshot'] instanceof BudgetPlanSnapshot) {
+            $varianceRows = $this->varianceService->compare(
+                $planContext['snapshot'],
+                $bounds['start'],
+                $bounds['end'],
+                $categories,
+                $aggregates['by_category'],
+            );
+            $payrollVariance = $this->varianceService->payrollVariance(
+                $planContext['snapshot'],
+                $bounds['start'],
+                $bounds['end'],
+            );
+        }
 
         return [
             'period_type' => $periodType,
@@ -146,6 +194,56 @@ class ManagementAccountingAnalyticsService
             ],
             'pivot' => $pivot,
             'plan_available' => $planAvailable,
+            'plan_source' => $planContext['source'],
+            'plan_snapshot' => $planContext['snapshot_meta'],
+            'variance_rows' => $varianceRows,
+            'payroll_variance' => $payrollVariance,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     source: string,
+     *     plan_out: float,
+     *     plan_by_category: array<int, float>,
+     *     snapshot: BudgetPlanSnapshot|null,
+     *     snapshot_meta: array{id: int, period_label: string, approved_at: string}|null
+     * }
+     */
+    private function resolvePlanContext(CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $snapshot = $this->snapshotService->resolveSnapshotForPeriod($start, $end);
+
+        if ($snapshot instanceof BudgetPlanSnapshot) {
+            return [
+                'source' => 'snapshot',
+                'plan_out' => $this->snapshotService->totalPlannedOutflow($snapshot, $start, $end),
+                'plan_by_category' => $this->snapshotService->plannedByCategoryForPeriod($snapshot, $start, $end),
+                'snapshot' => $snapshot,
+                'snapshot_meta' => [
+                    'id' => $snapshot->id,
+                    'period_label' => $snapshot->period_label,
+                    'approved_at' => $snapshot->approved_at->toIso8601String(),
+                ],
+            ];
+        }
+
+        if (! Schema::hasTable('budget_opex_articles')) {
+            return [
+                'source' => 'none',
+                'plan_out' => 0.0,
+                'plan_by_category' => [],
+                'snapshot' => null,
+                'snapshot_meta' => null,
+            ];
+        }
+
+        return [
+            'source' => 'live',
+            'plan_out' => $this->resolvePlannedOutflow($start, $end),
+            'plan_by_category' => $this->resolvePlannedByCategory($start, $end),
+            'snapshot' => null,
+            'snapshot_meta' => null,
         ];
     }
 

@@ -49,10 +49,17 @@
 
 | Файл | Назначение |
 | --- | --- |
+| [print-form-pdf-protection.md](./print-form-pdf-protection.md) | QR-проверка и DocMDP-подпись PDF (эксперимент) |
 | [order-intake-ocr-service.md](./order-intake-ocr-service.md) | Sidecar OCR (локальная интеграция) |
 | [order-intake-ocr-production.md](./order-intake-ocr-production.md) | OCR на проде |
 | [nextcloud-install.md](./nextcloud-install.md) | WebDAV-хранилище |
 | [notifications-departments-ntfy.md](./notifications-departments-ntfy.md) | ntfy, маршрутизация уведомлений |
+
+## Модули (утилиты)
+
+| Файл | Назначение |
+| --- | --- |
+| [import-cost-calculator-architecture.md](./import-cost-calculator-architecture.md) | Калькулятор растаможки: ЕЭК OData, ПП № 1291, маршруты, деплой, sync справочников |
 
 ## Прочее (внутреннее / MVP)
 
@@ -86,13 +93,21 @@ MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.ph
 
 ## Obsidian / второй компьютер (Yandex Disk)
 
-Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизируется Я.Диском.
+Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизируется Я.Диском. Канонические копии индексов — в git: [`docs/sync/`](./sync/README.md).
 
-| Файл | Назначение |
+```powershell
+# После git pull или правок docs/sync/
+pwsh -File scripts/sync-docs-to-yandex.ps1
+pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
+```
+
+| Файл в git (`docs/sync/`) | На Я.Диске |
 | --- | --- |
-| `CRM/Cursor-handoff-latest.md` | Контекст для Cursor: последний коммит, прод, backlog |
-| `CRM/00-index.md` | Навигация vault |
-| `CRM/v5-local/00-index.md` | Карта компонентов кода |
-| `for_note/README.md` | Синхрон MCP/tools между ПК |
+| `Cursor-handoff-latest.md` | `CRM/Cursor-handoff-latest.md` — контекст для Cursor |
+| `CRM-00-index.md` | `CRM/00-index.md` — навигация vault |
+| `v5-local-00-index.md` | `CRM/v5-local/00-index.md` — карта компонентов |
+| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Import Cost, Management Accounting, Utility Modules) |
 
-*Обновлено: 2026-06-03.*
+`Exchange/for_note/README.md` — MCP, tools, scripts-local между ПК.
+
+*Обновлено: 2026-06-18.*

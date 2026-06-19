@@ -1,0 +1,38 @@
+# CRM v5-local — карта архитектуры
+
+> Индекс для Obsidian. Сущности Hive Mind: `system`, `component`, `decision`, `interface`, `constraint`.  
+> Актуальный контекст сессии: [[../Cursor-handoff-latest]].  
+> Источник в git: `docs/sync/v5-local-00-index.md`
+
+## Система
+- [[CRM Avtoalyans v5]]
+
+## Домены (Components)
+- [[Orders]] · [[Leads]] · [[Contractors]] · [[Sales Assistant]] · [[Sales Scripts Editor]]
+- [[Finance]] · [[Management Accounting]] · [[Fleet]] · [[Mail]] · [[Documents]]
+- [[Tasks and Kanban]] · [[Reports]] · [[Roles and Users]] · [[Settings]]
+- [[Utility Modules]] · [[Import Cost Calculator]] · [[Integrations]]
+
+## Сквозные слои
+- [[Role Access and Visibility]] · [[Inertia Frontend]] · [[Print Forms DOCX]] · [[MCP and Command Bar]]
+
+## Интерфейсы
+- [[MCP CRM API]] · [[Carrier Portal]]
+
+## Решения (ADR)
+- [[ADR Laravel Inertia SPA]] · [[ADR Sanctum MCP Auth]] · [[ADR DOCX Print Pipeline]]
+
+## Ограничения
+- [[Constraint PHP 83 Laravel 13]] · [[Constraint Visibility RBAC]]
+
+Код: `C:/OSPanel/home/v5.local`
+
+## Компоненты с карточками в git
+
+| Компонент | Файл sync |
+| --- | --- |
+| Растаможка | `v5-local-Components-Import-Cost-Calculator.md` |
+| Управленческий учёт | `v5-local-Components-Management-Accounting.md` |
+| Утилиты | `v5-local-Components-Utility-Modules.md` |
+
+*Обновлено: 2026-06-18.*

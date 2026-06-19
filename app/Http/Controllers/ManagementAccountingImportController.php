@@ -80,6 +80,8 @@ class ManagementAccountingImportController extends Controller
                 'allocationPaymentSchedule:id,party,amount,planned_date',
                 'allocationUser:id,name',
                 'allocator:id,name',
+                'splits.paymentSchedule:id,party,amount,planned_date',
+                'splits.order:id,order_number',
             ])
             ->orderBy('operation_date')
             ->orderBy('row_number')
@@ -145,6 +147,17 @@ class ManagementAccountingImportController extends Controller
                         'id' => $line->allocationUser->id,
                         'name' => $line->allocationUser->name,
                     ],
+                    'splits' => $line->match_type === 'operational_split'
+                        ? $line->splits->map(fn ($split): array => [
+                            'id' => $split->id,
+                            'amount' => (float) $split->amount,
+                            'order_number' => $split->order?->order_number,
+                            'payment_schedule_id' => $split->payment_schedule_id,
+                            'payment_schedule_amount' => $split->paymentSchedule !== null
+                                ? (float) $split->paymentSchedule->amount
+                                : null,
+                        ])->values()->all()
+                        : [],
                 ] : null,
             ]);
 

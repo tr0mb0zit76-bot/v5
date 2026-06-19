@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ManagementBankAccount;
 use App\Models\ManagementExpenseCategory;
+use App\Models\ManagementStatementLine;
 use App\Services\ManagementAccounting\ManagementAccountingAnalyticsService;
 use App\Services\ManagementAccounting\ManagementExpenseCategoryTreeService;
 use App\Support\RoleAccess;
@@ -52,6 +54,33 @@ class ManagementAccountingController extends Controller
                     'include_in_budget' => (bool) $category->include_in_budget,
                     'source' => self::categorySource($category),
                 ]),
+            'bank_accounts' => ManagementBankAccount::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get(['id', 'bank_name', 'account_mask', 'currency'])
+                ->map(static fn (ManagementBankAccount $account): array => [
+                    'id' => $account->id,
+                    'bank_name' => $account->bank_name,
+                    'account_mask' => $account->account_mask,
+                    'currency' => $account->currency,
+                ]),
+            'recent_manual_entries' => ManagementStatementLine::query()
+                ->where('source', 'manual')
+                ->with(['allocationCategory:id,name'])
+                ->orderByDesc('operation_date')
+                ->orderByDesc('id')
+                ->limit(10)
+                ->get(['id', 'operation_date', 'direction', 'amount', 'description', 'status', 'allocation_category_id'])
+                ->map(static fn (ManagementStatementLine $line): array => [
+                    'id' => $line->id,
+                    'operation_date' => $line->operation_date?->toDateString(),
+                    'direction' => $line->direction,
+                    'amount' => (float) $line->amount,
+                    'description' => $line->description,
+                    'status' => $line->status,
+                    'category_name' => $line->allocationCategory?->name,
+                ]),
+            'can_manage_manual_entries' => RoleAccess::canAccessPaymentReconcile($request->user()),
             'analytics' => $this->analyticsService->build($periodType, $periodAnchor),
         ]);
     }

@@ -6,7 +6,7 @@
 
 **Связанный операционный контур:** [`payment-schedule-architecture.md`](./payment-schedule-architecture.md) (график оплат по заявкам).
 
-**Последнее обновление:** 2026-06-11 (аналитика «Учёт» + журнал графика оплат)
+**Последнее обновление:** 2026-06-18 (снапшоты плана, variance, ручные операции, split разнесения)
 
 **Handoff / Obsidian:** `YandexDisk/Exchange/CRM/Cursor-handoff-latest.md`
 
@@ -94,9 +94,22 @@ UI: форма «Добавить статью», кнопка синхрони�
 | `line_hash` | Дедупликация в рамках счёта |
 | `direction` | `in` / `out` |
 | `status` | `pending` / `allocated` |
-| `match_type` | `operational` / `payroll` / `category` |
+| `match_type` | `operational` / `operational_split` / `payroll` / `category` |
 | `suggested_*` | Автоподсказки матчинга |
 | `allocation_*` | Итог разнесения |
+
+### `management_statement_line_splits`
+
+Несколько операционных привязок на одну строку выписки (`match_type = operational_split`).
+
+| Поле | Смысл |
+| --- | --- |
+| `management_statement_line_id` | Родительская операция |
+| `payment_schedule_id` | Строка графика |
+| `amount` | Доля суммы |
+| `order_id`, `category_id` | Денормализация для отчётов |
+
+Уникальные `transaction_reference` в журнале: `mgmt:{line_id}:{split_id}`.
 
 ### `management_payroll_halves` + `management_payroll_half_users`
 
@@ -157,10 +170,13 @@ UI: форма «Добавить статью», кнопка синхрони�
 
 0. **Правила** — `management_reconcile_rules` (приоритет + keyword), confidence 95.
 1. **Операционный по номеру заявки** — `АС-2606-0001` (regex `АС[-\s]?\d{2}\d{2}[-\s]?\d{4}`), затем строка `payment_schedules` по сумме и дате.
-2. **Операционный по контрагенту и сумме** — если номера заявки нет: название контрагента в назначении + точное совпадение остатка к оплате по открытой строке графика (приход → заказчик, расход → перевозчик/`counterparty_id`). Один кандидат — автоподстановка; **несколько** — `suggested_candidates[]`, без автозаполнения `payment_schedule_id` (выбор в UI / MCP `candidates`).
-3. **ФОТ** — ФИО сотрудника в назначении платежа → `payroll_paid_sales`.
-4. **Статьи по ключевым словам** — `комисс`/`сбор` → `bank_fees`; `ати`/`лиценз`/`подписк` → `services_other`.
-5. Иначе — `unclassified` или `cash_other_*` по направлению.
+2. **Операционный по контрагенту и сумме** — если номера заявки нет: название контрагента в назначении + точное совпадение остатка к оплате по открытой строке графика (приход → заказчик, расход → перевозчик/`counterparty_id`). Один кандидат — автоподстановка; **несколько** — `suggested_candidates[]` с полем `amount_due`, без автозаполнения `payment_schedule_id` (выбор в UI / MCP `candidates`).
+3. **Операционный только по сумме (входящие)** — для `direction=in`, если шаги 1–2 не сработали: открытые строки графика заказчика с остатком, равным сумме поступления; при одном совпадении — подсказка `suggestedOperationalCategoryId` + `payment_schedule_id`.
+4. **ФОТ** — ФИО сотрудника в назначении платежа → `payroll_paid_sales`.
+5. **Статьи по ключевым словам** — `комисс`/`сбор` → `bank_fees`; `ати`/`лиценз`/`подписк` → `services_other`.
+6. Иначе — `unclassified` или `cash_other_*` по направлению.
+
+**UI разнесения (`Reconcile.vue`):** для входящих по умолчанию тип **«Операционный»**; при открытии строки — автоподгрузка кандидатов; в списке кандидатов показывается **«к оплате»** (`amount_due`).
 
 ---
 
@@ -174,11 +190,32 @@ UI: форма «Добавить статью», кнопка синхрони�
 | `payroll` | Увеличение `paid_amount` в `management_payroll_half_users` |
 | `category` | Только статья расходов/доходов |
 
-Поддерживаются **частичные** оплаты по одной строке графика (колонки `parent_payment_id`, `is_partial`).
+Поддерживаются **частичные** оплаты по одной строке графика (колонки `parent_payment_id`, `is_partial`). Статус строки: `PaymentScheduleSettlementStatus` (`open` / `partially_settled` / `settled`); в гриде — колонка **«К оплате»** и бейдж «Частично оплачено».
+
+**Split:** один платёж выписки → несколько строк графика (`allocations[]` в запросе разнесения). Записи в `management_statement_line_splits`; откат всех частей при deallocate.
+
+**Переразнесение:** при смене привязки предыдущая оплата откатывается через `PaymentSchedulePaymentReversalService` (в т.ч. все `mgmt:{line_id}:*`).
+
+Команда выравнивания после правок логики: `php artisan payment-schedules:sync-settlement-amounts` (пересчёт остатков по журналу и частичным строкам).
 
 ### Вкладка «Учёт» (аналитика)
 
 Факт по периоду = разнесённые `management_statement_lines` **плюс** оплаты из журнала `payment_schedule_payment_events` (ручная фиксация в графике оплат). События с `transaction_reference` вида `mgmt:{line_id}` не дублируются — они уже в выписке. Если старые оплаты есть только в `payment_schedules.paid_amount`, выполните `php artisan payment-schedules:backfill-payment-events`.
+
+**План vs факт:** `ManagementAccountingAnalyticsService` + `BudgetPlanSnapshotService` + `BudgetVarianceService`. План из последнего снапшота на период (`plan_source: snapshot`); без снапшота — черновой opex (`plan_source: live`). UI: `ManagementAccountingVarianceTable`.
+
+**Ручные операции:** `POST finance.management-accounting.manual-entries` → `createManualLine` + allocate; модалка на Index.
+
+### Бюджетирование (снапшот плана)
+
+| Таблица | Назначение |
+| --- | --- |
+| `budget_plan_snapshots` | Версия плана за период |
+| `budget_plan_snapshot_lines` | План по месяцам и статьям |
+
+Сервис: `BudgetPlanSnapshotService::freeze()`. UI: `Budgeting/Index.vue` → `POST budgeting.plan-snapshots.store`. Права: `belongs_to_management`.
+
+См. [`management-accounting-budgeting-integration.md`](./management-accounting-budgeting-integration.md).
 
 ---
 
@@ -186,13 +223,14 @@ UI: форма «Добавить статью», кнопка синхрони�
 
 | URL | Страница |
 | --- | --- |
-| `/finance/management-accounting` | `Finance/ManagementAccounting/Index.vue` |
-| `/finance/management-accounting/imports/{id}` | `Finance/ManagementAccounting/Reconcile.vue` |
+| `/finance/management-accounting` | `Finance/ManagementAccounting/Index.vue` — учёт, variance, ручные операции |
+| `/finance/management-accounting/imports/{id}` | `Finance/ManagementAccounting/Reconcile.vue` — split |
+| `/budgeting` | `Budgeting/Index.vue` — фиксация плана |
 
 Меню: **Финансы → Управленческий учёт** (`CrmLayout.vue`, ключ `finance-management-accounting`).  
 Плитка на `/finance` при `can_access_management_accounting`.
 
-Именованные маршруты: `finance.management-accounting.*`.
+Именованные маршруты: `finance.management-accounting.*`, `budgeting.plan-snapshots.store`.
 
 ---
 
@@ -206,7 +244,7 @@ UI: форма «Добавить статью», кнопка синхрони�
 | `list_management_statement_lines` | Строки выписки |
 | `suggest_management_statement_line` | Подсказка матчинга |
 | `allocate_management_statement_line` | Разнесение + опционально `remember_keyword` |
-| `get_management_accounting_analytics` | План/факт по периоду |
+| `get_management_accounting_analytics` | План/факт за период; `plan_source`, `variance_rows`, `payroll_variance` |
 | `list_management_expense_categories` | Справочник статей |
 | `remember_management_reconcile_rule` / `list_management_reconcile_rules` | Обучение правил |
 
@@ -227,6 +265,11 @@ UI: форма «Добавить статью», кнопка синхрони�
 | `tests/Unit/ManagementAccountingMcpServiceTest.php` | MCP-сервис, scope импортёра |
 | `tests/Feature/Mcp/ManagementAccountingMcpToolsTest.php` | MCP tools |
 | `tests/Feature/ManagementAccountingAccessTest.php` | Права доступа |
+| `tests/Unit/ManagementAccountingMatchingServiceTest.php` | Матчинг, в т.ч. входящие только по сумме |
+| `tests/Unit/BudgetPlanSnapshotServiceTest.php` | Снапшот плана |
+| `tests/Unit/BudgetVarianceServiceTest.php` | Отклонения по статьям |
+| `tests/Unit/ManagementAccountingAnalyticsServiceTest.php` | Аналитика, snapshot vs live |
+| `tests/Unit/ManagementAccountingAllocationSplitTest.php` | Split разнесения |
 
 ---
 
@@ -241,7 +284,7 @@ npm run build
 
 **Важно:** `ManagementAccountingSeeder` **не** входит в `DatabaseSeeder`. После первого деплоя без сидера таблица `management_expense_categories` пустая — список статей в UI будет пуст. Миграция `seed_management_expense_system_categories` создаёт 10 системных статей при `migrate`; статьи из бюджета — кнопка «Синхронизировать» или полный сидер.
 
-Миграции после M0: `management_expense_category_id` на `budget_opex_articles`, `management_reconcile_rules`, `seed_management_expense_system_categories`.
+Миграции после M0: `management_expense_category_id` на `budget_opex_articles`, `management_reconcile_rules`, `seed_management_expense_system_categories`, `budget_plan_snapshots`, `management_statement_line_splits`.
 
 На Windows, если `php artisan migrate` падает на загрузке `database/schema/mysql-schema.sql` (`mysql` не в PATH), выполнить миграцию по `--path` на сервере/CI или через прямой вызов `up()` миграции.
 

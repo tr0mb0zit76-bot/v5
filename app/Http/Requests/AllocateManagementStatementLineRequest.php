@@ -25,6 +25,9 @@ class AllocateManagementStatementLineRequest extends FormRequest
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
             'amount' => ['nullable', 'numeric', 'min:0.01'],
             'notes' => ['nullable', 'string', 'max:500'],
+            'allocations' => ['nullable', 'array', 'min:2'],
+            'allocations.*.payment_schedule_id' => ['required_with:allocations', 'integer', 'exists:payment_schedules,id'],
+            'allocations.*.amount' => ['required_with:allocations', 'numeric', 'min:0.01'],
         ];
     }
 }

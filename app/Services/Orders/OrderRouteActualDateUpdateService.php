@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\OrderStatusLog;
 use App\Models\RoutePoint;
 use App\Models\User;
+use App\Services\OrderClosingDocumentsNotificationService;
 use App\Services\OrderCompensationService;
 use App\Services\OrderStatusService;
 use App\Support\OrderAgentLexicon;
@@ -19,6 +20,7 @@ class OrderRouteActualDateUpdateService
     public function __construct(
         private readonly OrderStatusService $orderStatusService,
         private readonly OrderCompensationService $orderCompensationService,
+        private readonly OrderClosingDocumentsNotificationService $closingDocumentsNotificationService,
     ) {}
 
     /**
@@ -89,6 +91,14 @@ class OrderRouteActualDateUpdateService
 
         $orderForSchedule = OrderRouteMilestoneDateResolver::syncToOrder($order->fresh() ?? $order);
         $this->orderCompensationService->resyncPaymentSchedulesForOrder($orderForSchedule);
+
+        if ($kind === 'unloading_actual') {
+            $this->closingDocumentsNotificationService->maybeNotify($orderForSchedule->fresh([
+                'legs.routePoints',
+                'documents',
+                'client',
+            ]) ?? $orderForSchedule);
+        }
 
         $kindLabel = OrderAgentLexicon::labelFor($kind) ?? $kind;
 

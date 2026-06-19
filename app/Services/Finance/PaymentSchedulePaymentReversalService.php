@@ -53,13 +53,22 @@ class PaymentSchedulePaymentReversalService
         ?string $reason = null,
         ?int $fallbackScheduleId = null,
     ): ?PaymentSchedulePaymentEvent {
-        $event = PaymentSchedulePaymentEvent::query()
+        $events = PaymentSchedulePaymentEvent::query()
             ->active()
-            ->where('transaction_reference', 'mgmt:'.$lineId)
-            ->first();
+            ->where(function ($query) use ($lineId): void {
+                $query->where('transaction_reference', 'mgmt:'.$lineId)
+                    ->orWhere('transaction_reference', 'like', 'mgmt:'.$lineId.':%');
+            })
+            ->get();
 
-        if ($event !== null) {
-            return $this->reverseEvent($event, $actor, $reason);
+        if ($events->isNotEmpty()) {
+            $last = null;
+
+            foreach ($events as $event) {
+                $last = $this->reverseEvent($event, $actor, $reason);
+            }
+
+            return $last;
         }
 
         $this->restoreScheduleByManagementLineReference($lineId, $fallbackScheduleId);

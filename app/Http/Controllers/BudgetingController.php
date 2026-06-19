@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FreezeBudgetPlanSnapshotRequest;
 use App\Http\Requests\StoreBudgetOpexArticleRequest;
 use App\Http\Requests\UpdateBudgetOpexArticleRequest;
 use App\Http\Requests\UpdateBudgetScenarioRequest;
@@ -9,7 +10,9 @@ use App\Models\BudgetOpexArticle;
 use App\Models\BudgetScenario;
 use App\Services\Budgeting\BudgetMarginBenchmarkService;
 use App\Services\Budgeting\BudgetPlannerService;
+use App\Services\Budgeting\BudgetPlanSnapshotService;
 use App\Support\RoleAccess;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,6 +23,7 @@ class BudgetingController extends Controller
     public function __construct(
         private readonly BudgetPlannerService $planner,
         private readonly BudgetMarginBenchmarkService $benchmarks,
+        private readonly BudgetPlanSnapshotService $snapshotService,
     ) {}
 
     public function index(Request $request): Response
@@ -43,7 +47,26 @@ class BudgetingController extends Controller
                 'name' => $scenario->name,
                 'updated_at' => optional($scenario->updated_at)?->toIso8601String(),
             ],
+            'plan_snapshots' => $this->snapshotService->recentSnapshots(),
+            'can_freeze_plan' => RoleAccess::canAccessBudgeting($request->user()),
         ]);
+    }
+
+    public function freezePlan(FreezeBudgetPlanSnapshotRequest $request): RedirectResponse
+    {
+        $scenario = $this->resolveScenario();
+
+        $this->snapshotService->freeze(
+            $scenario,
+            CarbonImmutable::parse($request->validated('period_start'))->startOfDay(),
+            CarbonImmutable::parse($request->validated('period_end'))->startOfDay(),
+            $request->validated('period_label'),
+            $request->user(),
+            $request->validated('notes'),
+        );
+
+        return to_route('budgeting.index')
+            ->with('flash', ['type' => 'success', 'message' => 'План зафиксирован. Сравнение план/факт будет использовать этот снимок.']);
     }
 
     public function updateScenario(UpdateBudgetScenarioRequest $request): RedirectResponse

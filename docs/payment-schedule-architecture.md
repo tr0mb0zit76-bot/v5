@@ -4,7 +4,7 @@
 
 **Пользовательская инструкция:** [`order-wizard-financial-terms-user-guide.md`](./order-wizard-financial-terms-user-guide.md) (Книга продаж → Руководство по CRM). Кратко — раздел 7 в [`order-wizard-user-guide.md`](./order-wizard-user-guide.md).
 
-**Последнее обновление:** 2026-06-08
+**Последнее обновление:** 2026-06-13 (наличка → срок от выгрузки, частичные оплаты в гриде)
 
 ---
 
@@ -68,6 +68,7 @@
 
 1. **События документов / погрузки / выгрузки** (`basis` = `fttn`, `fttn_receipt`, `ottn`, `loading`, `unloading`):
    - дата события через `resolveScheduleDate()` (сканы, квиток в гриде документов, факт/план точек маршрута);
+   - **наличная форма оплаты** (`payment_form` = `cash` у стороны заказа): базисы `fttn`, `fttn_receipt`, `ottn` нормализуются в **`unloading`** (`PaymentScheduleCashBasis::effectiveBasisForParty`) — срок считается от фактической выгрузки, без ожидания УПД;
    - сдвиг `offset_days` + `offset_unit` (`CalendarBankDayShifter`).
 2. **Якорь + сдвиг** (прочие случаи): `PaymentInstallmentPlanner::plannedDateForInstallment()` по `anchor` и контексту дат заказа.
 
@@ -115,7 +116,7 @@
 | --- | --- |
 | Мастер заказа, контрагент | `PaymentTermsWizardBlock.vue` |
 | Общий API траншей | `orderPaymentScheduleUi.js` |
-| Грид «График оплат» | `CashFlowGrid.vue` — даты **дд.мм.гггг** (`formatGridDate`) |
+| Грид «График оплат» | `CashFlowGrid.vue` — даты **дд.мм.гггг** (`formatGridDate`); колонка **«К оплате»**, статус «Частично оплачено» (`cashFlowJournalStats.js`, `FinanceOverviewService`) |
 | Страница финансов | `Pages/Finance/Index.vue` |
 
 Режимы блока условий: **«Один транш»** / **«Несколько траншей»** + «Добавить транш». Сводка для договора — авто из траншей, можно править вручную (`editable-summary`).
@@ -138,6 +139,16 @@
 | --- | --- |
 | `tests/Unit/PaymentScheduleLegacyConverterTest.php` | legacy → installments |
 | `tests/Feature/PaymentScheduleUnloadingDateTest.php` | `planned_date` при `basis=unloading`, синхронизация дат маршрута |
+| `tests/Unit/PaymentScheduleCashBasisTest.php` | наличка: `fttn`/`ottn` → `unloading` |
+
+---
+
+## Artisan
+
+| Команда | Назначение |
+| --- | --- |
+| `payment-schedules:sync-settlement-amounts` | Пересчёт `paid_amount` / остатков и частичных строк по журналу после смены логики разнесения |
+| `payment-schedules:backfill-payment-events` | Журнал оплат из исторических `paid_amount` (см. управленческий учёт) |
 
 ---
 
@@ -146,6 +157,7 @@
 ```bash
 git pull origin master
 php artisan migrate
+php artisan payment-schedules:sync-settlement-amounts   # после обновления логики частичных оплат
 npm run build
 ```
 

@@ -65,7 +65,7 @@ MCP-сервер CRM «Автоальянс»: чтение сущностей, 
 | `list_management_statement_lines` | Строки по `import_id`, опционально `status` (`pending` / `allocated`) |
 | `suggest_management_statement_line` | Подсказка разнесения: эвристики + `management_reconcile_rules`; при неоднозначности — `candidates[]` (заявка, сумма, план, id графика) |
 | `allocate_management_statement_line` | Подтвердить разнесение; `remember_keyword` — сохранить правило по фрагменту назначения |
-| `get_management_accounting_analytics` | План/факт за `period_type` (`month` / `quarter` / `year`) |
+| `get_management_accounting_analytics` | План/факт за `period_type` (`month` / `quarter` / `year`); в ответе `plan_source`, `variance_rows`, `payroll_variance`, `plan_snapshot` |
 | `list_management_expense_categories` | Справочник статей (системные, из бюджета, пользовательские) |
 | `remember_management_reconcile_rule` | Явно добавить правило (`keyword`, `allocation_type`, …) |
 | `list_management_reconcile_rules` | Активные правила обучения |

@@ -20,6 +20,9 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             'payment_schedule_payment_events',
             'management_statement_lines',
             'management_expense_categories',
+            'budget_plan_snapshot_lines',
+            'budget_plan_snapshots',
+            'budget_scenarios',
             'budget_opex_articles',
         ]);
 
@@ -74,6 +77,35 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
             $table->unsignedTinyInteger('ramp_months')->nullable();
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->unsignedBigInteger('management_expense_category_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('budget_scenarios', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->json('inputs');
+            $table->timestamps();
+        });
+
+        Schema::create('budget_plan_snapshots', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('scenario_id');
+            $table->string('period_label');
+            $table->date('period_start');
+            $table->date('period_end');
+            $table->timestamp('approved_at');
+            $table->unsignedBigInteger('approved_by_user_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('budget_plan_snapshot_lines', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('snapshot_id');
+            $table->date('month');
+            $table->unsignedBigInteger('opex_article_id')->nullable();
+            $table->unsignedBigInteger('category_id')->nullable();
+            $table->string('article_name');
+            $table->decimal('planned_amount', 14, 2)->default(0);
             $table->timestamps();
         });
     }
@@ -133,6 +165,62 @@ class ManagementAccountingAnalyticsServiceTest extends TestCase
         $this->assertArrayHasKey('pivot', $result);
         $this->assertNotEmpty($result['pivot']['columns']);
         $this->assertNotEmpty($result['pivot']['time_series']);
+    }
+
+    public function test_uses_snapshot_plan_when_available(): void
+    {
+        $category = ManagementExpenseCategory::query()->create([
+            'code' => 'bank_fees',
+            'name' => 'Банковские комиссии',
+            'kind' => 'overhead',
+            'is_system' => true,
+            'is_active' => true,
+            'include_in_budget' => true,
+            'sort_order' => 10,
+        ]);
+
+        \DB::table('budget_scenarios')->insert([
+            'name' => 'Основной',
+            'inputs' => json_encode(['horizon_months' => 12]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $snapshotId = \DB::table('budget_plan_snapshots')->insertGetId([
+            'scenario_id' => 1,
+            'period_label' => 'Июнь 2026',
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-12-31',
+            'approved_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \DB::table('budget_plan_snapshot_lines')->insert([
+            'snapshot_id' => $snapshotId,
+            'month' => '2026-06-01',
+            'category_id' => $category->id,
+            'article_name' => 'Банк',
+            'planned_amount' => 80000,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        \DB::table('budget_opex_articles')->insert([
+            'name' => 'Офис',
+            'cost_type' => 'fixed_monthly',
+            'amount_monthly' => 100000,
+            'sort_order' => 10,
+            'management_expense_category_id' => $category->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $result = app(ManagementAccountingAnalyticsService::class)->build('month', '2026-06-01');
+
+        $this->assertSame('snapshot', $result['plan_source']);
+        $this->assertSame(80000.0, $result['totals']['plan_out']);
+        $this->assertNotEmpty($result['variance_rows']);
     }
 
     public function test_includes_customer_payments_from_payment_schedule_events(): void

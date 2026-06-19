@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ManagementStatementLine extends Model
 {
@@ -140,5 +141,13 @@ class ManagementStatementLine extends Model
     public function allocator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'allocated_by');
+    }
+
+    /**
+     * @return HasMany<ManagementStatementLineSplit, $this>
+     */
+    public function splits(): HasMany
+    {
+        return $this->hasMany(ManagementStatementLineSplit::class, 'management_statement_line_id');
     }
 }

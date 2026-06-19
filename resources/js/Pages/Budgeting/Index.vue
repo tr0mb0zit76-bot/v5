@@ -105,6 +105,54 @@
                     </div>
                 </section>
 
+                <section v-if="can_freeze_plan" :class="`${crmPanel} p-4`">
+                    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Зафиксировать план</h2>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Снимок для сравнения план/факт в управленческом учёте. Черновик бюджета после фиксации не меняет отчёт.
+                    </p>
+                    <div class="mt-3 space-y-2">
+                        <label class="block space-y-1">
+                            <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">Название периода</span>
+                            <input
+                                v-model="freezeForm.period_label"
+                                type="text"
+                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                            >
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="block space-y-1">
+                                <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">С</span>
+                                <input
+                                    v-model="freezeForm.period_start"
+                                    type="date"
+                                    class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                >
+                            </label>
+                            <label class="block space-y-1">
+                                <span class="text-xs font-medium text-zinc-600 dark:text-zinc-300">По</span>
+                                <input
+                                    v-model="freezeForm.period_end"
+                                    type="date"
+                                    class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-950"
+                                >
+                            </label>
+                        </div>
+                        <button
+                            type="button"
+                            class="w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50 dark:bg-sky-500"
+                            :disabled="freezeForm.processing"
+                            @click="freezePlan"
+                        >
+                            {{ freezeForm.processing ? 'Фиксация…' : 'Зафиксировать план' }}
+                        </button>
+                    </div>
+                    <ul v-if="plan_snapshots.length > 0" class="mt-3 space-y-1 text-xs text-zinc-500">
+                        <li v-for="snapshot in plan_snapshots" :key="snapshot.id">
+                            {{ snapshot.period_label }} · {{ formatSnapshotDate(snapshot.approved_at) }}
+                        </li>
+                    </ul>
+                </section>
+
                 <section :class="`${crmPanel} p-4`">
                     <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Команда и вливание</h2>
                     <div class="mt-3 space-y-3">
@@ -651,6 +699,9 @@ const props = defineProps({
     opex_articles: { type: Array, default: () => [] },
     management_accounting_categories_url: { type: String, required: true },
     db_benchmark: { type: Object, default: () => ({}) },
+    scenario: { type: Object, default: () => ({}) },
+    plan_snapshots: { type: Array, default: () => [] },
+    can_freeze_plan: { type: Boolean, default: false },
 });
 
 const summaryPanelOpen = ref(false);
@@ -775,6 +826,44 @@ const marginAtCashZeroMonth = computed(() => (
 const percentRateAtPlanMonth = computed(() => monthlyPercentRate(localInputs.breakeven_month, localOpexArticles));
 
 const saveForm = useForm({ inputs: {} });
+
+const freezeDefaults = buildFreezeDefaults(localInputs);
+const freezeForm = useForm({
+    period_label: freezeDefaults.period_label,
+    period_start: freezeDefaults.period_start,
+    period_end: freezeDefaults.period_end,
+    notes: null,
+});
+
+function buildFreezeDefaults(inputs) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    const horizon = Number(inputs.horizon_months) || 12;
+    const start = `${year}-01-01`;
+    const endDate = new Date(year, horizon, 0);
+    const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+    return {
+        period_label: `Q${quarter} ${year}`,
+        period_start: start,
+        period_end: end,
+    };
+}
+
+function freezePlan() {
+    freezeForm.post(route('budgeting.plan-snapshots.store'), {
+        preserveScroll: true,
+    });
+}
+
+function formatSnapshotDate(value) {
+    if (!value) {
+        return '—';
+    }
+
+    return new Date(value).toLocaleString('ru-RU');
+}
 
 function setMode(mode) {
     localInputs.calculation_mode = mode;

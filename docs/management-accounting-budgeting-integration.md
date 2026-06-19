@@ -5,9 +5,10 @@
 **Связанные документы:**
 
 - [`management-accounting-architecture.md`](./management-accounting-architecture.md) — факт, статьи, выписки
+- [`management-accounting-implementation-plan.md`](./management-accounting-implementation-plan.md) — фазы M4–M5
 - Модуль бюджетирования: `BudgetPlannerService`, `BudgetScenario`, `BudgetOpexArticle`, UI `Budgeting/Index.vue`
 
-**Статус:** частичная реализация (M5.1 ✅, черновик план/факт на Index). **Последнее обновление:** 2026-06-11
+**Статус:** M5.2–M5.6 ✅, M4.3–M4.4 ✅. **Последнее обновление:** 2026-06-18
 
 ---
 
@@ -15,26 +16,26 @@
 
 | Вопрос | Ответ в UI |
 | --- | --- |
-| Сколько планировали потратить/получить за период? | План из бюджета (родительский сценарий) |
+| Сколько планировали потратить за период? | План из **зафиксированного** `BudgetPlanSnapshot` (или черновой opex, если снапшота нет) |
 | Сколько фактически прошло по банку/разнесению? | Факт из управленческого учёта |
-| Где отклонение? | Колонка Δ и % по каждой статье |
-| План ФОТ продавцов выполняется? | Дочерний план «Продавцы» vs `management_payroll_half_users` |
+| Где отклонение? | Таблица «Отклонение от плана» — колонки план, факт, Δ, Δ % |
+| План ФОТ продавцов выполняется? | Блок «ФОТ продавцов»: план из opex-статьи `payroll_managers` vs `management_payroll_half_users` |
 
 ---
 
 ## Иерархия планов
 
 ```
-BudgetScenario (родитель, «Бюджет компании»)
+BudgetScenario (родитель, plan_type = company)
 ├── inputs: горизонт, маржа, manager_count, opex_articles…
-├── BudgetPlanSnapshot — зафиксированный план по месяцам (при «утверждении»)
-└── BudgetScenario (дочерний, type = sales_payroll)  ← «План продавцов»
+├── BudgetPlanSnapshot — зафиксированный план по месяцам (кнопка «Зафиксировать план»)
+└── BudgetScenario (дочерний, plan_type = sales_payroll)  ← backlog «План продавцов»
     ├── наследует manager_count, margin_per_manager из родителя
-    ├── полупериоды 5 / 20 (как в управленке)
+    ├── полупериоды 5 / 20
     └── planned_accrual / planned_payout по user_id
 ```
 
-**Правило:** дочерний сценарий **не редактируется вручную** по суммам — пересчитывается из родителя (кнопка «Обновить план продавцов» или автоматически при сохранении родителя).
+**Реализовано:** снапшот родительского сценария. Дочерний сценарий и `budget_sales_half_users` — в backlog.
 
 ---
 
@@ -44,113 +45,119 @@ BudgetScenario (родитель, «Бюджет компании»)
 
 | Источник плана | Источник факта |
 | --- | --- |
-| `budget_opex_articles` (фикс ₽/мес или % маржи) | `management_statement_lines` со статусом `allocated` |
+| `budget_plan_snapshot_lines` (фикс ₽/мес из снапшота) | `management_statement_lines` со статусом `allocated` |
 
-**Связь:** поле `management_expense_category_id` на `budget_opex_articles` (nullable). Заполняется `ManagementExpenseCategorySyncService` при sync (`code = budget_opex_{id}`).
+**Связь:** `budget_plan_snapshot_lines.category_id` ↔ `management_expense_categories.id` через `budget_opex_articles.management_expense_category_id`.
 
-Примеры маппинга при сиде/настройке:
+В снапшот попадают только статьи с `cost_type = fixed_monthly` и `include_in_budget = true`. Статьи `% от маржи` — backlog.
 
-| Статья бюджета | `management_expense_categories.code` |
-| --- | --- |
-| Банковское обслуживание | `bank_fees` |
-| АТИ, лицензии | `services_other` |
-| Аренда, связь | `cash_other_out` или отдельная пользовательская статья |
+### ФОТ продавцов (упрощённый v1)
 
-### Операционный контур
-
-План маржи / выручки из `BudgetPlannerService::buildPlan()`:
-
-- **План поступлений от заказчиков** ≈ сумма маржи + плановые расходы перевозчиков (упрощённо: целевая маржа × объём)
-- **Факт** — сумма `allocation_type=operational`, `direction=in` / `out` за период
-
-Детализацию по заявкам оставляем в графике оплат; в управленке — **агрегат по периоду**.
-
-### ФОТ продавцов (дочерний план)
-
-| Показатель | План (дочерний) | Факт (управленка) |
+| Показатель | План | Факт |
 | --- | --- | --- |
-| Начислено за полупериод | `budget_sales_half_users.planned_accrued` | `management_payroll_half_users.accrued_amount` (из salary) |
-| Выплачено | `budget_sales_half_users.planned_paid` | `management_payroll_half_users.paid_amount` (из банка) |
-
-Формула плана начислений (черновик): из родительского `margin_per_manager` × `manager_count` × доля ФОТ в настройках, либо явная строка opex «ФОТ продавцы».
+| Выплата за период | Строка opex, привязанная к `payroll_managers` | Сумма `paid_amount` в `management_payroll_half_users` за пересекающиеся полупериоды |
+| Начислено | — (в v1 только в блоке факта) | `accrued_amount` из salary sync |
 
 ---
 
 ## Периоды отчёта
 
-Единый переключатель на странице управленческого учёта:
+Переключатель на `/finance/management-accounting` (вкладка «Учёт»):
 
 | Режим | Границы | Агрегация плана |
 | --- | --- | --- |
-| Месяц | `YYYY-MM-01` … конец месяца | Сумма месячных значений снапшота |
+| Месяц | `YYYY-MM-01` … конец месяца | Сумма строк снапшота за месяц |
 | Квартал | Q1–Q4 календарный | Сумма 3 месяцев |
-| Год | `YYYY-01-01` … `YYYY-12-31` | Сумма 12 месяцев или `horizon_months` сценария |
+| Год | `YYYY-01-01` … `YYYY-12-31` | Сумма месяцев внутри года |
 
-План берётся из **последнего утверждённого** `BudgetPlanSnapshot` на дату, не из «живого» черновика сценария (чтобы сравнение было стабильным).
+**Источник плана:** последний `BudgetPlanSnapshot`, у которого `period_start` ≤ конец периода ≤ `period_end` и `approved_at` ≤ конец периода. Иначе — **live** opex из `budget_opex_articles` (предупреждение в UI).
+
+Поля ответа аналитики: `plan_source` (`snapshot` | `live` | `none`), `plan_snapshot`, `variance_rows`, `payroll_variance`.
 
 ---
 
-## Сервисный слой (целевая реализация)
+## Сервисный слой
 
 ```
 BudgetPlanSnapshotService
-  └── freeze(scenario, period) → budget_plan_snapshots + lines
-
-ManagementAccountingActualsService
-  └── byCategory(period) → fact amounts from management_statement_lines
-  └── payrollByHalf(period) → from management_payroll_half_users
+  └── freeze(scenario, period_start, period_end, label, user)
+  └── resolveSnapshotForPeriod(start, end)
+  └── plannedByCategoryForPeriod(snapshot, start, end)
 
 BudgetVarianceService
-  └── compare(snapshotId, period, granularity)
-      → [{ category_id, name, planned, actual, variance, variance_percent }]
+  └── compare(snapshot, start, end, categories, actualByCategory)
+  └── payrollVariance(snapshot, start, end)
+
+ManagementAccountingAnalyticsService
+  └── build(period_type, anchor) — факт + план + variance_rows
 ```
 
-**UI (фаза M5):** блок «Отклонение от плана» на `Finance/ManagementAccounting/Index.vue`:
+**UI:**
 
-- таблица статей;
-- подтаблица «ФОТ продавцов» (план дочернего сценария vs факт);
-- фильтр месяц / квартал / год.
+| Экран | Компонент / действие |
+| --- | --- |
+| `Budgeting/Index.vue` | Секция «Зафиксировать план», список последних снапшотов |
+| `ManagementAccounting/Index.vue` | `ManagementAccountingVarianceTable`, предупреждение при `plan_source: live` |
+| `ManagementAccounting/ManualEntryModal` | Ручные операции (наличные) |
+| `Reconcile.vue` | Split: чекбокс «Несколько заявок», `allocations[]` |
+
+**Маршруты:**
+
+- `POST budgeting/plan-snapshots` — freeze (`FreezeBudgetPlanSnapshotRequest`)
+- `POST finance/management-accounting/manual-entries` — ручная операция
+- `POST finance/management-accounting/lines/{line}/allocate` — в т.ч. `allocations: [{ payment_schedule_id, amount }]`
 
 ---
 
-## Миграции (черновик)
+## Миграции
 
 | Таблица | Назначение |
 | --- | --- |
-| `budget_plan_snapshots` | Версия плана: `scenario_id`, `period_type`, `approved_at`, `approved_by` |
+| `budget_plan_snapshots` | `scenario_id`, `period_label`, `period_start`, `period_end`, `approved_at`, `approved_by_user_id` |
 | `budget_plan_snapshot_lines` | `snapshot_id`, `month`, `opex_article_id`, `category_id`, `planned_amount` |
-| `budget_scenarios.parent_scenario_id` | Родитель для «План продавцов» |
+| `budget_scenarios.parent_scenario_id` | Родитель для «План продавцов» (backlog) |
 | `budget_scenarios.plan_type` | `company` \| `sales_payroll` |
-| `budget_sales_half_users` | `snapshot_id`, `payroll_half_id`, `user_id`, `planned_accrued`, `planned_paid` |
+| `management_statement_line_splits` | Split разнесения: несколько `payment_schedule_id` на одну строку выписки |
 | `budget_opex_articles.management_expense_category_id` | FK на справочник управленки |
 
 ---
 
 ## Права
 
-| Модуль | Кто |
+| Действие | Кто |
 | --- | --- |
-| Бюджетирование | `belongs_to_management` / admin |
-| Управленческий учёт | `can_management_accounting` / admin |
-| Блок «План vs факт» | пересечение **или** только управленка с read-only планом (решение: показывать план всем с доступом к управленке, редактировать план — только бюджет) |
+| Бюджетирование, фиксация плана | `belongs_to_management` / admin |
+| Управленческий учёт, просмотр план/факт | `can_management_accounting` / admin |
+| Ручные операции | `canAccessPaymentReconcile` |
+| Разнос выписки | импортёр или admin |
 
 ---
 
-## Фазы внедрения (дополнение к M4)
+## Решения (2026-06-18)
+
+| Вопрос | Решение |
+| --- | --- |
+| Утверждение плана | **Ручная** кнопка «Зафиксировать план» с `period_label` (напр. «Q2 2026»). Авто-снапшот 1-го числа — backlog. |
+| % opex от маржи в план/факт | **v1:** только фикс ₽/мес в снапшоте. % маржи — отдельная итерация. |
+| Квартал/год | **Календарный** (янв–дек, Q1–Q4). |
+
+---
+
+## Backlog
 
 | # | Задача |
 |---|--------|
-| M5.1 | `management_expense_category_id` на opex + сиды связей |
-| M5.2 | Снапшот плана (`BudgetPlanSnapshotService`) |
-| M5.3 | Дочерний сценарий «План продавцов» + пересчёт полупериодов |
-| M5.4 | `ManagementAccountingActualsService` + `BudgetVarianceService` |
-| M5.5 | UI отклонений на Index управленки |
-| M5.6 | Тесты агрегации и variance |
+| M5.3 | Дочерний сценарий «План продавцов» + `budget_sales_half_users` |
+| — | % от маржи в снапшоте и variance |
+| — | Авто-freeze 1-го числа месяца |
 
 ---
 
-## Открытые вопросы
+## Тесты
 
-- [ ] Утверждение плана: одна кнопка «Зафиксировать на квартал» или авто-снапшот 1-го числа?
-- [ ] % от маржи в opex: факт маржи брать из заказов или из операционных поступлений в управленке?
-- [ ] Квартал/год: скользящий или календарный?
+| Файл | Что |
+| --- | --- |
+| `BudgetPlanSnapshotServiceTest` | freeze, resolve snapshot |
+| `BudgetVarianceServiceTest` | compare по категориям |
+| `ManagementAccountingAnalyticsServiceTest` | `plan_source: snapshot` |
+| `ManagementAccountingAllocationSplitTest` | split на одну заявку |

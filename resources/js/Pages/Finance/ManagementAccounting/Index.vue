@@ -20,6 +20,13 @@
             >
                 Разнос выписки →
             </Link>
+            <ManagementAccountingManualEntryModal
+                v-if="can_manage_manual_entries"
+                :bank-accounts="bank_accounts"
+                :categories="categories"
+                :recent-entries="recent_manual_entries"
+                :can-manage="can_manage_manual_entries"
+            />
         </div>
 
         <div class="flex flex-wrap gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-700">
@@ -154,6 +161,17 @@
 
             <ManagementAccountingLedgerReport :pivot="analytics.pivot ?? { columns: [], rows: [], time_series: [] }" />
 
+            <ManagementAccountingVarianceTable
+                v-if="analytics.plan_available"
+                :variance-rows="analytics.variance_rows ?? []"
+                :payroll-variance="analytics.payroll_variance"
+                :plan-snapshot="analytics.plan_snapshot"
+                :plan-source="analytics.plan_source ?? 'none'"
+            />
+
+            <p v-if="analytics.plan_source === 'live'" class="text-xs text-amber-700 dark:text-amber-300">
+                План не зафиксирован — отклонения считаются по черновику бюджета. Зафиксируйте план в разделе «Бюджетирование».
+            </p>
             <p v-if="!analytics.plan_available" class="text-xs text-amber-700 dark:text-amber-300">
                 Справочник бюджетирования недоступен — план расходов не рассчитан.
             </p>
@@ -171,6 +189,8 @@ import { Link, router } from '@inertiajs/vue3';
 import { ArrowLeft } from 'lucide-vue-next';
 import ManagementAccountingCategoryTree from '@/Components/Finance/ManagementAccountingCategoryTree.vue';
 import ManagementAccountingLedgerReport from '@/Components/Finance/ManagementAccountingLedgerReport.vue';
+import ManagementAccountingManualEntryModal from '@/Components/Finance/ManagementAccountingManualEntryModal.vue';
+import ManagementAccountingVarianceTable from '@/Components/Finance/ManagementAccountingVarianceTable.vue';
 import CrmLayout from '@/Layouts/CrmLayout.vue';
 import { crmTabButtonClasses } from '@/support/crmAppearance.js';
 import {
@@ -193,6 +213,9 @@ const props = defineProps({
     filters: { type: Object, default: () => ({ tab: 'ledger', period_type: 'month', period_anchor: '' }) },
     categories: { type: Array, default: () => [] },
     category_tree: { type: Array, default: () => [] },
+    bank_accounts: { type: Array, default: () => [] },
+    recent_manual_entries: { type: Array, default: () => [] },
+    can_manage_manual_entries: { type: Boolean, default: false },
     analytics: { type: Object, required: true },
 });
 
