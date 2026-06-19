@@ -140,6 +140,7 @@ class OrderPrintFormDraftService
 
         $this->applyBasicTermsTables($processor, $orderForSnapshot, $template, $context, $placeholders);
 
+        $qrVmlShapeSkipCount = $this->countVerificationQrVmlShapes($processor, $placeholders, $context);
         $qrTempFiles = $this->injectVerificationQrImage($processor, $placeholders, $context);
         $verificationQrInjected = $qrTempFiles !== [];
 
@@ -251,7 +252,12 @@ class OrderPrintFormDraftService
         }
 
         if ($applyVmlOverlayPatch) {
-            DocxVmlOverlayStylePatcher::patchDocx($absoluteTarget, $overlayStyles, true);
+            DocxVmlOverlayStylePatcher::patchDocx(
+                $absoluteTarget,
+                $overlayStyles,
+                true,
+                $verificationQrInjected ? $qrVmlShapeSkipCount : 0,
+            );
         }
 
         return [
@@ -442,6 +448,56 @@ class OrderPrintFormDraftService
             'document_verification_code' => $context?->documentVerificationCode ?? '',
             'financial' => $this->financialNormsPenaltiesSnapshot($order, $context),
         ];
+    }
+
+    /**
+     * Сколько VML-картинок создаст QR — их нельзя учитывать при смещении подписи/печати.
+     *
+     * @param  Collection<int, string>  $placeholders
+     */
+    private function countVerificationQrVmlShapes(
+        TemplateProcessor $processor,
+        Collection $placeholders,
+        ?OrderPrintFormContext $context,
+    ): int {
+        $code = $context?->documentVerificationCode;
+        if ($code === null || $code === '') {
+            return 0;
+        }
+
+        $orderDocumentId = (int) ($context?->orderDocumentId ?? 0);
+        if ($orderDocumentId <= 0) {
+            return 0;
+        }
+
+        $this->repairVerificationQrMacroInProcessor($processor);
+
+        if (
+            ! $placeholders->contains(self::QR_IMAGE_PLACEHOLDER)
+            && ! $this->processorHasVerificationQrMacro($processor)
+        ) {
+            return 0;
+        }
+
+        $total = 0;
+
+        foreach ([['${', '}'], ['{{', '}}']] as [$open, $close]) {
+            $processor->setMacroChars($open, $close);
+            DocxTextRunPlaceholderMerger::applyToTemplateProcessor(
+                $processor,
+                $open,
+                $close,
+                self::QR_IMAGE_PLACEHOLDER,
+            );
+            $total += PhpWordTemplateOverlayImageInjector::countPlaceholderMacros(
+                $processor,
+                self::QR_IMAGE_PLACEHOLDER,
+            );
+        }
+
+        $processor->setMacroChars('${', '}');
+
+        return $total;
     }
 
     /**

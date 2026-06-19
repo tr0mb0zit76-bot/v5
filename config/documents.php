@@ -37,8 +37,8 @@ return [
      * docx_px — сторона картинки в пикселях PhpWord (меньше = компактнее в ячейке таблицы).
      */
     'verification_qr' => [
-        'docx_px' => max(48, (int) env('PRINT_VERIFICATION_QR_DOCX_PX', 100)),
-        'pdf_stamp_mm' => max(8.0, (float) env('PRINT_VERIFICATION_QR_PDF_MM', 14)),
+        'docx_px' => max(48, (int) env('PRINT_VERIFICATION_QR_DOCX_PX', 80)),
+        'pdf_stamp_mm' => max(8.0, (float) env('PRINT_VERIFICATION_QR_PDF_MM', 12)),
         'png_pixel_size' => max(3, (int) env('PRINT_VERIFICATION_QR_PNG_PIXEL', 5)),
     ],
 ];

@@ -9,9 +9,9 @@ class PrintFormVerificationQrDimensionsTest extends TestCase
 {
     public function test_defaults_are_smaller_than_legacy_hardcoded_sizes(): void
     {
-        $this->assertSame(100, PrintFormVerificationQrDimensions::docxWidthPx());
-        $this->assertSame(100, PrintFormVerificationQrDimensions::docxHeightPx());
-        $this->assertSame(14.0, PrintFormVerificationQrDimensions::pdfStampSizeMm());
+        $this->assertSame(80, PrintFormVerificationQrDimensions::docxWidthPx());
+        $this->assertSame(80, PrintFormVerificationQrDimensions::docxHeightPx());
+        $this->assertSame(12.0, PrintFormVerificationQrDimensions::pdfStampSizeMm());
         $this->assertSame(5, PrintFormVerificationQrDimensions::pngPixelSize());
     }
 

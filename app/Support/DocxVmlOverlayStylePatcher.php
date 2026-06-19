@@ -23,9 +23,14 @@ final class DocxVmlOverlayStylePatcher
 
     /**
      * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
+     * @param  int  $skipOverlayAssignmentCount  VML-картинки до подписи/печати (например QR), не получают их смещения
      */
-    public static function patchDocx(string $absoluteDocxPath, array $overlayStyles, bool $cleanOrphanSeparators = true): void
-    {
+    public static function patchDocx(
+        string $absoluteDocxPath,
+        array $overlayStyles,
+        bool $cleanOrphanSeparators = true,
+        int $skipOverlayAssignmentCount = 0,
+    ): void {
         if ($overlayStyles === [] && ! $cleanOrphanSeparators) {
             return;
         }
@@ -45,6 +50,7 @@ final class DocxVmlOverlayStylePatcher
         }
 
         $overlayIdx = 0;
+        $remainingOverlaySkips = max(0, $skipOverlayAssignmentCount);
 
         $partNames = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -65,7 +71,7 @@ final class DocxVmlOverlayStylePatcher
 
             $originalXml = $xml;
             $xml = DocxHeaderFooterOverlayParagraphCompactor::patch($xml, $name);
-            $xml = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx, $name);
+            $xml = self::patchWordprocessingMl($xml, $overlayStyles, $overlayIdx, $name, $remainingOverlaySkips);
             if ($cleanOrphanSeparators) {
                 $xml = DocxOrphanSeparatorCleaner::cleanWordprocessingMl($xml);
             }
@@ -123,16 +129,28 @@ final class DocxVmlOverlayStylePatcher
     /**
      * @param  list<array{margin_left_mm: float, margin_top_mm: float}>  $overlayStyles
      */
-    public static function patchWordprocessingMl(string $documentXml, array $overlayStyles, int &$overlayIdx, string $partPath = 'word/document.xml'): string
-    {
+    public static function patchWordprocessingMl(
+        string $documentXml,
+        array $overlayStyles,
+        int &$overlayIdx,
+        string $partPath = 'word/document.xml',
+        int &$remainingOverlaySkips = 0,
+    ): string {
         $overlayCount = count($overlayStyles);
         $isHeaderFooter = str_starts_with($partPath, 'word/header') || str_starts_with($partPath, 'word/footer');
 
         $updated = preg_replace_callback(
             '/<v:shape([^>]*?)style="([^"]*?)"([^>]*)>/',
-            static function (array $matches) use ($overlayStyles, &$overlayIdx, $overlayCount, $isHeaderFooter): string {
+            static function (array $matches) use ($overlayStyles, &$overlayIdx, $overlayCount, $isHeaderFooter, &$remainingOverlaySkips): string {
                 $fullTag = $matches[0];
                 if (! str_contains($fullTag, '#_x0000_t75')) {
+                    return $fullTag;
+                }
+
+                $skipOverlayAssignment = $remainingOverlaySkips > 0;
+                if ($skipOverlayAssignment) {
+                    $remainingOverlaySkips--;
+
                     return $fullTag;
                 }
 

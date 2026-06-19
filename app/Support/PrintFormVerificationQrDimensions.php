@@ -11,7 +11,7 @@ final class PrintFormVerificationQrDimensions
 {
     public static function docxWidthPx(): int
     {
-        return max(48, (int) config('documents.verification_qr.docx_px', 100));
+        return max(48, (int) config('documents.verification_qr.docx_px', 80));
     }
 
     public static function docxHeightPx(): int
@@ -21,7 +21,7 @@ final class PrintFormVerificationQrDimensions
 
     public static function pdfStampSizeMm(): float
     {
-        return max(8.0, (float) config('documents.verification_qr.pdf_stamp_mm', 14.0));
+        return max(8.0, (float) config('documents.verification_qr.pdf_stamp_mm', 12.0));
     }
 
     public static function pngPixelSize(): int

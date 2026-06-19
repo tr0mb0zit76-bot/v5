@@ -37,4 +37,17 @@ final readonly class OrderPrintFormContext
             routeLegsAsTableRows: true,
         );
     }
+
+    /**
+     * Предпросмотр шаблона в мастере/настройках: QR рисуется, но ссылка не ведёт на реальный документ.
+     */
+    public static function forTemplatePreview(int $orderId): self
+    {
+        $suffix = str_pad((string) max(1, $orderId), 10, '0', STR_PAD_LEFT);
+
+        return new self(
+            documentVerificationCode: 'PREVIEW'.$suffix,
+            orderDocumentId: max(1, $orderId),
+        );
+    }
 }

@@ -17,6 +17,7 @@ use App\Services\PrintForm\PrintFormBasicTermsService;
 use App\Services\PrintFormDraftResponseBuilder;
 use App\Services\PrintFormVariableCatalog;
 use App\Support\DocumentPreview;
+use App\Support\OrderPrintFormContext;
 use App\Support\PrintFormBasicTermsTableCloner;
 use App\Support\PrintFormImageOverlayPlaceholders;
 use App\Support\PrintFormPlaceholderPathResolver;
@@ -347,7 +348,8 @@ class SettingsTemplateController extends Controller
         $generatedFile = $this->orderDraftService->generate(
             $printFormTemplate,
             $order,
-            ! $request->boolean('exclude_overlays')
+            ! $request->boolean('exclude_overlays'),
+            OrderPrintFormContext::forTemplatePreview((int) $order->id),
         );
 
         return $this->draftResponseBuilder->fromGeneratedFile($request, $generatedFile);

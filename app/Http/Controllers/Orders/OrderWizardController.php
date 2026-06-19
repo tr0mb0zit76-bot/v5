@@ -365,7 +365,12 @@ class OrderWizardController extends Controller
             'Шаблон недоступен для этого заказа. Проверьте тип перевозки (ВЭД), нашу компанию и перевозчика.'
         );
 
-        $generatedFile = $draftService->generate($printFormTemplate, $orderForCheck);
+        $generatedFile = $draftService->generate(
+            $printFormTemplate,
+            $orderForCheck,
+            true,
+            OrderPrintFormContext::forTemplatePreview((int) $orderForCheck->id),
+        );
 
         return $draftResponseBuilder->fromGeneratedFile($request, $generatedFile);
     }
