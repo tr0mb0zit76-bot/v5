@@ -392,8 +392,6 @@ const gridOptions = markRaw({
     localeText: agGridLocaleRu,
 });
 
-const baseColumnDefs = markRaw(buildBaseColumnDefs());
-
 function formatMoneyValue(value) {
     if (typeof value !== 'number') {
         return new Intl.NumberFormat('ru-RU', {
@@ -648,6 +646,8 @@ function buildBaseColumnDefs() {
     },
     ];
 }
+
+const baseColumnDefs = markRaw(buildBaseColumnDefs());
 
 const dynamicColumnDefs = computed(() => {
     const baseById = new Map(baseColumnDefs.map((column) => [column.colId, { ...column }]));
