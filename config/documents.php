@@ -31,4 +31,14 @@ return [
     /** Сколько байт читать с начала/конца PDF при оценке страниц (большие файлы). */
     'pdf_head_scan_bytes' => max(256_000, (int) env('DOCUMENT_PDF_HEAD_SCAN_BYTES', 4 * 1024 * 1024)),
     'pdf_tail_scan_bytes' => max(256_000, (int) env('DOCUMENT_PDF_TAIL_SCAN_BYTES', 4 * 1024 * 1024)),
+
+    /**
+     * QR проверки подлинности (${document_verification_qr} в DOCX, штамп на PDF).
+     * docx_px — сторона картинки в пикселях PhpWord (меньше = компактнее в ячейке таблицы).
+     */
+    'verification_qr' => [
+        'docx_px' => max(48, (int) env('PRINT_VERIFICATION_QR_DOCX_PX', 100)),
+        'pdf_stamp_mm' => max(8.0, (float) env('PRINT_VERIFICATION_QR_PDF_MM', 14)),
+        'png_pixel_size' => max(3, (int) env('PRINT_VERIFICATION_QR_PNG_PIXEL', 5)),
+    ],
 ];

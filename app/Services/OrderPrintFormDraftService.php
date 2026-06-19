@@ -34,6 +34,7 @@ use App\Support\PrintFormRoutePointTableCloner;
 use App\Support\PrintFormRouteTableCloner;
 use App\Support\PrintFormTemplateDiskSource;
 use App\Support\PrintFormTemplateProcessorPreparer;
+use App\Support\PrintFormVerificationQrDimensions;
 use App\Support\RussianGivenName;
 use App\Support\RussianPositionInflector;
 use Illuminate\Support\Carbon;
@@ -488,8 +489,9 @@ class OrderPrintFormDraftService
                 return [];
             }
 
+            $pixelSize = PrintFormVerificationQrDimensions::pngPixelSize();
             $qr = new TCPDF2DBarcode($url, 'QRCODE,H');
-            $qrPng = $qr->getBarcodePngData(6, 6, [0, 0, 0]);
+            $qrPng = $qr->getBarcodePngData($pixelSize, $pixelSize, [0, 0, 0]);
             if (! is_string($qrPng) || $qrPng === '') {
                 return [];
             }
@@ -507,8 +509,8 @@ class OrderPrintFormDraftService
 
             PhpWordTemplateOverlayImageInjector::injectImageForAllMacroStyles($processor, self::QR_IMAGE_PLACEHOLDER, [
                 'path' => $tmpPath,
-                'width' => 150,
-                'height' => 150,
+                'width' => PrintFormVerificationQrDimensions::docxWidthPx(),
+                'height' => PrintFormVerificationQrDimensions::docxHeightPx(),
                 'ratio' => true,
             ]);
 

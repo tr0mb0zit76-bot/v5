@@ -4,6 +4,7 @@ namespace App\Services\Pdf;
 
 use App\Models\OrderDocument;
 use App\Support\PrintFormVerificationCode;
+use App\Support\PrintFormVerificationQrDimensions;
 use Illuminate\Support\Facades\Log;
 use setasign\Fpdi\Tcpdf\Fpdi;
 use TCPDF2DBarcode;
@@ -36,8 +37,9 @@ class PdfVerificationQrStampService
                 'code' => $code,
             ]);
 
+            $pixelSize = PrintFormVerificationQrDimensions::pngPixelSize();
             $qr = new TCPDF2DBarcode($url, 'QRCODE,H');
-            $qrPng = $qr->getBarcodePngData(6, 6, [0, 0, 0]);
+            $qrPng = $qr->getBarcodePngData($pixelSize, $pixelSize, [0, 0, 0]);
             if (! is_string($qrPng) || $qrPng === '' || file_put_contents($temporaryQrPath, $qrPng) === false) {
                 return null;
             }
@@ -86,7 +88,7 @@ class PdfVerificationQrStampService
 
     private function placeStamp(Fpdi $pdf, string $qrPath, float $pageWidth, float $pageHeight, string $code): void
     {
-        $qrSize = 18.0;
+        $qrSize = PrintFormVerificationQrDimensions::pdfStampSizeMm();
         $margin = 8.0;
         $x = max($margin, $pageWidth - $qrSize - $margin);
         $y = max($margin, $pageHeight - $qrSize - $margin);
