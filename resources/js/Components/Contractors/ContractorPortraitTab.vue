@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { useForm } from '@inertiajs/vue3';
-import { Save, UserCircle } from 'lucide-vue-next';
+import { router, useForm } from '@inertiajs/vue3';
+import { Check, Plus, Save, UserCircle, X } from 'lucide-vue-next';
 import {
     crmBtnCreate,
     crmBtnNeutral,
@@ -25,9 +25,17 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    interactions: {
+        type: Array,
+        default: () => [],
+    },
+    insightDrafts: {
+        type: Array,
+        default: () => [],
+    },
 });
 
-const emit = defineEmits(['portrait-updated', 'open-communications']);
+const emit = defineEmits(['portrait-updated', 'open-communications', 'record-interaction']);
 
 const portraitForm = useForm({
     communication_style: props.portrait.communication_style ?? 'unknown',
@@ -60,6 +68,79 @@ watch(
 
 const coveragePct = computed(() => Number(props.portrait.coverage_pct ?? 0));
 const missingSlots = computed(() => props.portrait.missing_slots ?? []);
+const recentInteractions = computed(() => (props.interactions ?? []).slice(0, 5));
+const pendingInsightDrafts = ref([...(props.insightDrafts ?? [])]);
+const insightDraftBusyId = ref(null);
+
+watch(
+    () => props.insightDrafts,
+    (value) => {
+        pendingInsightDrafts.value = [...(value ?? [])];
+    },
+    { deep: true },
+);
+
+function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+}
+
+async function reviewInsightDraft(draftId, action) {
+    if (insightDraftBusyId.value !== null) {
+        return;
+    }
+
+    insightDraftBusyId.value = draftId;
+
+    try {
+        const routeName = action === 'accept'
+            ? 'contractors.insight-drafts.accept'
+            : 'contractors.insight-drafts.reject';
+
+        const response = await fetch(route(routeName, [props.contractorId, draftId]), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({}),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Не удалось обработать предложение');
+        }
+
+        pendingInsightDrafts.value = pendingInsightDrafts.value.filter((item) => item.id !== draftId);
+        router.reload({ only: ['selectedContractor'], preserveScroll: true });
+        emit('portrait-updated');
+    } catch (error) {
+        window.alert(error?.message || 'Ошибка обработки предложения');
+    } finally {
+        insightDraftBusyId.value = null;
+    }
+}
+
+function formatContactedAt(value) {
+    if (!value) {
+        return '—';
+    }
+
+    try {
+        return new Intl.DateTimeFormat('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(new Date(value));
+    } catch {
+        return value;
+    }
+}
 
 const objectionInput = ref('');
 
@@ -119,6 +200,51 @@ function savePortrait() {
                     «Коммуникации»
                 </button>.
             </p>
+        </div>
+
+        <div
+            v-if="pendingInsightDrafts.length"
+            class="rounded-xl border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900/60 dark:bg-amber-950/20"
+        >
+            <div class="text-sm font-semibold text-amber-900 dark:text-amber-100">Предложения из переписки</div>
+            <p class="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
+                ИИ предложил факты — примите только то, что согласуется с вашим знанием о клиенте.
+            </p>
+            <ul class="mt-3 space-y-2">
+                <li
+                    v-for="draft in pendingInsightDrafts"
+                    :key="draft.id"
+                    class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-amber-200/80 bg-white px-3 py-2 dark:border-amber-900/40 dark:bg-zinc-900"
+                >
+                    <div class="min-w-0 flex-1 text-sm">
+                        <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ draft.field_label }}</div>
+                        <div class="mt-1 text-zinc-600 dark:text-zinc-300">{{ draft.proposed_display }}</div>
+                        <div v-if="draft.confidence !== null" class="mt-1 text-xs text-zinc-500">
+                            Уверенность: {{ Math.round(draft.confidence * 100) }}%
+                        </div>
+                    </div>
+                    <div class="flex shrink-0 gap-2">
+                        <button
+                            type="button"
+                            :class="crmBtnCreate"
+                            :disabled="insightDraftBusyId === draft.id"
+                            @click="reviewInsightDraft(draft.id, 'accept')"
+                        >
+                            <Check class="h-4 w-4" />
+                            Принять
+                        </button>
+                        <button
+                            type="button"
+                            :class="crmBtnNeutral"
+                            :disabled="insightDraftBusyId === draft.id"
+                            @click="reviewInsightDraft(draft.id, 'reject')"
+                        >
+                            <X class="h-4 w-4" />
+                            Отклонить
+                        </button>
+                    </div>
+                </li>
+            </ul>
         </div>
 
         <div class="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -189,6 +315,42 @@ function savePortrait() {
                 </ul>
                 <p v-else class="mt-3 text-sm text-zinc-500">Контакты пока не заполнены — добавьте их на вкладке «Контакты».</p>
             </div>
+        </div>
+
+        <div class="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Последние контакты</div>
+                <button type="button" :class="crmBtnNeutral" @click="emit('record-interaction')">
+                    <Plus class="h-4 w-4" />
+                    Зафиксировать итог
+                </button>
+            </div>
+            <ul v-if="recentInteractions.length" class="mt-3 space-y-2 text-sm">
+                <li
+                    v-for="interaction in recentInteractions"
+                    :key="interaction.id ?? `${interaction.contacted_at}-${interaction.summary}`"
+                    class="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-950/40"
+                >
+                    <div class="font-medium text-zinc-900 dark:text-zinc-100">
+                        {{ formatContactedAt(interaction.contacted_at) }}
+                        · {{ interaction.channel || '—' }}
+                        <span v-if="interaction.contact_name"> · {{ interaction.contact_name }}</span>
+                    </div>
+                    <div class="mt-1 text-zinc-600 dark:text-zinc-300">
+                        {{ interaction.summary || interaction.subject || 'Без описания' }}
+                    </div>
+                    <div v-if="interaction.outcome_label || (interaction.objection_tags?.length ?? 0) > 0" class="mt-1 text-xs text-zinc-500">
+                        <span v-if="interaction.outcome_label">{{ interaction.outcome_label }}</span>
+                        <span v-if="interaction.objection_tags?.length"> · {{ interaction.objection_tags.join(', ') }}</span>
+                    </div>
+                </li>
+            </ul>
+            <p v-else class="mt-3 text-sm text-zinc-500">
+                Итогов контактов пока нет.
+                <button type="button" class="font-medium text-sky-700 underline underline-offset-2 dark:text-sky-300" @click="emit('record-interaction')">
+                    Зафиксировать первый
+                </button>
+            </p>
         </div>
     </div>
 </template>

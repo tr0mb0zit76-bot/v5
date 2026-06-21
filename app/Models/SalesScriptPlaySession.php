@@ -18,6 +18,7 @@ class SalesScriptPlaySession extends Model
         'current_node_id',
         'contractor_id',
         'order_id',
+        'context_tags',
         'is_trainer',
         'trainer_profile_key',
         'trainer_profile_title',
@@ -114,6 +115,7 @@ class SalesScriptPlaySession extends Model
     {
         return [
             'outcome' => SalesPlaySessionOutcome::class,
+            'context_tags' => 'array',
             'is_trainer' => 'boolean',
             'trainer_dialog_quality' => SalesTrainerDialogQuality::class,
             'trainer_score' => 'integer',

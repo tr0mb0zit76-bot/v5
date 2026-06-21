@@ -5,6 +5,7 @@ use App\Http\Controllers\BudgetingController;
 use App\Http\Controllers\CabinetNotificationController;
 use App\Http\Controllers\CommandBarAgentController;
 use App\Http\Controllers\ContractorController;
+use App\Http\Controllers\ContractorInsightDraftController;
 use App\Http\Controllers\ContractorPortraitController;
 use App\Http\Controllers\ContractorPrintFormController;
 use App\Http\Controllers\DashboardController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PipelineController;
 use App\Http\Controllers\Portal\OrderCarrierPortalController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProposalHtmlTemplateController;
 use App\Http\Controllers\PublicOrderDocumentVerificationController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\PublicSlaDocumentController;
@@ -213,8 +215,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/leads/{lead}', 'show')->name('leads.show');
         Route::patch('/leads/{lead}', 'update')->name('leads.update');
         Route::delete('/leads/{lead}', 'destroy')->name('leads.destroy');
+        Route::post('/leads/{lead}/portrait-merge', 'mergePortrait')->name('leads.portrait-merge');
+        Route::get('/leads/{lead}/portrait-merge/preview', 'previewPortraitMerge')->name('leads.portrait-merge.preview');
         Route::post('/leads/{lead}/proposal', 'prepareProposal')->name('leads.proposal');
         Route::post('/leads/{lead}/commercial/from-template', 'storeCommercialFromTemplate')->name('leads.commercial.from-template');
+        Route::post('/leads/{lead}/proposal/from-html-template', 'storeCommercialFromHtmlTemplate')->name('leads.proposal.from-html-template');
+        Route::get('/leads/{lead}/proposal/html-preview', 'previewHtmlProposal')->name('leads.proposal.html-preview');
         Route::get('/leads/{lead}/offers/{offer}/draft', 'downloadOfferDraft')->name('leads.offers.draft');
         Route::post('/leads/{lead}/next-step', 'storeNextStep')->name('leads.next-step.store');
         Route::patch('/leads/{lead}/process-stage', 'advanceProcessStage')->name('leads.process-stage');
@@ -309,6 +315,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/scripts/{sales_script}/versions', [SalesScriptEditorController::class, 'storeVersion'])->name('scripts.versions.store');
             Route::get('/versions/{sales_script_version}', [SalesScriptEditorController::class, 'showVersion'])->name('versions.show');
             Route::get('/versions/{sales_script_version}/graph', [SalesScriptEditorController::class, 'showGraph'])->name('versions.graph');
+            Route::get('/versions/{sales_script_version}/analytics', [SalesScriptEditorController::class, 'analytics'])->name('versions.analytics');
+            Route::get('/versions/{sales_script_version}/analytics/export', [SalesScriptEditorController::class, 'exportAnalytics'])->name('versions.analytics.export');
             Route::patch('/versions/{sales_script_version}', [SalesScriptEditorController::class, 'updateVersion'])->name('versions.update');
             Route::put('/versions/{sales_script_version}/graph', [SalesScriptEditorController::class, 'updateGraph'])->name('versions.graph.update');
             Route::post('/versions/{sales_script_version}/publish', [SalesScriptEditorController::class, 'publishVersion'])->name('versions.publish');
@@ -504,6 +512,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/contractors/{contractor}', 'destroy')->name('contractors.destroy');
         Route::patch('/contractors/{contractor}/portrait', [ContractorPortraitController::class, 'update'])->name('contractors.portrait.update');
         Route::post('/contractors/{contractor}/portrait-interactions', [ContractorPortraitController::class, 'storeInteraction'])->name('contractors.portrait-interactions.store');
+        Route::post('/contractors/{contractor}/insight-drafts/from-mail/{mailMessage}', [ContractorInsightDraftController::class, 'extractFromMail'])->name('contractors.insight-drafts.extract-mail');
+        Route::post('/contractors/{contractor}/insight-drafts/{insightDraft}/accept', [ContractorInsightDraftController::class, 'accept'])->name('contractors.insight-drafts.accept');
+        Route::post('/contractors/{contractor}/insight-drafts/{insightDraft}/reject', [ContractorInsightDraftController::class, 'reject'])->name('contractors.insight-drafts.reject');
         Route::put('/contractors/{contractor}/print-form/basic-terms', [ContractorPrintFormController::class, 'updateBasicTerms'])->name('contractors.print-form.basic-terms.update');
         Route::post('/contractors/{contractor}/print-form/changes', [ContractorPrintFormController::class, 'submitChange'])->name('contractors.print-form.changes.submit');
         Route::post('/contractors/{contractor}/print-form/changes/{printFormChange}/resolve', [ContractorPrintFormController::class, 'resolveChange'])->name('contractors.print-form.changes.resolve');
@@ -688,6 +699,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/tn-ved/search', 'searchTnVed')->name('tn-ved.search');
             Route::post('/calculate', 'calculate')->name('calculate');
         });
+    });
+
+    Route::middleware('visibility.area:settings')->prefix('modules/proposal-templates')->name('modules.proposal-templates.')->controller(ProposalHtmlTemplateController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/create', 'create')->name('create');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{proposalHtmlTemplate}/edit', 'edit')->name('edit');
+        Route::patch('/{proposalHtmlTemplate}', 'update')->name('update');
+        Route::get('/{proposalHtmlTemplate}/preview/{lead}', 'preview')->name('preview');
     });
 
     Route::get('/settings', SettingsController::class)->middleware('visibility.area:settings')->name('settings.index');

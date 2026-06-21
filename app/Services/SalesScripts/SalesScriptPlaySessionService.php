@@ -18,6 +18,10 @@ use InvalidArgumentException;
 
 class SalesScriptPlaySessionService
 {
+    public function __construct(
+        private readonly SalesScriptPlayContextResolver $playContextResolver,
+    ) {}
+
     public function start(
         SalesScriptVersion $version,
         User $user,
@@ -40,18 +44,21 @@ class SalesScriptPlaySessionService
         }
 
         return DB::transaction(function () use ($version, $user, $contractorId, $orderId, $entry): SalesScriptPlaySession {
+            $contextTags = $this->playContextResolver->resolveForSession($orderId, $contractorId);
+
             $session = SalesScriptPlaySession::query()->create([
                 'user_id' => $user->id,
                 'sales_script_version_id' => $version->id,
                 'current_node_id' => $entry->id,
                 'contractor_id' => $contractorId,
                 'order_id' => $orderId,
+                'context_tags' => $contextTags === [] ? null : $contextTags,
                 'started_at' => Carbon::now(),
             ]);
 
             $this->logEvent($session, SalesPlayEventType::EnteredNode, $entry->id, null, null, [
                 'client_key' => $entry->client_key,
-            ]);
+            ], $session);
 
             return $session->fresh(['currentNode', 'version.script']);
         });
@@ -117,6 +124,7 @@ class SalesScriptPlaySessionService
                 $reactionClassId,
                 null,
                 ['to_node_id' => $transition->to_node_id],
+                $session,
             );
 
             $session->update([
@@ -127,7 +135,7 @@ class SalesScriptPlaySessionService
             if ($next !== null) {
                 $this->logEvent($session, SalesPlayEventType::EnteredNode, $next->id, null, null, [
                     'client_key' => $next->client_key,
-                ]);
+                ], $session);
             }
 
             return $session->fresh(['currentNode', 'version.script']);
@@ -183,18 +191,29 @@ class SalesScriptPlaySessionService
         SalesPlaySessionOutcome $outcome,
         ?int $primaryReactionClassId = null,
         ?string $notes = null,
+        ?int $orderId = null,
     ): SalesScriptPlaySession {
         if ($session->isComplete()) {
             throw new InvalidArgumentException('Сессия уже завершена.');
         }
 
-        return DB::transaction(function () use ($session, $outcome, $primaryReactionClassId, $notes): SalesScriptPlaySession {
-            $session->update([
+        return DB::transaction(function () use ($session, $outcome, $primaryReactionClassId, $notes, $orderId): SalesScriptPlaySession {
+            $updates = [
                 'outcome' => $outcome,
                 'primary_reaction_class_id' => $primaryReactionClassId,
                 'notes' => $notes,
                 'completed_at' => Carbon::now(),
-            ]);
+            ];
+
+            if ($orderId !== null) {
+                $updates['order_id'] = $orderId;
+                $updates['context_tags'] = $this->playContextResolver->resolveForSession(
+                    $orderId,
+                    $session->contractor_id,
+                ) ?: null;
+            }
+
+            $session->update($updates);
 
             $this->logEvent(
                 $session,
@@ -203,6 +222,7 @@ class SalesScriptPlaySessionService
                 null,
                 $notes,
                 ['outcome' => $outcome->value],
+                $session->fresh(),
             );
 
             return $session->fresh(['currentNode', 'version.script']);
@@ -239,14 +259,21 @@ class SalesScriptPlaySessionService
         ?int $reactionClassId,
         ?string $body,
         ?array $meta,
+        ?SalesScriptPlaySession $contextSource = null,
     ): void {
+        $metaPayload = is_array($meta) ? $meta : [];
+        $contextTags = $this->playContextResolver->tagsForSession($contextSource ?? $session);
+        if ($contextTags !== []) {
+            $metaPayload['context_tags'] = $contextTags;
+        }
+
         SalesScriptPlayEvent::query()->create([
             'sales_script_play_session_id' => $session->id,
             'type' => $type,
             'sales_script_node_id' => $nodeId,
             'sales_script_reaction_class_id' => $reactionClassId,
             'body' => $body,
-            'meta' => $meta,
+            'meta' => $metaPayload === [] ? null : $metaPayload,
             'created_at' => Carbon::now(),
         ]);
     }

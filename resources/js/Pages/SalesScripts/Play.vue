@@ -462,6 +462,12 @@
                 >
                     <span v-if="choice.has_customer_phrase">{{ choice.label }}</span>
                     <span v-else class="italic opacity-90">{{ choice.label }}</span>
+                    <span
+                        v-if="statsHintForChoice(choice)"
+                        class="mt-1 block text-xs font-normal text-emerald-700 dark:text-emerald-300"
+                    >
+                        {{ statsHintForChoice(choice).message }}
+                    </span>
                 </button>
             </section>
 
@@ -496,6 +502,17 @@
                     <option :value="null">—</option>
                     <option v-for="rc in reactionClasses" :key="rc.id" :value="rc.id">{{ rc.label }}</option>
                 </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">Заказ (ID, необязательно)</label>
+                <input
+                    v-model="completeForm.order_id"
+                    type="number"
+                    min="1"
+                    class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+                    placeholder="Привязка исхода к orders.id"
+                />
             </div>
 
             <div class="space-y-2">
@@ -576,6 +593,7 @@ const props = defineProps({
     outcomeOptions: { type: Array, default: () => [] },
     reactionClasses: { type: Array, default: () => [] },
     capturedFields: { type: Array, default: () => [] },
+    statsHints: { type: Object, default: () => ({}) },
 });
 
 const isTrainer = computed(() => props.playContext?.return === 'trainer');
@@ -679,7 +697,17 @@ const completeForm = reactive({
     outcome: '',
     primary_reaction_class_id: null,
     notes: '',
+    order_id: props.session.order_id ?? '',
 });
+
+function statsHintForChoice(choice) {
+    const reactionId = choice?.sales_script_reaction_class_id;
+    if (reactionId === null || reactionId === undefined) {
+        return null;
+    }
+
+    return props.statsHints?.[reactionId] ?? props.statsHints?.[String(reactionId)] ?? null;
+}
 
 watch(
     () => props.session.trainer_assistant_instructions,
@@ -879,6 +907,7 @@ function submitComplete() {
         outcome: completeForm.outcome,
         primary_reaction_class_id: completeForm.primary_reaction_class_id,
         notes: completeForm.notes || null,
+        order_id: completeForm.order_id ? Number(completeForm.order_id) : null,
     });
 }
 

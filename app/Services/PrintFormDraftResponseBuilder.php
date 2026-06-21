@@ -73,6 +73,22 @@ class PrintFormDraftResponseBuilder
         return Storage::disk($disk)->download($path, $downloadName);
     }
 
+    public function fromStoredPdf(Request $request, string $disk, string $path, string $downloadName): Response|BinaryFileResponse
+    {
+        $absolutePath = Storage::disk($disk)->path($path);
+
+        if ($this->isBrowserPreviewRequested($request) || $request->boolean('preview')) {
+            return response()->file($absolutePath, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="'.$downloadName.'"',
+                'Cache-Control' => 'no-store, private, max-age=0',
+                'Pragma' => 'no-cache',
+            ]);
+        }
+
+        return Storage::disk($disk)->download($path, $downloadName);
+    }
+
     public function fromStoredDocxContent(Request $request, string $contents, string $downloadName): Response
     {
         if ($this->isBrowserPreviewRequested($request)) {

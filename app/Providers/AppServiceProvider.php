@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Contracts\Inference\ChatCompletionClient;
 use App\Contracts\Inference\ToolAwareChatCompletionClient;
+use App\Models\ContractorInsightDraft;
 use App\Models\SalesScript;
 use App\Models\SalesScriptNode;
 use App\Models\SalesScriptPlaySession;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
 use App\Models\Task;
+use App\Policies\ContractorInsightDraftPolicy;
 use App\Policies\SalesScriptNodePolicy;
 use App\Policies\SalesScriptPlaySessionPolicy;
 use App\Policies\SalesScriptPolicy;
@@ -116,6 +118,7 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        Gate::policy(ContractorInsightDraft::class, ContractorInsightDraftPolicy::class);
         Gate::policy(SalesScript::class, SalesScriptPolicy::class);
         Gate::policy(SalesScriptVersion::class, SalesScriptVersionPolicy::class);
         Gate::policy(SalesScriptNode::class, SalesScriptNodePolicy::class);

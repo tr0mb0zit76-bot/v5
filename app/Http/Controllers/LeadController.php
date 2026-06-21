@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\LeadCloseOutcomeFlag;
 use App\Http\Requests\AdvanceLeadProcessStageRequest;
-use App\Http\Requests\ConvertLeadRequest;
+use App\Http\Requests\MergeLeadPortraitRequest;
 use App\Http\Requests\StoreInlineOrderContractorRequest;
 use App\Http\Requests\StoreLeadNextStepRequest;
 use App\Http\Requests\StoreLeadRequest;
@@ -17,9 +17,12 @@ use App\Models\Contractor;
 use App\Models\Lead;
 use App\Models\LeadOffer;
 use App\Models\PrintFormTemplate;
+use App\Models\ProposalHtmlTemplate;
 use App\Models\Task;
 use App\Services\ActivityLedgerService;
 use App\Services\Commercial\LeadCloseOutcomeService;
+use App\Services\Commercial\LeadProposalHtmlRenderer;
+use App\Services\Commercial\LeadProposalPdfService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Services\LeadBusinessProcessService;
@@ -46,6 +49,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -58,6 +63,7 @@ class LeadController extends Controller
         private readonly LeadCloseOutcomeService $leadCloseOutcome,
         private readonly ManagerSalesCoachingInsightsService $salesCoachingInsights,
         private readonly LeadLinkedTaskService $leadLinkedTaskService,
+        private readonly ContractorPortraitService $contractorPortraitService,
     ) {}
 
     public function index(Request $request): Response
@@ -377,6 +383,96 @@ class LeadController extends Controller
             ->with('flash', ['type' => 'success', 'message' => 'Черновик КП сохранён в карточке лида.']);
     }
 
+    public function storeCommercialFromHtmlTemplate(
+        Request $request,
+        Lead $lead,
+        LeadProposalHtmlRenderer $htmlRenderer,
+        LeadProposalPdfService $pdfService,
+    ): RedirectResponse {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless(Schema::hasTable('proposal_html_templates'), 404);
+
+        $validated = $request->validate([
+            'proposal_html_template_id' => ['required', 'integer', 'exists:proposal_html_templates,id'],
+        ]);
+
+        $template = ProposalHtmlTemplate::query()
+            ->where('is_active', true)
+            ->findOrFail($validated['proposal_html_template_id']);
+
+        $rendered = $htmlRenderer->render($template, $lead);
+        $downloadName = Str::slug($template->slug ?: 'proposal').'-lead-'.$lead->id.'.pdf';
+        $pdfContents = $pdfService->convertHtmlToPdf($rendered['html'], $downloadName);
+
+        abort_if($pdfContents === null || $pdfContents === '', 503, 'Не удалось сформировать PDF (Gotenberg).');
+
+        $offer = $this->prepareOrUpdateLeadOfferFromHtmlTemplate($lead, $request->user(), $template);
+        $storagePath = 'generated-documents/proposals/'.$template->id.'/'.Str::uuid().'-'.$downloadName;
+        Storage::disk('local')->put($storagePath, $pdfContents);
+
+        $offer->update([
+            'generated_file_path' => $storagePath,
+            'payload' => array_merge(is_array($offer->payload) ? $offer->payload : [], [
+                'source' => 'html_template',
+                'proposal_html_template_id' => $template->id,
+                'proposal_html_template_name' => $template->name,
+                'rendered_html' => $rendered['html'],
+                'generated_disk' => 'local',
+                'content_type' => 'application/pdf',
+            ]),
+        ]);
+
+        $this->activityLedger->record(
+            $lead,
+            ActivityEventType::OfferPrepared,
+            'HTML-КП сохранено в карточке',
+            $offer->number,
+            [
+                'offer_id' => $offer->id,
+                'proposal_html_template_id' => $template->id,
+                'generated_file_path' => $storagePath,
+            ],
+            null,
+            $request->user(),
+            $offer,
+        );
+
+        $lead->forceFill([
+            'status' => 'proposal_ready',
+            'updated_by' => $request->user()?->id,
+        ])->save();
+
+        return to_route('leads.show', $lead)
+            ->with('flash', ['type' => 'success', 'message' => 'HTML-КП сохранено в карточке лида (PDF).']);
+    }
+
+    public function previewHtmlProposal(
+        Request $request,
+        Lead $lead,
+        LeadProposalHtmlRenderer $htmlRenderer,
+    ): \Symfony\Component\HttpFoundation\Response {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+        abort_unless(Schema::hasTable('proposal_html_templates'), 404);
+
+        $validated = $request->validate([
+            'proposal_html_template_id' => ['required', 'integer', 'exists:proposal_html_templates,id'],
+        ]);
+
+        $template = ProposalHtmlTemplate::query()
+            ->where('is_active', true)
+            ->findOrFail($validated['proposal_html_template_id']);
+
+        $rendered = $htmlRenderer->render($template, $lead);
+
+        return response($rendered['html'], 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Content-Disposition' => 'inline; filename="proposal-preview.html"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function downloadOfferDraft(
         Request $request,
         Lead $lead,
@@ -390,7 +486,19 @@ class LeadController extends Controller
 
         $payload = is_array($offer->payload) ? $offer->payload : [];
         $disk = (string) ($payload['generated_disk'] ?? 'local');
-        $downloadName = ($offer->number ?: 'offer-'.$offer->id).'.docx';
+        $contentType = (string) ($payload['content_type'] ?? '');
+        $isPdf = $contentType === 'application/pdf'
+            || str_ends_with(strtolower((string) $offer->generated_file_path), '.pdf');
+        $downloadName = ($offer->number ?: 'offer-'.$offer->id).($isPdf ? '.pdf' : '.docx');
+
+        if ($isPdf) {
+            return $draftResponseBuilder->fromStoredPdf(
+                $request,
+                $disk,
+                (string) $offer->generated_file_path,
+                $downloadName,
+            );
+        }
 
         return $draftResponseBuilder->fromStoredDocx(
             $request,
@@ -571,6 +679,7 @@ class LeadController extends Controller
             ],
             'currencyOptions' => CurrencyDictionary::options(),
             'printFormTemplateOptions' => $this->availableCommercialTemplates($selectedLead)->values(),
+            'proposalHtmlTemplateOptions' => $this->availableProposalHtmlTemplates()->values(),
             'businessProcessesEnabled' => $this->leadBusinessProcessService->tablesReady(),
             'businessProcesses' => $this->leadBusinessProcessService->tablesReady()
                 ? $this->leadBusinessProcessService->activeProcessesWithStages()
@@ -842,6 +951,24 @@ class LeadController extends Controller
             ->values();
     }
 
+    private function availableProposalHtmlTemplates(): Collection
+    {
+        if (! Schema::hasTable('proposal_html_templates')) {
+            return collect();
+        }
+
+        return ProposalHtmlTemplate::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'version'])
+            ->map(fn (ProposalHtmlTemplate $template): array => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'slug' => $template->slug,
+                'version' => $template->version,
+            ]);
+    }
+
     private function isTemplateAvailableForLead(PrintFormTemplate $template, Lead $lead): bool
     {
         if (! $template->is_active || blank($template->file_path) || $template->entity_type !== 'lead') {
@@ -857,6 +984,44 @@ class LeadController extends Controller
         }
 
         return (int) $template->contractor_id === (int) $lead->counterparty_id;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function previewPortraitMerge(MergeLeadPortraitRequest $request, Lead $lead): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        $contractor = $this->resolveLeadCounterpartyForPortrait($lead);
+
+        return response()->json(
+            $this->contractorPortraitService->previewMergeFromLead($contractor, $request->qualificationPayload()),
+        );
+    }
+
+    public function mergePortrait(MergeLeadPortraitRequest $request, Lead $lead): JsonResponse
+    {
+        abort_unless($this->hasLeadsFeatureTables(), 404);
+        abort_unless($this->canAccessLead($request, $lead), 403);
+
+        $contractor = $this->resolveLeadCounterpartyForPortrait($lead);
+
+        $portrait = $this->contractorPortraitService->mergeFromLead(
+            $contractor,
+            $request->qualificationPayload(),
+            $request->user(),
+        );
+
+        return response()->json([
+            'portrait' => $this->contractorPortraitService->serializePortrait(
+                $portrait,
+                $contractor->fresh(['portrait', 'contacts', 'interactions']),
+            ),
+            'counterparty_portrait_coverage_pct' => (int) $portrait->coverage_pct,
+            'message' => 'Данные квалификации перенесены в портрет контрагента.',
+        ]);
     }
 
     /**
@@ -878,6 +1043,21 @@ class LeadController extends Controller
 
         return (int) app(ContractorPortraitService::class)
             ->serializePortrait($contractor->portrait, $contractor)['coverage_pct'];
+    }
+
+    private function resolveLeadCounterpartyForPortrait(Lead $lead): Contractor
+    {
+        if ($lead->counterparty_id === null || ! Schema::hasTable('contractor_portraits')) {
+            abort(422, 'У лида не выбран контрагент или модуль портрета недоступен.');
+        }
+
+        $contractor = Contractor::query()
+            ->with(['portrait', 'contacts', 'interactions'])
+            ->find($lead->counterparty_id);
+
+        abort_if($contractor === null, 422, 'Контрагент лида не найден.');
+
+        return $contractor;
     }
 
     private function serializeLead(Lead $lead): array
@@ -935,7 +1115,10 @@ class LeadController extends Controller
                 'price' => $offer->price,
                 'currency' => $offer->currency,
                 'generated_file_path' => $offer->generated_file_path,
-                'print_template_name' => is_array($offer->payload) ? ($offer->payload['print_form_template_name'] ?? null) : null,
+                'print_template_name' => is_array($offer->payload)
+                    ? ($offer->payload['print_form_template_name'] ?? $offer->payload['proposal_html_template_name'] ?? null)
+                    : null,
+                'proposal_source' => is_array($offer->payload) ? ($offer->payload['source'] ?? null) : null,
                 'sent_at' => optional($offer->sent_at)?->toIso8601String(),
             ])->values()->all(),
             'orders' => $lead->orders->map(fn ($order): array => [
@@ -1039,6 +1222,50 @@ class LeadController extends Controller
             $payload['print_form_template_id'] = $template->id;
             $payload['print_form_template_name'] = $template->name;
         }
+
+        if ($offer === null) {
+            return $lead->offers()->create([
+                'status' => 'prepared',
+                'number' => 'КП-'.$lead->number,
+                'title' => $lead->title,
+                'offer_date' => now()->toDateString(),
+                'price' => $lead->target_price,
+                'currency' => $lead->target_currency ?: 'RUB',
+                'payload' => $payload,
+                'created_by' => $user?->id,
+            ]);
+        }
+
+        $existingPayload = is_array($offer->payload) ? $offer->payload : [];
+        $offer->update([
+            'status' => 'prepared',
+            'title' => $lead->title,
+            'offer_date' => now()->toDateString(),
+            'price' => $lead->target_price,
+            'currency' => $lead->target_currency ?: 'RUB',
+            'payload' => array_merge($existingPayload, $payload),
+        ]);
+
+        return $offer->refresh();
+    }
+
+    private function prepareOrUpdateLeadOfferFromHtmlTemplate(Lead $lead, ?Authenticatable $user, ProposalHtmlTemplate $template): LeadOffer
+    {
+        $offer = $lead->offers()->latest('id')->first();
+
+        $payload = [
+            'title' => $lead->title,
+            'description' => $lead->description,
+            'target_price' => $lead->target_price,
+            'target_currency' => $lead->target_currency,
+            'route' => [
+                'loading_location' => $lead->loading_location,
+                'unloading_location' => $lead->unloading_location,
+            ],
+            'proposal_html_template_id' => $template->id,
+            'proposal_html_template_name' => $template->name,
+            'source' => 'html_template',
+        ];
 
         if ($offer === null) {
             return $lead->offers()->create([

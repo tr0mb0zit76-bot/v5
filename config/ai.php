@@ -194,6 +194,16 @@ return [
         'temperature' => (float) env('AI_ORDER_INTAKE_TEMPERATURE', 0.1),
     ],
 
+    'mail_analysis' => [
+        'max_tokens' => max(256, min(4096, (int) env('AI_MAIL_ANALYSIS_MAX_TOKENS', 1200))),
+        'temperature' => (float) env('AI_MAIL_ANALYSIS_TEMPERATURE', 0.3),
+    ],
+
+    'insight_drafts' => [
+        'max_tokens' => max(256, min(2048, (int) env('AI_INSIGHT_DRAFTS_MAX_TOKENS', 900))),
+        'temperature' => (float) env('AI_INSIGHT_DRAFTS_TEMPERATURE', 0.2),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Аналитика взаимодействий с AI (обезличенные промпты в БД)

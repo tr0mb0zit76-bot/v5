@@ -15,6 +15,7 @@ enum ActivityEventType: string
     case DispositionComment = 'disposition_comment';
     case OrderIntakeApplied = 'order_intake_applied';
     case CloseOutcomeRecorded = 'close_outcome_recorded';
+    case PortraitInsightAccepted = 'portrait_insight_accepted';
 
     public function label(): string
     {
@@ -30,6 +31,7 @@ enum ActivityEventType: string
             self::DispositionComment => 'Диспозиция',
             self::OrderIntakeApplied => 'Заявка → заказ',
             self::CloseOutcomeRecorded => 'Причина закрытия',
+            self::PortraitInsightAccepted => 'Факт в портрет',
         };
     }
 }

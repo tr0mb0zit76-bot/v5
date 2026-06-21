@@ -18,8 +18,9 @@
         </include>
     </source>
     <!--
-        БД для тестов: только из `.env.testing` (не из `.env`). Шаблон переменных — `u_tromb.env.example`
-        (отдельная схема, например u_tromb, чтобы тесты не стирали вашу рабочую базу).
+        БД для тестов: `.env.testing` (не `.env`). Шаблон — `u_tromb.env.example`.
+        OSPanel: DB_HOST=127.0.1.21 (как в рабочем `.env`), не 127.0.0.1 и не MySQL-8.0.
+        Не задавайте DB_HOST в PowerShell — иначе перебьёт .env.testing.
     -->
     <php>
         <env name="APP_ENV" value="testing"/>

@@ -168,6 +168,14 @@ class LeadPrintFormDraftService
             ->all();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildLeadSnapshot(Lead $lead): array
+    {
+        return $this->buildSnapshot($this->loadLeadContext($lead));
+    }
+
     private function loadLeadContext(Lead $lead): Lead
     {
         return $lead->loadMissing([

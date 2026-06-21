@@ -3453,8 +3453,11 @@ function goToPage(pageNumber) {
                         :contractor-id="selectedContractorId"
                         :portrait="portraitForTab"
                         :contacts="props.selectedContractor?.contacts ?? []"
+                        :interactions="props.selectedContractor?.interactions ?? []"
+                        :insight-drafts="props.selectedContractor?.insight_drafts ?? []"
                         :portrait-options="portraitOptions"
                         @open-communications="activeTab = 'communications'"
+                        @record-interaction="showInteractionOutcomeModal = true"
                     />
 
                     <div v-else-if="activeTab === 'communications'" class="space-y-4">

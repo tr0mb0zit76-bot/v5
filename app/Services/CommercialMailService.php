@@ -271,12 +271,20 @@ class CommercialMailService
         }
 
         $path = (string) $offer->generated_file_path;
+        $payload = is_array($offer->payload) ? $offer->payload : [];
+        $contentType = (string) ($payload['content_type'] ?? '');
         $name = basename($path);
+        $defaultName = str_ends_with(strtolower($path), '.pdf') || $contentType === 'application/pdf'
+            ? 'offer.pdf'
+            : 'offer.docx';
 
         return [
             'path' => $path,
-            'name' => $name !== '' ? $name : 'offer.docx',
-            'driver' => null,
+            'name' => $name !== '' ? $name : $defaultName,
+            'driver' => (string) ($payload['generated_disk'] ?? null) ?: null,
+            'mime_type' => $contentType !== ''
+                ? $contentType
+                : (str_ends_with(strtolower($path), '.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         ];
     }
 

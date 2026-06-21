@@ -109,6 +109,32 @@ class ContractorPortraitService
         return $interaction->fresh(['author:id,name', 'contact:id,full_name,role_in_deal']);
     }
 
+    /**
+     * @param  array<string, mixed>  $qualification
+     * @return array{proposed: array<string, mixed>, skipped: list<string>}
+     */
+    public function previewMergeFromLead(Contractor $contractor, array $qualification): array
+    {
+        $portrait = $this->getOrCreate($contractor);
+        $contractor->setRelation('portrait', $portrait);
+
+        return $this->buildLeadMergeProposal($portrait, $qualification);
+    }
+
+    /**
+     * @param  array<string, mixed>  $qualification
+     */
+    public function mergeFromLead(Contractor $contractor, array $qualification, User $user): ContractorPortrait
+    {
+        $proposal = $this->previewMergeFromLead($contractor, $qualification);
+
+        if ($proposal['proposed'] === []) {
+            return $this->recalculateCoverage($contractor);
+        }
+
+        return $this->updatePortrait($contractor, $proposal['proposed'], $user);
+    }
+
     public function mergeFromInteraction(Contractor $contractor, ContractorInteraction $interaction, User $user): ContractorPortrait
     {
         $updates = [];
@@ -193,5 +219,124 @@ class ContractorPortraitService
         $trimmed = trim((string) $value);
 
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    /**
+     * @param  array<string, mixed>  $qualification
+     * @return array{proposed: array<string, mixed>, skipped: list<string>}
+     */
+    private function buildLeadMergeProposal(ContractorPortrait $portrait, array $qualification): array
+    {
+        $proposed = [];
+        $skipped = [];
+
+        $need = $this->nullableString($qualification['need'] ?? null);
+        if ($need !== null) {
+            if (blank($portrait->success_criteria)) {
+                $proposed['success_criteria'] = $need;
+            } else {
+                $skipped[] = 'Потребность — критерии успеха уже заполнены';
+            }
+        }
+
+        $authority = $this->nullableString($qualification['authority'] ?? null);
+        if ($authority !== null) {
+            $noteLine = 'ЛПР (из квалификации лида): '.$authority;
+            if (blank($portrait->internal_notes)) {
+                $proposed['internal_notes'] = $noteLine;
+            } elseif (! str_contains((string) $portrait->internal_notes, $authority)) {
+                $proposed['internal_notes'] = trim((string) $portrait->internal_notes)."\n".$noteLine;
+            } else {
+                $skipped[] = 'ЛПР — уже есть во внутренней памятке';
+            }
+        }
+
+        $budget = $this->nullableString($qualification['budget'] ?? null);
+        if ($budget !== null) {
+            $inferredSensitivity = $this->inferPriceSensitivityFromBudget($budget);
+            if (($portrait->price_sensitivity ?? ContractorPortraitDictionary::UNKNOWN) === ContractorPortraitDictionary::UNKNOWN
+                && $inferredSensitivity !== ContractorPortraitDictionary::UNKNOWN) {
+                $proposed['price_sensitivity'] = $inferredSensitivity;
+            } elseif (($portrait->price_sensitivity ?? ContractorPortraitDictionary::UNKNOWN) !== ContractorPortraitDictionary::UNKNOWN) {
+                $skipped[] = 'Бюджет — чувствительность к цене уже указана';
+            }
+
+            $budgetLine = 'Бюджет (из квалификации лида): '.$budget;
+            $currentNotes = (string) ($proposed['internal_notes'] ?? $portrait->internal_notes ?? '');
+            if ($currentNotes === '' || ! str_contains($currentNotes, $budget)) {
+                $proposed['internal_notes'] = $currentNotes === ''
+                    ? $budgetLine
+                    : trim($currentNotes)."\n".$budgetLine;
+            }
+        }
+
+        $timeline = $this->nullableString($qualification['timeline'] ?? null);
+        if ($timeline !== null) {
+            $inferredCadence = $this->inferDecisionCadenceFromTimeline($timeline);
+            if (($portrait->decision_cadence ?? ContractorPortraitDictionary::UNKNOWN) === ContractorPortraitDictionary::UNKNOWN
+                && $inferredCadence !== ContractorPortraitDictionary::UNKNOWN) {
+                $proposed['decision_cadence'] = $inferredCadence;
+            } elseif (($portrait->decision_cadence ?? ContractorPortraitDictionary::UNKNOWN) !== ContractorPortraitDictionary::UNKNOWN) {
+                $skipped[] = 'Срок — скорость решений уже указана';
+            }
+
+            $timelineLine = 'Срок (из квалификации лида): '.$timeline;
+            $currentNotes = (string) ($proposed['internal_notes'] ?? $portrait->internal_notes ?? '');
+            if ($currentNotes === '' || ! str_contains($currentNotes, $timeline)) {
+                $proposed['internal_notes'] = $currentNotes === ''
+                    ? $timelineLine
+                    : trim($currentNotes)."\n".$timelineLine;
+            }
+        }
+
+        if ($proposed === []) {
+            return ['proposed' => [], 'skipped' => $skipped !== [] ? $skipped : ['Нет новых данных для переноса']];
+        }
+
+        return ['proposed' => $proposed, 'skipped' => $skipped];
+    }
+
+    private function inferPriceSensitivityFromBudget(string $budget): string
+    {
+        $normalized = mb_strtolower($budget);
+
+        foreach (['эконом', 'дешев', 'огранич', 'скид', 'жмут', 'миним', 'бюджет'] as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'high';
+            }
+        }
+
+        foreach (['не принцип', 'гибк', 'качеств', 'скорее сервис'] as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'low';
+            }
+        }
+
+        return ContractorPortraitDictionary::UNKNOWN;
+    }
+
+    private function inferDecisionCadenceFromTimeline(string $timeline): string
+    {
+        $normalized = mb_strtolower($timeline);
+
+        foreach (['сроч', 'сегодня', 'завтра', 'asap', 'немедлен', 'сразу'] as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'fast';
+            }
+        }
+
+        foreach (['комитет', 'согласован', 'директор', 'несколько', 'юрист'] as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'committee';
+            }
+        }
+
+        foreach (['долг', 'месяц', 'квартал', 'не спеш'] as $needle) {
+            if (str_contains($normalized, $needle)) {
+                return 'slow';
+            }
+        }
+
+        return ContractorPortraitDictionary::UNKNOWN;
     }
 }

@@ -12,6 +12,7 @@ use App\Models\ContractorRiskAssessment;
 use App\Models\User;
 use App\Services\Checko\ContractorRiskAssessmentService;
 use App\Services\Checko\ContractorScoringService;
+use App\Services\Contractor\ContractorInsightDraftService;
 use App\Services\Contractor\ContractorLimitApprovalService;
 use App\Services\Contractor\ContractorPortraitService;
 use App\Services\ContractorCreditService;
@@ -707,6 +708,9 @@ class ContractorController extends Controller
                 'portrait' => Schema::hasTable('contractor_portraits')
                     ? app(ContractorPortraitService::class)->serializePortrait($selectedContractor->portrait, $selectedContractor)
                     : null,
+                'insight_drafts' => Schema::hasTable('contractor_insight_drafts')
+                    ? app(ContractorInsightDraftService::class)->serializePendingForContractor($selectedContractor)->values()->all()
+                    : [],
                 'documents' => $hasDocumentsTable
                     ? $selectedContractor->documents->map(
                         fn ($document): array => $this->serializeContractorDocument($document, $selectedContractor),

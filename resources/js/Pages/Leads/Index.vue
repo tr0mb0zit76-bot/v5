@@ -51,6 +51,7 @@
                     :transport-type-options="page.props.transportTypeOptions ?? []"
                     :currency-options="page.props.currencyOptions ?? []"
                     :print-form-template-options="page.props.printFormTemplateOptions ?? []"
+                    :proposal-html-template-options="page.props.proposalHtmlTemplateOptions ?? []"
                     :current-user-id="page.props.currentUserId ?? null"
                     :can-assign-responsible="Boolean(page.props.canAssignResponsible)"
                     :can-use-lead-tasks="Boolean(page.props.canUseLeadTasks)"
@@ -113,6 +114,7 @@ const modalPropKeys = [
     'transportTypeOptions',
     'currencyOptions',
     'printFormTemplateOptions',
+    'proposalHtmlTemplateOptions',
     'currentUserId',
     'canAssignResponsible',
     'canUseLeadTasks',

@@ -8,6 +8,7 @@ use App\Models\ContractorPrintFormChangeRequest;
 use App\Models\User;
 use App\Services\Ai\AiUsageAnalyticsService;
 use App\Services\Commercial\HeadOfSalesInsightsService;
+use App\Services\Commercial\MailThreadAnalysisService;
 use App\Services\Commercial\ManagerSalesCoachingInsightsService;
 use App\Services\ManagementAccounting\ManagementAccountingInsightsService;
 use App\Services\Mcp\AiToolAuditLogger;
@@ -64,6 +65,7 @@ class AgentToolRegistry
         private readonly HeadOfSalesInsightsService $headOfSalesInsights,
         private readonly OrderIntakeMcpService $orderIntake,
         private readonly MailMcpService $mail,
+        private readonly MailThreadAnalysisService $mailAnalysis,
         private readonly PrintFormTemplatesMcpService $printFormTemplates,
         private readonly ContractorPrintFormChangeRequestService $printFormChanges,
         private readonly ManagementAccountingMcpService $managementAccounting,
@@ -926,6 +928,65 @@ class AgentToolRegistry
                         $args['cc'] ?? [],
                     );
                 },
+            ),
+            new AgentToolDefinition(
+                name: 'summarize_mail_thread',
+                description: 'Краткое резюме переписки по thread_id: суть, ключевые пункты, открытые вопросы, участники. Без автосend.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'thread_id' => ['type' => 'integer', 'minimum' => 1],
+                        'message_limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'required' => ['thread_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: fn (User $user, array $args): array => $this->mailAnalysis->summarizeThread(
+                    $user,
+                    (int) $args['thread_id'],
+                    (int) ($args['message_limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'draft_mail_reply',
+                description: 'Черновик ответа в цепочку (thread_id + tone). Не отправляет письмо — только subject/body для проверки.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'thread_id' => ['type' => 'integer', 'minimum' => 1],
+                        'tone' => ['type' => 'string', 'enum' => ['neutral', 'friendly', 'formal', 'assertive']],
+                        'message_limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                    ],
+                    'required' => ['thread_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user),
+                invoke: fn (User $user, array $args): array => $this->mailAnalysis->draftReply(
+                    $user,
+                    (int) $args['thread_id'],
+                    (string) ($args['tone'] ?? 'neutral'),
+                    (int) ($args['message_limit'] ?? 20),
+                ),
+            ),
+            new AgentToolDefinition(
+                name: 'suggest_lead_next_step_from_mail',
+                description: 'Следующий шаг по лиду с учётом переписки (lead_id; thread_id опционален). Рекомендация, без автосоздания задачи.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'lead_id' => ['type' => 'integer', 'minimum' => 1],
+                        'thread_id' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'required' => ['lead_id'],
+                    'additionalProperties' => false,
+                ],
+                canUse: fn (User $user): bool => $this->canMail($user) && RoleAccess::canAccessVisibilityArea($user, 'leads'),
+                invoke: fn (User $user, array $args): array => $this->mailAnalysis->suggestLeadNextStep(
+                    $user,
+                    (int) $args['lead_id'],
+                    isset($args['thread_id']) ? (int) $args['thread_id'] : null,
+                ),
             ),
             new AgentToolDefinition(
                 name: 'get_manager_sales_coaching_insights',

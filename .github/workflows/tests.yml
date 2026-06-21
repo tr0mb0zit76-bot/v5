@@ -1,0 +1,77 @@
+# PHP: Pint + PHPUnit на push/PR в master.
+# MySQL service — та же схема, что в u_tromb.env.example (.env.testing не в git).
+
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: u_tromb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ppassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Prepare environment
+        run: |
+          cp u_tromb.env.example .env.testing
+          php -r "file_put_contents('.env.testing', preg_replace('/^APP_KEY=.*/m', 'APP_KEY='.base64_encode(random_bytes(32)), file_get_contents('.env.testing')));"
+          echo "DB_PASSWORD=password" >> .env.testing
+
+      - name: Run migrations (testing)
+        run: php artisan migrate --force --env=testing --schema-path=database/schema/.skip-mysql-cli-load
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: u_tromb
+          DB_USERNAME: root
+          DB_PASSWORD: password
+
+      - name: Laravel Pint (style)
+        run: vendor/bin/pint --test --format agent
+
+      - name: PHPUnit
+        run: php artisan test --compact
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: u_tromb
+          DB_USERNAME: root
+          DB_PASSWORD: password

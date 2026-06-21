@@ -48,6 +48,12 @@
             </div>
             <div class="flex flex-wrap gap-2">
                 <Link
+                    :href="route('scripts.editor.versions.analytics', payload.version.id)"
+                    :class="crmBtnSecondaryOutline"
+                >
+                    Аналитика
+                </Link>
+                <Link
                     :href="route('scripts.editor.index')"
                     :class="crmBtnSecondaryOutline"
                 >
@@ -223,6 +229,30 @@
                             >
                                 + { {{ field.code }} }
                             </button>
+                        </div>
+                    </div>
+                    <div class="space-y-2 rounded-xl border border-violet-200/80 bg-violet-50/40 p-3 dark:border-violet-900/50 dark:bg-violet-950/20">
+                        <label class="inline-flex items-center gap-2 text-xs font-medium">
+                            <input v-model="selectedNode.ab_enabled" type="checkbox" class="rounded border-zinc-300" />
+                            A/B: вторая формулировка
+                        </label>
+                        <textarea
+                            v-model="selectedNode.body_variant_b"
+                            rows="3"
+                            :class="`${crmFieldFluid} mt-1`"
+                            placeholder="Вариант B (альтернативный текст)"
+                            :disabled="!selectedNode.ab_enabled"
+                        />
+                        <div v-if="selectedNode.ab_enabled" class="flex items-center gap-2 text-xs">
+                            <span>Доля B:</span>
+                            <input
+                                v-model.number="selectedNode.ab_variant_b_weight"
+                                type="number"
+                                min="0"
+                                max="100"
+                                class="w-16 rounded-lg border border-zinc-200 px-2 py-1 dark:border-zinc-700 dark:bg-zinc-950"
+                            />
+                            <span>%</span>
                         </div>
                     </div>
                     <div v-if="bodyFieldCodes.length">
@@ -405,6 +435,9 @@ const graphNodes = reactive(
         client_key: node.client_key,
         kind: node.kind,
         body: node.body ?? '',
+        body_variant_b: node.body_variant_b ?? '',
+        ab_enabled: Boolean(node.ab_enabled),
+        ab_variant_b_weight: Number.isFinite(Number(node.ab_variant_b_weight)) ? Number(node.ab_variant_b_weight) : 50,
         hint: node.hint ?? '',
         tags: Array.isArray(node.tags) ? [...node.tags] : [],
         capture_field_codes: Array.isArray(node.capture_field_codes) ? [...node.capture_field_codes] : [],
@@ -710,6 +743,9 @@ function addNode() {
         client_key: key,
         kind: props.nodeKinds[0]?.value ?? 'say',
         body: 'Новая реплика оператора',
+        body_variant_b: '',
+        ab_enabled: false,
+        ab_variant_b_weight: 50,
         hint: '',
         tags: [],
         capture_field_codes: [],
@@ -788,6 +824,9 @@ function buildGraphPayload() {
         client_key: node.client_key.trim(),
         kind: node.kind,
         body: node.body,
+        body_variant_b: node.body_variant_b || null,
+        ab_enabled: Boolean(node.ab_enabled),
+        ab_variant_b_weight: Number(node.ab_variant_b_weight ?? 50),
         hint: node.hint || null,
         tags: node.tags ?? [],
         capture_field_codes: node.capture_field_codes ?? [],

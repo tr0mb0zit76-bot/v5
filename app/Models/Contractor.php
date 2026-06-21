@@ -181,6 +181,14 @@ class Contractor extends Model
     }
 
     /**
+     * @return HasMany<ContractorInsightDraft, $this>
+     */
+    public function insightDrafts(): HasMany
+    {
+        return $this->hasMany(ContractorInsightDraft::class);
+    }
+
+    /**
      * @return HasMany<ContractorDocument, $this>
      */
     public function documents(): HasMany

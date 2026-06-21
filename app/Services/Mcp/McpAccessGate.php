@@ -3,6 +3,7 @@
 namespace App\Services\Mcp;
 
 use App\Models\Contractor;
+use App\Models\Lead;
 use App\Models\ManagementStatementImport;
 use App\Models\ManagementStatementLine;
 use App\Models\Order;
@@ -228,6 +229,37 @@ class McpAccessGate
         if (! RoleAccess::canAccessVisibilityArea($user, 'mail')) {
             throw new AuthenticationException('Нет доступа к разделу «Почта».');
         }
+    }
+
+    public function requireLeadsArea(User $user): void
+    {
+        if (! RoleAccess::canAccessVisibilityArea($user, 'leads')) {
+            throw new AuthenticationException('Нет доступа к разделу «Лиды».');
+        }
+    }
+
+    public function findAccessibleLead(User $user, int $leadId): Lead
+    {
+        $this->requireLeadsArea($user);
+
+        /** @var Lead|null $lead */
+        $lead = Lead::query()->whereKey($leadId)->first();
+
+        if ($lead === null) {
+            throw new AuthenticationException('Лид не найден.');
+        }
+
+        if ($user->isAdmin()) {
+            return $lead;
+        }
+
+        $scope = RoleAccess::resolveVisibilityScopeForUser($user, 'leads');
+
+        if ($scope !== 'all' && (int) $lead->responsible_id !== (int) $user->id) {
+            throw new AuthenticationException('Лид недоступен.');
+        }
+
+        return $lead;
     }
 
     /**

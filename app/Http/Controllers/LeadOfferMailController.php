@@ -30,7 +30,7 @@ class LeadOfferMailController extends Controller
                 'path' => $offerAttachment['path'],
                 'name' => $offerAttachment['name'],
                 'driver' => $offerAttachment['driver'],
-                'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'mime_type' => $offerAttachment['mime_type'] ?? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ];
         }
 

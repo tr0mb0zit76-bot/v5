@@ -238,6 +238,25 @@
                     <div class="space-y-2"><label :class="crmLabel">Бюджет</label><input v-model="form.qualification.budget" type="text" :class="crmFieldFluid" /></div>
                 </div>
 
+                <div
+                    v-if="selectedLeadId && form.counterparty_id && hasQualificationForPortraitMerge"
+                    class="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-950/40"
+                >
+                    <p class="min-w-0 flex-1 text-zinc-600 dark:text-zinc-300">
+                        Заполненная квалификация может пополнить портрет контрагента без перезаписи уже известных полей.
+                    </p>
+                    <button
+                        type="button"
+                        :class="crmBtnSecondary"
+                        :disabled="portraitMergeProcessing"
+                        @click="mergePortraitFromQualification"
+                    >
+                        {{ portraitMergeProcessing ? 'Перенос…' : 'Перенести в портрет' }}
+                    </button>
+                </div>
+                <p v-if="portraitMergeMessage" class="text-sm text-emerald-700 dark:text-emerald-300">{{ portraitMergeMessage }}</p>
+                <p v-if="portraitMergeError" class="text-sm text-rose-600 dark:text-rose-300">{{ portraitMergeError }}</p>
+
                 <section v-if="selectedLeadId" class="space-y-4 border border-zinc-200 p-4 dark:border-zinc-800">
                     <div class="flex items-start justify-between gap-4">
                         <div>
@@ -312,10 +331,12 @@
             <LeadWizardCommercialTab
                 v-else
                 v-model:selected-template-id="selectedTemplateId"
+                v-model:selected-html-template-id="selectedHtmlTemplateId"
                 :lead-id="selectedLeadId"
                 :offers="form.offers"
                 :orders="form.orders"
                 :print-form-template-options="printFormTemplateOptions"
+                :proposal-html-template-options="proposalHtmlTemplateOptions"
                 @send-offer="openSendOfferModal"
             />
         </div>
@@ -443,6 +464,10 @@ const props = defineProps({
     transportTypeOptions: Array,
     currencyOptions: Array,
     printFormTemplateOptions: Array,
+    proposalHtmlTemplateOptions: {
+        type: Array,
+        default: () => [],
+    },
     currentUserId: Number,
     canAssignResponsible: Boolean,
     canUseLeadTasks: Boolean,
@@ -497,6 +522,7 @@ const emit = defineEmits(['close']);
 
 const activeTab = ref('main');
 const selectedTemplateId = ref('');
+const selectedHtmlTemplateId = ref('');
 const contractors = ref([...props.contractors]);
 const tabs = [
     { key: 'main', label: 'Основное', icon: ClipboardList },
@@ -627,6 +653,14 @@ const counterpartyPortraitIncomplete = computed(() => {
 
     return form.counterparty_id && coverage !== null && coverage !== undefined && Number(coverage) < 50;
 });
+const hasQualificationForPortraitMerge = computed(() => {
+    const q = form.qualification ?? {};
+
+    return ['need', 'timeline', 'authority', 'budget'].some((key) => String(q[key] ?? '').trim() !== '');
+});
+const portraitMergeProcessing = ref(false);
+const portraitMergeMessage = ref('');
+const portraitMergeError = ref('');
 const canAssignResponsible = computed(() => Boolean(props.canAssignResponsible));
 const canUseLeadTasks = computed(() => Boolean(props.canUseLeadTasks));
 const openTasks = computed(() => (form.tasks ?? []).filter((task) => !['done', 'cancelled'].includes(task.status)));
@@ -905,6 +939,46 @@ async function createInlineLeadCounterparty() {
         console.error(e);
     } finally {
         inlineContractorSaving.value = false;
+    }
+}
+
+async function mergePortraitFromQualification() {
+    if (!selectedLeadId.value || !form.counterparty_id) {
+        return;
+    }
+
+    portraitMergeProcessing.value = true;
+    portraitMergeMessage.value = '';
+    portraitMergeError.value = '';
+
+    try {
+        const response = await fetch(route('leads.portrait-merge', selectedLeadId.value), {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ qualification: form.qualification }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            portraitMergeError.value = payload.message || 'Не удалось перенести данные в портрет.';
+
+            return;
+        }
+
+        portraitMergeMessage.value = payload.message || 'Данные перенесены в портрет контрагента.';
+        router.reload({ only: ['selectedLead'], preserveScroll: true });
+    } catch (error) {
+        portraitMergeError.value = 'Ошибка сети при переносе в портрет.';
+        console.error(error);
+    } finally {
+        portraitMergeProcessing.value = false;
     }
 }
 

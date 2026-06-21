@@ -23,9 +23,12 @@ use App\Models\SalesScriptNodeTemplate;
 use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTransition;
 use App\Models\SalesScriptVersion;
+use App\Services\SalesScripts\SalesScriptAnalyticsService;
 use App\Services\SalesScripts\SalesScriptBodyPlaceholderService;
+use App\Support\RoleAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -35,6 +38,7 @@ class SalesScriptEditorController extends Controller
 {
     public function __construct(
         private readonly SalesScriptBodyPlaceholderService $placeholderService,
+        private readonly SalesScriptAnalyticsService $scriptAnalyticsService,
     ) {}
 
     public function index(): Response
@@ -159,6 +163,43 @@ class SalesScriptEditorController extends Controller
         return to_route('scripts.editor.versions.show', $sales_script_version);
     }
 
+    public function analytics(Request $request, SalesScriptVersion $sales_script_version): Response
+    {
+        $this->authorize('view', $sales_script_version);
+        abort_unless($this->canViewAnalytics($request), 403);
+
+        $days = max(1, min(365, (int) $request->integer('days', (int) config('sales_scripts.analytics.default_days', 30))));
+        $report = $this->scriptAnalyticsService->reportForVersion((int) $sales_script_version->id, $days);
+
+        $sales_script_version->loadMissing('script');
+
+        return Inertia::render('SalesScripts/Editor/Analytics', [
+            'payload' => $this->serializeVersionPayload($sales_script_version),
+            'report' => $report,
+            'days' => $days,
+        ]);
+    }
+
+    public function exportAnalytics(Request $request, SalesScriptVersion $sales_script_version): \Symfony\Component\HttpFoundation\Response
+    {
+        $this->authorize('view', $sales_script_version);
+        abort_unless($this->canViewAnalytics($request), 403);
+
+        $days = max(1, min(365, (int) $request->integer('days', (int) config('sales_scripts.analytics.default_days', 30))));
+        $csv = $this->scriptAnalyticsService->exportCsvForVersion((int) $sales_script_version->id, $days);
+        $sales_script_version->loadMissing('script');
+        $filename = sprintf(
+            'script-analytics-v%d-%s.csv',
+            $sales_script_version->version_number,
+            now()->format('Y-m-d'),
+        );
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
     public function updateGraph(SaveGraphRequest $request, SalesScriptVersion $sales_script_version): RedirectResponse|JsonResponse
     {
         $version = $sales_script_version;
@@ -205,6 +246,9 @@ class SalesScriptEditorController extends Controller
                 $attributes = [
                     'kind' => $nodeData['kind'],
                     'body' => $nodeData['body'],
+                    'body_variant_b' => $nodeData['body_variant_b'] ?? null,
+                    'ab_enabled' => (bool) ($nodeData['ab_enabled'] ?? false),
+                    'ab_variant_b_weight' => (int) ($nodeData['ab_variant_b_weight'] ?? 50),
                     'hint' => $nodeData['hint'] ?? null,
                     'tags' => $this->normalizeNodeTags($nodeData['tags'] ?? null),
                     'capture_field_codes' => $this->normalizeCaptureFieldCodes($nodeData['capture_field_codes'] ?? null),
@@ -565,6 +609,9 @@ class SalesScriptEditorController extends Controller
                 'client_key' => $n->client_key,
                 'kind' => $n->kind->value,
                 'body' => $n->body,
+                'body_variant_b' => $n->body_variant_b,
+                'ab_enabled' => (bool) $n->ab_enabled,
+                'ab_variant_b_weight' => (int) ($n->ab_variant_b_weight ?? 50),
                 'hint' => $n->hint,
                 'tags' => $n->tags ?? [],
                 'capture_field_codes' => $n->capture_field_codes ?? [],
@@ -683,5 +730,18 @@ class SalesScriptEditorController extends Controller
                 'from_node_id' => 'Оба шага должны принадлежать этой версии сценария.',
             ]);
         }
+    }
+
+    private function canViewAnalytics(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        return RoleAccess::canManageSalesScripts($user)
+            || RoleAccess::canViewTrainerAnalytics($user)
+            || RoleAccess::canViewAiAnalytics($user);
     }
 }

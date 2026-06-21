@@ -19,6 +19,8 @@ use App\Models\SalesScriptReactionClass;
 use App\Models\SalesScriptTrainerMessage;
 use App\Models\SalesScriptVersion;
 use App\Services\Ai\AiInteractionRecorder;
+use App\Services\SalesScripts\SalesScriptAnalyticsService;
+use App\Services\SalesScripts\SalesScriptNodeBodyResolver;
 use App\Services\SalesScripts\SalesScriptPlayPresentationService;
 use App\Services\SalesScripts\SalesScriptPlaySessionService;
 use App\Services\SalesScripts\TrainerAssistantAutoReactionService;
@@ -44,6 +46,8 @@ class SalesScriptController extends Controller
     public function __construct(
         private readonly SalesScriptPlaySessionService $playSessionService,
         private readonly SalesScriptPlayPresentationService $playPresentationService,
+        private readonly SalesScriptAnalyticsService $scriptAnalyticsService,
+        private readonly SalesScriptNodeBodyResolver $nodeBodyResolver,
         private readonly TrainerDialogHintService $trainerDialogHintService,
         private readonly TrainerAssistantAutoReactionService $trainerAssistantAutoReactionService,
         private readonly TrainerCoachingHintService $trainerCoachingHintService,
@@ -176,11 +180,24 @@ class SalesScriptController extends Controller
             }
         }
 
+        $displayNode = $current !== null ? $this->nodeBodyResolver->nodeForDisplay($current, $session) : null;
         $playPresentation = $this->playPresentationService->build(
-            $current,
+            $displayNode,
             $this->sessionFieldValuesByCode($session),
             $this->captureFieldLabelsByCode(),
         );
+
+        $reactionIds = collect($playPresentation['choices'] ?? [])
+            ->pluck('sales_script_reaction_class_id')
+            ->filter()
+            ->all();
+        $statsHints = ($current !== null && ! $session->is_trainer && ! $session->isComplete())
+            ? $this->scriptAnalyticsService->playChoiceHints(
+                (int) $session->sales_script_version_id,
+                (int) $current->id,
+                $reactionIds,
+            )
+            : [];
 
         $eventTrail = $session->events->map(fn ($e): array => [
             'id' => $e->id,
@@ -243,6 +260,7 @@ class SalesScriptController extends Controller
                 'completed_at' => $session->completed_at?->toIso8601String(),
                 'outcome' => $session->outcome?->value,
                 'notes' => $session->notes,
+                'order_id' => $session->order_id,
                 'script_title' => $session->version?->script?->title,
                 'version_number' => $session->version?->version_number,
                 'trainer_assistant_instructions' => $session->trainer_assistant_instructions,
@@ -257,6 +275,7 @@ class SalesScriptController extends Controller
             ] : null,
             'outgoingTransitions' => $outgoing,
             'playPresentation' => $playPresentation,
+            'statsHints' => $statsHints,
             'mustComplete' => $current !== null && count($outgoing) === 0 && ! $session->isComplete(),
             'eventTrail' => $eventTrail,
             'outcomeOptions' => collect(SalesPlaySessionOutcome::cases())->map(fn (SalesPlaySessionOutcome $o): array => [
@@ -724,6 +743,7 @@ class SalesScriptController extends Controller
                 $outcome,
                 $validated['primary_reaction_class_id'] ?? null,
                 $validated['notes'] ?? null,
+                $validated['order_id'] ?? null,
             );
             if ($session->is_trainer) {
                 $session->load('trainerMessages');
