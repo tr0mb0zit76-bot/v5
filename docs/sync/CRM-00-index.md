@@ -38,6 +38,7 @@
 ## Архитектура (Hive Mind)
 
 - [[v5-local/00-index|Карта компонентов v5-local]]
+- [[v5-local/Components/Commercial Roadmap|Коммерческий контур — шаги 1–5 (2026-06)]]
 - [[v5-local/Components/Import Cost Calculator|Растаможка — калькулятор ввоза]]
 - [[v5-local/Components/Management Accounting|Управленческий учёт — план/факт, split]]
 - [[v5-local/Components/Print Forms Verification|Печать — QR и страница verify]]
@@ -56,10 +57,12 @@
 | График оплат | `docs/payment-schedule-architecture.md` |
 | **Печать: QR / verify** | `docs/print-form-pdf-protection.md` |
 | **Растаможка (архитектура)** | `docs/import-cost-calculator-architecture.md` |
+| **Commercial roadmap (ТЗ + handoff)** | `docs/commercial-roadmap-implementation-tz.md`, `docs/sync/v5-local-Components-Commercial-Roadmap.md` |
+| **Handoff второй ПК** | `docs/sync/Cursor-handoff-latest.md` |
 | AI personas (command bar) | `docs/ai-agent-personas.md` |
 | **Документы (пользователи)** | `docs/documents-user-guide.md` |
 | **Документы (регламент v1)** | `docs/documents-regulation.md` |
 | Мастер заказов | `docs/order-wizard-user-guide.md` |
 | Синхрон vault ↔ git | `docs/sync/README.md` |
 
-*Обновлено: 2026-06-20.*
+*Обновлено: 2026-06-21.*

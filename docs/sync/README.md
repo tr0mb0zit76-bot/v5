@@ -13,8 +13,9 @@
 | `v5-local-Components-Management-Accounting.md` | `.../v5-local/Components/Management Accounting.md` |
 | `v5-local-Components-Print-Forms-Verification.md` | `.../v5-local/Components/Print Forms Verification.md` |
 | `v5-local-Components-Utility-Modules.md` | `.../v5-local/Components/Utility Modules.md` |
+| `v5-local-Components-Commercial-Roadmap.md` | `.../v5-local/Components/Commercial Roadmap.md` |
 
-Путь по умолчанию: `%USERPROFILE%\Yandex.Disk\Exchange`. На другом ПК может быть `D:\YandexDisk\Exchange` — передайте `-ExchangeRoot` в скрипт.
+Путь по умолчанию: `C:\Sync\Yandex.Disk\Exchange`. На другом ПК — `-ExchangeRoot`.
 
 ## Команды
 
@@ -44,4 +45,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 
 См. `Exchange/for_note/README.md` на Я.Диске.
 
-*Обновлено: 2026-06-20.*
+*Обновлено: 2026-06-21.*

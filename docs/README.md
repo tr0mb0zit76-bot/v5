@@ -33,6 +33,8 @@
 | [ai-platform-architecture.md](./ai-platform-architecture.md) | Уровни AI, аудит, gate |
 | [mcp-crm-instructions.md](./mcp-crm-instructions.md) | Список MCP tools (синхрон с `CrmServer`), в т.ч. управленческий учёт |
 | [commercial-intelligence-roadmap.md](./commercial-intelligence-roadmap.md) | Коммерческая аналитика, Книга, gap |
+| [commercial-roadmap-implementation-tz.md](./commercial-roadmap-implementation-tz.md) | **Сводка шагов 1–5** (портрет, почта, insights, HTML КП, аналитика скриптов) |
+| [tz-step-01-portrait-mvp.md](./tz-step-01-portrait-mvp.md) … [tz-step-05](./tz-step-05-scripts-analytics.md) | Детальное ТЗ по каждому шагу |
 | [roadmap-2026.md](./roadmap-2026.md) | Общий roadmap 2026 |
 
 ## Финансы и график оплат
@@ -60,6 +62,19 @@
 | Файл | Назначение |
 | --- | --- |
 | [import-cost-calculator-architecture.md](./import-cost-calculator-architecture.md) | Калькулятор растаможки: ЕЭК OData, ПП № 1291, маршруты, деплой, sync справочников |
+
+## Коммерческий контур (2026-06)
+
+| Файл | Назначение |
+| --- | --- |
+| [commercial-roadmap-implementation-tz.md](./commercial-roadmap-implementation-tz.md) | Порядок шагов 1–5, DoD, checklist для ноутбука |
+| [tz-step-01-portrait-mvp.md](./tz-step-01-portrait-mvp.md) | Портрет из лида |
+| [tz-step-02-mail-agent.md](./tz-step-02-mail-agent.md) | Агент «Почта» |
+| [tz-step-03-insight-drafts.md](./tz-step-03-insight-drafts.md) | HITL insight drafts |
+| [tz-step-04-html-proposal-builder.md](./tz-step-04-html-proposal-builder.md) | HTML-конструктор КП |
+| [tz-step-05-scripts-analytics.md](./tz-step-05-scripts-analytics.md) | Аналитика скриптов |
+| [sync/v5-local-Components-Commercial-Roadmap.md](./sync/v5-local-Components-Commercial-Roadmap.md) | Карта кода, маршруты, тесты (Obsidian) |
+| [sync/Cursor-handoff-latest.md](./sync/Cursor-handoff-latest.md) | Handoff на второй ПК |
 
 ## Прочее (внутреннее / MVP)
 
@@ -106,8 +121,8 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 | `Cursor-handoff-latest.md` | `CRM/Cursor-handoff-latest.md` — контекст для Cursor |
 | `CRM-00-index.md` | `CRM/00-index.md` — навигация vault |
 | `v5-local-00-index.md` | `CRM/v5-local/00-index.md` — карта компонентов |
-| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Import Cost, Management Accounting, Print Forms Verification, Utility Modules) |
+| `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Commercial Roadmap, Import Cost, Management Accounting, Print Forms Verification, Utility Modules) |
 
 `Exchange/for_note/README.md` — MCP, tools, scripts-local между ПК.
 
-*Обновлено: 2026-06-20.*
+*Обновлено: 2026-06-21.*

@@ -5,7 +5,7 @@
 #   pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "D:\YandexDisk\Exchange"
 
 param(
-    [string]$ExchangeRoot = (Join-Path $env:USERPROFILE 'Yandex.Disk\Exchange')
+    [string]$ExchangeRoot = 'C:\Sync\Yandex.Disk\Exchange'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +31,7 @@ $map = @{
     'v5-local-Components-Management-Accounting.md' = (Join-Path $componentsDir 'Management Accounting.md')
     'v5-local-Components-Print-Forms-Verification.md' = (Join-Path $componentsDir 'Print Forms Verification.md')
     'v5-local-Components-Utility-Modules.md'       = (Join-Path $componentsDir 'Utility Modules.md')
+    'v5-local-Components-Commercial-Roadmap.md'  = (Join-Path $componentsDir 'Commercial Roadmap.md')
 }
 
 foreach ($dest in $map.Values) {

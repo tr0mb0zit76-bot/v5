@@ -13,7 +13,7 @@
 - [[Orders]] · [[Leads]] · [[Contractors]] · [[Sales Assistant]] · [[Sales Scripts Editor]]
 - [[Finance]] · [[Management Accounting]] · [[Fleet]] · [[Mail]] · [[Documents]]
 - [[Tasks and Kanban]] · [[Reports]] · [[Roles and Users]] · [[Settings]]
-- [[Utility Modules]] · [[Import Cost Calculator]] · [[Integrations]]
+- [[Utility Modules]] · [[Import Cost Calculator]] · [[Commercial Roadmap]] · [[Integrations]]
 
 ## Сквозные слои
 
@@ -37,9 +37,10 @@
 
 | Компонент | Файл sync |
 | --- | --- |
+| **Commercial roadmap (1–5)** | `v5-local-Components-Commercial-Roadmap.md` |
 | Растаможка | `v5-local-Components-Import-Cost-Calculator.md` |
 | Управленческий учёт | `v5-local-Components-Management-Accounting.md` |
 | QR / verify печати | `v5-local-Components-Print-Forms-Verification.md` |
 | Утилиты | `v5-local-Components-Utility-Modules.md` |
 
-*Обновлено: 2026-06-20.*
+*Обновлено: 2026-06-21.*

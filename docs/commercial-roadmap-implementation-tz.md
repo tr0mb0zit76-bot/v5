@@ -37,4 +37,25 @@
 
 ---
 
+---
+
+## Продолжение с другого ПК (2026-06-21)
+
+| Действие | Команда / ссылка |
+| --- | --- |
+| Ветка с кодом | `git checkout feature/commercial-roadmap-steps-1-5` · `git pull` |
+| SSH (Windows) | `git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"` |
+| Миграции | `php artisan migrate` (+ testing: `--env=testing`) |
+| Seeder переменных КП | `php artisan db:seed --class=ProposalHtmlTemplateVariableSeeder` |
+| Frontend | `npm run build` или `composer run dev` |
+| Карта кода | [`docs/sync/v5-local-Components-Commercial-Roadmap.md`](./sync/v5-local-Components-Commercial-Roadmap.md) |
+| Handoff для Cursor | [`docs/sync/Cursor-handoff-latest.md`](./sync/Cursor-handoff-latest.md) |
+| Vault Obsidian | `pwsh -File scripts/sync-docs-to-yandex.ps1` |
+
+**Тесты roadmap:** 21 тест в 9 файлах — см. карточку Commercial Roadmap; при общем прогоне возможны 5 падений из‑за смешения `schemaDropMany` и `RefreshDatabase` на `u_tromb`.
+
+**Deploy checklist:** migrate → seeder → build → Gotenberg для PDF КП → smoke: merge портрета, insight draft, PDF из HTML-шаблона, страница Analytics скрипта.
+
+---
+
 *Обновлять статус шага в таблице после релиза каждой фазы.*

@@ -15,6 +15,7 @@ tags: [modules, calculator]
 | --- | --- | --- |
 | Сколько влезет | `/modules/how-much-fits` | `modules_how_much_fits` |
 | Сколько стоит (маржа) | `/modules/how-much-costs` | `modules_how_much_costs` |
+| **HTML-шаблоны КП** | `/modules/proposal-templates` | `modules` + commercial |
 | Считалка | `/modules/counter` | `modules` / sales assistant |
 | **Растаможка** | `/modules/import-cost` | `modules_import_cost` |
 
@@ -26,6 +27,8 @@ tags: [modules, calculator]
 
 ## Frontend
 
-- `Modules/HowMuchFits.vue`, `HowMuchCosts.vue`, `Counter.vue`, `ImportCostCalculator.vue`
+- `Modules/HowMuchFits.vue`, `HowMuchCosts.vue`, `Counter.vue`, `ImportCostCalculator.vue`, `ProposalTemplates/*`
 
-*Обновлено: 2026-06-02.*
+См. также [[Commercial Roadmap]] — шаг 4 (HTML КП).
+
+*Обновлено: 2026-06-21.*
