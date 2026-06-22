@@ -108,21 +108,25 @@ MCP_UPSERT_ONLY=Финансовые php scripts/mcp-prod-upsert-order-wizard.ph
 
 ## Obsidian / второй компьютер (Yandex Disk)
 
-Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизируется Я.Диском. Канонические копии индексов — в git: [`docs/sync/`](./sync/README.md).
+Vault: `YandexDisk/Exchange/CRM/` — **не в git**, синхронизируется Я.Диском. Канонические копии индексов — в git: [`docs/sync/`](./sync/README.md).  
+**Старт сессии Cursor:** [`docs/sync/cursor-agent-startup.md`](./sync/cursor-agent-startup.md) · правило `.cursor/rules/project-context-handoff.mdc`
 
 ```powershell
 # После git pull или правок docs/sync/
 pwsh -File scripts/sync-docs-to-yandex.ps1
+# если vault в профиле пользователя:
+pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
 pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 ```
 
 | Файл в git (`docs/sync/`) | На Я.Диске |
 | --- | --- |
 | `Cursor-handoff-latest.md` | `CRM/Cursor-handoff-latest.md` — контекст для Cursor |
+| `cursor-agent-startup.md` | `CRM/cursor-agent-startup.md` — инструкция старта сессии |
 | `CRM-00-index.md` | `CRM/00-index.md` — навигация vault |
 | `v5-local-00-index.md` | `CRM/v5-local/00-index.md` — карта компонентов |
 | `v5-local-Components-*.md` | `CRM/v5-local/Components/*.md` (Commercial Roadmap, Import Cost, Management Accounting, Print Forms Verification, Utility Modules) |
 
 `Exchange/for_note/README.md` — MCP, tools, scripts-local между ПК.
 
-*Обновлено: 2026-06-21.*
+*Обновлено: 2026-06-22.*

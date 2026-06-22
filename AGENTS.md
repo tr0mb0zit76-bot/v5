@@ -11,6 +11,16 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
+### Контекст проекта (оба ПК — читать в начале сессии)
+
+Перед правками кода **не полагайся только на память прошлых чатов**. Сначала:
+
+1. При необходимости `git pull`; на втором ПК после pull — `pwsh -File scripts/sync-docs-to-yandex.ps1`.
+2. Прочитай `docs/sync/Cursor-handoff-latest.md`, затем `docs/sync/cursor-agent-startup.md`, затем раздел «Домен приложения» ниже.
+3. По теме задачи — карточку в `docs/sync/v5-local-Components-*.md`.
+
+Правило Cursor: `.cursor/rules/project-context-handoff.mdc` (`alwaysApply`). Vault на Я.Диске (`Exchange/CRM/`) синхронизируется **из git**, не заменяет `git pull`.
+
 - php - 8.3
 - inertiajs/inertia-laravel (INERTIA_LARAVEL) - v2
 - laravel/framework (LARAVEL) - v13

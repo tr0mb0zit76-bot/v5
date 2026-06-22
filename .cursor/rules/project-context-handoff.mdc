@@ -1,0 +1,44 @@
+---
+description: Читать handoff и карту проекта перед работой (оба ПК)
+alwaysApply: true
+---
+
+# Контекст проекта CRM v5 — старт сессии
+
+Перед любыми правками кода **не полагайся только на память прошлых чатов**. Сначала подтяни актуальный контекст проекта.
+
+## 1. Обновить код и документацию
+
+- В начале сессии или на втором ПК: `git pull` в корне репозитория.
+- После pull на машине с Obsidian vault: `pwsh -File scripts/sync-docs-to-yandex.ps1`  
+  (если vault не в `C:\Sync\Yandex.Disk\Exchange` — передай `-ExchangeRoot` с путём к `Exchange`).
+
+## 2. Прочитать (в этом порядке)
+
+| Приоритет | Файл в git | На втором ПК (vault Я.Диска) |
+| --- | --- | --- |
+| 1 | `docs/sync/Cursor-handoff-latest.md` | `Exchange/CRM/Cursor-handoff-latest.md` |
+| 2 | `docs/sync/cursor-agent-startup.md` | `Exchange/CRM/cursor-agent-startup.md` |
+| 3 | `AGENTS.md` → «Домен приложения» | тот же файл в репозитории |
+| 4 | `docs/sync/v5-local-00-index.md` + карточка по теме | `Exchange/CRM/v5-local/...` |
+
+В Cursor на втором ПК можно `@`-упомянуть файл из vault, например:  
+`@YandexDisk/Exchange/CRM/Cursor-handoff-latest.md`
+
+Полная инструкция для людей и агентов: `docs/sync/cursor-agent-startup.md`.
+
+## 3. Уточнить по задаче
+
+- Найди в коде соседние файлы и существующие паттерны — не изобретай заново.
+- Для домена смотри карточки в `docs/sync/v5-local-Components-*.md` и `docs/*.md` из handoff.
+
+## 4. После заметной работы
+
+- Обнови `docs/sync/Cursor-handoff-latest.md` (что сделано, HEAD, следующий шаг).
+- Запусти `pwsh -File scripts/sync-docs-to-yandex.ps1`, чтобы второй ПК и Obsidian получили копию.
+
+## Направление синхронизации
+
+- **git → Я.Диск:** `scripts/sync-docs-to-yandex.ps1` (канон в `docs/sync/`).
+- **Я.Диск → MCP:** `scripts/sync-cursor-mcp-from-yandex.ps1` (токены, не документация).
+- Vault Obsidian **не в git** — не ожидай, что знания «приедут» только с Я.Диска без `git pull`.

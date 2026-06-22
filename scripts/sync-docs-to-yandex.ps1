@@ -26,6 +26,7 @@ if (-not (Test-Path $ExchangeRoot)) {
 $map = @{
     'CRM-00-index.md'                              = (Join-Path $crmRoot '00-index.md')
     'Cursor-handoff-latest.md'                     = (Join-Path $crmRoot 'Cursor-handoff-latest.md')
+    'cursor-agent-startup.md'                      = (Join-Path $crmRoot 'cursor-agent-startup.md')
     'v5-local-00-index.md'                         = (Join-Path $crmRoot 'v5-local\00-index.md')
     'v5-local-Components-Import-Cost-Calculator.md' = (Join-Path $componentsDir 'Import Cost Calculator.md')
     'v5-local-Components-Management-Accounting.md' = (Join-Path $componentsDir 'Management Accounting.md')

@@ -8,6 +8,7 @@
 | --- | --- |
 | `CRM-00-index.md` | `Yandex.Disk/Exchange/CRM/00-index.md` |
 | `Cursor-handoff-latest.md` | `Yandex.Disk/Exchange/CRM/Cursor-handoff-latest.md` |
+| `cursor-agent-startup.md` | `Yandex.Disk/Exchange/CRM/cursor-agent-startup.md` |
 | `v5-local-00-index.md` | `Yandex.Disk/Exchange/CRM/v5-local/00-index.md` |
 | `v5-local-Components-Import-Cost-Calculator.md` | `.../v5-local/Components/Import Cost Calculator.md` |
 | `v5-local-Components-Management-Accounting.md` | `.../v5-local/Components/Management Accounting.md` |
@@ -32,7 +33,9 @@ pwsh -File scripts/sync-docs-to-yandex.ps1
 pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 ```
 
-Открыть в Cursor: `@YandexDisk/Exchange/CRM/Cursor-handoff-latest.md` (или тот же файл в Obsidian).
+Открыть в Cursor: `@Exchange/CRM/Cursor-handoff-latest.md` или `docs/sync/cursor-agent-startup.md` в репозитории.
+
+Правило агента (в git, после `git pull` на обоих ПК): `.cursor/rules/project-context-handoff.mdc`.
 
 ## Что ещё не через git
 
@@ -45,4 +48,4 @@ pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1   # Obsidian MCP bearer
 
 См. `Exchange/for_note/README.md` на Я.Диске.
 
-*Обновлено: 2026-06-21.*
+*Обновлено: 2026-06-22.*

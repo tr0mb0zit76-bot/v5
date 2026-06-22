@@ -3,7 +3,26 @@
 > **Синхронизация:** Yandex Disk `Exchange/CRM/` · **Код:** `git pull` в `v5.local` · **Не через git:** Obsidian vault, `~/.cursor/mcp.json` (prod-токен).  
 > Источник в git: `docs/sync/Cursor-handoff-latest.md` → `pwsh -File scripts/sync-docs-to-yandex.ps1`
 
-**Обновлено:** 2026-06-21 · **Ветка:** `feature/commercial-roadmap-steps-1-5` · **HEAD:** `09b920f`
+**Обновлено:** 2026-06-22 · **Ветка:** `master` · **HEAD:** `d0880d4`
+
+---
+
+## Инструкция для агента Cursor (читать первым)
+
+Полный регламент: **`docs/sync/cursor-agent-startup.md`** (копия на Я.Диске: `CRM/cursor-agent-startup.md`).  
+Автоправило в репозитории: **`.cursor/rules/project-context-handoff.mdc`**.
+
+**Перед правками кода:**
+
+1. `git pull` (на втором ПК — обязательно).
+2. Прочитать: этот handoff → `cursor-agent-startup.md` → `AGENTS.md` (домен).
+3. По теме — карточку `docs/sync/v5-local-Components-*.md`.
+4. На втором ПК после pull: `pwsh -File scripts/sync-docs-to-yandex.ps1` (с `-ExchangeRoot`, если vault не в `C:\Sync\...`).
+
+**После заметной работы:** обновить этот файл + `sync-docs-to-yandex.ps1`.
+
+**Фраза для нового чата:**  
+*«Перед работой: git pull, прочитай docs/sync/Cursor-handoff-latest.md и cursor-agent-startup.md, сверься с AGENTS.md.»*
 
 ---
 
@@ -13,7 +32,7 @@
    ```powershell
    git clone git@github.com:tr0mb0zit76-bot/v5.git C:\OSPanel\home\v5.local
    cd C:\OSPanel\home\v5.local
-   git checkout feature/commercial-roadmap-steps-1-5
+   git checkout master
    git pull
    ```
    SSH-ключ: `C:\Users\<вы>\.ssh\id_ed25519.pub` → GitHub → Settings → SSH keys.  
@@ -39,13 +58,15 @@
 
 6. **Cursor MCP:** `for_note/cursor-mcp.project.json` → `.cursor/mcp.json` или токены заново
 
-7. **Синхрон индексов vault:**
+7. **Синхрон индексов vault** (после каждого `git pull`):
    ```powershell
-   pwsh -File scripts/sync-docs-to-yandex.ps1
+   pwsh -File scripts/sync-docs-to-yandex.ps1 -ExchangeRoot "$env:USERPROFILE\Yandex.Disk\Exchange"
    pwsh -File scripts/sync-cursor-mcp-from-yandex.ps1
    ```
 
-8. **После pull с commercial roadmap:**
+8. **Cursor:** правило `.cursor/rules/project-context-handoff.mdc` подтягивается из git; инструкция — `docs/sync/cursor-agent-startup.md`
+
+9. **После pull с commercial roadmap / master:**
    ```powershell
    php artisan migrate
    php artisan db:seed --class=ProposalHtmlTemplateVariableSeeder
@@ -55,9 +76,17 @@
 
 ---
 
-## Что сделано недавно (2026-06-21) — Commercial roadmap steps 1–5
+## Что сделано недавно (2026-06-22)
 
-Коммит **`09b920f`**, ветка **`feature/commercial-roadmap-steps-1-5`** (на GitHub; PR в `master`).
+- **`d0880d4`** — создание лидов из задач (`from_task`, `link_task_id`), кнопки в разделе «Задачи», фикс `ReferenceError: lead is not defined` в `Leads/Wizard.vue`
+- **`3b2c73b`** — merge commercial roadmap в `master`, обновление handoff/индексов
+- Инструкция старта сессии Cursor: `docs/sync/cursor-agent-startup.md`, правило `.cursor/rules/project-context-handoff.mdc`
+
+---
+
+## Что сделано ранее (2026-06-21) — Commercial roadmap steps 1–5
+
+Коммит **`09b920f`**, влито в **`master`** (`3b2c73b`).
 
 | Шаг | Суть |
 | --- | --- |
@@ -100,6 +129,8 @@
 | Что | Где |
 | --- | --- |
 | **Handoff (этот файл)** | `docs/sync/Cursor-handoff-latest.md` |
+| **Старт сессии Cursor** | `docs/sync/cursor-agent-startup.md` |
+| **Правило агента** | `.cursor/rules/project-context-handoff.mdc` |
 | **Commercial roadmap 1–5** | `docs/sync/v5-local-Components-Commercial-Roadmap.md` |
 | Индекс vault | [[00-index]] |
 | Компоненты кода | [[v5-local/00-index]] |
@@ -142,7 +173,6 @@ b1ab68b Документация QR-проверки печати
 
 ## Следующая сессия (предложение)
 
-1. Merge PR `feature/commercial-roadmap-steps-1-5` → `master`
-2. Deploy + migrate + seeder на прод
-3. Проверить UI: портрет на лиде, insight drafts, шаблоны КП, Analytics в редакторе скриптов
-4. Backlog: фаза 6.4 NLP, пользовательские инструкции в Книгу
+1. Deploy `master` на прод (migrate, `npm run build`)
+2. Проверить: лиды из задач, commercial roadmap UI
+3. Backlog: фаза 6.4 NLP, пользовательские инструкции в Книгу
