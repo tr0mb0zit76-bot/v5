@@ -144,6 +144,7 @@ return [
         'temperature' => (float) env('AI_COMMAND_BAR_TEMPERATURE', 0.35),
         'max_attachment_files' => max(1, min(5, (int) env('AI_COMMAND_BAR_MAX_ATTACHMENT_FILES', 3))),
         'max_attachment_chars' => max(2000, min(50000, (int) env('AI_COMMAND_BAR_MAX_ATTACHMENT_CHARS', 12000))),
+        'max_wall_seconds' => max(15, min(300, (int) env('AI_COMMAND_BAR_MAX_WALL_SECONDS', 240))),
 
         /*
         | История диалога: storage — localStorage, request — валидация API,

@@ -54,3 +54,20 @@ cd C:\OSPanel\home\v5.local
 
 - **GitHub:** OpenSSH-ключ в `C:\Users\<вы>\.ssh\id_ed25519` (см. handoff).
 - **Прод-сервер:** отдельный PPK в `C:\,ssh\` — это **другой** ключ и другое назначение.
+
+## Command bar: 504 Gateway Timeout
+
+Nginx обрывает ответ Apache через **60 с** (`upstream timed out`). Ассистент с tools и вложениями работает дольше.
+
+На сервере (один раз):
+
+```bash
+cat > /etc/nginx/vhosts-resources/crm.avtoaliyans.ru/proxy-timeouts.conf <<'EOF'
+proxy_read_timeout 300s;
+proxy_connect_timeout 60s;
+proxy_send_timeout 300s;
+EOF
+nginx -t && systemctl reload nginx
+```
+
+Шаблон в репозитории: `deploy/nginx/crm-proxy-timeouts.conf.example`. В `.env`: `AI_COMMAND_BAR_MAX_WALL_SECONDS=240`.

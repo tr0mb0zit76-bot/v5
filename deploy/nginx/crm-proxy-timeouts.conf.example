@@ -1,0 +1,5 @@
+# ISPmanager: /etc/nginx/vhosts-resources/crm.avtoaliyans.ru/proxy-timeouts.conf
+# Command bar и другие долгие POST (LLM + tools) иначе упираются в proxy_read_timeout 60s → 504.
+proxy_read_timeout 300s;
+proxy_connect_timeout 60s;
+proxy_send_timeout 300s;

@@ -189,12 +189,36 @@ class CommandBarAgentService
 
         $openAiTools = $this->tools->openAiToolsFor($user);
         $maxRounds = (int) config('ai.command_bar.max_tool_rounds', 6);
+        $maxWallSeconds = (int) config('ai.command_bar.max_wall_seconds', 240);
         $toolRounds = 0;
         $hadException = false;
         $navigateTo = null;
 
         try {
             for ($round = 0; $round < $maxRounds; $round++) {
+                if ($this->wallSecondsElapsed($startedAt) >= $maxWallSeconds) {
+                    return $this->finishTurn(
+                        $user,
+                        $analyticsUserPrompt,
+                        'Запрос занял слишком много времени. Уточните вопрос или разбейте задачу на шаги.',
+                        AiChannel::ExternalLarge,
+                        $toolRounds,
+                        $toolsUsed,
+                        $startedAt,
+                        $tokensPrompt,
+                        $tokensCompletion,
+                        false,
+                        $messages,
+                        $knowledgeQuestion,
+                        $hadException,
+                        null,
+                        $navigateTo,
+                        $persona,
+                        $attachmentsMeta,
+                        $attachmentAssessment,
+                    );
+                }
+
                 $outboundMessages = $this->sanitizer->sanitizeMessages($messages, 'command_bar');
 
                 $completion = $this->chat->chatWithTools($outboundMessages, $openAiTools, [
@@ -480,6 +504,11 @@ class CommandBarAgentService
             $prompt + (int) ($usage['prompt_tokens'] ?? 0),
             $completion + (int) ($usage['completion_tokens'] ?? 0),
         ];
+    }
+
+    private function wallSecondsElapsed(int $startedAt): float
+    {
+        return (hrtime(true) - $startedAt) / 1_000_000_000;
     }
 
     /**

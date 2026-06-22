@@ -1754,6 +1754,7 @@ async function handleAiSubmit(payload) {
 
             ({ data } = await axios.post(route('agent.command-bar.chat'), formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 300_000,
             }));
         } else {
             ({ data } = await axios.post(route('agent.command-bar.chat'), {
@@ -1761,6 +1762,8 @@ async function handleAiSubmit(payload) {
                 history,
                 agent_slug: agentSlug,
                 history_extended: agentExtendedMemory.value,
+            }, {
+                timeout: 300_000,
             }));
         }
 
@@ -1783,9 +1786,11 @@ async function handleAiSubmit(payload) {
         const message = error?.response?.data?.message
             ?? error?.response?.data?.errors?.message?.[0]
             ?? error?.response?.data?.errors?.['attachments.0']?.[0]
-            ?? (error?.response?.status === 419
-                ? 'Сессия истекла — обновите страницу (F5).'
-                : 'Не удалось связаться с ассистентом. Проверьте DEEPSEEK_API_KEY и логи сервера.');
+            ?? (error?.response?.status === 504 || error?.code === 'ECONNABORTED'
+                ? 'Ассистент не успел ответить за отведённое время. Попробуйте короче запрос или без вложений.'
+                : error?.response?.status === 419
+                    ? 'Сессия истекла — обновите страницу (F5).'
+                    : 'Не удалось связаться с ассистентом. Проверьте DEEPSEEK_API_KEY и логи сервера.');
 
         agentError.value = message;
     } finally {
